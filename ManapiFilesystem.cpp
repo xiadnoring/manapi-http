@@ -1,0 +1,140 @@
+#include <filesystem>
+#include <sstream>
+#include <fstream>
+#include <chrono>
+#include <cstdarg>
+#include "ManapiFilesystem.h"
+
+static const std::string folder_configs;
+#define MANAPI_FILESYSTEM_COPY_BUFFER_SIZE 4096LL
+
+std::string manapi::toolbox::filesystem::basename(const std::string& path) {
+    size_t pos = path.find_last_of(std::filesystem::path::preferred_separator);
+
+    if (pos != std::string::npos)
+        return path.substr(pos + 1);
+
+    return path;
+}
+
+bool manapi::toolbox::filesystem::exists(const std::string& path) {
+    std::filesystem::path f(path);
+
+    return std::filesystem::exists(f);
+}
+
+void manapi::toolbox::filesystem::config::write(const std::string &name, manapi::toolbox::json &data) {
+    manapi::toolbox::filesystem::write(folder_configs + name, data.dump(4));
+}
+
+manapi::toolbox::json manapi::toolbox::filesystem::config::read(const std::string &name) {
+    return json (manapi::toolbox::filesystem::read (folder_configs + name));
+}
+
+std::string manapi::toolbox::filesystem::last_time_write (const std::filesystem::path &f, bool time) {
+    std::filesystem::file_time_type last_write_time = std::filesystem::last_write_time(f);
+
+    auto tp = last_write_time;
+    auto timer = std::chrono::clock_cast<std::chrono::system_clock>(tp);
+    auto tmt = std::chrono::system_clock::to_time_t(timer);
+
+    auto tm = std::localtime(&tmt);
+
+    std::stringstream buffer;
+    buffer << std::put_time(tm, time ? "%Y-%m-%d-%H-%M-%S" : "%Y-%m-%d");
+    return buffer.str();
+}
+
+std::string manapi::toolbox::filesystem::last_time_write (const std::string &path, bool time) {
+    std::filesystem::path f (path);
+    return last_time_write(f, time);
+}
+
+void manapi::toolbox::filesystem::mkdir (const std::string &path, bool recursive) {
+    if (recursive) {
+        std::filesystem::create_directories(path);
+        return;
+    }
+
+    std::filesystem::create_directory(path);
+}
+
+void manapi::toolbox::filesystem::append_delimiter (std::string &path) {
+    if (path.empty() || path.back() != std::filesystem::path::preferred_separator)
+        path.push_back(std::filesystem::path::preferred_separator);
+}
+
+ssize_t manapi::toolbox::filesystem::get_size (std::ifstream& f) {
+    f.seekg(0, std::ifstream::end);
+    const ssize_t fileSize = f.tellg();
+    f.seekg(0, std::ifstream::beg);
+
+    return fileSize;
+}
+
+ssize_t manapi::toolbox::filesystem::get_size (const std::string& path) {
+    std::ifstream f (path);
+    if (!f.is_open())
+        throw manapi::toolbox::manapi_exception ("cannot open the file by following path: " + path);
+
+    ssize_t result = manapi::toolbox::filesystem::get_size(f);
+
+    f.close();
+
+    return result;
+}
+
+void manapi::toolbox::filesystem::write (const std::string &path, const std::string &data) {
+    std::ofstream out (path);
+
+    if (!out.is_open())
+        throw manapi::toolbox::manapi_exception ("cannot open config to write");
+
+    out << data;
+
+    out.close();
+}
+
+std::string manapi::toolbox::filesystem::read (const std::string &path) {
+    std::ifstream in (path);
+
+    if (!in.is_open())
+        throw manapi::toolbox::manapi_exception ("cannot open config to write");
+
+    std::string content, line;
+
+    while (std::getline(in, line)) {
+        content += line;
+    }
+
+    in.close();
+
+    return content;
+}
+
+void manapi::toolbox::filesystem::copy (std::ifstream &f, const ssize_t &start, const ssize_t &back, std::ofstream &o) {
+    if (!f.is_open() || !o.is_open()) {
+        f.close();
+        o.close();
+
+        throw manapi::toolbox::manapi_exception ("cannot open files for operations");
+    }
+
+    f.seekg (start);
+
+    ssize_t block_size;
+    ssize_t size        = back - start + 1;
+
+    char buff[MANAPI_FILESYSTEM_COPY_BUFFER_SIZE];
+
+    while (size != 0) {
+        block_size = size > MANAPI_FILESYSTEM_COPY_BUFFER_SIZE ? MANAPI_FILESYSTEM_COPY_BUFFER_SIZE : size;
+        f.read(buff, block_size);
+
+        o.write(buff, block_size);
+
+        size -= block_size;
+    }
+
+    f.seekg(0);
+}

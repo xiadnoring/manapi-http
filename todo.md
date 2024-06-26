@@ -1,0 +1,37 @@
+# Tasks
+
+- [x] Implement socket connection (linux)
+- [x] Implement HTTP/1.1 Format
+- [x] JSON support
+- [x] BigInt support (Decimal)
+- [x] BigInt support in JSON
+- [x] GET Method
+- [x] POST Method
+- [x] File upload support
+- [x] Support pages
+- [x] Custom methods
+- [ ] Holding the connection after the request
+- [ ] Caching of small files
+- [ ] ETAG header
+- [x] Time header
+- [ ] SSL support
+- [ ] Caching requests + header
+- [ ] Cookie support out of the box
+- [ ] Anti-ddos instruments
+- [ ] Anti-hack instruments
+- [ ] Modular page handlers
+- [ ] Module manager
+- [ ] Other instruments (autogenerate the cert., debugging, etc)
+- [ ] Implement HTTP/2.0 Format
+- [ ] Implement HTTP/3.0 Format
+- [ ] Ready-made solutions for the API-service, site, etc
+- [ ] Docs API
+- [ ] MySQL support
+- [ ] MariaDB support
+- [ ] PostgreSQL support
+- [x] Support gzip
+- [x] Support deflate
+- [ ] Support decoding from the client
+- [ ] More flexible JSON
+- [x] Content Range (video, audio, massive files)
+- [ ] Multiple Content Range
