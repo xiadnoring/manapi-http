@@ -140,7 +140,8 @@ int manapi::net::http::pool(const size_t &thread_num) {
         quiche_config_set_initial_max_streams_bidi              (q_config, 100);
         quiche_config_set_initial_max_streams_uni               (q_config, 100);
         quiche_config_set_disable_active_migration              (q_config, true);
-        quiche_config_set_cc_algorithm                          (q_config, QUICHE_CC_RENO);
+        //quiche_config_set_cc_algorithm                          (q_config, QUICHE_CC_RENO);
+        quiche_config_enable_early_data                         (q_config);
 
         http3_config = quiche_h3_config_new();
 

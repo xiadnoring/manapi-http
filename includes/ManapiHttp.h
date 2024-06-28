@@ -59,6 +59,8 @@ namespace manapi::net {
         std::string         key;
 
         std::mutex          mutex;
+
+        std::unordered_map  <uint64_t, task *> tasks;
     };
 
     struct http_uri_part {

@@ -101,8 +101,6 @@ void manapi::net::http_task::udp_doit() {
     if (rc < 0)
         throw manapi::toolbox::manapi_exception ("failed to parse quic headers.");
 
-    struct http_qc_conn_io *conn_io;
-
     const std::string dcid_str ((const char *) (dcid), dcid_len);
 
     conn_io = q_map_conns->contains(dcid_str) ? q_map_conns->at(dcid_str) : nullptr;
@@ -136,8 +134,6 @@ void manapi::net::http_task::udp_doit() {
         }
 
         if (token_len == 0) {
-            printf("stateless retry\n");
-
             mint_token(dcid, dcid_len, &client, client_len,
                        token, &token_len);
 
@@ -182,10 +178,8 @@ void manapi::net::http_task::udp_doit() {
 
         conn_io = quic_create_connection(dcid, dcid_len, odcid, odcid_len);
 
-        if (conn_io == nullptr) {
-            printf("RETURN!\n");
+        if (conn_io == nullptr)
             return;
-        }
     }
 
     std::lock_guard <std::mutex> lock (conn_io->mutex);
@@ -204,12 +198,12 @@ void manapi::net::http_task::udp_doit() {
         return;
     }
 
-    printf("success recv %zd bytes\n", done);
+    size_t count = 0;
 
 
     if (quiche_conn_is_established(conn_io->conn)) {
+        printf("-------------------------------\n");
         printf("ESTABLISHED\n");
-        quiche_h3_event *ev;
 
         if (conn_io->http3 == nullptr) {
             conn_io->http3 = quiche_h3_conn_new_with_transport(conn_io->conn, http_server->http3_config);
@@ -220,20 +214,79 @@ void manapi::net::http_task::udp_doit() {
             }
         }
 
-        int64_t s;
+        // doit next step
+        if (!conn_io->tasks.empty()) {
+            quiche_stream_iter *stream = quiche_conn_writable(conn_io->conn);
+
+
+            while (quiche_stream_iter_next(stream, (uint64_t *)&s)) {
+                if (conn_io->tasks.contains(s)) {
+                    auto task = reinterpret_cast <http_task *> (conn_io->tasks.at(s));
+
+                    printf("NEXT STREAM WRITE\n");
+                    task->next_connection.unlock();
+
+                    task->s = s;
+
+                    task->next_connection.lock();
+
+                    task->got_connection.unlock();
+
+                    task->next_connection.lock();
+
+                    if (task->to_delete) {
+                        delete task->quic_thr;
+                        delete task;
+
+                        printf("DELETE OLD TASK\n");
+
+                        conn_io->tasks.erase(s);
+                    }
+                }
+            }
+        }
 
         // set wrappers for I/O
-        mask_read = [conn_io, &s] (const char *buff, const size_t &buff_size) {
+        mask_read = [this] (const char *buff, const size_t &buff_size) {
+            while (quiche_conn_stream_capacity(conn_io->conn, s) <= 0)
+                next_connection.unlock();
+
             return quiche_h3_recv_body(conn_io->http3, conn_io->conn, s, (uint8_t *) buff, buff_size);
         };
 
-        mask_write = [conn_io, &s] (const char *buff, const size_t &buff_size) {
-            auto a = quiche_h3_send_body(conn_io->http3, conn_io->conn, s, (uint8_t *) buff, buff_size, false);
-            std::cout << "SEND: " << a << "\n";
-            return a;
+        mask_write = [this] (const char *buff, const size_t &buff_size) {
+            ssize_t capacity = quiche_conn_stream_capacity(conn_io->conn, s);
+
+            repeat:
+
+            if (capacity <= 0) {
+                printf("LOCKED STREAM\n");
+
+                got_connection.lock();
+                next_connection.unlock();
+
+                got_connection.lock();
+
+                got_connection.unlock();
+
+                capacity = quiche_conn_stream_capacity(conn_io->conn, s);
+            }
+
+            const bool final = capacity <= buff_size || buff_size < 4096;
+            ssize_t written = quiche_h3_send_body(conn_io->http3, conn_io->conn, s, (uint8_t *) buff, buff_size, final);
+
+            printf("Sent: %zi, Capacity: %zi, Buff Size: %zi, Final %i\n", written, capacity, buff_size, final);
+
+            if (written < 0) {
+                capacity = -1;
+
+                goto repeat;
+            }
+
+            return written;
         };
 
-        mask_response = [conn_io, &s] (http_response &res) {
+        mask_response = [this] (http_response &res) {
             size_t index = 1;
 
             const size_t headers_len = index + res.get_headers().size();
@@ -262,6 +315,8 @@ void manapi::net::http_task::udp_doit() {
             return quiche_h3_send_response(conn_io->http3, conn_io->conn, s, headers, headers_len, false);
         };
 
+        quiche_h3_event *ev;
+
         while (true) {
             s = quiche_h3_conn_poll(conn_io->http3,conn_io->conn, &ev);
 
@@ -269,45 +324,80 @@ void manapi::net::http_task::udp_doit() {
                 break;
             }
 
+            printf("HTTP POOL\n");
+
             switch (quiche_h3_event_type(ev)) {
                 case QUICHE_H3_EVENT_FINISHED: {
                     printf("FINISH\n");
 
-                    const auto handler = std::move(http_server->get_handler(request_data));
-
-                    if (request_data.has_body) {
-                        if (!request_data.headers.contains(http_header.CONTENT_LENGTH))
-                            throw manapi::toolbox::manapi_exception("content-length not exists");
-
-                        request_data.body_size  = std::stoull(request_data.headers[http_header.CONTENT_LENGTH]);
-                        request_data.body_left  = request_data.body_size;
-                        request_data.body_ptr   = (char *)buff;
-
-                        request_data.body_index = 0;
-                    }
-                    else {
-                        request_data.body_ptr   = nullptr;
-                        request_data.body_size  = 0;
-                    }
-
-                    handle_request(&handler);
-
-                    quiche_h3_send_body(conn_io->http3, conn_io->conn, s, nullptr, 0, true);
+                    printf("FINISH END\n");
 
                     break;
                 }
                 case QUICHE_H3_EVENT_HEADERS: {
                     int rc = quiche_h3_event_for_each_header(ev, quic_get_header, &request_data);
 
-                    printf("OPENED: ");
-
-                    for (auto part: request_data.path)
-                        printf("%s / ", part.data());
-
-                    printf("\n");
+//                    printf("OPENED: ");
+//
+//                    for (auto part: request_data.path)
+//                        printf("%s / ", part.data());
+//
+//                    printf("\n");
 
                     if (rc != 0)
                         fprintf(stderr, "failed to process headers\n");
+
+//                    if (request_data.method != "POST")
+//                        quiche_conn_stream_shutdown(conn_io->conn, s, QUICHE_SHUTDOWN_READ, 0);
+
+                    next_connection.lock();
+
+                    quic_thr = new std::thread ([this] () {
+                        printf("DOIT!\n");
+
+                        to_delete = false;
+                        const auto handler = std::move(http_server->get_handler(request_data));
+
+                        if (request_data.has_body) {
+                            if (!request_data.headers.contains(http_header.CONTENT_LENGTH))
+                                throw manapi::toolbox::manapi_exception("content-length not exists");
+
+                            request_data.body_size = std::stoull(request_data.headers[http_header.CONTENT_LENGTH]);
+                            request_data.body_left = request_data.body_size;
+                            request_data.body_ptr = (char *) buff;
+
+                            request_data.body_index = 0;
+                        } else {
+                            request_data.body_ptr = nullptr;
+                            request_data.body_size = 0;
+                        }
+
+                        handle_request(&handler);
+
+                        printf("FINISH STREAM: %zi\n", s);
+                        to_delete = true;
+
+                        next_connection.unlock();
+
+                        printf("THE END\n");
+                    });
+                    quic_thr->detach();
+
+                    printf("--wait next connection\n");
+                    // wait when the stream run out of capacity
+                    next_connection.lock();
+
+                    printf("--end next connection\n");
+
+                    if (quic_thr != nullptr) {
+                        if (to_delete)
+                            delete quic_thr;
+                        else {
+                            conn_io->tasks.insert({s, this});
+
+                            printf("SAVED\n");
+                        }
+                    }
 
                     break;
                 }
@@ -336,6 +426,10 @@ void manapi::net::http_task::udp_doit() {
 
             quiche_h3_event_free(ev);
         }
+
+        printf("-------------------------------\n");
+
+
     }
 }
 
@@ -539,11 +633,9 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
 
         f.open(filepath, std::ios::binary);
 
-        if (!f.is_open()) {
-            MANAPI_LOG("can not open the file on the path: %s", filepath.data());
+        if (!f.is_open())
+            throw manapi::toolbox::manapi_exception (std::format("can not open the file on the path: {}", filepath));
 
-            res.set_status(500, http_status.INTERNAL_SERVER_ERROR_500);
-        }
         else {
             // get file size
             const ssize_t fileSize = manapi::toolbox::filesystem::get_size(f);
@@ -580,7 +672,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
                         // set start position
                         f.seekg(start);
 
-                        if (mask_response(res) != -1)
+                        if (mask_response(res) >= 0)
                             // set size and send
                             send_file(res, f, size);
 
@@ -595,7 +687,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
             else {
                 res.set_header(http_header.CONTENT_LENGTH, std::to_string(fileSize));
 
-                if (mask_response (res) != -1)
+                if (mask_response (res) >= 0)
                     send_file(res, f, fileSize);
             }
             f.close();
@@ -614,7 +706,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
         res.set_header(http_header.CONTENT_LENGTH, std::to_string(body->size()));
         res.set_header(http_header.CONTENT_TYPE, "text/html; charset=UTF-8");
 
-        if (mask_response (res) != -1)
+        if (mask_response (res) >= 0)
             mask_write(body->data(), body->size());
 
         return;
@@ -629,20 +721,31 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
 
     block.resize(BUFFER_SIZE);
 
-    while (size != 0) {
-        if (size > BUFFER_SIZE)
+    ssize_t current = f.tellg();
+
+    size += current;
+
+    while (size != current) {
+        const ssize_t left = size - current;
+
+        if (left > BUFFER_SIZE)
             block_size = BUFFER_SIZE;
         else
-            block_size = size;
+            block_size = left;
 
         f.read(block.data(), block_size);
 
-        if (mask_write(block.data(), block_size) == -1)
+        ssize_t sent = mask_write(block.data(), block_size);
+
+        if (sent < 0)
             // cannot to send
             break;
 
-        size -= block_size;
+        current += sent;
+
+        f.seekg(current);
     }
+
 }
 
 ssize_t manapi::net::http_task::read_next() {

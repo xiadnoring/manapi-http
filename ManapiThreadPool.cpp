@@ -79,14 +79,16 @@ namespace manapi::net {
             if (task == nullptr)
                 queue_cond_locker.wait();
             else {
-                try {
+                //try {
                     task->doit();
-                }
-                catch (std::exception &e) {
-                    std::cout << "ERROR: " << e.what() << "\n";
-                    throw e;
-                }
-                delete task;
+                //}
+//                catch (stsd::exception &e) {
+//                    std::cout << "ERROR: " << e.what() << "\n";
+//                    throw e;
+//                }
+
+                if (task->to_delete)
+                    delete task;
             }
         }
     }

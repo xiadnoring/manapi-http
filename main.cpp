@@ -44,6 +44,13 @@ int main(int argc, char *argv[]) {
         resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4", true);
     });
 
+    server.GET ("/text", [] (http_request &req, http_response &resp) {
+        resp.set_compress_enabled(false);
+        resp.set_header(http_header.CONTENT_TYPE, "text/plain");
+
+        resp.file ("/home/Timur/.p10k.zsh");
+    });
+
     // what the hack is that ?)
     server.GET ("/+error", [] (http_request &req, http_response &resp) {
          resp.text(R"(<!DOCTYPE html>

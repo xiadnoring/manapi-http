@@ -17,6 +17,8 @@ namespace manapi::net {
         virtual void doit();
 
         void stop ();
+
+        bool to_delete = true;
     };
 }
 

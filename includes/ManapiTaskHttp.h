@@ -101,6 +101,13 @@ namespace manapi::net {
         request_data_t      request_data;
 
         size_t              conn_type;
+
+        struct http_qc_conn_io  *conn_io;
+        int64_t                 s = -1;
+        std::mutex              next_connection;
+        std::mutex              got_connection;
+
+        std::thread             *quic_thr = nullptr;
     };
 }
 
