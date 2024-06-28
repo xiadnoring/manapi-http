@@ -1,7 +1,7 @@
 # Manapi HTTP Server/Client
 
 ## Introduction
-HTTP server written on C++ 2x which support HTTP/1.1 and HTTP/3
+HTTP server written on C++ which support HTTP/1.1 and HTTP/3
 
 > [!CAUTION]
 > This project in development!!!
@@ -9,7 +9,7 @@ HTTP server written on C++ 2x which support HTTP/1.1 and HTTP/3
 ## About
 This HTTP server need to make easy develop `web applications`, `API-interfaces` and other things.
 
-So many important utils will be supported out the box, for example, `JSON`, `MySQL-client`, `PostgreSQL-client`, `JSON-masks`, `Big Int`, `modules`, `plugins`.
+So many important utils will be supported out of the box, for example, `JSON`, `MySQL-client`, `PostgreSQL-client`, `JSON-masks`, `Big Int`, `modules`, `plugins`.
 
 ## Installation
 For compile this project, you need to install below projects:
