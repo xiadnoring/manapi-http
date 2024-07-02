@@ -605,6 +605,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
     auto compress = &res.get_compress();
     auto body     = &res.get_body();
 
+
     if (!compress->empty()) {
         if (!res.is_sendfile()              ||
             !res.get_auto_partial_enabled() ||
@@ -617,14 +618,21 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
         }
     }
 
+    bool exists_replacers = res.get_replacers() != nullptr;
+    bool exists_compressor = compressor != nullptr;
+
     // set time
     res.set_header(http_header.DATE, manapi::toolbox::time ("%a, %d %b %Y %H:%M:%S GMT", false));
 
     if (res.is_sendfile()) {
         std::string filepath;
 
-        if (compressor != nullptr)
+        if (exists_compressor) {
+            if (exists_replacers)
+                throw toolbox::manapi_exception ("replacers can not be use with compressing");
+
             filepath = compress_file (res.get_sendfile(), *http_server->config_cache_dir, compress, compressor);
+        }
 
         else
             filepath = res.get_sendfile();
@@ -637,14 +645,32 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
             throw manapi::toolbox::manapi_exception (std::format("can not open the file on the path: {}", filepath));
 
         else {
+            std::vector<toolbox::replace_founded_item> replacers;
+
             // get file size
             const ssize_t fileSize = manapi::toolbox::filesystem::get_size(f);
+            ssize_t dynamicFileSize = fileSize;
+
+            if (exists_replacers) {
+                replacers = toolbox::found_replacers_in_file (filepath, 0, fileSize, *res.get_replacers());
+
+                for (const auto &replacer: replacers)
+                    dynamicFileSize = (ssize_t) (dynamicFileSize - (replacer.pos.second - replacer.pos.first + 1) + replacer.value->size());
+
+
+            }
 
             // partial enabled
             if (res.get_auto_partial_enabled() && http_server->get_partial_data_min_size() <= fileSize) {
-                if (compressor != nullptr) {
+                if (exists_compressor) {
                     f.close();
                     throw manapi::toolbox::manapi_exception ("the compress with the partial content is not supported.");
+                }
+
+
+                if (exists_replacers) {
+                    f.close();
+                    throw toolbox::manapi_exception ("replacers can not be use with partial");
                 }
 
                 res.set_status(206, http_status.PARTIAL_CONTENT_206);
@@ -685,10 +711,17 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
                 }
             }
             else {
-                res.set_header(http_header.CONTENT_LENGTH, std::to_string(fileSize));
+                res.set_header(http_header.CONTENT_LENGTH, std::to_string(dynamicFileSize));
 
-                if (mask_response (res) >= 0)
-                    send_file(res, f, fileSize);
+                if (mask_response (res) >= 0) {
+                    if (replacers.empty())
+                        // without replacers
+                        send_file(res, f, fileSize);
+
+                    else
+                        // with replacers
+                        send_file(res, f, fileSize, replacers);
+                }
             }
             f.close();
 
@@ -712,7 +745,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
         return;
     }
 
-    //mask_write(response.data(), response.size());
+    mask_response (res);
 }
 
 void manapi::net::http_task::send_file (manapi::net::http_response &res, std::ifstream &f, ssize_t size) const {
@@ -734,6 +767,172 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
             block_size = left;
 
         f.read(block.data(), block_size);
+
+        ssize_t sent = mask_write(block.data(), block_size);
+
+        if (sent < 0)
+            // cannot to send
+            break;
+
+        current += sent;
+
+        f.seekg(current);
+    }
+
+}
+
+void manapi::net::http_task::send_file (manapi::net::http_response &res, std::ifstream &f, ssize_t size, std::vector<toolbox::replace_founded_item> &replacers) const {
+    std::string block;
+    ssize_t     block_size;
+
+    block.resize(BUFFER_SIZE);
+
+    ssize_t current = f.tellg();
+
+    size += current;
+
+    ssize_t index;
+    ssize_t replacer_index = 0;
+    ssize_t current_key_index = 0;
+
+    while (size != current) {
+        const ssize_t left = size - current;
+
+        if (left > BUFFER_SIZE)
+            block_size = BUFFER_SIZE;
+        else
+            block_size = left;
+
+        f.read(block.data(), block_size);
+
+        index = f.tellg();
+
+        ssize_t shift = 0;
+
+        while (replacer_index != replacers.size() && index > replacers[replacer_index].pos.first + shift) {
+            size_t key_size = replacers[replacer_index].pos.second - replacers[replacer_index].pos.first + 1;
+            size_t start_index_in_block = block_size - (index - (replacers[replacer_index].pos.first + shift + current_key_index));
+
+            size_t index_in_block = start_index_in_block;
+
+            for (; index_in_block < block_size && current_key_index < key_size; index_in_block++, current_key_index++) {
+                if (current_key_index < replacers[replacer_index].value->size()) {
+                    block[index_in_block] = replacers[replacer_index].value->at(current_key_index);
+                    continue;
+                }
+
+                break;
+            }
+
+            // if KEY_SIZE >= VALUE_SIZE
+            if (current_key_index == replacers[replacer_index].value->size()) {
+                // shift <<
+                // key_size <- the shift
+                const size_t shifted_index_in_block = start_index_in_block + key_size;
+                const size_t key_left_size = key_size - current_key_index;
+
+                // shift chars
+                size_t i = shifted_index_in_block;
+                for (; i < block_size; i++, index_in_block++) {
+                    block[index_in_block] = block[i];
+                }
+
+                if (i > block_size) {
+                    ssize_t needed = block_size - index_in_block;
+
+                    // + 1 bcz we dont want to grab } special symbol at the end of the special key {{KEY}}
+                    current = replacers[replacer_index].pos.second + shift + 1;
+
+                    f.seekg(current);
+                    f.read (block.data() + index_in_block * sizeof (char), needed);
+
+                    current = f.tellg() - block_size;
+                }
+                else {
+                    shift -= key_left_size;
+                }
+
+                index = f.tellg();
+
+                replacer_index++;
+
+                current_key_index   = 0;
+
+                continue;
+            }
+            // if KEY_SIZE < VALUE_SIZE
+            else if (current_key_index == key_size && current_key_index < replacers[replacer_index].value->size()) {
+                next:
+                // shift >>
+                bool repeat = false;
+
+                size_t value_left_size = replacers[replacer_index].value->size() - current_key_index;
+
+                // replace
+                size_t i = index_in_block;
+                ssize_t free_space = block_size - i;
+
+                if (free_space < value_left_size) {
+                    block_size += value_left_size - free_space;
+
+                    if (block_size >= BUFFER_SIZE) {
+                        block_size = BUFFER_SIZE;
+                        repeat = true;
+                    }
+                }
+
+                for (; i < block_size && current_key_index < replacers[replacer_index].value->size(); i++, current_key_index++) {
+                    char a = replacers[replacer_index].value->at(current_key_index);
+                    block[i] = a;
+                }
+
+                if (repeat) {
+                    ssize_t sent = mask_write(block.data(), block_size);
+
+                    if (sent < 0)
+                        // cannot to send
+                        return;
+
+                    current += sent;
+
+                    shift   += block_size - index_in_block;
+
+                    // resolve
+                    index_in_block = 0;
+
+                    goto next;
+                }
+
+                if (i > block_size) {
+                    printf("OK\n");
+                }
+                else {
+                    free_space = block_size - i;
+                    ssize_t can_read = BUFFER_SIZE - i;
+
+                    // we want to read chars by size can_read
+                    f.seekg(current + index_in_block - shift);
+                    ssize_t read = f.readsome (block.data() + i * sizeof (char), can_read);
+
+                    block_size += read - free_space;
+
+                    current = f.tellg() - block_size;
+
+                    shift = 0;
+                }
+
+                index = f.tellg();
+
+                replacer_index++;
+
+                current_key_index   = 0;
+
+                continue;
+            }
+
+            break;
+        }
+
 
         ssize_t sent = mask_write(block.data(), block_size);
 

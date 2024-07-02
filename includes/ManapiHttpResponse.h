@@ -21,7 +21,9 @@ namespace manapi::net {
         void set_status             (const size_t &_status_code, const std::string &_status_message);
         void set_status_code        (const size_t &_status_code);
         void set_status_message     (const std::string &_status_message);
-        void file                   (const std::string &path, bool auto_partial_status = false);
+        void set_replacers          (const toolbox::MAP_STR_STR &_replacers);
+        void set_partial_status     (bool auto_partial_status);
+        void file                   (const std::string &path);
 
         [[deprecated]]
         const std::string           &get_http_version   ();
@@ -41,6 +43,8 @@ namespace manapi::net {
         const std::string   &get_compress   ();
 
         std::vector <std::pair <ssize_t, ssize_t> > ranges;
+
+        const toolbox::MAP_STR_STR *get_replacers ();
     private:
         // detect the range header
         void                detect_ranges    ();
@@ -62,6 +66,8 @@ namespace manapi::net {
 
         manapi::toolbox::MAP_STR_STR    headers;
         manapi::net::request_data_t     *request_data;
+
+        manapi::toolbox::MAP_STR_STR    *replacers = nullptr;
     };
 }
 

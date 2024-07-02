@@ -78,7 +78,9 @@ namespace manapi::net {
         ssize_t         tcp_send_response (http_response &res);
 
         std::string     compress_file (const std::string &file, const std::string &folder, const std::string *compress, manapi::toolbox::compress::TEMPLATE_INTERFACE compressor) const;
+        void            send_file (http_response &res, std::ifstream &f, ssize_t size, std::vector<toolbox::replace_founded_item> &replacers) const;
         void            send_file (http_response &res, std::ifstream &f, ssize_t size) const;
+
         void            get_ip_addr();
         void            handle_request (const http_handler_page *handler, const size_t &status = 200, const std::string &message = http_status.OK_200);
         void            send_error_response (const size_t &status, const std::string &message, const handlers_types_t &errors);

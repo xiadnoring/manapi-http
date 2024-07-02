@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <random>
 #include <mutex>
+#include <fstream>
 #include "ManapiUtils.h"
 #include "ManapiFilesystem.h"
 
@@ -177,4 +178,112 @@ std::string manapi::toolbox::time (const std::string &fmt, bool local) {
     oss << std::put_time(ltm, fmt.data());
 
     return oss.str();
+}
+
+std::vector <manapi::toolbox::replace_founded_item> manapi::toolbox::found_replacers_in_file (const std::string &path, const size_t &start, const size_t &size, const MAP_STR_STR &replacers) {
+#define BUFFER_SIZE 5
+    // SPECIAL
+    std::string special_key;
+    bool opened = false;
+    bool special = false;
+    bool first_time = true;
+
+    std::pair <ssize_t, ssize_t> pos;
+
+    std::vector <replace_founded_item> founded;
+
+    // find replacers
+    std::ifstream f (path);
+
+    if (!f.is_open())
+        throw manapi_exception ("cannot open the file for finding replacers!");
+
+    // while i < block_size or opened, bcz replacer can be on some blocks
+    // i - index of the char of the packet block
+    // j - index of the char of the file
+    for (size_t j = start; j < size || special || opened; j++) {
+        if (f.eof()) {
+            special = false;
+            opened = false;
+            special_key = "";
+            pos = {};
+
+            break;
+        }
+
+        if (j == size && first_time)
+            first_time = false;
+
+        char c;
+
+        f.read (&c, 1);
+
+        if (opened) {
+            if (special) {
+                if (c == '}') {
+                    // the end of the special string
+                    special = false;
+                    opened = false;
+
+                    pos.second = j;
+
+                    if (!special_key.empty() && replacers.contains(special_key)) {
+                        founded.push_back({
+                                                  .key = special_key,
+                                                  .value = &replacers.at(special_key),
+                                                  .pos = pos
+                                          });
+                    }
+
+                    special_key = "";
+                    pos = {};
+
+                    // it is not first_time
+                    if (!first_time)
+                        break;
+
+                    continue;
+                }
+
+                special_key += '}';
+            }
+
+            else if (c == '}') {
+                special = true;
+
+                continue;
+            }
+
+            special_key += c;
+
+            continue;
+        }
+
+        if (special) {
+            if (c != '{') {
+                special = false;
+                pos = {};
+                // it is not first_time
+                if (!first_time)
+                    break;
+
+                continue;
+            }
+
+            opened = true;
+            special = false;
+
+            continue;
+        }
+
+        else if (c == '{') {
+            special = true;
+
+            pos.first = j;
+        }
+    }
+
+    f.close();
+
+    return founded;
 }

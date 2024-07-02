@@ -35,34 +35,31 @@ static void debug_log(const char *line, void *argp) {
 
 
 int manapi::net::http::pool(const size_t &thread_num) {
-    const struct addrinfo hints = {
-            .ai_family      = PF_UNSPEC,
-            .ai_socktype    = SOCK_DGRAM,
-            .ai_protocol    = IPPROTO_UDP
-    };
-
-    struct addrinfo *local;
-    if (getaddrinfo(address.data(), port.data(), &hints, &local) != 0) {
-        perror("failed to resolve host");
-        return -1;
-    }
-
-    //local->sin_family = AF_INET;
-    //local->sin_port = htons(port);
-    //server_addr.sin_addr.s_addr = INADDR_ANY;
-    //inet_pton(AF_INET, address.data(), &(server_addr.sin_addr));
-
     if (tasks_pool == nullptr) {
         tasks_pool = new threadpool<task>(thread_num);
         tasks_pool->start();
     }
 
-    MANAPI_LOG("HTTP PORT USED: %s. http://%s:%s", port.data(), address.data(), port.data());
-
-    server_addr = local->ai_addr;
-    server_len  = local->ai_addrlen;
-
     if (http_version == 1 || http_version == 2) {
+
+        const struct addrinfo hints = {
+                .ai_family      = PF_UNSPEC,
+                .ai_socktype    = SOCK_STREAM,
+                .ai_protocol    = IPPROTO_TCP
+        };
+
+
+        struct addrinfo *local;
+        if (getaddrinfo(address.data(), port.data(), &hints, &local) != 0) {
+            perror("failed to resolve host");
+            return -1;
+        }
+
+        server_addr = local->ai_addr;
+        server_len  = local->ai_addrlen;
+
+        MANAPI_LOG("HTTP TCP PORT USED: %s. http://%s:%s", port.data(), address.data(), port.data());
+
         tcp_io  = new ev::io (loop);
         sock_fd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -102,8 +99,27 @@ int manapi::net::http::pool(const size_t &thread_num) {
 
         if (ssl_config.enabled)
             SSL_CTX_free(ctx);
+
+        freeaddrinfo(local);
     }
-    else if (http_version == 3) {
+    else {
+        const struct addrinfo hints = {
+                .ai_family      = PF_UNSPEC,
+                .ai_socktype    = SOCK_DGRAM,
+                .ai_protocol    = IPPROTO_UDP
+        };
+
+        struct addrinfo *local;
+        if (getaddrinfo(address.data(), port.data(), &hints, &local) != 0) {
+            perror("failed to resolve host");
+            return -1;
+        }
+
+        server_addr = local->ai_addr;
+        server_len  = local->ai_addrlen;
+
+        MANAPI_LOG("HTTP UDP PORT USED: %s. http://%s:%s", port.data(), address.data(), port.data());
+
         // for HTTP/3
         udp_io  = new ev::io(loop);
         sock_fd = socket (local->ai_family, SOCK_DGRAM, 0);
@@ -119,6 +135,7 @@ int manapi::net::http::pool(const size_t &thread_num) {
             MANAPI_LOG("PORT %s IS ALREADY IN USE", port.data());
             return 1;
         }
+
 
         //quiche_enable_debug_logging(debug_log, NULL);
 
@@ -140,7 +157,7 @@ int manapi::net::http::pool(const size_t &thread_num) {
         quiche_config_set_initial_max_streams_bidi              (q_config, 100);
         quiche_config_set_initial_max_streams_uni               (q_config, 100);
         quiche_config_set_disable_active_migration              (q_config, true);
-        //quiche_config_set_cc_algorithm                          (q_config, QUICHE_CC_RENO);
+        quiche_config_set_cc_algorithm                          (q_config, QUICHE_CC_RENO);
         quiche_config_enable_early_data                         (q_config);
 
         http3_config = quiche_h3_config_new();
@@ -159,12 +176,12 @@ int manapi::net::http::pool(const size_t &thread_num) {
 
         quiche_h3_config_free(http3_config);
         quiche_config_free(q_config);
+
+        freeaddrinfo(local);
     }
 
     tasks_pool->stop();
     save();
-
-    freeaddrinfo(local);
 
     return 0;
 }

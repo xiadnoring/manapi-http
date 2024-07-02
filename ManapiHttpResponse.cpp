@@ -13,7 +13,9 @@ manapi::net::http_response::http_response(manapi::net::request_data_t &_request_
 }
 
 manapi::net::http_response::~http_response() {
-
+    // if replacers exists
+    if (replacers != nullptr)
+        delete replacers;
 }
 
 
@@ -52,9 +54,8 @@ void manapi::net::http_response::set_status(const size_t &_status_code, const st
     status_message  = _status_message;
 }
 
-void manapi::net::http_response::file(const std::string &path, bool auto_partial_status) {
+void manapi::net::http_response::file(const std::string &path) {
     sendfile                = path;
-    auto_partial_enabled    = auto_partial_status;
 }
 
 bool manapi::net::http_response::is_sendfile() {
@@ -137,4 +138,19 @@ void manapi::net::http_response::detect_ranges () {
 
 bool manapi::net::http_response::get_auto_partial_enabled() const {
     return auto_partial_enabled;
+}
+
+const manapi::toolbox::MAP_STR_STR *manapi::net::http_response::get_replacers() {
+    return replacers;
+}
+
+void manapi::net::http_response::set_replacers(const toolbox::MAP_STR_STR &_replacers) {
+    set_compress_enabled(false);
+    set_partial_status  (false);
+
+    replacers = new toolbox::MAP_STR_STR (_replacers);
+}
+
+void manapi::net::http_response::set_partial_status(bool auto_partial_status) {
+    auto_partial_enabled = auto_partial_status;
 }

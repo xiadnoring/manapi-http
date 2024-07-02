@@ -8,6 +8,12 @@
 
 namespace manapi::toolbox {
 
+    struct replace_founded_item {
+        std::string key;
+        const std::string *value;
+        std::pair <ssize_t, ssize_t> pos;
+    };
+
 #define MANAPI_LOG(msg, ...)    manapi::toolbox::_log (__LINE__, __FILE_NAME__, msg, __VA_ARGS__)
 #define MANAPI_LOG_ERROR(e, msg, ...) manapi::toolbox::_log_error(__LINE__, __FILE_NAME__, e, msg, __VA_ARGS__)
 
@@ -36,6 +42,8 @@ namespace manapi::toolbox {
     std::string random_string       (const size_t &len);
 
     std::string time                (const std::string &fmt, bool local = false);
+
+    std::vector <replace_founded_item> found_replacers_in_file (const std::string &path, const size_t &start, const size_t &size, const MAP_STR_STR &replacers);
 
     // ====================[ Classes ]============================
 
