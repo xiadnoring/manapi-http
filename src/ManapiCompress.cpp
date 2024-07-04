@@ -1,5 +1,6 @@
 #include <fstream>
 #include <format>
+#include "ManapiFilesystem.h"
 #include "ManapiCompress.h"
 
 #define CHUNK_SIZE 4096
@@ -176,6 +177,9 @@ std::string manapi::toolbox::compress::gzip (const std::string &str, const std::
 
 bool manapi::toolbox::compress::gzip_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
 {
+    if (toolbox::filesystem::is_dir (src) || toolbox::filesystem::is_dir (dest))
+        throw manapi_exception ("some input files has incorrect types");
+
     std::ifstream input (src, std::ios::binary);
     std::ofstream output (dest, std::ios::binary);
 

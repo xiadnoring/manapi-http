@@ -42,10 +42,13 @@ namespace manapi::net {
     typedef std::map<std::string, handlers_regex_pair_t>        handlers_regex_map_t;
     typedef std::vector<std::string>                            handlers_regex_titles_t;
     typedef std::map <std::string, handler_template_t>          handlers_types_t;
+    typedef std::map <std::string, std::string>                 handlers_static_types_t;
 
     struct http_handler_page {
         handlers_types_t    errors;
         handler_template_t  handler = nullptr;
+        std::string         *statics = nullptr;
+        size_t              statics_parts_len;
     };
 
     struct http_qc_conn_io {
@@ -72,20 +75,22 @@ namespace manapi::net {
         handlers_map_t          *map            = nullptr;
 
         // params
-        handlers_regex_map_t    *regexes        = nullptr;
         handlers_regex_titles_t *params         = nullptr;
 
+        // just handler functions
         handlers_types_t        *handlers       = nullptr;
+        // error handler functions
         handlers_types_t        *errors         = nullptr;
-        // i want to do handle errors how a just handlers (POST, GET split)
+        // static handler functions
+        handlers_static_types_t *statics        = nullptr;
+        // regex handler functions
+        handlers_regex_map_t    *regexes        = nullptr;
 
         bool                    has_body        = false;
-
-        http_uri_part           *parent         = nullptr;
     };
 
     struct ssl_config_t {
-        bool            enabled;
+        bool            enabled = false;
         std::string     key;
         std::string     cert;
     };
@@ -104,7 +109,10 @@ namespace manapi::net {
         void DELETE (const std::string &uri, const handler_template_t &handler);
         void PATCH  (const std::string &uri, const handler_template_t &handler);
 
+        void GET    (const std::string &uri, const std::string &folder);
+
         http_uri_part       *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, bool has_body = false);
+        http_uri_part       *set_handler (const std::string &method, const std::string &uri, const std::string &folder, bool has_body = false);
 
         http_handler_page get_handler (request_data_t &request_data);
 
@@ -150,6 +158,8 @@ namespace manapi::net {
 
         quiche_h3_config *http3_config;
     private:
+        http_uri_part *build_uri_part (const std::string &uri, size_t &type);
+
         static SSL_CTX* ssl_create_context ();
         void            ssl_configure_context ();
 

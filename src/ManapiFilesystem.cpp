@@ -138,3 +138,111 @@ void manapi::toolbox::filesystem::copy (std::ifstream &f, const ssize_t &start, 
 
     f.seekg(0);
 }
+
+std::string manapi::toolbox::filesystem::back (std::string str) {
+    size_t size = str.size();
+
+    // clean delimiters at the end
+    for (size_t i = size - 1; i > 1; i--) {
+        if (delimiter == str[i]) {
+            str.pop_back();
+            size--;
+
+            continue;
+        }
+
+        break;
+    }
+
+    bool delimiter_prev = false;
+    for (size_t i = size - 1; i != 0; i--) {
+        while (i >= 0 && str[i] == delimiter) {
+            i--;
+
+            str.pop_back();
+
+            delimiter_prev = true;
+        }
+
+
+        if (delimiter_prev)
+            break;
+
+        else
+            str.pop_back();
+    }
+
+    return str;
+}
+
+std::string manapi::toolbox::filesystem::clean (const std::string &str) {
+    std::string cleaned;
+    size_t size = str.size();
+
+    // clean delimiters at the end
+    for (size_t i = size - 1; i > 1; i--) {
+        if (delimiter == str[i]) {
+            size --;
+            continue;
+        }
+
+        break;
+    }
+
+    // skip double delimiters
+    bool delimiter_prev = false;
+
+    for (size_t i = 0; i < size; i++) {
+        if (str[i] == delimiter) {
+            if (i + 1 != size) {
+
+                // check for . or ..
+                if (str[i + 1] == '.') {
+                    if (i + 2 != size) {
+                        if (str[i + 2] == '/') {
+                            i = i + 2 - 1;
+                            continue;
+                        }
+                        else if (str[i + 2] == '.') {
+                            bool can_back = cleaned.size() > 1;
+
+                            if (i + 3 != size) {
+                                if (str[i + 3] == '/' && can_back) {
+                                    cleaned = back (cleaned);
+                                    i = i + 3 - 1;
+
+                                    continue;
+                                }
+                            }
+                            else if (can_back) {
+                                cleaned = back (cleaned);
+
+                                break;
+                            }
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                }
+            }
+
+            if (delimiter_prev)
+                continue;
+
+            delimiter_prev = true;
+        }
+        else if (delimiter_prev)
+            delimiter_prev = false;
+
+        cleaned += str[i];
+    }
+
+    return cleaned;
+}
+
+bool manapi::toolbox::filesystem::is_dir (const std::string &str) {
+    std::filesystem::path p (str);
+
+    return std::filesystem::is_directory(p);
+}

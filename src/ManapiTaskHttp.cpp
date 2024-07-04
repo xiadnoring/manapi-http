@@ -198,9 +198,6 @@ void manapi::net::http_task::udp_doit() {
         return;
     }
 
-    size_t count = 0;
-
-
     if (quiche_conn_is_established(conn_io->conn)) {
         printf("-------------------------------\n");
         printf("ESTABLISHED\n");
@@ -259,10 +256,11 @@ void manapi::net::http_task::udp_doit() {
 
             repeat:
 
-            if (capacity <= 0) {
+            while (capacity <= 0) {
                 printf("LOCKED STREAM\n");
 
                 got_connection.lock();
+
                 next_connection.unlock();
 
                 got_connection.lock();
@@ -486,6 +484,13 @@ void manapi::net::http_task::tcp_doit() {
                     const auto handler = std::move(http_server->get_handler(request_data));
 
                     if (request_data.has_body) {
+                        if (request_data.body_index == *socket_block_size)
+                        {
+                            read_next();
+
+                            request_data.body_index = 0;
+                        }
+
                         if (!request_data.headers.contains(http_header.CONTENT_LENGTH))
                             throw manapi::toolbox::manapi_exception("content-length not exists");
 
@@ -494,7 +499,8 @@ void manapi::net::http_task::tcp_doit() {
                         request_data.body_ptr = (char *)buff + request_data.body_index * sizeof(char);
 
                         request_data.body_index = 0;
-                    } else {
+                    }
+                    else {
                         request_data.body_ptr = nullptr;
                         request_data.body_size = 0;
                     }
@@ -518,7 +524,40 @@ void manapi::net::http_task::handle_request(const http_handler_page *handler, co
 
     // ?)
     if (handler->handler == nullptr)
+    {
+
+        if (handler->statics != nullptr)
+        {
+            // if statics exists
+            std::string path;
+
+            for (size_t i = handler->statics_parts_len; i < request_data.path.size(); i++)
+                path += manapi::toolbox::filesystem::delimiter + request_data.path[i];
+
+            path = manapi::toolbox::filesystem::join (*handler->statics, path);
+
+            http_response res (request_data, status, message, http_server);
+
+            res.set_compress_enabled(true);
+            res.set_partial_status(true);
+            res.file (path);
+
+            try
+            {
+                send_response (res);
+            }
+            catch (const std::exception &e)
+            {
+                MANAPI_LOG("Unexpected error: %s", e.what());
+
+                send_error_response (503, http_status.SERVICE_UNAVAILABLE_503, handler->errors);
+            }
+
+            return;
+        }
+
         return send_error_response (404, http_status.NOT_FOUND_404, handler->errors);
+    }
 
     struct ip_data_t ip_data {
             .ip     = ip,
@@ -750,9 +789,9 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
 
 void manapi::net::http_task::send_file (manapi::net::http_response &res, std::ifstream &f, ssize_t size) const {
     std::string block;
-    ssize_t     block_size;
+    ssize_t     block_size = (ssize_t) http_server->get_socket_block_size();
 
-    block.resize(BUFFER_SIZE);
+    block.resize(block_size);
 
     ssize_t current = f.tellg();
 
@@ -761,9 +800,7 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
     while (size != current) {
         const ssize_t left = size - current;
 
-        if (left > BUFFER_SIZE)
-            block_size = BUFFER_SIZE;
-        else
+        if (left < block_size)
             block_size = left;
 
         f.read(block.data(), block_size);
@@ -783,9 +820,9 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
 
 void manapi::net::http_task::send_file (manapi::net::http_response &res, std::ifstream &f, ssize_t size, std::vector<toolbox::replace_founded_item> &replacers) const {
     std::string block;
-    ssize_t     block_size;
+    ssize_t     block_size = (ssize_t) http_server->get_socket_block_size();
 
-    block.resize(BUFFER_SIZE);
+    block.resize(block_size);
 
     ssize_t current = f.tellg();
 
@@ -798,9 +835,7 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
     while (size != current) {
         const ssize_t left = size - current;
 
-        if (left > BUFFER_SIZE)
-            block_size = BUFFER_SIZE;
-        else
+        if (left < block_size)
             block_size = left;
 
         f.read(block.data(), block_size);
@@ -837,19 +872,24 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
                     block[index_in_block] = block[i];
                 }
 
-                if (i > block_size) {
+                if (index_in_block < block_size) {
                     ssize_t needed = block_size - index_in_block;
 
-                    // + 1 bcz we dont want to grab } special symbol at the end of the special key {{KEY}}
-                    current = replacers[replacer_index].pos.second + shift + 1;
+                    if (index < size)
+                    {
 
-                    f.seekg(current);
-                    f.read (block.data() + index_in_block * sizeof (char), needed);
+                        // + 1 bcz we dont want to grab } special symbol at the end of the special key {{KEY}}
+                        current = (index - block_size) + i;
 
-                    current = f.tellg() - block_size;
-                }
-                else {
-                    shift -= key_left_size;
+                        f.seekg(current);
+                        f.read(block.data() + index_in_block * sizeof(char), needed);
+
+                        current = f.tellg() - block_size;
+                    }
+                    else
+                    {
+                        shift -= key_left_size;
+                    }
                 }
 
                 index = f.tellg();
@@ -875,8 +915,8 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
                 if (free_space < value_left_size) {
                     block_size += value_left_size - free_space;
 
-                    if (block_size >= BUFFER_SIZE) {
-                        block_size = BUFFER_SIZE;
+                    if (block_size >= http_server->get_socket_block_size()) {
+                        block_size = (ssize_t) http_server->get_socket_block_size();
                         repeat = true;
                     }
                 }
@@ -908,7 +948,7 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
                 }
                 else {
                     free_space = block_size - i;
-                    ssize_t can_read = BUFFER_SIZE - i;
+                    ssize_t can_read = (ssize_t) (http_server->get_socket_block_size() - i);
 
                     // we want to read chars by size can_read
                     f.seekg(current + index_in_block - shift);
@@ -1032,6 +1072,9 @@ void manapi::net::http_task::tcp_parse_request_response(uint8_t *response, const
     for (i++; i < maxsize; i++) {
         MANAPI_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(i);
 
+        if (response[i] == '\r')
+            continue;
+
         if (response[i] == '\n')
             break;
 
@@ -1092,8 +1135,6 @@ void manapi::net::http_task::tcp_parse_request_response(uint8_t *response, const
 
     if (maxsize == i)
         throw manapi::toolbox::manapi_exception ("request header is too large.");
-
-    MANAPI_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(i);
 
     request_data.headers_size += i;
 }

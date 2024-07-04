@@ -25,28 +25,28 @@ add_executable(${PROJECT_NAME}
         includes/ManapiDecimal.h
         includes/ManapiJson.h
 
-        ManapiHttp.cpp
-        ManapiLocker.cpp
-        ManapiThreadPool.cpp
-        ManapiTask.cpp
-        ManapiTaskHttp.cpp
-        ManapiUtils.cpp
-        ManapiHttpResponse.cpp
-        ManapiHttpRequest.cpp
-        ManapiJson.cpp
-        ManapiDecimal.cpp
+        src/ManapiHttp.cpp
+        src/ManapiLocker.cpp
+        src/ManapiThreadPool.cpp
+        src/ManapiTask.cpp
+        src/ManapiTaskHttp.cpp
+        src/ManapiUtils.cpp
+        src/ManapiHttpResponse.cpp
+        src/ManapiHttpRequest.cpp
+        src/ManapiJson.cpp
+        src/ManapiDecimal.cpp
 
         main.cpp
         includes/ManapiBase64.h
         includes/ManapiCompress.h
-        ManapiCompress.cpp
+        src/ManapiCompress.cpp
         includes/ManapiHttpTypes.h
         includes/ManapiFilesystem.h
-        ManapiFilesystem.cpp
+        src/ManapiFilesystem.cpp
         includes/ManapiHash.h
-        ManapiHash.cpp
+        src/ManapiHash.cpp
         includes/ManapiTaskFunction.h
-        ManapiTaskFunction.cpp
+        src/ManapiTaskFunction.cpp
         includes/ManapiThreadSafe.h)
 
 target_link_libraries       (${PROJECT_NAME} ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${QUIC_LIBRARIES} ${LIBEV_LIBRARIES} ${OPENSSL_LIBRARIES})

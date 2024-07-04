@@ -231,15 +231,26 @@ void manapi::net::http::DELETE(const std::string &uri, const handler_template_t 
 manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &request_data) {
     http_handler_page handler_page;
 
-    try {
+    try
+    {
         const http_uri_part *cur = &handlers;
         size_t maxi = std::min (request_data.path.size(), request_data.divided);
-        for (size_t i = 0; i <= maxi; i++) {
-            if (cur->errors != nullptr) {
+        for (size_t i = 0; i <= maxi; i++)
+        {
+            if (cur->errors != nullptr)
+            {
+                // TODO why all errors will be export instead of one by method ?
                 // find errors handlers for methods!
-                for (auto &handler: *cur->errors) {
+                for (auto &handler: *cur->errors)
+                {
                     handler_page.errors[handler.first] = handler.second;
                 }
+            }
+
+            if (cur->statics != nullptr && cur->statics->contains(request_data.method))
+            {
+                handler_page.statics = &cur->statics->at(request_data.method);
+                handler_page.statics_parts_len = i;
             }
 
             if (i == maxi)
@@ -294,6 +305,8 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
             cur = cur->map->at(request_data.path.at(i));
         }
 
+        // handler page
+
         if (cur->handlers == nullptr) {
             // TODO: error
 
@@ -318,13 +331,65 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
 }
 
 manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &method, const std::string &uri, const handler_template_t &handler, bool has_body) {
+    size_t  type            = MANAPI_HTTP_URI_PAGE_DEFAULT;
+
+    http_uri_part *cur      = build_uri_part(uri, type);
+
+    switch (type) {
+        case MANAPI_HTTP_URI_PAGE_DEFAULT:
+            if (cur->handlers == nullptr)
+                cur->handlers = new handlers_types_t ();
+
+            cur->handlers->insert({method, handler});
+
+            cur->has_body = has_body;
+
+            break;
+        case MANAPI_HTTP_URI_PAGE_ERROR:
+            if (cur->errors == nullptr)
+                cur->errors = new handlers_types_t ();
+            cur->errors->insert({method, handler});
+            break;
+        default:
+            break;
+    }
+
+    return cur;
+}
+
+void manapi::net::http::GET(const std::string &uri, const std::string &folder) {
+    set_handler ("GET", uri, folder, false);
+}
+
+manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &method, const std::string &uri, const std::string &folder, bool has_body) {
+    size_t  type            = MANAPI_HTTP_URI_PAGE_DEFAULT;
+
+    http_uri_part *cur      = build_uri_part(uri, type);
+
+    switch (type) {
+        case MANAPI_HTTP_URI_PAGE_DEFAULT:
+            if (cur->statics == nullptr)
+                cur->statics = new handlers_static_types_t ();
+
+            cur->statics->insert({method, folder});
+
+            cur->has_body = has_body;
+
+            break;
+        default:
+            throw manapi::toolbox::manapi_exception ("can not use the special pages with the static files");
+    }
+
+    return cur;
+}
+
+manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string &uri, size_t &type) {
     std::string                 buff;
     handlers_regex_titles_t     *regexes_title = nullptr;
 
     http_uri_part *cur      = &handlers;
 
     bool    is_regex        = false;
-    size_t  type            = MANAPI_HTTP_URI_PAGE_DEFAULT;
 
     // past params lists. To check for a match
     std::vector <std::vector <std::string> *> past_params_lists;
@@ -390,7 +455,6 @@ manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &me
 
                     if (!cur->map->contains(buff)) {
                         auto new_part       = new http_uri_part;
-                        new_part->parent    = cur; // set parent
 
                         cur->map->insert({buff, new_part});
 
@@ -454,27 +518,9 @@ manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &me
         buff += uri[i];
     }
 
-    switch (type) {
-        case MANAPI_HTTP_URI_PAGE_DEFAULT:
-            if (cur->handlers == nullptr)
-                cur->handlers = new handlers_types_t ();
-
-            cur->handlers->insert({method, handler});
-
-            cur->has_body = has_body;
-
-            break;
-        case MANAPI_HTTP_URI_PAGE_ERROR:
-            if (cur->errors == nullptr)
-                cur->errors = new handlers_types_t ();
-            cur->errors->insert({method, handler});
-            break;
-        default:
-            break;
-    }
-
     return cur;
 }
+
 
 // ======================[ configs funcs]==========================
 
@@ -513,7 +559,6 @@ void manapi::net::http::set_http_version_str(const std::string &new_http_version
 const std::string &manapi::net::http::get_http_version_str() const {
     return http_version_str;
 }
-
 
 void manapi::net::http::set_compressor(const std::string &name, manapi::toolbox::compress::TEMPLATE_INTERFACE handler) {
     compressors[name] = handler;

@@ -6,7 +6,8 @@
 #include "ManapiJson.h"
 
 namespace manapi::toolbox::filesystem {
-    static std::string delimiter (&std::filesystem::path::preferred_separator);
+    static char delimiter = std::filesystem::path::preferred_separator;
+    static std::string string_delimiter (&delimiter, 1);
 
     std::string basename        (const std::string& path);
     bool        exists          (const std::string& path);
@@ -22,9 +23,15 @@ namespace manapi::toolbox::filesystem {
     std::string read            (const std::string &path);
     void        copy            (std::ifstream &f, const ssize_t &start, const ssize_t &back, std::ofstream &o);
 
+    std::string clean           (const std::string &str);
+
+    bool        is_dir          (const std::string &str);
+
+    std::string back            (std::string str);
+
     template <class... Args>
     inline std::string join(const std::string &path, Args&&...args) {
-        return (path + (... + (manapi::toolbox::filesystem::delimiter + std::forward<Args>(args))));
+        return clean(path + (... + (string_delimiter + std::forward<Args>(args))));
     }
 }
 

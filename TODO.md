@@ -35,3 +35,4 @@
 - [ ] More flexible JSON
 - [x] Content Range (video, audio, massive files)
 - [ ] Multiple Content Range
+- [x] Static files share
