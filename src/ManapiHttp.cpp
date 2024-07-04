@@ -655,6 +655,14 @@ void manapi::net::http::setup_config() {
         ssl_config.key      = config["ssl"]["key"].get<std::string>();
         ssl_config.cert     = config["ssl"]["cert"].get<std::string>();
     }
+
+    // =================[save config            ]================= //
+    if (config.contains("save_config")) {
+        if (config["save_config"].is_bool())
+        {
+            enabled_save_config = config["save_config"].get<bool>();
+        }
+    }
 }
 
 const std::string *manapi::net::http::get_compressed_cache_file(const std::string &file, const std::string &algorithm) {
@@ -697,8 +705,11 @@ void manapi::net::http::save() {
     // close connections
     close (sock_fd);
 
-    // save configs
-    save_config();
+    if (enabled_save_config)
+    {
+        // save configs
+        save_config();
+    }
 }
 
 void manapi::net::http::save_config() {

@@ -68,6 +68,7 @@ namespace manapi::toolbox {
         [[nodiscard]] bool is_null        () const;
         [[nodiscard]] bool is_decimal     () const;
         [[nodiscard]] bool is_bigint      () const;
+        [[nodiscard]] bool is_bool        () const;
 
         template <typename T>
         T get () const { return *reinterpret_cast <T *> (src); }

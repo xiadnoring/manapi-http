@@ -26,6 +26,7 @@ namespace manapi::toolbox::filesystem {
     std::string clean           (const std::string &str);
 
     bool        is_dir          (const std::string &str);
+    bool        is_file         (const std::string &str);
 
     std::string back            (std::string str);
 

@@ -193,6 +193,7 @@ namespace manapi::net {
         std::string         http_version_str        = "1.1";
         std::string         address                 = "0.0.0.0";
         std::string         port                    = "8888";
+        bool                enabled_save_config     = false;
 
         ssl_config_t        ssl_config;
 

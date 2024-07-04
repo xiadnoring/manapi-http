@@ -246,3 +246,7 @@ bool manapi::toolbox::filesystem::is_dir (const std::string &str) {
 
     return std::filesystem::is_directory(p);
 }
+
+bool manapi::toolbox::filesystem::is_file (const std::string &str) {
+    return !is_dir (str);
+}

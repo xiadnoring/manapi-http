@@ -811,6 +811,10 @@ bool manapi::toolbox::json::is_bigint() const {
     return type == MANAPI_JSON_BIGINT;
 }
 
+bool manapi::toolbox::json::is_bool() const {
+    return type == MANAPI_JSON_BOOLEAN;
+}
+
 size_t manapi::toolbox::json::size() {
     if (!is_array())
         throw manapi_exception ("its not array to use size()");
