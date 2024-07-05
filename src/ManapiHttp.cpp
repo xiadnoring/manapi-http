@@ -766,7 +766,7 @@ void manapi::net::http::new_connection_udp(ev::io &watcher, int revents) {
             if (lock.owns_lock()) {
                 http_task::quic_flush_egress(it->second);
 
-                if (quiche_conn_is_closed(it->second->conn)) {
+                if (quiche_conn_is_closed(it->second->conn) || !it->second->timer.is_active()) {
                     quiche_stats stats;
                     quiche_path_stats path_stats;
 
@@ -776,10 +776,6 @@ void manapi::net::http::new_connection_udp(ev::io &watcher, int revents) {
                     fprintf(stderr, "connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu\n",
                             stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
-                    quiche_conn_free(it->second->conn);
-
-                    it->second->timer.stop();
-
                     printf("DELETED %s\n", it->first.data());
 
                     // multi thread
@@ -787,9 +783,7 @@ void manapi::net::http::new_connection_udp(ev::io &watcher, int revents) {
 
                     it = quic_map_conns.erase(it);
 
-                    free (conn_io->timer.data);
-
-                    delete conn_io;
+                    http_task::quic_delete_conn_io(conn_io);
 
                     continue;
                 }

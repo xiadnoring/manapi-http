@@ -199,9 +199,6 @@ void manapi::net::http_task::udp_doit() {
     }
 
     if (quiche_conn_is_established(conn_io->conn)) {
-        printf("-------------------------------\n");
-        printf("ESTABLISHED\n");
-
         if (conn_io->http3 == nullptr) {
             conn_io->http3 = quiche_h3_conn_new_with_transport(conn_io->conn, http_server->http3_config);
 
@@ -211,16 +208,14 @@ void manapi::net::http_task::udp_doit() {
             }
         }
 
-        // doit next step
+        // do next step
         if (!conn_io->tasks.empty()) {
             quiche_stream_iter *stream = quiche_conn_writable(conn_io->conn);
-
 
             while (quiche_stream_iter_next(stream, (uint64_t *)&s)) {
                 if (conn_io->tasks.contains(s)) {
                     auto task = reinterpret_cast <http_task *> (conn_io->tasks.at(s));
 
-                    printf("NEXT STREAM WRITE\n");
                     task->next_connection.unlock();
 
                     task->s = s;
@@ -231,13 +226,16 @@ void manapi::net::http_task::udp_doit() {
 
                     task->next_connection.lock();
 
-                    if (task->to_delete) {
+                    if (task->to_delete)
+                    {
                         delete task->quic_thr;
                         delete task;
 
-                        printf("DELETE OLD TASK\n");
-
                         conn_io->tasks.erase(s);
+                    }
+                    else
+                    {
+                        task->quic_work = true;
                     }
                 }
             }
@@ -247,6 +245,12 @@ void manapi::net::http_task::udp_doit() {
         mask_read = [this] (const char *part_buff, const size_t &part_buff_size) {
             while (!quic_got_data)
             {
+                // if we want to delete thread
+                if (to_delete)
+                {
+                    return (ssize_t) (-1);
+                }
+
                 got_connection.lock();
 
                 next_connection.unlock();
@@ -269,7 +273,11 @@ void manapi::net::http_task::udp_doit() {
             repeat:
 
             while (capacity <= 0) {
-                printf("LOCKED STREAM\n");
+                // if we want to delete thread
+                if (to_delete)
+                {
+                    return (ssize_t) (-1);
+                }
 
                 got_connection.lock();
 
@@ -282,10 +290,10 @@ void manapi::net::http_task::udp_doit() {
                 capacity = quiche_conn_stream_capacity(conn_io->conn, s);
             }
 
-            const bool final = capacity <= part_buff_size || part_buff_size < 4096;
+            const bool final = capacity <= part_buff_size;
             ssize_t written = quiche_h3_send_body(conn_io->http3, conn_io->conn, s, (uint8_t *) part_buff, part_buff_size, final);
 
-            printf("Sent: %zi, Capacity: %zi, Buff Size: %zi, Final %i\n", written, capacity, buff_size, final);
+            printf("Sent: %zi, Capacity: %zi, Buff Size: %zi, Final %i\n", written, capacity, part_buff_size, final);
 
             if (written < 0) {
                 capacity = -1;
@@ -334,7 +342,6 @@ void manapi::net::http_task::udp_doit() {
                 break;
             }
 
-            printf("HTTP POOL\n");
 
             switch (quiche_h3_event_type(ev)) {
                 case QUICHE_H3_EVENT_FINISHED: {
@@ -350,8 +357,6 @@ void manapi::net::http_task::udp_doit() {
                     next_connection.lock();
 
                     quic_thr = new std::thread ([this] () {
-                        printf("DOIT!\n");
-
                         to_delete = false;
                         const auto handler = std::move(http_server->get_handler(request_data));
 
@@ -366,27 +371,27 @@ void manapi::net::http_task::udp_doit() {
                             mask_read ((char *) buff, std::min (request_data.body_size, http_server->get_socket_block_size()));
 
                             request_data.body_index = 0;
-                        } else {
+                        }
+                        else {
                             request_data.body_ptr = nullptr;
                             request_data.body_size = 0;
+
+                            // shutdown the stream
+                            quiche_conn_stream_shutdown(conn_io->conn, s, QUICHE_SHUTDOWN_READ, 0);
                         }
 
                         handle_request(&handler);
 
-                        printf("FINISH STREAM: %zi\n", s);
+                        quiche_h3_send_body(conn_io->http3, conn_io->conn, s, nullptr, 0, true);
+
                         to_delete = true;
 
                         next_connection.unlock();
-
-                        printf("THE END\n");
                     });
                     quic_thr->detach();
 
-                    printf("--wait next connection\n");
                     // wait when the stream run out of capacity
                     next_connection.lock();
-
-                    printf("--end next connection\n");
 
                     if (quic_thr != nullptr) {
                         if (to_delete)
@@ -398,9 +403,6 @@ void manapi::net::http_task::udp_doit() {
                             conn_io->tasks.insert({s, this});
                         }
                     }
-
-//                    if (request_data.method != "POST")
-//                        quiche_conn_stream_shutdown(conn_io->conn, s, QUICHE_SHUTDOWN_READ, 0);
 
                     break;
                 }
@@ -442,10 +444,6 @@ void manapi::net::http_task::udp_doit() {
 
             quiche_h3_event_free(ev);
         }
-
-        printf("-------------------------------\n");
-
-
     }
 }
 
@@ -1320,7 +1318,7 @@ manapi::net::http_qc_conn_io * manapi::net::http_task::quic_create_connection(ui
     auto d                  = new std::pair(new_conn_io, q_map_conns);
 
     new_conn_io->timer.set<http_task::quic_timeout_cb> (d);
-    new_conn_io->timer.start(1);
+    new_conn_io->timer.start();
 
     q_map_conns->insert(new_conn_io->key, new_conn_io);
 
@@ -1351,17 +1349,9 @@ void manapi::net::http_task::quic_timeout_cb(ev::timer &watcher, int revents) {
         fprintf(stderr, "connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu\n",
                 stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
-        quiche_conn_free(p->first->conn);
-
         p->second->erase(p->first->key);
 
-        p->first->timer.stop();
-
-        printf("DELETED %s\n", p->first->key.data());
-
-        delete p->first;
-
-        delete p;
+        quic_delete_conn_io (p->first);
 
         return;
     }
@@ -1459,6 +1449,42 @@ void manapi::net::http_task::parse_uri_path_dynamic(request_data_t &request_data
 
         j--;
     }
+}
+
+void manapi::net::http_task::quic_delete_conn_io(manapi::net::http_qc_conn_io *conn_io) {
+    // force clear tasks
+    for (auto it = conn_io->tasks.begin(); it != conn_io->tasks.end();)
+    {
+        auto task = reinterpret_cast <http_task *> (it->second);
+
+        if (!task->to_delete)
+        {
+            task->next_connection.unlock();
+
+            task->to_delete = true;
+
+            task->next_connection.lock();
+
+            task->got_connection.unlock();
+
+            // wait the end of the execution this task
+            task->next_connection.lock();
+
+            delete task->quic_thr;
+            delete task;
+
+            it = conn_io->tasks.erase(it);
+
+            printf("FORCE\n");
+        }
+    }
+
+    quiche_conn_free(conn_io->conn);
+
+    conn_io->timer.stop();
+
+    delete conn_io->timer.data;
+    delete conn_io;
 }
 
 

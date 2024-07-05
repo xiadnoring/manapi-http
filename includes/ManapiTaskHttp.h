@@ -40,6 +40,7 @@ namespace manapi::net {
         http_qc_conn_io *quic_create_connection (uint8_t *s_cid, size_t s_cid_len, uint8_t *od_cid, size_t od_cid_len);
         static int      quic_get_header         (uint8_t *name, size_t name_len, uint8_t *value, size_t value_len, void *argp);
         static void     quic_flush_egress       (manapi::net::http_qc_conn_io *conn_io);
+        static void     quic_delete_conn_io     (http_qc_conn_io *conn_io);
 
         // TCP TOOLS
 
@@ -111,6 +112,7 @@ namespace manapi::net {
 
         std::thread             *quic_thr = nullptr;
         bool                    quic_got_data = false;
+        bool                    quic_work = false;
     };
 }
 
