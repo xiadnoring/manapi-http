@@ -1315,8 +1315,9 @@ manapi::net::http_qc_conn_io * manapi::net::http_task::quic_create_connection(ui
 
     new_conn_io->mutex.lock();
 
-    auto d                  = new std::pair(new_conn_io, q_map_conns);
+    auto d                      = new std::pair(new_conn_io, q_map_conns);
 
+    new_conn_io->timer.set (http_server->get_loop());
     new_conn_io->timer.set<http_task::quic_timeout_cb> (d);
     new_conn_io->timer.start();
 
@@ -1333,8 +1334,6 @@ void manapi::net::http_task::quic_timeout_cb(ev::timer &watcher, int revents) {
     p->first->mutex.lock();
 
     quiche_conn_on_timeout(p->first->conn);
-
-    printf("timeout\n");
 
     quic_flush_egress(p->first);
 
@@ -1357,6 +1356,8 @@ void manapi::net::http_task::quic_timeout_cb(ev::timer &watcher, int revents) {
     }
 
     p->first->mutex.unlock();
+
+    p->first->timer.start(1);
 }
 
 void manapi::net::http_task::set_quic_config(quiche_config *config) {

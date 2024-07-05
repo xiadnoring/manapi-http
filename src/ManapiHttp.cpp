@@ -722,6 +722,14 @@ void manapi::net::http::save_config() {
 
 void manapi::net::http::stop() {
     if (udp_io != nullptr) {
+        quic_map_conns.block();
+
+        // close timers
+        for (auto &item: quic_map_conns)
+        {
+            http_task::quic_delete_conn_io(item.second);
+        }
+
         udp_io->stop();
         delete udp_io;
 
@@ -766,7 +774,7 @@ void manapi::net::http::new_connection_udp(ev::io &watcher, int revents) {
             if (lock.owns_lock()) {
                 http_task::quic_flush_egress(it->second);
 
-                if (quiche_conn_is_closed(it->second->conn) || !it->second->timer.is_active()) {
+                if (quiche_conn_is_closed(it->second->conn)) {
                     quiche_stats stats;
                     quiche_path_stats path_stats;
 
@@ -841,4 +849,8 @@ void manapi::net::http::ssl_configure_context() {
 
     if (SSL_CTX_use_PrivateKey_file(ctx, ssl_config.key.data(), SSL_FILETYPE_PEM) <= 0)
         throw manapi::toolbox::manapi_exception ("cannot use private key file openssl");
+}
+
+ev::loop_ref manapi::net::http::get_loop() {
+    return loop;
 }

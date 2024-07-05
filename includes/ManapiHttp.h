@@ -152,6 +152,7 @@ namespace manapi::net {
         std::string *config_cache_dir = nullptr;
 
         void stop ();
+        ev::loop_ref get_loop ();
 
         struct sockaddr *server_addr;
         socklen_t       server_len;

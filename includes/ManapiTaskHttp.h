@@ -21,7 +21,7 @@ namespace manapi::net {
         // tcp
         explicit        http_task(int _fd, const sockaddr_storage &_client, const socklen_t &_client_len, manapi::net::http *new_http_server);
         // udp
-        explicit        http_task(int _fd, char *buff, const ssize_t &size, const sockaddr_storage &_client, const socklen_t &_client_len, ev::io *udp_io, manapi::net::http *new_http_server);
+        explicit        http_task(int _fd, char *buff, const ssize_t &size, const sockaddr_storage &_client, const socklen_t &_client_len, ev::io *loop, manapi::net::http *new_http_server);
 
         // doit for the task loop
         void            doit() override;
