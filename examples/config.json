@@ -1,0 +1,14 @@
+{
+  "address": "localhost",
+  "cache_dir": "/tmp/manapi_http/cache/",
+  "http_version": "3",
+  "partial_data_min_size": 4194304,
+  "port": "8888",
+  "save_config": false,
+  "socket_block_size": 4096,
+  "ssl": {
+    "cert": "cert.crt",
+    "enabled": true,
+    "key": "cert.key"
+  }
+}

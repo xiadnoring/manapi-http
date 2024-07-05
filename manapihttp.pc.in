@@ -1,0 +1,8 @@
+libdir=@CMAKE_INSTALL_FULL_LIBDIR@
+includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
+
+Name: @PROJECT_NAME@
+Description: @PROJECT_DESCRIPTION@
+Version: @VERSION@
+Libs: -L${libdir} -lmanapihttp @MYTARGET_LINK_LIBRARIES@
+Cflags: -I${includedir} @MYTARGET_LINK_LIBRARIES@
