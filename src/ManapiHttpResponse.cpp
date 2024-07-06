@@ -41,6 +41,10 @@ void manapi::net::http_response::text(const std::string &plain_text) {
     body            = plain_text;
 }
 
+void manapi::net::http_response::json(utils::json &jp, const size_t &spaces) {
+    body            = jp.dump (spaces);
+}
+
 void manapi::net::http_response::set_status_code(const size_t &_status_code) {
     status_code     = _status_code;
 }
@@ -124,7 +128,7 @@ void manapi::net::http_response::detect_ranges () {
             size_t pos_delimiter = range_str->find ('-');
 
             if (pos_delimiter == std::string::npos)
-                throw manapi::toolbox::manapi_exception ("invalid the header range");
+                throw manapi::utils::manapi_exception ("invalid the header range");
 
             // trans 2 size_t range
             const char *end_ptr     = range_str->data() + pos_delimiter;
@@ -140,15 +144,15 @@ bool manapi::net::http_response::get_auto_partial_enabled() const {
     return auto_partial_enabled;
 }
 
-const manapi::toolbox::MAP_STR_STR *manapi::net::http_response::get_replacers() {
+const manapi::utils::MAP_STR_STR *manapi::net::http_response::get_replacers() {
     return replacers;
 }
 
-void manapi::net::http_response::set_replacers(const toolbox::MAP_STR_STR &_replacers) {
+void manapi::net::http_response::set_replacers(const utils::MAP_STR_STR &_replacers) {
     set_compress_enabled(false);
     set_partial_status  (false);
 
-    replacers = new toolbox::MAP_STR_STR (_replacers);
+    replacers = new utils::MAP_STR_STR (_replacers);
 }
 
 void manapi::net::http_response::set_partial_status(bool auto_partial_status) {

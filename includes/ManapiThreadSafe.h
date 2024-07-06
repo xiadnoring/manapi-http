@@ -4,7 +4,7 @@
 #include <mutex>
 #include <unordered_map>
 
-namespace manapi::toolbox {
+namespace manapi::utils {
     template <typename K, typename V> class safe_unordered_map;
 
     template <typename K, typename V>
@@ -40,62 +40,62 @@ namespace manapi::toolbox {
 
 }
 template <typename K, typename V>
-manapi::toolbox::safe_unordered_map<K, V>::safe_unordered_map() {}
+manapi::utils::safe_unordered_map<K, V>::safe_unordered_map() {}
 
 template <typename K, typename V>
-manapi::toolbox::safe_unordered_map<K, V>::~safe_unordered_map() {}
+manapi::utils::safe_unordered_map<K, V>::~safe_unordered_map() {}
 
 template <typename K, typename V>
-void manapi::toolbox::safe_unordered_map<K, V>::insert (const K &key, const V &value) {
+void manapi::utils::safe_unordered_map<K, V>::insert (const K &key, const V &value) {
     // auto release at the end
     std::lock_guard <std::mutex> lock (m);
     map.insert({key, value});
 }
 
 template <typename K, typename V>
-std::unordered_map<K,V>::size_type manapi::toolbox::safe_unordered_map<K, V>::erase (const K &key) {
+std::unordered_map<K,V>::size_type manapi::utils::safe_unordered_map<K, V>::erase (const K &key) {
     std::lock_guard <std::mutex> lock (m);
     return map.erase(key);
 }
 
 template <typename K, typename V>
-std::unordered_map<K, V>::iterator manapi::toolbox::safe_unordered_map<K, V>::begin () {
+std::unordered_map<K, V>::iterator manapi::utils::safe_unordered_map<K, V>::begin () {
     std::lock_guard <std::mutex> lock (m);
     return map.begin();
 }
 
 template <typename K, typename V>
-std::unordered_map<K, V>::iterator manapi::toolbox::safe_unordered_map<K, V>::end () {
+std::unordered_map<K, V>::iterator manapi::utils::safe_unordered_map<K, V>::end () {
     std::lock_guard <std::mutex> lock (m);
     return map.end();
 }
 
 template <typename K, typename V>
-std::unordered_map<K, V>::iterator manapi::toolbox::safe_unordered_map<K, V>::erase (const std::unordered_map<K, V>::iterator &it) {
+std::unordered_map<K, V>::iterator manapi::utils::safe_unordered_map<K, V>::erase (const std::unordered_map<K, V>::iterator &it) {
     std::lock_guard <std::mutex> lock (m);
     return map.erase(it);
 }
 
 template<typename K, typename V>
-bool manapi::toolbox::safe_unordered_map<K, V>::contains(const K &key) {
+bool manapi::utils::safe_unordered_map<K, V>::contains(const K &key) {
     std::lock_guard <std::mutex> lock (m);
     return map.contains(key);
 }
 
 template<typename K, typename V>
-V& manapi::toolbox::safe_unordered_map<K, V>::at(const K &key) {
+V& manapi::utils::safe_unordered_map<K, V>::at(const K &key) {
     std::lock_guard<std::mutex> lock (m);
     return map.at(key);
 }
 
 template<typename K, typename V>
-void manapi::toolbox::safe_unordered_map<K, V>::unblock() {
+void manapi::utils::safe_unordered_map<K, V>::unblock() {
     //printf("UNBLOCKED\n");
     locker.unlock();
 }
 
 template<typename K, typename V>
-void manapi::toolbox::safe_unordered_map<K, V>::block() {
+void manapi::utils::safe_unordered_map<K, V>::block() {
     //printf("BLOCKED\n");
     locker.lock();
 }

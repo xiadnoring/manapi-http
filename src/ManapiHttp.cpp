@@ -29,11 +29,6 @@ manapi::net::http::http(std::string port): keep_alive(2), port(std::move(port)) 
     setup ();
 }
 
-static void debug_log(const char *line, void *argp) {
-    fprintf(stderr, "%s\n", line);
-}
-
-
 int manapi::net::http::pool(const size_t &thread_num) {
     if (tasks_pool == nullptr) {
         tasks_pool = new threadpool<task>(thread_num);
@@ -377,7 +372,7 @@ manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &me
 
             break;
         default:
-            throw manapi::toolbox::manapi_exception ("can not use the special pages with the static files");
+            throw manapi::utils::manapi_exception ("can not use the special pages with the static files");
     }
 
     return cur;
@@ -479,7 +474,7 @@ manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string 
                 if (uri[i] == ']')
                     break;
 
-                else if (manapi::toolbox::escape_char_need(uri[i])) {
+                else if (manapi::utils::escape_char_need(uri[i])) {
                     title = "";
                     break;
                 }
@@ -491,7 +486,7 @@ manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string 
                 if (!is_regex) {
                     is_regex = true;
 
-                    buff = manapi::toolbox::escape_string(buff);
+                    buff = manapi::utils::escape_string(buff);
                 }
 
                 // if null -> create
@@ -508,7 +503,7 @@ manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string 
         }
 
         if (is_regex) {
-            if (manapi::toolbox::escape_char_need(uri[i]))
+            if (manapi::utils::escape_char_need(uri[i]))
                 buff.push_back('\\');
 
             buff += uri[i];
@@ -560,11 +555,11 @@ const std::string &manapi::net::http::get_http_version_str() const {
     return http_version_str;
 }
 
-void manapi::net::http::set_compressor(const std::string &name, manapi::toolbox::compress::TEMPLATE_INTERFACE handler) {
+void manapi::net::http::set_compressor(const std::string &name, manapi::utils::compress::TEMPLATE_INTERFACE handler) {
     compressors[name] = handler;
 }
 
-manapi::toolbox::compress::TEMPLATE_INTERFACE manapi::net::http::get_compressor(const std::string &name) {
+manapi::utils::compress::TEMPLATE_INTERFACE manapi::net::http::get_compressor(const std::string &name) {
     if (!contains_compressor(name))
         return nullptr;
 
@@ -576,27 +571,27 @@ bool manapi::net::http::contains_compressor(const std::string &name) {
 }
 
 void manapi::net::http::setup() {
-    config                      = manapi::toolbox::json::object();
-    cache_config                = manapi::toolbox::json::object();
+    config                      = manapi::utils::json::object();
+    cache_config                = manapi::utils::json::object();
 
-    set_compressor("deflate", manapi::toolbox::compress::deflate);
-    set_compressor("gzip", manapi::toolbox::compress::gzip);
+    set_compressor("deflate", manapi::utils::compress::deflate);
+    set_compressor("gzip", manapi::utils::compress::gzip);
 }
 
 void manapi::net::http::set_config(const std::string &path) {
     config_path = path;
 
-    if (!manapi::toolbox::filesystem::exists(config_path)) {
-        manapi::toolbox::filesystem::config::write(config_path, config);
+    if (!manapi::filesystem::exists(config_path)) {
+        manapi::filesystem::config::write(config_path, config);
         return;
     }
 
-    config = manapi::toolbox::filesystem::config::read (config_path);
+    config = manapi::filesystem::config::read (config_path);
 
     setup_config ();
 }
 
-const manapi::toolbox::json &manapi::net::http::get_config() {
+const manapi::utils::json &manapi::net::http::get_config() {
     return config;
 }
 
@@ -607,15 +602,15 @@ void manapi::net::http::setup_config() {
     else
         config_cache_dir = &default_cache_dir;
 
-    manapi::toolbox::filesystem::append_delimiter(*config_cache_dir);
+    manapi::filesystem::append_delimiter(*config_cache_dir);
 
-    if (!manapi::toolbox::filesystem::exists(*config_cache_dir))
-        manapi::toolbox::filesystem::mkdir(*config_cache_dir);
+    if (!manapi::filesystem::exists(*config_cache_dir))
+        manapi::filesystem::mkdir(*config_cache_dir);
 
     else {
         std::string path = *config_cache_dir + default_config_name;
-        if (manapi::toolbox::filesystem::exists(path))
-            cache_config = manapi::toolbox::filesystem::config::read(path);
+        if (manapi::filesystem::exists(path))
+            cache_config = manapi::filesystem::config::read(path);
     }
 
     // =================[partial data min size  ]================= //
@@ -677,10 +672,10 @@ const std::string *manapi::net::http::get_compressed_cache_file(const std::strin
 
     auto file_info = &files->at(file);
 
-    if (*file_info->at("last-write").get_ptr<std::string>() == manapi::toolbox::filesystem::last_time_write(file, true)) {
+    if (*file_info->at("last-write").get_ptr<std::string>() == manapi::filesystem::last_time_write(file, true)) {
         auto compressed = file_info->at("compressed").get_ptr<std::string>();
 
-        if (manapi::toolbox::filesystem::exists(*compressed))
+        if (manapi::filesystem::exists(*compressed))
             return compressed;
     }
 
@@ -691,11 +686,11 @@ const std::string *manapi::net::http::get_compressed_cache_file(const std::strin
 
 void manapi::net::http::set_compressed_cache_file(const std::string &file, const std::string &compressed, const std::string &algorithm) {
     if (!cache_config.contains(algorithm))
-        cache_config.insert(algorithm, manapi::toolbox::json::object());
+        cache_config.insert(algorithm, manapi::utils::json::object());
 
-    manapi::toolbox::json file_info = manapi::toolbox::json::object();
+    manapi::utils::json file_info = manapi::utils::json::object();
 
-    file_info.insert("last-write", manapi::toolbox::filesystem::last_time_write(file, true));
+    file_info.insert("last-write", manapi::filesystem::last_time_write(file, true));
     file_info.insert("compressed", compressed);
 
     cache_config[algorithm].insert(file, file_info);
@@ -714,10 +709,10 @@ void manapi::net::http::save() {
 
 void manapi::net::http::save_config() {
     // main config
-    manapi::toolbox::filesystem::config::write(config_path, config);
+    manapi::filesystem::config::write(config_path, config);
 
     // cache config
-    manapi::toolbox::filesystem::config::write(*config_cache_dir + default_config_name, cache_config);
+    manapi::filesystem::config::write(*config_cache_dir + default_config_name, cache_config);
 }
 
 void manapi::net::http::stop() {
@@ -784,8 +779,6 @@ void manapi::net::http::new_connection_udp(ev::io &watcher, int revents) {
                     fprintf(stderr, "connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu\n",
                             stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
-                    printf("DELETED %s\n", it->first.data());
-
                     // multi thread
                     auto conn_io = it->second;
 
@@ -838,17 +831,17 @@ SSL_CTX *manapi::net::http::ssl_create_context() {
     ctx = SSL_CTX_new(method);
 
     if (!ctx)
-        throw manapi::toolbox::manapi_exception ("cannot create openssl context for tcp connections");
+        throw manapi::utils::manapi_exception ("cannot create openssl context for tcp connections");
 
     return ctx;
 }
 
 void manapi::net::http::ssl_configure_context() {
     if (SSL_CTX_use_certificate_file(ctx, ssl_config.cert.data(), SSL_FILETYPE_PEM) <= 0)
-        throw manapi::toolbox::manapi_exception ("cannot use cert file openssl");
+        throw manapi::utils::manapi_exception ("cannot use cert file openssl");
 
     if (SSL_CTX_use_PrivateKey_file(ctx, ssl_config.key.data(), SSL_FILETYPE_PEM) <= 0)
-        throw manapi::toolbox::manapi_exception ("cannot use private key file openssl");
+        throw manapi::utils::manapi_exception ("cannot use private key file openssl");
 }
 
 ev::loop_ref manapi::net::http::get_loop() {

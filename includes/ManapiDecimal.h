@@ -7,7 +7,7 @@
 #include "ManapiUtils.h"
 #include "gmp.h"
 
-namespace manapi::toolbox {
+namespace manapi::utils {
     class decimal {
     public:
         decimal();
@@ -60,7 +60,7 @@ namespace manapi::toolbox {
     };
 }
 
-std::ostream &operator<<(std::ostream &os, const manapi::toolbox::decimal &m);
-std::istream &operator>>(std::istream &is, manapi::toolbox::decimal &m);
+std::ostream &operator<<(std::ostream &os, const manapi::utils::decimal &m);
+std::istream &operator>>(std::istream &is, manapi::utils::decimal &m);
 
 #endif //MANAPIHTTP_MANAPIDECIMAL_H

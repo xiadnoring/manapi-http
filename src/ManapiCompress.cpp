@@ -5,9 +5,9 @@
 
 #define CHUNK_SIZE 4096
 
-std::string manapi::toolbox::compress::deflate(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
+std::string manapi::utils::compress::deflate(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
     if (folder != nullptr) {
-        std::string saved = *folder + manapi::toolbox::generate_cache_name(str, "deflate");
+        std::string saved = *folder + manapi::utils::generate_cache_name(str, "deflate");
 
         if (!deflate_compress_file(str, saved, level, strategy))
             throw manapi_exception ("an error has occurred");
@@ -26,17 +26,17 @@ std::string manapi::toolbox::compress::deflate(const std::string &str, const int
     return buff;
 }
 
-std::string manapi::toolbox::compress::deflate (const std::string &str, const std::string *folder) {
-    return std::move(manapi::toolbox::compress::deflate(str, Z_BEST_COMPRESSION, Z_BINARY, folder));
+std::string manapi::utils::compress::deflate (const std::string &str, const std::string *folder) {
+    return std::move(manapi::utils::compress::deflate(str, Z_BEST_COMPRESSION, Z_BINARY, folder));
 }
 
-bool manapi::toolbox::compress::deflate_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
+bool manapi::utils::compress::deflate_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
 {
     std::ifstream input (src, std::ios::binary);
     std::ofstream output (dest, std::ios::binary);
 
     if (!input.is_open() || !output.is_open())
-        throw manapi::toolbox::manapi_exception ("cannot open files deflate_compress_file");
+        throw manapi::utils::manapi_exception ("cannot open files deflate_compress_file");
 
     char in_buff [CHUNK_SIZE];
     char out_buff[CHUNK_SIZE];
@@ -79,13 +79,13 @@ bool manapi::toolbox::compress::deflate_compress_file(const std::string &src, co
 }
 
 /* Декомпрессия */
-bool manapi::toolbox::compress::deflate_decompress_file(const std::string &src, const std::string &dest)
+bool manapi::utils::compress::deflate_decompress_file(const std::string &src, const std::string &dest)
 {
     std::ifstream input (src, std::ios::binary);
     std::ofstream output (dest, std::ios::binary);
 
     if (!input.is_open() || !output.is_open())
-        throw manapi::toolbox::manapi_exception ("cannot open files deflate_decompress_file");
+        throw manapi::utils::manapi_exception ("cannot open files deflate_decompress_file");
 
     char inbuff[CHUNK_SIZE];
     char outbuff[CHUNK_SIZE];
@@ -138,9 +138,9 @@ bool manapi::toolbox::compress::deflate_decompress_file(const std::string &src, 
     return result == Z_STREAM_END;
 }
 
-std::string manapi::toolbox::compress::gzip(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
+std::string manapi::utils::compress::gzip(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
     if (folder != nullptr) {
-        std::string saved = *folder + manapi::toolbox::generate_cache_name(str, "gzip");
+        std::string saved = *folder + manapi::utils::generate_cache_name(str, "gzip");
 
         if (!gzip_compress_file(str, saved, level, strategy))
             throw manapi_exception ("an error has occurred");
@@ -171,20 +171,20 @@ std::string manapi::toolbox::compress::gzip(const std::string &str, const int &l
     return output;
 }
 
-std::string manapi::toolbox::compress::gzip (const std::string &str, const std::string *folder) {
+std::string manapi::utils::compress::gzip (const std::string &str, const std::string *folder) {
     return std::move(gzip(str, Z_BEST_COMPRESSION, Z_BINARY, folder));
 }
 
-bool manapi::toolbox::compress::gzip_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
+bool manapi::utils::compress::gzip_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
 {
-    if (toolbox::filesystem::is_dir (src) || toolbox::filesystem::is_dir (dest))
+    if (filesystem::is_dir (src) || filesystem::is_dir (dest))
         throw manapi_exception ("some input files has incorrect types");
 
     std::ifstream input (src, std::ios::binary);
     std::ofstream output (dest, std::ios::binary);
 
     if (!input.is_open() || !output.is_open())
-        throw manapi::toolbox::manapi_exception (std::format("cannot open files gzip_compress_file: {}, {}", src, dest));
+        throw manapi::utils::manapi_exception (std::format("cannot open files gzip_compress_file: {}, {}", src, dest));
 
     char in_buff [CHUNK_SIZE];
     char out_buff[CHUNK_SIZE];

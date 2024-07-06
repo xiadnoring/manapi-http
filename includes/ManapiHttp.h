@@ -95,7 +95,7 @@ namespace manapi::net {
         std::string     cert;
     };
 
-    typedef manapi::toolbox::safe_unordered_map <std::string, http_qc_conn_io *> QUIC_MAP_CONNS_T;
+    typedef manapi::utils::safe_unordered_map <std::string, http_qc_conn_io *> QUIC_MAP_CONNS_T;
 
     class http {
     public:
@@ -133,15 +133,15 @@ namespace manapi::net {
         void set_http_version_str (const std::string &new_http_version);
         [[nodiscard]] const std::string& get_http_version_str () const;
 
-        void set_compressor (const std::string &name, manapi::toolbox::compress::TEMPLATE_INTERFACE handler);
-        manapi::toolbox::compress::TEMPLATE_INTERFACE get_compressor (const std::string &name);
+        void set_compressor (const std::string &name, manapi::utils::compress::TEMPLATE_INTERFACE handler);
+        manapi::utils::compress::TEMPLATE_INTERFACE get_compressor (const std::string &name);
 
         bool contains_compressor (const std::string &name);
 
         void set_port (const std::string &_port);
 
         void set_config (const std::string &path);
-        const manapi::toolbox::json & get_config ();
+        const manapi::utils::json & get_config ();
 
         const std::string *get_compressed_cache_file (const std::string &file, const std::string &algorithm);
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
@@ -172,8 +172,8 @@ namespace manapi::net {
         void new_connection_udp    (ev::io &watcher, int revents);
         void new_connection_tls     (ev::io &watcher, int revents);
 
-        manapi::toolbox::json config;
-        manapi::toolbox::json cache_config;
+        manapi::utils::json config;
+        manapi::utils::json cache_config;
 
         std::string         config_path = "/tmp/http.json";
 
@@ -200,7 +200,7 @@ namespace manapi::net {
 
         ev::dynamic_loop    loop;
 
-        std::map <std::string, manapi::toolbox::compress::TEMPLATE_INTERFACE> compressors;
+        std::map <std::string, manapi::utils::compress::TEMPLATE_INTERFACE> compressors;
 
         static std::string  default_cache_dir;
         static std::string  default_config_name;

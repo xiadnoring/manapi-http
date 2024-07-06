@@ -16,7 +16,7 @@ static std::mt19937         random_ng (random_dev());
 
 static std::mutex           log_mutex;
 
-void manapi::toolbox::_log (const size_t &line, const char *file_name, const char *format, ...) {
+void manapi::utils::_log (const size_t &line, const char *file_name, const char *format, ...) {
     std::lock_guard <std::mutex> locker(log_mutex);
     
     va_list args;
@@ -36,7 +36,7 @@ void manapi::toolbox::_log (const size_t &line, const char *file_name, const cha
  * @param count     the power
  * @return
  */
-size_t manapi::toolbox::pow (const size_t &x, const size_t &count) {
+size_t manapi::utils::pow (const size_t &x, const size_t &count) {
     size_t result = 1;
 
     for (size_t i = 0; i < count; i++)
@@ -45,7 +45,7 @@ size_t manapi::toolbox::pow (const size_t &x, const size_t &count) {
     return result;
 }
 
-bool manapi::toolbox::is_space_symbol (const char &symbol) {
+bool manapi::utils::is_space_symbol (const char &symbol) {
     return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
 }
 
@@ -56,7 +56,7 @@ bool manapi::toolbox::is_space_symbol (const char &symbol) {
  * @param size  the size of the string
  * @param c     the char which will be added at the end of the string
  */
-[[maybe_unused]] void manapi::toolbox::rjust (std::string &str, const size_t &size, const char &c) {
+[[maybe_unused]] void manapi::utils::rjust (std::string &str, const size_t &size, const char &c) {
     while (str.size() < size)
         str += c;
 }
@@ -68,7 +68,7 @@ bool manapi::toolbox::is_space_symbol (const char &symbol) {
  * @param size  the size of the string
  * @param c     the char which will be added at the start of the string
  */
-[[maybe_unused]] void manapi::toolbox::ljust (std::string &str, const size_t &size, const char &c) {
+[[maybe_unused]] void manapi::utils::ljust (std::string &str, const size_t &size, const char &c) {
     if (str.size() >= size) return;
 
     std::string new_string;
@@ -81,7 +81,7 @@ bool manapi::toolbox::is_space_symbol (const char &symbol) {
     str.insert(0, new_string);
 }
 
-void manapi::toolbox::_log_error (const size_t &line, const char *file_name, const std::exception &e, const char *format,...) {
+void manapi::utils::_log_error (const size_t &line, const char *file_name, const std::exception &e, const char *format,...) {
     va_list args;
 
     printf("%s(%zu): ", file_name, line);
@@ -93,12 +93,12 @@ void manapi::toolbox::_log_error (const size_t &line, const char *file_name, con
     printf("\n -> Message: %s\n", e.what());
 }
 
-char manapi::toolbox::hex2dec(const char &a) {
+char manapi::utils::hex2dec(const char &a) {
     return (char)(a >= 'A' ? a - 'A' + 10 : a - '0');
 }
 
 
-std::string manapi::toolbox::escape_string (const std::string &str) {
+std::string manapi::utils::escape_string (const std::string &str) {
     std::string escaped;
 
     for (const auto &i : str) {
@@ -116,11 +116,11 @@ std::string manapi::toolbox::escape_string (const std::string &str) {
     return escaped;
 }
 
-bool manapi::toolbox::escape_char_need (const char &ch) {
+bool manapi::utils::escape_char_need (const char &ch) {
     return !(std::isalpha(ch) || std::isdigit(ch) || ch == '_');
 }
 
-bool manapi::toolbox::valid_special_symbol(const char &c) {
+bool manapi::utils::valid_special_symbol(const char &c) {
     /**
      * ascii
      * 0 - 128
@@ -128,7 +128,7 @@ bool manapi::toolbox::valid_special_symbol(const char &c) {
     return c >= 0;
 }
 
-std::string manapi::toolbox::random_string (const size_t &len) {
+std::string manapi::utils::random_string (const size_t &len) {
     const char ptr[] = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_-";
     const size_t back = sizeof(ptr) - 2;
 
@@ -141,17 +141,17 @@ std::string manapi::toolbox::random_string (const size_t &len) {
     return result;
 }
 
-std::string manapi::toolbox::generate_cache_name (const std::string &file, const std::string &ext) {
-    std::string name = manapi::toolbox::filesystem::basename(std::forward<const std::string&> (file));
+std::string manapi::utils::generate_cache_name (const std::string &file, const std::string &ext) {
+    std::string name = manapi::filesystem::basename(std::forward<const std::string&> (file));
 
-    name += manapi::toolbox::time ("-%Y_%m_%d_%H_%M_%S-", true) + random_string(25);
+    name += manapi::utils::time ("-%Y_%m_%d_%H_%M_%S-", true) + random_string(25);
     name += '.';
     name += ext;
 
     return name;
 }
 
-size_t      manapi::toolbox::random (const size_t &_min, const size_t &_max) {
+size_t      manapi::utils::random (const size_t &_min, const size_t &_max) {
     std::uniform_int_distribution<std::mt19937::result_type > dist (_min, _max);
 
     return dist (random_ng);
@@ -159,13 +159,13 @@ size_t      manapi::toolbox::random (const size_t &_min, const size_t &_max) {
 
 // ====================[ Classes ]============================
 
-manapi::toolbox::manapi_exception::manapi_exception(std::string message_): message(std::move(message_)) {}
+manapi::utils::manapi_exception::manapi_exception(std::string message_): message(std::move(message_)) {}
 
-const char *manapi::toolbox::manapi_exception::what() const noexcept {
+const char *manapi::utils::manapi_exception::what() const noexcept {
     return message.data();
 }
 
-std::string manapi::toolbox::time (const std::string &fmt, bool local) {
+std::string manapi::utils::time (const std::string &fmt, bool local) {
     std::time_t now = std::time(0);
     std::tm *ltm;
 
@@ -180,7 +180,7 @@ std::string manapi::toolbox::time (const std::string &fmt, bool local) {
     return oss.str();
 }
 
-std::vector <manapi::toolbox::replace_founded_item> manapi::toolbox::found_replacers_in_file (const std::string &path, const size_t &start, const size_t &size, const MAP_STR_STR &replacers) {
+std::vector <manapi::utils::replace_founded_item> manapi::utils::found_replacers_in_file (const std::string &path, const size_t &start, const size_t &size, const MAP_STR_STR &replacers) {
 #define BUFFER_SIZE 5
     // SPECIAL
     std::string special_key;

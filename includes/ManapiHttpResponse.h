@@ -3,6 +3,7 @@
 
 #include <string>
 #include <map>
+#include "ManapiJson.h"
 #include "ManapiUtils.h"
 #include "ManapiHttp.h"
 
@@ -18,10 +19,11 @@ namespace manapi::net {
         void set_compress_enabled   (bool   status);
 
         void text                   (const std::string &plain_text);
+        void json                   (manapi::utils::json &jp, const size_t &spaces = 0);
         void set_status             (const size_t &_status_code, const std::string &_status_message);
         void set_status_code        (const size_t &_status_code);
         void set_status_message     (const std::string &_status_message);
-        void set_replacers          (const toolbox::MAP_STR_STR &_replacers);
+        void set_replacers          (const utils::MAP_STR_STR &_replacers);
         void set_partial_status     (bool auto_partial_status);
         void file                   (const std::string &path);
 
@@ -44,7 +46,7 @@ namespace manapi::net {
 
         std::vector <std::pair <ssize_t, ssize_t> > ranges;
 
-        const toolbox::MAP_STR_STR *get_replacers ();
+        const utils::MAP_STR_STR *get_replacers ();
     private:
         // detect the range header
         void                detect_ranges    ();
@@ -64,10 +66,10 @@ namespace manapi::net {
         bool                compress_enabled        = true;
         bool                auto_partial_enabled    = true;
 
-        manapi::toolbox::MAP_STR_STR    headers;
+        manapi::utils::MAP_STR_STR    headers;
         manapi::net::request_data_t     *request_data;
 
-        manapi::toolbox::MAP_STR_STR    *replacers = nullptr;
+        manapi::utils::MAP_STR_STR    *replacers = nullptr;
     };
 }
 

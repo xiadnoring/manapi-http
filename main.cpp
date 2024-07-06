@@ -4,8 +4,7 @@
 #include "ManapiTaskHttp.h"
 #include "ManapiFilesystem.h"
 
-
-using namespace manapi::toolbox;
+using namespace manapi::utils;
 using namespace manapi::net;
 using namespace std;
 
@@ -14,7 +13,6 @@ static http server;
 void handler_interrupt (int sig_int) {
     server.stop();
 }
-
 
 int main(int argc, char *argv[]) {
     signal (SIGABRT, handler_interrupt);
@@ -57,7 +55,7 @@ int main(int argc, char *argv[]) {
     });
 
     server.GET ("/noooo", [] (REQ(req), RESP(resp)) {
-        resp.set_header(http_header.CONTENT_TYPE, "video/mp4");
+        resp.set_header(http_header.CONTENT_TYPE, http_mime.VIDEO_MP4);
         resp.set_partial_status(true);
         resp.set_compress_enabled(false);
 
@@ -81,10 +79,10 @@ int main(int argc, char *argv[]) {
 
     server.GET ("/[filename]-[extension]/+error", [](REQ(req), RESP(resp)) {
         resp.set_replacers({
-                                   {"status_code", std::to_string(resp.get_status_code())},
-                                   {"status_message", resp.get_status_message()},
-                                   {"url", "/nonoo"}
-                           });
+               {"status_code", std::to_string(resp.get_status_code())},
+               {"status_message", resp.get_status_message()},
+               {"url", "/nonoo"}
+       });
 
         resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/error.html");
     });
@@ -104,7 +102,7 @@ int main(int argc, char *argv[]) {
             obj.insert(item.first, item.second);
         }
 
-        resp.text(obj.dump(4));
+        resp.json (obj, 4);
     });
 
     server.GET ("/", "/home/Timur/Desktop/WorkSpace/oneworld/");

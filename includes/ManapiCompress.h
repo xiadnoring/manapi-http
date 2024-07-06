@@ -4,7 +4,7 @@
 #include <zlib.h>
 #include "ManapiUtils.h"
 
-namespace manapi::toolbox::compress {
+namespace manapi::utils::compress {
     typedef std::string (*TEMPLATE_INTERFACE) (const std::string &, const std::string *);
 
     std::string deflate (const std::string &data, const int &level = Z_DEFAULT_COMPRESSION, const int &strategy = Z_DEFAULT_STRATEGY, const std::string *folder = nullptr);

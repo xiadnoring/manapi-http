@@ -3,76 +3,76 @@
 #include <memory.h>
 #include "ManapiDecimal.h"
 
-manapi::toolbox::decimal zero (0LL);
+manapi::utils::decimal zero (0LL);
 
-manapi::toolbox::decimal::decimal() {
+manapi::utils::decimal::decimal() {
     mpf_init2 (x, 128);
     this->parse(0LL);
 }
 
-manapi::toolbox::decimal::decimal(const long long int &num, const size_t &precision) {
+manapi::utils::decimal::decimal(const long long int &num, const size_t &precision) {
     mpf_init2 (x, precision);
     this->parse(num);
 }
 
-manapi::toolbox::decimal::decimal(const ssize_t &num, const size_t &precision) {
+manapi::utils::decimal::decimal(const ssize_t &num, const size_t &precision) {
     mpf_init2 (x, precision);
     this->parse(num);
 }
 
-manapi::toolbox::decimal::decimal(const double &num, const size_t &precision) {
+manapi::utils::decimal::decimal(const double &num, const size_t &precision) {
     mpf_init2 (x, precision);
     this->parse(num);
 }
 
-manapi::toolbox::decimal::decimal(const unsigned long &num, const size_t &precision) {
+manapi::utils::decimal::decimal(const unsigned long &num, const size_t &precision) {
     mpf_init2 (x, precision);
     this->parse(num);
 }
 
-manapi::toolbox::decimal::decimal(const std::string &num, const size_t &precision) {
+manapi::utils::decimal::decimal(const std::string &num, const size_t &precision) {
     mpf_init2 (x, precision);
     this->parse(num);
 }
 
-manapi::toolbox::decimal::decimal(const mpf_t &num, const size_t &precision) {
+manapi::utils::decimal::decimal(const mpf_t &num, const size_t &precision) {
     mpf_set (x, num);
     set_precision(precision);
 }
 
-manapi::toolbox::decimal::decimal(const manapi::toolbox::decimal &other) {
+manapi::utils::decimal::decimal(const manapi::utils::decimal &other) {
     mpf_init (x);
 
     *this = other;
 }
 
-manapi::toolbox::decimal::~decimal() {
+manapi::utils::decimal::~decimal() {
     cleanup();
 }
 
 // parse
 
-void manapi::toolbox::decimal::parse(const std::string &num) {
+void manapi::utils::decimal::parse(const std::string &num) {
     mpf_set_str (x, num.data(), 10);
 }
 
-void manapi::toolbox::decimal::parse(const size_t &num) {
+void manapi::utils::decimal::parse(const size_t &num) {
     mpf_set_ui (x, num);
 }
 
-void manapi::toolbox::decimal::parse(const long long int &num) {
+void manapi::utils::decimal::parse(const long long int &num) {
     mpf_set_si (x, num);
 }
 
-void manapi::toolbox::decimal::parse(const ssize_t &num) {
+void manapi::utils::decimal::parse(const ssize_t &num) {
     mpf_set_si (x, num);
 }
 
-void manapi::toolbox::decimal::parse(const double &num) {
+void manapi::utils::decimal::parse(const double &num) {
     mpf_set_d (x, num);
 }
 
-std::string manapi::toolbox::decimal::stringify() const {
+std::string manapi::utils::decimal::stringify() const {
     mp_exp_t exponent;
     char *ptr       = mpf_get_str (nullptr, &exponent, 10, 0, x);
     std::string ret = ptr;
@@ -95,7 +95,7 @@ std::string manapi::toolbox::decimal::stringify() const {
     return "0";
 }
 
-manapi::toolbox::decimal manapi::toolbox::decimal::operator+(const manapi::toolbox::decimal &oth) const {
+manapi::utils::decimal manapi::utils::decimal::operator+(const manapi::utils::decimal &oth) const {
     decimal n;
 
     n.set_precision(mpf_get_prec (x));
@@ -105,7 +105,7 @@ manapi::toolbox::decimal manapi::toolbox::decimal::operator+(const manapi::toolb
     return n;
 }
 
-manapi::toolbox::decimal manapi::toolbox::decimal::operator+(const unsigned long &oth) const {
+manapi::utils::decimal manapi::utils::decimal::operator+(const unsigned long &oth) const {
     decimal n;
 
     n.set_precision(mpf_get_prec (x));
@@ -115,9 +115,9 @@ manapi::toolbox::decimal manapi::toolbox::decimal::operator+(const unsigned long
     return n;
 }
 
-manapi::toolbox::decimal manapi::toolbox::decimal::operator/(const manapi::toolbox::decimal &oth) const {
+manapi::utils::decimal manapi::utils::decimal::operator/(const manapi::utils::decimal &oth) const {
     if (oth == zero)
-        throw manapi::toolbox::manapi_exception ("Divided by zero");
+        throw manapi::utils::manapi_exception ("Divided by zero");
 
     decimal n;
 
@@ -128,7 +128,7 @@ manapi::toolbox::decimal manapi::toolbox::decimal::operator/(const manapi::toolb
     return n;
 }
 
-manapi::toolbox::decimal manapi::toolbox::decimal::operator-(const manapi::toolbox::decimal &oth) const {
+manapi::utils::decimal manapi::utils::decimal::operator-(const manapi::utils::decimal &oth) const {
     decimal n;
 
     n.set_precision(mpf_get_prec (x));
@@ -138,7 +138,7 @@ manapi::toolbox::decimal manapi::toolbox::decimal::operator-(const manapi::toolb
     return n;
 }
 
-manapi::toolbox::decimal manapi::toolbox::decimal::operator-(const unsigned long &oth) const {
+manapi::utils::decimal manapi::utils::decimal::operator-(const unsigned long &oth) const {
     decimal n;
 
     n.set_precision(mpf_get_prec (x));
@@ -148,7 +148,7 @@ manapi::toolbox::decimal manapi::toolbox::decimal::operator-(const unsigned long
     return n;
 }
 
-manapi::toolbox::decimal manapi::toolbox::decimal::operator*(const manapi::toolbox::decimal &oth) {
+manapi::utils::decimal manapi::utils::decimal::operator*(const manapi::utils::decimal &oth) {
     decimal n;
 
     n.set_precision(mpf_get_prec (x));
@@ -158,57 +158,57 @@ manapi::toolbox::decimal manapi::toolbox::decimal::operator*(const manapi::toolb
     return n;
 }
 
-void manapi::toolbox::decimal::operator-=(const manapi::toolbox::decimal &oth) {
+void manapi::utils::decimal::operator-=(const manapi::utils::decimal &oth) {
     mpf_sub (x, x, oth.x);
 }
 
-void manapi::toolbox::decimal::operator+=(const manapi::toolbox::decimal &oth) {
+void manapi::utils::decimal::operator+=(const manapi::utils::decimal &oth) {
     mpf_add (x, x, oth.x);
 }
 
-void manapi::toolbox::decimal::operator*=(const manapi::toolbox::decimal &oth) {
+void manapi::utils::decimal::operator*=(const manapi::utils::decimal &oth) {
     mpf_mul (x, x, oth.x);
 }
 
-void manapi::toolbox::decimal::operator/=(const manapi::toolbox::decimal &oth) {
+void manapi::utils::decimal::operator/=(const manapi::utils::decimal &oth) {
     mpf_div (x, x, oth.x);
 }
 
-bool manapi::toolbox::decimal::operator==(const manapi::toolbox::decimal &oth) const {
+bool manapi::utils::decimal::operator==(const manapi::utils::decimal &oth) const {
     return mpf_cmp (x, oth.x) == 0;
 }
 
-bool manapi::toolbox::decimal::operator!=(const manapi::toolbox::decimal &oth) const {
+bool manapi::utils::decimal::operator!=(const manapi::utils::decimal &oth) const {
     return *this == oth;
 }
 
-bool manapi::toolbox::decimal::operator>(const manapi::toolbox::decimal &oth) const {
+bool manapi::utils::decimal::operator>(const manapi::utils::decimal &oth) const {
     return mpf_cmp (x, oth.x) < 0;
 }
 
-bool manapi::toolbox::decimal::operator<(const manapi::toolbox::decimal &oth) const {
+bool manapi::utils::decimal::operator<(const manapi::utils::decimal &oth) const {
     return mpf_cmp (x, oth.x) > 0;
 }
 
-bool manapi::toolbox::decimal::operator>=(const manapi::toolbox::decimal &oth) const {
+bool manapi::utils::decimal::operator>=(const manapi::utils::decimal &oth) const {
     return *this == oth || *this > oth;
 }
 
-bool manapi::toolbox::decimal::operator<=(const manapi::toolbox::decimal &oth) const {
+bool manapi::utils::decimal::operator<=(const manapi::utils::decimal &oth) const {
     return *this == oth || *this < oth;
 }
 
-manapi::toolbox::decimal &manapi::toolbox::decimal::operator--() {
+manapi::utils::decimal &manapi::utils::decimal::operator--() {
     mpf_sub_ui (x, x, 1);
     return *this;
 }
 
-manapi::toolbox::decimal &manapi::toolbox::decimal::operator++() {
+manapi::utils::decimal &manapi::utils::decimal::operator++() {
     mpf_add_ui (x, x, 1);
     return *this;
 }
 
-manapi::toolbox::decimal manapi::toolbox::decimal::operator!() const {
+manapi::utils::decimal manapi::utils::decimal::operator!() const {
     decimal copy (x);
 
     mpf_neg (copy.x, copy.x);
@@ -216,7 +216,7 @@ manapi::toolbox::decimal manapi::toolbox::decimal::operator!() const {
     return copy;
 }
 
-manapi::toolbox::decimal manapi::toolbox::decimal::operator-() const {
+manapi::utils::decimal manapi::utils::decimal::operator-() const {
     decimal copy (x);
 
     mpf_neg (copy.x, copy.x);
@@ -224,7 +224,7 @@ manapi::toolbox::decimal manapi::toolbox::decimal::operator-() const {
     return copy;
 }
 
-manapi::toolbox::decimal& manapi::toolbox::decimal::operator=(const manapi::toolbox::decimal &oth) {
+manapi::utils::decimal& manapi::utils::decimal::operator=(const manapi::utils::decimal &oth) {
     cleanup();
 
     mpf_init(x);
@@ -233,20 +233,20 @@ manapi::toolbox::decimal& manapi::toolbox::decimal::operator=(const manapi::tool
     return *this;
 }
 
-void manapi::toolbox::decimal::cleanup() {
+void manapi::utils::decimal::cleanup() {
     mpf_clear (x);
 }
 
-void manapi::toolbox::decimal::set_precision(const size_t &precision) {
+void manapi::utils::decimal::set_precision(const size_t &precision) {
     mpf_set_prec (x, precision);
 }
 // other
 
-std::ostream &operator<<(std::ostream &os, const manapi::toolbox::decimal &m) {
+std::ostream &operator<<(std::ostream &os, const manapi::utils::decimal &m) {
     return os << m.stringify();
 }
 
-std::istream &operator>>(std::istream &is, manapi::toolbox::decimal &m) {
+std::istream &operator>>(std::istream &is, manapi::utils::decimal &m) {
     std::string result;
     is >> result;
 

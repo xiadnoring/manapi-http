@@ -6,7 +6,7 @@
 #include <vector>
 #include <zlib.h>
 
-namespace manapi::toolbox {
+namespace manapi::utils {
 
     struct replace_founded_item {
         std::string key;
@@ -14,8 +14,8 @@ namespace manapi::toolbox {
         std::pair <ssize_t, ssize_t> pos;
     };
 
-#define MANAPI_LOG(msg, ...)    manapi::toolbox::_log (__LINE__, __FILE_NAME__, msg, __VA_ARGS__)
-#define MANAPI_LOG_ERROR(e, msg, ...) manapi::toolbox::_log_error(__LINE__, __FILE_NAME__, e, msg, __VA_ARGS__)
+#define MANAPI_LOG(msg, ...)    manapi::utils::_log (__LINE__, __FILE_NAME__, msg, __VA_ARGS__)
+#define MANAPI_LOG_ERROR(e, msg, ...) manapi::utils::_log_error(__LINE__, __FILE_NAME__, e, msg, __VA_ARGS__)
 
     typedef std::map <std::string, std::string> MAP_STR_STR;
     typedef std::vector <std::string>           VEC_STR;

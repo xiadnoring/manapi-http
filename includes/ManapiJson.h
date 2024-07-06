@@ -16,7 +16,7 @@
 #define MANAPI_JSON_NUMBER      7
 #define MANAPI_JSON_BIGINT      8
 
-namespace manapi::toolbox {
+namespace manapi::utils {
     class json {
     public:
         static json object ();

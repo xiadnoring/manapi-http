@@ -31,6 +31,7 @@
 - [ ] PostgreSQL support
 - [x] Support gzip
 - [x] Support deflate
+- [ ] Support brotli
 - [ ] Support decoding from the client
 - [ ] More flexible JSON
 - [x] Content Range (video, audio, massive files)

@@ -123,6 +123,8 @@ static struct {
     std::string MULTIPART_FORM_DATA = "multipart/form-data";
 
     std::string APPLICATION_X_WWW_FORM_URLENCODED = "application/x-www-form-urlencoded";
+
+    std::string VIDEO_MP4           = "video/mp4";
 } http_mime;
 
 #endif //MANAPIHTTP_MANAPIHTTPTYPES_H

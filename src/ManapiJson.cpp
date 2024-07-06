@@ -8,33 +8,33 @@ const static std::string JSON_TRUE   = "true";
 const static std::string JSON_FALSE  = "false";
 const static std::string JSON_NULL   = "null";
 
-typedef std::map<std::string, manapi::toolbox::json *>    MANAPI_JSON_TYPEDEF_MAP;
-typedef std::vector<manapi::toolbox::json *>              MANAPI_JSON_TYPEDEF_ARR;
+typedef std::map<std::string, manapi::utils::json *>    MANAPI_JSON_TYPEDEF_MAP;
+typedef std::vector<manapi::utils::json *>              MANAPI_JSON_TYPEDEF_ARR;
 
-manapi::toolbox::json::json() = default;
+manapi::utils::json::json() = default;
 
-manapi::toolbox::json::json(const std::string &plain_text) {
+manapi::utils::json::json(const std::string &plain_text) {
     this->parse(plain_text);
 }
 
-manapi::toolbox::json::json(const ssize_t &num) {
+manapi::utils::json::json(const ssize_t &num) {
     this->parse(num);
 }
 
-manapi::toolbox::json::json(const manapi::toolbox::json &other) {
+manapi::utils::json::json(const manapi::utils::json &other) {
     *this = other;
 }
 
-manapi::toolbox::json::~json() {
+manapi::utils::json::~json() {
     delete_value();
 }
 
-void manapi::toolbox::json::parse(const ssize_t &num) {
+void manapi::utils::json::parse(const ssize_t &num) {
     type    = MANAPI_JSON_NUMBER;
     src     = new ssize_t (num);
 }
 
-void manapi::toolbox::json::parse(const std::string &plain_text, const bool &bigint, const size_t &bigint_precision, size_t start) {
+void manapi::utils::json::parse(const std::string &plain_text, const bool &bigint, const size_t &bigint_precision, size_t start) {
     if (plain_text.empty())
         error_unexpected_end (0);
 
@@ -355,7 +355,7 @@ void manapi::toolbox::json::parse(const std::string &plain_text, const bool &big
     }
 }
 
-std::string manapi::toolbox::json::dump(const size_t &spaces, const size_t &first_spaces) {
+std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_spaces) {
 #define JSON_DUMP_NEED_NEW_LINE if (spaces_enabled) str += '\n';
 #define JSON_DUMP_NEED_NEW_LINE_OR_SPACE    JSON_DUMP_NEED_NEW_LINE \
                                             else str += ' ';
@@ -459,23 +459,23 @@ std::string manapi::toolbox::json::dump(const size_t &spaces, const size_t &firs
     return str;
 }
 
-size_t manapi::toolbox::json::get_start_cut() const {
+size_t manapi::utils::json::get_start_cut() const {
     return start_cut;
 }
 
-size_t manapi::toolbox::json::get_end_cut() const {
+size_t manapi::utils::json::get_end_cut() const {
     return end_cut;
 }
 
-void manapi::toolbox::json::error_invalid_char(const std::string &plain_text, const size_t &i) {
+void manapi::utils::json::error_invalid_char(const std::string &plain_text, const size_t &i) {
     throw json_parse_exception(std::format("Invalid char '{}' at {}", plain_text[i], i + 1));
 }
 
-void manapi::toolbox::json::error_unexpected_end(const size_t &i) {
+void manapi::utils::json::error_unexpected_end(const size_t &i) {
     throw json_parse_exception(std::format("Unexpected end of JSON input at {}", i + 1));
 }
 
-void manapi::toolbox::json::delete_value() {
+void manapi::utils::json::delete_value() {
     switch (type) {
         case MANAPI_JSON_NULL:
             break;
@@ -509,15 +509,15 @@ void manapi::toolbox::json::delete_value() {
     }
 }
 
-manapi::toolbox::json &manapi::toolbox::json::operator[](const std::string &key) const {
+manapi::utils::json &manapi::utils::json::operator[](const std::string &key) const {
     return at (key);
 }
 
-manapi::toolbox::json &manapi::toolbox::json::operator[](const size_t &index) const {
+manapi::utils::json &manapi::utils::json::operator[](const size_t &index) const {
     return at (index);
 }
 
-manapi::toolbox::json &manapi::toolbox::json::at(const std::string &key) const {
+manapi::utils::json &manapi::utils::json::at(const std::string &key) const {
     if (type != MANAPI_JSON_MAP)
         throw manapi_exception ("invalid operator");
 
@@ -529,7 +529,7 @@ manapi::toolbox::json &manapi::toolbox::json::at(const std::string &key) const {
     return *map->at(key);
 }
 
-manapi::toolbox::json &manapi::toolbox::json::at(const size_t &index) const {
+manapi::utils::json &manapi::utils::json::at(const size_t &index) const {
     if (type != MANAPI_JSON_ARRAY)
         throw manapi_exception ("invalid operator");
 
@@ -541,7 +541,7 @@ manapi::toolbox::json &manapi::toolbox::json::at(const size_t &index) const {
     return *arr->at(index);
 }
 
-manapi::toolbox::json& manapi::toolbox::json::operator=(const std::string &str) {
+manapi::utils::json& manapi::utils::json::operator=(const std::string &str) {
     delete_value ();
 
     type    = MANAPI_JSON_STRING;
@@ -550,7 +550,7 @@ manapi::toolbox::json& manapi::toolbox::json::operator=(const std::string &str) 
     return *this;
 }
 
-manapi::toolbox::json &manapi::toolbox::json::operator=(const bool &b) {
+manapi::utils::json &manapi::utils::json::operator=(const bool &b) {
     delete_value();
 
     type    = MANAPI_JSON_BOOLEAN;
@@ -559,7 +559,7 @@ manapi::toolbox::json &manapi::toolbox::json::operator=(const bool &b) {
     return *this;
 }
 
-manapi::toolbox::json &manapi::toolbox::json::operator=(const ssize_t &num) {
+manapi::utils::json &manapi::utils::json::operator=(const ssize_t &num) {
     delete_value();
 
     if (use_bigint) {
@@ -575,7 +575,7 @@ manapi::toolbox::json &manapi::toolbox::json::operator=(const ssize_t &num) {
 }
 
 
-manapi::toolbox::json &manapi::toolbox::json::operator=(const double &num) {
+manapi::utils::json &manapi::utils::json::operator=(const double &num) {
     delete_value();
 
     if (use_bigint) {
@@ -590,7 +590,7 @@ manapi::toolbox::json &manapi::toolbox::json::operator=(const double &num) {
     return *this;
 }
 
-manapi::toolbox::json &manapi::toolbox::json::operator=(nullptr_t const &n) {
+manapi::utils::json &manapi::utils::json::operator=(nullptr_t const &n) {
     delete_value();
 
     type    = MANAPI_JSON_NULL;
@@ -599,15 +599,15 @@ manapi::toolbox::json &manapi::toolbox::json::operator=(nullptr_t const &n) {
     return *this;
 }
 
-manapi::toolbox::json &manapi::toolbox::json::operator=(const char *str) {
+manapi::utils::json &manapi::utils::json::operator=(const char *str) {
     return this->operator=(std::string (str));
 }
 
-manapi::toolbox::json &manapi::toolbox::json::operator=(const int &num) {
+manapi::utils::json &manapi::utils::json::operator=(const int &num) {
     return this->operator=((ssize_t) num);
 }
 
-manapi::toolbox::json &manapi::toolbox::json::operator=(const manapi::toolbox::decimal &num) {
+manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::decimal &num) {
     delete_value();
 
     type    = MANAPI_JSON_BIGINT;
@@ -616,7 +616,7 @@ manapi::toolbox::json &manapi::toolbox::json::operator=(const manapi::toolbox::d
     return *this;
 }
 
-manapi::toolbox::json &manapi::toolbox::json::operator=(const manapi::toolbox::json &obj) {
+manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::json &obj) {
     delete_value();
 
     this->use_bigint            = obj.use_bigint;
@@ -681,7 +681,7 @@ manapi::toolbox::json &manapi::toolbox::json::operator=(const manapi::toolbox::j
     return *this;
 }
 
-void manapi::toolbox::json::insert(const std::string &key, const manapi::toolbox::json &obj) {
+void manapi::utils::json::insert(const std::string &key, const manapi::utils::json &obj) {
     if (type != MANAPI_JSON_MAP)
         throw manapi_exception ("invalid type");
 
@@ -698,7 +698,7 @@ void manapi::toolbox::json::insert(const std::string &key, const manapi::toolbox
     map->insert({key, item});
 }
 
-void manapi::toolbox::json::push_back(const manapi::toolbox::json &obj) {
+void manapi::utils::json::push_back(const manapi::utils::json &obj) {
     if (type != MANAPI_JSON_ARRAY)
         throw manapi_exception ("invalid type");
 
@@ -712,7 +712,7 @@ void manapi::toolbox::json::push_back(const manapi::toolbox::json &obj) {
     arr->push_back(item);
 }
 
-void manapi::toolbox::json::pop_back() {
+void manapi::utils::json::pop_back() {
     if (type != MANAPI_JSON_ARRAY)
         throw manapi_exception ("invalid type");
 
@@ -721,7 +721,7 @@ void manapi::toolbox::json::pop_back() {
     arr->pop_back();
 }
 
-void manapi::toolbox::json::insert(const std::string &key, const std::string &arg) {
+void manapi::utils::json::insert(const std::string &key, const std::string &arg) {
     json Json;
 
     Json.src        = new std::string (arg);
@@ -731,12 +731,12 @@ void manapi::toolbox::json::insert(const std::string &key, const std::string &ar
     this->insert(key, Json);
 }
 
-void manapi::toolbox::json::insert(const std::string &key, const ssize_t &arg) {
+void manapi::utils::json::insert(const std::string &key, const ssize_t &arg) {
     json Json (arg);
     this->insert(key, Json);
 }
 
-void manapi::toolbox::json::push_back(const std::string &arg) {
+void manapi::utils::json::push_back(const std::string &arg) {
     json Json;
 
     Json.src        = new std::string (arg);
@@ -746,12 +746,12 @@ void manapi::toolbox::json::push_back(const std::string &arg) {
     this->push_back(Json);
 }
 
-void manapi::toolbox::json::push_back(const ssize_t &arg) {
+void manapi::utils::json::push_back(const ssize_t &arg) {
     json Json (arg);
     this->push_back(Json);
 }
 
-manapi::toolbox::json manapi::toolbox::json::object() {
+manapi::utils::json manapi::utils::json::object() {
     json obj;
 
     obj.type    = MANAPI_JSON_MAP;
@@ -760,7 +760,7 @@ manapi::toolbox::json manapi::toolbox::json::object() {
     return obj;
 }
 
-manapi::toolbox::json manapi::toolbox::json::array() {
+manapi::utils::json manapi::utils::json::array() {
     json arr;
 
     arr.type    = MANAPI_JSON_ARRAY;
@@ -769,53 +769,53 @@ manapi::toolbox::json manapi::toolbox::json::array() {
     return arr;
 }
 
-bool manapi::toolbox::json::contains(const std::string &key) {
+bool manapi::utils::json::contains(const std::string &key) {
     if (type != MANAPI_JSON_MAP)
         throw manapi_exception ("invalid type");
 
     return reinterpret_cast <MANAPI_JSON_TYPEDEF_MAP *> (src)->contains(key);
 }
 
-void manapi::toolbox::json::erase(const std::string &key) {
+void manapi::utils::json::erase(const std::string &key) {
     if (type != MANAPI_JSON_MAP)
         throw manapi_exception ("invalid type");
 
     reinterpret_cast <MANAPI_JSON_TYPEDEF_MAP *> (src)->erase(key);
 }
 
-bool manapi::toolbox::json::is_object() const {
+bool manapi::utils::json::is_object() const {
     return type == MANAPI_JSON_MAP;
 }
 
-bool manapi::toolbox::json::is_array() const {
+bool manapi::utils::json::is_array() const {
     return type == MANAPI_JSON_ARRAY;
 }
 
-bool manapi::toolbox::json::is_string() const {
+bool manapi::utils::json::is_string() const {
     return type == MANAPI_JSON_STRING;
 }
 
-bool manapi::toolbox::json::is_number() const {
+bool manapi::utils::json::is_number() const {
     return type == MANAPI_JSON_NUMBER;
 }
 
-bool manapi::toolbox::json::is_null() const {
+bool manapi::utils::json::is_null() const {
     return type == MANAPI_JSON_NULL;
 }
 
-bool manapi::toolbox::json::is_decimal() const {
+bool manapi::utils::json::is_decimal() const {
     return type == MANAPI_JSON_DECIMAL;
 }
 
-bool manapi::toolbox::json::is_bigint() const {
+bool manapi::utils::json::is_bigint() const {
     return type == MANAPI_JSON_BIGINT;
 }
 
-bool manapi::toolbox::json::is_bool() const {
+bool manapi::utils::json::is_bool() const {
     return type == MANAPI_JSON_BOOLEAN;
 }
 
-size_t manapi::toolbox::json::size() {
+size_t manapi::utils::json::size() {
     if (!is_array())
         throw manapi_exception ("its not array to use size()");
 
@@ -825,11 +825,11 @@ size_t manapi::toolbox::json::size() {
 
 // Exceptions
 
-manapi::toolbox::json_parse_exception::json_parse_exception(const std::string &msg) {
+manapi::utils::json_parse_exception::json_parse_exception(const std::string &msg) {
     message = msg;
 }
 
-const char *manapi::toolbox::json_parse_exception::what() const noexcept {
+const char *manapi::utils::json_parse_exception::what() const noexcept {
     return message.data();
 }
 
