@@ -3,6 +3,8 @@
 #include "ManapiHttp.h"
 #include "ManapiTaskHttp.h"
 #include "ManapiFilesystem.h"
+#include "ManapiTaskFunction.h"
+#include <chrono>
 
 using namespace manapi::utils;
 using namespace manapi::net;
@@ -22,6 +24,11 @@ int main(int argc, char *argv[]) {
     server.set_config("config.json");
 
     server.GET ("/", [] (REQ(req), RESP(resp)) {
+        resp.pool->await(new function_task ([] {
+            this_thread::sleep_for (std::chrono::seconds (5));
+            printf ("EXECUTED\n");
+        }));
+
         resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
     });
 

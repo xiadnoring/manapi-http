@@ -18,12 +18,14 @@
 #include "ManapiTask.h"
 #include "ManapiCompress.h"
 #include "ManapiJson.h"
+#include "ManapiApi.h"
 
 #define MANAPI_NET_TYPE_TCP 0
 #define MANAPI_NET_TYPE_UDP 1
 
 #define REQ(_x) manapi::net::http_request &_x
 #define RESP(_x) manapi::net::http_response &_x
+#define POOL(_x) manapi::net::api::pool &_x
 
 #define HANDLER(_req, _resp) (REQ(_req), RESP(_resp))
 
@@ -139,6 +141,7 @@ namespace manapi::net {
         bool contains_compressor (const std::string &name);
 
         void set_port (const std::string &_port);
+        threadpool<task> *get_tasks_pool ();
 
         void set_config (const std::string &path);
         const manapi::utils::json & get_config ();

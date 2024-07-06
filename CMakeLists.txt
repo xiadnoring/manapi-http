@@ -7,7 +7,6 @@ else ()
     message(STATUS "This project is a top-level one")
 endif ()
 
-set(MANAPI_BUILD_MODE $ENV{MANAPI_HTTP_MODE})
 
 find_package(PkgConfig REQUIRED)
 
@@ -54,31 +53,34 @@ set(MANAPI_HTTP_FILES
         src/ManapiCompress.cpp
         src/ManapiFilesystem.cpp
         src/ManapiHash.cpp
-        src/ManapiTaskFunction.cpp)
+        src/ManapiTaskFunction.cpp
+        includes/ManapiApi.h
+        src/ManapiApi.cpp)
 
 set(MANAPI_INSTALL 0)
+#set(CMAKE_BUILD_TYPE "Debug")
 
-if (MANAPI_BUILD_MODE STREQUAL "debug")
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     # DEBUG
-    message(STATUS "Build mode 'debug'")
+    message(STATUS "Build mode 'Debug'")
     add_executable(${PROJECT_NAME} main.cpp ${MANAPI_HTTP_FILES})
 else ()
     # RELEASE
     set(MANAPI_INSTALL 1)
 
-    message(STATUS "Build mode 'release' (${MANAPI_BUILD_MODE})")
+    message(STATUS "Build mode 'Release' (${CMAKE_BUILD_TYPE})")
     add_library(${PROJECT_NAME} SHARED ${MANAPI_HTTP_FILES})
 
     set_target_properties(${PROJECT_NAME} PROPERTIES
             VERSION ${PROJECT_VERSION}
             SOVERSION ${PROJECT_VERSION_MAJOR})
 
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.pc.in ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc @ONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}.pc.in ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc @ONLY)
 endif ()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
-target_link_libraries       (${PROJECT_NAME} ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${QUIC_LIBRARIES} ${LIBEV_LIBRARIES} ${OPENSSL_LIBRARIES})
+target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${QUIC_LIBRARIES} ${LIBEV_LIBRARIES} ${OPENSSL_LIBRARIES})
 target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${QUIC_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIRS})
 
 target_include_directories  (${PROJECT_NAME} PRIVATE includes)

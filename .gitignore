@@ -5,5 +5,7 @@ examples/CMakeCache.txt
 examples/cmake_install.cmake
 examples/Test
 examples/Makefile
+CMakeUserPresets.json
+build
 .idea
 .tmp

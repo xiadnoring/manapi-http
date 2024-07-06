@@ -6,6 +6,7 @@
 #include "ManapiJson.h"
 #include "ManapiUtils.h"
 #include "ManapiHttp.h"
+#include "ManapiApi.h"
 
 namespace manapi::net {
     class http;
@@ -47,6 +48,8 @@ namespace manapi::net {
         std::vector <std::pair <ssize_t, ssize_t> > ranges;
 
         const utils::MAP_STR_STR *get_replacers ();
+
+        manapi::net::api::pool *pool;
     private:
         // detect the range header
         void                detect_ranges    ();

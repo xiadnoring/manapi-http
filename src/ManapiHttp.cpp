@@ -847,3 +847,7 @@ void manapi::net::http::ssl_configure_context() {
 ev::loop_ref manapi::net::http::get_loop() {
     return loop;
 }
+
+manapi::net::threadpool<manapi::net::task> *manapi::net::http::get_tasks_pool() {
+    return tasks_pool;
+}
