@@ -6,6 +6,7 @@ examples/cmake_install.cmake
 examples/Test
 examples/Makefile
 CMakeUserPresets.json
+conan_provider.cmake
 build
 .idea
 .tmp

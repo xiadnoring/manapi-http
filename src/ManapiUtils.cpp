@@ -102,22 +102,33 @@ std::string manapi::utils::escape_string (const std::string &str) {
     std::string escaped;
 
     for (const auto &i : str) {
-        if (escape_char_need(i)) {
+        switch (i) {
+            case '\n':
+                escaped += "\\n";
+                break;
+            case '\t':
+                escaped += "\\t";
+                break;
+            case '\r':
+                escaped += "\\r";
+                break;
+            default:
+                if (escape_char_need(i)) {
+                    escaped.push_back('\\');
+                    escaped.push_back(i);
 
-            escaped.push_back('\\');
-            escaped.push_back(i);
+                    continue;
+                }
 
-            continue;
+                escaped += i;
         }
-
-        escaped += i;
     }
 
     return escaped;
 }
 
 bool manapi::utils::escape_char_need (const char &ch) {
-    return !(std::isalpha(ch) || std::isdigit(ch) || ch == '_');
+    return !(std::isalpha(ch) || std::isdigit(ch) || ch == '_' || ch == ' ');
 }
 
 bool manapi::utils::valid_special_symbol(const char &c) {

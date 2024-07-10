@@ -37,7 +37,7 @@ namespace manapi::net {
         const std::string                           &get_method ();
         const std::string                           &get_http_version();
         const std::map<std::string, std::string>    &get_headers ();
-        const std::string                           *get_param (const std::string &param);
+        const std::string                           &get_param (const std::string &param);
         std::string                                 text ();
         manapi::utils::json                         json ();
         static std::vector <manapi::net::header_value_t>                       parse_header_value (const std::string &header_value);

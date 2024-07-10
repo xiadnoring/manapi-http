@@ -1,8 +1,10 @@
 #ifndef MANAPIHTTP_MANAPICOMPRESS_H
 #define MANAPIHTTP_MANAPICOMPRESS_H
 
-#include <zlib.h>
 #include "ManapiUtils.h"
+
+#define Z_DEFAULT_COMPRESSION   0
+#define Z_DEFAULT_STRATEGY      0
 
 namespace manapi::utils::compress {
     typedef std::string (*TEMPLATE_INTERFACE) (const std::string &, const std::string *);

@@ -4,7 +4,6 @@
 #include "ManapiTaskHttp.h"
 #include "ManapiFilesystem.h"
 #include "ManapiTaskFunction.h"
-#include <chrono>
 
 using namespace manapi::utils;
 using namespace manapi::net;
@@ -24,11 +23,6 @@ int main(int argc, char *argv[]) {
     server.set_config("config.json");
 
     server.GET ("/", [] (REQ(req), RESP(resp)) {
-        resp.pool->await(new function_task ([] {
-            this_thread::sleep_for (std::chrono::seconds (5));
-            printf ("EXECUTED\n");
-        }));
-
         resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
     });
 
@@ -49,10 +43,10 @@ int main(int argc, char *argv[]) {
 
     server.GET ("/+error", [] (REQ(req), RESP(resp)) {
         resp.set_replacers({
-                                   {"status_code", std::to_string(resp.get_status_code())},
-                                   {"status_message", resp.get_status_message()},
-                                   {"url", "/noooo"}
-                           });
+               {"status_code", std::to_string(resp.get_status_code())},
+               {"status_message", resp.get_status_message()},
+               {"url", "/noooo"}
+       });
 
         resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/error.html");
     });
@@ -78,10 +72,10 @@ int main(int argc, char *argv[]) {
     });
 
     server.GET ("/[filename]-[extension]", [](REQ(req), RESP(resp)) {
-        auto filename     = req.get_param("filename");
-        auto extension    = req.get_param("extension");
+        auto &filename     = req.get_param("filename");
+        auto &extension    = req.get_param("extension");
 
-        resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test/" + *filename + '.' + *extension);
+        resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test/" + filename + '.' + extension);
     });
 
     server.GET ("/[filename]-[extension]/+error", [](REQ(req), RESP(resp)) {
@@ -100,7 +94,6 @@ int main(int argc, char *argv[]) {
 
     server.POST ("/form", [] (REQ(req), RESP(resp)) {
         auto formData = req.form();
-
 
         json obj = json::object();
 

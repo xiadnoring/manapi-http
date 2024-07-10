@@ -8,37 +8,43 @@ else ()
 endif ()
 
 
-find_package(PkgConfig REQUIRED)
+#find_package(PkgConfig REQUIRED)
 
 # include finders
-include(./cmake/FindLibev.cmake)
+# include(./cmake/FindLibev.cmake)
 include(GNUInstallDirs)
 
-pkg_check_modules(GMP REQUIRED gmp)
-pkg_check_modules(ZLIB REQUIRED zlib)
-pkg_check_modules(QUIC REQUIRED quiche)
-pkg_check_modules(OPENSSL REQUIRED openssl)
+#pkg_check_modules(GMP REQUIRED gmp)
+#pkg_check_modules(ZLIB REQUIRED zlib)
+#pkg_check_modules(QUIC REQUIRED quiche)
+#pkg_check_modules(OPENSSL REQUIRED openssl)
+
+find_package(gmp REQUIRED)
+find_package(OpenSSL REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(libev REQUIRED)
+find_package(quiche REQUIRED)
 
 set(CMAKE_CXX_STANDARD 23)
 
 set(MANAPI_HTTP_FILES
-        includes/ManapiHttp.h
-        includes/ManapiLocker.h
-        includes/ManapiThreadPool.h
-        includes/ManapiTask.h
-        includes/ManapiTaskHttp.h
-        includes/ManapiUtils.h
-        includes/ManapiHttpResponse.h
-        includes/ManapiHttpRequest.h
-        includes/ManapiDecimal.h
-        includes/ManapiJson.h
-        includes/ManapiThreadSafe.h
-        includes/ManapiHttpTypes.h
-        includes/ManapiFilesystem.h
-        includes/ManapiBase64.h
-        includes/ManapiCompress.h
-        includes/ManapiTaskFunction.h
-        includes/ManapiHash.h
+        include/ManapiHttp.h
+        include/ManapiLocker.h
+        include/ManapiThreadPool.h
+        include/ManapiTask.h
+        include/ManapiTaskHttp.h
+        include/ManapiUtils.h
+        include/ManapiHttpResponse.h
+        include/ManapiHttpRequest.h
+        include/ManapiDecimal.h
+        include/ManapiJson.h
+        include/ManapiThreadSafe.h
+        include/ManapiHttpTypes.h
+        include/ManapiFilesystem.h
+        include/ManapiBase64.h
+        include/ManapiCompress.h
+        include/ManapiTaskFunction.h
+        include/ManapiHash.h
 
         src/ManapiHttp.cpp
         src/ManapiLocker.cpp
@@ -54,21 +60,20 @@ set(MANAPI_HTTP_FILES
         src/ManapiFilesystem.cpp
         src/ManapiHash.cpp
         src/ManapiTaskFunction.cpp
-        includes/ManapiApi.h
+        include/ManapiApi.h
         src/ManapiApi.cpp)
 
 set(MANAPI_INSTALL 0)
-#set(CMAKE_BUILD_TYPE "Debug")
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+if (MANAPI_BUILD_TYPE STREQUAL "test")
     # DEBUG
-    message(STATUS "Build mode 'Debug'")
+    message(STATUS "Build mode 'Testing'")
     add_executable(${PROJECT_NAME} main.cpp ${MANAPI_HTTP_FILES})
 else ()
     # RELEASE
     set(MANAPI_INSTALL 1)
 
-    message(STATUS "Build mode 'Release' (${CMAKE_BUILD_TYPE})")
+    message(STATUS "Build mode 'Library' (${MANAPI_BUILD_TYPE})")
     add_library(${PROJECT_NAME} SHARED ${MANAPI_HTTP_FILES})
 
     set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -80,10 +85,12 @@ endif ()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
-target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${QUIC_LIBRARIES} ${LIBEV_LIBRARIES} ${OPENSSL_LIBRARIES})
-target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${QUIC_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIRS})
+target_link_libraries       (${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES} gmp::gmp openssl::openssl ZLIB::ZLIB libev::libev quiche::quiche)
 
-target_include_directories  (${PROJECT_NAME} PRIVATE includes)
+#target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${QUIC_LIBRARIES} ${LIBEV_LIBRARIES} ${OPENSSL_LIBRARIES})
+#target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${QUIC_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIRS})
+
+target_include_directories  (${PROJECT_NAME} PRIVATE include)
 
 if (MANAPI_INSTALL EQUAL 1)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
@@ -92,7 +99,7 @@ if (MANAPI_INSTALL EQUAL 1)
             ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
             LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR})
-    install(DIRECTORY includes/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
+    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
 
     install(EXPORT ManapiHttpConfig DESTINATION lib/cmake/${PROJECT_NAME})
 

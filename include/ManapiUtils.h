@@ -4,7 +4,6 @@
 #include <string>
 #include <map>
 #include <vector>
-#include <zlib.h>
 
 namespace manapi::utils {
 

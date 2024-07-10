@@ -2,6 +2,7 @@
 #include <format>
 #include "ManapiFilesystem.h"
 #include "ManapiCompress.h"
+#include <zlib.h>
 
 #define CHUNK_SIZE 4096
 

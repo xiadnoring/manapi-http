@@ -30,11 +30,11 @@ const std::map<std::string, std::string> &manapi::net::http_request::get_headers
     return request_data->headers;
 }
 
-const std::string *manapi::net::http_request::get_param(const std::string &param) {
+const std::string &manapi::net::http_request::get_param(const std::string &param) {
     if (request_data->params.contains(param))
-        return &request_data->params.at(param);
+        return request_data->params.at(param);
 
-    return nullptr;
+    throw utils::manapi_exception (std::format("cannot find param '{}'", param));
 }
 
 std::string manapi::net::http_request::text() {

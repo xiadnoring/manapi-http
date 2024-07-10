@@ -36,8 +36,8 @@ namespace manapi::net {
 
         const std::map<std::string, std::string> &get_headers ();
 
-        void set_header         (const std::string &key, const std::string &value);
-        std::string *get_header (const std::string &key);
+        void                set_header      (const std::string &key, const std::string &value);
+        std::string         &get_header     (const std::string &key);
 
         bool                is_sendfile     ();
         [[nodiscard]] bool  get_auto_partial_enabled () const;

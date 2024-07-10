@@ -30,14 +30,11 @@ void manapi::net::http_response::set_header(const std::string &key, const std::s
  * @param key the key of the header
  * @return the pointer to the string | nullptr
  */
-std::string *manapi::net::http_response::get_header(const std::string &key) {
-    try {
-        if (headers.contains(key))
-            return &headers[key];
-    } catch (const std::exception &e) {
-        MANAPI_LOG_ERROR(e, "The header '%s' could not be found", key.data());
-    }
-    return nullptr;
+std::string &manapi::net::http_response::get_header(const std::string &key) {
+    if (headers.contains(key))
+        return headers[key];
+
+    throw utils::manapi_exception (std::format("The header '{}' could not be found", key));
 }
 
 void manapi::net::http_response::text(const std::string &plain_text) {
