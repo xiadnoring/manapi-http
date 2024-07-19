@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <pthread.h>
 #include <iostream>
+#include <atomic>
 
 namespace manapi::net {
     template <class T>
@@ -18,6 +19,8 @@ namespace manapi::net {
         bool append_task (T *task);
         void start();
         void stop();
+        size_t get_count_stopped_task ();
+        bool all_tasks_stopped ();
     private:
         size_t thread_number;
         pthread_t *all_threads;
@@ -29,6 +32,8 @@ namespace manapi::net {
         void run();
         T *getTask();
         bool is_stop;
+
+        std::atomic<size_t> stopped;
     };
 }
 

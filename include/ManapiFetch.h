@@ -1,0 +1,8 @@
+//
+// Created by Timur on 7/19/24.
+//
+
+#ifndef MANAPIHTTP_MANAPIFETCH_H
+#define MANAPIHTTP_MANAPIFETCH_H
+
+#endif //MANAPIHTTP_MANAPIFETCH_H

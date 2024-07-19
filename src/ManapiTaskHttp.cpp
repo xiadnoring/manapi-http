@@ -30,6 +30,8 @@
 
 #define MANAPI_QUIC_CONNECTION_ID_LEN 16
 
+// TODO: Client may create 100+ threads task
+
 // HEADER CLASS
 
 manapi::net::http_task::~http_task() {
@@ -245,11 +247,12 @@ void manapi::net::http_task::udp_doit() {
         mask_read = [this] (const char *part_buff, const size_t &part_buff_size) {
             while (!quic_got_data)
             {
-                // if we want to delete thread
                 if (to_delete)
                 {
                     return (ssize_t) (-1);
                 }
+
+                // ASK NEW STREAM
 
                 got_connection.lock();
 
@@ -258,6 +261,11 @@ void manapi::net::http_task::udp_doit() {
                 got_connection.lock();
 
                 got_connection.unlock();
+
+                if (to_delete)
+                {
+                    return (ssize_t) (-1);
+                }
             }
 
             ssize_t read = quiche_h3_recv_body(conn_io->http3, conn_io->conn, s, (uint8_t *) part_buff, part_buff_size);
@@ -273,11 +281,15 @@ void manapi::net::http_task::udp_doit() {
             repeat:
 
             while (capacity <= 0) {
-                // if we want to delete thread
                 if (to_delete)
                 {
+                    printf("DELETE :(\n");
                     return (ssize_t) (-1);
                 }
+
+                //printf("IM WAITING\n");
+
+                // ASK NEW STREAM
 
                 got_connection.lock();
 
@@ -287,13 +299,20 @@ void manapi::net::http_task::udp_doit() {
 
                 got_connection.unlock();
 
+                if (to_delete)
+                {
+                    printf("DELETE :(\n");
+                    return (ssize_t) (-1);
+                }
+                //printf("HELLO :)\n");
+
                 capacity = quiche_conn_stream_capacity(conn_io->conn, s);
             }
 
             const bool final = capacity <= part_buff_size;
             ssize_t written = quiche_h3_send_body(conn_io->http3, conn_io->conn, s, (uint8_t *) part_buff, part_buff_size, final);
 
-            printf("Sent: %zi, Capacity: %zi, Buff Size: %zi, Final %i\n", written, capacity, part_buff_size, final);
+            //printf("Sent: %zi, Capacity: %zi, Buff Size: %zi, Final %i\n", written, capacity, part_buff_size, final);
 
             if (written < 0) {
                 capacity = -1;
@@ -386,21 +405,28 @@ void manapi::net::http_task::udp_doit() {
 
                         to_delete = true;
 
+                        printf("THE END\n");
+
                         next_connection.unlock();
                     });
                     quic_thr->detach();
 
                     // wait when the stream run out of capacity
+
                     next_connection.lock();
 
-                    if (quic_thr != nullptr) {
-                        if (to_delete)
-                        {
-                            delete quic_thr;
-                        }
-                        else
-                        {
-                            conn_io->tasks.insert({s, this});
+                    if (!request_data.has_body)
+                    {
+                        // clean up
+                        if (quic_thr != nullptr) {
+                            if (to_delete)
+                            {
+                                delete quic_thr;
+                            }
+                            else
+                            {
+                                conn_io->tasks.insert({s, this});
+                            }
                         }
                     }
 
@@ -421,6 +447,20 @@ void manapi::net::http_task::udp_doit() {
                     next_connection.lock();
 
                     printf("END HTTP DATA\n");
+
+
+
+                    // clean up
+                    if (quic_thr != nullptr) {
+                        if (to_delete)
+                        {
+                            delete quic_thr;
+                        }
+                        else
+                        {
+                            conn_io->tasks.insert({s, this});
+                        }
+                    }
 
                     break;
                 }
@@ -828,6 +868,10 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
             break;
 
         current += sent;
+
+        //printf("STEP: %zi LEFT: %zi NEED: %zi CURRENT: %zi\n", sent, left, size, current);
+
+
 
         f.seekg(current);
     }
@@ -1467,6 +1511,7 @@ void manapi::net::http_task::quic_delete_conn_io(manapi::net::http_qc_conn_io *c
         task->got_connection.unlock();
 
         // wait the end of the execution this task
+
         task->next_connection.lock();
 
         delete task->quic_thr;

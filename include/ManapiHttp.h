@@ -25,7 +25,12 @@
 
 #define REQ(_x) manapi::net::http_request &_x
 #define RESP(_x) manapi::net::http_response &_x
-#define POOL(_x) manapi::net::api::pool &_x
+
+#define ASYNC(_x) resp.tasks->async([&] () {_x;})
+#define AWAIT(_x) resp.tasks->await([&] () {_x;})
+
+#define ASYNC2(_y, _x) _y.tasks->async([&] () {_x;})
+#define AWAIT2(_y, _x) _y.tasks->await([&] () {_x;})
 
 #define HANDLER(_req, _resp) (REQ(_req), RESP(_resp))
 
@@ -101,9 +106,11 @@ namespace manapi::net {
 
     class http {
     public:
-        explicit http(std::string port = "8888");
-        int pool (const size_t &thread_num = 20);
-        std::future <int> run ();
+        explicit            http(std::string port = "8888");
+        ~http();
+        int                 pool (const size_t &thread_num = 20);
+
+        std::future <int>   run ();
 
         void GET    (const std::string &uri, const handler_template_t &handler);
         void POST   (const std::string &uri, const handler_template_t &handler);
@@ -116,7 +123,7 @@ namespace manapi::net {
         http_uri_part       *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, bool has_body = false);
         http_uri_part       *set_handler (const std::string &method, const std::string &uri, const std::string &folder, bool has_body = false);
 
-        http_handler_page get_handler (request_data_t &request_data);
+        http_handler_page   get_handler (request_data_t &request_data);
 
         void set_keep_alive (const long int &seconds);
         [[nodiscard]] const long int& get_keep_alive () const;
@@ -138,85 +145,101 @@ namespace manapi::net {
         void set_compressor (const std::string &name, manapi::utils::compress::TEMPLATE_INTERFACE handler);
         manapi::utils::compress::TEMPLATE_INTERFACE get_compressor (const std::string &name);
 
-        bool contains_compressor (const std::string &name);
+        bool                        contains_compressor (const std::string &name);
 
-        void set_port (const std::string &_port);
-        threadpool<task> *get_tasks_pool ();
+        void                        set_port (const std::string &_port);
+        threadpool<task>            *get_tasks_pool ();
 
-        void set_config (const std::string &path);
-        const manapi::utils::json & get_config ();
+        void                        set_config (const std::string &path);
+        const manapi::utils::json   &get_config ();
 
-        const std::string *get_compressed_cache_file (const std::string &file, const std::string &algorithm);
-        void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
+        const std::string           *get_compressed_cache_file (const std::string &file, const std::string &algorithm);
+        void                        set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
 
-        const ssl_config_t &get_ssl_config ();
+        const ssl_config_t          &get_ssl_config ();
 
         // config
-        std::string *config_cache_dir = nullptr;
+        std::string                 *config_cache_dir = nullptr;
 
-        void stop ();
-        ev::loop_ref get_loop ();
+        void                        stop ();
+        ev::loop_ref                get_loop ();
 
-        struct sockaddr *server_addr;
-        socklen_t       server_len;
+        struct sockaddr             *server_addr;
+        socklen_t                   server_len;
 
-        quiche_h3_config *http3_config;
+        quiche_h3_config            *http3_config;
+
+        static std::vector <http *>
+                                    running;
+        static bool                 stopped_interrupt;
     private:
-        http_uri_part *build_uri_part (const std::string &uri, size_t &type);
+        int                         _pool (const size_t &thread_num = 20);
+        http_uri_part               *build_uri_part (const std::string &uri, size_t &type);
 
-        static SSL_CTX* ssl_create_context ();
-        void            ssl_configure_context ();
+        static SSL_CTX*             ssl_create_context ();
+        void                        ssl_configure_context ();
 
-        void setup ();
-        void setup_config ();
-        void save ();
-        void save_config ();
+        void                        setup ();
+        void                        setup_config ();
+        void                        save ();
+        void                        save_config ();
 
-        void new_connection_udp    (ev::io &watcher, int revents);
-        void new_connection_tls     (ev::io &watcher, int revents);
+        void                        stop_pool ();
 
-        manapi::utils::json config;
-        manapi::utils::json cache_config;
+        void                        new_connection_udp    (ev::io &watcher, int revents);
+        void                        new_connection_tls     (ev::io &watcher, int revents);
 
-        std::string         config_path = "/tmp/http.json";
+        manapi::utils::json         config;
+        manapi::utils::json         cache_config;
 
-        int                 sock_fd,
-                            conn_fd{};
+        std::string                 config_path = "/tmp/http.json";
 
-        threadpool<task>    *tasks_pool = nullptr;
+        int                         sock_fd,
+                                    conn_fd{};
 
-        http_uri_part       handlers;
+        threadpool<task>            *tasks_pool = nullptr;
+
+        http_uri_part               handlers;
 
         // settings
-        long int            keep_alive;
+        long int                    keep_alive;
 
-        size_t              max_header_block_size   = 4096;
-        size_t              socket_block_size       = 1350;
-        size_t              partial_data_min_size   = 4194304;
-        size_t              http_version            = 1;
-        std::string         http_version_str        = "1.1";
-        std::string         address                 = "0.0.0.0";
-        std::string         port                    = "8888";
-        bool                enabled_save_config     = false;
+        size_t                      max_header_block_size   = 4096;
+        size_t                      socket_block_size       = 1350;
+        size_t                      partial_data_min_size   = 4194304;
+        size_t                      http_version            = 1;
+        std::string                 http_version_str        = "1.1";
+        std::string                 address                 = "0.0.0.0";
+        std::string                 port                    = "8888";
+        bool                        enabled_save_config     = false;
 
-        ssl_config_t        ssl_config;
+        ssl_config_t                ssl_config;
 
-        ev::dynamic_loop    loop;
+        ev::dynamic_loop            loop;
 
         std::map <std::string, manapi::utils::compress::TEMPLATE_INTERFACE> compressors;
 
-        static std::string  default_cache_dir;
-        static std::string  default_config_name;
+        static std::string          default_cache_dir;
+        static std::string          default_config_name;
 
         // quic data
-        quiche_config       *q_config;
-        QUIC_MAP_CONNS_T    quic_map_conns;
+        quiche_config               *q_config;
+        QUIC_MAP_CONNS_T            quic_map_conns;
 
         // watchers
-        ev::io              *tcp_io = nullptr;
-        ev::io              *udp_io = nullptr;
+        ev::io                      *tcp_io = nullptr;
+        ev::io                      *udp_io = nullptr;
 
-        SSL_CTX             *ctx;
+        SSL_CTX                     *ctx;
+
+        std::mutex                  m_running;
+        std::mutex                  m_initing;
+        std::mutex                  m_stopping;
+        std::atomic <bool>          stopping;
+
+        std::promise <int>          *pool_promise = nullptr;
+
+        std::thread                 *thr_stopping;
     };
 }
 

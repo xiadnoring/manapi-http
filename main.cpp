@@ -9,20 +9,13 @@ using namespace manapi::utils;
 using namespace manapi::net;
 using namespace std;
 
-static http server;
-
-void handler_interrupt (int sig_int) {
-    server.stop();
-}
-
 int main(int argc, char *argv[]) {
-    signal (SIGABRT, handler_interrupt);
-    signal (SIGKILL, handler_interrupt);
-    signal (SIGTERM, handler_interrupt);
+    http server;
+    future<int> f;
 
     server.set_config("config.json");
 
-    server.GET ("/", [] (REQ(req), RESP(resp)) {
+    server.GET ("/", [&server] (REQ(req), RESP(resp)) {
         resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
     });
 
@@ -36,7 +29,7 @@ int main(int argc, char *argv[]) {
 
     server.GET ("/text", [] (REQ(req), RESP(resp)) {
         resp.set_compress_enabled(false);
-        resp.set_header(http_header.CONTENT_TYPE, "text/plain");
+        resp.set_header(http_header.CONTENT_TYPE, http_mime.TEXT_PLAIN);
 
         resp.file ("/home/Timur/.p10k.zsh");
     });
@@ -107,9 +100,9 @@ int main(int argc, char *argv[]) {
 
     server.GET ("/", "/home/Timur/Desktop/WorkSpace/oneworld/");
 
-    auto f1 = server.run();
 
-    f1.get();
+    f = server.run();
+    f.get();
 
     return 0;
 }

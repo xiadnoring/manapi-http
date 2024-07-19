@@ -13,8 +13,8 @@ namespace manapi::net {
 
     class http_response {
     public:
-        http_response(manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, http *_http_server);
-        ~http_response();
+        http_response               (manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, http *_http_server);
+        ~http_response              ();
 
         void set_compress           (const  std::string &name);
         void set_compress_enabled   (bool   status);
@@ -29,50 +29,50 @@ namespace manapi::net {
         void file                   (const std::string &path);
 
         [[deprecated]]
-        const std::string           &get_http_version   ();
-        [[nodiscard]] const size_t  &get_status_code    () const;
-        const std::string           &get_status_message ();
-        const std::string           &get_body           ();
+        const std::string               &get_http_version   ();
+        [[nodiscard]] const size_t      &get_status_code    () const;
+        const std::string               &get_status_message ();
+        const std::string               &get_body           ();
 
         const std::map<std::string, std::string> &get_headers ();
 
-        void                set_header      (const std::string &key, const std::string &value);
-        std::string         &get_header     (const std::string &key);
+        void                            set_header      (const std::string &key, const std::string &value);
+        std::string                     &get_header     (const std::string &key);
 
-        bool                is_sendfile     ();
-        [[nodiscard]] bool  get_auto_partial_enabled () const;
-        std::string         &get_sendfile   ();
+        bool                            is_sendfile     ();
+        [[nodiscard]] bool              get_auto_partial_enabled () const;
+        std::string                     &get_sendfile   ();
 
-        const std::string   &get_compress   ();
+        const std::string               &get_compress   ();
 
         std::vector <std::pair <ssize_t, ssize_t> > ranges;
 
-        const utils::MAP_STR_STR *get_replacers ();
+        const utils::MAP_STR_STR        *get_replacers ();
 
-        manapi::net::api::pool *pool;
+        manapi::net::api::pool          *tasks;
     private:
         // detect the range header
-        void                detect_ranges    ();
-        http                *http_server;
+        void                            detect_ranges    ();
+        http                            *http_server;
 
-        std::string         body;
+        std::string                     body;
 
-        size_t              status_code;
-        std::string         status_message;
+        size_t                          status_code;
+        std::string                     status_message;
 
-        std::string         http_version;
+        std::string                     http_version;
 
-        std::string         sendfile;
+        std::string                     sendfile;
 
-        std::string         compress;
+        std::string                     compress;
 
-        bool                compress_enabled        = true;
-        bool                auto_partial_enabled    = true;
+        bool                            compress_enabled        = true;
+        bool                            auto_partial_enabled    = true;
 
-        manapi::utils::MAP_STR_STR    headers;
+        manapi::utils::MAP_STR_STR      headers;
         manapi::net::request_data_t     *request_data;
 
-        manapi::utils::MAP_STR_STR    *replacers = nullptr;
+        manapi::utils::MAP_STR_STR      *replacers = nullptr;
     };
 }
 

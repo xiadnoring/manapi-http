@@ -7,14 +7,14 @@
 #include "ManapiHttpTypes.h"
 
 manapi::net::http_response::http_response(manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, http *_http_server): http_server(_http_server), status_code(_status), status_message(std::move(_message)), http_version("1.1") {
-    pool            = new manapi::net::api::pool (http_server->get_tasks_pool());
+    tasks           = new manapi::net::api::pool (http_server->get_tasks_pool());
     request_data    = &_request_data;
 
     detect_ranges ();
 }
 
 manapi::net::http_response::~http_response() {
-    delete pool;
+    delete tasks;
 
     // if replacers exists
     if (replacers != nullptr)

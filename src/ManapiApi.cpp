@@ -1,4 +1,5 @@
 #include "ManapiApi.h"
+#include "ManapiTaskFunction.h"
 
 manapi::net::api::pool::pool(threadpool <task> *_task_pool): task_pool(_task_pool) {
 
@@ -14,4 +15,12 @@ void manapi::net::api::pool::await(manapi::net::task *t) {
 
 void manapi::net::api::pool::async(manapi::net::task *t) {
     task_pool->append_task(t);
+}
+
+void manapi::net::api::pool::await(const std::function<void()> &func) {
+    this->await(new function_task (func));
+}
+
+void manapi::net::api::pool::async(const std::function<void()> &func) {
+    this->async(new function_task (func));
 }

@@ -30,6 +30,8 @@ namespace manapi::utils {
         void block ();
 
         void unblock ();
+
+        void reset ();
     private:
         std::condition_variable cv;
         std::mutex              locker;
@@ -44,6 +46,12 @@ manapi::utils::safe_unordered_map<K, V>::safe_unordered_map() {}
 
 template <typename K, typename V>
 manapi::utils::safe_unordered_map<K, V>::~safe_unordered_map() {}
+
+template<typename K, typename V>
+void manapi::utils::safe_unordered_map<K, V>::reset() {
+    std::lock_guard <std::mutex> lock (m);
+    map = {};
+}
 
 template <typename K, typename V>
 void manapi::utils::safe_unordered_map<K, V>::insert (const K &key, const V &value) {

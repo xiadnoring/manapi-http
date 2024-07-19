@@ -3,7 +3,7 @@
 
 namespace manapi::net {
     template<class T>
-    threadpool<T>::threadpool(size_t thread_num): thread_number(thread_num),is_stop(false),all_threads(nullptr) {
+    threadpool<T>::threadpool(size_t thread_num): thread_number(thread_num),is_stop(false),all_threads(nullptr),stopped(0) {
         if (thread_num <= 0)
             printf("threadpool cant init because thread_number = 0");
 
@@ -13,9 +13,19 @@ namespace manapi::net {
     }
 
     template<class T>
+    bool threadpool<T>::all_tasks_stopped() {
+        return get_count_stopped_task() >= thread_number;
+    }
+
+    template<class T>
     threadpool<T>::~threadpool() {
         delete []all_threads;
         stop();
+    }
+
+    template<class T>
+    size_t threadpool<T>::get_count_stopped_task() {
+        return stopped;
     }
 
     template<class T>
@@ -39,6 +49,9 @@ namespace manapi::net {
 
     template<class T>
     bool threadpool<T>::append_task(T *task) {
+        if (is_stop)
+            return false;
+
         // obtain a mutex
         queue_mutex_locker.mutex_lock();
         bool is_signal = task_queue.empty();
@@ -92,6 +105,7 @@ namespace manapi::net {
                     delete task;
             }
         }
+        stopped++;
     }
 
     template class threadpool<task>;

@@ -46,7 +46,7 @@ int main ()
     });
 
     server.GET ("/api/[key]/toggle", [&flag](REQ(req), RESP(resp)) {
-        if (*req.get_param("key") != "123")
+        if (req.get_param("key") != "123")
         {
             throw std::runtime_error ("bad key");
         }

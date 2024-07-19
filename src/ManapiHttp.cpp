@@ -19,176 +19,60 @@
 #define MANAPI_HTTP_URI_PAGE_DEFAULT        0
 #define MANAPI_HTTP_URI_PAGE_ERROR          1
 
-std::string manapi::net::http::default_cache_dir      = "/tmp/";
-std::string manapi::net::http::default_config_name    = "config.json";
+std::string manapi::net::http::default_cache_dir        = "/tmp/";
+std::string manapi::net::http::default_config_name      = "config.json";
+bool        manapi::net::http::stopped_interrupt        = false;
+
+std::vector <manapi::net::http *> manapi::net::http::running;
+
+void handler_interrupt (int sig)
+{
+    manapi::net::http::stopped_interrupt = true;
+
+    for (auto it = manapi::net::http::running.begin(); it != manapi::net::http::running.end(); )
+    {
+        (*it)->stop();
+        it = manapi::net::http::running.erase(it);
+    }
+}
+
+manapi::net::http::~http() {
+
+};
 
 manapi::net::http::http(std::string port): keep_alive(2), port(std::move(port)) {
-    signal(SIGPIPE, SIG_IGN);
-
-
     setup ();
 }
 
 int manapi::net::http::pool(const size_t &thread_num) {
-    if (tasks_pool == nullptr) {
-        tasks_pool = new threadpool<task>(thread_num);
-        tasks_pool->start();
-    }
+    // wait until server is stopping
 
-    if (http_version == 1 || http_version == 2) {
+    std::lock_guard<std::mutex> lock (m_running);
 
-        const struct addrinfo hints = {
-                .ai_family      = PF_UNSPEC,
-                .ai_socktype    = SOCK_STREAM,
-                .ai_protocol    = IPPROTO_TCP
-        };
+    int result = _pool(thread_num);
+    stopping = false;
 
-
-        struct addrinfo *local;
-        if (getaddrinfo(address.data(), port.data(), &hints, &local) != 0) {
-            perror("failed to resolve host");
-            return -1;
-        }
-
-        server_addr = local->ai_addr;
-        server_len  = local->ai_addrlen;
-
-        MANAPI_LOG("HTTP TCP PORT USED: %s. http://%s:%s", port.data(), address.data(), port.data());
-
-        tcp_io  = new ev::io (loop);
-        sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-
-        const int opt = 1;
-        setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int));
-
-        if (sock_fd < 0) {
-            MANAPI_LOG("%s", "SOCKET ERROR");
-            return 1;
-        }
-
-        fcntl(sock_fd, F_SETFL, fcntl(sock_fd, F_GETFL, 0) | O_NONBLOCK);
-
-        if (bind(sock_fd, local->ai_addr, local->ai_addrlen) < 0) {
-            MANAPI_LOG("PORT %s IS ALREADY IN USE", port.data());
-            return 1;
-        }
-
-        if (listen(sock_fd, 10) < 0) {
-            MANAPI_LOG("LISTEN ERROR. sock_fd: %d", sock_fd);
-            return 1;
-        }
-
-        if (ssl_config.enabled) {
-            // setup ssl certs
-
-            // init
-            ctx = ssl_create_context();
-            // setup ctx (load certs)
-            ssl_configure_context();
-        }
-
-        tcp_io->set <http, &http::new_connection_tls> (this);
-        tcp_io->start(sock_fd, ev::READ);
-
-        loop.run(EVFLAG_AUTO);
-
-        if (ssl_config.enabled)
-            SSL_CTX_free(ctx);
-
-        freeaddrinfo(local);
-    }
-    else {
-        const struct addrinfo hints = {
-                .ai_family      = PF_UNSPEC,
-                .ai_socktype    = SOCK_DGRAM,
-                .ai_protocol    = IPPROTO_UDP
-        };
-
-        struct addrinfo *local;
-        if (getaddrinfo(address.data(), port.data(), &hints, &local) != 0) {
-            perror("failed to resolve host");
-            return -1;
-        }
-
-        server_addr = local->ai_addr;
-        server_len  = local->ai_addrlen;
-
-        MANAPI_LOG("HTTP UDP PORT USED: %s. http://%s:%s", port.data(), address.data(), port.data());
-
-        // for HTTP/3
-        udp_io  = new ev::io(loop);
-        sock_fd = socket (local->ai_family, SOCK_DGRAM, 0);
-
-        if (sock_fd < 0) {
-            MANAPI_LOG("%s", "SOCKET ERROR");
-            return 1;
-        }
-
-        fcntl(sock_fd, F_SETFL, fcntl(sock_fd, F_GETFL, 0) | O_NONBLOCK);
-
-        if (bind(sock_fd, local->ai_addr, local->ai_addrlen) < 0) {
-            MANAPI_LOG("PORT %s IS ALREADY IN USE", port.data());
-            return 1;
-        }
-
-
-        //quiche_enable_debug_logging(debug_log, NULL);
-
-        q_config = quiche_config_new(QUICHE_PROTOCOL_VERSION);
-
-        // ssl
-        quiche_config_load_cert_chain_from_pem_file (q_config, ssl_config.cert.data());
-        quiche_config_load_priv_key_from_pem_file   (q_config, ssl_config.key.data());
-
-        quiche_config_set_application_protos(q_config, (uint8_t *) QUICHE_H3_APPLICATION_PROTOCOL, sizeof(QUICHE_H3_APPLICATION_PROTOCOL) - 1);
-
-        quiche_config_set_max_idle_timeout                      (q_config, 10000);
-        quiche_config_set_max_recv_udp_payload_size             (q_config, socket_block_size);
-        quiche_config_set_max_send_udp_payload_size             (q_config, socket_block_size);
-        quiche_config_set_initial_max_data                      (q_config, 10000000);
-        quiche_config_set_initial_max_stream_data_bidi_local    (q_config, 1000000);
-        quiche_config_set_initial_max_stream_data_bidi_remote   (q_config, 1000000);
-        quiche_config_set_initial_max_stream_data_uni           (q_config, 1000000);
-        quiche_config_set_initial_max_streams_bidi              (q_config, 100);
-        quiche_config_set_initial_max_streams_uni               (q_config, 100);
-        quiche_config_set_disable_active_migration              (q_config, true);
-        quiche_config_set_cc_algorithm                          (q_config, QUICHE_CC_RENO);
-        quiche_config_enable_early_data                         (q_config);
-
-        http3_config = quiche_h3_config_new();
-
-        if (http3_config == nullptr) {
-            fprintf(stderr, "failed to create HTTP/3 config\n");
-            return 1;
-        }
-
-        // create watcher
-        udp_io->set <http, &http::new_connection_udp> (this);
-        udp_io->start(sock_fd, ev::READ);
-        //udp_io->loop.run(EVFLAG_AUTO);
-        //udp_io->loop.run(0);
-        loop.run(EVFLAG_AUTO);
-
-        quiche_h3_config_free(http3_config);
-        quiche_config_free(q_config);
-
-        freeaddrinfo(local);
-    }
-
-    tasks_pool->stop();
-    save();
-
-    return 0;
+    return result;
 }
 
 std::future <int> manapi::net::http::run () {
-    auto p = new std::promise <int> ();
-    std::future <int> f = p->get_future();
+    // wait until another loop is stopping
+    m_running.lock();
 
-    std::thread t ([p, this] () { p->set_value(pool()); delete p; });
+    pool_promise = new std::promise <int> ();
+
+    std::thread t ([this] () {
+        pool_promise->set_value(_pool());
+
+        delete pool_promise;
+        pool_promise = nullptr;
+
+        m_running.unlock();
+        stopping = false;
+    });
     t.detach();
 
-    return f;
+    return pool_promise->get_future();
 }
 
 /**
@@ -571,8 +455,16 @@ bool manapi::net::http::contains_compressor(const std::string &name) {
 }
 
 void manapi::net::http::setup() {
+    signal(SIGPIPE, SIG_IGN);
+
+    signal (SIGABRT, handler_interrupt);
+    signal (SIGKILL, handler_interrupt);
+    signal (SIGTERM, handler_interrupt);
+
     config                      = manapi::utils::json::object();
     cache_config                = manapi::utils::json::object();
+
+    stopping = false;
 
     set_compressor("deflate", manapi::utils::compress::deflate);
     set_compressor("gzip", manapi::utils::compress::gzip);
@@ -698,7 +590,6 @@ void manapi::net::http::set_compressed_cache_file(const std::string &file, const
 
 void manapi::net::http::save() {
     // close connections
-    close (sock_fd);
 
     if (enabled_save_config)
     {
@@ -716,29 +607,9 @@ void manapi::net::http::save_config() {
 }
 
 void manapi::net::http::stop() {
-    if (udp_io != nullptr) {
-        quic_map_conns.block();
+    stopping = true;
 
-        // close timers
-        for (auto &item: quic_map_conns)
-        {
-            http_task::quic_delete_conn_io(item.second);
-        }
-
-        udp_io->stop();
-        delete udp_io;
-
-        udp_io = nullptr;
-    }
-
-    if (tcp_io != nullptr) {
-        tcp_io->stop();
-        delete tcp_io;
-
-        tcp_io = nullptr;
-    }
-
-    shutdown(sock_fd, SHUT_RDWR);
+    m_stopping.unlock();
 }
 
 void manapi::net::http::new_connection_udp(ev::io &watcher, int revents) {
@@ -850,4 +721,276 @@ ev::loop_ref manapi::net::http::get_loop() {
 
 manapi::net::threadpool<manapi::net::task> *manapi::net::http::get_tasks_pool() {
     return tasks_pool;
+}
+
+int manapi::net::http::_pool(const size_t &thread_num) {
+    printf("INITING\n");
+
+    std::unique_lock <std::mutex> lock (m_initing);
+
+    printf("RUNNING\n");
+
+    http::running.push_back(this);
+
+    if (tasks_pool == nullptr) {
+        tasks_pool = new threadpool<task>(thread_num);
+        tasks_pool->start();
+    }
+
+    if (http_version == 1 || http_version == 2) {
+
+        const struct addrinfo hints = {
+                .ai_family      = PF_UNSPEC,
+                .ai_socktype    = SOCK_STREAM,
+                .ai_protocol    = IPPROTO_TCP
+        };
+
+
+        struct addrinfo *local;
+        if (getaddrinfo(address.data(), port.data(), &hints, &local) != 0) {
+            perror("failed to resolve host");
+            return -1;
+        }
+
+        server_addr = local->ai_addr;
+        server_len  = local->ai_addrlen;
+
+        MANAPI_LOG("HTTP TCP PORT USED: %s. http://%s:%s", port.data(), address.data(), port.data());
+
+        tcp_io  = new ev::io (loop);
+        sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+        const int opt = 1;
+        setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int));
+
+        if (sock_fd < 0) {
+            MANAPI_LOG("%s", "SOCKET ERROR");
+            return 1;
+        }
+
+        fcntl(sock_fd, F_SETFL, fcntl(sock_fd, F_GETFL, 0) | O_NONBLOCK);
+
+        if (bind(sock_fd, local->ai_addr, local->ai_addrlen) < 0) {
+            MANAPI_LOG("PORT %s IS ALREADY IN USE", port.data());
+            return 1;
+        }
+
+        if (listen(sock_fd, 10) < 0) {
+            MANAPI_LOG("LISTEN ERROR. sock_fd: %d", sock_fd);
+            return 1;
+        }
+
+        if (ssl_config.enabled) {
+            // setup ssl certs
+
+            // init
+            ctx = ssl_create_context();
+            // setup ctx (load certs)
+            ssl_configure_context();
+        }
+
+        tcp_io->set <http, &http::new_connection_tls> (this);
+        tcp_io->start(sock_fd, ev::READ);
+
+        freeaddrinfo(local);
+    }
+    else {
+        const struct addrinfo hints = {
+                .ai_family      = PF_UNSPEC,
+                .ai_socktype    = SOCK_DGRAM,
+                .ai_protocol    = IPPROTO_UDP
+        };
+
+        struct addrinfo *local;
+        if (getaddrinfo(address.data(), port.data(), &hints, &local) != 0) {
+            perror("failed to resolve host");
+            return -1;
+        }
+
+        server_addr = local->ai_addr;
+        server_len  = local->ai_addrlen;
+
+        MANAPI_LOG("HTTP UDP PORT USED: %s. http://%s:%s", port.data(), address.data(), port.data());
+
+        // for HTTP/3
+        udp_io  = new ev::io(loop);
+        sock_fd = socket (local->ai_family, SOCK_DGRAM, 0);
+
+        const int opt = 1;
+        setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int));
+
+        if (sock_fd < 0) {
+            MANAPI_LOG("%s", "SOCKET ERROR");
+            return 1;
+        }
+
+        fcntl(sock_fd, F_SETFL, fcntl(sock_fd, F_GETFL, 0) | O_NONBLOCK);
+
+        if (bind(sock_fd, local->ai_addr, local->ai_addrlen) < 0) {
+            MANAPI_LOG("PORT %s IS ALREADY IN USE", port.data());
+            return 1;
+        }
+
+
+        //quiche_enable_debug_logging(debug_log, NULL);
+
+        q_config = quiche_config_new(QUICHE_PROTOCOL_VERSION);
+
+        // ssl
+        quiche_config_load_cert_chain_from_pem_file (q_config, ssl_config.cert.data());
+        quiche_config_load_priv_key_from_pem_file   (q_config, ssl_config.key.data());
+
+        quiche_config_set_application_protos(q_config, (uint8_t *) QUICHE_H3_APPLICATION_PROTOCOL, sizeof(QUICHE_H3_APPLICATION_PROTOCOL) - 1);
+
+        quiche_config_set_max_idle_timeout                      (q_config, 10000);
+        quiche_config_set_max_recv_udp_payload_size             (q_config, socket_block_size);
+        quiche_config_set_max_send_udp_payload_size             (q_config, socket_block_size);
+        quiche_config_set_initial_max_data                      (q_config, 10000000);
+        quiche_config_set_initial_max_stream_data_bidi_local    (q_config, 1000000);
+        quiche_config_set_initial_max_stream_data_bidi_remote   (q_config, 1000000);
+        quiche_config_set_initial_max_stream_data_uni           (q_config, 1000000);
+        quiche_config_set_initial_max_streams_bidi              (q_config, 100);
+        quiche_config_set_initial_max_streams_uni               (q_config, 100);
+        quiche_config_set_disable_active_migration              (q_config, true);
+        quiche_config_set_cc_algorithm                          (q_config, QUICHE_CC_RENO);
+        quiche_config_enable_early_data                         (q_config);
+
+        http3_config = quiche_h3_config_new();
+
+        if (http3_config == nullptr) {
+            fprintf(stderr, "failed to create HTTP/3 config\n");
+            return 1;
+        }
+
+        // create watcher
+        udp_io->set <http, &http::new_connection_udp> (this);
+        udp_io->start(sock_fd, ev::READ);
+
+        freeaddrinfo(local);
+    }
+
+    // say, that it can be deleted
+    lock.unlock();
+
+    thr_stopping = new std::thread ([this] () { stop_pool(); });
+
+    printf("CREATED THREAD STOP\n");
+
+    loop.run(ev::AUTO);
+
+    thr_stopping->join();
+    printf("STOPPED FINALLY");
+
+    delete thr_stopping;
+
+    return 0;
+}
+
+void manapi::net::http::stop_pool() {
+    std::lock_guard <std::mutex> lk (m_stopping);
+
+    if (stopping)
+    {
+        m_stopping.unlock();
+    }
+
+    m_stopping.lock();
+
+    std::lock_guard <std::mutex> lock (m_initing);
+
+    ////////////////////////
+    //////// Stopping //////
+    ////////////////////////
+
+    if (tasks_pool != nullptr)
+    {
+        // stop tasks
+        tasks_pool->stop();
+
+        while (!tasks_pool->all_tasks_stopped())
+        {
+            sched_yield();
+        }
+
+    }
+
+    // if udp loop
+    if (udp_io != nullptr)
+    {
+        quic_map_conns.block();
+
+        // clean connections (need to break loop)
+        for (auto it = quic_map_conns.begin(); it != quic_map_conns.end();)
+        {
+            http_task::quic_delete_conn_io(it->second);
+            it = quic_map_conns.erase(it);
+        }
+
+
+        quic_map_conns.unblock();
+
+        udp_io->stop();
+    }
+
+    if (tcp_io != nullptr)
+    {
+        tcp_io->stop();
+    }
+
+    // break loop
+    loop.break_loop();
+
+    // shutdown socket
+    shutdown(sock_fd, SHUT_RDWR);
+
+
+    ///////////////////////////
+    ////////  Clean Up ////////
+    ///////////////////////////
+
+    if (udp_io != nullptr)
+    {
+        delete udp_io;
+
+        quiche_h3_config_free(http3_config);
+        quiche_config_free(q_config);
+
+        udp_io          = nullptr;
+        http3_config    = nullptr;
+        q_config        = nullptr;
+    }
+
+    // if tcp loop
+    if (tcp_io != nullptr) {
+        delete tcp_io;
+
+        tcp_io = nullptr;
+
+        if (ssl_config.enabled)
+            SSL_CTX_free(ctx);
+    }
+
+    this->save();
+
+    if (tasks_pool != nullptr)
+    {
+        // clean tasks pool
+        delete tasks_pool;
+        tasks_pool = nullptr;
+    }
+
+    // do we need to delete it?
+    if (!http::stopped_interrupt)
+    {
+        for (auto it = http::running.begin(); it != http::running.end(); it++)
+        {
+            if (*it == this)
+            {
+                http::running.erase(it);
+                break;
+            }
+        }
+    }
+
+    printf("FINISHED CLOSING\n");
 }

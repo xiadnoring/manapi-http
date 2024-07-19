@@ -1,6 +1,8 @@
 #ifndef MANAPIHTTP_MANAPIAPI_H
 #define MANAPIHTTP_MANAPIAPI_H
 
+#include <functional>
+
 #include "ManapiThreadPool.h"
 #include "ManapiTask.h"
 
@@ -12,6 +14,9 @@ namespace manapi::net::api {
 
         void await (task *t);
         void async (task *t);
+
+        void await (const std::function<void()> &func);
+        void async (const std::function<void()> &func);
 
     private:
         threadpool<task> *task_pool;
