@@ -46,6 +46,8 @@ class ManapiHttpConan(ConanFile):
         self.requires("zlib/1.3.1")
         self.requires("gmp/6.3.0")
         self.requires("quiche/0.22.0")
+        self.requires("libcurl/8.8.0")
+
     def package_info(self):
         self.cpp_info.set_property("cmake_find_mode", "both")
         self.cpp_info.set_property("cmake_file_name", "manapihttp")
