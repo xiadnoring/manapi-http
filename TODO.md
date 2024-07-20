@@ -10,6 +10,7 @@
 - [x] File upload support
 - [x] Support pages
 - [x] Custom methods
+- [x] Proxy, Fetch
 - [ ] Holding the connection after the request
 - [ ] Caching of small files
 - [ ] ETAG header

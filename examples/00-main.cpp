@@ -19,7 +19,12 @@ int main ()
     server.GET ("/", "/static/files");
 
     server.GET ("/+error", [](REQ(req), RESP(resp)) {
-        resp.text (std::format("ERROR: {} {}", resp.get_status_code(), resp.get_status_message()));
+        std::map <std::string, std::string> replacers = {
+                {"status_code", std::to_string(resp.get_status_code())},
+                {"status_message", resp.get_status_message()}
+        };
+        resp.set_replacers (replacers);
+        resp.file ("/error.html");
     });
 
     server.POST ("/api/+error", [](REQ(req), RESP(resp)) {
@@ -27,7 +32,7 @@ int main ()
     });
 
     server.POST ("/api/[key]/form", [&flag](REQ(req), RESP(resp)) {
-        if (*req.get_param("key") != "123")
+        if (req.get_param("key") != "123")
         {
             throw std::runtime_error ("bad key");
         }
@@ -42,7 +47,7 @@ int main ()
             jp.insert(item.first, item.second);
         }
 
-        resp.text (jp.dump(4));
+        resp.json(jp, 4);
     });
 
     server.GET ("/api/[key]/toggle", [&flag](REQ(req), RESP(resp)) {
