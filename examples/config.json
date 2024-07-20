@@ -7,8 +7,8 @@
   "save_config": false,
   "socket_block_size": 4096,
   "ssl": {
-    "cert": "cert.crt",
+    "cert": "self-signed-ssl/cert.crt",
     "enabled": true,
-    "key": "cert.key"
+    "key": "self-signed-ssl/cert.key"
   }
 }
