@@ -84,7 +84,7 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form () {
     if (!request_data->has_body)
         throw manapi::utils::manapi_exception ("this method cannot have a body");
 
-    const auto header     = parse_header_value(get_headers().at(http_header.CONTENT_TYPE));
+    const auto header     = utils::parse_header_value(get_headers().at(http_header.CONTENT_TYPE));
 
     if (header.empty())
         throw manapi::utils::manapi_exception ("value is empty");
@@ -213,71 +213,6 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form () {
     return params;
 }
 
-std::vector <manapi::net::header_value_t> manapi::net::http_request::parse_header_value (const std::string &header_value) {
-    std::vector <header_value_t> data;
-
-    bool        opened_queues   = false;
-    bool        is_key          = true;
-    std::string key;
-    std::string value;
-
-    for (size_t i = 0; i <= header_value.size(); i++) {
-        // if end -> append to map
-        if (i == header_value.size())
-            goto p;
-
-        if (header_value[i] == '\\') {
-            i++;
-
-            if (i == header_value.size())
-                break;
-        }
-
-        else {
-            if (header_value[i] == '"') {
-                opened_queues = !opened_queues;
-                continue;
-            }
-
-            else if (!opened_queues) {
-                if (header_value[i] == '=') {
-                    is_key = false;
-                    continue;
-                }
-                else if (header_value[i] == ';' || header_value[i] == ',') {
-                    p:
-                    if (is_key) {
-                        data.push_back({key, {}});
-                    }
-
-                    else {
-                        if (data.empty())
-                            data.push_back({});
-
-                        data.back().params.insert({key, value});
-                    }
-
-                    is_key  = true;
-                    key     = "";
-                    value   = "";
-
-                    continue;
-                }
-
-                if (header_value[i] == ' ')
-                    continue;
-            }
-        }
-
-        if (is_key)
-            key     += header_value[i];
-
-        else
-            value   += header_value[i];
-    }
-
-    return data;
-}
 
 const size_t &manapi::net::http_request::get_body_size() {
     return request_data->body_size;
@@ -445,8 +380,8 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
 
             chars2string(line, request_data->body_ptr + sizeof (char) * checkpoint, request_data->body_index - checkpoint + first + second - 2);
 
-            const auto parsed_header = parse_header(line);
-            const auto header_value = parse_header_value(parsed_header.second);
+            const auto parsed_header = utils::parse_header(line);
+            const auto header_value = utils::parse_header_value(parsed_header.second);
 
             if (parsed_header.first == http_header.CONTENT_DISPOSITION) {
                 if (header_value.empty())
@@ -516,36 +451,6 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
     }
 
     delete buff_extra;
-}
-
-std::pair<std::string, std::string> manapi::net::http_request::parse_header(const std::string &header) {
-    std::pair <std::string, std::string> parsed;
-
-    bool is_key = true;
-
-    std::string *ptr = &parsed.first;
-
-    for (auto &c: header) {
-        if (ptr->empty() && c == ' ')
-            continue;
-
-        if (is_key) {
-            if (c == ':') {
-                is_key  = false;
-                ptr     = &parsed.second;
-
-                continue;
-            }
-
-            *ptr += (char) std::tolower(c);
-
-            continue;
-        }
-
-        *ptr += c;
-    }
-
-    return parsed;
 }
 
 std::string manapi::net::http_request::set_file_to_str() {

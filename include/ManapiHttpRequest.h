@@ -16,11 +16,6 @@ namespace manapi::net {
         int     family;
     };
 
-    struct header_value_t {
-        std::string                     value;
-        manapi::utils::MAP_STR_STR    params;
-    };
-
     struct file_data_t {
         bool        exists      = false;
         std::string file_name;
@@ -40,8 +35,6 @@ namespace manapi::net {
         const std::string                           &get_param (const std::string &param);
         std::string                                 text ();
         manapi::utils::json                         json ();
-        static std::vector <manapi::net::header_value_t>                       parse_header_value (const std::string &header_value);
-        std::pair<std::string, std::string>         parse_header (const std::string &header);
         manapi::utils::MAP_STR_STR                  form ();
         const size_t                                &get_body_size ();
         void                                        set_max_plain_body_size (const size_t &size);

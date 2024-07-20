@@ -27,6 +27,7 @@ namespace manapi::net {
         void set_replacers          (const utils::MAP_STR_STR &_replacers);
         void set_partial_status     (bool auto_partial_status);
         void file                   (const std::string &path);
+        void proxy                  (const std::string &url);
 
         [[deprecated]]
         const std::string               &get_http_version   ();
@@ -39,9 +40,13 @@ namespace manapi::net {
         void                            set_header      (const std::string &key, const std::string &value);
         std::string                     &get_header     (const std::string &key);
 
-        bool                            is_sendfile     ();
+        [[nodiscard]] bool              is_file     () const;
+        [[nodiscard]] bool              is_text     () const;
+        [[nodiscard]] bool              is_proxy    () const;
+
         [[nodiscard]] bool              get_auto_partial_enabled () const;
-        std::string                     &get_sendfile   ();
+        const std::string               &get_file   ();
+        const std::string               &get_data   ();
 
         const std::string               &get_compress   ();
 
@@ -51,18 +56,17 @@ namespace manapi::net {
 
         manapi::net::api::pool          *tasks;
     private:
+        size_t                          type;
         // detect the range header
         void                            detect_ranges    ();
         http                            *http_server;
 
-        std::string                     body;
+        std::string                     data;
 
         size_t                          status_code;
         std::string                     status_message;
 
         std::string                     http_version;
-
-        std::string                     sendfile;
 
         std::string                     compress;
 

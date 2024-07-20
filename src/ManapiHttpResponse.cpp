@@ -10,6 +10,8 @@ manapi::net::http_response::http_response(manapi::net::request_data_t &_request_
     tasks           = new manapi::net::api::pool (http_server->get_tasks_pool());
     request_data    = &_request_data;
 
+    type            = MANAPI_HTTP_RESP_TEXT;
+
     detect_ranges ();
 }
 
@@ -38,11 +40,12 @@ std::string &manapi::net::http_response::get_header(const std::string &key) {
 }
 
 void manapi::net::http_response::text(const std::string &plain_text) {
-    body            = plain_text;
+    data            = plain_text;
+    type            = MANAPI_HTTP_RESP_TEXT;
 }
 
 void manapi::net::http_response::json(utils::json &jp, const size_t &spaces) {
-    body            = jp.dump (spaces);
+    text(jp.dump (spaces));
 }
 
 void manapi::net::http_response::set_status_code(const size_t &_status_code) {
@@ -59,15 +62,24 @@ void manapi::net::http_response::set_status(const size_t &_status_code, const st
 }
 
 void manapi::net::http_response::file(const std::string &path) {
-    sendfile                = path;
+    data                = path;
+    type                = MANAPI_HTTP_RESP_FILE;
 }
 
-bool manapi::net::http_response::is_sendfile() {
-    return !sendfile.empty();
+bool manapi::net::http_response::is_file() const {
+    return type == MANAPI_HTTP_RESP_FILE;
 }
 
-std::string &manapi::net::http_response::get_sendfile() {
-    return sendfile;
+bool manapi::net::http_response::is_text() const {
+    return type == MANAPI_HTTP_RESP_TEXT;
+}
+
+bool manapi::net::http_response::is_proxy() const {
+    return type == MANAPI_HTTP_RESP_PROXY;
+}
+
+const std::string &manapi::net::http_response::get_file() {
+    return data;
 }
 
 const std::string &manapi::net::http_response::get_http_version() {
@@ -87,7 +99,7 @@ const std::map<std::string, std::string> &manapi::net::http_response::get_header
 }
 
 const std::string &manapi::net::http_response::get_body() {
-    return body;
+    return data;
 }
 
 void manapi::net::http_response::set_compress(const std::string &name) {
@@ -103,7 +115,7 @@ void manapi::net::http_response::set_compress_enabled (bool status) {
 const std::string &manapi::net::http_response::get_compress() {
     if (compress_enabled && compress.empty() && request_data->headers.contains(http_header.ACCEPT_ENCODING)) {
         std::string *value = &request_data->headers.at(http_header.ACCEPT_ENCODING);
-        const auto data = http_request::parse_header_value(*value);
+        const auto data = utils::parse_header_value(*value);
 
         for (const auto &a: data) {
             if (http_server->contains_compressor(a.value)) {
@@ -120,7 +132,7 @@ void manapi::net::http_response::detect_ranges () {
     if (!request_data->headers.contains(http_header.RANGE))
         return;
 
-    const auto values = manapi::net::http_request::parse_header_value(request_data->headers.at(http_header.RANGE));
+    const auto values = utils::parse_header_value(request_data->headers.at(http_header.RANGE));
 
     for (const auto& value: values) {
         if (value.params.contains("bytes")) {
@@ -157,4 +169,15 @@ void manapi::net::http_response::set_replacers(const utils::MAP_STR_STR &_replac
 
 void manapi::net::http_response::set_partial_status(bool auto_partial_status) {
     auto_partial_enabled = auto_partial_status;
+}
+
+void manapi::net::http_response::proxy(const std::string &url) {
+    type = MANAPI_HTTP_RESP_PROXY;
+    data = url;
+
+    set_compress_enabled(false);
+}
+
+const std::string &manapi::net::http_response::get_data() {
+    return data;
 }

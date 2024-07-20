@@ -23,6 +23,10 @@
 #define MANAPI_NET_TYPE_TCP 0
 #define MANAPI_NET_TYPE_UDP 1
 
+#define MANAPI_HTTP_RESP_TEXT 0
+#define MANAPI_HTTP_RESP_FILE 1
+#define MANAPI_HTTP_RESP_PROXY 2
+
 #define REQ(_x) manapi::net::http_request &_x
 #define RESP(_x) manapi::net::http_response &_x
 

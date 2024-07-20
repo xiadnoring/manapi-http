@@ -10,3 +10,5 @@ conan_provider.cmake
 build
 .idea
 .tmp
+test.cpp
+test.h

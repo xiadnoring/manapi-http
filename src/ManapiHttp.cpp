@@ -550,6 +550,12 @@ void manapi::net::http::setup_config() {
             enabled_save_config = config["save_config"].get<bool>();
         }
     }
+
+    // =================[max_header_block_size  ]================= //
+    if (config.contains("max_header_block_size"))
+    {
+        max_header_block_size = config["max_header_block_size"].get<size_t>();
+    }
 }
 
 const std::string *manapi::net::http::get_compressed_cache_file(const std::string &file, const std::string &algorithm) {

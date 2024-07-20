@@ -14,7 +14,7 @@
 - [ ] Caching of small files
 - [ ] ETAG header
 - [x] Time header
-- [ ] SSL support
+- [x] SSL support
 - [ ] Caching requests + header
 - [ ] Cookie support out of the box
 - [ ] Anti-ddos instruments
@@ -27,7 +27,7 @@
 - [ ] Ready-made solutions for the API-service, site, etc
 - [ ] Docs API
 - [ ] MySQL support
-- [ ] MariaDB support
+- [x] MariaDB support
 - [ ] PostgreSQL support
 - [x] Support gzip
 - [x] Support deflate

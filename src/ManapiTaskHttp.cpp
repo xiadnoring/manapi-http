@@ -18,19 +18,29 @@
 #include <unordered_map>
 #include <fstream>
 #include <quiche.h>
+
+#include "ManapiFetch.h"
 #include "ManapiTaskHttp.h"
 #include "ManapiCompress.h"
 #include "ManapiFilesystem.h"
 
-#define MANAPI_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(_x) if (_x == size) {             \
-                                request_data.headers_size += _x;                \
+#define MANAPI_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(_x) if (_x == size) {                 \
+                                request_data.headers_size += _x;                        \
                                 if (!manapi::net::http_task::read_next_part (maxsize, _x, this, &request_data)) \
-                                    return;                                     \
+                                    return;                                             \
                                 }
 
 #define MANAPI_QUIC_CONNECTION_ID_LEN 16
 
 // TODO: Client may create 100+ threads task
+
+size_t mask_write_curl_handler (void *contents, size_t size, size_t nmemb, void *userp)
+{
+    const size_t len = size * nmemb;
+    (*(reinterpret_cast<MANAPI_HTTP_IO_INTERFACE *> (userp))) ((char *) contents, len);
+
+    return len;
+}
 
 // HEADER CLASS
 
@@ -702,9 +712,9 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
 
 
     if (!compress->empty()) {
-        if (!res.is_sendfile()              ||
+        if (!res.is_file()                  ||
             !res.get_auto_partial_enabled() ||
-            manapi::filesystem::get_size(res.get_sendfile()) < http_server->get_partial_data_min_size()) {
+            manapi::filesystem::get_size(res.get_file()) < http_server->get_partial_data_min_size()) {
 
             compressor = http_server->get_compressor(*compress);
 
@@ -719,18 +729,19 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
     // set time
     res.set_header(http_header.DATE, manapi::utils::time ("%a, %d %b %Y %H:%M:%S GMT", false));
 
-    if (res.is_sendfile()) {
+    if (res.is_file())
+    {
         std::string filepath;
 
         if (exists_compressor) {
             if (exists_replacers)
                 throw utils::manapi_exception ("replacers can not be use with compressing");
 
-            filepath = compress_file (res.get_sendfile(), *http_server->config_cache_dir, compress, compressor);
+            filepath = compress_file (res.get_file(), *http_server->config_cache_dir, compress, compressor);
         }
 
         else
-            filepath = res.get_sendfile();
+            filepath = res.get_file();
 
         std::ifstream f;
 
@@ -823,7 +834,8 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
             return;
         }
     }
-    else {
+    else if (res.is_text())
+    {
         if (compressor != nullptr) {
             // encode content !
             compressed      = compressor (*body, nullptr);
@@ -832,10 +844,45 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
         }
 
         res.set_header(http_header.CONTENT_LENGTH, std::to_string(body->size()));
-        res.set_header(http_header.CONTENT_TYPE, "text/html; charset=UTF-8");
+
+        if (!res.get_headers().contains(http_header.CONTENT_TYPE))
+        {
+            res.set_header(http_header.CONTENT_TYPE, "text/html; charset=UTF-8");
+        }
 
         if (mask_response (res) >= 0)
             mask_write(body->data(), body->size());
+
+        return;
+    }
+    else if (res.is_proxy())
+    {
+        auto proxy = new fetch (res.get_data());
+
+        proxy->handle_headers([this, &res] (const std::map <std::string, std::string> &headers) {
+             res.set_status_code(200);
+             res.set_status_message("OK");
+
+             if (headers.contains(http_header.CONTENT_LENGTH))
+             {
+                 res.set_header(http_header.CONTENT_LENGTH, headers.at(http_header.CONTENT_LENGTH));
+             }
+
+             mask_response(res);
+        });
+
+        proxy->handle_body([this] (char *buffer, const size_t &size) {
+            const ssize_t sw = mask_write (buffer, size);
+
+            if (sw < 0)
+            {
+                throw manapi::utils::manapi_exception ("Can not write pocket");
+            }
+
+            return (size_t) sw;
+        });
+
+        res.tasks->await ((task *) proxy);
 
         return;
     }

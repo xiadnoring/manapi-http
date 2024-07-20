@@ -4,6 +4,7 @@
 #include "ManapiTaskHttp.h"
 #include "ManapiFilesystem.h"
 #include "ManapiTaskFunction.h"
+#include "ManapiFetch.h"
 
 using namespace manapi::utils;
 using namespace manapi::net;
@@ -15,16 +16,24 @@ int main(int argc, char *argv[]) {
 
     server.set_config("config.json");
 
-    server.GET ("/", [&server] (REQ(req), RESP(resp)) {
+    server.GET ("/", [] (REQ(req), RESP(resp)) {
         resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
     });
 
     server.GET ("/video", [] (REQ(req), RESP(resp)) {
         resp.set_compress_enabled(false);
         resp.set_partial_status(true);
-        resp.set_header(http_header.CONTENT_TYPE, "video/mp4");
+        resp.set_header(http_header.CONTENT_TYPE, http_mime.VIDEO_MP4);
 
         resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+    });
+
+    server.GET("/proxy", [] (REQ(req), RESP(resp)) {
+        json jp (R"({"hello\"": "sf\324-0-o`//qwe'lsdfpok"})");
+
+        resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JS + ";charset=UTF-8");
+
+        resp.json (jp, 4);
     });
 
     server.GET ("/text", [] (REQ(req), RESP(resp)) {
@@ -39,7 +48,7 @@ int main(int argc, char *argv[]) {
                {"status_code", std::to_string(resp.get_status_code())},
                {"status_message", resp.get_status_message()},
                {"url", "/noooo"}
-       });
+        });
 
         resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/error.html");
     });
@@ -59,7 +68,7 @@ int main(int argc, char *argv[]) {
     server.GET ("/nonoo", [] (REQ(req), RESP(resp)) {
         resp.set_partial_status(true);
         resp.set_compress_enabled(false);
-        resp.set_header(http_header.CONTENT_TYPE, "video/mp4");
+        resp.set_header(http_header.CONTENT_TYPE, http_mime.VIDEO_MP4);
 
         resp.file("/home/Timur/Downloads/VideoDownloader/nono.mp4");
     });
@@ -100,9 +109,7 @@ int main(int argc, char *argv[]) {
 
     server.GET ("/", "/home/Timur/Desktop/WorkSpace/oneworld/");
 
-
-    f = server.run();
-    f.get();
+    server.pool();
 
     return 0;
 }

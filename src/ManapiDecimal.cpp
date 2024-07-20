@@ -1,6 +1,7 @@
 #include <cmath>
 #include <algorithm>
 #include <memory.h>
+#include <codecvt>
 #include "ManapiDecimal.h"
 
 manapi::utils::decimal zero (0LL);
@@ -33,6 +34,13 @@ manapi::utils::decimal::decimal(const unsigned long &num, const size_t &precisio
 manapi::utils::decimal::decimal(const std::string &num, const size_t &precision) {
     mpf_init2 (x, precision);
     this->parse(num);
+}
+
+manapi::utils::decimal::decimal(const std::wstring &num, const size_t &precision) {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+
+    mpf_init2 (x, precision);
+    this->parse(converter.to_bytes(num));
 }
 
 manapi::utils::decimal::decimal(const mpf_t &num, const size_t &precision) {

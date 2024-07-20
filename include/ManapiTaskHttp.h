@@ -14,6 +14,8 @@
 namespace manapi::net {
     class http;
 
+#define MANAPI_HTTP_IO_INTERFACE std::function<ssize_t(const char *buff, const size_t &buff_size)>
+
     class http_task : public task{
     public:
         ~http_task()    override;
@@ -54,8 +56,8 @@ namespace manapi::net {
         ssize_t         openssl_read            (const char *buff, const size_t &buff_size) const;
         ssize_t         openssl_write           (const char *buff, const size_t &buff_size) const;
 
-        std::function<ssize_t(const char *buff, const size_t &buff_size)>   mask_read;
-        std::function<ssize_t(const char *buff, const size_t &buff_size)>   mask_write;
+        MANAPI_HTTP_IO_INTERFACE   mask_read;
+        MANAPI_HTTP_IO_INTERFACE   mask_write;
 
         std::function<ssize_t(http_response &res)>                          mask_response;
 

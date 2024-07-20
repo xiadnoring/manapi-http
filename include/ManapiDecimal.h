@@ -14,6 +14,7 @@ namespace manapi::utils {
         ~decimal();
 
         explicit    decimal(const std::string   &num,           const size_t &precision = 128);
+        explicit    decimal(const std::wstring   &num,          const size_t &precision = 128);
         explicit    decimal(const long long int &num,           const size_t &precision = 128);
         explicit    decimal(const ssize_t       &num,           const size_t &precision = 128);
         explicit    decimal(const double        &num,           const size_t &precision = 128);

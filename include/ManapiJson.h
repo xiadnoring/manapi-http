@@ -27,19 +27,22 @@ namespace manapi::utils {
         explicit json(const std::string &plain_text);
         explicit json(const ssize_t &num);
         ~json();
-        void parse (const std::string &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128, size_t start = 0);
+        void parse (const std::u32string &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128, size_t start = 0);
         void parse (const ssize_t &num);
 
         json &operator[]    (const std::string      &key)   const;
+        json &operator[]    (const std::u32string   &key)   const;
         json &operator[]    (const size_t           &index) const;
 
         json &at            (const std::string      &key)   const;
+        json &at            (const std::u32string   &key)   const;
         json &at            (const size_t           &index) const;
 
+        json &operator=     (const std::u32string   &str);
         json &operator=     (const std::string      &str);
         json &operator=     (const char             *str);
         json &operator=     (const bool             &b);
-        json &operator=     (const ssize_t    &num);
+        json &operator=     (const ssize_t          &num);
         json &operator=     (const int              &num);
         json &operator=     (const double           &num);
         json &operator=     (const nullptr_t        &n);
@@ -47,19 +50,25 @@ namespace manapi::utils {
         json &operator=     (const json             &obj);
 
         void insert         (const std::string &key, const json &obj);
+        void insert         (const std::u32string &key, const json &obj);
         void erase          (const std::string &key);
+        void erase          (const std::u32string &key);
 
         void push_back      (const json &obj);
         void pop_back       ();
 
         // to be cool ;)
         void insert         (const std::string &key, const std::string &arg);
+        void insert         (const std::u32string &key, const std::u32string &arg);
         void insert         (const std::string &key, const ssize_t &arg);
+        void insert         (const std::u32string &key, const ssize_t &arg);
 
         void push_back      (const std::string &arg);
+        void push_back      (const std::u32string &arg);
         void push_back      (const ssize_t &arg);
 
         bool contains       (const std::string &key);
+        bool contains       (const std::u32string &key);
 
         [[nodiscard]] bool is_object      () const;
         [[nodiscard]] bool is_array       () const;
@@ -76,7 +85,7 @@ namespace manapi::utils {
         template <typename T>
         T* get_ptr () const { return reinterpret_cast <T *> (src); }
 
-        std::string dump (const size_t &spaces = 0, const size_t &first_spaces = 0);
+        std::string dump    (const size_t &spaces = 0, const size_t &first_spaces = 0);
 
         size_t size ();
     protected:
@@ -85,14 +94,13 @@ namespace manapi::utils {
 
         bool   root                 = true;
     private:
-        static void                 error_invalid_char (const std::string &plain_text, const size_t &i);
+        static void                 error_invalid_char (const std::u32string &plain_text, const size_t &i);
         static void                 error_unexpected_end (const size_t &i);
         void                        delete_value ();
         void    *src                = nullptr;
         short   type                = MANAPI_JSON_NULL;
         size_t  start_cut           = 0;
         size_t  end_cut             = 0;
-        bool    use_bigint          = false;
     };
 
     class json_parse_exception : public std::exception {

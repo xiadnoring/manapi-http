@@ -8,6 +8,10 @@
 #include <random>
 #include <mutex>
 #include <fstream>
+#include <unicode/utf32.h>
+#include <unicode/utf16.h>
+#include <unicode/utf8.h>
+
 #include "ManapiUtils.h"
 #include "ManapiFilesystem.h"
 
@@ -30,6 +34,16 @@ void manapi::utils::_log (const size_t &line, const char *file_name, const char 
     printf("\n");
 }
 
+// ============================================================ //
+// ===================== [ Math ] ============================= //
+// ============================================================ //
+
+size_t      manapi::utils::random (const size_t &_min, const size_t &_max) {
+    std::uniform_int_distribution<std::mt19937::result_type > dist (_min, _max);
+
+    return dist (random_ng);
+}
+
 /**
  * slow pow
  * @param x         the number
@@ -45,9 +59,21 @@ size_t manapi::utils::pow (const size_t &x, const size_t &count) {
     return result;
 }
 
-bool manapi::utils::is_space_symbol (const char &symbol) {
-    return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
+void manapi::utils::_log_error (const size_t &line, const char *file_name, const std::exception &e, const char *format,...) {
+    va_list args;
+
+    printf("%s(%zu): ", file_name, line);
+
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+
+    printf("\n -> Message: %s\n", e.what());
 }
+
+// ============================================================ //
+// ===================== [ Strings ] ========================== //
+// ============================================================ //
 
 /**
  * Fills the string on the right to the specified size of the string
@@ -81,22 +107,21 @@ bool manapi::utils::is_space_symbol (const char &symbol) {
     str.insert(0, new_string);
 }
 
-void manapi::utils::_log_error (const size_t &line, const char *file_name, const std::exception &e, const char *format,...) {
-    va_list args;
+bool manapi::utils::is_space_symbol (const char &symbol) {
+    return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
+}
 
-    printf("%s(%zu): ", file_name, line);
+bool manapi::utils::is_space_symbol (const wchar_t &symbol) {
+    return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
+}
 
-    va_start(args, format);
-    vprintf(format, args);
-    va_end(args);
-
-    printf("\n -> Message: %s\n", e.what());
+bool manapi::utils::is_space_symbol (const char32_t &symbol) {
+    return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
 }
 
 char manapi::utils::hex2dec(const char &a) {
     return (char)(a >= 'A' ? a - 'A' + 10 : a - '0');
 }
-
 
 std::string manapi::utils::escape_string (const std::string &str) {
     std::string escaped;
@@ -126,9 +151,45 @@ std::string manapi::utils::escape_string (const std::string &str) {
 
     return escaped;
 }
+std::wstring manapi::utils::escape_string (const std::wstring &str) {
+    std::wstring escaped;
+
+    for (const auto &i : str) {
+        switch (i) {
+            case '\n':
+                escaped.push_back(wchar_t ('\\'));
+                escaped.push_back(wchar_t ('n'));
+                break;
+            case '\t':
+                escaped.push_back(wchar_t ('\\'));
+                escaped.push_back(wchar_t ('t'));
+                break;
+            case '\r':
+                escaped.push_back(wchar_t ('\\'));
+                escaped.push_back(wchar_t ('r'));
+                break;
+            default:
+                if (escape_char_need(i)) {
+                    escaped.push_back('\\');
+                    escaped.push_back(i);
+
+                    continue;
+                }
+
+                escaped += i;
+        }
+    }
+
+    return escaped;
+}
+
 
 bool manapi::utils::escape_char_need (const char &ch) {
     return !(std::isalpha(ch) || std::isdigit(ch) || ch == '_' || ch == ' ');
+}
+
+bool manapi::utils::escape_char_need (const wchar_t &ch) {
+    return !(std::iswalpha(ch) || std::iswdigit(ch) || ch == '_' || ch == ' ');
 }
 
 bool manapi::utils::valid_special_symbol(const char &c) {
@@ -162,19 +223,10 @@ std::string manapi::utils::generate_cache_name (const std::string &file, const s
     return name;
 }
 
-size_t      manapi::utils::random (const size_t &_min, const size_t &_max) {
-    std::uniform_int_distribution<std::mt19937::result_type > dist (_min, _max);
 
-    return dist (random_ng);
-}
-
-// ====================[ Classes ]============================
-
-manapi::utils::manapi_exception::manapi_exception(std::string message_): message(std::move(message_)) {}
-
-const char *manapi::utils::manapi_exception::what() const noexcept {
-    return message.data();
-}
+// ============================================================ //
+// ======================== [ Time ] ========================== //
+// ============================================================ //
 
 std::string manapi::utils::time (const std::string &fmt, bool local) {
     std::time_t now = std::time(0);
@@ -191,7 +243,8 @@ std::string manapi::utils::time (const std::string &fmt, bool local) {
     return oss.str();
 }
 
-std::vector <manapi::utils::replace_founded_item> manapi::utils::found_replacers_in_file (const std::string &path, const size_t &start, const size_t &size, const MAP_STR_STR &replacers) {
+std::vector <manapi::utils::replace_founded_item> manapi::utils::found_replacers_in_file
+        (const std::string &path, const size_t &start, const size_t &size, const MAP_STR_STR &replacers) {
 #define BUFFER_SIZE 5
     // SPECIAL
     std::string special_key;
@@ -297,4 +350,163 @@ std::vector <manapi::utils::replace_founded_item> manapi::utils::found_replacers
     f.close();
 
     return founded;
+}
+
+// ============================================================ //
+// ===================== [ Classes ] ========================== //
+// ============================================================ //
+
+manapi::utils::manapi_exception::manapi_exception(std::string message_): message(std::move(message_)) {}
+
+const char *manapi::utils::manapi_exception::what() const noexcept {
+    return message.data();
+}
+
+
+
+std::pair<std::string, std::string> manapi::utils::parse_header(const std::string &header) {
+    std::pair <std::string, std::string> parsed;
+
+    bool is_key = true;
+
+    std::string *ptr = &parsed.first;
+
+    for (auto &c: header) {
+        if (ptr->empty() && c == ' ')
+            continue;
+
+        if (is_key) {
+            if (c == ':') {
+                is_key  = false;
+                ptr     = &parsed.second;
+
+                continue;
+            }
+
+            *ptr += (char) std::tolower(c);
+
+            continue;
+        }
+
+        *ptr += c;
+    }
+
+    return parsed;
+}
+
+std::string manapi::utils::stringify_header (const std::pair<std::string, std::string> &header)
+{
+    return header.first + ": " + header.second;
+}
+
+std::vector <manapi::net::header_value_t> manapi::utils::parse_header_value (const std::string &header_value) {
+    std::vector <manapi::net::header_value_t> data;
+
+    bool        opened_queues   = false;
+    bool        is_key          = true;
+    std::string key;
+    std::string value;
+
+    for (size_t i = 0; i <= header_value.size(); i++) {
+        // if end -> append to map
+        if (i == header_value.size())
+            goto p;
+
+        if (header_value[i] == '\\') {
+            i++;
+
+            if (i == header_value.size())
+                break;
+        }
+
+        else {
+            if (header_value[i] == '"') {
+                opened_queues = !opened_queues;
+                continue;
+            }
+
+            else if (!opened_queues) {
+                if (header_value[i] == '=') {
+                    is_key = false;
+                    continue;
+                }
+                else if (header_value[i] == ';' || header_value[i] == ',') {
+                    p:
+                    if (is_key) {
+                        data.push_back({key, {}});
+                    }
+
+                    else {
+                        if (data.empty())
+                            data.push_back({});
+
+                        data.back().params.insert({key, value});
+                    }
+
+                    is_key  = true;
+                    key     = "";
+                    value   = "";
+
+                    continue;
+                }
+
+                if (header_value[i] == ' ')
+                    continue;
+            }
+        }
+
+        if (is_key)
+            key     += header_value[i];
+
+        else
+            value   += header_value[i];
+    }
+
+    return data;
+}
+
+std::string manapi::utils::stringify_header_value (const std::vector <manapi::net::header_value_t> &header_value) {
+    std::string result;
+
+    for (const auto &value: header_value)
+    {
+        if (!value.value.empty())
+            result += value.value + ';';
+
+        for (const auto &param: value.params)
+        {
+            result += param.first + '=' + param.second + ';';
+        }
+    }
+
+    // if result contains ';' at the end -> delete symbol
+    if (!result.empty())
+    {
+        result.pop_back();
+    }
+
+    return result;
+}
+
+
+// ============================================================ //
+// ===================== [ Unicode ] ========================== //
+// ============================================================ //
+
+std::string manapi::utils::str16to4 (const std::u16string &str16)
+{
+    return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.to_bytes(str16);
+}
+std::u16string manapi::utils::str4to16 (const std::string &str)
+{
+    return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.from_bytes(str);
+}
+
+std::string manapi::utils::str32to4 (const std::u32string &str32)
+{
+    return std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.to_bytes(str32);
+}
+std::u32string manapi::utils::str4to32 (const std::string &str)
+{
+    return std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.from_bytes(str);
 }
