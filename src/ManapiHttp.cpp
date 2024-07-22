@@ -34,6 +34,12 @@ void handler_interrupt (int sig)
         (*it)->stop();
         it = manapi::net::http::running.erase(it);
     }
+
+    if (sig == SIGFPE)
+    {
+        // TODO: MORE INFORMATION!!!
+        exit (sig);
+    }
 }
 
 manapi::net::http::~http() {
@@ -455,11 +461,12 @@ bool manapi::net::http::contains_compressor(const std::string &name) {
 }
 
 void manapi::net::http::setup() {
-    signal(SIGPIPE, SIG_IGN);
+    signal  (SIGPIPE, SIG_IGN);
 
-    signal (SIGABRT, handler_interrupt);
-    signal (SIGKILL, handler_interrupt);
-    signal (SIGTERM, handler_interrupt);
+    //signal  (SIGFPE, handler_interrupt);
+    signal  (SIGABRT, handler_interrupt);
+    signal  (SIGKILL, handler_interrupt);
+    signal  (SIGTERM, handler_interrupt);
 
     config                      = manapi::utils::json::object();
     cache_config                = manapi::utils::json::object();

@@ -151,24 +151,32 @@ std::string manapi::utils::escape_string (const std::string &str) {
 
     return escaped;
 }
-std::wstring manapi::utils::escape_string (const std::wstring &str) {
-    std::wstring escaped;
+std::u32string manapi::utils::escape_string (const std::u32string &str) {
+    std::u32string escaped;
 
     for (const auto &i : str) {
+        char32_t a;
+        bool is_special_char = true;
+
         switch (i) {
             case '\n':
-                escaped.push_back(wchar_t ('\\'));
-                escaped.push_back(wchar_t ('n'));
-                break;
-            case '\t':
-                escaped.push_back(wchar_t ('\\'));
-                escaped.push_back(wchar_t ('t'));
+                a = 'n';
                 break;
             case '\r':
-                escaped.push_back(wchar_t ('\\'));
-                escaped.push_back(wchar_t ('r'));
+                a = 'r';
+                break;
+            case '\t':
+                a = 't';
+                break;
+            case '\b':
+                a = 'b';
+                break;
+            case '\f':
+                a = 'f';
                 break;
             default:
+                is_special_char = false;
+
                 if (escape_char_need(i)) {
                     escaped.push_back('\\');
                     escaped.push_back(i);
@@ -178,6 +186,11 @@ std::wstring manapi::utils::escape_string (const std::wstring &str) {
 
                 escaped += i;
         }
+        if (is_special_char)
+        {
+            escaped.push_back('\\');
+            escaped.push_back(a);
+        }
     }
 
     return escaped;
@@ -185,11 +198,15 @@ std::wstring manapi::utils::escape_string (const std::wstring &str) {
 
 
 bool manapi::utils::escape_char_need (const char &ch) {
-    return !(std::isalpha(ch) || std::isdigit(ch) || ch == '_' || ch == ' ');
+    return ch == '"' || ch == '\\';
 }
 
 bool manapi::utils::escape_char_need (const wchar_t &ch) {
-    return !(std::iswalpha(ch) || std::iswdigit(ch) || ch == '_' || ch == ' ');
+    return ch == '"' || ch == '\\';
+}
+
+bool manapi::utils::escape_char_need (const char32_t &ch) {
+    return ch == '"' || ch == '\\';
 }
 
 bool manapi::utils::valid_special_symbol(const char &c) {
@@ -497,12 +514,20 @@ std::string manapi::utils::str16to4 (const std::u16string &str16)
 {
     return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.to_bytes(str16);
 }
+std::string manapi::utils::str16to4 (const char16_t &str16)
+{
+    return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.to_bytes(str16);
+}
 std::u16string manapi::utils::str4to16 (const std::string &str)
 {
     return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.from_bytes(str);
 }
 
 std::string manapi::utils::str32to4 (const std::u32string &str32)
+{
+    return std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.to_bytes(str32);
+}
+std::string manapi::utils::str32to4 (const char32_t &str32)
 {
     return std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.to_bytes(str32);
 }

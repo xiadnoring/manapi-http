@@ -29,8 +29,23 @@ int main(int argc, char *argv[]) {
     });
 
     server.GET("/proxy", [] (REQ(req), RESP(resp)) {
-        json jp (R"({"hello\"": "sf\324-0-o`//qwe'lsdfpok"})");
-
+        json jp = {
+            {"pi", 3.141},
+            {"happy", true},
+            {"name", "Niels"},
+            {"nothing", nullptr},
+            {"answer", {
+                {"everything", 42}
+            }},
+            {"list",{ 1, 0, 2}},
+            {
+                "object", {
+                    {"currency",   "USD"},
+                    {"value", 42.99}
+                }
+            }
+        };
+        resp.set_compress_enabled(false);
         resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JS + ";charset=UTF-8");
 
         resp.json (jp, 4);

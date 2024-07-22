@@ -34,7 +34,7 @@
 - [x] Support deflate
 - [ ] Support brotli
 - [ ] Support decoding from the client
-- [ ] More flexible JSON
+- [x] More flexible JSON
 - [x] Content Range (video, audio, massive files)
 - [ ] Multiple Content Range
 - [x] Static files share

@@ -15,6 +15,7 @@
 #define MANAPI_JSON_ARRAY       6
 #define MANAPI_JSON_NUMBER      7
 #define MANAPI_JSON_BIGINT      8
+#define MANAPI_JSON_PAIR        9
 
 namespace manapi::utils {
     class json {
@@ -22,13 +23,41 @@ namespace manapi::utils {
         static json object ();
         static json array ();
 
+        static json array (const std::initializer_list<json> &data);
+
         json();
         json(const json &other);
-        explicit json(const std::string &plain_text);
-        explicit json(const ssize_t &num);
+        json(const std::initializer_list<json> &data);
+
+        // Do not use explicit
+
+        json(const std::string &str, bool is_json = false);
+        json(const std::u32string &str, bool is_json = false);
+        json(const ssize_t &num);
+        json(const char *plain_text, bool is_json = false);
+        json(const int &num);
+        json(const double &num);
+        json(const double long &num);
+        json(const decimal &num);
+        json(const nullptr_t &n);
+        json(const bool &value);
+
         ~json();
+
+        // string
+        void parse (const std::string &plain_text);
         void parse (const std::u32string &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128, size_t start = 0);
+
+        // numbers
         void parse (const ssize_t &num);
+        void parse (const int &num);
+        void parse (const double &num);
+        void parse (const double long &num);
+        void parse (const decimal &num);
+
+
+        // other
+        void parse (const nullptr_t &n);
 
         json &operator[]    (const std::string      &key)   const;
         json &operator[]    (const std::u32string   &key)   const;
@@ -45,6 +74,7 @@ namespace manapi::utils {
         json &operator=     (const ssize_t          &num);
         json &operator=     (const int              &num);
         json &operator=     (const double           &num);
+        json &operator=     (const double long      &num);
         json &operator=     (const nullptr_t        &n);
         json &operator=     (const decimal          &num);
         json &operator=     (const json             &obj);
@@ -85,7 +115,7 @@ namespace manapi::utils {
         template <typename T>
         T* get_ptr () const { return reinterpret_cast <T *> (src); }
 
-        std::string dump    (const size_t &spaces = 0, const size_t &first_spaces = 0);
+        [[nodiscard]] std::string dump    (const size_t &spaces = 0, const size_t &first_spaces = 0) const;
 
         size_t size ();
     protected:

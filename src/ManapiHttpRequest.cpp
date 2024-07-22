@@ -77,7 +77,7 @@ std::string manapi::net::http_request::text() {
 }
 
 manapi::utils::json manapi::net::http_request::json() {
-    return manapi::utils::json (this->text());
+    return manapi::utils::json (this->text(), true);
 }
 
 manapi::utils::MAP_STR_STR manapi::net::http_request::form () {

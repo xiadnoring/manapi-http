@@ -28,7 +28,7 @@ void manapi::filesystem::config::write(const std::string &name, manapi::utils::j
 }
 
 manapi::utils::json manapi::filesystem::config::read(const std::string &name) {
-    return utils::json (manapi::filesystem::read (folder_configs + name));
+    return utils::json (manapi::filesystem::read (folder_configs + name), true);
 }
 
 std::string manapi::filesystem::last_time_write (const std::filesystem::path &f, bool time) {

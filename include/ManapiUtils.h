@@ -39,12 +39,13 @@ namespace manapi::utils {
     [[maybe_unused]] void rjust (std::string &str, const size_t &size, const char &c);
     [[maybe_unused]] void ljust (std::string &str, const size_t &size, const char &c);
 
-    char        hex2dec             (const char &a);
-    std::string escape_string       (const std::string &str);
-    std::wstring escape_string      (const std::wstring &str);
-    bool        valid_special_symbol(const char &c);
-    bool        escape_char_need    (const char &c);
-    bool        escape_char_need    (const wchar_t &c);
+    char            hex2dec             (const char &a);
+    std::string     escape_string       (const std::string &str);
+    std::u32string  escape_string       (const std::u32string &str);
+    bool            valid_special_symbol(const char &c);
+    bool            escape_char_need    (const char &c);
+    bool            escape_char_need    (const wchar_t &c);
+    bool            escape_char_need    (const char32_t &c);
 
     std::string generate_cache_name (const std::string &basename, const std::string &ext);
 
@@ -75,9 +76,11 @@ namespace manapi::utils {
     };
 
     std::string     str32to4    (const std::u32string &str32);
+    std::string     str32to4    (const char32_t &str32);
     std::u32string  str4to32    (const std::string &str);
 
     std::string     str16to4    (const std::u16string &str16);
+    std::string     str16to4    (const char16_t &str16);
     std::u16string  str4to16    (const std::string &str);
 }
 
