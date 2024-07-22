@@ -20,7 +20,7 @@ namespace manapi::net {
         void set_compress_enabled   (bool   status);
 
         void text                   (const std::string &plain_text);
-        void json                   (manapi::utils::json &jp, const size_t &spaces = 0);
+        void json                   (const manapi::utils::json &jp, const size_t &spaces = 0);
         void set_status             (const size_t &_status_code, const std::string &_status_message);
         void set_status_code        (const size_t &_status_code);
         void set_status_message     (const std::string &_status_message);

@@ -16,19 +16,22 @@ int main ()
 
     server.set_config ("config.json");
 
-    server.GET ("/", "/static/files");
+    server.GET ("/", ".");
 
     server.GET ("/+error", [](REQ(req), RESP(resp)) {
         std::map <std::string, std::string> replacers = {
-                {"status_code", std::to_string(resp.get_status_code())},
-                {"status_message", resp.get_status_message()}
+            {"status_code", std::to_string(resp.get_status_code())},
+            {"status_message", resp.get_status_message()}
         };
         resp.set_replacers (replacers);
-        resp.file ("/error.html");
+        resp.file ("error.html");
     });
 
     server.POST ("/api/+error", [](REQ(req), RESP(resp)) {
-        resp.text (R"({ "error": true, "message": "An error has occurred"})");
+        resp.json ({
+           {"error", true},
+           {"message", "An error has occurred"}
+       });
     });
 
     server.POST ("/api/[key]/form", [&flag](REQ(req), RESP(resp)) {
@@ -37,8 +40,9 @@ int main ()
             throw std::runtime_error ("bad key");
         }
 
-        json jp = json::object();
-        jp.insert ("flag", flag ? "yes" : "no");
+        json jp = {
+            {"flag", flag ? "yes" : "no"}
+        };
 
         auto formData = req.form();
 

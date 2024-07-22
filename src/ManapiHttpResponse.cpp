@@ -44,7 +44,7 @@ void manapi::net::http_response::text(const std::string &plain_text) {
     type            = MANAPI_HTTP_RESP_TEXT;
 }
 
-void manapi::net::http_response::json(utils::json &jp, const size_t &spaces) {
+void manapi::net::http_response::json(const utils::json &jp, const size_t &spaces) {
     text(jp.dump (spaces));
 }
 

@@ -83,7 +83,10 @@ int main ()
     });
     
     server.POST ("/api/+error", [](REQ(req), RESP(resp)) {
-        resp.text (R"({ "error": true, "message": "An error has occurred"})");
+        resp.json ({
+            {"error", true},
+            {"message", "An error has occurred"}
+        });
     });
     
     server.POST ("/api/[key]/form", [&flag](REQ(req), RESP(resp)) {
@@ -92,8 +95,9 @@ int main ()
             throw std::runtime_error ("bad key");
         }
         
-        json jp = json::object();
-        jp.insert ("flag", flag ? "yes" : "no");
+        json jp = {
+            {"flag", flag ? "yes" : "no"}
+        };
         
         auto formData = req.form();
         
