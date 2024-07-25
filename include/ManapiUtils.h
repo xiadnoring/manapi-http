@@ -68,11 +68,11 @@ namespace manapi::utils {
     // ====================[ Classes ]============================
 
     class manapi_exception : public std::exception {
-        public:
-            explicit manapi_exception (std::string message_);
-            [[nodiscard]] const char * what() const noexcept override;
-        private:
-            std::string message;
+    public:
+        explicit manapi_exception (std::string message_);
+        [[nodiscard]] const char * what() const noexcept override;
+    private:
+        std::string message;
     };
 
     std::string     str32to4    (const std::u32string &str32);
@@ -86,20 +86,31 @@ namespace manapi::utils {
 
 namespace manapi::net {
     struct request_data_t {
+        // size of the part of the headers in the buffer (READ) [HHHH]BBBBBBB <- 4
+        size_t                              headers_part;
         size_t                              headers_size;
-        std::map<std::string, std::string>  headers,
-                                            params;
+        // just headers
+        std::map<std::string, std::string>  headers;
+        // contains params from url .../[param1]-[param2]/...
+        std::map<std::string, std::string>  params;
 
+        // GET, POST, HEAD
         std::string                         method;
+        // PATH
         std::string                         uri;
+        // version http
         std::string                         http;
+        // split by '/'
         std::vector <std::string>           path;
-        size_t                              divided;
+        // index of the element where URL get params in the path
+        ssize_t                             divided;
 
         char*                               body_ptr;
         size_t                              body_index;
         size_t                              body_left;
         size_t                              body_size;
+        // size of the part of the body in the buffer (READ) HHHH[BBBBB] <- 5
+        size_t                              body_part;
 
         bool                                has_body    = false;
     };

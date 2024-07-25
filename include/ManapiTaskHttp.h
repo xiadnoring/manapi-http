@@ -30,7 +30,7 @@ namespace manapi::net {
 
         void            set_http_server         (http *new_http_server);
         void            send_response           (http_response &res) const;
-        static bool     read_next_part          (size_t &size, size_t &i, void *_http_task, request_data_t *request_data);
+        static size_t   read_next_part          (size_t &size, size_t &i, void *_http_task, request_data_t *request_data);
 
         // TODO: resolve
         [[deprecated]]  ssize_t read_next ();
@@ -109,12 +109,27 @@ namespace manapi::net {
 
         struct http_qc_conn_io  *conn_io = nullptr;
         int64_t                 s = -1;
-        std::mutex              next_connection;
-        std::mutex              got_connection;
+        int64_t                 id = -1;
 
         std::thread             *quic_thr = nullptr;
-        bool                    quic_got_data = false;
-        bool                    quic_work = false;
+
+        // masks
+
+        std::condition_variable quic_cv_read;
+        std::condition_variable quic_cv_write;
+
+        std::mutex              quic_m_read;
+        std::mutex              quic_m_write;
+
+        bool                    quic_v_read     = false;
+        bool                    quic_v_write    = false;
+        bool                    quic_v_body     = false;
+
+        // cv, m in main loop
+
+        std::condition_variable quic_cv_worker;
+        std::mutex              quic_m_worker;
+
     };
 }
 

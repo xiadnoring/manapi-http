@@ -119,8 +119,8 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
     try
     {
         const http_uri_part *cur = &handlers;
-        size_t maxi = std::min (request_data.path.size(), request_data.divided);
-        for (size_t i = 0; i <= maxi; i++)
+        const size_t path_size = request_data.divided == -1 ? request_data.path.size() : request_data.divided;
+        for (size_t i = 0; i <= path_size; i++)
         {
             if (cur->errors != nullptr)
             {
@@ -138,7 +138,7 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
                 handler_page.statics_parts_len = i;
             }
 
-            if (i == maxi)
+            if (i == path_size)
                 break;
 
             if (cur->map == nullptr || !cur->map->contains(request_data.path.at(i))) {

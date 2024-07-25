@@ -1,5 +1,7 @@
 #include <iostream>
 #include <csignal>
+#include <fstream>
+
 #include "ManapiHttp.h"
 #include "ManapiTaskHttp.h"
 #include "ManapiFilesystem.h"
@@ -30,21 +32,19 @@ int main(int argc, char *argv[]) {
 
     server.GET("/proxy", [] (REQ(req), RESP(resp)) {
         json jp = {
-            {"pi", 3.141},
-            {"happy", true},
-            {"name", "Niels"},
-            {"nothing", nullptr},
-            {"answer", {
-                {"everything", 42}
-            }},
-            {"list",{ 1, 0, 2}},
-            {
-                "object", {
-                    {"currency",   "USD"},
-                    {"value", 42.99}
-                }
-            }
+                {"error", false},
+                {"message", "this is a list"},
+                {"hello", nullptr}
         };
+
+        try {
+            jp["hello"] = req.get_query_param("hello");
+        }
+        catch (const manapi_exception &e)
+        {
+            std::cerr << e.what() << "\n";
+        }
+
         resp.set_compress_enabled(false);
         resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JS + ";charset=UTF-8");
 
@@ -69,7 +69,11 @@ int main(int argc, char *argv[]) {
     });
 
     server.POST ("/+error", [] (REQ(req), RESP(resp)) {
-        resp.text(R"({"errno": 0, "message": "Please, stop!"})");
+        resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JSON);
+        resp.json({
+                          {"error", true},
+                          {"message", "just a error"}
+        });
     });
 
     server.GET ("/noooo", [] (REQ(req), RESP(resp)) {
@@ -112,12 +116,29 @@ int main(int argc, char *argv[]) {
     server.POST ("/form", [] (REQ(req), RESP(resp)) {
         auto formData = req.form();
 
+        resp.set_compress_enabled(false);
+
+        resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JSON + ";charset=UTF-8");
+
         json obj = json::object();
 
         for (const auto &item: formData)
         {
             obj.insert(item.first, item.second);
         }
+
+//        while (req.has_file())
+//        {
+//            obj.insert(req.inf_file().param_name, req.inf_file().file_name);
+//
+//            std::ofstream f (manapi::filesystem::join ("..", "text"), std::ios::binary);
+//
+//            req.set_file([&f] (const char *buff, size_t size) {
+//                f.write (buff, (ssize_t) size);
+//            });
+//
+//            f.close();
+//        }
 
         resp.json (obj, 4);
     });
