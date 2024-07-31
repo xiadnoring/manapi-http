@@ -4,7 +4,7 @@
 #include <string>
 #include <map>
 #include <vector>
-#include "ManapiDecimal.h"
+#include "ManapiBigint.h"
 
 #define MANAPI_JSON_NULL        0
 #define MANAPI_JSON_NUMERIC     1
@@ -20,6 +20,9 @@
 namespace manapi::utils {
     class json {
     public:
+        typedef std::map <std::string, json *>  OBJECT;
+        typedef std::vector <json *>            ARRAY;
+
         static json object ();
         static json array ();
 
@@ -38,7 +41,7 @@ namespace manapi::utils {
         json(const int &num);
         json(const double &num);
         json(const double long &num);
-        json(const decimal &num);
+        json(const bigint &num);
         json(const nullptr_t &n);
         json(const bool &value);
 
@@ -53,8 +56,9 @@ namespace manapi::utils {
         void parse (const int &num);
         void parse (const double &num);
         void parse (const double long &num);
-        void parse (const decimal &num);
+        void parse (const bigint &num);
 
+        bool contains (const std::string &key) const;
 
         // other
         void parse (const nullptr_t &n);
@@ -75,9 +79,15 @@ namespace manapi::utils {
         json &operator=     (const int              &num);
         json &operator=     (const double           &num);
         json &operator=     (const double long      &num);
+        json &operator=     (const long long        &num);
         json &operator=     (const nullptr_t        &n);
-        json &operator=     (const decimal          &num);
+        json &operator=     (const bigint           &num);
         json &operator=     (const json             &obj);
+        json &operator=     (const std::initializer_list <json> &data);
+        json &operator-     (const ssize_t          &num);
+        json &operator-     (const int              &num);
+        json &operator+     (const ssize_t          &num);
+        json &operator+     (const int              &num);
 
         void insert         (const std::string &key, const json &obj);
         void insert         (const std::u32string &key, const json &obj);
@@ -97,8 +107,19 @@ namespace manapi::utils {
         void push_back      (const std::u32string &arg);
         void push_back      (const ssize_t &arg);
 
-        bool contains       (const std::string &key);
-        bool contains       (const std::u32string &key);
+        template<class T>
+        auto begin          () const
+        {
+            return get_ptr<T>()->begin();
+        }
+
+        template<class T>
+        auto end            () const
+        {
+            return get_ptr<T>()->end();
+        }
+
+        [[nodiscard]] bool contains       (const std::u32string &key) const;
 
         [[nodiscard]] bool is_object      () const;
         [[nodiscard]] bool is_array       () const;
@@ -117,7 +138,7 @@ namespace manapi::utils {
 
         [[nodiscard]] std::string dump    (const size_t &spaces = 0, const size_t &first_spaces = 0) const;
 
-        size_t size ();
+        [[nodiscard]] size_t size () const;
     protected:
         [[nodiscard]] size_t get_start_cut  ()      const;
         [[nodiscard]] size_t get_end_cut    ()      const;
@@ -126,11 +147,15 @@ namespace manapi::utils {
     private:
         static void                 error_invalid_char (const std::u32string &plain_text, const size_t &i);
         static void                 error_unexpected_end (const size_t &i);
+        static void                 delete_value_static (const short &type, void *src);
+        void                        throw_could_not_use_func (const std::string &func) const;
         void                        delete_value ();
+
         void    *src                = nullptr;
         short   type                = MANAPI_JSON_NULL;
         size_t  start_cut           = 0;
         size_t  end_cut             = 0;
+
     };
 
     class json_parse_exception : public std::exception {

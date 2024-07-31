@@ -36,7 +36,7 @@ std::string &manapi::net::http_response::get_header(const std::string &key) {
     if (headers.contains(key))
         return headers[key];
 
-    throw utils::manapi_exception (std::format("The header '{}' could not be found", key));
+    throw utils::exception (std::format("The header '{}' could not be found", key));
 }
 
 void manapi::net::http_response::text(const std::string &plain_text) {
@@ -140,7 +140,7 @@ void manapi::net::http_response::detect_ranges () {
             size_t pos_delimiter = range_str->find ('-');
 
             if (pos_delimiter == std::string::npos)
-                throw manapi::utils::manapi_exception ("invalid the header range");
+                throw manapi::utils::exception ("invalid the header range");
 
             // trans 2 size_t range
             const char *end_ptr     = range_str->data() + pos_delimiter;

@@ -20,20 +20,6 @@ static std::mt19937         random_ng (random_dev());
 
 static std::mutex           log_mutex;
 
-void manapi::utils::_log (const size_t &line, const char *file_name, const char *format, ...) {
-    std::lock_guard <std::mutex> locker(log_mutex);
-    
-    va_list args;
-
-    printf("%s(%zu): ", file_name, line);
-
-    va_start(args, format);
-    vprintf(format, args);
-    va_end(args);
-
-    printf("\n");
-}
-
 // ============================================================ //
 // ===================== [ Math ] ============================= //
 // ============================================================ //
@@ -57,18 +43,6 @@ size_t manapi::utils::pow (const size_t &x, const size_t &count) {
         result *= x;
 
     return result;
-}
-
-void manapi::utils::_log_error (const size_t &line, const char *file_name, const std::exception &e, const char *format,...) {
-    va_list args;
-
-    printf("%s(%zu): ", file_name, line);
-
-    va_start(args, format);
-    vprintf(format, args);
-    va_end(args);
-
-    printf("\n -> Message: %s\n", e.what());
 }
 
 // ============================================================ //
@@ -262,7 +236,7 @@ std::string manapi::utils::time (const std::string &fmt, bool local) {
 
 std::vector <manapi::utils::replace_founded_item> manapi::utils::found_replacers_in_file
         (const std::string &path, const size_t &start, const size_t &size, const MAP_STR_STR &replacers) {
-#define BUFFER_SIZE 5
+#define BUFFER_SIZE 4096
     // SPECIAL
     std::string special_key;
     bool opened = false;
@@ -277,7 +251,9 @@ std::vector <manapi::utils::replace_founded_item> manapi::utils::found_replacers
     std::ifstream f (path);
 
     if (!f.is_open())
-        throw manapi_exception ("cannot open the file for finding replacers!");
+    {
+        THROW_MANAPI_EXCEPTION("Could not open the following file for finding replacers ({})", escape_string(path));
+    }
 
     // while i < block_size or opened, bcz replacer can be on some blocks
     // i - index of the char of the packet block
@@ -373,9 +349,9 @@ std::vector <manapi::utils::replace_founded_item> manapi::utils::found_replacers
 // ===================== [ Classes ] ========================== //
 // ============================================================ //
 
-manapi::utils::manapi_exception::manapi_exception(std::string message_): message(std::move(message_)) {}
+manapi::utils::exception::exception(std::string message_): message(std::move(message_)) {}
 
-const char *manapi::utils::manapi_exception::what() const noexcept {
+const char *manapi::utils::exception::what() const noexcept {
     return message.data();
 }
 

@@ -85,8 +85,8 @@ namespace manapi::net {
         void            send_file (http_response &res, std::ifstream &f, ssize_t size) const;
 
         void            get_ip_addr();
-        void            handle_request (const http_handler_page *handler, const size_t &status = 200, const std::string &message = http_status.OK_200);
-        void            send_error_response (const size_t &status, const std::string &message, const handlers_types_t &errors);
+        void            handle_request (const http_handler_page *data, const size_t &status = 200, const std::string &message = http_status.OK_200);
+        void            send_error_response (const size_t &status, const std::string &message, const http_handler_functions *error);
 
         static void     parse_uri_path_dynamic (request_data_t &request_data, char *response, const size_t &size, size_t &i, const std::function <void()>& finished = nullptr);
 

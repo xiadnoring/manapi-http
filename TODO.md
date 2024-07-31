@@ -10,6 +10,8 @@
 - [x] File upload support
 - [x] Support pages
 - [x] Custom methods
+- [x] Json masks
+- [ ] Improve Json masks
 - [x] Proxy, Fetch
 - [ ] Holding the connection after the request
 - [ ] Caching of small files

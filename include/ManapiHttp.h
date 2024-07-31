@@ -18,6 +18,7 @@
 #include "ManapiTask.h"
 #include "ManapiCompress.h"
 #include "ManapiJson.h"
+#include "ManapiJsonMask.h"
 #include "ManapiApi.h"
 
 #define MANAPI_NET_TYPE_TCP 0
@@ -52,14 +53,22 @@ namespace manapi::net {
     typedef std::pair<std::regex, http_uri_part *>              handlers_regex_pair_t;
     typedef std::map<std::string, handlers_regex_pair_t>        handlers_regex_map_t;
     typedef std::vector<std::string>                            handlers_regex_titles_t;
-    typedef std::map <std::string, handler_template_t>          handlers_types_t;
     typedef std::map <std::string, std::string>                 handlers_static_types_t;
 
-    struct http_handler_page {
-        handlers_types_t    errors;
+    struct http_handler_functions {
         handler_template_t  handler = nullptr;
-        std::string         *statics = nullptr;
-        size_t              statics_parts_len;
+
+        const utils::json_mask  *post_mask = nullptr;
+        const utils::json_mask  *get_mask = nullptr;
+    };
+
+    typedef std::map <std::string, http_handler_functions>      handlers_types_t;
+
+    struct http_handler_page {
+        const http_handler_functions    *handler = nullptr;
+        const http_handler_functions    *error = nullptr;
+        std::string                     *statics = nullptr;
+        size_t                          statics_parts_len{};
     };
 
     struct http_qc_conn_io {
@@ -88,9 +97,9 @@ namespace manapi::net {
         // params
         handlers_regex_titles_t *params         = nullptr;
 
-        // just handler functions
-        handlers_types_t        *handlers       = nullptr;
-        // error handler functions
+        // functions (handler, post_mask, get_mask) by method
+        handlers_types_t        *handlers        = nullptr;
+        // errors
         handlers_types_t        *errors         = nullptr;
         // static handler functions
         handlers_static_types_t *statics        = nullptr;
@@ -116,15 +125,15 @@ namespace manapi::net {
 
         std::future <int>   run ();
 
-        void GET    (const std::string &uri, const handler_template_t &handler);
-        void POST   (const std::string &uri, const handler_template_t &handler);
+        void GET    (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr);
+        void POST   (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
         void PUT    (const std::string &uri, const handler_template_t &handler);
         void DELETE (const std::string &uri, const handler_template_t &handler);
         void PATCH  (const std::string &uri, const handler_template_t &handler);
 
         void GET    (const std::string &uri, const std::string &folder);
 
-        http_uri_part       *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, bool has_body = false);
+        http_uri_part       *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, bool has_body = false, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
         http_uri_part       *set_handler (const std::string &method, const std::string &uri, const std::string &folder, bool has_body = false);
 
         http_handler_page   get_handler (request_data_t &request_data);

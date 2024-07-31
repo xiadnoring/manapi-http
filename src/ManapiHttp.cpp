@@ -93,12 +93,12 @@ const long int &manapi::net::http::get_keep_alive() const {
     return keep_alive;
 }
 
-void manapi::net::http::GET(const std::string &uri, const handler_template_t &handler) {
-    this->set_handler("GET", uri, handler);
+void manapi::net::http::GET(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask) {
+    this->set_handler("GET", uri, handler, false, get_mask);
 }
 
-void manapi::net::http::POST(const std::string &uri, const handler_template_t &handler) {
-    this->set_handler("POST", uri, handler, true);
+void manapi::net::http::POST(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+    this->set_handler("POST", uri, handler, true, get_mask, post_mask);
 }
 
 void manapi::net::http::PUT(const std::string &uri, const handler_template_t &handler) {
@@ -122,14 +122,10 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
         const size_t path_size = request_data.divided == -1 ? request_data.path.size() : request_data.divided;
         for (size_t i = 0; i <= path_size; i++)
         {
-            if (cur->errors != nullptr)
+            if (cur->errors != nullptr && cur->errors->contains(request_data.method))
             {
-                // TODO why all errors will be export instead of one by method ?
-                // find errors handlers for methods!
-                for (auto &handler: *cur->errors)
-                {
-                    handler_page.errors[handler.first] = handler.second;
-                }
+                // find errors handlers for method!
+                handler_page.error = &cur->errors->at(request_data.method);
             }
 
             if (cur->statics != nullptr && cur->statics->contains(request_data.method))
@@ -159,7 +155,7 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
                         if (cur->params == nullptr) {
                             // bug
 
-                            MANAPI_LOG("cur->regexes_title (params) is null. cur located at %x", cur);
+                            MANAPI_LOG("{}", "cur->regexes_title (params) is null.");
                             return handler_page;
                         }
 
@@ -167,8 +163,8 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
                         if (cur->params->size() != expected_size) {
                             // bug
 
-                            MANAPI_LOG("The expected number of parameters (%zu) does not correspond of reality (%zu). uri part: %s.",
-                                       cur->params->size(), expected_size, request_data.path.at(i).data());
+                            MANAPI_LOG("The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
+                                       cur->params->size(), expected_size, request_data.path.at(i));
                             return handler_page;
                         }
 
@@ -198,14 +194,17 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
             return handler_page;
         }
 
-        handler_template_t handler = cur->handlers->at (request_data.method);
+        http_handler_functions *handler = &cur->handlers->at (request_data.method);
 
         if (handler == nullptr) {
             // TODO: handler error
         }
 
+        // TODO: RESOLVE there are set has_body has no effect
         if (cur->has_body)
+        {
             request_data.has_body = true;
+        }
 
         handler_page.handler = handler;
 
@@ -215,25 +214,56 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
     }
 }
 
-manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &method, const std::string &uri, const handler_template_t &handler, bool has_body) {
+manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &method, const std::string &uri, const handler_template_t &handler, bool has_body, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
     size_t  type            = MANAPI_HTTP_URI_PAGE_DEFAULT;
 
     http_uri_part *cur      = build_uri_part(uri, type);
 
+    http_handler_functions functions;
+
     switch (type) {
         case MANAPI_HTTP_URI_PAGE_DEFAULT:
             if (cur->handlers == nullptr)
+            {
                 cur->handlers = new handlers_types_t ();
+            }
 
-            cur->handlers->insert({method, handler});
-
+            functions.handler = handler;
             cur->has_body = has_body;
+
+            if (get_mask.is_enabled())
+            {
+                functions.get_mask = new utils::json_mask (get_mask);
+            }
+
+            if (post_mask.is_enabled())
+            {
+                functions.post_mask = new utils::json_mask (post_mask);
+            }
+
+            cur->handlers->insert({method, functions});
 
             break;
         case MANAPI_HTTP_URI_PAGE_ERROR:
             if (cur->errors == nullptr)
+            {
                 cur->errors = new handlers_types_t ();
-            cur->errors->insert({method, handler});
+            }
+
+            functions.handler = handler;
+
+            if (get_mask.is_enabled())
+            {
+                functions.get_mask = new utils::json_mask (get_mask);
+            }
+
+            if (post_mask.is_enabled())
+            {
+                functions.post_mask = new utils::json_mask (post_mask);
+            }
+
+            cur->errors->insert({method, functions});
+
             break;
         default:
             break;
@@ -262,13 +292,14 @@ manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &me
 
             break;
         default:
-            throw manapi::utils::manapi_exception ("can not use the special pages with the static files");
+            throw manapi::utils::exception ("can not use the special pages with the static files");
     }
 
     return cur;
 }
 
-manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string &uri, size_t &type) {
+manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string &uri, size_t &type)
+{
     std::string                 buff;
     handlers_regex_titles_t     *regexes_title = nullptr;
 
@@ -279,32 +310,42 @@ manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string 
     // past params lists. To check for a match
     std::vector <std::vector <std::string> *> past_params_lists;
 
-    for (size_t i = 0; i <= uri.size(); i++) {
+    for (size_t i = 0; i <= uri.size(); i++)
+    {
         const bool is_last_part = (i == uri.size());
 
-        if (uri[i] == '/' || is_last_part) {
-            if (!buff.empty()) {
+        if (uri[i] == '/' || is_last_part)
+        {
+            if (!buff.empty())
+            {
 
-                if (is_regex) {
-                    if (cur->regexes == nullptr || !cur->regexes->contains(buff)) {
+                if (is_regex)
+                {
+                    if (cur->regexes == nullptr || !cur->regexes->contains(buff))
+                    {
                         if (cur->regexes == nullptr)
+                        {
                             cur->regexes = new handlers_regex_map_t();
+                        }
 
                         auto new_part   = new http_uri_part;
 
                         std::regex p(buff);
                         cur->regexes->insert({buff, std::make_pair(p, new_part)});
 
-                        if (regexes_title != nullptr) {
+                        if (regexes_title != nullptr)
+                        {
                             new_part->params = regexes_title;
 
                             // check for a match
-                            for (const auto &past_params: past_params_lists) {
-                                for (const auto &param: *regexes_title) {
+                            for (const auto &past_params: past_params_lists)
+                            {
+                                for (const auto &param: *regexes_title)
+                                {
                                     if (std::find(past_params->begin(), past_params->end(), param) !=
                                         past_params->end())
-                                        MANAPI_LOG("Warning: a param with a title '%s' is already in use. (%s)",
-                                                   param.data(), uri.data());
+                                        MANAPI_LOG("Warning: a param with a title '{}' is already in use. ({})",
+                                                   param, uri);
                                 }
                             }
 
@@ -316,29 +357,38 @@ manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string 
 
                         cur             = new_part;
                     }
-                    else {
+                    else
+                    {
                         cur             = cur->regexes->at(buff).second;
                     }
 
                     is_regex        = false;
                 }
-                else {
+                else
+                {
 
-                    if (buff[0] == '+' && is_last_part) {
-                        if (buff == "+error") {
+                    if (buff[0] == '+' && is_last_part)
+                    {
+                        if (buff == "+error")
+                        {
                             type = MANAPI_HTTP_URI_PAGE_ERROR;
 
                             break;
                         }
 
                         else
-                            MANAPI_LOG("First char '%c' is reserved for special pages", '+');
+                        {
+                            MANAPI_LOG("First char '{}' is reserved for special pages", '+');
+                        }
                     }
 
                     if (cur->map == nullptr)
+                    {
                         cur->map = new handlers_map_t();
+                    }
 
-                    if (!cur->map->contains(buff)) {
+                    if (!cur->map->contains(buff))
+                    {
                         auto new_part       = new http_uri_part;
 
                         cur->map->insert({buff, new_part});
@@ -346,7 +396,9 @@ manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string 
                         cur                 = new_part;
                     }
                     else
+                    {
                         cur                 = cur->map->at(buff);
+                    }
                 }
 
 
@@ -356,15 +408,21 @@ manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string 
 
             continue;
         }
-        else if (uri[i] == '[') {
+
+        if (uri[i] == '[')
+        {
             std::string     title;
             const size_t    temp = i;
 
-            for (i++; i < uri.size(); i++) {
+            for (i++; i < uri.size(); i++)
+            {
                 if (uri[i] == ']')
+                {
                     break;
+                }
 
-                else if (manapi::utils::escape_char_need(uri[i])) {
+                else if (manapi::utils::escape_char_need(uri[i]))
+                {
                     title = "";
                     break;
                 }
@@ -372,8 +430,10 @@ manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string 
                 title += uri[i];
             }
 
-            if (!title.empty()) {
-                if (!is_regex) {
+            if (!title.empty())
+            {
+                if (!is_regex)
+                {
                     is_regex = true;
 
                     buff = manapi::utils::escape_string(buff);
@@ -392,9 +452,12 @@ manapi::net::http_uri_part *manapi::net::http::build_uri_part(const std::string 
             i = temp;
         }
 
-        if (is_regex) {
+        if (is_regex)
+        {
             if (manapi::utils::escape_char_need(uri[i]))
+            {
                 buff.push_back('\\');
+            }
 
             buff += uri[i];
             continue;
@@ -531,7 +594,7 @@ void manapi::net::http::setup_config() {
             http_version_str    = "1.1";
             http_version        = 1;
 
-            MANAPI_LOG("http version '%s' is invalid in the config", http_version_str.data());
+            MANAPI_LOG("http version '{}' is invalid in the config", http_version_str);
         }
     }
 
@@ -715,17 +778,17 @@ SSL_CTX *manapi::net::http::ssl_create_context() {
     ctx = SSL_CTX_new(method);
 
     if (!ctx)
-        throw manapi::utils::manapi_exception ("cannot create openssl context for tcp connections");
+        throw manapi::utils::exception ("cannot create openssl context for tcp connections");
 
     return ctx;
 }
 
 void manapi::net::http::ssl_configure_context() {
     if (SSL_CTX_use_certificate_file(ctx, ssl_config.cert.data(), SSL_FILETYPE_PEM) <= 0)
-        throw manapi::utils::manapi_exception ("cannot use cert file openssl");
+        throw manapi::utils::exception ("cannot use cert file openssl");
 
     if (SSL_CTX_use_PrivateKey_file(ctx, ssl_config.key.data(), SSL_FILETYPE_PEM) <= 0)
-        throw manapi::utils::manapi_exception ("cannot use private key file openssl");
+        throw manapi::utils::exception ("cannot use private key file openssl");
 }
 
 ev::loop_ref manapi::net::http::get_loop() {
@@ -768,7 +831,7 @@ int manapi::net::http::_pool(const size_t &thread_num) {
         server_addr = local->ai_addr;
         server_len  = local->ai_addrlen;
 
-        MANAPI_LOG("HTTP TCP PORT USED: %s. http://%s:%s", port.data(), address.data(), port.data());
+        MANAPI_LOG("HTTP TCP PORT USED: {}. {}:{}", port, address, port);
 
         tcp_io  = new ev::io (loop);
         sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -777,19 +840,19 @@ int manapi::net::http::_pool(const size_t &thread_num) {
         setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int));
 
         if (sock_fd < 0) {
-            MANAPI_LOG("%s", "SOCKET ERROR");
+            MANAPI_LOG("{}", "SOCKET ERROR");
             return 1;
         }
 
         fcntl(sock_fd, F_SETFL, fcntl(sock_fd, F_GETFL, 0) | O_NONBLOCK);
 
         if (bind(sock_fd, local->ai_addr, local->ai_addrlen) < 0) {
-            MANAPI_LOG("PORT %s IS ALREADY IN USE", port.data());
+            MANAPI_LOG("PORT {} IS ALREADY IN USE", port);
             return 1;
         }
 
         if (listen(sock_fd, 10) < 0) {
-            MANAPI_LOG("LISTEN ERROR. sock_fd: %d", sock_fd);
+            MANAPI_LOG("LISTEN ERROR. sock_fd: {}", sock_fd);
             return 1;
         }
 
@@ -823,7 +886,7 @@ int manapi::net::http::_pool(const size_t &thread_num) {
         server_addr = local->ai_addr;
         server_len  = local->ai_addrlen;
 
-        MANAPI_LOG("HTTP UDP PORT USED: %s. http://%s:%s", port.data(), address.data(), port.data());
+        MANAPI_LOG("HTTP UDP PORT USED: {}. {}:{}", port, address, port);
 
         // for HTTP/3
         udp_io  = new ev::io(loop);
@@ -833,14 +896,14 @@ int manapi::net::http::_pool(const size_t &thread_num) {
         setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int));
 
         if (sock_fd < 0) {
-            MANAPI_LOG("%s", "SOCKET ERROR");
+            MANAPI_LOG("{}", "SOCKET ERROR");
             return 1;
         }
 
         fcntl(sock_fd, F_SETFL, fcntl(sock_fd, F_GETFL, 0) | O_NONBLOCK);
 
         if (bind(sock_fd, local->ai_addr, local->ai_addrlen) < 0) {
-            MANAPI_LOG("PORT %s IS ALREADY IN USE", port.data());
+            MANAPI_LOG("PORT {} IS ALREADY IN USE", port);
             return 1;
         }
 

@@ -6,12 +6,13 @@
 
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 
-manapi::net::http_request::http_request(manapi::net::ip_data_t &_ip_data, manapi::net::request_data_t &_request_data, void* _http_task, http* _http_server)
+manapi::net::http_request::http_request(manapi::net::ip_data_t &_ip_data, manapi::net::request_data_t &_request_data, void* _http_task, http* _http_server, const void *_handler)
 {
     ip_data         = &_ip_data;
     request_data    = &_request_data;
     http_task       = _http_task;
     http_server     = _http_server;
+    page_handler    = _handler;
 }
 
 manapi::net::http_request::~http_request() {}
@@ -36,17 +37,17 @@ const std::string &manapi::net::http_request::get_param(const std::string &param
     if (request_data->params.contains(param))
         return request_data->params.at(param);
 
-    throw utils::manapi_exception (std::format("cannot find param '{}'", param));
+    throw utils::exception (std::format("cannot find param '{}'", param));
 }
 
 std::string manapi::net::http_request::text() {
     if (!request_data->has_body)
-        throw manapi::utils::manapi_exception ("this method cannot have a body");
+        throw manapi::utils::exception ("this method cannot have a body");
 
     std::string body;
 
     if (request_data->body_size > max_plain_body_size)
-        throw manapi::utils::manapi_exception (std::format("plain body can have only {} length", max_plain_body_size));
+        throw manapi::utils::exception (std::format("plain body can have only {} length", max_plain_body_size));
 
     body.resize(request_data->body_size);
 
@@ -75,21 +76,31 @@ std::string manapi::net::http_request::text() {
 
 manapi::utils::json manapi::net::http_request::json()
 {
-    return manapi::utils::json (this->text(), true);
+    auto data = manapi::utils::json (this->text(), true);
+
+    // TODO: check with json_mask during processing read_mask()
+    auto post_mask = get_post_mask();
+    if (post_mask != nullptr) {
+        if (!post_mask->valid (data)) {
+            THROW_MANAPI_EXCEPTION("{}", "peer's JSON failed validatation");
+        }
+    }
+
+    return data;
 }
 
 manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
 {
     if (!request_data->has_body)
     {
-        throw manapi::utils::manapi_exception ("this method cannot have a body");
+        throw manapi::utils::exception ("this method cannot have a body");
     }
 
     const auto header     = utils::parse_header_value(get_headers().at(http_header.CONTENT_TYPE));
 
     if (header.empty())
     {
-        throw manapi::utils::manapi_exception ("value is empty");
+        throw manapi::utils::exception ("value is empty");
     }
 
     const std::string *content_type = &header[0].value;
@@ -100,7 +111,7 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
     {
         if (!header[0].params.contains("boundary"))
         {
-            throw manapi::utils::manapi_exception ("boundary not found");
+            throw manapi::utils::exception ("boundary not found");
         }
 
         body_boundary = SPECIAL_SYMBOLS_BOUNDARY + header[0].params.at("boundary");
@@ -209,7 +220,15 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
     }
     else
     {
-        throw manapi::utils::manapi_exception ("Invalid MIME type");
+        THROW_MANAPI_EXCEPTION("Invalid POST DATA MIME-type: {}", utils::escape_string(*content_type));
+    }
+
+    // validate data
+    const auto post_mask = get_post_mask();
+    if (post_mask != nullptr) {
+        if (!post_mask->valid(params)) {
+            THROW_MANAPI_EXCEPTION("Form Data: {} ({})", "Failed validation", utils::escape_string(*content_type));
+        }
     }
 
     return params;
@@ -226,7 +245,7 @@ void manapi::net::http_request::set_max_plain_body_size(const size_t &size) {
 const manapi::net::file_data_t &manapi::net::http_request::inf_file() {
     if (!file_data.exists)
     {
-        throw manapi::utils::manapi_exception ("no file in the body of the request");
+        throw manapi::utils::exception ("no file in the body of the request");
     }
 
     return file_data;
@@ -428,7 +447,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
             {
                 if (header_value.empty())
                 {
-                    throw manapi::utils::manapi_exception ("value is empty");
+                    throw manapi::utils::exception ("value is empty");
                 }
 
                 if (header_value[0].params.contains("name"))
@@ -452,7 +471,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
                     }
                     else
                     {
-                        throw manapi::utils::manapi_exception(
+                        throw manapi::utils::exception(
                                 "the simple param can not be after the files in the body of the request");
                     }
                 }
@@ -462,7 +481,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
             {
                 if (header_value.empty())
                 {
-                    throw manapi::utils::manapi_exception("Content-Type cannot be empty");
+                    throw manapi::utils::exception("Content-Type cannot be empty");
                 }
 
                 if (file_data.exists)
@@ -519,7 +538,7 @@ std::string manapi::net::http_request::set_file_to_str() {
 void manapi::net::http_request::set_file(const std::function<void(const char *, const size_t &)> &handler) {
     if (!has_file())
     {
-        throw manapi::utils::manapi_exception ("no file in the body of the request");
+        throw manapi::utils::exception ("no file in the body of the request");
     }
 
     for (char i = 0; i < 2; i++)
@@ -538,7 +557,7 @@ void manapi::net::http_request::set_file_to_local (const std::string &filepath) 
 
     if (!out.is_open())
     {
-        throw manapi::utils::manapi_exception ("Cannot open a file to write");
+        throw manapi::utils::exception ("Cannot open a file to write");
     }
 
     set_file([&] (const char *ptr, const size_t & size) {
@@ -593,5 +612,13 @@ const std::string &manapi::net::http_request::get_query_param(const std::string 
         return map_url_params->at(name);
     }
 
-    throw manapi::utils::manapi_exception (std::format("Can not find query param by name \"{}\"", manapi::utils::escape_string(name)));
+    throw manapi::utils::exception (std::format("Can not find query param by name \"{}\"", manapi::utils::escape_string(name)));
+}
+
+const manapi::utils::json_mask *manapi::net::http_request::get_post_mask() const {
+    return static_cast<const http_handler_page *> (page_handler)->handler->post_mask;
+}
+
+const manapi::utils::json_mask *manapi::net::http_request::get_get_mask() const {
+    return static_cast<const http_handler_page *> (page_handler)->handler->get_mask;
 }

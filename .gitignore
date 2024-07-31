@@ -12,3 +12,4 @@ build
 .tmp
 test.cpp
 test.h
+.clangd

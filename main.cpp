@@ -7,10 +7,14 @@
 #include "ManapiFilesystem.h"
 #include "ManapiTaskFunction.h"
 #include "ManapiFetch.h"
+#include "ManapiJsonMask.h"
 
 using namespace manapi::utils;
 using namespace manapi::net;
 using namespace std;
+
+// TODO: json custom exceptions
+// TODO: json bug replace a = a + b (somewhere)
 
 int main(int argc, char *argv[]) {
     http server;
@@ -40,7 +44,7 @@ int main(int argc, char *argv[]) {
         try {
             jp["hello"] = req.get_query_param("hello");
         }
-        catch (const manapi_exception &e)
+        catch (const manapi::utils::exception &e)
         {
             std::cerr << e.what() << "\n";
         }
@@ -113,35 +117,54 @@ int main(int argc, char *argv[]) {
         resp.file("/home/Timur/Documents/leon.ico");
     });
 
-    server.POST ("/form", [] (REQ(req), RESP(resp)) {
-        auto formData = req.form();
+    const json_mask post_mask = {
+        {"first-name", "{string(>=5 <50)}"},
+        {"last-name", "{string(>=5 <70)}"},
+        {"file", "{any}"}
+    };
 
-        resp.set_compress_enabled(false);
+    server.POST ("/test", [] (REQ(req), RESP(resp)) -> void {
+        auto jp = req.json();
 
-        resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JSON + ";charset=UTF-8");
+        resp.json(jp);
+    }, nullptr, post_mask);
 
-        json obj = json::object();
+    {
+        const json_mask form_mask = {
+            {"first-name", "{string(>=5 <50)}"},
+            {"last-name", "{string(>=5 <70)}"}
+        };
 
-        for (const auto &item: formData)
-        {
-            obj.insert(item.first, item.second);
-        }
+        server.POST ("/form", [] (REQ(req), RESP(resp)) {
+            auto formData = req.form();
 
-//        while (req.has_file())
-//        {
-//            obj.insert(req.inf_file().param_name, req.inf_file().file_name);
-//
-//            std::ofstream f (manapi::filesystem::join ("..", "text"), std::ios::binary);
-//
-//            req.set_file([&f] (const char *buff, size_t size) {
-//                f.write (buff, (ssize_t) size);
-//            });
-//
-//            f.close();
-//        }
+            resp.set_compress_enabled(false);
 
-        resp.json (obj, 4);
-    });
+            resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JSON + ";charset=UTF-8");
+
+            json obj = json::object();
+
+            for (const auto &item: formData)
+            {
+                obj.insert(item.first, item.second);
+            }
+
+    //        while (req.has_file())
+    //        {
+    //            obj.insert(req.inf_file().param_name, req.inf_file().file_name);
+    //
+    //            std::ofstream f (manapi::filesystem::join ("..", "text"), std::ios::binary);
+    //
+    //            req.set_file([&f] (const char *buff, size_t size) {
+    //                f.write (buff, (ssize_t) size);
+    //            });
+    //
+    //            f.close();
+    //        }
+
+            resp.json (obj, 4);
+        }, nullptr, form_mask);
+    }
 
     server.GET ("/", "/home/Timur/Desktop/WorkSpace/oneworld/");
 

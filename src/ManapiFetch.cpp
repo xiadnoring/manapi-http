@@ -149,7 +149,7 @@ void manapi::net::fetch::doit() {
 
     if (resp != CURLE_OK)
     {
-        throw manapi::utils::manapi_exception ("Connection failed");
+        throw manapi::utils::exception ("Connection failed");
     }
 
     curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &status_code);

@@ -4,6 +4,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <iostream>
 
 namespace manapi::net {
     struct header_value_t {
@@ -22,14 +23,12 @@ namespace manapi::utils {
         std::pair <ssize_t, ssize_t> pos;
     };
 
-#define MANAPI_LOG(msg, ...)            manapi::utils::_log (__LINE__, __FILE_NAME__, msg, __VA_ARGS__)
-#define MANAPI_LOG_ERROR(e, msg, ...)   manapi::utils::_log_error(__LINE__, __FILE_NAME__, e, msg, __VA_ARGS__)
+#define MANAPI_LOG(msg, ...)                manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg, __VA_ARGS__)
+#define THROW_MANAPI_EXCEPTION(msg, ...)    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg, __VA_ARGS__);
 
     typedef std::map <std::string, std::string> MAP_STR_STR;
     typedef std::vector <std::string>           VEC_STR;
 
-    void _log               (const size_t &line, const char *file_name, const char *format, ...);
-    void _log_error         (const size_t &line, const char *file_name, const std::exception &e, const char *format,...);
     bool is_space_symbol    (const char &symbol);
     bool is_space_symbol    (const wchar_t &symbol);
     bool is_space_symbol    (const char32_t &symbol);
@@ -67,13 +66,15 @@ namespace manapi::utils {
 
     // ====================[ Classes ]============================
 
-    class manapi_exception : public std::exception {
+    class exception : public std::exception {
     public:
-        explicit manapi_exception (std::string message_);
+        explicit exception (std::string message_);
         [[nodiscard]] const char * what() const noexcept override;
     private:
         std::string message;
     };
+
+    // ====================[ Strings ]===============================
 
     std::string     str32to4    (const std::u32string &str32);
     std::string     str32to4    (const char32_t &str32);
@@ -82,6 +83,29 @@ namespace manapi::utils {
     std::string     str16to4    (const std::u16string &str16);
     std::string     str16to4    (const char16_t &str16);
     std::u16string  str4to16    (const std::string &str);
+
+    // ====================[ Debug ]===============================
+
+    template <class... Args>
+    void _log               (const size_t &line, const std::string &file_name, const std::string &func, const bool &except, const std::string &format, Args&& ...args)
+    {
+        std::string head = std::format ("{}() ({}:{}): ", func, file_name, line);
+        std::string information = std::vformat(format, std::make_format_args(args...));
+
+        if (except)
+        {
+            std::cerr << head << information << "\n";
+        }
+        else
+        {
+            std::cout << head << information << "\n";
+        }
+
+        if (except)
+        {
+            throw manapi::utils::exception (information);
+        }
+    }
 }
 
 namespace manapi::net {

@@ -20,6 +20,10 @@ namespace manapi::utils::compress {
 
     bool gzip_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy);
     bool gzip_decompress_file(const std::string &src, const std::string &dest);
+
+    void throw_could_not_compress_file  (const std::string &name, const std::string &src, const std::string &dest);
+    void throw_could_not_open_file      (const std::string &name, const std::string &path);
+    void throw_file_exists              (const std::string &name, const std::string &path);
 }
 
 #endif //MANAPIHTTP_MANAPICOMPRESS_H

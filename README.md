@@ -89,25 +89,36 @@ int main ()
         });
     });
     
-    server.POST ("/api/[key]/form", [&flag](REQ(req), RESP(resp)) {
-        if (req.get_param("key") != "123")
-        {
-            throw std::runtime_error ("bad key");
-        }
-        
-        json jp = {
-            {"flag", flag ? "yes" : "no"}
+    {
+        const json_mask post_mask = {
+            {"id", "{string(<=2)|number(>=0 <100)}"}
+            {"first-name", "{string(>=5 <70)}"},
+            {"last-name", "{string(>=5 <70)}"},
+            {"age", "number(>=18 <100)"},
+            {"tags", "string(>=3 <10)[<10]"}
         };
         
-        auto formData = req.form();
-        
-        for (auto &item: formData)
-        {
-            jp.insert(item.first, item.second);
-        }
-        
-        resp.json(jp, 4);
-    });
+        server.POST ("/api/[key]/form", [&flag](REQ(req), RESP(resp)) {
+            if (req.get_param("key") != "123")
+            {
+                throw std::runtime_error ("bad key");
+            }
+            
+            json jp = {
+                {"flag", flag ? "yes" : "no"}
+            };
+            
+            auto formData = req.form();
+            
+            for (auto &item: formData)
+            {
+                jp.insert(item.first, item.second);
+            }
+            
+            resp.json(jp, 4);
+            
+        }, nullptr, post_mask);
+    }
     
     server.GET ("/api/[key]/toggle", [&flag](REQ(req), RESP(resp)) {
         if (req.get_param("key") != "123")

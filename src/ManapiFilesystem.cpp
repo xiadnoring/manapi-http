@@ -75,7 +75,7 @@ ssize_t manapi::filesystem::get_size (std::ifstream& f) {
 ssize_t manapi::filesystem::get_size (const std::string& path) {
     std::ifstream f (path);
     if (!f.is_open())
-        throw manapi::utils::manapi_exception ("cannot open the file by following path: " + path);
+        throw manapi::utils::exception ("cannot open the file by following path: " + path);
 
     ssize_t result = manapi::filesystem::get_size(f);
 
@@ -88,7 +88,7 @@ void manapi::filesystem::write (const std::string &path, const std::string &data
     std::ofstream out (path);
 
     if (!out.is_open())
-        throw manapi::utils::manapi_exception ("cannot open config to write");
+        throw manapi::utils::exception ("cannot open config to write");
 
     out << data;
 
@@ -99,7 +99,7 @@ std::string manapi::filesystem::read (const std::string &path) {
     std::ifstream in (path);
 
     if (!in.is_open())
-        throw manapi::utils::manapi_exception ("cannot open config to write");
+        throw manapi::utils::exception ("cannot open config to write");
 
     std::string content, line;
 
@@ -117,7 +117,7 @@ void manapi::filesystem::copy (std::ifstream &f, const ssize_t &start, const ssi
         f.close();
         o.close();
 
-        throw manapi::utils::manapi_exception ("cannot open files for operations");
+        throw manapi::utils::exception ("cannot open files for operations");
     }
 
     f.seekg (start);

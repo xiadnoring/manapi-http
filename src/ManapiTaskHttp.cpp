@@ -77,7 +77,7 @@ void manapi::net::http_task::doit() {
             udp_doit();
             break;
         default:
-            throw manapi::utils::manapi_exception ("invalid connection protocol");
+            throw manapi::utils::exception ("invalid connection protocol");
     }
 }
 
@@ -105,7 +105,7 @@ void manapi::net::http_task::udp_doit()
 
     if (read < 0)
     {
-        throw manapi::utils::manapi_exception ("failed to parse quic headers.");
+        throw manapi::utils::exception ("failed to parse quic headers.");
     }
 
     const std::string dcid_str ((const char *) (d_cid), d_cid_len);
@@ -462,7 +462,7 @@ void manapi::net::http_task::udp_doit()
                         {
                             if (!request_data.headers.contains(http_header.CONTENT_LENGTH))
                             {
-                                throw manapi::utils::manapi_exception("content-length not exists");
+                                throw manapi::utils::exception("content-length not exists");
                             }
 
                             // we accept peer body
@@ -647,7 +647,7 @@ void manapi::net::http_task::tcp_doit() {
 
     else if (ready == 0)
     {
-        MANAPI_LOG("The waiting time of %llu seconds has been exceeded", http_server->get_keep_alive());
+        MANAPI_LOG("The waiting time of {} seconds has been exceeded", http_server->get_keep_alive());
     }
 
     else
@@ -684,7 +684,7 @@ void manapi::net::http_task::tcp_doit() {
 
                     if (!SSL_accept(ssl))
                     {
-                        throw manapi::utils::manapi_exception ("cannot SSL accept!");
+                        throw manapi::utils::exception ("cannot SSL accept!");
                     }
                 }
                 else
@@ -754,7 +754,7 @@ void manapi::net::http_task::tcp_doit() {
 
                         if (!request_data.headers.contains(http_header.CONTENT_LENGTH))
                         {
-                            throw manapi::utils::manapi_exception("content-length not exists");
+                            throw manapi::utils::exception("content-length not exists");
                         }
 
                         request_data.body_size = std::stoull(request_data.headers[http_header.CONTENT_LENGTH]);
@@ -772,9 +772,9 @@ void manapi::net::http_task::tcp_doit() {
                     handle_request(&handler);
                 }
             }
-            catch (const manapi::utils::manapi_exception &e)
+            catch (const manapi::utils::exception &e)
             {
-                MANAPI_LOG("close connect: %s", e.what());
+                MANAPI_LOG("close connect: {}", e.what());
             }
         }
     }
@@ -784,24 +784,24 @@ void manapi::net::http_task::tcp_doit() {
 
 // HTTP
 
-void manapi::net::http_task::handle_request(const http_handler_page *handler, const size_t &status, const std::string &message) {
+void manapi::net::http_task::handle_request(const http_handler_page *data, const size_t &status, const std::string &message) {
     get_ip_addr();
 
     // handler function not be found
-    if (handler->handler == nullptr)
+    if (data->handler == nullptr)
     {
 
-        if (handler->statics != nullptr)
+        if (data->statics != nullptr)
         {
             // if statics exists
             std::string path;
 
-            for (size_t i = handler->statics_parts_len; i < request_data.path.size(); i++)
+            for (size_t i = data->statics_parts_len; i < request_data.path.size(); i++)
             {
                 path += manapi::filesystem::delimiter + request_data.path[i];
             }
 
-            path = manapi::filesystem::join (*handler->statics, path);
+            path = manapi::filesystem::join (*data->statics, path);
 
             if (manapi::filesystem::exists(path) && manapi::filesystem::is_file(path))
             {
@@ -817,14 +817,14 @@ void manapi::net::http_task::handle_request(const http_handler_page *handler, co
                 catch (const std::exception &e) {
                     MANAPI_LOG("Unexpected error: %s", e.what());
 
-                    send_error_response(503, http_status.SERVICE_UNAVAILABLE_503, handler->errors);
+                    send_error_response(503, http_status.SERVICE_UNAVAILABLE_503, data->error);
                 }
 
                 return;
             }
         }
 
-        return send_error_response (404, http_status.NOT_FOUND_404, handler->errors);
+        return send_error_response (404, http_status.NOT_FOUND_404, data->error);
     }
 
     struct ip_data_t ip_data {
@@ -832,21 +832,21 @@ void manapi::net::http_task::handle_request(const http_handler_page *handler, co
             .family = client.ss_family
     };
 
-    http_request    req (ip_data, request_data, this, http_server);
+    http_request    req (ip_data, request_data, this, http_server, data);
     http_response   res (request_data, status, message, http_server);
 
-//    try
-//    {
-        handler->handler (req, res);
+    try
+    {
+        data->handler->handler (req, res);
 
         send_response (res);
-//    }
-//    catch (const std::exception &e)
-//    {
-//        MANAPI_LOG("Unexpected error: %s", e.what());
-//
-//        send_error_response (503, http_status.SERVICE_UNAVAILABLE_503, handler->errors);
-//    }
+    }
+    catch (const std::exception &e)
+    {
+        MANAPI_LOG("Unexpected error: {}", e.what());
+
+        send_error_response (503, http_status.SERVICE_UNAVAILABLE_503, data->error);
+    }
 }
 
 void manapi::net::http_task::get_ip_addr() {
@@ -868,13 +868,13 @@ size_t manapi::net::http_task::read_next_part(size_t &size, size_t &i, void *_ht
     const ssize_t next_block    = reinterpret_cast<http_task *> (_http_task)->read_next();
 
     if (next_block == -1)
-        throw manapi::utils::manapi_exception ("socket read error");
+        throw manapi::utils::exception ("socket read error");
 
     if (next_block == 0)
         return next_block;
 
     if (next_block > request_data->body_size)
-        throw manapi::utils::manapi_exception ("body limit");
+        throw manapi::utils::exception ("body limit");
 
     size        -=  i;
     i           =   0;
@@ -937,7 +937,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
 
         if (exists_compressor) {
             if (exists_replacers)
-                throw utils::manapi_exception ("replacers can not be use with compressing");
+                throw utils::exception ("replacers can not be use with compressing");
 
             filepath = compress_file (res.get_file(), *http_server->config_cache_dir, compress, compressor);
         }
@@ -950,7 +950,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
         f.open(filepath, std::ios::binary);
 
         if (!f.is_open())
-            throw manapi::utils::manapi_exception (std::format("can not open the file on the path: {}", filepath));
+            throw manapi::utils::exception (std::format("can not open the file on the path: {}", filepath));
 
         else {
             std::vector<utils::replace_founded_item> replacers;
@@ -972,13 +972,13 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
             if (res.get_auto_partial_enabled() && http_server->get_partial_data_min_size() <= fileSize) {
                 if (exists_compressor) {
                     f.close();
-                    throw manapi::utils::manapi_exception ("the compress with the partial content is not supported.");
+                    throw manapi::utils::exception ("the compress with the partial content is not supported.");
                 }
 
 
                 if (exists_replacers) {
                     f.close();
-                    throw utils::manapi_exception ("replacers can not be use with partial");
+                    throw utils::exception ("replacers can not be use with partial");
                 }
 
                 res.set_status(206, http_status.PARTIAL_CONTENT_206);
@@ -1014,7 +1014,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
 
                     default:
                         f.close();
-                        throw manapi::utils::manapi_exception ("multi bytes unsupported");
+                        throw manapi::utils::exception ("multi bytes unsupported");
 
                 }
             }
@@ -1078,7 +1078,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
 
             if (sw < 0)
             {
-                throw manapi::utils::manapi_exception ("Can not write pocket");
+                throw manapi::utils::exception ("Can not write pocket");
             }
 
             return (size_t) sw;
@@ -1306,14 +1306,13 @@ ssize_t manapi::net::http_task::read_next() {
     return mask_read(reinterpret_cast<const char *>(buff), http_server->get_socket_block_size());
 }
 
-void manapi::net::http_task::send_error_response(const size_t &status, const std::string &message, const handlers_types_t &errors) {
-    if (!errors.contains(request_data.method))
-        return;
+void manapi::net::http_task::send_error_response(const size_t &status, const std::string &message, const http_handler_functions *error) {
+    http_handler_page handler;
 
-    http_handler_page error;
-    error.handler = errors.at (request_data.method);
+    handler.error = nullptr;
+    handler.handler = error;
 
-    handle_request(&error, status, message);
+    handle_request(&handler, status, message);
 }
 
 // MASKS
@@ -1434,7 +1433,7 @@ void manapi::net::http_task::tcp_parse_request_response(char *response, const si
     }
 
     if (maxsize == i)
-        throw manapi::utils::manapi_exception ("request header is too large.");
+        throw manapi::utils::exception ("request header is too large.");
 
     request_data.headers_size += i;
 }

@@ -5,8 +5,10 @@
 #include <map>
 #include <string>
 #include <functional>
+#include "ManapiHttp.h"
 #include "ManapiUtils.h"
 #include "ManapiJson.h"
+#include "ManapiJsonMask.h"
 
 namespace manapi::net {
     class http;
@@ -25,7 +27,7 @@ namespace manapi::net {
 
     class http_request {
     public:
-        http_request(manapi::net::ip_data_t &ip_data, manapi::net::request_data_t &request_data, void* http_task, http *http_server);
+        http_request(manapi::net::ip_data_t &ip_data, manapi::net::request_data_t &request_data, void* http_task, http *http_server, const void *handler);
         ~http_request();
 
         const ip_data_t                             &get_ip_data ();
@@ -48,6 +50,9 @@ namespace manapi::net {
         const std::string&                          get_header      (const std::string &name);
 
         const std::string&                          get_query_param (const std::string &name);
+
+        [[nodiscard]] const utils::json_mask*       get_post_mask () const;
+        [[nodiscard]] const utils::json_mask*       get_get_mask () const;
     private:
         void                                        parse_map_url_param ();
         static void                                 buff_to_extra_buff (const request_data_t *req_data, const size_t &start, const size_t &end, char *dest, size_t &size);
@@ -62,6 +67,10 @@ namespace manapi::net {
 
         // parent
         void                                        *http_task;
+
+        // handler
+        const void                                  *page_handler;
+
         // server
         http                                        *http_server;
 
@@ -77,7 +86,6 @@ namespace manapi::net {
         // url get params ?param1=xxx&param2=xxx
         std::map <std::string, std::string>         *map_url_params = nullptr;
 
-        //bool                                        cut_header = true;
         bool                                        first_line = true;
     };
 }

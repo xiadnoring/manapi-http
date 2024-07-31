@@ -6,14 +6,31 @@
 
 #define CHUNK_SIZE 4096
 
+void manapi::utils::compress::throw_could_not_compress_file (const std::string &name, const std::string &src, const std::string &dest)
+{
+    THROW_MANAPI_EXCEPTION("Could not compress file with {}. src: {}, dest: {}", name, escape_string(src), escape_string(dest));
+}
+
+void manapi::utils::compress::throw_could_not_open_file (const std::string &name, const std::string &path)
+{
+    THROW_MANAPI_EXCEPTION("{}: Could not open file by location {}", name, escape_string(path));
+}
+
+void manapi::utils::compress::throw_file_exists (const std::string &name, const std::string &path) {
+    THROW_MANAPI_EXCEPTION("{}: File by following path exists: {}", name, path);
+}
+
 std::string manapi::utils::compress::deflate(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
     if (folder != nullptr) {
-        std::string saved = *folder + manapi::utils::generate_cache_name(str, "deflate");
+        std::string dest = *folder + manapi::utils::generate_cache_name(str, "deflate");
 
-        if (!deflate_compress_file(str, saved, level, strategy))
-            throw manapi_exception ("an error has occurred");
+        if (!deflate_compress_file(str, dest, level, strategy))
+        {
+            // throw
+            throw_could_not_compress_file("deflate", str, dest);
+        }
 
-        return saved;
+        return dest;
     }
 
     // is not file, it is a string!
@@ -33,11 +50,23 @@ std::string manapi::utils::compress::deflate (const std::string &str, const std:
 
 bool manapi::utils::compress::deflate_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
 {
+    if (filesystem::exists (dest))
+    {
+        throw_file_exists ("deflate", dest);
+    }
+
     std::ifstream input (src, std::ios::binary);
     std::ofstream output (dest, std::ios::binary);
 
-    if (!input.is_open() || !output.is_open())
-        throw manapi::utils::manapi_exception ("cannot open files deflate_compress_file");
+    if (!input.is_open())
+    {
+        throw_could_not_open_file("deflate", src);
+    }
+
+    if (!output.is_open())
+    {
+        throw_could_not_open_file("deflate", dest);
+    }
 
     char in_buff [CHUNK_SIZE];
     char out_buff[CHUNK_SIZE];
@@ -48,7 +77,8 @@ bool manapi::utils::compress::deflate_compress_file(const std::string &src, cons
         input.close();
         output.close();
 
-        fprintf(stderr, "deflateInit(...) failed!\n");
+        MANAPI_LOG("defalte: {}", "deflateInit(...) failed!");
+
         return false;
     }
 
@@ -79,14 +109,27 @@ bool manapi::utils::compress::deflate_compress_file(const std::string &src, cons
     return true;
 }
 
-/* Декомпрессия */
+/* decompress */
 bool manapi::utils::compress::deflate_decompress_file(const std::string &src, const std::string &dest)
 {
+    if (filesystem::exists (dest))
+    {
+        throw_file_exists ("deflate", dest);
+    }
+
     std::ifstream input (src, std::ios::binary);
     std::ofstream output (dest, std::ios::binary);
 
-    if (!input.is_open() || !output.is_open())
-        throw manapi::utils::manapi_exception ("cannot open files deflate_decompress_file");
+    if (!input.is_open())
+    {
+        throw_could_not_open_file("deflate", src);
+    }
+
+    if (!output.is_open())
+    {
+        throw_could_not_open_file("deflate", src);
+    }
+
 
     char inbuff[CHUNK_SIZE];
     char outbuff[CHUNK_SIZE];
@@ -95,7 +138,7 @@ bool manapi::utils::compress::deflate_decompress_file(const std::string &src, co
     int result = inflateInit(&stream);
     if(result != Z_OK)
     {
-        fprintf(stderr, "inflateInit(...) failed!\n");
+        MANAPI_LOG("defalte: {}", "inflateInit(...) failed!");
 
         input.close();
         output.close();
@@ -120,7 +163,7 @@ bool manapi::utils::compress::deflate_decompress_file(const std::string &src, co
             if(result == Z_NEED_DICT || result == Z_DATA_ERROR ||
                result == Z_MEM_ERROR)
             {
-                fprintf(stderr, "inflate(...) failed: %d\n", result);
+                MANAPI_LOG("defalte: {}", "inflateInit(...) failed! inflate() = {}", result);
                 inflateEnd(&stream);
                 return false;
             }
@@ -141,12 +184,14 @@ bool manapi::utils::compress::deflate_decompress_file(const std::string &src, co
 
 std::string manapi::utils::compress::gzip(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
     if (folder != nullptr) {
-        std::string saved = *folder + manapi::utils::generate_cache_name(str, "gzip");
+        std::string dest = *folder + manapi::utils::generate_cache_name(str, "gzip");
 
-        if (!gzip_compress_file(str, saved, level, strategy))
-            throw manapi_exception ("an error has occurred");
+        if (!gzip_compress_file(str, dest, level, strategy))
+        {
+            throw_could_not_compress_file("gzip", str, dest);
+        }
 
-        return saved;
+        return dest;
     }
 
     std::string output;
@@ -178,14 +223,23 @@ std::string manapi::utils::compress::gzip (const std::string &str, const std::st
 
 bool manapi::utils::compress::gzip_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
 {
-    if (filesystem::is_dir (src) || filesystem::is_dir (dest))
-        throw manapi_exception ("some input files has incorrect types");
+    if (filesystem::exists (dest))
+    {
+        throw_file_exists ("gzip", dest);
+    }
 
     std::ifstream input (src, std::ios::binary);
     std::ofstream output (dest, std::ios::binary);
 
-    if (!input.is_open() || !output.is_open())
-        throw manapi::utils::manapi_exception (std::format("cannot open files gzip_compress_file: {}, {}", src, dest));
+    if (!input.is_open())
+    {
+        throw_could_not_open_file("gzip", src);
+    }
+
+    if (!output.is_open())
+    {
+        throw_could_not_open_file("gzip", src);
+    }
 
     char in_buff [CHUNK_SIZE];
     char out_buff[CHUNK_SIZE];
@@ -196,7 +250,7 @@ bool manapi::utils::compress::gzip_compress_file(const std::string &src, const s
         input.close();
         output.close();
 
-        fprintf(stderr, "deflateInit(...) failed!\n");
+        MANAPI_LOG("gzip: {}", "deflateInit(...) failed!");
         return false;
     }
 

@@ -44,7 +44,7 @@ set(MANAPI_HTTP_FILES
         include/ManapiUtils.h
         include/ManapiHttpResponse.h
         include/ManapiHttpRequest.h
-        include/ManapiDecimal.h
+        include/ManapiBigint.h
         include/ManapiJson.h
         include/ManapiThreadSafe.h
         include/ManapiHttpTypes.h
@@ -65,13 +65,15 @@ set(MANAPI_HTTP_FILES
         src/ManapiHttpResponse.cpp
         src/ManapiHttpRequest.cpp
         src/ManapiJson.cpp
-        src/ManapiDecimal.cpp
+        src/ManapiBigint.cpp
         src/ManapiCompress.cpp
         src/ManapiFilesystem.cpp
         src/ManapiHash.cpp
         src/ManapiTaskFunction.cpp
         src/ManapiApi.cpp
-        src/ManapiFetch.cpp)
+        src/ManapiFetch.cpp
+        include/ManapiJsonMask.h
+        src/ManapiJsonMask.cpp)
 
 if (MANAPI_BUILD_TYPE STREQUAL "exe")
     # EXE
