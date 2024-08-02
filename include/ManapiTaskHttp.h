@@ -81,10 +81,12 @@ namespace manapi::net {
         ssize_t         tcp_send_response (http_response &res);
 
         std::string     compress_file (const std::string &file, const std::string &folder, const std::string *compress, manapi::utils::compress::TEMPLATE_INTERFACE compressor) const;
+
+        void            send_text (const std::string &text, const size_t &size) const;
         void            send_file (http_response &res, std::ifstream &f, ssize_t size, std::vector<utils::replace_founded_item> &replacers) const;
         void            send_file (http_response &res, std::ifstream &f, ssize_t size) const;
 
-        void            get_ip_addr();
+        void            tcp_get_ip_addr();
         void            handle_request (const http_handler_page *data, const size_t &status = 200, const std::string &message = http_status.OK_200);
         void            send_error_response (const size_t &status, const std::string &message, const http_handler_functions *error);
 
@@ -111,15 +113,10 @@ namespace manapi::net {
         int64_t                 s = -1;
         int64_t                 id = -1;
 
-        std::thread             *quic_thr = nullptr;
-
         // masks
 
-        std::condition_variable quic_cv_read;
-        std::condition_variable quic_cv_write;
-
-        std::mutex              quic_m_read;
-        std::mutex              quic_m_write;
+        std::timed_mutex        quic_m_read;
+        std::timed_mutex        quic_m_write;
 
         bool                    quic_v_read     = false;
         bool                    quic_v_write    = false;
@@ -127,7 +124,6 @@ namespace manapi::net {
 
         // cv, m in main loop
 
-        std::condition_variable quic_cv_worker;
         std::mutex              quic_m_worker;
 
     };

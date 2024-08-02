@@ -236,7 +236,6 @@ std::string manapi::utils::time (const std::string &fmt, bool local) {
 
 std::vector <manapi::utils::replace_founded_item> manapi::utils::found_replacers_in_file
         (const std::string &path, const size_t &start, const size_t &size, const MAP_STR_STR &replacers) {
-#define BUFFER_SIZE 4096
     // SPECIAL
     std::string special_key;
     bool opened = false;

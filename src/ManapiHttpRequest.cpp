@@ -13,9 +13,16 @@ manapi::net::http_request::http_request(manapi::net::ip_data_t &_ip_data, manapi
     http_task       = _http_task;
     http_server     = _http_server;
     page_handler    = _handler;
+
+    buff_extra      = nullptr;
 }
 
-manapi::net::http_request::~http_request() {}
+manapi::net::http_request::~http_request() {
+    if (buff_extra != nullptr)
+    {
+        delete buff_extra;
+    }
+}
 
 const manapi::net::ip_data_t &manapi::net::http_request::get_ip_data() {
     return *ip_data;
@@ -120,6 +127,8 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
         std::string *value_ptr;
         bool        next = true;
 
+        buff_extra = static_cast<char *> (malloc(std::max(4096UL,  http_server->get_socket_block_size() * 4)));
+
         while (next)
         {
             next = false;
@@ -142,7 +151,8 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
 
         std::string *current = &key;
 
-        char    buff_extra[2];
+        buff_extra = static_cast<char *> (malloc (2));
+
         size_t  size_extra  = 0;
         bool    used_extra  = false;
 
@@ -245,7 +255,7 @@ void manapi::net::http_request::set_max_plain_body_size(const size_t &size) {
 const manapi::net::file_data_t &manapi::net::http_request::inf_file() {
     if (!file_data.exists)
     {
-        throw manapi::utils::exception ("no file in the body of the request");
+        THROW_MANAPI_EXCEPTION("{}", "No found any file in the body of the request");
     }
 
     return file_data;
@@ -262,18 +272,6 @@ void manapi::net::http_request::buff_to_extra_buff(const request_data_t *req_dat
 }
 
 void manapi::net::http_request::multipart_read_param (const std::function<void(const char *, const size_t &)> &send_line, const std::function<void(const std::string &)> &send_name) {
-    // size_t socket_block_size = http_server->get_socket_block_size();
-
-    // TODO: move a extra buff outside the function
-
-    // extra buffer
-    size_t  max_size_extra  = std::max(4096UL, request_data->body_part);
-
-    std::unique_ptr<char, void(*)(const char *)> buff_extra (
-            (char *) malloc(max_size_extra),
-            [] (const char *ptr){ delete ptr; }
-    );
-
     size_t  size_extra      = 0;
 
     request_data->body_part = std::min(request_data->body_part, request_data->body_left);
@@ -310,7 +308,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
             {
                 if (boundary_index > 0)
                 {
-                    buff_to_extra_buff(request_data, checkpoint, request_data->body_index, buff_extra.get(), size_extra);
+                    buff_to_extra_buff(request_data, checkpoint, request_data->body_index, buff_extra, size_extra);
                 }
 
                 else
@@ -318,7 +316,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
 
                     if (size_extra > 0)
                     {
-                        send_line(buff_extra.get(), size_extra);
+                        send_line(buff_extra, size_extra);
 
                         size_extra = 0;
                     }
@@ -331,7 +329,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
             else
             {
                 // dont +1 bcz body_index == socket block size
-                buff_to_extra_buff (request_data, checkpoint, request_data->body_index, buff_extra.get(), size_extra);
+                buff_to_extra_buff (request_data, checkpoint, request_data->body_index, buff_extra, size_extra);
             }
 
             request_data->body_part = manapi::net::http_task::read_next_part (request_data->body_left, request_data->body_index, http_task, request_data);
@@ -378,10 +376,10 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
                 {
                     if (size_extra > 0)
                     {
-                        buff_to_extra_buff (request_data, checkpoint, request_data->body_index, buff_extra.get(), size_extra);
+                        buff_to_extra_buff (request_data, checkpoint, request_data->body_index, buff_extra, size_extra);
                         const size_t result_size = size_extra - body_boundary.size() - 2;
 
-                        send_line (buff_extra.get(), result_size);
+                        send_line (buff_extra, result_size);
                     }
                     else
                     {
@@ -436,7 +434,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
                 throw std::runtime_error ("Size of the extra buffer eq -1. Maybe the recv data was not provided?");
             }
 
-            chars2string(line, buff_extra.get(), size_extra - (first + second));
+            chars2string(line, buff_extra, size_extra - (first + second));
 
             chars2string(line, request_data->body_ptr + sizeof (char) * checkpoint, request_data->body_index - checkpoint + first + second - 2);
 

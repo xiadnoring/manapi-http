@@ -71,6 +71,7 @@ namespace manapi::utils {
         json &at            (const std::u32string   &key)   const;
         json &at            (const size_t           &index) const;
 
+        // TRASH (no with const json &obj)
         json &operator=     (const std::u32string   &str);
         json &operator=     (const std::string      &str);
         json &operator=     (const char             *str);
@@ -98,9 +99,7 @@ namespace manapi::utils {
         void pop_back       ();
 
         // to be cool ;)
-        void insert         (const std::string &key, const std::string &arg);
         void insert         (const std::u32string &key, const std::u32string &arg);
-        void insert         (const std::string &key, const ssize_t &arg);
         void insert         (const std::u32string &key, const ssize_t &arg);
 
         void push_back      (const std::string &arg);

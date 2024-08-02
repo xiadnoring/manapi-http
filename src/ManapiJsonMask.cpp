@@ -538,7 +538,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
 
         if (information.contains("data"))
         {
-            auto data = information["data"];
+            auto &data = information["data"];
 
             if (obj.size() != data.size())
             {
@@ -578,7 +578,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
 
         if (information.contains("data")) {
 
-            auto data = information["data"];
+            auto &data = information["data"];
 
             if (obj.size() != data.size())
             {
@@ -598,7 +598,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
         {
             // we need to validate all items as 'type' (from type[...] or type(...)[...])
 
-            auto _default = information["default"];
+            auto &_default = information["default"];
 
             for (size_t i = 0; i < obj.size(); i++)
             {

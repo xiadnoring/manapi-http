@@ -34,6 +34,13 @@ int main(int argc, char *argv[]) {
         resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
     });
 
+    server.GET ("/bigfile", [] (REQ(req), RESP(resp)) {
+        resp.set_compress_enabled(false);
+        resp.set_partial_status(false);
+
+        resp.file("/home/Timur/Downloads/Фотосессия Иглино.zip");
+    });
+
     server.GET("/proxy", [] (REQ(req), RESP(resp)) {
         json jp = {
                 {"error", false},
@@ -59,7 +66,24 @@ int main(int argc, char *argv[]) {
         resp.set_compress_enabled(false);
         resp.set_header(http_header.CONTENT_TYPE, http_mime.TEXT_PLAIN);
 
-        resp.file ("/home/Timur/.p10k.zsh");
+        std::ifstream f ("/home/Timur/.p10k.zsh");
+
+        if (!f.is_open()) {
+            resp.json({
+                {"error", "could not open the file"}
+            });
+
+            return;
+        }
+
+        std::string content;
+        while (f) {
+            std::string line;
+            std::getline(f, line);
+            content += line + "\n";
+        }
+
+        resp.text (content);
     });
 
     server.GET ("/+error", [] (REQ(req), RESP(resp)) {
@@ -129,42 +153,50 @@ int main(int argc, char *argv[]) {
         resp.json(jp);
     }, nullptr, post_mask);
 
-    {
-        const json_mask form_mask = {
-            {"first-name", "{string(>=5 <50)}"},
-            {"last-name", "{string(>=5 <70)}"}
-        };
 
-        server.POST ("/form", [] (REQ(req), RESP(resp)) {
-            auto formData = req.form();
+    const json_mask form_mask = {
+        {"first-name", "{string(>=5 <50)}"},
+        {"last-name", "{string(>=5 <70)}"}
+    };
 
-            resp.set_compress_enabled(false);
+    server.POST ("/form", [] (REQ(req), RESP(resp)) {
+        auto formData = req.form();
 
-            resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JSON + ";charset=UTF-8");
+        resp.set_compress_enabled(false);
 
-            json obj = json::object();
+        resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JSON + ";charset=UTF-8");
 
-            for (const auto &item: formData)
-            {
-                obj.insert(item.first, item.second);
-            }
+        json obj = json::object();
 
-    //        while (req.has_file())
-    //        {
-    //            obj.insert(req.inf_file().param_name, req.inf_file().file_name);
-    //
-    //            std::ofstream f (manapi::filesystem::join ("..", "text"), std::ios::binary);
-    //
-    //            req.set_file([&f] (const char *buff, size_t size) {
-    //                f.write (buff, (ssize_t) size);
-    //            });
-    //
-    //            f.close();
-    //        }
+        for (const auto &item: formData)
+        {
+            obj.insert(item.first, item.second);
+        }
 
-            resp.json (obj, 4);
-        }, nullptr, form_mask);
-    }
+        while (req.has_file())
+        {
+            ssize_t recv = 0;
+
+            std::string param_name = req.inf_file().param_name;
+            std::string file_name = req.inf_file().file_name;
+
+            req.set_file([&recv] (const char *buff, const size_t &size) {
+                recv += size;
+                if (size > 4096 * 3) {
+                    printf("WHAT\n");
+                }
+            });
+
+            obj.insert(param_name, {
+                {"name", file_name},
+                {"size", recv}
+            });
+        }
+
+        std::cout << obj.dump(2) << "\n";
+
+        resp.json (obj, 4);
+    });
 
     server.GET ("/", "/home/Timur/Desktop/WorkSpace/oneworld/");
 

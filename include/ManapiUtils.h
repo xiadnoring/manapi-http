@@ -89,7 +89,7 @@ namespace manapi::utils {
     template <class... Args>
     void _log               (const size_t &line, const std::string &file_name, const std::string &func, const bool &except, const std::string &format, Args&& ...args)
     {
-        std::string head = std::format ("{}() ({}:{}): ", func, file_name, line);
+        std::string head = std::format ("[{}]: {}() ({}:{}): ", utils::time("%H:%M:%S", true), func, file_name, line);
         std::string information = std::vformat(format, std::make_format_args(args...));
 
         if (except)

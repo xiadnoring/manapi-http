@@ -87,6 +87,8 @@ namespace manapi::net {
         std::map <std::string, std::string>         *map_url_params = nullptr;
 
         bool                                        first_line = true;
+
+        char                                        *buff_extra;
     };
 }
 

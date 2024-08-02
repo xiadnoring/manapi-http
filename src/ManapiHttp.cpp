@@ -531,6 +531,10 @@ void manapi::net::http::setup() {
     signal  (SIGKILL, handler_interrupt);
     signal  (SIGTERM, handler_interrupt);
 
+    // fast ios
+    // std::ios_base::sync_with_stdio(false);
+    // std::cout.tie(nullptr);
+
     config                      = manapi::utils::json::object();
     cache_config                = manapi::utils::json::object();
 
@@ -723,7 +727,7 @@ void manapi::net::http::new_connection_udp(ev::io &watcher, int revents) {
                     quiche_conn_stats(it->second->conn, &stats);
                     quiche_conn_path_stats(it->second->conn, 0, &path_stats);
 
-                    fprintf(stderr, "connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu\n",
+                    MANAPI_LOG("connection closed, recv={} sent={} lost={} rtt={} ns cwnd={}",
                             stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
                     // multi thread
@@ -800,11 +804,11 @@ manapi::net::threadpool<manapi::net::task> *manapi::net::http::get_tasks_pool() 
 }
 
 int manapi::net::http::_pool(const size_t &thread_num) {
-    printf("INITING\n");
+    MANAPI_LOG("{}", "pool init");
 
     std::unique_lock <std::mutex> lock (m_initing);
 
-    printf("RUNNING\n");
+    MANAPI_LOG("{}", "pool start");
 
     http::running.push_back(this);
 
@@ -934,7 +938,7 @@ int manapi::net::http::_pool(const size_t &thread_num) {
         http3_config = quiche_h3_config_new();
 
         if (http3_config == nullptr) {
-            fprintf(stderr, "failed to create HTTP/3 config\n");
+            THROW_MANAPI_EXCEPTION("{}", "failed to create HTTP/3 config");
             return 1;
         }
 
@@ -950,12 +954,11 @@ int manapi::net::http::_pool(const size_t &thread_num) {
 
     thr_stopping = new std::thread ([this] () { stop_pool(); });
 
-    printf("CREATED THREAD STOP\n");
-
     loop.run(ev::AUTO);
 
     thr_stopping->join();
-    printf("STOPPED FINALLY");
+
+    MANAPI_LOG("{}", "pool stopped successfully");
 
     delete thr_stopping;
 
@@ -1068,5 +1071,5 @@ void manapi::net::http::stop_pool() {
         }
     }
 
-    printf("FINISHED CLOSING\n");
+    MANAPI_LOG("{}", "all tasks are closed");
 }

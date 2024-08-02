@@ -13,7 +13,7 @@ const static std::u32string JSON_W_TRUE   = manapi::utils::str4to32("true");
 const static std::u32string JSON_W_FALSE  = manapi::utils::str4to32("false");
 const static std::u32string JSON_W_NULL   = manapi::utils::str4to32("null");
 
-#define THROW_MANAPI_JSON_MISSING_FUNCTION this->throw_could_not_use_func(__FUNCTION__);
+#define THROW_MANAPI_JSON_MISSING_FUNCTION this->throw_could_not_use_func(__FUNCTION__)
 
 manapi::utils::json::json() = default;
 
@@ -577,10 +577,14 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
             break;
     }
 
-    if (root) {
-        for (size_t i = end_cut + 1; i < plain_text.size(); i++) {
+    if (root)
+    {
+        for (size_t i = end_cut + 1; i < plain_text.size(); i++)
+        {
             if (is_space_symbol(plain_text[i]))
+            {
                 continue;
+            }
 
             error_invalid_char(plain_text, i);
         }
@@ -734,7 +738,7 @@ manapi::utils::json &manapi::utils::json::at(const std::u32string &key) const {
 manapi::utils::json &manapi::utils::json::at(const std::string &key) const {
     if (type != MANAPI_JSON_MAP)
     {
-        THROW_MANAPI_JSON_MISSING_FUNCTION
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
 
     const auto map = reinterpret_cast <json::OBJECT *> (src);
@@ -750,7 +754,7 @@ manapi::utils::json &manapi::utils::json::at(const std::string &key) const {
 manapi::utils::json &manapi::utils::json::at(const size_t &index) const {
     if (type != MANAPI_JSON_ARRAY)
     {
-        THROW_MANAPI_JSON_MISSING_FUNCTION
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
 
     const auto arr = reinterpret_cast <json::ARRAY  *> (src);
@@ -865,37 +869,39 @@ manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::json &o
             src = new bigint(*reinterpret_cast<bigint *> (obj.src));
             break;
         case MANAPI_JSON_ARRAY:
-            const json::ARRAY* arr_oth;
-            arr_oth = reinterpret_cast <json::ARRAY  *> (obj.src);
+        {
+            const auto arr_oth = reinterpret_cast <json::ARRAY  *> (obj.src);
 
             src = new json::ARRAY (arr_oth->size());
 
-            json::ARRAY  * arr;
-            arr = reinterpret_cast <json::ARRAY  *> (src);
+            const auto arr = reinterpret_cast <json::ARRAY  *> (src);
 
             for (size_t i = 0; i < arr_oth->size(); i++) {
-                auto n_json     = new json;
+                auto n_json     = new json ();
                 *n_json         = *arr_oth->at(i);
+                n_json->root    = false;
 
-                arr->at(i)  = n_json;
+                arr->at(i)      = n_json;
             }
             break;
+        }
         case MANAPI_JSON_MAP:
-            const json::OBJECT * map_oth;
-            map_oth = reinterpret_cast <json::OBJECT  *> (obj.src);
+        {
+            const auto map_oth = reinterpret_cast <json::OBJECT  *> (obj.src);
 
             src = new json::OBJECT();
 
-            json::OBJECT  * map;
-            map = reinterpret_cast <json::OBJECT  *> (src);
+            const auto map = reinterpret_cast <json::OBJECT  *> (src);
 
             for (const auto &item: *map_oth) {
-                auto n_json = new json;
-                *n_json     = *item.second;
+                auto n_json     = new json;
+                *n_json         = *item.second;
+                n_json->root    = false;
 
                 map->insert({item.first, n_json});
             }
             break;
+        }
         case MANAPI_JSON_BOOLEAN:
             src = new bool(*reinterpret_cast<bool *> (obj.src));
             break;
@@ -920,7 +926,7 @@ void manapi::utils::json::insert(const std::u32string &key, const manapi::utils:
 void manapi::utils::json::insert(const std::string &key, const manapi::utils::json &obj) {
     if (type != MANAPI_JSON_MAP)
     {
-        THROW_MANAPI_JSON_MISSING_FUNCTION
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
 
     auto map = reinterpret_cast <json::OBJECT *> (src);
@@ -941,7 +947,7 @@ void manapi::utils::json::insert(const std::string &key, const manapi::utils::js
 void manapi::utils::json::push_back(const manapi::utils::json &obj) {
     if (type != MANAPI_JSON_ARRAY)
     {
-        THROW_MANAPI_JSON_MISSING_FUNCTION
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
 
     const auto arr = reinterpret_cast <json::ARRAY  *> (src);
@@ -957,7 +963,7 @@ void manapi::utils::json::push_back(const manapi::utils::json &obj) {
 void manapi::utils::json::pop_back() {
     if (type != MANAPI_JSON_ARRAY)
     {
-        THROW_MANAPI_JSON_MISSING_FUNCTION
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
 
     const auto arr = reinterpret_cast <json::ARRAY  *> (src);
@@ -968,20 +974,6 @@ void manapi::utils::json::pop_back() {
 void manapi::utils::json::insert(const std::u32string &key, const std::u32string &arg)
 {
     this->insert (str32to4(key), str32to4(arg));
-}
-
-void manapi::utils::json::insert(const std::string &key, const std::string &arg) {
-    json Json;
-
-    Json.src        = new std::string (arg);
-    Json.type       = MANAPI_JSON_STRING;
-
-    this->insert(key, Json);
-}
-
-void manapi::utils::json::insert(const std::string &key, const ssize_t &arg) {
-    json Json (arg);
-    this->insert(key, Json);
 }
 
 void manapi::utils::json::push_back(const std::u32string &arg) {
@@ -1040,7 +1032,7 @@ bool manapi::utils::json::contains(const std::u32string &key) const {
 bool manapi::utils::json::contains(const std::string &key) const {
     if (type != MANAPI_JSON_MAP)
     {
-        THROW_MANAPI_JSON_MISSING_FUNCTION
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
 
     return reinterpret_cast <json::OBJECT *> (src)->contains(key);
@@ -1053,7 +1045,7 @@ void manapi::utils::json::erase(const std::u32string &key) {
 void manapi::utils::json::erase(const std::string &key) {
     if (type != MANAPI_JSON_MAP)
     {
-        THROW_MANAPI_JSON_MISSING_FUNCTION
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
 
     reinterpret_cast <json::OBJECT *> (src)->erase(key);
@@ -1105,7 +1097,7 @@ size_t manapi::utils::json::size() const {
         return reinterpret_cast <json::OBJECT *> (src)->size();
     }
 
-    THROW_MANAPI_JSON_MISSING_FUNCTION
+    THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
 manapi::utils::json &manapi::utils::json::operator+(const ssize_t &num) {
@@ -1123,7 +1115,7 @@ manapi::utils::json &manapi::utils::json::operator+(const ssize_t &num) {
     }
     else
     {
-        THROW_MANAPI_JSON_MISSING_FUNCTION
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
 
     return *this;
