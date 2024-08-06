@@ -564,28 +564,40 @@ const manapi::utils::json &manapi::net::http::get_config() {
 void manapi::net::http::setup_config() {
     // =================[cache config]================= //
     if (config.contains("cache_dir"))
+    {
         config_cache_dir = config["cache_dir"].get_ptr<std::string>();
+    }
     else
+    {
         config_cache_dir = &default_cache_dir;
+    }
 
     manapi::filesystem::append_delimiter(*config_cache_dir);
 
     if (!manapi::filesystem::exists(*config_cache_dir))
+    {
         manapi::filesystem::mkdir(*config_cache_dir);
+    }
 
     else {
         std::string path = *config_cache_dir + default_config_name;
         if (manapi::filesystem::exists(path))
+        {
             cache_config = manapi::filesystem::config::read(path);
+        }
     }
 
     // =================[partial data min size  ]================= //
     if (config.contains("partial_data_min_size"))
+    {
         partial_data_min_size = config["partial_data_min_size"].get <size_t> ();
+    }
 
     // =================[socket block size      ]================= //
     if (config.contains("socket_block_size"))
+    {
         socket_block_size = config["socket_block_size"].get <size_t> ();
+    }
 
     // =================[http version           ]================= //
     if (config.contains("http_version")) {
@@ -604,11 +616,15 @@ void manapi::net::http::setup_config() {
 
     // =================[port                   ]================= //
     if (config.contains("port"))
+    {
         port = config["port"].get <std::string> ();
+    }
 
     // =================[address                ]================= //
     if (config.contains("address"))
+    {
         address = config["address"].get <std::string> ();
+    }
 
     // =================[ssl                    ]================= //
     if (config.contains("ssl")) {
@@ -640,7 +656,9 @@ const std::string *manapi::net::http::get_compressed_cache_file(const std::strin
     auto files = &cache_config[algorithm];
 
     if (!files->contains(file))
+    {
         return nullptr;
+    }
 
     auto file_info = &files->at(file);
 
@@ -648,7 +666,9 @@ const std::string *manapi::net::http::get_compressed_cache_file(const std::strin
         auto compressed = file_info->at("compressed").get_ptr<std::string>();
 
         if (manapi::filesystem::exists(*compressed))
+        {
             return compressed;
+        }
     }
 
     files->erase(file);
@@ -658,7 +678,9 @@ const std::string *manapi::net::http::get_compressed_cache_file(const std::strin
 
 void manapi::net::http::set_compressed_cache_file(const std::string &file, const std::string &compressed, const std::string &algorithm) {
     if (!cache_config.contains(algorithm))
+    {
         cache_config.insert(algorithm, manapi::utils::json::object());
+    }
 
     manapi::utils::json file_info = manapi::utils::json::object();
 
@@ -693,31 +715,32 @@ void manapi::net::http::stop() {
 }
 
 void manapi::net::http::new_connection_udp(ev::io &watcher, int revents) {
-    char    buff[MANAPI_MAX_DATAGRAM_SIZE];
-    ssize_t buff_size;
+    ssize_t buff_size = MANAPI_MAX_DATAGRAM_SIZE;
+    char    buff[buff_size];
 
     struct sockaddr_storage client{};
     socklen_t client_len = sizeof(client);
     memset(&client, 0, client_len);
 
-    buff_size = recvfrom(sock_fd, buff, sizeof(buff), 0, (struct sockaddr *) &client, &client_len);
+    buff_size = recvfrom(sock_fd, buff, buff_size, 0, (struct sockaddr *) &client, &client_len);
     if (buff_size <= 0)
+    {
         return;
+    }
 
     auto *ta = new http_task(sock_fd, buff, buff_size, client, client_len, udp_io, this);
-
     ta->set_quic_config(q_config);
     ta->set_quic_map_conns(&quic_map_conns);
-
-    tasks_pool->append_task(ta);
 
     auto check = new function_task ([this] () {
         quic_map_conns.block();
 
+        utils::before_delete unwrap ([this] () { quic_map_conns.unblock(); });
+
         for (auto it = quic_map_conns.begin(); it != quic_map_conns.end();) {
             std::unique_lock <std::mutex> lock (it->second->mutex, std::try_to_lock);
 
-            if (lock.owns_lock()) {
+            if (lock.owns_lock() && !it->second->main_pool) {
                 http_task::quic_flush_egress(it->second);
 
                 if (quiche_conn_is_closed(it->second->conn)) {
@@ -743,10 +766,9 @@ void manapi::net::http::new_connection_udp(ev::io &watcher, int revents) {
 
             it++;
         }
-
-        quic_map_conns.unblock();
     });
 
+    tasks_pool->append_task(ta);
     tasks_pool->append_task(check);
 }
 
@@ -756,12 +778,16 @@ void manapi::net::http::new_connection_tls(ev::io &watcher, int revents) {
     conn_fd = accept(sock_fd, reinterpret_cast<struct sockaddr *>(&client), &len);
 
     if (conn_fd < 0)
+    {
         return;
+    }
 
     auto *ta = new http_task(conn_fd, client, len, this);
 
     if (ssl_config.enabled)
+    {
         ta->ssl = SSL_new(ctx);
+    }
 
     tasks_pool->append_task(ta);
 }
@@ -803,6 +829,15 @@ manapi::net::threadpool<manapi::net::task> *manapi::net::http::get_tasks_pool() 
     return tasks_pool;
 }
 
+void manapi::net::http::append_task(task *t) {
+    if (tasks_pool == nullptr)
+    {
+        THROW_MANAPI_EXCEPTION("{}", "tasks_pool = nullptr");
+    }
+
+    tasks_pool->append_task(t);
+}
+
 int manapi::net::http::_pool(const size_t &thread_num) {
     MANAPI_LOG("{}", "pool init");
 
@@ -819,14 +854,14 @@ int manapi::net::http::_pool(const size_t &thread_num) {
 
     if (http_version == 1 || http_version == 2) {
 
-        const struct addrinfo hints = {
+        const addrinfo hints = {
                 .ai_family      = PF_UNSPEC,
                 .ai_socktype    = SOCK_STREAM,
                 .ai_protocol    = IPPROTO_TCP
         };
 
 
-        struct addrinfo *local;
+        addrinfo *local;
         if (getaddrinfo(address.data(), port.data(), &hints, &local) != 0) {
             perror("failed to resolve host");
             return -1;
@@ -874,14 +909,16 @@ int manapi::net::http::_pool(const size_t &thread_num) {
 
         freeaddrinfo(local);
     }
-    else {
-        const struct addrinfo hints = {
+    else
+    {
+        const addrinfo hints = {
                 .ai_family      = PF_UNSPEC,
                 .ai_socktype    = SOCK_DGRAM,
                 .ai_protocol    = IPPROTO_UDP
         };
 
-        struct addrinfo *local;
+        addrinfo *local;
+
         if (getaddrinfo(address.data(), port.data(), &hints, &local) != 0) {
             perror("failed to resolve host");
             return -1;
@@ -952,15 +989,13 @@ int manapi::net::http::_pool(const size_t &thread_num) {
     // say, that it can be deleted
     lock.unlock();
 
-    thr_stopping = new std::thread ([this] () { stop_pool(); });
+    std::thread thread_await_stop ([this] () { stop_pool(); });
 
     loop.run(ev::AUTO);
 
-    thr_stopping->join();
+    thread_await_stop.join();
 
     MANAPI_LOG("{}", "pool stopped successfully");
-
-    delete thr_stopping;
 
     return 0;
 }

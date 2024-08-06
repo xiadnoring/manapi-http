@@ -4,6 +4,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <functional>
 #include <iostream>
 
 namespace manapi::net {
@@ -29,11 +30,11 @@ namespace manapi::utils {
     typedef std::map <std::string, std::string> MAP_STR_STR;
     typedef std::vector <std::string>           VEC_STR;
 
-    bool is_space_symbol    (const char &symbol);
-    bool is_space_symbol    (const wchar_t &symbol);
-    bool is_space_symbol    (const char32_t &symbol);
+    bool            is_space_symbol    (const char &symbol);
+    bool            is_space_symbol    (const wchar_t &symbol);
+    bool            is_space_symbol    (const char32_t &symbol);
 
-    size_t pow (const size_t &x, const size_t &count);
+    size_t          pow (const size_t &x, const size_t &count);
 
     [[maybe_unused]] void rjust (std::string &str, const size_t &size, const char &c);
     [[maybe_unused]] void ljust (std::string &str, const size_t &size, const char &c);
@@ -46,14 +47,14 @@ namespace manapi::utils {
     bool            escape_char_need    (const wchar_t &c);
     bool            escape_char_need    (const char32_t &c);
 
-    std::string generate_cache_name (const std::string &basename, const std::string &ext);
+    std::string     generate_cache_name (const std::string &basename, const std::string &ext);
 
     // random
 
-    size_t      random              (const size_t &_min, const size_t &_max);
-    std::string random_string       (const size_t &len);
+    size_t          random              (const size_t &_min, const size_t &_max);
+    std::string     random_string       (const size_t &len);
 
-    std::string time                (const std::string &fmt, bool local = false);
+    std::string     time                (const std::string &fmt, bool local = false);
 
     std::vector <replace_founded_item> found_replacers_in_file (const std::string &path, const size_t &start, const size_t &size, const MAP_STR_STR &replacers);
 
@@ -74,6 +75,16 @@ namespace manapi::utils {
         std::string message;
     };
 
+    class before_delete {
+    public:
+        explicit before_delete (const std::function <void()> &f);
+        ~before_delete();
+        void call ();
+        void disable ();
+    private:
+        std::function <void()> f;
+    };
+
     // ====================[ Strings ]===============================
 
     std::string     str32to4    (const std::u32string &str32);
@@ -85,6 +96,7 @@ namespace manapi::utils {
     std::u16string  str4to16    (const std::string &str);
 
     // ====================[ Debug ]===============================
+
 
     template <class... Args>
     void _log               (const size_t &line, const std::string &file_name, const std::string &func, const bool &except, const std::string &format, Args&& ...args)

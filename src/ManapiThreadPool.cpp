@@ -1,5 +1,6 @@
 #include "ManapiThreadPool.h"
 #include "ManapiTask.h"
+#include "ManapiUtils.h"
 
 namespace manapi::net {
     template<class T>
@@ -9,7 +10,9 @@ namespace manapi::net {
 
         all_threads = new pthread_t[thread_number];
         if (all_threads == nullptr)
-            printf("cant init threadpool because thread array cant new");
+        {
+            THROW_MANAPI_EXCEPTION("cant init threadpool because thread array cant new: {}", "all_threads = nullptr")
+        }
     }
 
     template<class T>
@@ -42,7 +45,7 @@ namespace manapi::net {
             if (pthread_create(all_threads + i, nullptr, worker, this) != 0
                 || pthread_detach(all_threads[i])) {
                 delete []all_threads;
-                throw std::exception();
+                THROW_MANAPI_EXCEPTION("{}", "failed to create thread pool");
             }
         }
     }
@@ -50,7 +53,9 @@ namespace manapi::net {
     template<class T>
     bool threadpool<T>::append_task(T *task) {
         if (is_stop)
+        {
             return false;
+        }
 
         // obtain a mutex
         queue_mutex_locker.mutex_lock();
@@ -61,7 +66,9 @@ namespace manapi::net {
 
         // wake up the thread waiting for the task
         if (is_signal)
+        {
             queue_cond_locker.signal();
+        }
         return true;
     }
 
@@ -69,7 +76,8 @@ namespace manapi::net {
     T* threadpool<T>::getTask() {
         T *task = nullptr;
         queue_mutex_locker.mutex_lock();
-        if (!task_queue.empty()) {
+        if (!task_queue.empty())
+        {
             task = task_queue.front();
             task_queue.pop();
         }
@@ -90,16 +98,21 @@ namespace manapi::net {
         while (!is_stop) {
             T* task = getTask();
             if (task == nullptr)
+            {
                 queue_cond_locker.wait();
-            else {
-//                try
-//                {
+            }
+            else
+            {
+                try
+                {
                     task->doit();
-//                }
-//                catch (const std::exception &e) {
-//                    std::cout << "ERROR: " << e.what() << "\n";
-//                    throw e;
-//                }
+                }
+                catch (const manapi::utils::exception &e) {
+                    MANAPI_LOG ("Task Exception: ", e.what());
+                }
+                catch (const std::exception &e) {
+                    MANAPI_LOG ("Task Exception: ", e.what());
+                }
 
                 if (task->to_delete)
                 {
@@ -107,6 +120,7 @@ namespace manapi::net {
                 }
             }
         }
+
         stopped++;
     }
 

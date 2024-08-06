@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
     http server;
     future<int> f;
 
-    server.set_config("config.json");
+    server.set_config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json");
 
     server.GET ("/", [] (REQ(req), RESP(resp)) {
         resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
@@ -34,12 +34,12 @@ int main(int argc, char *argv[]) {
         resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
     });
 
-    server.GET ("/bigfile", [] (REQ(req), RESP(resp)) {
-        resp.set_compress_enabled(false);
-        resp.set_partial_status(false);
-
-        resp.file("/home/Timur/Downloads/Фотосессия Иглино.zip");
-    });
+    // server.GET ("/bigfile", [] (REQ(req), RESP(resp)) {
+    //     resp.set_compress_enabled(false);
+    //     resp.set_partial_status(false);
+    //
+    //     resp.file("/home/Timur/Downloads/Фотосессия Иглино.zip");
+    // });
 
     server.GET("/proxy", [] (REQ(req), RESP(resp)) {
         json jp = {
@@ -120,21 +120,28 @@ int main(int argc, char *argv[]) {
         resp.file("/home/Timur/Downloads/VideoDownloader/nono.mp4");
     });
 
-    server.GET ("/[filename]-[extension]", [](REQ(req), RESP(resp)) {
-        auto &filename     = req.get_param("filename");
-        auto &extension    = req.get_param("extension");
+    // server.GET ("/[filename]-[extension]", [](REQ(req), RESP(resp)) {
+    //     auto &filename     = req.get_param("filename");
+    //     auto &extension    = req.get_param("extension");
+    //
+    //     resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test/" + filename + '.' + extension);
+    // });
+    //
+    // server.GET ("/[filename]-[extension]/+error", [](REQ(req), RESP(resp)) {
+    //     resp.set_replacers({
+    //            {"status_code", std::to_string(resp.get_status_code())},
+    //            {"status_message", resp.get_status_message()},
+    //            {"url", "/nonoo"}
+    //    });
+    //
+    //     resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/error.html");
+    // });
+    server.GET ("/bigfile", [] (REQ(req), RESP(resp)) {
+        std::cout << req.dump() << '\n';
+        resp.set_partial_status(true);
+        resp.set_compress_enabled(false);
 
-        resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test/" + filename + '.' + extension);
-    });
-
-    server.GET ("/[filename]-[extension]/+error", [](REQ(req), RESP(resp)) {
-        resp.set_replacers({
-               {"status_code", std::to_string(resp.get_status_code())},
-               {"status_message", resp.get_status_message()},
-               {"url", "/nonoo"}
-       });
-
-        resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/error.html");
+        resp.file("/home/Timur/Desktop/WorkSpace/oneworld/WIN11.PRO.23H2.22631.2861 Update 4_Rus-Eng.ISO");
     });
 
     server.GET ("/favicon.ico", [](REQ(req), RESP(resp)) {

@@ -354,6 +354,28 @@ const char *manapi::utils::exception::what() const noexcept {
     return message.data();
 }
 
+manapi::utils::before_delete::before_delete(const std::function<void()> &f) {
+    this->f = f;
+}
+
+manapi::utils::before_delete::~before_delete() {
+    if (f != nullptr)
+    {
+        f();
+    }
+}
+
+void manapi::utils::before_delete::call () {
+    if (f != nullptr)
+    {
+        f();
+        f = nullptr;
+    }
+}
+
+void manapi::utils::before_delete::disable() {
+    f = nullptr;
+}
 
 
 std::pair<std::string, std::string> manapi::utils::parse_header(const std::string &header) {
@@ -479,6 +501,10 @@ std::string manapi::utils::stringify_header_value (const std::vector <manapi::ne
 
     return result;
 }
+
+// ============================================================ //
+// ===================== [ Dumps ] ============================ //
+// ============================================================ //
 
 
 // ============================================================ //

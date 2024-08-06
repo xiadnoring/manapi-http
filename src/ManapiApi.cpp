@@ -11,6 +11,8 @@ manapi::net::api::pool::~pool() {
 
 void manapi::net::api::pool::await(manapi::net::task *t) {
     t->doit();
+
+    delete t;
 }
 
 void manapi::net::api::pool::async(manapi::net::task *t) {

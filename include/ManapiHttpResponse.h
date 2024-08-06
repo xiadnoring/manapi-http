@@ -17,7 +17,7 @@ namespace manapi::net {
         ~http_response              ();
 
         void set_compress           (const  std::string &name);
-        void set_compress_enabled   (bool   status);
+        void set_compress_enabled   (const bool &status);
 
         void text                   (const std::string &plain_text);
         void json                   (const manapi::utils::json &jp, const size_t &spaces = 0);
@@ -25,7 +25,7 @@ namespace manapi::net {
         void set_status_code        (const size_t &_status_code);
         void set_status_message     (const std::string &_status_message);
         void set_replacers          (const utils::MAP_STR_STR &_replacers);
-        void set_partial_status     (bool auto_partial_status);
+        void set_partial_status     (const bool &auto_partial_status);
         void file                   (const std::string &path);
         void proxy                  (const std::string &url);
 
@@ -38,13 +38,15 @@ namespace manapi::net {
         const std::map<std::string, std::string> &get_headers ();
 
         void                            set_header      (const std::string &key, const std::string &value);
-        std::string                     &get_header     (const std::string &key);
+        const std::string               &get_header     (const std::string &key);
 
         [[nodiscard]] bool              is_file     () const;
         [[nodiscard]] bool              is_text     () const;
         [[nodiscard]] bool              is_proxy    () const;
 
-        [[nodiscard]] bool              get_auto_partial_enabled () const;
+        [[nodiscard]] bool              has_ranges  () const;
+
+        [[nodiscard]] bool              get_partial_enabled () const;
         const std::string               &get_file   ();
         const std::string               &get_data   ();
 
@@ -70,8 +72,8 @@ namespace manapi::net {
 
         std::string                     compress;
 
-        bool                            compress_enabled        = true;
-        bool                            auto_partial_enabled    = true;
+        bool                            compress_enabled        = false;
+        bool                            partial_enabled         = false;
 
         manapi::utils::MAP_STR_STR      headers;
         manapi::net::request_data_t     *request_data;

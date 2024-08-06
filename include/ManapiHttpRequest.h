@@ -30,11 +30,12 @@ namespace manapi::net {
         http_request(manapi::net::ip_data_t &ip_data, manapi::net::request_data_t &request_data, void* http_task, http *http_server, const void *handler);
         ~http_request();
 
-        const ip_data_t                             &get_ip_data ();
-        const std::string                           &get_method ();
-        const std::string                           &get_http_version();
-        const std::map<std::string, std::string>    &get_headers ();
-        const std::string                           &get_param (const std::string &param);
+        [[nodiscard]] const ip_data_t               &get_ip_data () const;
+        [[nodiscard]] const std::string             &get_method () const;
+        [[nodiscard]] const std::string             &get_http_version() const;
+        [[nodiscard]] const utils::MAP_STR_STR      &get_headers () const;
+        [[nodiscard]] const std::string             &get_param (const std::string &param) const;
+        [[nodiscard]] std::string                   dump() const;
         std::string                                 text ();
         manapi::utils::json                         json ();
         manapi::utils::MAP_STR_STR                  form ();

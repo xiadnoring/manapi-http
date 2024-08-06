@@ -20,7 +20,9 @@ manapi::net::http_response::~http_response() {
 
     // if replacers exists
     if (replacers != nullptr)
+    {
         delete replacers;
+    }
 }
 
 
@@ -32,11 +34,13 @@ void manapi::net::http_response::set_header(const std::string &key, const std::s
  * @param key the key of the header
  * @return the pointer to the string | nullptr
  */
-std::string &manapi::net::http_response::get_header(const std::string &key) {
+const std::string &manapi::net::http_response::get_header(const std::string &key) {
     if (headers.contains(key))
+    {
         return headers[key];
+    }
 
-    throw utils::exception (std::format("The header '{}' could not be found", key));
+    THROW_MANAPI_EXCEPTION("The header '{}' could not be found", key);
 }
 
 void manapi::net::http_response::text(const std::string &plain_text) {
@@ -78,6 +82,10 @@ bool manapi::net::http_response::is_proxy() const {
     return type == MANAPI_HTTP_RESP_PROXY;
 }
 
+bool manapi::net::http_response::has_ranges() const {
+    return !ranges.empty();
+}
+
 const std::string &manapi::net::http_response::get_file() {
     return data;
 }
@@ -104,10 +112,12 @@ const std::string &manapi::net::http_response::get_body() {
 
 void manapi::net::http_response::set_compress(const std::string &name) {
     if (compress_enabled)
+    {
         this->compress = name;
+    }
 }
 
-void manapi::net::http_response::set_compress_enabled (bool status) {
+void manapi::net::http_response::set_compress_enabled (const bool &status) {
     compress_enabled    = status;
     compress            = "";
 }
@@ -130,30 +140,34 @@ const std::string &manapi::net::http_response::get_compress() {
 
 void manapi::net::http_response::detect_ranges () {
     if (!request_data->headers.contains(http_header.RANGE))
+    {
         return;
+    }
 
     const auto values = utils::parse_header_value(request_data->headers.at(http_header.RANGE));
 
     for (const auto& value: values) {
         if (value.params.contains("bytes")) {
-            auto range_str = &value.params.at("bytes");
-            size_t pos_delimiter = range_str->find ('-');
+            const std::string &range_str = value.params.at("bytes");
+            size_t pos_delimiter = range_str.find ('-');
 
             if (pos_delimiter == std::string::npos)
-                throw manapi::utils::exception ("invalid the header range");
+            {
+                THROW_MANAPI_EXCEPTION("invalid the header range: {}", range_str);
+            }
 
             // trans 2 size_t range
-            const char *end_ptr     = range_str->data() + pos_delimiter;
-            const ssize_t first     = pos_delimiter > 0                        ? std::strtoll(range_str->data(), const_cast<char **>(&end_ptr), 10)    : -1;
-            const ssize_t second    = pos_delimiter < range_str->size() - 1    ? std::strtoll(end_ptr, nullptr, 10)                                    : -1;
+            const char *end_ptr     = range_str.data() + pos_delimiter;
+            const ssize_t first     = pos_delimiter > 0                        ? std::strtoll(range_str.data(), const_cast<char **>(&end_ptr), 10) : -1;
+            const ssize_t second    = pos_delimiter < range_str.size() - 1    ? std::strtoll(end_ptr, nullptr, 10) : -1;
 
             ranges.emplace_back(first, second);
         }
     }
 }
 
-bool manapi::net::http_response::get_auto_partial_enabled() const {
-    return auto_partial_enabled;
+bool manapi::net::http_response::get_partial_enabled() const {
+    return partial_enabled;
 }
 
 const manapi::utils::MAP_STR_STR *manapi::net::http_response::get_replacers() {
@@ -167,8 +181,11 @@ void manapi::net::http_response::set_replacers(const utils::MAP_STR_STR &_replac
     replacers = new utils::MAP_STR_STR (_replacers);
 }
 
-void manapi::net::http_response::set_partial_status(bool auto_partial_status) {
-    auto_partial_enabled = auto_partial_status;
+void manapi::net::http_response::set_partial_status(const bool &auto_partial_status) {
+    if (has_ranges())
+    {
+        partial_enabled = auto_partial_status;
+    }
 }
 
 void manapi::net::http_response::proxy(const std::string &url) {

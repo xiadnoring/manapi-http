@@ -98,13 +98,13 @@ V& manapi::utils::safe_unordered_map<K, V>::at(const K &key) {
 
 template<typename K, typename V>
 void manapi::utils::safe_unordered_map<K, V>::unblock() {
-    //printf("UNBLOCKED\n");
+    // printf("UNBLOCKED\n");
     locker.unlock();
 }
 
 template<typename K, typename V>
 void manapi::utils::safe_unordered_map<K, V>::block() {
-    //printf("BLOCKED\n");
+    // printf("BLOCKED\n");
     locker.lock();
 }
 

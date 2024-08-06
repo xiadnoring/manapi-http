@@ -12,6 +12,6 @@ manapi::net::task::~task() {}
 void manapi::net::task::doit() {}
 
 void manapi::net::task::stop() {
-    throw manapi::utils::exception ("stop task");
+    THROW_MANAPI_EXCEPTION("{}", "stop task");
 }
 

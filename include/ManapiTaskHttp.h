@@ -42,7 +42,7 @@ namespace manapi::net {
         http_qc_conn_io *quic_create_connection (uint8_t *s_cid, size_t s_cid_len, uint8_t *od_cid, size_t od_cid_len);
         static int      quic_get_header         (uint8_t *name, size_t name_len, uint8_t *value, size_t value_len, void *argp);
         static void     quic_flush_egress       (manapi::net::http_qc_conn_io *conn_io);
-        static void     quic_delete_conn_io     (http_qc_conn_io *conn_io);
+        static void     quic_delete_conn_io     (http_qc_conn_io *conn_io, const bool &reset = false);
 
         // TCP TOOLS
 
@@ -71,6 +71,12 @@ namespace manapi::net {
         void            udp_doit ();
 
         // QUIC
+
+        /**
+         * to_delete -> true
+         * and skip await I/O
+         */
+        static void     quic_set_to_delete (http_task *task);
         static void     quic_timeout_cb (ev::timer &watcher, int revents);
         static void     mint_token(const uint8_t *d_cid, size_t d_cid_len, struct sockaddr_storage *addr, socklen_t addr_len, uint8_t *token, size_t *token_len);
         static bool     validate_token(const uint8_t *token, size_t token_len, struct sockaddr_storage *addr, socklen_t addr_len, uint8_t *od_cid, size_t *od_cid_len);
@@ -80,7 +86,7 @@ namespace manapi::net {
         void            tcp_parse_request_response (char *response, const size_t &size, size_t &i);
         ssize_t         tcp_send_response (http_response &res);
 
-        std::string     compress_file (const std::string &file, const std::string &folder, const std::string *compress, manapi::utils::compress::TEMPLATE_INTERFACE compressor) const;
+        std::string     compress_file (const std::string &file, const std::string &folder, const std::string &compress, manapi::utils::compress::TEMPLATE_INTERFACE compressor) const;
 
         void            send_text (const std::string &text, const size_t &size) const;
         void            send_file (http_response &res, std::ifstream &f, ssize_t size, std::vector<utils::replace_founded_item> &replacers) const;
@@ -121,6 +127,7 @@ namespace manapi::net {
         bool                    quic_v_read     = false;
         bool                    quic_v_write    = false;
         bool                    quic_v_body     = false;
+        bool                    quic_v_worker   = false;
 
         // cv, m in main loop
 

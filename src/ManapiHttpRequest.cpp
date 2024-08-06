@@ -24,37 +24,61 @@ manapi::net::http_request::~http_request() {
     }
 }
 
-const manapi::net::ip_data_t &manapi::net::http_request::get_ip_data() {
+const manapi::net::ip_data_t &manapi::net::http_request::get_ip_data() const {
     return *ip_data;
 }
 
-const std::string &manapi::net::http_request::get_method() {
+const std::string &manapi::net::http_request::get_method() const {
     return request_data->method;
 }
 
-const std::string &manapi::net::http_request::get_http_version() {
+const std::string &manapi::net::http_request::get_http_version() const {
     return request_data->http;
 }
 
-const std::map<std::string, std::string> &manapi::net::http_request::get_headers() {
+const std::map<std::string, std::string> &manapi::net::http_request::get_headers() const {
     return request_data->headers;
 }
 
-const std::string &manapi::net::http_request::get_param(const std::string &param) {
+const std::string &manapi::net::http_request::get_param(const std::string &param) const {
     if (request_data->params.contains(param))
         return request_data->params.at(param);
 
     throw utils::exception (std::format("cannot find param '{}'", param));
 }
 
+std::string manapi::net::http_request::dump() const {
+    std::string result;
+
+    result += "HTTP: " + get_http_version() + '\n';
+    result += "Method: " + get_method() + '\n';
+    result += "URL: " + request_data->uri + '\n';
+
+    result += "Headers: \n";
+
+    for (const auto &header: get_headers()) {
+        result += utils::stringify_header(header) + '\n';
+    }
+
+    result += '\n';
+
+    result += "body\n";
+
+    return result;
+}
+
 std::string manapi::net::http_request::text() {
     if (!request_data->has_body)
-        throw manapi::utils::exception ("this method cannot have a body");
+    {
+        THROW_MANAPI_EXCEPTION("{}", "this method cannot have a body");
+    }
 
     std::string body;
 
     if (request_data->body_size > max_plain_body_size)
-        throw manapi::utils::exception (std::format("plain body can have only {} length", max_plain_body_size));
+    {
+        THROW_MANAPI_EXCEPTION("plain body can have only {} length", max_plain_body_size);
+    }
 
     body.resize(request_data->body_size);
 

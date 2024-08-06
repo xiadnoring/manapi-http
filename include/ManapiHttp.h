@@ -89,6 +89,9 @@ namespace manapi::net {
         std::mutex          mutex;
 
         std::unordered_map  <uint64_t, task *> tasks;
+
+        // if conn io in main pool -> no one can delete it
+        bool                main_pool;
     };
 
     struct http_uri_part {
@@ -185,6 +188,8 @@ namespace manapi::net {
         static std::vector <http *>
                                     running;
         static bool                 stopped_interrupt;
+
+        void                        append_task (task *t);
     private:
         int                         _pool (const size_t &thread_num = 20);
         http_uri_part               *build_uri_part (const std::string &uri, size_t &type);
@@ -251,8 +256,6 @@ namespace manapi::net {
         std::atomic <bool>          stopping;
 
         std::promise <int>          *pool_promise = nullptr;
-
-        std::thread                 *thr_stopping;
     };
 }
 
