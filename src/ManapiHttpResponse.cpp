@@ -6,8 +6,8 @@
 #include "ManapiHttpRequest.h"
 #include "ManapiHttpTypes.h"
 
-manapi::net::http_response::http_response(manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, http *_http_server): http_server(_http_server), status_code(_status), status_message(std::move(_message)), http_version("1.1") {
-    tasks           = new manapi::net::api::pool (http_server->get_tasks_pool());
+manapi::net::http_response::http_response(manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, http_pool *_http_server): http_server(_http_server), status_code(_status), status_message(std::move(_message)), http_version("1.1") {
+    tasks           = new manapi::net::api::pool (http_server->get_http()->get_tasks_pool());
     request_data    = &_request_data;
 
     type            = MANAPI_HTTP_RESP_TEXT;
@@ -128,7 +128,7 @@ const std::string &manapi::net::http_response::get_compress() {
         const auto data = utils::parse_header_value(*value);
 
         for (const auto &a: data) {
-            if (http_server->contains_compressor(a.value)) {
+            if (http_server->get_http()->contains_compressor(a.value)) {
                 compress = a.value;
                 break;
             }

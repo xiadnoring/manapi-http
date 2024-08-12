@@ -1,7 +1,6 @@
 #ifndef MANAPIHTTP_MANAPITHREADPOOL_H
 #define MANAPIHTTP_MANAPITHREADPOOL_H
 
-#include "ManapiLocker.h"
 #include <queue>
 #include <cstdio>
 #include <exception>
@@ -9,6 +8,10 @@
 #include <pthread.h>
 #include <iostream>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
+
+#include "ManapiLocker.h"
 
 namespace manapi::net {
     template <class T>
@@ -32,6 +35,9 @@ namespace manapi::net {
         void run();
         T *getTask();
         bool is_stop;
+
+        std::mutex m;
+        std::condition_variable cv;
 
         std::atomic<size_t> stopped;
     };

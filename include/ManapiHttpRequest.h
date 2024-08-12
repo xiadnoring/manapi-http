@@ -6,17 +6,13 @@
 #include <string>
 #include <functional>
 #include "ManapiHttp.h"
+#include "ManapiHttpPool.h"
 #include "ManapiUtils.h"
 #include "ManapiJson.h"
 #include "ManapiJsonMask.h"
 
 namespace manapi::net {
-    class http;
-
-    struct ip_data_t {
-        char    *ip;
-        int     family;
-    };
+    class http_pool;
 
     struct file_data_t {
         bool        exists      = false;
@@ -27,10 +23,10 @@ namespace manapi::net {
 
     class http_request {
     public:
-        http_request(manapi::net::ip_data_t &ip_data, manapi::net::request_data_t &request_data, void* http_task, http *http_server, const void *handler);
+        http_request(const manapi::utils::manapi_socket_information &ip_data, manapi::net::request_data_t &request_data, void* http_task, http_pool *http_server, const void *handler);
         ~http_request();
 
-        [[nodiscard]] const ip_data_t               &get_ip_data () const;
+        [[nodiscard]] const utils::manapi_socket_information &get_ip_data () const;
         [[nodiscard]] const std::string             &get_method () const;
         [[nodiscard]] const std::string             &get_http_version() const;
         [[nodiscard]] const utils::MAP_STR_STR      &get_headers () const;
@@ -61,7 +57,7 @@ namespace manapi::net {
         void                                        multipart_read_param (const std::function<void(const char *, const size_t &)> &send_line = nullptr, const std::function<void(const std::string &)> &send_name = nullptr);
 
         // peer ip
-        ip_data_t                                   *ip_data;
+        const utils::manapi_socket_information      *ip_data;
 
         // body, headers, url and etc
         request_data_t                              *request_data;
@@ -73,7 +69,7 @@ namespace manapi::net {
         const void                                  *page_handler;
 
         // server
-        http                                        *http_server;
+        http_pool                                   *http_server;
 
         // boundary --XXXXXxxxXXX for form data
         std::string                                 body_boundary;

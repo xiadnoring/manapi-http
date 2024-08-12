@@ -12,7 +12,9 @@ std::string manapi::filesystem::basename(const std::string& path) {
     size_t pos = path.find_last_of(std::filesystem::path::preferred_separator);
 
     if (pos != std::string::npos)
+    {
         return path.substr(pos + 1);
+    }
 
     return path;
 }
@@ -75,11 +77,13 @@ ssize_t manapi::filesystem::get_size (std::ifstream& f) {
 ssize_t manapi::filesystem::get_size (const std::string& path) {
     std::ifstream f (path);
     if (!f.is_open())
-        throw manapi::utils::exception ("cannot open the file by following path: " + path);
+    {
+        THROW_MANAPI_EXCEPTION("cannot open the file by following path: {}", path);
+    }
 
-    ssize_t result = manapi::filesystem::get_size(f);
+    utils::before_delete close_ifstream ([&f] () { f.close(); });
 
-    f.close();
+    const ssize_t result = manapi::filesystem::get_size(f);
 
     return result;
 }
@@ -88,26 +92,31 @@ void manapi::filesystem::write (const std::string &path, const std::string &data
     std::ofstream out (path);
 
     if (!out.is_open())
-        throw manapi::utils::exception ("cannot open config to write");
+    {
+        THROW_MANAPI_EXCEPTION("cannot open config to write: {}", path);
+    }
+
+    utils::before_delete close_ofstream ([&out] () { out.close(); });
 
     out << data;
-
-    out.close();
 }
 
 std::string manapi::filesystem::read (const std::string &path) {
     std::ifstream in (path);
 
     if (!in.is_open())
-        throw manapi::utils::exception ("cannot open config to write");
+    {
+        THROW_MANAPI_EXCEPTION("cannot open config to read: {}", path);
+    }
+
+    utils::before_delete close_ofstream ([&in] () { in.close(); });
 
     std::string content, line;
 
-    while (std::getline(in, line)) {
+    while (std::getline(in, line))
+    {
         content += line;
     }
-
-    in.close();
 
     return content;
 }
@@ -117,18 +126,17 @@ void manapi::filesystem::copy (std::ifstream &f, const ssize_t &start, const ssi
         f.close();
         o.close();
 
-        throw manapi::utils::exception ("cannot open files for operations");
+        THROW_MANAPI_EXCEPTION("{}", "cannot open files for operations");
     }
 
     f.seekg (start);
 
-    ssize_t block_size;
     ssize_t size        = back - start + 1;
 
     char buff[MANAPI_FILESYSTEM_COPY_BUFFER_SIZE];
 
     while (size != 0) {
-        block_size = size > MANAPI_FILESYSTEM_COPY_BUFFER_SIZE ? MANAPI_FILESYSTEM_COPY_BUFFER_SIZE : size;
+        const ssize_t block_size = size > MANAPI_FILESYSTEM_COPY_BUFFER_SIZE ? MANAPI_FILESYSTEM_COPY_BUFFER_SIZE : size;
         f.read(buff, block_size);
 
         o.write(buff, block_size);
@@ -166,10 +174,14 @@ std::string manapi::filesystem::back (std::string str) {
 
 
         if (delimiter_prev)
+        {
             break;
+        }
 
         else
+        {
             str.pop_back();
+        }
     }
 
     return str;

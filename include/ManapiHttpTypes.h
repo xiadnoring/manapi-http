@@ -3,7 +3,7 @@
 
 #include <string>
 
-static struct {
+static const struct {
     std::string CONTINUE_100                        = "Continue";
     std::string SWITCHING_PROTOCOLS_101             = "Switching Protocols";
     std::string PROCESSING_102                      = "Processing";
@@ -84,7 +84,7 @@ static struct {
 
 } http_status;
 
-static struct {
+static const struct {
     std::string CONTENT_RANGE       = "content-range";
     std::string CONTENT_LENGTH      = "content-length";
     std::string CONTENT_TYPE        = "content-type";
@@ -109,9 +109,11 @@ static struct {
     std::string CONTENT_DISPOSITION = "content-disposition";
     std::string CONTENT_ENCODING    = "content-encoding";
     std::string RANGE               = "range";
+    std::string KEEP_ALIVE          = "keep-alive";
+    std::string ALT_SVC             = "alt-svc";
 } http_header;
 
-static struct {
+static const struct {
     std::string TEXT_PLAIN          = "text/plain";
     std::string TEXT_HTML           = "text/html";
     std::string TEXT_CSS            = "text/css";

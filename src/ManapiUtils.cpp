@@ -424,27 +424,35 @@ std::vector <manapi::net::header_value_t> manapi::utils::parse_header_value (con
     for (size_t i = 0; i <= header_value.size(); i++) {
         // if end -> append to map
         if (i == header_value.size())
+        {
             goto p;
+        }
 
         if (header_value[i] == '\\') {
             i++;
 
             if (i == header_value.size())
+            {
                 break;
+            }
         }
 
-        else {
-            if (header_value[i] == '"') {
+        else
+        {
+            if (header_value[i] == '"')
+            {
                 opened_queues = !opened_queues;
                 continue;
             }
 
             else if (!opened_queues) {
-                if (header_value[i] == '=') {
+                if (header_value[i] == '=')
+                {
                     is_key = false;
                     continue;
                 }
-                else if (header_value[i] == ';' || header_value[i] == ',') {
+                else if (header_value[i] == ';' || header_value[i] == ',')
+                {
                     p:
                     if (is_key) {
                         data.push_back({key, {}});
@@ -465,15 +473,21 @@ std::vector <manapi::net::header_value_t> manapi::utils::parse_header_value (con
                 }
 
                 if (header_value[i] == ' ')
+                {
                     continue;
+                }
             }
         }
 
         if (is_key)
+        {
             key     += header_value[i];
+        }
 
         else
+        {
             value   += header_value[i];
+        }
     }
 
     return data;
@@ -482,21 +496,37 @@ std::vector <manapi::net::header_value_t> manapi::utils::parse_header_value (con
 std::string manapi::utils::stringify_header_value (const std::vector <manapi::net::header_value_t> &header_value) {
     std::string result;
 
-    for (const auto &value: header_value)
-    {
-        if (!value.value.empty())
-            result += value.value + ';';
+    if (!header_value.empty()) {
+        auto value = header_value.begin();
 
-        for (const auto &param: value.params)
+        // skip ','
+        goto point_value;
+
+        for (; value != header_value.end(); value++)
         {
-            result += param.first + '=' + param.second + ';';
-        }
-    }
+            result += ',';
 
-    // if result contains ';' at the end -> delete symbol
-    if (!result.empty())
-    {
-        result.pop_back();
+            point_value:
+
+            result += value->value;
+
+            auto param = value->params.begin();
+
+            if (value->value.empty())
+            {
+                // skip ';'
+                goto point_param;
+            }
+
+            for (; param != value->params.end(); param++)
+            {
+                result += ';';
+
+                point_param:
+
+                result += param->first + '=' + param->second;
+            }
+        }
     }
 
     return result;

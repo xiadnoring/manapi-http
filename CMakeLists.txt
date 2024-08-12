@@ -73,7 +73,11 @@ set(MANAPI_HTTP_FILES
         src/ManapiApi.cpp
         src/ManapiFetch.cpp
         include/ManapiJsonMask.h
-        src/ManapiJsonMask.cpp)
+        src/ManapiJsonMask.cpp
+        include/ManapiHttpPool.h
+        src/ManapiHttpPool.cpp
+        include/ManapiUdpPool.h
+        src/ManapiUdpPool.cpp)
 
 if (MANAPI_BUILD_TYPE STREQUAL "exe")
     # EXE

@@ -9,11 +9,11 @@
 #include "ManapiApi.h"
 
 namespace manapi::net {
-    class http;
+    class http_pool;
 
     class http_response {
     public:
-        http_response               (manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, http *_http_server);
+        http_response               (manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, http_pool *_http_server);
         ~http_response              ();
 
         void set_compress           (const  std::string &name);
@@ -61,7 +61,7 @@ namespace manapi::net {
         size_t                          type;
         // detect the range header
         void                            detect_ranges    ();
-        http                            *http_server;
+        http_pool                       *http_server;
 
         std::string                     data;
 

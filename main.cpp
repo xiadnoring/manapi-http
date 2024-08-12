@@ -18,11 +18,11 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
     http server;
-    future<int> f;
 
     server.set_config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json");
 
     server.GET ("/", [] (REQ(req), RESP(resp)) {
+        resp.set_header(http_header.ALT_SVC, stringify_header_value({{"", {{"h3", "\":443\""}}}}));
         resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
     });
 
@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
     });
 
     server.GET ("/text", [] (REQ(req), RESP(resp)) {
+        MANAPI_LOG("{}", "REQ GET");
         resp.set_compress_enabled(false);
         resp.set_header(http_header.CONTENT_TYPE, http_mime.TEXT_PLAIN);
 
@@ -166,6 +167,12 @@ int main(int argc, char *argv[]) {
         {"last-name", "{string(>=5 <70)}"}
     };
 
+    server.GET("/freeze", [] (REQ(req), RESP(resp)) -> void {
+        sleep(5);
+
+        resp.text("muhahahah");
+    });
+
     server.POST ("/form", [] (REQ(req), RESP(resp)) {
         auto formData = req.form();
 
@@ -207,7 +214,7 @@ int main(int argc, char *argv[]) {
 
     server.GET ("/", "/home/Timur/Desktop/WorkSpace/oneworld/");
 
-    server.pool();
+    server.pool(50).get();
 
     return 0;
 }

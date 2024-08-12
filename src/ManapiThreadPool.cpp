@@ -6,7 +6,9 @@ namespace manapi::net {
     template<class T>
     threadpool<T>::threadpool(size_t thread_num): thread_number(thread_num),is_stop(false),all_threads(nullptr),stopped(0) {
         if (thread_num <= 0)
-            printf("threadpool cant init because thread_number = 0");
+        {
+            THROW_MANAPI_EXCEPTION("threadpool cant init because thread_number = {}", 0);
+        }
 
         all_threads = new pthread_t[thread_number];
         if (all_threads == nullptr)
@@ -34,7 +36,7 @@ namespace manapi::net {
     template<class T>
     void threadpool<T>::stop() {
         is_stop = true;
-        queue_cond_locker.broadcast();
+        cv.notify_all();
     }
 
     template<class T>
@@ -59,16 +61,14 @@ namespace manapi::net {
 
         // obtain a mutex
         queue_mutex_locker.mutex_lock();
-        bool is_signal = task_queue.empty();
         // add into the queue
         task_queue.push(task);
         queue_mutex_locker.mutex_unlock();
 
         // wake up the thread waiting for the task
-        if (is_signal)
-        {
-            queue_cond_locker.signal();
-        }
+
+        cv.notify_one();
+
         return true;
     }
 
@@ -88,7 +88,7 @@ namespace manapi::net {
 
     template<class T>
     void *threadpool<T>::worker(void *arg) {
-        auto *pool = reinterpret_cast<threadpool *> (arg);
+        auto *pool = static_cast<threadpool *> (arg);
         pool->run();
         return pool;
     }
@@ -99,7 +99,8 @@ namespace manapi::net {
             T* task = getTask();
             if (task == nullptr)
             {
-                queue_cond_locker.wait();
+                std::unique_lock<std::mutex> lk (m);
+                cv.wait(lk);
             }
             else
             {
@@ -108,15 +109,19 @@ namespace manapi::net {
                     task->doit();
                 }
                 catch (const manapi::utils::exception &e) {
-                    MANAPI_LOG ("Task Exception: ", e.what());
+                    MANAPI_LOG ("Task Manapi Exception: {}", e.what());
                 }
                 catch (const std::exception &e) {
-                    MANAPI_LOG ("Task Exception: ", e.what());
+                    MANAPI_LOG ("Task Default Exception: {}", e.what());
                 }
 
                 if (task->to_delete)
                 {
                     delete task;
+                }
+                else
+                {
+                    task->task_doit_mutex.unlock();
                 }
             }
         }

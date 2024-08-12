@@ -2,6 +2,7 @@
 #define MANAPIHTTP_MANAPITHREADSAFE_H
 
 #include <mutex>
+#include <condition_variable>
 #include <unordered_map>
 
 namespace manapi::utils {
@@ -27,15 +28,17 @@ namespace manapi::utils {
 
         V& at (const K &key);
 
-        void block ();
+        void lock ();
 
-        void unblock ();
+        void unlock ();
 
         void reset ();
+
+        void wait_update ();
     private:
-        std::condition_variable cv;
+        std::mutex              m_update;
+        std::condition_variable cv_update;
         std::mutex              locker;
-        std::mutex              m;
         std::unordered_map<K,V> map;
     };
 
@@ -49,61 +52,69 @@ manapi::utils::safe_unordered_map<K, V>::~safe_unordered_map() {}
 
 template<typename K, typename V>
 void manapi::utils::safe_unordered_map<K, V>::reset() {
-    std::lock_guard <std::mutex> lock (m);
     map = {};
+
+    cv_update.notify_all();
+}
+
+template<typename K, typename V>
+void manapi::utils::safe_unordered_map<K, V>::wait_update() {
+    std::unique_lock<std::mutex> lkq (m_update);
+    cv_update.wait(lkq);
 }
 
 template <typename K, typename V>
 void manapi::utils::safe_unordered_map<K, V>::insert (const K &key, const V &value) {
     // auto release at the end
-    std::lock_guard <std::mutex> lock (m);
     map.insert({key, value});
+
+    cv_update.notify_all();
 }
 
 template <typename K, typename V>
 std::unordered_map<K,V>::size_type manapi::utils::safe_unordered_map<K, V>::erase (const K &key) {
-    std::lock_guard <std::mutex> lock (m);
-    return map.erase(key);
+    const auto it = map.erase(key);
+    cv_update.notify_all();
+
+    return it;
 }
 
 template <typename K, typename V>
 std::unordered_map<K, V>::iterator manapi::utils::safe_unordered_map<K, V>::begin () {
-    std::lock_guard <std::mutex> lock (m);
     return map.begin();
 }
 
 template <typename K, typename V>
 std::unordered_map<K, V>::iterator manapi::utils::safe_unordered_map<K, V>::end () {
-    std::lock_guard <std::mutex> lock (m);
     return map.end();
 }
 
 template <typename K, typename V>
 std::unordered_map<K, V>::iterator manapi::utils::safe_unordered_map<K, V>::erase (const std::unordered_map<K, V>::iterator &it) {
-    std::lock_guard <std::mutex> lock (m);
-    return map.erase(it);
+    const auto n_it = map.erase(it);
+    cv_update.notify_all();
+
+    return n_it;
 }
 
 template<typename K, typename V>
 bool manapi::utils::safe_unordered_map<K, V>::contains(const K &key) {
-    std::lock_guard <std::mutex> lock (m);
     return map.contains(key);
 }
 
 template<typename K, typename V>
 V& manapi::utils::safe_unordered_map<K, V>::at(const K &key) {
-    std::lock_guard<std::mutex> lock (m);
     return map.at(key);
 }
 
 template<typename K, typename V>
-void manapi::utils::safe_unordered_map<K, V>::unblock() {
+void manapi::utils::safe_unordered_map<K, V>::unlock() {
     // printf("UNBLOCKED\n");
     locker.unlock();
 }
 
 template<typename K, typename V>
-void manapi::utils::safe_unordered_map<K, V>::block() {
+void manapi::utils::safe_unordered_map<K, V>::lock() {
     // printf("BLOCKED\n");
     locker.lock();
 }

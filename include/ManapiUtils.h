@@ -6,6 +6,8 @@
 #include <vector>
 #include <functional>
 #include <iostream>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 namespace manapi::net {
     struct header_value_t {
@@ -24,6 +26,15 @@ namespace manapi::utils {
         std::pair <ssize_t, ssize_t> pos;
     };
 
+    struct manapi_socket_information
+    {
+        std::string ip;
+        uint16_t    port;
+
+        bool operator==(const manapi_socket_information& other) const {
+            return port == other.port && ip == other.ip;
+        }
+    };
 #define MANAPI_LOG(msg, ...)                manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg, __VA_ARGS__)
 #define THROW_MANAPI_EXCEPTION(msg, ...)    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg, __VA_ARGS__);
 
@@ -119,6 +130,14 @@ namespace manapi::utils {
         }
     }
 }
+
+template <>
+struct std::hash <manapi::utils::manapi_socket_information>
+{
+    std::size_t operator()(const manapi::utils::manapi_socket_information& k) const {
+        return std::hash <std::string>()(k.ip) ^ (std::hash <uint16_t>()(k.port) >> (sizeof (size_t) - sizeof (uint16_t)));
+    }
+};
 
 namespace manapi::net {
     struct request_data_t {
