@@ -22,10 +22,40 @@ namespace manapi::net {
         std::string     cert;
     };
 
-    struct http_qc_conn_io {
-        int                 sock_fd;
+    namespace versions {
+        enum {
+            TLS_v1 = 0,
+            TLS_v1_1 = 1,
+            TLS_v1_2 = 2,
+            TLS_v1_3 = 3,
+            DTLS_v1 = 4,
+            DTLS_v1_2 = 5,
+            DTLS_v1_3 = 6
+        };
 
-        uint8_t             cid[quic_token_max_len];
+        enum {
+            QUIC_CC_NONE = 0,
+            QUIC_CC_RENO = 1,
+            QUIC_CC_CUBIC = 2,
+            QUIC_CC_BBR = 3,
+            QUIC_CC_BBR2 = 4
+        };
+
+        enum {
+            HTTP_v0_9 = 0,
+            HTTP_v1_0 = 1,
+            HTTP_v1_1 = 2,
+            HTTP_v2 = 3,
+            HTTP_v3 = 4
+        };
+    }
+
+    struct http_quic_conn_io;
+
+    typedef manapi::utils::safe_unordered_map <std::string, http_quic_conn_io *> QUIC_MAP_CONNS_T;
+
+    struct http_quic_conn_io {
+        int                 sock_fd;
 
         quiche_conn         *conn;
         quiche_h3_conn      *http3;
@@ -41,9 +71,8 @@ namespace manapi::net {
         std::mutex          wait;
 
         std::unordered_map  <uint64_t, task *> tasks;
+        QUIC_MAP_CONNS_T*   conns;
     };
-
-    typedef manapi::utils::safe_unordered_map <std::string, http_qc_conn_io *> QUIC_MAP_CONNS_T;
 
 
     class http_pool {
@@ -94,14 +123,19 @@ namespace manapi::net {
         std::mutex                  recv_m;
     private:
         int                         _pool ();
-        static SSL_CTX*             ssl_create_context ();
+        static SSL_CTX*             ssl_create_context (const size_t &version = versions::TLS_v1_3);
         void                        ssl_configure_context ();
 
         size_t                      id;
+
+        // settings
+        bool                        quic_debug              = false;
+        size_t                      quic_cc_algo            = versions::QUIC_CC_RENO;
+        size_t                      tls_version             = versions::TLS_v1_3;
         size_t                      max_header_block_size   = 4096;
         size_t                      socket_block_size       = 1350;
         size_t                      partial_data_min_size   = 4194304;
-        size_t                      http_version            = 1;
+        size_t                      http_version            = versions::HTTP_v1_1;
         std::string                 http_version_str        = "1.1";
         std::string                 address                 = "0.0.0.0";
         std::string                 port                    = "8888";// settings
@@ -119,7 +153,7 @@ namespace manapi::net {
 
         http                        *server;
 
-        int                         sock_fd,
+        int                         sock_fd{},
                                     conn_fd{};
 
         // pool
@@ -128,8 +162,8 @@ namespace manapi::net {
         std::mutex                  m_initing;
 
         ev::dynamic_loop            loop;
-        addrinfo                    *local;
-        std::promise <int>          *pool_promise = nullptr;
+        addrinfo                    *local          = nullptr;
+        std::promise <int>          *pool_promise   = nullptr;
     };
 }
 

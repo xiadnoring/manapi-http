@@ -40,10 +40,10 @@ namespace manapi::net {
 
         void            set_quic_config         (quiche_config *config);
         void            set_quic_map_conns      (QUIC_MAP_CONNS_T *new_map_conns);
-        static http_qc_conn_io *quic_create_connection (uint8_t *s_cid, size_t s_cid_len, uint8_t *od_cid, size_t od_cid_len, const int &conn_fd, const sockaddr_storage &client, const socklen_t &client_len, http_pool *http_server);
+        static http_quic_conn_io *quic_create_connection (uint8_t *s_cid, size_t s_cid_len, uint8_t *od_cid, size_t od_cid_len, const int &conn_fd, const sockaddr_storage &client, const socklen_t &client_len, http_pool *http_server);
         static int      quic_get_header         (uint8_t *name, size_t name_len, uint8_t *value, size_t value_len, void *argp);
-        static void     quic_flush_egress       (manapi::net::http_qc_conn_io *conn_io);
-        static void     quic_delete_conn_io     (http_qc_conn_io *conn_io, const bool &reset = false);
+        static void     quic_flush_egress       (manapi::net::http_quic_conn_io *conn_io);
+        static void     quic_delete_conn_io     (http_quic_conn_io *conn_io, const bool &reset = false);
 /**
          * to_delete -> true
          * and skip await I/O
@@ -77,7 +77,8 @@ namespace manapi::net {
 
         SSL *ssl = nullptr;
 
-        struct http_qc_conn_io  *conn_io = nullptr;
+        struct http_quic_conn_io  *conn_io = nullptr;
+        std::string quic_conn_io_key;
     private:
         void            tcp_doit ();
         void            udp_doit ();
@@ -127,6 +128,7 @@ namespace manapi::net {
 
         std::timed_mutex        quic_m_read;
         std::timed_mutex        quic_m_write;
+        std::timed_mutex        quic_m_pre_load;
 
         bool                    quic_v_read     = false;
         bool                    quic_v_write    = false;

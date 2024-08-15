@@ -14,7 +14,7 @@ namespace manapi::utils {
         safe_unordered_map();
         ~safe_unordered_map();
 
-        void insert (const K &key, const V &value);
+        auto insert (const K &key, const V &value);
 
         std::unordered_map<K,V>::size_type erase (const K &key);
 
@@ -64,11 +64,13 @@ void manapi::utils::safe_unordered_map<K, V>::wait_update() {
 }
 
 template <typename K, typename V>
-void manapi::utils::safe_unordered_map<K, V>::insert (const K &key, const V &value) {
+auto manapi::utils::safe_unordered_map<K, V>::insert (const K &key, const V &value) {
     // auto release at the end
-    map.insert({key, value});
+    auto it = map.insert(make_pair(key, value));
 
     cv_update.notify_all();
+
+    return it;
 }
 
 template <typename K, typename V>

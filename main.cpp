@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
         resp.set_partial_status(true);
         resp.set_compress_enabled(false);
 
-        resp.file("/home/Timur/Desktop/WorkSpace/oneworld/WIN11.PRO.23H2.22631.2861 Update 4_Rus-Eng.ISO");
+        resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
     });
 
     server.GET ("/favicon.ico", [](REQ(req), RESP(resp)) {
@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
 
     server.GET ("/", "/home/Timur/Desktop/WorkSpace/oneworld/");
 
-    server.pool(50).get();
+    server.pool(20).get();
 
     return 0;
 }

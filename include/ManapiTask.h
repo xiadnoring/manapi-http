@@ -20,8 +20,9 @@ namespace manapi::net {
         void stop ();
 
         bool to_delete = true;
+        bool to_retry = false;
 
-        std::mutex              task_doit_mutex;
+        std::timed_mutex task_doit_mutex;
     };
 }
 

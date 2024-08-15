@@ -130,7 +130,7 @@ namespace manapi::net {
                                     running;
         static bool                 stopped_interrupt;
 
-        void                        append_task (task *t);
+        void                        append_task (task *t, bool important = false);
     private:
         static void                 destroy_uri_part (http_uri_part *cur);
         http_uri_part               *build_uri_part (const std::string &uri, size_t &type);

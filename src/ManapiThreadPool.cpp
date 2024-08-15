@@ -1,3 +1,5 @@
+#include <csignal>
+
 #include "ManapiThreadPool.h"
 #include "ManapiTask.h"
 #include "ManapiUtils.h"
@@ -5,6 +7,10 @@
 namespace manapi::net {
     template<class T>
     threadpool<T>::threadpool(size_t thread_num): thread_number(thread_num),is_stop(false),all_threads(nullptr),stopped(0) {
+        sigemptyset(&blockedSignal);
+        sigaddset(&blockedSignal, SIGPIPE);
+        pthread_sigmask(SIG_BLOCK, &blockedSignal, nullptr);
+
         if (thread_num <= 0)
         {
             THROW_MANAPI_EXCEPTION("threadpool cant init because thread_number = {}", 0);
@@ -53,7 +59,7 @@ namespace manapi::net {
     }
 
     template<class T>
-    bool threadpool<T>::append_task(T *task) {
+    bool threadpool<T>::append_task(T *task, bool important) {
         if (is_stop)
         {
             return false;
@@ -61,13 +67,26 @@ namespace manapi::net {
 
         // obtain a mutex
         queue_mutex_locker.mutex_lock();
-        // add into the queue
-        task_queue.push(task);
-        queue_mutex_locker.mutex_unlock();
 
-        // wake up the thread waiting for the task
 
-        cv.notify_one();
+        if (important && !task_queue.empty())
+        {
+            queue_mutex_locker.mutex_unlock();
+
+            std::thread t ([this, task] () -> void { task_doit(task); });
+            t.detach();
+        }
+        else
+        {
+            // add into the queue
+            task_queue.push(task);
+
+            queue_mutex_locker.mutex_unlock();
+
+            // wake up the thread waiting for the task
+
+            cv.notify_one();
+        }
 
         return true;
     }
@@ -104,29 +123,49 @@ namespace manapi::net {
             }
             else
             {
-                try
-                {
-                    task->doit();
-                }
-                catch (const manapi::utils::exception &e) {
-                    MANAPI_LOG ("Task Manapi Exception: {}", e.what());
-                }
-                catch (const std::exception &e) {
-                    MANAPI_LOG ("Task Default Exception: {}", e.what());
-                }
-
-                if (task->to_delete)
-                {
-                    delete task;
-                }
-                else
-                {
-                    task->task_doit_mutex.unlock();
-                }
+                task_doit(task);
             }
         }
 
         stopped++;
+    }
+
+    template<class T>
+    void threadpool<T>::task_doit(T *task) {
+        try
+        {
+            task->doit();
+        }
+        catch (const manapi::utils::exception &e) {
+            MANAPI_LOG ("Task Manapi Exception: {}", e.what());
+        }
+        catch (const std::exception &e) {
+            MANAPI_LOG ("Task Default Exception: {}", e.what());
+        }
+
+        if (task->to_delete)
+        {
+            delete task;
+        }
+        else
+        {
+            if (task->to_retry)
+            {
+                queue_mutex_locker.mutex_lock();
+
+                // RESET
+                task->to_retry = false;
+                task->to_delete = true;
+
+                task_queue.push(task);
+
+                queue_mutex_locker.mutex_unlock();
+            }
+            else
+            {
+                task->task_doit_mutex.unlock();
+            }
+        }
     }
 
     template class threadpool<task>;

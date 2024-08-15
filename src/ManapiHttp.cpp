@@ -204,7 +204,9 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
         handler_page.handler = handler;
 
         return handler_page;
-    } catch (const std::exception &e) {
+    }
+    catch (const std::exception &e)
+    {
         return handler_page;
     }
 }
@@ -485,6 +487,8 @@ bool manapi::net::http::contains_compressor(const std::string &name) const {
 }
 
 void manapi::net::http::setup() {
+    SSL_library_init();
+
     signal  (SIGPIPE, SIG_IGN);
 
     //signal  (SIGFPE, handler_interrupt);
@@ -635,13 +639,13 @@ manapi::net::threadpool<manapi::net::task> *manapi::net::http::get_tasks_pool() 
     return tasks_pool;
 }
 
-void manapi::net::http::append_task(task *t) {
+void manapi::net::http::append_task(task *t, bool important) {
     if (tasks_pool == nullptr)
     {
         THROW_MANAPI_EXCEPTION("{}", "tasks_pool = nullptr");
     }
 
-    tasks_pool->append_task(t);
+    tasks_pool->append_task(t, important);
 }
 
 void manapi::net::http::destroy_uri_part(http_uri_part *cur) {

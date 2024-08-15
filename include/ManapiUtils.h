@@ -8,6 +8,8 @@
 #include <iostream>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <fstream>
+#include <unistd.h>
 
 namespace manapi::net {
     struct header_value_t {
@@ -128,6 +130,28 @@ namespace manapi::utils {
         {
             throw manapi::utils::exception (information);
         }
+    }
+
+    inline size_t debug_print_memory (const std::string &title = "common")
+    {
+        pid_t pid = getpid(); // Get the process ID
+        std::ifstream status_file("/proc/" + std::to_string(pid) + "/status", std::ios::binary);
+        std::string line;
+        size_t memory_usage = 0;
+        if (status_file.is_open()) {
+            while (std::getline(status_file, line)) {
+                if (line.find("VmRSS:")!= std::string::npos) {
+                    size_t start = line.find(":") + 1;
+                    size_t end = line.find(" kB");
+                    memory_usage = std::stoul(line.substr(start, end - start));
+                    break;
+                }
+            }
+
+            MANAPI_LOG("Memory usage ({}): {} MB", title, (memory_usage / 1024));
+        }
+
+        return memory_usage;
     }
 }
 

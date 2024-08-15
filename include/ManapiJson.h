@@ -130,10 +130,10 @@ namespace manapi::utils {
         [[nodiscard]] bool is_bool        () const;
 
         template <typename T>
-        T get () const { return *reinterpret_cast <T *> (src); }
+        T &get () const { return *static_cast <T *> (src); }
 
         template <typename T>
-        T* get_ptr () const { return reinterpret_cast <T *> (src); }
+        T* get_ptr () const { return static_cast <T *> (src); }
 
         [[nodiscard]] std::string dump    (const size_t &spaces = 0, const size_t &first_spaces = 0) const;
 

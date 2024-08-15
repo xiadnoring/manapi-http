@@ -19,7 +19,7 @@ namespace manapi::net {
     public:
         threadpool(size_t thread_num = 20);
         ~threadpool();
-        bool append_task (T *task);
+        bool append_task (T *task, bool important = false);
         void start();
         void stop();
         size_t get_count_stopped_task ();
@@ -33,9 +33,11 @@ namespace manapi::net {
         // the function that the thread runs. Execute run() function
         static void *worker(void *arg);
         void run();
+        void task_doit (T *task);
         T *getTask();
         bool is_stop;
 
+        sigset_t blockedSignal{};
         std::mutex m;
         std::condition_variable cv;
 

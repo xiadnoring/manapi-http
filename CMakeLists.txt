@@ -75,9 +75,7 @@ set(MANAPI_HTTP_FILES
         include/ManapiJsonMask.h
         src/ManapiJsonMask.cpp
         include/ManapiHttpPool.h
-        src/ManapiHttpPool.cpp
-        include/ManapiUdpPool.h
-        src/ManapiUdpPool.cpp)
+        src/ManapiHttpPool.cpp)
 
 if (MANAPI_BUILD_TYPE STREQUAL "exe")
     # EXE

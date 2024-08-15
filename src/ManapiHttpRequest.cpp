@@ -153,7 +153,7 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
         std::string *value_ptr;
         bool        next = true;
 
-        buff_extra = static_cast<char *> (malloc(std::max(4096UL,  http_server->get_socket_block_size() * 4)));
+        buff_extra = new char[std::max(4096UL,  http_server->get_socket_block_size() * 4)];
 
         while (next)
         {
@@ -177,7 +177,7 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
 
         std::string *current = &key;
 
-        buff_extra = static_cast<char *> (malloc (2));
+        buff_extra = new char[2];
 
         size_t  size_extra  = 0;
         bool    used_extra  = false;
