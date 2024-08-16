@@ -359,7 +359,7 @@ manapi::utils::before_delete::before_delete(const std::function<void()> &f) {
 }
 
 manapi::utils::before_delete::~before_delete() {
-    if (f != nullptr)
+    if (f != nullptr && autostart)
     {
         f();
     }
@@ -369,12 +369,17 @@ void manapi::utils::before_delete::call () {
     if (f != nullptr)
     {
         f();
-        f = nullptr;
     }
+
+    disable();
 }
 
 void manapi::utils::before_delete::disable() {
-    f = nullptr;
+    autostart = false;
+}
+
+void manapi::utils::before_delete::enable() {
+    autostart = true;
 }
 
 

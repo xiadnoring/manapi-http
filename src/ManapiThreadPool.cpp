@@ -161,10 +161,6 @@ namespace manapi::net {
 
                 queue_mutex_locker.mutex_unlock();
             }
-            else
-            {
-                task->task_doit_mutex.unlock();
-            }
         }
     }
 

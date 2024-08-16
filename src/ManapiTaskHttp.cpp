@@ -41,7 +41,7 @@ manapi::net::http_task::~http_task() {
     delete[] buff;
 }
 
-manapi::net::http_task::http_task(int _fd, const sockaddr_storage &_client, const socklen_t &_client_len, manapi::net::http_pool *new_http_server) {
+manapi::net::http_task::http_task(int _fd, const sockaddr &_client, const socklen_t &_client_len, manapi::net::http_pool *new_http_server) {
     client_len      = _client_len;
     conn_fd         = _fd;
     http_server     = new_http_server;
@@ -58,7 +58,7 @@ manapi::net::http_task::http_task(int _fd, const sockaddr_storage &_client, cons
     conn_type = MANAPI_NET_TYPE_TCP;
 }
 
-manapi::net::http_task::http_task(int _fd, char *_buff, const ssize_t &_size, const sockaddr_storage &_client, const socklen_t &_client_len, ev::io *_ev_io, manapi::net::http_pool *new_http_server) {
+manapi::net::http_task::http_task(int _fd, char *_buff, const ssize_t &_size, const sockaddr &_client, const socklen_t &_client_len, ev::io *_ev_io, manapi::net::http_pool *new_http_server) {
     conn_fd         = _fd;
     client_len      = _client_len;
     http_server     = new_http_server;
@@ -101,52 +101,355 @@ void manapi::net::http_task::doit() {
 
 // udp doit (single connections)
 void manapi::net::http_task::udp_doit() {
-    // HM
-    std::unique_lock <std::mutex> lk_conn_io (conn_io->mutex);
+    // set wrappers for I/O
+    mask_read = [this] (const char *part_buff, const size_t &part_buff_size) -> ssize_t {
+        ssize_t capacity = quiche_conn_stream_capacity(conn_io->conn, stream_id);
 
-    // if (!lk_conn_io.owns_lock())
+        repeat:
+
+        if (capacity <= 0) {
+            std::lock_guard <std::timed_mutex> lk(quic_m_read);
+
+            if (is_deleting)
+            {
+                return -1;
+            }
+
+            // ASK NEW STREAM
+
+            // notify: we need read stream!
+            quic_m_worker.unlock();
+
+            // wait worker response
+            const auto res = quic_m_read.try_lock_for(std::chrono::seconds(http_server->get_keep_alive()));
+
+            if (!res)
+            {
+                capacity = quiche_conn_stream_capacity(conn_io->conn, stream_id);
+
+                if (capacity <= 100) {
+                    MANAPI_LOG("quic read timeout. capacity: {}", capacity);
+                    // timeout / lock failed
+                    is_deleting = true;
+                }
+            }
+
+            // -printf("QUIC CV READ START!\n");
+        }
+
+        if (is_deleting)
+        {
+            return -1;
+        }
+
+        const ssize_t read = quiche_h3_recv_body(conn_io->http3, conn_io->conn, stream_id, (uint8_t *) part_buff, part_buff_size);
+
+        if (read < 0)
+        {
+            // capacity broken
+            capacity = 0;
+
+            // be fast
+            //quic_m_worker.unlock();
+
+            // repeat
+            goto repeat;
+        }
+
+        if (capacity <= 0)
+        {
+            // be fast, dont wait
+            //quic_m_worker.unlock();
+        }
+
+        // -printf("READ: %zu\n", read);
+
+        return read;
+    };
+
+    mask_write = [this] (const char *part_buff, const size_t &part_buff_size) -> ssize_t {
+        ssize_t capacity = quiche_conn_stream_capacity(conn_io->conn, stream_id);
+
+        repeat:
+
+        while (capacity <= 0)
+        {
+            {
+                if (is_deleting)
+                {
+                    return -1;
+                }
+
+                const size_t &keep_alive = http_server->get_keep_alive();
+
+                utils::before_delete bd_m_worker ([this] () -> void {quic_m_write.unlock(); });
+                if (!quic_m_write.try_lock_for(std::chrono::seconds(keep_alive)))
+                {
+                    MANAPI_LOG("quic write timeout({}s): {}", keep_alive, conn_io->key);
+                    is_deleting = true;
+                }
+
+                if (is_deleting)
+                {
+                    return -1;
+                }
+
+                // ASK NEW STREAM
+
+                // notify worker to get write streams
+                quic_m_worker.unlock();
+
+                // wait a worker response
+                const auto res = quic_m_write.try_lock_for(std::chrono::seconds(keep_alive));
+
+                if (!res)
+                {
+                    capacity = quiche_conn_stream_capacity(conn_io->conn, stream_id);
+                    if (capacity <= 100)
+                    {
+                        MANAPI_LOG("quic write timeout ({}s): capacity: {}", keep_alive, capacity);
+                        // timeout / lock failed
+                        is_deleting = true;
+                    }
+                }
+            }
+
+            capacity = quiche_conn_stream_capacity(conn_io->conn, stream_id);
+
+            // if (capacity <= 0)
+            // {
+            //     quic_v_worker = true;
+            //     quic_m_write.lock();
+            //     quic_m_worker.unlock();
+            // }
+
+            if (is_deleting)
+            {
+                return -1;
+            }
+        }
+
+        const bool final = capacity <= part_buff_size;
+        //auto a1 = utils::debug_print_memory("start");
+        const ssize_t written = quiche_h3_send_body(conn_io->http3, conn_io->conn, stream_id, (uint8_t *) part_buff, part_buff_size, final);
+
+        //auto a2 = utils::debug_print_memory("end");
+
+        if (written < 0)
+        {
+            // skip capacity
+            capacity = 0;
+
+            // be fast
+            // quic_m_worker.unlock();
+
+            goto repeat;
+        }
+
+        // if (final)
+        // {
+        //     quic_m_write.lock();
+        //     quic_m_worker.unlock();
+        // }
+
+        return written;
+    };
+
+    mask_response = [this] (http_response &res) -> ssize_t {
+        // shutdown the stream
+        quiche_conn_stream_shutdown(conn_io->conn, stream_id, QUICHE_SHUTDOWN_READ, 0);
+
+        if (quic_v_body)
+        {
+            quic_v_body = false;
+        }
+
+        size_t index = 1;
+
+        const size_t headers_len = index + res.get_headers().size();
+        quiche_h3_header headers[headers_len];
+
+        std::string status_code = std::to_string(res.get_status_code());
+
+        headers[0] = {
+            .name = (const uint8_t *) ":status",
+            .name_len = sizeof(":status") - 1,
+
+            .value = (const uint8_t *) status_code.data(),
+            .value_len = status_code.size()
+        };
+
+        for (const auto &header: res.get_headers()) {
+            headers[index] = {
+                .name = (uint8_t *) header.first.data(),
+                .name_len = header.first.size(),
+                .value = (uint8_t *) header.second.data(),
+                .value_len = header.second.size()
+        };
+            index++;
+        }
+
+        const ssize_t result = quiche_h3_send_response(conn_io->http3, conn_io->conn, stream_id, headers, headers_len, false);
+
+        // dont wait bcz quiche_h3_send_response(...) executed
+        //quic_m_worker.unlock();
+
+        return result;
+    };
+
+    // auto unlock worker
+    // std::lock_guard <std::timed_mutex> lk(quic_m_worker);
+
+    //task_doit_mutex.lock();
+
+    utils::before_delete bd_conn ([this] () -> void {
+        if (is_deleting)
+        {
+            if (!quiche_conn_is_closed(conn_io->conn))
+            {
+                quiche_h3_send_goaway(conn_io->http3, conn_io->conn, stream_id);
+                if (quiche_conn_close(conn_io->conn, true, 0, nullptr, 0) < 0)
+                {
+                    MANAPI_LOG("failed to close connection: {}", conn_io->key);
+                }
+            }
+
+        }
+        else
+        {
+            is_deleting = true;
+        }
+
+        // unlock read/write
+        quic_m_write.unlock();
+        quic_m_read.unlock();
+
+        // unlock locker
+        quic_m_worker.unlock();
+
+        std::lock_guard<std::mutex> lk_conn_mutex (conn_io->mutex);
+
+        if (stream_id != -1)
+        {
+            conn_io->tasks.erase(stream_id);
+
+            // if (!task_doit_mutex.try_lock_for(std::chrono::seconds(http_server->get_keep_alive())))
+            // {
+            //     MANAPI_LOG ("timeout task wait doit: {}", "task_doit_mutex.try_lock_for(...) = false");
+            // }
+
+            // delete task;
+
+            conn_io->wait.unlock();
+        }
+    });
+
+    const auto handler = http_server->get_http()->get_handler(request_data);
+
+    if (request_data.has_body)
+    {
+        if (!request_data.headers.contains(http_header.CONTENT_LENGTH))
+        {
+            THROW_MANAPI_EXCEPTION("{}", "content-length not exists");
+        }
+
+        // we accept peer body
+        quic_v_body = true;
+
+        // data not contains headers
+        request_data.headers_part = 0;
+        request_data.body_size = std::stoull(request_data.headers[http_header.CONTENT_LENGTH]);
+        request_data.body_left = request_data.body_size;
+        request_data.body_ptr = (char *) buff;
+
+        request_data.body_part = mask_read (
+                (char *) buff,
+                std::min (request_data.body_size, http_server->get_socket_block_size())
+        ) - request_data.headers_part;
+
+        request_data.body_index = 0;
+
+
+    }
+    else
+    {
+        request_data.body_ptr = nullptr;
+        request_data.body_size = 0;
+        request_data.body_part = 0;
+        request_data.headers_part = 0;
+    }
+
+    handle_request(&handler);
+
+    if (!is_deleting)
+    {
+        quiche_h3_send_body(conn_io->http3, conn_io->conn, stream_id, nullptr, 0, true);
+    }
+
+    // wait when the stream run out of capacity of the streams or just end
+    // if (!quic_m_worker.try_lock_for(std::chrono::seconds (http_server->get_keep_alive())))
     // {
-    //     to_delete = false;
-    //     to_retry = true;
-    //
-    //     return;
+    //     is_deleting = true;
+    //     MANAPI_LOG("quic_m_worker.try_lock_for(...) timeout \n"
+    //                            "id: {}", conn_io->key);
     // }
+}
+
+void manapi::net::http_task::udp_loop_event(http_pool *http_server, const std::string &scid, const sockaddr &client, const socklen_t &client_len) {
+    http_quic_conn_io *conn_io;
 
     {
-        quic_map_conns->lock();
-        utils::before_delete bd_quic_map_conns ([this] () -> void { quic_map_conns->unlock(); });
+        http_server->quic_map_conns.lock();
+        utils::before_delete bd_quic_map_conns ([&http_server] () -> void { http_server->quic_map_conns.unlock(); });
 
         // if the connection is closed while waiting
-        if (!quic_map_conns->contains(quic_conn_io_key))
+        if (!http_server->quic_map_conns.contains(scid))
         {
             return;
         }
+
+        conn_io = http_server->quic_map_conns.at(scid);
     }
+
+    std::unique_lock <std::mutex> lk_conn_io (conn_io->mutex, std::try_to_lock);
+
+    if (!lk_conn_io.owns_lock())
+    {
+        return;
+    }
+
+    loop:
 
     // if the connection is closed
     if (quiche_conn_is_closed(conn_io->conn))
     {
+        MANAPI_LOG("quiche_conn_is_closed(...) is {}", true);
         return;
     }
 
     const quiche_recv_info recv_info = {
-            reinterpret_cast <struct sockaddr *> (&client),
-            client_len,
-            http_server->server_addr,
-            http_server->server_len
+        (sockaddr *)(&client),
+        client_len,
+        http_server->server_addr,
+        http_server->server_len
     };
 
-
-    const ssize_t done = quiche_conn_recv(conn_io->conn, reinterpret_cast<uint8_t *> (buff), buff_size, &recv_info);
-
-    if (done < 0)
     {
-        MANAPI_LOG ("failed to process packet: {}", done);
-        return;
+        std::lock_guard<std::mutex> lk (conn_io->wait);
+        for (const auto &buffer: conn_io->buffers)
+        {
+            const ssize_t done = quiche_conn_recv(conn_io->conn, (uint8_t *) buffer.data(), buffer.size(), &recv_info);
+
+            if (done < 0)
+            {
+                MANAPI_LOG ("failed to process packet: {}", done);
+                return;
+            }
+        }
+        conn_io->buffers.clear();
     }
 
-    utils::before_delete wrap_conn ([this] () -> void {
-        const auto http_server = this->http_server;
+    utils::before_delete wrap_conn ([http_server] () -> void {
         auto check = new function_task ([http_server] () -> void {
 
             http_server->quic_map_conns.lock();
@@ -204,6 +507,8 @@ void manapi::net::http_task::udp_doit() {
         }
     }
 
+    ssize_t stream_id;
+
     // if conn_io->http3 is some
     if (conn_io->http3 != nullptr) {
         // do next step
@@ -211,16 +516,15 @@ void manapi::net::http_task::udp_doit() {
             quiche_stream_iter *stream = quiche_conn_writable(conn_io->conn);
             utils::before_delete bd_stream ([&stream] () -> void { quiche_stream_iter_free(stream); });
 
-            while (quiche_stream_iter_next(stream, reinterpret_cast<uint64_t *>(&s))) {
-                if (conn_io->tasks.contains(s)) {
-                    auto task = reinterpret_cast <http_task *> (conn_io->tasks.at(s));
+            while (quiche_stream_iter_next(stream, reinterpret_cast<uint64_t *>(&stream_id))) {
+                if (conn_io->tasks.contains(stream_id)) {
+                    auto task = reinterpret_cast <http_task *> (conn_io->tasks.at(stream_id));
 
                     if (task->quic_v_body || task->is_deleting)
                     {
                         continue;
                     }
 
-                    //quiche_conn_stream_shutdown(conn_io->conn, s, QUICHE_SHUTDOWN_READ, 0);
                     {
                         std::lock_guard <std::timed_mutex> lk (task->quic_m_worker);
 
@@ -239,8 +543,6 @@ void manapi::net::http_task::udp_doit() {
 
                         //MANAPI_LOG("{}", "WRITE WAIT");
 
-                        task->s = s;
-
                         // notify: we got write stream
                         task->quic_m_write.unlock();
 
@@ -254,197 +556,12 @@ void manapi::net::http_task::udp_doit() {
             }
         }
 
-        // set wrappers for I/O
-        mask_read = [this] (const char *part_buff, const size_t &part_buff_size) -> ssize_t {
-            ssize_t capacity = quiche_conn_stream_capacity(conn_io->conn, s);
-
-            repeat:
-
-            if (capacity <= 0) {
-                std::lock_guard <std::timed_mutex> lk(quic_m_read);
-
-                if (is_deleting)
-                {
-                    return -1;
-                }
-
-                // ASK NEW STREAM
-
-                // notify: we need read stream!
-                quic_m_worker.unlock();
-
-                // wait worker response
-                const auto res = quic_m_read.try_lock_for(std::chrono::seconds(http_server->get_keep_alive()));
-
-                if (!res)
-                {
-                    MANAPI_LOG("{}", "quic read timeout");
-                    // timeout / lock failed
-                    is_deleting = true;
-                }
-
-                // -printf("QUIC CV READ START!\n");
-            }
-
-            if (is_deleting)
-            {
-                return -1;
-            }
-
-            const ssize_t read = quiche_h3_recv_body(conn_io->http3, conn_io->conn, s, (uint8_t *) part_buff, part_buff_size);
-
-            if (read < 0)
-            {
-                // capacity broken
-                capacity = 0;
-
-                // be fast
-                //quic_m_worker.unlock();
-
-                // repeat
-                goto repeat;
-            }
-
-            if (capacity <= 0)
-            {
-                // be fast, dont wait
-                //quic_m_worker.unlock();
-            }
-
-            // -printf("READ: %zu\n", read);
-
-            return read;
-        };
-
-        mask_write = [this] (const char *part_buff, const size_t &part_buff_size) -> ssize_t {
-            ssize_t capacity = quiche_conn_stream_capacity(conn_io->conn, s);
-
-            repeat:
-
-            while (capacity <= 0)
-            {
-                {
-                    if (is_deleting)
-                    {
-                        return -1;
-                    }
-
-                    const size_t &keep_alive = http_server->get_keep_alive();
-
-                    utils::before_delete bd_m_worker ([this] () -> void {quic_m_write.unlock(); });
-                    if (!quic_m_write.try_lock_for(std::chrono::seconds(keep_alive)))
-                    {
-                        MANAPI_LOG("quic write timeout({}s): {}", keep_alive, conn_io->key);
-                        is_deleting = true;
-                    }
-
-                    if (is_deleting)
-                    {
-                        return -1;
-                    }
-
-                    // ASK NEW STREAM
-
-                    // notify worker to get write streams
-                    quic_m_worker.unlock();
-
-                    // wait a worker response
-                    const auto res = quic_m_write.try_lock_for(std::chrono::seconds(keep_alive));
-
-                    if (!res)
-                    {
-                        MANAPI_LOG("quic write timeout ({}s): {}", keep_alive, conn_io->key);
-                        // timeout / lock failed
-                        is_deleting = true;
-                    }
-                }
-
-                capacity = quiche_conn_stream_capacity(conn_io->conn, s);
-
-                if (capacity <= 0)
-                {
-                    quic_v_worker = true;
-                    quic_m_write.lock();
-                    quic_m_worker.unlock();
-                }
-
-                if (is_deleting)
-                {
-                    return -1;
-                }
-            }
-
-            const bool final = capacity <= part_buff_size;
-            //auto a1 = utils::debug_print_memory("start");
-            const ssize_t written = quiche_h3_send_body(conn_io->http3, conn_io->conn, s, (uint8_t *) part_buff, part_buff_size, final);
-
-            //auto a2 = utils::debug_print_memory("end");
-
-            if (written < 0)
-            {
-                // skip capacity
-                capacity = 0;
-
-                // be fast
-                // quic_m_worker.unlock();
-
-                goto repeat;
-            }
-
-            // if (final)
-            // {
-            //     quic_m_write.lock();
-            //     quic_m_worker.unlock();
-            // }
-
-            return written;
-        };
-
-        mask_response = [this] (http_response &res) -> ssize_t {
-            if (quic_v_body)
-            {
-                quic_v_body = false;
-            }
-
-            size_t index = 1;
-
-            const size_t headers_len = index + res.get_headers().size();
-            quiche_h3_header headers[headers_len];
-
-            std::string status_code = std::to_string(res.get_status_code());
-
-            headers[0] = {
-                .name = (const uint8_t *) ":status",
-                .name_len = sizeof(":status") - 1,
-
-                .value = (const uint8_t *) status_code.data(),
-                .value_len = status_code.size()
-        };
-
-            for (const auto &header: res.get_headers()) {
-                headers[index] = {
-                    .name = (uint8_t *) header.first.data(),
-                    .name_len = header.first.size(),
-                    .value = (uint8_t *) header.second.data(),
-                    .value_len = header.second.size()
-            };
-                index++;
-            }
-
-            const ssize_t result = quiche_h3_send_response(conn_io->http3, conn_io->conn, s, headers, headers_len, false);
-
-            // dont wait bcz quiche_h3_send_response(...) executed
-            //quic_m_worker.unlock();
-
-            return result;
-        };
-
         quiche_h3_event *ev;
 
         while (true) {
-            s = quiche_h3_conn_poll(conn_io->http3,conn_io->conn, &ev);
+            stream_id = quiche_h3_conn_poll(conn_io->http3,conn_io->conn, &ev);
 
-            if (s < 0)
+            if (stream_id < 0)
             {
                 break;
             }
@@ -457,152 +574,48 @@ void manapi::net::http_task::udp_doit() {
                 }
 
                 case QUICHE_H3_EVENT_HEADERS: {
-                    if (id != -1)
-                    {
-                        THROW_MANAPI_EXCEPTION("double headers event: {}", "quiche_h3_event_type(ev) = QUICHE_H3_EVENT_HEADERS");
-                    }
+                    auto task = new http_task (http_server->get_fd(), nullptr, 0, client, client_len, http_server->ev_io, http_server);
+                    utils::before_delete bd_task_if_error ([&task] () -> void { delete task; });
 
-                    const int rc = quiche_h3_event_for_each_header(ev, quic_get_header, &request_data);
+                    const int rc = quiche_h3_event_for_each_header(ev, quic_get_header, &task->request_data);
 
                     if (rc != 0)
                     {
                         THROW_MANAPI_EXCEPTION("{}", "failed to process headers: quiche_h3_event_for_each_header(...) != 0");
                     }
 
+                    std::lock_guard<std::timed_mutex> lk (task->quic_m_worker);
+
+                    task->set_quic_config(http_server->quic_config);
+                    task->set_quic_map_conns(&http_server->quic_map_conns);
+                    task->conn_io = conn_io;
+                    task->stream_id = stream_id;
+                    // task->to_delete   = false;
+                    task->is_deleting = false;
+
+                    conn_io->tasks.insert({stream_id, task});
+                    // without occures
+                    bd_task_if_error.disable();
+                    // add a task to the tasks pool
+                    http_server->get_http()->append_task(task, true);
+
+
+                    // wait the init connection
+                    if (!task->quic_m_worker.try_lock_for(std::chrono::seconds (http_server->get_keep_alive())))
                     {
-                        // auto unlock worker
-                        std::lock_guard <std::timed_mutex> lk(quic_m_worker);
-
-                        request_data.has_body = quiche_h3_event_headers_has_body (ev);
-
-                        to_delete   = false;
-                        is_deleting = false;
-                        task_doit_mutex.lock();
-
-                        const auto ft = new function_task([this] () -> void {
-                            utils::before_delete bd_conn ([this] () -> void {
-                                if (is_deleting)
-                                {
-                                    if (!quiche_conn_is_closed(conn_io->conn))
-                                    {
-                                        quiche_h3_send_goaway(conn_io->http3, conn_io->conn, s);
-                                        if (quiche_conn_close(conn_io->conn, true, 0, nullptr, 0) < 0)
-                                        {
-                                            MANAPI_LOG("failed to close connection: {}", conn_io->key);
-                                        }
-                                    }
-
-                                }
-                                else
-                                {
-                                    is_deleting = true;
-                                }
-
-                                // unlock read/write
-                                quic_m_write.unlock();
-                                quic_m_read.unlock();
-
-                                // unlock locker
-                                quic_m_worker.unlock();
-
-                                std::lock_guard<std::mutex> lk_conn_mutex (conn_io->mutex);
-
-                                if (id != -1)
-                                {
-                                    const auto task = reinterpret_cast <http_task *> (conn_io->tasks.at(id));
-                                    conn_io->tasks.erase(id);
-
-                                    if (!task_doit_mutex.try_lock_for(std::chrono::seconds(http_server->get_keep_alive())))
-                                    {
-                                        MANAPI_LOG ("timeout task wait doit: {}", "task_doit_mutex.try_lock_for(...) = false");
-                                    }
-
-                                    delete task;
-
-                                    conn_io->wait.unlock();
-                                }
-                            });
-
-                            const auto handler = http_server->get_http()->get_handler(request_data);
-
-                            if (request_data.has_body)
-                            {
-                                if (!request_data.headers.contains(http_header.CONTENT_LENGTH))
-                                {
-                                    THROW_MANAPI_EXCEPTION("{}", "content-length not exists");
-                                }
-
-                                // we accept peer body
-                                quic_v_body = true;
-
-                                // data not contains headers
-                                request_data.headers_part = 0;
-                                request_data.body_size = std::stoull(request_data.headers[http_header.CONTENT_LENGTH]);
-                                request_data.body_left = request_data.body_size;
-                                request_data.body_ptr = (char *) buff;
-
-                                request_data.body_part = mask_read (
-                                        (char *) buff,
-                                        std::min (request_data.body_size, http_server->get_socket_block_size())
-                                ) - request_data.headers_part;
-
-                                request_data.body_index = 0;
-
-
-                            }
-                            else
-                            {
-                                request_data.body_ptr = nullptr;
-                                request_data.body_size = 0;
-                                request_data.body_part = 0;
-                                request_data.headers_part = 0;
-
-                                // shutdown the stream
-                                quiche_conn_stream_shutdown(conn_io->conn, s, QUICHE_SHUTDOWN_READ, 0);
-                            }
-
-                            handle_request(&handler);
-
-                            if (!is_deleting)
-                            {
-                                quiche_h3_send_body(conn_io->http3, conn_io->conn, s, nullptr, 0, true);
-                            }
-                        });
-
-                        //t.detach();
-                        //MANAPI_LOG("{}", "new worker");
-
-                        id = s;
-                        conn_io->tasks.insert({s, this});
-
-                        http_server->get_http()->append_task(ft, true);
-
-                        // wait when the stream run out of capacity of the streams or just end
-                        if (!quic_m_worker.try_lock_for(std::chrono::seconds (http_server->get_keep_alive())))
-                        {
-                            is_deleting = true;
-                            MANAPI_LOG("quic_m_worker.try_lock_for(...) timeout \n"
-                                                   "id: {}", conn_io->key);
-                        }
+                        task->is_deleting = true;
+                        MANAPI_LOG("quic_m_worker.try_lock_for(...) timeout \n"
+                                               "id: {}", conn_io->key);
                     }
-
-                    // if (quic_v_worker)
-                    // {
-                    //     quic_v_worker = false;
-                    //     MANAPI_LOG("{}", "pre unlock worker");
-                    //     quic_m_worker.lock();
-                    // }
-
-                    //MANAPI_LOG("{}", "NEXT STEP");
 
                     break;
                 }
 
                 case QUICHE_H3_EVENT_DATA: {
-                    if (conn_io->tasks.contains(s))
+                    if (conn_io->tasks.contains(stream_id))
                     {
 
-                        auto task = reinterpret_cast <http_task *> (conn_io->tasks.at(s));
+                        auto task = reinterpret_cast <http_task *> (conn_io->tasks.at(stream_id));
 
                         if (!task->quic_v_body || task->is_deleting)
                         {
@@ -613,8 +626,6 @@ void manapi::net::http_task::udp_doit() {
                         {
                             // auto lock/unlock
                             std::lock_guard <std::timed_mutex> lk (task->quic_m_worker);
-
-                            task->s = s;
 
                             // unlock read function
                             task->quic_m_read.unlock();
@@ -637,16 +648,16 @@ void manapi::net::http_task::udp_doit() {
                 case QUICHE_H3_EVENT_RESET:
                     MANAPI_LOG("{}", "RESET");
 
-                if (quiche_conn_close(conn_io->conn, true, 0, nullptr, 0) < 0)
-                {
-                    THROW_MANAPI_EXCEPTION("failed to close connection: {}", conn_io->key);
-                }
+                    if (quiche_conn_close(conn_io->conn, true, 0, nullptr, 0) < 0)
+                    {
+                        THROW_MANAPI_EXCEPTION("failed to close connection: {}", conn_io->key);
+                    }
 
-                break;
+                    break;
 
                 case QUICHE_H3_EVENT_PRIORITY_UPDATE:
                     MANAPI_LOG("{}", "PRIORITY_UPDATE");
-                break;
+                    break;
 
                 case QUICHE_H3_EVENT_GOAWAY: {
                     MANAPI_LOG("{}", "got GOAWAY");
@@ -658,6 +669,11 @@ void manapi::net::http_task::udp_doit() {
                     break;
             }
         }
+    }
+
+    if (!conn_io->buffers.empty())
+    {
+        goto loop;
     }
 }
 
@@ -1947,6 +1963,9 @@ void manapi::net::http_task::quic_delete_conn_io(manapi::net::http_quic_conn_io 
     conn_io->mutex.lock();
     utils::before_delete bd_mutex ([&conn_io] () { conn_io->mutex.unlock(); });
 
+    // WAIT LOCK
+    std::lock_guard<std::mutex> lk (conn_io->wait);
+
     // force clear tasks
     for (auto it = conn_io->tasks.begin(); it != conn_io->tasks.end();)
     {
@@ -1956,8 +1975,6 @@ void manapi::net::http_task::quic_delete_conn_io(manapi::net::http_quic_conn_io 
         {
             continue;
         }
-
-        std::lock_guard<std::mutex> lk (conn_io->wait);
 
         // UNLOCK
         conn_io->mutex.unlock();

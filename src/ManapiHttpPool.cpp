@@ -144,6 +144,12 @@ manapi::net::http_pool::http_pool(const utils::json &config, http *server, const
         quic_debug = config["quic_debug"].get<bool>();
     }
 
+    // =================[quic_implement         ]================= //
+    if (config.contains("quic_implement"))
+    {
+        quic_implement = config["quic_implement"].get<std::string>();
+    }
+
 }
 
 manapi::net::http_pool::~http_pool() = default;
@@ -272,7 +278,8 @@ void manapi::net::http_pool::stop() {
     }
 
     MANAPI_LOG("{}", "shutdown socket");
-    // shutdown socket
+
+    // close socket
     shutdown(sock_fd, SHUT_RDWR);
 
     // stop watcher
@@ -283,29 +290,6 @@ void manapi::net::http_pool::stop() {
 
     // wait while loop is running
     std::lock_guard<std::mutex> lk (m_running);
-
-
-    ///////////////////////////
-    ////////  Clean Up ////////
-    ///////////////////////////
-
-    delete ev_io;
-
-    if (http_implement == "quic")
-    {
-        quiche_h3_config_free(http3_config);
-        quiche_config_free(quic_config);
-
-        http3_config    = nullptr;
-        quic_config     = nullptr;
-    }
-    else if (http_implement == "tls")
-    {
-        if (ssl_config.enabled)
-        {
-            SSL_CTX_free(ctx);
-        }
-    }
 }
 
 std::future <int> manapi::net::http_pool::run() {
@@ -330,6 +314,10 @@ std::future <int> manapi::net::http_pool::run() {
     return pool_promise->get_future();
 }
 
+const int &manapi::net::http_pool::get_fd() {
+    return sock_fd;
+}
+
 int manapi::net::http_pool::_pool() {
     MANAPI_LOG("pool init #{}", id);
 
@@ -349,11 +337,31 @@ int manapi::net::http_pool::_pool() {
     ev_io  = new ev::io (loop);
 
     utils::before_delete bd_clean_up ([this] () -> void {
-        if (local != nullptr)
+        if (http_implement == "quic")
         {
-            freeaddrinfo(local);
-            local = nullptr;
+            if (quic_implement == "quiche")
+            {
+                quiche_h3_config_free(http3_config);
+                quiche_config_free(quic_config);
+
+                http3_config    = nullptr;
+                quic_config     = nullptr;
+            }
         }
+        else if (http_implement == "tls")
+        {
+            if (ssl_config.enabled)
+            {
+                SSL_CTX_free(ctx);
+            }
+        }
+
+        freeaddrinfo(local);
+        local = nullptr;
+
+        close(sock_fd);
+
+        delete ev_io;
     });
 
     if (http_implement == "tls")
@@ -452,71 +460,80 @@ int manapi::net::http_pool::_pool() {
             return 1;
         }
 
-
-        //quiche_enable_debug_logging(debug_log, NULL);
-
-        quic_config = quiche_config_new(QUICHE_PROTOCOL_VERSION);
-
-        if (quic_debug)
+        if (quic_implement == "quiche")
         {
-            quiche_enable_debug_logging([] (const char *line, void *arg) -> void { MANAPI_LOG("{}", line);}, nullptr);
-        }
-        // ssl
-        quiche_config_load_cert_chain_from_pem_file (quic_config, ssl_config.cert.data());
-        quiche_config_load_priv_key_from_pem_file   (quic_config, ssl_config.key.data());
+            // THE 2 MB MEMORY WILL BE LOCK FOR EVER ONE TIME
+            quic_config = quiche_config_new(QUICHE_PROTOCOL_VERSION);
 
-        {
-            std::string http_application_protocol;
-
-            switch (http_version)
+            if (quic_debug)
             {
-                case versions::HTTP_v0_9:   http_application_protocol = "\x08http/0.9"; break;
-                case versions::HTTP_v1_0:   http_application_protocol = "\x08http/1.0"; break;
-                case versions::HTTP_v1_1:   http_application_protocol = "\x08http/1.1"; break;
-                case versions::HTTP_v2:     http_application_protocol = "\x06http/2";   break;
-                case versions::HTTP_v3:     http_application_protocol = "\x02h3";       break;
-                default: THROW_MANAPI_EXCEPTION("invalid http_version, default -> {}", "HTTP_v3");
+                quiche_enable_debug_logging([] (const char *line, void *arg) -> void { MANAPI_LOG("{}", line);}, nullptr);
+            }
+            // ssl
+            quiche_config_load_cert_chain_from_pem_file (quic_config, ssl_config.cert.data());
+            quiche_config_load_priv_key_from_pem_file   (quic_config, ssl_config.key.data());
+
+            {
+                std::string http_application_protocol;
+
+                switch (http_version)
+                {
+                    case versions::HTTP_v0_9:   http_application_protocol = "\x08http/0.9"; break;
+                    case versions::HTTP_v1_0:   http_application_protocol = "\x08http/1.0"; break;
+                    case versions::HTTP_v1_1:   http_application_protocol = "\x08http/1.1"; break;
+                    case versions::HTTP_v2:     http_application_protocol = "\x06http/2";   break;
+                    case versions::HTTP_v3:     http_application_protocol = "\x02h3";       break;
+                    default: THROW_MANAPI_EXCEPTION("invalid http_version, default -> {}", "HTTP_v3");
+                }
+
+                quiche_config_set_application_protos(quic_config, reinterpret_cast <const uint8_t *> (http_application_protocol.data()), http_application_protocol.size());
             }
 
-            quiche_config_set_application_protos(quic_config, reinterpret_cast <const uint8_t *> (http_application_protocol.data()), http_application_protocol.size());
-        }
+            quiche_config_set_max_idle_timeout                      (quic_config, 2000);
+            quiche_config_set_max_recv_udp_payload_size             (quic_config, MANAPI_MAX_DATAGRAM_SIZE);
+            quiche_config_set_max_send_udp_payload_size             (quic_config,  MANAPI_MAX_DATAGRAM_SIZE);
+            quiche_config_set_initial_max_data                      (quic_config, 10000000);
+            quiche_config_set_initial_max_stream_data_bidi_local    (quic_config, 1000000);
+            quiche_config_set_initial_max_stream_data_bidi_remote   (quic_config, 1000000);
+            quiche_config_set_initial_max_stream_data_uni           (quic_config, 1000000);
+            quiche_config_set_initial_max_streams_bidi              (quic_config, 100);
+            quiche_config_set_initial_max_streams_uni               (quic_config, 100);
+            quiche_config_set_disable_active_migration              (quic_config, true);
+            quiche_config_enable_early_data                         (quic_config);
 
-        quiche_config_set_max_idle_timeout                      (quic_config, 2000);
-        quiche_config_set_max_recv_udp_payload_size             (quic_config, MANAPI_MAX_DATAGRAM_SIZE);
-        quiche_config_set_max_send_udp_payload_size             (quic_config,  MANAPI_MAX_DATAGRAM_SIZE);
-        quiche_config_set_initial_max_data                      (quic_config, 10000000);
-        quiche_config_set_initial_max_stream_data_bidi_local    (quic_config, 1000000);
-        quiche_config_set_initial_max_stream_data_bidi_remote   (quic_config, 1000000);
-        quiche_config_set_initial_max_stream_data_uni           (quic_config, 1000000);
-        quiche_config_set_initial_max_streams_bidi              (quic_config, 100);
-        quiche_config_set_initial_max_streams_uni               (quic_config, 100);
-        quiche_config_set_disable_active_migration              (quic_config, true);
-        quiche_config_enable_early_data                         (quic_config);
+            if (quic_cc_algo != versions::QUIC_CC_NONE) {
+                quiche_cc_algorithm algo = QUICHE_CC_RENO;
 
-        if (quic_cc_algo != versions::QUIC_CC_NONE) {
-            quiche_cc_algorithm algo = QUICHE_CC_RENO;
+                switch (quic_cc_algo)
+                {
+                    case versions::QUIC_CC_CUBIC:   algo = QUICHE_CC_CUBIC;     break;
+                    case versions::QUIC_CC_RENO:    algo = QUICHE_CC_RENO;      break;
+                    case versions::QUIC_CC_BBR:     algo = QUICHE_CC_BBR;       break;
+                    case versions::QUIC_CC_BBR2:    algo = QUICHE_CC_BBR2;      break;
+                    default: THROW_MANAPI_EXCEPTION("invalid quic_cc_algo: {}", quic_cc_algo);
+                }
 
-            switch (quic_cc_algo)
-            {
-                case versions::QUIC_CC_CUBIC:   algo = QUICHE_CC_CUBIC;     break;
-                case versions::QUIC_CC_RENO:    algo = QUICHE_CC_RENO;      break;
-                case versions::QUIC_CC_BBR:     algo = QUICHE_CC_BBR;       break;
-                case versions::QUIC_CC_BBR2:    algo = QUICHE_CC_BBR2;      break;
-                default: THROW_MANAPI_EXCEPTION("invalid quic_cc_algo: {}", quic_cc_algo);
+                quiche_config_set_cc_algorithm                      (quic_config, algo);
             }
 
-            quiche_config_set_cc_algorithm                      (quic_config, algo);
+            quiche_config_enable_early_data                         (quic_config);
+
+
+            http3_config = quiche_h3_config_new();
+
+            if (http3_config == nullptr)
+            {
+                THROW_MANAPI_EXCEPTION("{}", "failed to create HTTP/3 config");
+                return 1;
+            }
         }
-
-        // quiche_config_enable_early_data                         (quic_config);
-
-
-        http3_config = quiche_h3_config_new();
-
-        if (http3_config == nullptr)
+        else if (quic_implement == "msquic")
         {
-            THROW_MANAPI_EXCEPTION("{}", "failed to create HTTP/3 config");
-            return 1;
+
+        }
+        else
+        {
+            THROW_MANAPI_EXCEPTION("invalid quic_implement: {}", quic_implement);
         }
 
         ev_io->set <http_pool, &http_pool::new_connection_quic> (this);
@@ -531,7 +548,6 @@ int manapi::net::http_pool::_pool() {
 
     // say, that it can be deleted
     lock.unlock();
-
     loop.run(ev::AUTO);
 
     return 0;
@@ -678,7 +694,7 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
                                 od_cid, &od_cid_len)) {
                 THROW_MANAPI_EXCEPTION ("{}", "invalid address validation token");
                 return;
-                                }
+            }
 
             conn_io = http_task::quic_create_connection(d_cid, d_cid_len, od_cid, od_cid_len, sock_fd, client, client_len, this);
 
@@ -691,14 +707,16 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
         {
             unlock_quic_map_conns.call();
         }
+        {
+            std::lock_guard<std::mutex> lk (conn_io->wait);
+            conn_io->buffers.push_back(std::string(buff, buff_size));
+        }
 
-        auto ta = new http_task(sock_fd, buff, buff_size, client, client_len, ev_io, this);
-        ta->set_quic_config(quic_config);
-        ta->set_quic_map_conns(&quic_map_conns);
-        ta->conn_io = conn_io;
-        ta->quic_conn_io_key = conn_io->key;
+        auto task = new function_task ([this, dcid_str, client, client_len] () -> void {
+            http_task::udp_loop_event (this, dcid_str, reinterpret_cast<const sockaddr &>(client), client_len);
+        });
 
-        server->append_task(ta);
+        get_http()->append_task(task);
     }
 
     //server->append_task(ft);
@@ -714,7 +732,7 @@ void manapi::net::http_pool::new_connection_tls(ev::io &watcher, int revents) {
         return;
     }
 
-    auto *ta = new http_task(conn_fd, client, len, this);
+    auto *ta = new http_task(conn_fd, reinterpret_cast<const sockaddr &>(client), len, this);
 
     if (ssl_config.enabled)
     {

@@ -23,6 +23,7 @@ else ()
 
     # include finders
     include(./cmake/FindLibev.cmake)
+    include(./cmake/FindMsQuic.cmake)
 
     pkg_check_modules(GMP REQUIRED gmp)
     pkg_check_modules(ZLIB REQUIRED zlib)
@@ -99,8 +100,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 if (MANAPI_BUILD_METHOD STREQUAL "conan")
     target_link_libraries       (${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES} gmp::gmp openssl::openssl ZLIB::ZLIB libev::libev quiche::quiche  CURL::libcurl)
 else ()
-    target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${QUIC_LIBRARIES} ${LIBEV_LIBRARIES} ${OPENSSL_LIBRARIES} ${CURL_LIBRARIES})
-    target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${QUIC_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
+    target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${QUIC_LIBRARIES} ${LIBEV_LIBRARIES} ${OPENSSL_LIBRARIES} ${CURL_LIBRARIES} ${MSQUIC_LIBRARIES})
+    target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${QUIC_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MSQUIC_INCLUDE_DIRS})
 endif ()
 
 # Include public headers from the folder

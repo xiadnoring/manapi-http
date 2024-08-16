@@ -271,7 +271,9 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
 
     for (size_t i = start_cut; i <= end_cut; i++) {
         if (is_space_symbol(plain_text[i]))
+        {
             continue;
+        }
 
         switch (plain_text[i]) {
             case '{':
@@ -336,13 +338,17 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                         i = obj->get_end_cut() + 1;
 
                         if (i > end_cut)
+                        {
                             error_invalid_char(plain_text, end_cut);
+                        }
 
                         // skip to ',' or '}'
 
                         for (; i <= end_cut; i++) {
                             if (is_space_symbol(plain_text[i]))
+                            {
                                 continue;
+                            }
 
                             else if (plain_text[i] == '}') {
                                 end_cut = i;
@@ -350,23 +356,31 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                             }
 
                             else if (plain_text[i] == ',')
+                            {
                                 break;
+                            }
 
                             else
+                            {
                                 error_invalid_char(plain_text, i);
+                            }
                         }
 
                         key = std::u32string();
                     }
                     else if (plain_text[i] == '}') {
                         if (!key.empty())
+                        {
                             error_invalid_char(plain_text, i);
+                        }
 
                         end_cut = i;
                         break;
                     } else {
                         if (is_space_symbol(plain_text[i]) || plain_text[i] == '{')
+                        {
                             continue;
+                        }
 
                         error_invalid_char(plain_text, i);
                     }
@@ -374,13 +388,15 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
             }
 
             if (plain_text[end_cut] != '}')
+            {
                 error_invalid_char(plain_text, end_cut);
+            }
 
             break;
         case MANAPI_JSON_ARRAY:
             src = new std::vector<json *> ();
 
-            // bcz we know that is array -> skip first char ('[')
+            // bcz we know that it is an array -> skip the first char ('[')
 
             for (size_t i = start_cut + 1; i <= end_cut; i++) {
                 if (plain_text[i] == ']') {
@@ -389,13 +405,21 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                     break;
                 }
 
+                // skip the space symbols
+                if (is_space_symbol(plain_text[i]))
+                {
+                    continue;
+                }
+
                 auto *obj = new json ();
                 obj->root = false;
                 obj->parse(plain_text, use_bigint, bigint_precision, i);
                 i = obj->get_end_cut() + 1;
 
                 if (i > end_cut)
+                {
                     error_unexpected_end(end_cut);
+                }
 
                 // append
                 reinterpret_cast<json::ARRAY  *> (src)->push_back(obj);
@@ -403,10 +427,14 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                 // skip all chars to ','
                 for (; i <= end_cut; i++) {
                     if (is_space_symbol(plain_text[i]))
+                    {
                         continue;
+                    }
 
                     else if (plain_text[i] == ',')
+                    {
                         break;
+                    }
 
                     else if (plain_text[i] == ']') {
                         // the end
@@ -415,7 +443,9 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                     }
 
                     else
+                    {
                         error_invalid_char(plain_text, i);
+                    }
                 }
             }
 
@@ -433,7 +463,9 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                     i++;
 
                     if (i > end_cut)
+                    {
                         error_unexpected_end(end_cut);
+                    }
 
                     // TODO: Bad escaped char
 

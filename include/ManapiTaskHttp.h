@@ -9,8 +9,6 @@
 #include "ManapiUtils.h"
 #include "ManapiHttpTypes.h"
 
-#define MANAPI_MAX_DATAGRAM_SIZE 1350
-
 namespace manapi::net {
     class http;
 
@@ -22,9 +20,9 @@ namespace manapi::net {
         ~http_task()    override;
 
         // tcp
-        explicit        http_task(int _fd, const sockaddr_storage &_client, const socklen_t &_client_len, manapi::net::http_pool *new_http_server);
+        explicit        http_task(int _fd, const sockaddr &_client, const socklen_t &_client_len, manapi::net::http_pool *new_http_server);
         // udp
-        explicit        http_task(int _fd, char *buff, const ssize_t &size, const sockaddr_storage &_client, const socklen_t &_client_len, ev::io *loop, manapi::net::http_pool *new_http_server);
+        explicit        http_task(int _fd, char *buff, const ssize_t &size, const sockaddr &_client, const socklen_t &_client_len, ev::io *loop, manapi::net::http_pool *new_http_server);
 
         // doit for the task loop
         void            doit() override;
@@ -66,6 +64,8 @@ namespace manapi::net {
         ssize_t         openssl_read            (char *buff, const size_t &buff_size) const;
         ssize_t         openssl_write           (const char *buff, const size_t &buff_size) const;
 
+        static void     udp_loop_event (http_pool *http_server, const std::string &scid, const sockaddr &client, const socklen_t &client_len);
+
         MANAPI_HTTP_READ_INTERFACE      mask_read;
         MANAPI_HTTP_WRITE_INTERFACE     mask_write;
 
@@ -78,7 +78,7 @@ namespace manapi::net {
         SSL *ssl = nullptr;
 
         struct http_quic_conn_io  *conn_io = nullptr;
-        std::string quic_conn_io_key;
+        int64_t                 stream_id = -1;
     private:
         void            tcp_doit ();
         void            udp_doit ();
@@ -109,7 +109,7 @@ namespace manapi::net {
         quiche_config           *quic_config       = nullptr;
         QUIC_MAP_CONNS_T        *quic_map_conns    = nullptr;
 
-        sockaddr_storage        client{};
+        sockaddr                client{};
         socklen_t               client_len;
 
         int                     conn_fd{};
@@ -120,9 +120,6 @@ namespace manapi::net {
         request_data_t          request_data{};
 
         size_t                  conn_type;
-
-        int64_t                 s = -1;
-        int64_t                 id = -1;
 
         // masks
 

@@ -45,7 +45,7 @@ void handler_interrupt (int sig)
 manapi::net::http::~http() {
     destroy_uri_part (&handlers);
     MANAPI_LOG("destroy_uri_part() {}", "executed");
-};
+}
 
 manapi::net::http::http() {
     setup ();
@@ -631,7 +631,6 @@ void manapi::net::http::stop() {
     }
     {
         cv_stopping.notify_one();
-        std::lock_guard <std::mutex> lk (m_running);
     }
 }
 
@@ -710,6 +709,7 @@ void manapi::net::http::stop_pool() {
     // stop all pools
     for (const auto &pool: pools)
     {
+        MANAPI_LOG ("pool #{} is stopping...", pool.first);
         pool.second->stop();
         delete pool.second;
         MANAPI_LOG ("pool #{} stopped successfully", pool.first);

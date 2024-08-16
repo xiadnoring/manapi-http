@@ -10,11 +10,13 @@
 #include "ManapiHttp.h"
 
 #define MANAPI_QUIC_CONNECTION_ID_LEN 16
+#define MANAPI_MAX_DATAGRAM_SIZE 1350
+#define MANAPI_SEND_BURST_LIMIT 65507
 
 namespace manapi::net {
     class http;
 
-    const static size_t quic_token_max_len = sizeof ("quiche") - 1 + sizeof (struct sockaddr_storage) + QUICHE_MAX_CONN_ID_LEN;
+    constexpr static size_t quic_token_max_len = sizeof ("quiche") - 1 + sizeof (struct sockaddr_storage) + QUICHE_MAX_CONN_ID_LEN;
 
     struct ssl_config_t {
         bool            enabled = false;
@@ -70,6 +72,8 @@ namespace manapi::net {
         std::mutex          mutex;
         std::mutex          wait;
 
+        utils::VEC_STR      buffers;
+
         std::unordered_map  <uint64_t, task *> tasks;
         QUIC_MAP_CONNS_T*   conns;
     };
@@ -121,6 +125,11 @@ namespace manapi::net {
 
         utils::safe_unordered_map <utils::manapi_socket_information, task *> peer_by_ip;
         std::mutex                  recv_m;
+
+        const int                   &get_fd ();
+
+        // watchers
+        ev::io                      *ev_io = nullptr;
     private:
         int                         _pool ();
         static SSL_CTX*             ssl_create_context (const size_t &version = versions::TLS_v1_3);
@@ -141,13 +150,11 @@ namespace manapi::net {
         std::string                 port                    = "8888";// settings
         std::string                 http_implement          = "tls";
         size_t                      keep_alive              = 2;
+        std::string                 quic_implement          = "quiche";
 
         ssl_config_t                ssl_config;
 
 
-
-        // watchers
-        ev::io                      *ev_io = nullptr;
 
         SSL_CTX                     *ctx;
 

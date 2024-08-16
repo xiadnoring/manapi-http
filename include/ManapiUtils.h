@@ -94,7 +94,9 @@ namespace manapi::utils {
         ~before_delete();
         void call ();
         void disable ();
+        void enable ();
     private:
+        bool autostart = true;
         std::function <void()> f;
     };
 
