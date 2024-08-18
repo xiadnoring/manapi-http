@@ -126,7 +126,7 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
 {
     if (!request_data->has_body)
     {
-        THROW_MANAPI_EXCEPTION("{}", "this method cannot have a body")
+        THROW_MANAPI_EXCEPTION("{}", "this method cannot have a body");
     }
 
     const auto header     = utils::parse_header_value(get_headers().at(http_header.CONTENT_TYPE));

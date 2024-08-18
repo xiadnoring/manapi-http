@@ -7,6 +7,10 @@ else ()
     message(STATUS "This project is a top-level one")
 endif ()
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_definitions(MANAPI_HTTP_BUILD_DEBUG)
+endif ()
+
 if (MANAPI_BUILD_METHOD STREQUAL "conan")
     message(STATUS "Build method: conan")
 
@@ -76,16 +80,21 @@ set(MANAPI_HTTP_FILES
         include/ManapiJsonMask.h
         src/ManapiJsonMask.cpp
         include/ManapiHttpPool.h
-        src/ManapiHttpPool.cpp)
+        src/ManapiHttpPool.cpp
+        src/http3/ManapiQuic.cpp
+        include/http3/ManapiQuic.h)
 
 if (MANAPI_BUILD_TYPE STREQUAL "exe")
     # EXE
     message(STATUS "Build type 'exe'")
+
+    add_compile_definitions(MANAPI_HTTP_AS_EXECUTABLE)
     add_executable(${PROJECT_NAME} main.cpp test.cpp test.h ${MANAPI_HTTP_FILES})
 else ()
     # LIB
     message(STATUS "Build type 'lib'")
 
+    add_compile_definitions(MANAPI_HTTP_AS_LIBRARY)
     add_library(${PROJECT_NAME} SHARED ${MANAPI_HTTP_FILES})
 
     set_target_properties(${PROJECT_NAME} PROPERTIES

@@ -11,6 +11,14 @@
 #include <fstream>
 #include <unistd.h>
 
+#ifdef MANAPI_HTTP_BUILD_DEBUG
+#define MANAPI_LOG(msg, ...)                manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg, __VA_ARGS__)
+#else
+#define MANAPI_LOG(msg, ...)
+#endif
+
+#define THROW_MANAPI_EXCEPTION(msg, ...)    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg, __VA_ARGS__)
+
 namespace manapi::net {
     struct header_value_t {
         std::string                             value;
@@ -37,8 +45,6 @@ namespace manapi::utils {
             return port == other.port && ip == other.ip;
         }
     };
-#define MANAPI_LOG(msg, ...)                manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg, __VA_ARGS__)
-#define THROW_MANAPI_EXCEPTION(msg, ...)    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg, __VA_ARGS__);
 
     typedef std::map <std::string, std::string> MAP_STR_STR;
     typedef std::vector <std::string>           VEC_STR;
@@ -137,7 +143,7 @@ namespace manapi::utils {
     inline size_t debug_print_memory (const std::string &title = "common")
     {
         pid_t pid = getpid(); // Get the process ID
-        std::ifstream status_file("/proc/" + std::to_string(pid) + "/status", std::ios::binary);
+        std::ifstream status_file("/proc/" + std::to_string(pid) + "/status", std::ios::binary | std::ios::in);
         std::string line;
         size_t memory_usage = 0;
         if (status_file.is_open()) {

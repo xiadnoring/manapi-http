@@ -1,8 +1,8 @@
-//
-// Created by Timur on 8/17/24.
-//
-
 #ifndef MANAPIQUIC_H
 #define MANAPIQUIC_H
+
+namespace manapi::net::quic {
+
+}
 
 #endif //MANAPIQUIC_H

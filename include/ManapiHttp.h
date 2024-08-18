@@ -124,7 +124,7 @@ namespace manapi::net {
         // config
         std::string                 *config_cache_dir = nullptr;
 
-        void                        stop ();
+        void                        stop (bool wait = false);
 
         static std::vector <http *>
                                     running;
@@ -165,7 +165,7 @@ namespace manapi::net {
         std::condition_variable     cv_stopping;
         std::atomic <bool>          stopping;
 
-        std::promise <void>         pool_promise;
+        std::unique_ptr<std::promise <void>> pool_promise;
 
         std::unordered_map<size_t, http_pool *> pools;
 

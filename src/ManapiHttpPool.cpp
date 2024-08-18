@@ -489,7 +489,7 @@ int manapi::net::http_pool::_pool() {
                 quiche_config_set_application_protos(quic_config, reinterpret_cast <const uint8_t *> (http_application_protocol.data()), http_application_protocol.size());
             }
 
-            quiche_config_set_max_idle_timeout                      (quic_config, 2000);
+            quiche_config_set_max_idle_timeout                      (quic_config, 5000);
             quiche_config_set_max_recv_udp_payload_size             (quic_config, MANAPI_MAX_DATAGRAM_SIZE);
             quiche_config_set_max_send_udp_payload_size             (quic_config,  MANAPI_MAX_DATAGRAM_SIZE);
             quiche_config_set_initial_max_data                      (quic_config, 10000000);
@@ -617,6 +617,7 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
 
         if (conn_io == nullptr)
         {
+            MANAPI_LOG("connections: {} ({})", quic_map_conns.size() + 1, dcid_str);
             // UNLOCK UNORDERED MAP
             unlock_quic_map_conns.call();
 
@@ -702,14 +703,27 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
             {
                 return;
             }
+
+            MANAPI_LOG("new connection: {}", dcid_str);
         }
         else
         {
             unlock_quic_map_conns.call();
         }
+
         {
-            std::lock_guard<std::mutex> lk (conn_io->wait);
+            quic_map_conns.lock();
+            utils::before_delete bd_map ([this] () -> void { quic_map_conns.unlock(); });
+            if (!quic_map_conns.contains(dcid_str))
+            {
+                return;
+            }
+
             conn_io->buffers.push_back(std::string(buff, buff_size));
+            if (conn_io->flag)
+            {
+                return;
+            }
         }
 
         auto task = new function_task ([this, dcid_str, client, client_len] () -> void {

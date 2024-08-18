@@ -84,7 +84,6 @@ namespace manapi::net {
         void            udp_doit ();
 
         bool            socket_wait_select () const;
-
         // QUIC
 
 

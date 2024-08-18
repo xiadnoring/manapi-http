@@ -3,6 +3,7 @@
 
 #include <ev++.h>
 #include <netdb.h>
+#include <list>
 #include "ManapiUtils.h"
 #include "ManapiThreadSafe.h"
 #include "ManapiJson.h"
@@ -12,6 +13,7 @@
 #define MANAPI_QUIC_CONNECTION_ID_LEN 16
 #define MANAPI_MAX_DATAGRAM_SIZE 1350
 #define MANAPI_SEND_BURST_LIMIT 65507
+#define MANAPI_QUIC_CAPACITY_MIN 5
 
 namespace manapi::net {
     class http;
@@ -70,9 +72,10 @@ namespace manapi::net {
         std::string         key;
 
         std::mutex          mutex;
-        std::mutex          wait;
+        bool                flag = false;
+        //std::timed_mutex    wait;
 
-        utils::VEC_STR      buffers;
+        std::list <std::string>      buffers;
 
         std::unordered_map  <uint64_t, task *> tasks;
         QUIC_MAP_CONNS_T*   conns;

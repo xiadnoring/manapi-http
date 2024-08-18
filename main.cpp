@@ -24,8 +24,14 @@ int main(int argc, char *argv[]) {
         server.set_config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json");
 
         server.GET ("/", [] (REQ(req), RESP(resp)) {
-            resp.set_header(http_header.ALT_SVC, stringify_header_value({{"", {{"h3", "\":443\""}}}}));
+            resp.set_compress_enabled(true);
+            resp.set_header(http_header.ALT_SVC, stringify_header_value({{"", {{"h3", "\":8888\""}}}}));
             resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
+        });
+
+        server.GET ("/test", [] (REQ(req), RESP(resp)) -> void {
+            resp.set_compress_enabled(true);
+            resp.text("pon");
         });
 
         server.GET ("/video", [] (REQ(req), RESP(resp)) {
@@ -173,6 +179,18 @@ int main(int argc, char *argv[]) {
             server.stop();
 
             resp.text("OK");
+        });
+
+        server.GET("/audio", [] (REQ(req), RESP(resp)) -> void {
+            resp.set_partial_status(true);
+            resp.set_compress_enabled(false);
+            resp.file("/home/Timur/Music/Death By Glamour.mp3");
+        });
+
+        server.GET("/freeze", [] (REQ(req), RESP(resp)) -> void {
+            this_thread::sleep_for(std::chrono::seconds(10000));
+
+            resp.text("ok");
         });
 
         server.POST ("/form", [] (REQ(req), RESP(resp)) {

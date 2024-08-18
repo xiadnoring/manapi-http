@@ -19,7 +19,7 @@ namespace manapi::net {
         all_threads = new pthread_t[thread_number];
         if (all_threads == nullptr)
         {
-            THROW_MANAPI_EXCEPTION("cant init threadpool because thread array cant new: {}", "all_threads = nullptr")
+            THROW_MANAPI_EXCEPTION("cant init threadpool because thread array cant new: {}", "all_threads = nullptr");
         }
     }
 

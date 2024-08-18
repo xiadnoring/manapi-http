@@ -1,5 +1,6 @@
 #include <iostream>
 #include <csignal>
+#include <memory>
 #include <utility>
 #include <vector>
 #include <memory.h>
@@ -62,6 +63,8 @@ std::future<void> manapi::net::http::pool(const size_t &thread_num) {
             tasks_pool->start();
         }
 
+        pool_promise = std::make_unique<std::promise<void>>();
+
         // init all pools
         if (config.contains("pools"))
         {
@@ -76,8 +79,8 @@ std::future<void> manapi::net::http::pool(const size_t &thread_num) {
 
         std::thread stop_thread ([this] () -> void {
             utils::before_delete unwrap_stop_pool ([this] () -> void {
+                pool_promise->set_value();
                 m_running.unlock();
-                pool_promise.set_value();
             });
 
             stop_pool();
@@ -85,7 +88,7 @@ std::future<void> manapi::net::http::pool(const size_t &thread_num) {
         stop_thread.detach();
     }
 
-    return pool_promise.get_future();
+    return pool_promise->get_future();
 }
 
 void manapi::net::http::GET(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask) {
@@ -193,12 +196,6 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
 
         if (handler == nullptr) {
             // TODO: handler error
-        }
-
-        // TODO: RESOLVE there are set has_body has no effect
-        if (cur->has_body)
-        {
-            request_data.has_body = true;
         }
 
         handler_page.handler = handler;
@@ -624,13 +621,18 @@ void manapi::net::http::save_config() {
     manapi::filesystem::config::write(*config_cache_dir + default_config_name, cache_config);
 }
 
-void manapi::net::http::stop() {
+void manapi::net::http::stop(bool wait) {
     {
         std::lock_guard <std::mutex> lk (m_initing);
         stopping = true;
     }
     {
         cv_stopping.notify_one();
+
+        if (wait)
+        {
+            std::lock_guard <std::mutex> lk (m_running);
+        }
     }
 }
 
@@ -714,6 +716,10 @@ void manapi::net::http::stop_pool() {
         delete pool.second;
         MANAPI_LOG ("pool #{} stopped successfully", pool.first);
     }
+
+    pools.clear();
+    next_pool_id = 0;
+    stopping = false;
 
     this->save();
 

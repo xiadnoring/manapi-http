@@ -55,8 +55,8 @@ bool manapi::utils::compress::deflate_compress_file(const std::string &src, cons
         throw_file_exists ("deflate", dest);
     }
 
-    std::ifstream input (src, std::ios::binary);
-    std::ofstream output (dest, std::ios::binary);
+    std::ifstream input (src, std::ios::binary | std::ios::in);
+    std::ofstream output (dest, std::ios::binary | std::ios::out);
 
     if (!input.is_open())
     {
@@ -117,8 +117,8 @@ bool manapi::utils::compress::deflate_decompress_file(const std::string &src, co
         throw_file_exists ("deflate", dest);
     }
 
-    std::ifstream input (src, std::ios::binary);
-    std::ofstream output (dest, std::ios::binary);
+    std::ifstream input (src, std::ios::binary | std::ios::in);
+    std::ofstream output (dest, std::ios::binary | std::ios::out);
 
     if (!input.is_open())
     {
@@ -195,26 +195,31 @@ std::string manapi::utils::compress::gzip(const std::string &str, const int &lev
     }
 
     std::string output;
-    output.resize(str.size() * 2);
+    z_stream stream = {nullptr};
 
-    z_stream zs;
-    zs.zalloc       = Z_NULL;
-    zs.zfree        = Z_NULL;
-    zs.opaque       = Z_NULL;
-    zs.avail_in     = (uInt)    str.size();
-    zs.next_in      = (Bytef *) str.data();
-    zs.avail_out    = (uInt)    output.size();
-    zs.next_out     = (Bytef *) output.data();
+    if(deflateInit2(&stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK)
+    {
+        THROW_MANAPI_EXCEPTION ("gzip: {}", "deflateInit(...) failed!");
+    }
 
-    // hard to believe they don't have a macro for gzip encoding, "Add 16" is the best thing zlib can do:
-    // "Add 16 to windowBits to write a simple gzip header and trailer around the compressed data instead of a zlib wrapper"
-    deflateInit2(&zs, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16, 8, Z_DEFAULT_STRATEGY);
-    deflate(&zs, Z_FINISH);
-    deflateEnd(&zs);
+    char out_buff[CHUNK_SIZE];
 
-    output.resize(zs.total_out);
+    stream.avail_in = str.size();
+    stream.next_in  = (Byte*)str.data();
 
-    return output;
+    do {
+        stream.avail_out    = CHUNK_SIZE;
+        stream.next_out     = (Byte*)out_buff;
+
+        deflate(&stream, Z_FINISH);
+        const ssize_t bytes = CHUNK_SIZE - stream.avail_out;
+
+        output.append(out_buff, bytes);
+    } while (stream.avail_out == 0);
+
+    deflateEnd(&stream);
+
+    return std::move(output);
 }
 
 std::string manapi::utils::compress::gzip (const std::string &str, const std::string *folder) {
@@ -228,8 +233,8 @@ bool manapi::utils::compress::gzip_compress_file(const std::string &src, const s
         throw_file_exists ("gzip", dest);
     }
 
-    std::ifstream input (src, std::ios::binary);
-    std::ofstream output (dest, std::ios::binary);
+    std::ifstream input (src, std::ios::binary | std::ios::in);
+    std::ofstream output (dest, std::ios::binary | std::ios::out);
 
     if (!input.is_open())
     {
@@ -245,7 +250,7 @@ bool manapi::utils::compress::gzip_compress_file(const std::string &src, const s
     char out_buff[CHUNK_SIZE];
     z_stream stream = {nullptr};
 
-    if(deflateInit2(&stream, level, Z_DEFLATED, 31, 8, strategy) != Z_OK)
+    if(deflateInit2(&stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK)
     {
         input.close();
         output.close();

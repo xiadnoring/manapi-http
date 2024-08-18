@@ -35,6 +35,8 @@ namespace manapi::utils {
         void reset ();
 
         void wait_update ();
+
+        size_t size();
     private:
         std::mutex              m_update;
         std::condition_variable cv_update;
@@ -61,6 +63,11 @@ template<typename K, typename V>
 void manapi::utils::safe_unordered_map<K, V>::wait_update() {
     std::unique_lock<std::mutex> lkq (m_update);
     cv_update.wait(lkq);
+}
+
+template<typename K, typename V>
+size_t manapi::utils::safe_unordered_map<K, V>::size() {
+    return map.size();
 }
 
 template <typename K, typename V>
