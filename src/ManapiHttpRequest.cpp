@@ -377,25 +377,9 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
         {
             // calc --{BOUNDARY}--
 
-            if (--boundary_index > 2)
-            {
-                // TODO: RESOLVE CHECKER --\r\n form data
-//                char *a = request_data->body_ptr + request_data->body_index * sizeof (char);
-//                if (request_data->body_ptr[request_data->body_index] == '-')
-//                {
-//                    if (boundary_index == 2)
-//                    {
-//                        request_data->body_index ++;
-//                        return;
-//                    }
-//
-//                    continue;
-//                }
-
-                boundary_index -= 1;
-            }
-
             // calc --{BOUNDARY}
+
+
 
             if (boundary_index == 0)
             {
@@ -412,7 +396,6 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
                     }
                     else
                     {
-                        char *a = request_data->body_ptr + request_data->body_index * sizeof (char);
                         size_t size_str = request_data->body_index - checkpoint - body_boundary.size() - 2;
 
                         send_line (request_data->body_ptr + sizeof (char) * checkpoint, size_str);
@@ -423,6 +406,11 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
 
                 checkpoint  = request_data->body_index;
                 size_extra  = 0;
+                if (request_data->body_size - 2 == request_data->body_index) { request_data->body_index+=2; }
+            }
+            else
+            {
+                boundary_index--;
             }
 
             continue;
@@ -434,7 +422,12 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
         {
             new_line = false;
 
-            size_t size_str = request_data->body_index + size_extra - checkpoint - 2 ;
+
+            size_t size_str = request_data->body_index + size_extra;
+            if (size_str < checkpoint + 2) {
+                THROW_MANAPI_EXCEPTION("BUG: size_str < {}.", 0);
+            }
+            size_str = size_str - checkpoint - 2;
 
             if (!name.empty() && size_str == 0 && !value)
             {
@@ -526,20 +519,27 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
 
             if (body_boundary.size() == boundary_index)
             {
-                boundary_index  = 4;
+                boundary_index  = 2;
                 is_boundary     = true;
 
                 if (file_data.exists)
-                    file_data.exists    = false;
+                { file_data.exists    = false; }
             }
 
             continue;
         }
-        else if (boundary_index != 0)
+        if (boundary_index != 0)
         {
-            // first \r\n is equal
-            if (!value && boundary_index == 2)
+            // first \r\n is equal, but other is not equ -> cut
+            if (!value && boundary_index >= 2)
             {
+                boundary_index -= 2;
+                // can back in buf
+                const size_t can_back = std::min (request_data->body_index, boundary_index);
+                const size_t to_buff = boundary_index - can_back;
+                memcpy(buff_extra + size_extra, body_boundary.data() + 2, to_buff);
+                size_extra += to_buff;
+                request_data->body_index -= can_back;
                 new_line            = true;
             }
 

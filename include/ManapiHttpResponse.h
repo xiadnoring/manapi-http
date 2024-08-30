@@ -43,6 +43,7 @@ namespace manapi::net {
         [[nodiscard]] bool              is_file     () const;
         [[nodiscard]] bool              is_text     () const;
         [[nodiscard]] bool              is_proxy    () const;
+        [[nodiscard]] bool              is_no_data  () const;
 
         [[nodiscard]] bool              has_ranges  () const;
 

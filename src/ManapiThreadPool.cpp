@@ -1,12 +1,15 @@
 #include <csignal>
 
 #include "ManapiThreadPool.h"
+
+#include <future>
+
 #include "ManapiTask.h"
 #include "ManapiUtils.h"
 
 namespace manapi::net {
     template<class T>
-    threadpool<T>::threadpool(size_t thread_num): thread_number(thread_num),is_stop(false),all_threads(nullptr),stopped(0) {
+    threadpool<T>::threadpool(size_t thread_num, size_t queues_count): thread_number(thread_num),is_stop(false),stopped(0) {
         sigemptyset(&blockedSignal);
         sigaddset(&blockedSignal, SIGPIPE);
         pthread_sigmask(SIG_BLOCK, &blockedSignal, nullptr);
@@ -16,11 +19,12 @@ namespace manapi::net {
             THROW_MANAPI_EXCEPTION("threadpool cant init because thread_number = {}", 0);
         }
 
-        all_threads = new pthread_t[thread_number];
-        if (all_threads == nullptr)
+        if (queues_count <= 0)
         {
-            THROW_MANAPI_EXCEPTION("cant init threadpool because thread array cant new: {}", "all_threads = nullptr");
+            THROW_MANAPI_EXCEPTION("{} < 0 in threadpool", "queues_count");
         }
+
+        task_queues.resize(queues_count);
     }
 
     template<class T>
@@ -30,7 +34,6 @@ namespace manapi::net {
 
     template<class T>
     threadpool<T>::~threadpool() {
-        delete []all_threads;
         stop();
     }
 
@@ -47,31 +50,23 @@ namespace manapi::net {
 
     template<class T>
     void threadpool<T>::start() {
-        for (size_t i = 0; i < thread_number; ++i) {
-            // failed to create thread, clear the successfully applied resources and throw an exception and
-            // set the thread to leave the thread
-            if (pthread_create(all_threads + i, nullptr, worker, this) != 0
-                || pthread_detach(all_threads[i])) {
-                delete []all_threads;
-                THROW_MANAPI_EXCEPTION("{}", "failed to create thread pool");
-            }
-        }
+        for (size_t i = all_threads.size(); i < thread_number; i++) { all_threads.emplace_back(worker, this); all_threads[i].detach(); }
     }
 
     template<class T>
-    bool threadpool<T>::append_task(T *task, bool important) {
+    bool threadpool<T>::append_task(T *task, int level) {
         if (is_stop)
         {
             return false;
         }
 
         // obtain a mutex
-        queue_mutex_locker.mutex_lock();
+        queue_mutex.lock();
 
 
-        if (important && !task_queue.empty())
+        if (level >= task_queues.size())
         {
-            queue_mutex_locker.mutex_unlock();
+            queue_mutex.unlock();
 
             std::thread t ([this, task] () -> void { task_doit(task); });
             t.detach();
@@ -79,9 +74,9 @@ namespace manapi::net {
         else
         {
             // add into the queue
-            task_queue.push(task);
+            task_queues[level].push(task);
 
-            queue_mutex_locker.mutex_unlock();
+            queue_mutex.unlock();
 
             // wake up the thread waiting for the task
 
@@ -94,14 +89,18 @@ namespace manapi::net {
     template<class T>
     T* threadpool<T>::getTask() {
         T *task = nullptr;
-        queue_mutex_locker.mutex_lock();
-        if (!task_queue.empty())
+        std::lock_guard<std::mutex> lk (queue_mutex);
+        // from n ... 0 by level
+        for (auto task_queue = task_queues.rbegin(); task_queue != task_queues.rend(); task_queue++)
         {
-            task = task_queue.front();
-            task_queue.pop();
+            if (!task_queue->empty())
+            {
+                task = task_queue->front();
+                task_queue->pop();
+                break;
+            }
         }
 
-        queue_mutex_locker.mutex_unlock();
         return task;
     }
 
@@ -151,15 +150,11 @@ namespace manapi::net {
         {
             if (task->to_retry)
             {
-                queue_mutex_locker.mutex_lock();
-
                 // RESET
                 task->to_retry = false;
                 task->to_delete = true;
 
-                task_queue.push(task);
-
-                queue_mutex_locker.mutex_unlock();
+                append_task(task);
             }
         }
     }

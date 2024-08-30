@@ -730,10 +730,8 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
             http_task::udp_loop_event (this, dcid_str, reinterpret_cast<const sockaddr &>(client), client_len);
         });
 
-        get_http()->append_task(task);
+        get_http()->append_task(task, 1);
     }
-
-    //server->append_task(ft);
 }
 
 void manapi::net::http_pool::new_connection_tls(ev::io &watcher, int revents) {
@@ -753,7 +751,7 @@ void manapi::net::http_pool::new_connection_tls(ev::io &watcher, int revents) {
         ta->ssl = SSL_new(ctx);
     }
 
-    server->append_task(ta);
+    server->append_task(ta, 1);
 }
 
 manapi::net::http * manapi::net::http_pool::get_http() const {

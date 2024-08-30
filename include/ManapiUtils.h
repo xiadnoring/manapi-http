@@ -29,6 +29,7 @@ namespace manapi::net {
 }
 
 namespace manapi::utils {
+    class json;
 
     struct replace_founded_item {
         std::string key;
@@ -59,6 +60,7 @@ namespace manapi::utils {
     [[maybe_unused]] void ljust (std::string &str, const size_t &size, const char &c);
 
     char            hex2dec             (const char &a);
+    char            dec2hex             (const char &a);
     std::string     escape_string       (const std::string &str);
     std::u32string  escape_string       (const std::u32string &str);
     bool            valid_special_symbol(const char &c);
@@ -67,6 +69,12 @@ namespace manapi::utils {
     bool            escape_char_need    (const char32_t &c);
 
     std::string     generate_cache_name (const std::string &basename, const std::string &ext);
+
+    std::string     encode_url          (const std::string &str);
+    std::string     decode_url          (const std::string &str);
+    std::string     json2form           (const utils::json &obj);
+
+    const std::string     &mime_by_file_path  (const std::string &path);
 
     // random
 

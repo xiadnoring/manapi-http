@@ -10,7 +10,7 @@ manapi::net::http_response::http_response(manapi::net::request_data_t &_request_
     tasks           = new manapi::net::api::pool (http_server->get_http()->get_tasks_pool());
     request_data    = &_request_data;
 
-    type            = MANAPI_HTTP_RESP_TEXT;
+    type            = MANAPIHTTP_RESP_NO_DATA;
 
     detect_ranges ();
 }
@@ -80,6 +80,10 @@ bool manapi::net::http_response::is_text() const {
 
 bool manapi::net::http_response::is_proxy() const {
     return type == MANAPI_HTTP_RESP_PROXY;
+}
+
+bool manapi::net::http_response::is_no_data() const {
+    return type == MANAPIHTTP_RESP_NO_DATA;
 }
 
 bool manapi::net::http_response::has_ranges() const {

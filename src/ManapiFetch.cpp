@@ -1,4 +1,3 @@
-#include <curl/curl.h>
 #include <exception>
 
 #include "ManapiHttp.h"
@@ -54,42 +53,41 @@ size_t curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user
 manapi::net::fetch::fetch(const std::string &_url) {
     url     = _url;
     method  = new std::string ("GET");
+    curl    = curl_easy_init();
 }
 
 manapi::net::fetch::~fetch() {
-    if (!headers_linked)
-    {
-        delete headers;
-    }
-
     if (!method_linked)
     {
         delete method;
+        method = nullptr;
     }
 
     if (!body_linked)
     {
         delete body;
+        body = nullptr;
     }
 
+    if (curl != nullptr)
+    {
+        curl_easy_cleanup(curl);
+        curl = nullptr;
+    }
 }
 
 void manapi::net::fetch::doit() {
-    CURL *curl;
-    curl = curl_easy_init();
-
     if (curl == nullptr)
     {
-        throw std::exception ();
+        THROW_MANAPI_EXCEPTION("curl can not be init: {}", url);
     }
 
-    struct curl_slist* curl_headers = nullptr;
-
-    // headers
-    for (const auto &header: *headers)
-    {
-        curl_headers = curl_slist_append(curl_headers, manapi::utils::stringify_header(header).data());
-    }
+    utils::before_delete clean_up ([&] () {
+        if (curl_headers != nullptr)
+        {
+            curl_slist_free_all(curl_headers);
+        }
+    });
 
     curl_data_t data {
         .handler_body = handler_body,
@@ -138,18 +136,16 @@ void manapi::net::fetch::doit() {
         data.handler_headers (headers_list);
     }
 
-    resp = curl_easy_perform(curl);
-
-    if (curl_headers != nullptr)
+    if (handle_custom_setup != nullptr)
     {
-        curl_slist_free_all(curl_headers);
+        handle_custom_setup (curl);
     }
 
-    curl_easy_cleanup(curl);
+    resp = curl_easy_perform(curl);
 
     if (resp != CURLE_OK)
     {
-        throw manapi::utils::exception ("Connection failed");
+        MANAPI_LOG ("Connection failed: {}", url);
     }
 
     curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &status_code);
@@ -178,7 +174,7 @@ std::string manapi::net::fetch::text() {
 }
 
 manapi::utils::json manapi::net::fetch::json() {
-    return manapi::utils::json (text());
+    return manapi::utils::json (text(), true);
 }
 
 
@@ -189,6 +185,7 @@ void manapi::net::fetch::handle_headers(const std::function<void(const std::map 
 void manapi::net::fetch::set_method(const std::string &_method, const bool &linked) {
     if (!method_linked)
     {
+        // if exists
         delete method;
     }
 
@@ -207,6 +204,7 @@ void manapi::net::fetch::set_method(const std::string &_method, const bool &link
 void manapi::net::fetch::set_body(const std::string &data, const bool &linked) {
     if (!body_linked)
     {
+        // if exists
         delete body;
     }
 
@@ -222,22 +220,20 @@ void manapi::net::fetch::set_body(const std::string &data, const bool &linked) {
     }
 }
 
-void manapi::net::fetch::set_headers(const std::map<std::string, std::string> &_headers, const bool &linked) {
-    if (!headers_linked)
+void manapi::net::fetch::set_headers(const std::map<std::string, std::string> &headers) {
+    // headers
+    for (const auto &header: headers)
     {
-        delete headers;
+        curl_headers = curl_slist_append(curl_headers, manapi::utils::stringify_header(header).data());
     }
+}
 
-    headers_linked = linked;
+void manapi::net::fetch::set_custom_setup(const std::function<void(CURL *curl)> &func) {
+    handle_custom_setup = func;
+}
 
-    if (linked)
-    {
-        headers = &_headers;
-    }
-    else
-    {
-        headers = new std::map <std::string, std::string> (_headers);
-    }
+void manapi::net::fetch::enable_ssl_verify(const bool &status) {
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, static_cast<ssize_t> (status));
 }
 
 size_t manapi::net::fetch::get_status_code() const {

@@ -12,6 +12,8 @@ namespace manapi::utils {
     class safe_unordered_map {
     public:
         safe_unordered_map();
+        safe_unordered_map(std::initializer_list <std::pair <const K, V> > list);
+
         ~safe_unordered_map();
 
         auto insert (const K &key, const V &value);
@@ -49,8 +51,18 @@ namespace manapi::utils {
 template <typename K, typename V>
 manapi::utils::safe_unordered_map<K, V>::safe_unordered_map() {}
 
+template<typename K, typename V>
+manapi::utils::safe_unordered_map<K, V>::safe_unordered_map(std::initializer_list<std::pair<const K, V>> list) {
+    for (const auto p: list)
+    {
+        map.insert(p);
+    }
+}
+
 template <typename K, typename V>
-manapi::utils::safe_unordered_map<K, V>::~safe_unordered_map() {}
+manapi::utils::safe_unordered_map<K, V>::~safe_unordered_map() {
+
+}
 
 template<typename K, typename V>
 void manapi::utils::safe_unordered_map<K, V>::reset() {

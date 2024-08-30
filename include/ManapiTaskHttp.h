@@ -15,6 +15,12 @@ namespace manapi::net {
 #define MANAPI_HTTP_READ_INTERFACE std::function<ssize_t(char *buff, const size_t &buff_size)>
 #define MANAPI_HTTP_WRITE_INTERFACE std::function<ssize_t(const char *buff, const size_t &buff_size)>
 
+    struct file_transfer_information {
+        std::string path;
+        ssize_t size;
+        ssize_t transfered;
+    };
+
     class http_task : public task{
     public:
         ~http_task()    override;

@@ -9,11 +9,12 @@ namespace manapi::filesystem {
     static char delimiter = std::filesystem::path::preferred_separator;
     static std::string string_delimiter (&delimiter, 1);
 
-    std::string basename        (const std::string& path);
-    bool        exists          (const std::string& path);
+    std::string basename        (const std::string &path);
+    std::string extension       (const std::string &path);
+    bool        exists          (const std::string &path);
     std::string last_time_write (const std::filesystem::path &f,    bool time = false);
     std::string last_time_write (const std::string &path,           bool time = false);
-    void        mkdir           (const std::string& path,           bool recursive = true);
+    void        mkdir           (const std::string &path,           bool recursive = true);
     void        append_delimiter(std::string &path);
     ssize_t     get_size        (std::ifstream& f);
     ssize_t     get_size        (const std::string &path);

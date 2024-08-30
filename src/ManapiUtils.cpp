@@ -14,6 +14,7 @@
 
 #include "ManapiUtils.h"
 #include "ManapiFilesystem.h"
+#include "ManapiHttpTypes.h"
 
 static std::random_device   random_dev;
 static std::mt19937         random_ng (random_dev());
@@ -97,6 +98,10 @@ char manapi::utils::hex2dec(const char &a) {
     return (char)(a >= 'A' ? a - 'A' + 10 : a - '0');
 }
 
+char manapi::utils::dec2hex(const char &a) {
+    return (char)(a >= 10 ? a - 10 + 'A' : a + '0');
+}
+
 std::string manapi::utils::escape_string (const std::string &str) {
     std::string escaped;
 
@@ -125,6 +130,7 @@ std::string manapi::utils::escape_string (const std::string &str) {
 
     return escaped;
 }
+
 std::u32string manapi::utils::escape_string (const std::u32string &str) {
     std::u32string escaped;
 
@@ -170,7 +176,6 @@ std::u32string manapi::utils::escape_string (const std::u32string &str) {
     return escaped;
 }
 
-
 bool manapi::utils::escape_char_need (const char &ch) {
     return ch == '"' || ch == '\\';
 }
@@ -212,6 +217,75 @@ std::string manapi::utils::generate_cache_name (const std::string &file, const s
     name += ext;
 
     return name;
+}
+
+std::string manapi::utils::encode_url(const std::string &str) {
+    std::ostringstream escaped;
+    escaped.fill('0');
+    escaped << std::hex;
+
+    for (const auto &c: str)
+    {
+        if (isalnum(c) || c == '_' || c == '-' || c == '.' || c == '~')
+        {
+            escaped << c;
+            continue;
+        }
+
+        if (c == ' ')
+        {
+            escaped << '+';
+            continue;
+        }
+
+        escaped << std::uppercase;
+        escaped << '%' << std::setw(2) << int(static_cast<unsigned int> (c));
+        escaped << std::nouppercase;
+    }
+
+    return escaped.str();
+}
+
+std::string manapi::utils::decode_url(const std::string &str) {}
+
+std::string manapi::utils::json2form(const json &obj) {
+    if (!obj.is_object())
+    {
+        THROW_MANAPI_EXCEPTION("{}", "is_object() -> false in json2form(...)");
+    }
+
+    std::string data;
+    auto it = obj.begin<json::OBJECT>();
+    goto loop;
+
+    for (; it != obj.end<json::OBJECT>(); it ++)
+    {
+        data += '&';
+        loop:
+        if (it->second->is_string())
+        {
+            data += encode_url(it->first) + "=" + encode_url(it->second->get<std::string>());
+        }
+        else
+        {
+            data += encode_url(it->first) + "=" + encode_url(it->second->dump());
+        }
+
+    }
+    return std::move(data);
+}
+
+const std::string &manapi::utils::mime_by_file_path(const std::string &path) {
+    const std::string extension = manapi::filesystem::extension(path);
+    manapi::net::mime_by_extension.lock();
+    utils::before_delete unlock ([] () -> void { manapi::net::mime_by_extension.unlock(); });
+
+    if (manapi::net::mime_by_extension.contains(extension))
+    {
+        return manapi::net::mime_by_extension.at(extension);
+    }
+
+    return manapi::net::mime_by_extension.at("bin");
 }
 
 

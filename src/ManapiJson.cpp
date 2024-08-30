@@ -45,8 +45,20 @@ manapi::utils::json::json(const ssize_t &num) {
     this->parse(num);
 }
 
+manapi::utils::json::json(const size_t &num) {
+    this->parse(num);
+}
+
 manapi::utils::json::json(const manapi::utils::json &other) {
     *this = other;
+}
+
+manapi::utils::json::json(json &&other) noexcept {
+    src = other.src;
+    type = other.type;
+
+    other.type = MANAPI_JSON_NULL;
+    other.src = nullptr;
 }
 
 manapi::utils::json::json(const char *plain_text, bool is_json)
@@ -623,6 +635,10 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
     }
 }
 
+void manapi::utils::json::parse(const size_t &num) {
+    this->parse (static_cast<ssize_t> (num));
+}
+
 std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_spaces) const {
 #define JSON_DUMP_NEED_NEW_LINE if (spaces_enabled) str += '\n';
 #define JSON_DUMP_NEED_NEW_LINE_OR_SPACE    JSON_DUMP_NEED_NEW_LINE \
@@ -866,7 +882,7 @@ manapi::utils::json &manapi::utils::json::operator=(const char *str) {
 }
 
 manapi::utils::json &manapi::utils::json::operator=(const int &num) {
-    return this->operator=((ssize_t) num);
+    return this->operator=(static_cast<ssize_t> (num));
 }
 
 manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::bigint &num) {
@@ -879,71 +895,79 @@ manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::bigint 
 }
 
 manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::json &obj) {
-    // temp values
-    short   temp_type = this->type;
-    void    *temp_src = this->src;
+    if (&obj != this)
+    {
+        // temp values
+        short   temp_type = this->type;
+        void    *temp_src = this->src;
 
-    this->start_cut             = 0;
-    this->type                  = obj.type;
-    this->root                  = true;
+        this->start_cut             = 0;
+        this->type                  = obj.type;
+        this->root                  = true;
 
-    switch (type) {
-        case MANAPI_JSON_STRING:
-            src = new std::string (*reinterpret_cast<std::string *> (obj.src));
+        switch (type) {
+            case MANAPI_JSON_STRING:
+                src = new std::string (*reinterpret_cast<std::string *> (obj.src));
             break;
-        case MANAPI_JSON_NUMBER:
-            src = new ssize_t (*reinterpret_cast<ssize_t *> (obj.src));
+            case MANAPI_JSON_NUMBER:
+                src = new ssize_t (*reinterpret_cast<ssize_t *> (obj.src));
             break;
-        case MANAPI_JSON_DECIMAL:
-            src = new double long (*reinterpret_cast<double long *> (obj.src));
+            case MANAPI_JSON_DECIMAL:
+                src = new double long (*reinterpret_cast<double long *> (obj.src));
             break;
-        case MANAPI_JSON_BIGINT:
-            src = new bigint(*reinterpret_cast<bigint *> (obj.src));
+            case MANAPI_JSON_BIGINT:
+                src = new bigint(*reinterpret_cast<bigint *> (obj.src));
             break;
-        case MANAPI_JSON_ARRAY:
-        {
-            const auto arr_oth = reinterpret_cast <json::ARRAY  *> (obj.src);
+            case MANAPI_JSON_ARRAY:
+            {
+                const auto arr_oth = reinterpret_cast <json::ARRAY  *> (obj.src);
 
-            src = new json::ARRAY (arr_oth->size());
+                src = new json::ARRAY (arr_oth->size());
 
-            const auto arr = reinterpret_cast <json::ARRAY  *> (src);
+                const auto arr = reinterpret_cast <json::ARRAY  *> (src);
 
-            for (size_t i = 0; i < arr_oth->size(); i++) {
-                auto n_json     = new json ();
-                *n_json         = *arr_oth->at(i);
-                n_json->root    = false;
+                for (size_t i = 0; i < arr_oth->size(); i++) {
+                    auto n_json     = new json ();
+                    *n_json         = *arr_oth->at(i);
+                    n_json->root    = false;
 
-                arr->at(i)      = n_json;
+                    arr->at(i)      = n_json;
+                }
+                break;
             }
+            case MANAPI_JSON_MAP:
+            {
+                const auto map_oth = reinterpret_cast <json::OBJECT  *> (obj.src);
+
+                src = new json::OBJECT();
+
+                const auto map = reinterpret_cast <json::OBJECT  *> (src);
+
+                for (const auto &item: *map_oth) {
+                    auto n_json     = new json;
+                    *n_json         = *item.second;
+                    n_json->root    = false;
+
+                    map->insert({item.first, n_json});
+                }
+                break;
+            }
+            case MANAPI_JSON_BOOLEAN:
+                src = new bool(*reinterpret_cast<bool *> (obj.src));
+            break;
+            case MANAPI_JSON_NULL:
+                src = nullptr;
             break;
         }
-        case MANAPI_JSON_MAP:
-        {
-            const auto map_oth = reinterpret_cast <json::OBJECT  *> (obj.src);
 
-            src = new json::OBJECT();
-
-            const auto map = reinterpret_cast <json::OBJECT  *> (src);
-
-            for (const auto &item: *map_oth) {
-                auto n_json     = new json;
-                *n_json         = *item.second;
-                n_json->root    = false;
-
-                map->insert({item.first, n_json});
-            }
-            break;
-        }
-        case MANAPI_JSON_BOOLEAN:
-            src = new bool(*reinterpret_cast<bool *> (obj.src));
-            break;
-        case MANAPI_JSON_NULL:
-            src = nullptr;
-            break;
+        delete_value_static (temp_type, temp_src);
     }
+    return *this;
+}
 
-    delete_value_static (temp_type, temp_src);
-
+manapi::utils::json & manapi::utils::json::operator=(json &&obj) {
+    std::swap(src, obj.src);
+    std::swap(type, obj.type);
     return *this;
 }
 

@@ -28,6 +28,7 @@
 #define MANAPI_HTTP_RESP_TEXT 0
 #define MANAPI_HTTP_RESP_FILE 1
 #define MANAPI_HTTP_RESP_PROXY 2
+#define MANAPIHTTP_RESP_NO_DATA 3
 
 #define REQ(_x) manapi::net::http_request &_x
 #define RESP(_x) manapi::net::http_response &_x
@@ -85,8 +86,6 @@ namespace manapi::net {
         handlers_static_types_t *statics        = nullptr;
         // regex handler functions
         handlers_regex_map_t    *regexes        = nullptr;
-
-        bool                    has_body        = false;
     };
 
     class http {
@@ -95,16 +94,17 @@ namespace manapi::net {
         ~http();
         std::future <void>      pool (const size_t &thread_num = 20);
 
-        void GET    (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr);
+        void GET    (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
         void POST   (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
-        void PUT    (const std::string &uri, const handler_template_t &handler);
-        void DELETE (const std::string &uri, const handler_template_t &handler);
-        void PATCH  (const std::string &uri, const handler_template_t &handler);
+        void OPTIONS(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
+        void PUT    (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
+        void DELETE (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
+        void PATCH  (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
 
         void GET    (const std::string &uri, const std::string &folder);
 
-        http_uri_part               *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, bool has_body = false, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
-        http_uri_part               *set_handler (const std::string &method, const std::string &uri, const std::string &folder, bool has_body = false);
+        http_uri_part               *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
+        http_uri_part               *set_handler (const std::string &method, const std::string &uri, const std::string &folder);
 
         http_handler_page           get_handler (request_data_t &request_data) const;
 
@@ -130,7 +130,7 @@ namespace manapi::net {
                                     running;
         static bool                 stopped_interrupt;
 
-        void                        append_task (task *t, bool important = false);
+        void                        append_task (task *t, int level = 0);
     private:
         static void                 destroy_uri_part (http_uri_part *cur);
         http_uri_part               *build_uri_part (const std::string &uri, size_t &type);

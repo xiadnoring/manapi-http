@@ -17,22 +17,26 @@ namespace manapi::net {
     template <class T>
     class threadpool {
     public:
-        threadpool(size_t thread_num = 20);
+        threadpool(size_t thread_num = 20, size_t queues_count = 3);
         ~threadpool();
-        bool append_task (T *task, bool important = false);
+        bool append_task (T *task, int level = 0);
         void start();
         void stop();
         size_t get_count_stopped_task ();
         bool all_tasks_stopped ();
     private:
+        // this number means count of the all threads
         size_t thread_number;
-        pthread_t *all_threads;
-        std::queue<T *> task_queue;
-        mutex_locker queue_mutex_locker;
-        cond_locker queue_cond_locker;
+        // this vector contains all threads for this thread pool
+        std::vector <std::thread> all_threads;
+        // this vector of queue which contains tasks
+        std::vector <std::queue<T *>> task_queues;
+        // queue mutex
+        std::mutex queue_mutex;
         // the function that the thread runs. Execute run() function
         static void *worker(void *arg);
         void run();
+        // execute the task
         void task_doit (T *task);
         T *getTask();
         bool is_stop;

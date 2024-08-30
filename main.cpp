@@ -29,9 +29,25 @@ int main(int argc, char *argv[]) {
             resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
         });
 
-        server.GET ("/test", [] (REQ(req), RESP(resp)) -> void {
-            resp.set_compress_enabled(true);
-            resp.text("pon");
+        server.OPTIONS("+error", [] (REQ(req), RESP(resp)) -> void {
+            resp.set_header("allow", "OPTIONS, GET, POST");
+            resp.set_status(204, http_status.NO_CONTENT_204);
+        });
+
+        server.GET ("/test2", [] (REQ(req), RESP(resp)) -> void {
+            fetch response ("https://localhost:8888/form");
+            response.set_method("POST");
+            response.set_body(json2form({
+                {"first-name", "Timur"},
+                {"last-name", "Zajnullin"},
+                {"file", "lol OK ??&?45=ersdf--  \\"}
+            }));
+            response.enable_ssl_verify(false);
+            response.set_custom_setup([] (CURL *curl) -> void {
+                curl_easy_setopt(curl, CURLOPT_HTTP_VERSION,
+                     (long)CURL_HTTP_VERSION_3);
+            });
+            resp.text(response.text());
         });
 
         server.GET ("/video", [] (REQ(req), RESP(resp)) {

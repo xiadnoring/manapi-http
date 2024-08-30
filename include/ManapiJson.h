@@ -30,6 +30,7 @@ namespace manapi::utils {
 
         json();
         json(const json &other);
+        json(json &&other) noexcept;
         json(const std::initializer_list<json> &data);
 
         // Do not use explicit
@@ -37,6 +38,7 @@ namespace manapi::utils {
         json(const std::string &str, bool is_json = false);
         json(const std::u32string &str, bool is_json = false);
         json(const ssize_t &num);
+        json(const size_t &num);
         json(const char *plain_text, bool is_json = false);
         json(const int &num);
         json(const double &num);
@@ -52,6 +54,7 @@ namespace manapi::utils {
         void parse (const std::u32string &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128, size_t start = 0);
 
         // numbers
+        void parse (const size_t &num);
         void parse (const ssize_t &num);
         void parse (const int &num);
         void parse (const double &num);
@@ -84,6 +87,7 @@ namespace manapi::utils {
         json &operator=     (const nullptr_t        &n);
         json &operator=     (const bigint           &num);
         json &operator=     (const json             &obj);
+        json &operator=     (json                   &&obj);
         json &operator=     (const std::initializer_list <json> &data);
         json &operator-     (const ssize_t          &num);
         json &operator-     (const int              &num);
@@ -107,13 +111,13 @@ namespace manapi::utils {
         void push_back      (const ssize_t &arg);
 
         template<class T>
-        auto begin          () const
+        constexpr auto begin          () const
         {
             return get_ptr<T>()->begin();
         }
 
         template<class T>
-        auto end            () const
+        constexpr auto end            () const
         {
             return get_ptr<T>()->end();
         }

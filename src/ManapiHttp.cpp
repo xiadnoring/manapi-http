@@ -91,24 +91,28 @@ std::future<void> manapi::net::http::pool(const size_t &thread_num) {
     return pool_promise->get_future();
 }
 
-void manapi::net::http::GET(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask) {
-    this->set_handler("GET", uri, handler, false, get_mask);
+void manapi::net::http::GET(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+    this->set_handler("GET", uri, handler, get_mask, post_mask);
 }
 
 void manapi::net::http::POST(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
-    this->set_handler("POST", uri, handler, true, get_mask, post_mask);
+    this->set_handler("POST", uri, handler, get_mask, post_mask);
 }
 
-void manapi::net::http::PUT(const std::string &uri, const handler_template_t &handler) {
-    this->set_handler("PUT", uri, handler);
+void manapi::net::http::OPTIONS(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+    this->set_handler("OPTIONS", uri, handler, get_mask, post_mask);
 }
 
-void manapi::net::http::PATCH(const std::string &uri, const handler_template_t &handler) {
-    this->set_handler("PATCH", uri, handler);
+void manapi::net::http::PUT(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+    this->set_handler("PUT", uri, handler, get_mask, post_mask);
 }
 
-void manapi::net::http::DELETE(const std::string &uri, const handler_template_t &handler) {
-    this->set_handler("DELETE", uri, handler);
+void manapi::net::http::PATCH(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+    this->set_handler("PATCH", uri, handler, get_mask, post_mask);
+}
+
+void manapi::net::http::DELETE(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+    this->set_handler("DELETE", uri, handler, get_mask, post_mask);
 }
 
 manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &request_data) const {
@@ -133,11 +137,11 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
             }
 
             if (i == path_size)
-                break;
+            { break; }
 
             if (cur->map == nullptr || !cur->map->contains(request_data.path.at(i))) {
                 if (cur->regexes == nullptr)
-                    return handler_page;
+                { return handler_page; }
 
                 std::smatch match;
                 bool find = false;
@@ -168,7 +172,7 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
 
                         // get params
                         for (size_t z = 0; z < cur->params->size(); z++)
-                            request_data.params.insert({cur->params->at(z), match.str(z + 1)});
+                        { request_data.params.insert({cur->params->at(z), match.str(z + 1)}); }
 
 
                         break;
@@ -176,7 +180,7 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
                 }
 
                 if (find)
-                    continue;
+                { continue; }
 
                 return handler_page;
             }
@@ -208,7 +212,7 @@ manapi::net::http_handler_page manapi::net::http::get_handler(request_data_t &re
     }
 }
 
-manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &method, const std::string &uri, const handler_template_t &handler, bool has_body, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &method, const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
     size_t  type            = MANAPI_HTTP_URI_PAGE_DEFAULT;
 
     http_uri_part *cur      = build_uri_part(uri, type);
@@ -223,7 +227,6 @@ manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &me
             }
 
             functions.handler = handler;
-            cur->has_body = has_body;
 
             if (get_mask.is_enabled())
             {
@@ -267,10 +270,10 @@ manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &me
 }
 
 void manapi::net::http::GET(const std::string &uri, const std::string &folder) {
-    set_handler ("GET", uri, folder, false);
+    set_handler ("GET", uri, folder);
 }
 
-manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &method, const std::string &uri, const std::string &folder, bool has_body) {
+manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &method, const std::string &uri, const std::string &folder) {
     size_t  type            = MANAPI_HTTP_URI_PAGE_DEFAULT;
 
     http_uri_part *cur      = build_uri_part(uri, type);
@@ -282,11 +285,9 @@ manapi::net::http_uri_part *manapi::net::http::set_handler(const std::string &me
 
             cur->statics->insert({method, folder});
 
-            cur->has_body = has_body;
-
             break;
         default:
-            throw manapi::utils::exception ("can not use the special pages with the static files");
+            THROW_MANAPI_EXCEPTION("{}", "can not use the special pages with the static files");
     }
 
     return cur;
@@ -640,13 +641,13 @@ manapi::net::threadpool<manapi::net::task> *manapi::net::http::get_tasks_pool() 
     return tasks_pool;
 }
 
-void manapi::net::http::append_task(task *t, bool important) {
+void manapi::net::http::append_task(task *t, int level) {
     if (tasks_pool == nullptr)
     {
         THROW_MANAPI_EXCEPTION("{}", "tasks_pool = nullptr");
     }
 
-    tasks_pool->append_task(t, important);
+    tasks_pool->append_task(t, level);
 }
 
 void manapi::net::http::destroy_uri_part(http_uri_part *cur) {

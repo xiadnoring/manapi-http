@@ -19,6 +19,17 @@ std::string manapi::filesystem::basename(const std::string& path) {
     return path;
 }
 
+std::string manapi::filesystem::extension(const std::string& path) {
+    size_t pos = path.find_last_of('.');
+
+    if (pos != std::string::npos)
+    {
+        return path.substr(pos + 1);
+    }
+
+    return "";
+}
+
 bool manapi::filesystem::exists(const std::string& path) {
     std::filesystem::path f(path);
 

@@ -571,7 +571,7 @@ void manapi::net::http_task::udp_loop_event(http_pool *http_server, const std::s
                         // without occures
                         bd_task_if_error.disable();
                         // add a task to the tasks pool
-                        http_server->get_http()->append_task(task, true);
+                        http_server->get_http()->append_task(task, 3);
 
 
                         // wait the init connection
@@ -1026,8 +1026,21 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) cons
         else
         {
             // close ifstream before deleting
-            utils::before_delete unwrap_ifstream ([&f] () { f.close(); });
+            utils::before_delete unwrap_ifstream ([&f] () -> void { f.close(); });
 
+            // set headers
+            {
+                std::string mimetype = utils::mime_by_file_path(res.get_file());
+                if (mimetype.size() > sizeof ("text"))
+                {
+                    if (strncmp ("text", mimetype.data(), sizeof ("text") - 1) == 0)
+                    {
+                        mimetype = utils::stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
+                    }
+                }
+
+                res.set_header(http_header.CONTENT_TYPE, mimetype);
+            }
             std::vector<utils::replace_founded_item> replacers;
 
             // get file size
