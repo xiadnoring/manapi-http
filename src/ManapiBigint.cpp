@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <memory.h>
 #include <codecvt>
-#include "ManapiBigint.h"
+#include "ManapiBigint.hpp"
 
 manapi::utils::bigint zero (0LL);
 

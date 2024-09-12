@@ -3,7 +3,7 @@
 #include <fstream>
 #include <chrono>
 #include <cstdarg>
-#include "ManapiFilesystem.h"
+#include "ManapiFilesystem.hpp"
 
 static const std::string folder_configs;
 #define MANAPI_FILESYSTEM_COPY_BUFFER_SIZE 4096LL

@@ -1,7 +1,7 @@
 #ifndef MANAPIHTTP_MANAPICOMPRESS_H
 #define MANAPIHTTP_MANAPICOMPRESS_H
 
-#include "ManapiUtils.h"
+#include "ManapiUtils.hpp"
 
 #define Z_DEFAULT_COMPRESSION   0
 #define Z_DEFAULT_STRATEGY      0

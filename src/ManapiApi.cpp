@@ -1,5 +1,5 @@
-#include "ManapiApi.h"
-#include "ManapiTaskFunction.h"
+#include "ManapiApi.hpp"
+#include "ManapiTaskFunction.hpp"
 
 manapi::net::api::pool::pool(threadpool <task> *_task_pool): task_pool(_task_pool) {
 

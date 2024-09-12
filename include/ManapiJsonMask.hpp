@@ -1,7 +1,7 @@
 #ifndef MANAPIHTTP_MANAPIJSONMASK_H
 #define MANAPIHTTP_MANAPIJSONMASK_H
 
-#include "ManapiJson.h"
+#include "ManapiJson.hpp"
 
 namespace manapi::utils {
     class json_mask {
@@ -20,7 +20,7 @@ namespace manapi::utils {
         bool enabled;
 
         static void initial_resolve_information (json &obj);
-        static bool recursive_valid (const json &obj, const json &information);
+        static bool recursive_valid (const json &obj, const json &information, const bool &is_complex = true);
         static bool default_compare_information (const json &obj, const json &information, const bool &by_size = true);
     };
 }

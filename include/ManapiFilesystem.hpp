@@ -2,8 +2,8 @@
 #define MANAPIHTTP_MANAPIFILESYSTEM_H
 
 #include <filesystem>
-#include "ManapiUtils.h"
-#include "ManapiJson.h"
+#include "ManapiUtils.hpp"
+#include "ManapiJson.hpp"
 
 namespace manapi::filesystem {
     static char delimiter = std::filesystem::path::preferred_separator;

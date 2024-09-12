@@ -1,7 +1,7 @@
 #include <fstream>
 #include <format>
-#include "ManapiFilesystem.h"
-#include "ManapiCompress.h"
+#include "ManapiFilesystem.hpp"
+#include "ManapiCompress.hpp"
 #include <zlib.h>
 
 #define CHUNK_SIZE 4096

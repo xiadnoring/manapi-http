@@ -3,17 +3,14 @@
 
 #include <string>
 #include <map>
-#include "ManapiJson.h"
-#include "ManapiUtils.h"
-#include "ManapiHttp.h"
-#include "ManapiApi.h"
+#include "ManapiJson.hpp"
+#include "ManapiUtils.hpp"
+#include "ManapiApi.hpp"
 
 namespace manapi::net {
-    class http_pool;
-
     class http_response {
     public:
-        http_response               (manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, http_pool *_http_server);
+        http_response               (manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, api::pool *tasks, class config *config);
         ~http_response              ();
 
         void set_compress           (const  std::string &name);
@@ -62,7 +59,7 @@ namespace manapi::net {
         size_t                          type;
         // detect the range header
         void                            detect_ranges    ();
-        http_pool                       *http_server;
+        class config                    *config;
 
         std::string                     data;
 

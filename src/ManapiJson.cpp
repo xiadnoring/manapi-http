@@ -1,9 +1,8 @@
 #include <memory.h>
 #include <format>
 
-#include "ManapiJson.h"
-#include "ManapiUtils.h"
-#include "ManapiBigint.h"
+#include "ManapiJson.hpp"
+#include "ManapiBigint.hpp"
 
 const static std::string JSON_TRUE   = "true";
 const static std::string JSON_FALSE  = "false";
@@ -110,7 +109,7 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
         // nothing
         return;
     }
-    else if (data.size() == 1 && data.begin()->type != MANAPI_JSON_PAIR)
+    if (data.size() == 1 && data.begin()->type != MANAPI_JSON_PAIR)
     {
         // equal
         this->operator=(*data.begin());
@@ -122,23 +121,20 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
         auto it = data.begin();
 
         auto key = it++;
-        auto value = it;
+        auto value = *it;
 
         // resolve pair to array
-        if (value->type == MANAPI_JSON_PAIR)
+        if (value.type == MANAPI_JSON_PAIR)
         {
-            auto first = new json (*reinterpret_cast <std::pair <const json *, const json *> *> (value->src)->first);
-            auto second = new json (*reinterpret_cast <std::pair <const json *, const json *> *> (value->src)->second);
-
-            auto arr = new json (json::array ());
-            arr->push_back(*first);
-            arr->push_back(*second);
+            json arr = json::array ();
+            arr.push_back(reinterpret_cast <std::pair <json, json> *> (value.src)->first);
+            arr.push_back(reinterpret_cast <std::pair <json, json> *> (value.src)->second);
 
             value = arr;
         }
 
         // do not need to malloc json
-        src = new std::pair <const json *, const json *> (key, value);
+        src = new std::pair <json, json> (*key, std::move(value));
         type = MANAPI_JSON_PAIR;
     }
     else {
@@ -171,10 +167,10 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
         {
             for (const auto & it : data)
             {
-                auto *key = reinterpret_cast <std::string *> (reinterpret_cast <std::pair <const json *, const json *> *> (it.src)->first->src);
-                auto value = new json (*reinterpret_cast <std::pair <const json *, const json *> *> (it.src)->second);
+                auto &key = reinterpret_cast <std::pair <json, json> *> (it.src)->first.get<std::string>();
+                json value = reinterpret_cast <std::pair <json, json> *> (it.src)->second;
 
-                reinterpret_cast <json::OBJECT *> (src)->insert({*key, value});
+                reinterpret_cast <json::OBJECT *> (src)->insert({key, std::move(value)});
             }
         }
         else
@@ -185,49 +181,31 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
                 {
                     // we need to resolve pair to array
 
-                    auto first  = new json (*reinterpret_cast <std::pair <const json *, const json *> *> (it->src)->first);
-                    auto second = new json (*reinterpret_cast <std::pair <const json *, const json *> *> (it->src)->second);
+                    json first = reinterpret_cast <std::pair <json, json> *> (it->src)->first;
+                    json second = reinterpret_cast <std::pair <json, json> *> (it->src)->second;
 
-                    auto element = new json (json::array());
+                    json element (json::array());
 
                     try
                     {
-                        reinterpret_cast <json::ARRAY *> (element->src)->push_back(first);
-                        reinterpret_cast <json::ARRAY *> (element->src)->push_back(second);
+                        reinterpret_cast <json::ARRAY *> (element.src)->push_back(std::move(first));
+                        reinterpret_cast <json::ARRAY *> (element.src)->push_back(std::move(second));
 
-                        reinterpret_cast <json::ARRAY *> (src)->push_back(element);
+                        reinterpret_cast <json::ARRAY *> (src)->push_back(std::move(element));
                     }
                     catch (const json_parse_exception &e)
                     {
-                        // bcz element will delete its elements
-                        switch (element->size()) {
-                            case 0:
-                                // can not import first
-                                delete first;
-                            case 1:
-                                // can not import second
-                                delete second;
-                        }
-
-                        // clean
-                        delete element;
-
                         throw json_parse_exception(e);
                     }
                 }
                 else
                 {
-                    auto element = new json(*it);
-
                     try
                     {
-                        reinterpret_cast <json::ARRAY *> (src)->push_back(element);
+                        reinterpret_cast <json::ARRAY *> (src)->push_back(*it);
                     }
                     catch (const json_parse_exception &e)
                     {
-                        // clean
-                        delete element;
-
                         throw json_parse_exception(e);
                     }
                 }
@@ -342,12 +320,11 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                             error_unexpected_end(i);
                         }
 
-                        auto *obj = new json();
-                        obj->root = false;
-                        obj->parse(plain_text, use_bigint, bigint_precision, i + 1);
-                        reinterpret_cast<json::OBJECT *>(src)->insert({str32to4(key), obj});
-
-                        i = obj->get_end_cut() + 1;
+                        json obj;
+                        obj.root = false;
+                        obj.parse(plain_text, use_bigint, bigint_precision, i + 1);
+                        i = obj.get_end_cut() + 1;
+                        reinterpret_cast<json::OBJECT *>(src)->insert({str32to4(key), std::move(obj)});
 
                         if (i > end_cut)
                         {
@@ -423,10 +400,10 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                     continue;
                 }
 
-                auto *obj = new json ();
-                obj->root = false;
-                obj->parse(plain_text, use_bigint, bigint_precision, i);
-                i = obj->get_end_cut() + 1;
+                json obj;
+                obj.root = false;
+                obj.parse(plain_text, use_bigint, bigint_precision, i);
+                i = obj.get_end_cut() + 1;
 
                 if (i > end_cut)
                 {
@@ -434,7 +411,7 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                 }
 
                 // append
-                reinterpret_cast<json::ARRAY  *> (src)->push_back(obj);
+                reinterpret_cast<json::ARRAY  *> (src)->push_back(std::move(obj));
 
                 // skip all chars to ','
                 for (; i <= end_cut; i++) {
@@ -683,7 +660,7 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
                 JSON_DUMP_NEED_SPACES
 
                 str += '"';
-                str += str32to4(escape_string(str4to32(it->first))) + "\": " + it->second->dump(spaces, total_spaces);
+                str += str32to4(escape_string(str4to32(it->first))) + "\": " + it->second.dump(spaces, total_spaces);
                 ++it;
             }
 
@@ -695,7 +672,7 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
                 JSON_DUMP_NEED_SPACES
 
                 str += '"';
-                str += str32to4(escape_string(str4to32(it->first))) + "\": " + it->second->dump(spaces, total_spaces);
+                str += str32to4(escape_string(str4to32(it->first))) + "\": " + it->second.dump(spaces, total_spaces);
             }
         }
 
@@ -722,7 +699,7 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
 
             // first
             JSON_DUMP_NEED_SPACES
-            str += arr->at(i)->dump(spaces, total_spaces);
+            str += arr->at(i).dump(spaces, total_spaces);
 
             i++;
 
@@ -733,7 +710,7 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
                 JSON_DUMP_NEED_NEW_LINE_OR_SPACE
                 JSON_DUMP_NEED_SPACES
 
-                str += arr->at(i)->dump(spaces, total_spaces);
+                str += arr->at(i).dump(spaces, total_spaces);
             }
         }
 
@@ -796,7 +773,7 @@ manapi::utils::json &manapi::utils::json::at(const std::string &key) const {
         THROW_MANAPI_EXCEPTION("No such key. ({})", escape_string(key));
     }
 
-    return *map->at(key);
+    return map->at(key);
 }
 
 manapi::utils::json &manapi::utils::json::at(const size_t &index) const {
@@ -812,7 +789,7 @@ manapi::utils::json &manapi::utils::json::at(const size_t &index) const {
         THROW_MANAPI_EXCEPTION("Out of range. Index: {}. Size: {}", index, arr->size());
     }
 
-    return *arr->at(index);
+    return arr->at(index);
 }
 
 manapi::utils::json& manapi::utils::json::operator=(const std::string &str) {
@@ -922,34 +899,14 @@ manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::json &o
             {
                 const auto arr_oth = reinterpret_cast <json::ARRAY  *> (obj.src);
 
-                src = new json::ARRAY (arr_oth->size());
-
-                const auto arr = reinterpret_cast <json::ARRAY  *> (src);
-
-                for (size_t i = 0; i < arr_oth->size(); i++) {
-                    auto n_json     = new json ();
-                    *n_json         = *arr_oth->at(i);
-                    n_json->root    = false;
-
-                    arr->at(i)      = n_json;
-                }
+                src = new json::ARRAY (*arr_oth);
                 break;
             }
             case MANAPI_JSON_MAP:
             {
                 const auto map_oth = reinterpret_cast <json::OBJECT  *> (obj.src);
 
-                src = new json::OBJECT();
-
-                const auto map = reinterpret_cast <json::OBJECT  *> (src);
-
-                for (const auto &item: *map_oth) {
-                    auto n_json     = new json;
-                    *n_json         = *item.second;
-                    n_json->root    = false;
-
-                    map->insert({item.first, n_json});
-                }
+                src = new json::OBJECT(*map_oth);
                 break;
             }
             case MANAPI_JSON_BOOLEAN:
@@ -992,15 +949,14 @@ void manapi::utils::json::insert(const std::string &key, const manapi::utils::js
         THROW_MANAPI_EXCEPTION("duplicate key: {}", escape_string(key));
     }
 
-    auto item   = new json;
-    *item       = obj;
+    json item;
+    item = obj;
+    item.root = false;
 
-    item->root  = false;
-
-    map->insert({key, item});
+    map->insert({key, std::move(item)});
 }
 
-void manapi::utils::json::push_back(const manapi::utils::json &obj) {
+void manapi::utils::json::push_back(manapi::utils::json obj) {
     if (type != MANAPI_JSON_ARRAY)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -1008,12 +964,9 @@ void manapi::utils::json::push_back(const manapi::utils::json &obj) {
 
     const auto arr = reinterpret_cast <json::ARRAY  *> (src);
 
-    auto item   = new json;
-    *item       = obj;
+    obj.root = false;
 
-    item->root  = false;
-
-    arr->push_back(item);
+    arr->push_back(std::move(obj));
 }
 
 void manapi::utils::json::pop_back() {
@@ -1042,12 +995,12 @@ void manapi::utils::json::push_back(const std::string &arg) {
     Json.src        = new std::string (arg);
     Json.type       = MANAPI_JSON_STRING;
 
-    this->push_back(Json);
+    this->push_back(std::move(Json));
 }
 
 void manapi::utils::json::push_back(const ssize_t &arg) {
     json Json (arg);
-    this->push_back(Json);
+    this->push_back(std::move(Json));
 }
 
 manapi::utils::json manapi::utils::json::object() {
@@ -1075,7 +1028,7 @@ manapi::utils::json manapi::utils::json::array(const std::initializer_list<json>
 
     for (const auto &it: data)
     {
-        reinterpret_cast <json::ARRAY *> (arr.src)->push_back(new json (it));
+        reinterpret_cast <json::ARRAY *> (arr.src)->push_back(it);
     }
 
     return arr;
@@ -1194,28 +1147,11 @@ void manapi::utils::json::delete_value_static(const short &type, void *src) {
         case MANAPI_JSON_NULL:
             break;
         case MANAPI_JSON_ARRAY:
-            json::ARRAY *arr;
-
-            arr = reinterpret_cast<json::ARRAY  *> (src);
-
-            for (const auto &item: *arr)
-            {
-                delete item;
-            }
-
-            delete arr;
-
+            delete reinterpret_cast<json::ARRAY  *> (src);
             break;
+
         case MANAPI_JSON_MAP:
-            json::OBJECT* map;
-
-            map = reinterpret_cast<json::OBJECT *> (src);
-            for (const auto &child: *map)
-            {
-                delete child.second;
-            }
-            delete map;
-
+            delete reinterpret_cast<json::OBJECT *> (src);
             break;
         case MANAPI_JSON_BOOLEAN:
             delete reinterpret_cast<bool *> (src);
@@ -1233,9 +1169,8 @@ void manapi::utils::json::delete_value_static(const short &type, void *src) {
             delete reinterpret_cast<manapi::utils::bigint *> (src);
             break;
         case MANAPI_JSON_PAIR:
-            delete reinterpret_cast<std::pair <const json *, const json *> *> (src);
+            delete reinterpret_cast<std::pair <json, json> *> (src);
             break;
-
     }
 }
 

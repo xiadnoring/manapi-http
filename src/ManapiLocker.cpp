@@ -1,4 +1,4 @@
-#include "ManapiLocker.h"
+#include "ManapiLocker.hpp"
 
 manapi::net::sem_locker::sem_locker() {
     if (sem_init(&m_sem, 0, 0) != 0)

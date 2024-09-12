@@ -38,7 +38,7 @@
 
 #include <cstring>
 #include <fstream>
-#include "ManapiHash.h"
+#include "ManapiHash.hpp"
 
 namespace manapi::hash {
     const unsigned int SHA256::sha256_k[64] = //UL = uint32

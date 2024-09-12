@@ -41,25 +41,29 @@ endif ()
 set(CMAKE_CXX_STANDARD 23)
 
 set(MANAPI_HTTP_FILES
-        include/ManapiHttp.h
-        include/ManapiLocker.h
-        include/ManapiThreadPool.h
-        include/ManapiTask.h
-        include/ManapiTaskHttp.h
-        include/ManapiUtils.h
-        include/ManapiHttpResponse.h
-        include/ManapiHttpRequest.h
-        include/ManapiBigint.h
-        include/ManapiJson.h
-        include/ManapiThreadSafe.h
-        include/ManapiHttpTypes.h
-        include/ManapiFilesystem.h
-        include/ManapiBase64.h
-        include/ManapiCompress.h
-        include/ManapiTaskFunction.h
-        include/ManapiHash.h
-        include/ManapiFetch.h
-        include/ManapiApi.h
+        include/ManapiHttp.hpp
+        include/ManapiLocker.hpp
+        include/ManapiThreadPool.hpp
+        include/ManapiTask.hpp
+        include/ManapiTaskHttp.hpp
+        include/ManapiUtils.hpp
+        include/ManapiHttpResponse.hpp
+        include/ManapiHttpRequest.hpp
+        include/ManapiBigint.hpp
+        include/ManapiJson.hpp
+        include/ManapiThreadSafe.hpp
+        include/ManapiHttpTypes.hpp
+        include/ManapiFilesystem.hpp
+        include/ManapiBase64.hpp
+        include/ManapiCompress.hpp
+        include/ManapiTaskFunction.hpp
+        include/ManapiHash.hpp
+        include/ManapiFetch.hpp
+        include/ManapiApi.hpp
+        include/ManapiTimerPool.hpp
+        include/ManapiHttpPool.hpp
+        include/ManapiJsonMask.hpp
+        include/http3/ManapiQuic.h
 
         src/ManapiHttp.cpp
         src/ManapiLocker.cpp
@@ -77,12 +81,15 @@ set(MANAPI_HTTP_FILES
         src/ManapiTaskFunction.cpp
         src/ManapiApi.cpp
         src/ManapiFetch.cpp
-        include/ManapiJsonMask.h
         src/ManapiJsonMask.cpp
-        include/ManapiHttpPool.h
         src/ManapiHttpPool.cpp
         src/http3/ManapiQuic.cpp
-        include/http3/ManapiQuic.h)
+        src/ManapiTimerPool.cpp
+        src/ManapiSite.cpp
+        include/ManapiSite.hpp
+        include/ManapiSite.hpp
+        src/ManapiHttpConfig.cpp
+        include/ManapiHttpConfig.hpp)
 
 if (MANAPI_BUILD_TYPE STREQUAL "exe")
     # EXE
@@ -95,7 +102,7 @@ else ()
     message(STATUS "Build type 'lib'")
 
     add_compile_definitions(MANAPI_HTTP_AS_LIBRARY)
-    add_library(${PROJECT_NAME} SHARED ${MANAPI_HTTP_FILES})
+    add_library(${PROJECT_NAME} ${MANAPI_HTTP_FILES})
 
     set_target_properties(${PROJECT_NAME} PROPERTIES
             VERSION ${PROJECT_VERSION}

@@ -2,8 +2,8 @@
 // Created by Timur on 19.05.2024.
 //
 
-#include "ManapiTask.h"
-#include "ManapiUtils.h"
+#include "ManapiTask.hpp"
+#include "ManapiUtils.hpp"
 
 manapi::net::task::task() {}
 

@@ -3,8 +3,8 @@
 
 #include <functional>
 
-#include "ManapiThreadPool.h"
-#include "ManapiTask.h"
+#include "ManapiThreadPool.hpp"
+#include "ManapiTask.hpp"
 
 namespace manapi::net::api {
     class pool {

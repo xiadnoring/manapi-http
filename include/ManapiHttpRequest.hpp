@@ -5,15 +5,12 @@
 #include <map>
 #include <string>
 #include <functional>
-#include "ManapiHttp.h"
-#include "ManapiHttpPool.h"
-#include "ManapiUtils.h"
-#include "ManapiJson.h"
-#include "ManapiJsonMask.h"
+#include "ManapiHttpConfig.hpp"
+#include "ManapiUtils.hpp"
+#include "ManapiJson.hpp"
+#include "ManapiJsonMask.hpp"
 
 namespace manapi::net {
-    class http_pool;
-
     struct file_data_t {
         bool        exists      = false;
         std::string file_name;
@@ -23,7 +20,7 @@ namespace manapi::net {
 
     class http_request {
     public:
-        http_request(const manapi::utils::manapi_socket_information &ip_data, manapi::net::request_data_t &request_data, void* http_task, http_pool *http_server, const void *handler);
+        http_request(const manapi::utils::manapi_socket_information &ip_data, manapi::net::request_data_t &request_data, void* http_task, class config *config, const void *handler);
         ~http_request();
 
         [[nodiscard]] const utils::manapi_socket_information &get_ip_data () const;
@@ -48,8 +45,8 @@ namespace manapi::net {
 
         const std::string&                          get_query_param (const std::string &name);
 
-        [[nodiscard]] const utils::json_mask*       get_post_mask () const;
-        [[nodiscard]] const utils::json_mask*       get_get_mask () const;
+        [[nodiscard]] const std::unique_ptr<const manapi::utils::json_mask> &get_post_mask () const;
+        [[nodiscard]] const std::unique_ptr<const manapi::utils::json_mask> &get_get_mask () const;
     private:
         void                                        parse_map_url_param ();
         static void                                 buff_to_extra_buff (const request_data_t *req_data, const size_t &start, const size_t &end, char *dest, size_t &size);
@@ -69,7 +66,7 @@ namespace manapi::net {
         const void                                  *page_handler;
 
         // server
-        http_pool                                   *http_server;
+        class config                                *config;
 
         // boundary --XXXXXxxxXXX for form data
         std::string                                 body_boundary;

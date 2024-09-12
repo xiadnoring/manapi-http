@@ -12,9 +12,9 @@
 #include <unicode/utf16.h>
 #include <unicode/utf8.h>
 
-#include "ManapiUtils.h"
-#include "ManapiFilesystem.h"
-#include "ManapiHttpTypes.h"
+#include "ManapiUtils.hpp"
+#include "ManapiFilesystem.hpp"
+#include "ManapiHttpTypes.hpp"
 
 static std::random_device   random_dev;
 static std::mt19937         random_ng (random_dev());
@@ -262,13 +262,13 @@ std::string manapi::utils::json2form(const json &obj) {
     {
         data += '&';
         loop:
-        if (it->second->is_string())
+        if (it->second.is_string())
         {
-            data += encode_url(it->first) + "=" + encode_url(it->second->get<std::string>());
+            data += encode_url(it->first) + "=" + encode_url(it->second.get<std::string>());
         }
         else
         {
-            data += encode_url(it->first) + "=" + encode_url(it->second->dump());
+            data += encode_url(it->first) + "=" + encode_url(it->second.dump());
         }
 
     }

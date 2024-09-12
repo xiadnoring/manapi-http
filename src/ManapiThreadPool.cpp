@@ -1,11 +1,11 @@
 #include <csignal>
 
-#include "ManapiThreadPool.h"
+#include "ManapiThreadPool.hpp"
 
 #include <future>
 
-#include "ManapiTask.h"
-#include "ManapiUtils.h"
+#include "ManapiTask.hpp"
+#include "ManapiUtils.hpp"
 
 namespace manapi::net {
     template<class T>
@@ -74,7 +74,7 @@ namespace manapi::net {
         else
         {
             // add into the queue
-            task_queues[level].push(task);
+            task_queues[level].push_front (task);
 
             queue_mutex.unlock();
 
@@ -95,8 +95,8 @@ namespace manapi::net {
         {
             if (!task_queue->empty())
             {
-                task = task_queue->front();
-                task_queue->pop();
+                task = task_queue->back();
+                task_queue->pop_back();
                 break;
             }
         }

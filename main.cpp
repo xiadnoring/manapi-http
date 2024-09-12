@@ -2,19 +2,16 @@
 #include <csignal>
 #include <fstream>
 
-#include "ManapiHttp.h"
-#include "ManapiTaskHttp.h"
-#include "ManapiFilesystem.h"
-#include "ManapiTaskFunction.h"
-#include "ManapiFetch.h"
-#include "ManapiJsonMask.h"
+#include "ManapiHttp.hpp"
+#include "ManapiTaskHttp.hpp"
+#include "ManapiFilesystem.hpp"
+#include "ManapiTaskFunction.hpp"
+#include "ManapiFetch.hpp"
+#include "ManapiJsonMask.hpp"
 
 using namespace manapi::utils;
 using namespace manapi::net;
 using namespace std;
-
-// TODO: json custom exceptions
-// TODO: json bug replace a = a + b (somewhere)
 
 int main(int argc, char *argv[]) {
     debug_print_memory("start");
@@ -27,6 +24,11 @@ int main(int argc, char *argv[]) {
             resp.set_compress_enabled(true);
             resp.set_header(http_header.ALT_SVC, stringify_header_value({{"", {{"h3", "\":8888\""}}}}));
             resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
+        });
+
+        server.GET ("/lenar", [] (REQ(req), RESP(resp)) {
+            resp.set_compress_enabled(false);
+            resp.file ("/opt/clion.zip");
         });
 
         server.OPTIONS("+error", [] (REQ(req), RESP(resp)) -> void {
@@ -174,7 +176,7 @@ int main(int argc, char *argv[]) {
         });
 
         const json_mask post_mask = {
-            {"first-name", "{string(>=5 <50)}"},
+            {"first-name", "{string(>=5 <50)|none}"},
             {"last-name", "{string(>=5 <70)}"},
             {"file", "{any}"}
         };
@@ -204,7 +206,7 @@ int main(int argc, char *argv[]) {
         });
 
         server.GET("/freeze", [] (REQ(req), RESP(resp)) -> void {
-            this_thread::sleep_for(std::chrono::seconds(10000));
+            this_thread::sleep_for(std::chrono::seconds(10));
 
             resp.text("ok");
         });
@@ -257,7 +259,7 @@ int main(int argc, char *argv[]) {
 
     debug_print_memory("end");
 
-    MANAPI_LOG("wait {}s", 5);
+    MANAPI_LOG("wait {}s", 20);
     sleep(5);
 
     debug_print_memory("end");

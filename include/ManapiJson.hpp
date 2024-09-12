@@ -4,7 +4,7 @@
 #include <string>
 #include <map>
 #include <vector>
-#include "ManapiBigint.h"
+#include "ManapiBigint.hpp"
 
 #define MANAPI_JSON_NULL        0
 #define MANAPI_JSON_NUMERIC     1
@@ -20,8 +20,8 @@
 namespace manapi::utils {
     class json {
     public:
-        typedef std::map <std::string, json *>  OBJECT;
-        typedef std::vector <json *>            ARRAY;
+        typedef std::map <std::string, json>  OBJECT;
+        typedef std::vector <json>            ARRAY;
 
         static json object ();
         static json array ();
@@ -70,9 +70,9 @@ namespace manapi::utils {
         json &operator[]    (const std::u32string   &key)   const;
         json &operator[]    (const size_t           &index) const;
 
-        json &at            (const std::string      &key)   const;
-        json &at            (const std::u32string   &key)   const;
-        json &at            (const size_t           &index) const;
+        [[nodiscard]] json &at            (const std::string      &key)   const;
+        [[nodiscard]] json &at            (const std::u32string   &key)   const;
+        [[nodiscard]] json &at            (const size_t           &index) const;
 
         // TRASH (no with const json &obj)
         json &operator=     (const std::u32string   &str);
@@ -99,7 +99,7 @@ namespace manapi::utils {
         void erase          (const std::string &key);
         void erase          (const std::u32string &key);
 
-        void push_back      (const json &obj);
+        void push_back      (json obj);
         void pop_back       ();
 
         // to be cool ;)

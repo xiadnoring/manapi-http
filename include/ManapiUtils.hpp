@@ -13,11 +13,29 @@
 
 #ifdef MANAPI_HTTP_BUILD_DEBUG
 #define MANAPI_LOG(msg, ...)                manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg, __VA_ARGS__)
+#define MANAPI_LOG2(msg)                    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg);
 #else
 #define MANAPI_LOG(msg, ...)
 #endif
 
 #define THROW_MANAPI_EXCEPTION(msg, ...)    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg, __VA_ARGS__)
+#define THROW_MANAPI_EXCEPTION2(msg, ...)    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg)
+
+#define MANAPI_HTTP_RESP_TEXT 0
+#define MANAPI_HTTP_RESP_FILE 1
+#define MANAPI_HTTP_RESP_PROXY 2
+#define MANAPIHTTP_RESP_NO_DATA 3
+
+#define REQ(_x) manapi::net::http_request &_x
+#define RESP(_x) manapi::net::http_response &_x
+
+#define ASYNC(_x) resp.tasks->async([&] () {_x;})
+#define AWAIT(_x) resp.tasks->await([&] () {_x;})
+
+#define ASYNC2(_y, _x) _y.tasks->async([&] () {_x;})
+#define AWAIT2(_y, _x) _y.tasks->await([&] () {_x;})
+
+#define HANDLER(_req, _resp) (REQ(_req), RESP(_resp))
 
 namespace manapi::net {
     struct header_value_t {

@@ -1,7 +1,7 @@
 #include <exception>
 
-#include "ManapiHttp.h"
-#include "ManapiFetch.h"
+#include "ManapiHttp.hpp"
+#include "ManapiFetch.hpp"
 
 // Utils
 

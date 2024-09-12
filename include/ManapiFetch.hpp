@@ -7,9 +7,9 @@
 #include <functional>
 #include <curl/curl.h>
 
-#include "ManapiTask.h"
-#include "ManapiJson.h"
-#include "ManapiHttpRequest.h"
+#include "ManapiTask.hpp"
+#include "ManapiJson.hpp"
+#include "ManapiHttpRequest.hpp"
 
 namespace manapi::net {
 

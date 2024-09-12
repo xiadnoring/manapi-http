@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "ManapiThreadSafe.h"
+#include "ManapiThreadSafe.hpp"
 
 namespace manapi::net {
     static const struct {

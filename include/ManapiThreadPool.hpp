@@ -2,6 +2,7 @@
 #define MANAPIHTTP_MANAPITHREADPOOL_H
 
 #include <queue>
+#include <deque>
 #include <cstdio>
 #include <exception>
 #include <cerrno>
@@ -11,7 +12,7 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "ManapiLocker.h"
+#include "ManapiLocker.hpp"
 
 namespace manapi::net {
     template <class T>
@@ -30,7 +31,7 @@ namespace manapi::net {
         // this vector contains all threads for this thread pool
         std::vector <std::thread> all_threads;
         // this vector of queue which contains tasks
-        std::vector <std::queue<T *>> task_queues;
+        std::vector <std::deque<T *>> task_queues;
         // queue mutex
         std::mutex queue_mutex;
         // the function that the thread runs. Execute run() function
