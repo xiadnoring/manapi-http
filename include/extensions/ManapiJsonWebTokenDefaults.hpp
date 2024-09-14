@@ -5,7 +5,7 @@
 #define JWT_DISABLE_PICOJSON
 #endif
 
-#include "extensions/ManapiJsonWebTokenTraits.hpp"
+#include "ManapiJsonWebTokenTraits.hpp"
 
 
 namespace jwt {

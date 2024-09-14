@@ -2,7 +2,7 @@
 #define MANAPIJSONWEBTOKENTRAITS_HPP
 
 #include <jwt-cpp/jwt.h>
-#include "ManapiJson.hpp"
+#include "../ManapiJson.hpp"
 
 namespace jwt {
     namespace traits {
