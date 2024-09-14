@@ -198,12 +198,12 @@ int manapi::net::http_pool::_pool() {
         setsockopt(config.get_socket_fd(), SOL_SOCKET, SO_REUSEADDR, &so_reuseaddr_param, sizeof(int));
 
         // TIMEOUT RECV PARAM
-        recv_timeout.tv_sec = config.get_keep_alive();
+        recv_timeout.tv_sec = config.get_recv_timeout();
         recv_timeout.tv_usec = 0;
         setsockopt(config.get_socket_fd(), SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof (timeval));
 
         // TIMEOUT RECV PARAM
-        send_timeout.tv_sec = config.get_keep_alive();
+        send_timeout.tv_sec = config.get_send_timeout();
         send_timeout.tv_usec = 0;
         setsockopt(config.get_socket_fd(), SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof (timeval));
 
@@ -523,7 +523,7 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
 
             {
                 std::lock_guard<std::mutex> lk (conn_io->buffers_mutex);
-                conn_io->buffers.push_back(std::string ((char *) buff, buff_size));
+                conn_io->buffers.emplace_back((char *) buff, buff_size);
                 if (new_connection_pool) {
                     get_site().append_task(
                         new function_task ([this, dcid_str, client, client_len] () -> void { http_task::udp_loop_event (&quic_map_conns, site, &config, dcid_str, reinterpret_cast<const sockaddr &>(client), client_len); }),
@@ -535,7 +535,7 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
         }
     }
 
-        get_site().append_task(new function_task ([this] () -> void { http_task::quic_generate_output_packages (&quic_map_conns, site); }), 2);
+    // get_site().append_task(new function_task ([this] () -> void { http_task::quic_generate_output_packages (&quic_map_conns, site); }), 2);
 }
 
 void manapi::net::http_pool::new_connection_tls(ev::io &watcher, int revents) {

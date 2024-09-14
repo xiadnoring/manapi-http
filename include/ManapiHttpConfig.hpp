@@ -67,6 +67,9 @@ namespace manapi::net {
         void set_keep_alive (const long int &seconds);
         [[nodiscard]] const size_t& get_keep_alive () const;
 
+        [[nodiscard]] const size_t& get_recv_timeout () const;
+        [[nodiscard]] const size_t& get_send_timeout () const;
+
         void set_port (const std::string &_port);
         [[nodiscard]] const std::string& get_port () const;
 
@@ -121,6 +124,8 @@ namespace manapi::net {
         quiche_h3_config            *http3_config;
         quiche_config               *quic_config;
         int                         sock_fd{};
+        size_t                      recv_timeout            = 2;
+        size_t                      send_timeout            = 2;
 
         ssl_config_t                ssl_config;
         SSL_CTX                     *ctx;

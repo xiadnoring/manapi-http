@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
 
         server.GET ("/", [] (REQ(req), RESP(resp)) {
             resp.set_compress_enabled(true);
-            resp.set_header(http_header.ALT_SVC, stringify_header_value({{"", {{"h3", "\":8888\""}}}}));
+            resp.set_header(HTTP_HEADER.ALT_SVC, stringify_header_value({{"", {{"h3", "\":8888\""}}}}));
             resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
         });
 
@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 
         server.OPTIONS("+error", [] (REQ(req), RESP(resp)) -> void {
             resp.set_header("allow", "OPTIONS, GET, POST");
-            resp.set_status(204, http_status.NO_CONTENT_204);
+            resp.set_status(204, HTTP_STATUS.NO_CONTENT_204);
         });
 
         server.GET ("/test2", [] (REQ(req), RESP(resp)) -> void {
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
         server.GET ("/video", [] (REQ(req), RESP(resp)) {
             resp.set_compress_enabled(false);
             resp.set_partial_status(true);
-            resp.set_header(http_header.CONTENT_TYPE, http_mime.VIDEO_MP4);
+            resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.VIDEO_MP4);
 
             resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
         });
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
             }
 
             resp.set_compress_enabled(false);
-            resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JS + ";charset=UTF-8");
+            resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.APPLICATION_JS + ";charset=UTF-8");
 
             resp.json (jp, 4);
         });
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
         server.GET ("/text", [] (REQ(req), RESP(resp)) {
             MANAPI_LOG("{}", "REQ GET");
             resp.set_compress_enabled(false);
-            resp.set_header(http_header.CONTENT_TYPE, http_mime.TEXT_PLAIN);
+            resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.TEXT_PLAIN);
 
             std::ifstream f ("/home/Timur/.p10k.zsh");
 
@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
         });
 
         server.POST ("/+error", [] (REQ(req), RESP(resp)) {
-            resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JSON);
+            resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.APPLICATION_JSON);
             resp.json({
                               {"error", true},
                               {"message", "just a error"}
@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
         });
 
         server.GET ("/noooo", [] (REQ(req), RESP(resp)) {
-            resp.set_header(http_header.CONTENT_TYPE, http_mime.VIDEO_MP4);
+            resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.VIDEO_MP4);
             resp.set_partial_status(true);
             resp.set_compress_enabled(false);
 
@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
         server.GET ("/nonoo", [] (REQ(req), RESP(resp)) {
             resp.set_partial_status(true);
             resp.set_compress_enabled(false);
-            resp.set_header(http_header.CONTENT_TYPE, http_mime.VIDEO_MP4);
+            resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.VIDEO_MP4);
 
             resp.file("/home/Timur/Downloads/VideoDownloader/nono.mp4");
         });
@@ -216,7 +216,7 @@ int main(int argc, char *argv[]) {
 
             resp.set_compress_enabled(false);
 
-            resp.set_header(http_header.CONTENT_TYPE, http_mime.APPLICATION_JSON + ";charset=UTF-8");
+            resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.APPLICATION_JSON + ";charset=UTF-8");
 
             json obj = json::object();
 
@@ -259,7 +259,7 @@ int main(int argc, char *argv[]) {
 
     debug_print_memory("end");
 
-    MANAPI_LOG("wait {}s", 20);
+    MANAPI_LOG("wait {}s", 5);
     sleep(5);
 
     debug_print_memory("end");

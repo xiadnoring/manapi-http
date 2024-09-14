@@ -49,10 +49,14 @@ void manapi::net::site::setup() {
     set_compressor("gzip", manapi::utils::compress::gzip);
 }
 
-void manapi::net::site::setup_timer_pool(threadpool<task> *tasks_pool) {
-    timerpool = std::make_unique<utils::timerpool>(*tasks_pool, 50);
+void manapi::net::site::timer_pool_setup(threadpool<task> *tasks_pool) {
+    timerpool = std::make_unique<utils::timerpool>(*tasks_pool, 5);
     timerpool->to_delete = false;
     tasks_pool->append_task(timerpool.get());
+}
+
+void manapi::net::site::timer_pool_stop() {
+    timerpool->stop();
 }
 
 void manapi::net::site::set_config(const std::string &path) {
@@ -78,7 +82,6 @@ void manapi::net::site::setup_config() {
     if (config.contains("cache_dir"))
     {
         config_cache_dir = &config["cache_dir"].get<std::string>();
-        std::cout << config["cache_dir"].dump() << "\n";
     }
     else
     {

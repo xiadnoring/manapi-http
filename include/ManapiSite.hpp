@@ -119,7 +119,8 @@ namespace manapi::net {
         std::string                         *config_cache_dir = nullptr;
     protected:
         void                                setup ();
-        void                                setup_timer_pool (threadpool<task> *tasks_pool);
+        void                                timer_pool_setup (threadpool<task> *tasks_pool);
+        void                                timer_pool_stop ();
         void                                setup_config ();
         void                                save ();
         void                                save_config ();

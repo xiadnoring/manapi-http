@@ -72,7 +72,7 @@ void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &
                 || *str->rbegin() != '}')
         {
             obj = {
-                    {"type", MANAPI_JSON_STRING},
+                    {"type", json::type_string},
                     {"value", *str}
             };
 
@@ -110,31 +110,31 @@ void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &
         // check types
         if (type == "string")
         {
-            ntype = MANAPI_JSON_STRING;
+            ntype = json::type_string;
         }
         else if (type == "number")
         {
-            ntype = MANAPI_JSON_NUMBER;
+            ntype = json::type_number;
         }
         else if (type == "decimal")
         {
-            ntype = MANAPI_JSON_DECIMAL;
+            ntype = json::type_decimal;
         }
         else if (type == "bigint")
         {
-            ntype = MANAPI_JSON_BIGINT;
+            ntype = json::type_bigint;
         }
         else if (type == "bool")
         {
-            ntype = MANAPI_JSON_BOOLEAN;
+            ntype = json::type_boolean;
         }
         else if (type == "null")
         {
-            ntype = MANAPI_JSON_NULL;
+            ntype = json::type_null;
         }
         else if (type == "numeric")
         {
-            ntype = MANAPI_JSON_NUMERIC;
+            ntype = json::type_numeric;
         }
         else if (type == "any")
         {
@@ -240,7 +240,7 @@ void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &
                     if (square_bracket)
                     {
                         // change type to array
-                        ntype = MANAPI_JSON_ARRAY;
+                        ntype = json::type_array;
 
                         parsed = {
                                 {"type", ntype},
@@ -263,15 +263,15 @@ void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &
 
                 // calc size
 
-                if (ntype == MANAPI_JSON_DECIMAL)
+                if (ntype == json::type_decimal)
                 {
                     parsed_buff = std::stold(buff);
                 }
-                else if (ntype == MANAPI_JSON_BIGINT)
+                else if (ntype == json::type_bigint)
                 {
                     parsed_buff = bigint(buff);
                 }
-                else if (ntype == MANAPI_JSON_BOOLEAN)
+                else if (ntype == json::type_boolean)
                 {
                     parsed_buff = bool(std::stold(buff));
                 }
@@ -319,7 +319,7 @@ void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &
 
             else if (c == '(')
             {
-                if (ntype == MANAPI_JSON_ARRAY || ntype == MANAPI_JSON_MAP)
+                if (ntype == json::type_array || ntype == json::type_object)
                 {
                     THROW_MANAPI_EXCEPTION ("Invalid symbol at {}: {}", i, c);
                 }
@@ -328,7 +328,7 @@ void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &
 
             else if (c == '[')
             {
-                if (ntype == MANAPI_JSON_ARRAY || ntype == MANAPI_JSON_MAP)
+                if (ntype == json::type_array || ntype == json::type_object)
                 {
                     THROW_MANAPI_EXCEPTION ("Invalid symbol at {}: {}", i, c);
                 }
@@ -374,7 +374,7 @@ void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &
         obj = {
             {
                 "obj", {
-                    {"type", MANAPI_JSON_MAP},
+                    {"type", json::type_object},
                     {"data", std::move(obj)}
                 },
             },
@@ -391,7 +391,7 @@ void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &
         obj = {
             {
                 "obj", {
-                        {"type", MANAPI_JSON_MAP},
+                        {"type", json::type_object},
                         {"data", std::move(obj)}
                 },
             },
@@ -421,7 +421,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
 
     auto &type = information["type"].get<ssize_t>();
 
-    if (type == MANAPI_JSON_STRING)
+    if (type == json::type_string)
     {
         // invalid type
         if (!obj.is_string())
@@ -443,12 +443,12 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
         // ex: {string}
         return true;
     }
-    if (type == MANAPI_JSON_NULL)
+    if (type == json::type_null)
     {
         // invalid type
         return obj.is_null();
     }
-    if (type == MANAPI_JSON_BOOLEAN)
+    if (type == json::type_boolean)
     {
         // invalid type
         if (!obj.is_bool())
@@ -470,7 +470,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
         // ex: {bool}
         return true;
     }
-    if (type == MANAPI_JSON_NUMBER)
+    if (type == json::type_number)
     {
         // invalid type
         if (!obj.is_number())
@@ -492,7 +492,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
         // ex: {number}
         return true;
     }
-    if (type == MANAPI_JSON_DECIMAL)
+    if (type == json::type_decimal)
     {
         // invalid type
         if (!obj.is_decimal())
@@ -514,7 +514,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
         // ex: {decimal}
         return true;
     }
-    if (type == MANAPI_JSON_BIGINT)
+    if (type == json::type_bigint)
     {
         // invalid type
         if (!obj.is_bigint())
@@ -536,7 +536,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
         // ex: {bigint}
         return true;
     }
-    if (type == MANAPI_JSON_NUMERIC)
+    if (type == json::type_numeric)
     {
         if (!obj.is_bigint() && !obj.is_number() && !obj.is_decimal())
         {
@@ -549,7 +549,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
     {
         return true;
     }
-    if (type == MANAPI_JSON_MAP)
+    if (type == json::type_object)
     {
         if (!obj.is_object())
         {
@@ -577,7 +577,6 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
                 {
                     return it->second["none"].get<bool>();
                 }
-                std::cout << it->second.dump(2) << "\n";
                 // incorrect value
                 if (!recursive_valid(obj.at(it->first), it->second))
                 {
@@ -589,7 +588,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
         // all ok
         return true;
     }
-    if (type == MANAPI_JSON_ARRAY)
+    if (type == json::type_array)
     {
         if (!obj.is_array())
         {

@@ -11,13 +11,13 @@
 #include <unordered_map>
 #include <fcntl.h>
 #include <netdb.h>
-
+#include <atomic>
 #include "ManapiTaskFunction.hpp"
 #include "ManapiHttp.hpp"
 #include "ManapiTaskHttp.hpp"
 #include "ManapiUtils.hpp"
 
-bool        manapi::net::http::stopped_interrupt        = false;
+bool manapi::net::http::stopped_interrupt = false;
 
 std::vector <manapi::net::http *> manapi::net::http::running;
 
@@ -60,7 +60,7 @@ std::future<void> manapi::net::http::pool(const size_t &thread_num) {
         std::lock_guard <std::mutex> lk (m_initing);
 
         tasks_pool_init(thread_num);
-        setup_timer_pool (get_tasks_pool().get());
+        timer_pool_setup (get_tasks_pool().get());
 
         pool_promise = std::make_unique<std::promise<void>>();
 
@@ -69,9 +69,9 @@ std::future<void> manapi::net::http::pool(const size_t &thread_num) {
         {
             for (auto it = config["pools"].begin<utils::json::ARRAY>(); it != config["pools"].end<utils::json::ARRAY>(); it++, next_pool_id++)
             {
-                auto p = new http_pool (*it, this, next_pool_id);
-                pools.insert({next_pool_id, p});
+                auto p = std::make_unique<http_pool> (*it, this, next_pool_id);
                 p->run();
+                pools.insert({next_pool_id, std::move(p)});
             }
         }
 
@@ -138,11 +138,11 @@ void manapi::net::http::stop_pool() {
     http::running.push_back(this);
 
     cv_stopping.wait(lk, [this] () -> bool { return stopping; });
-
     ////////////////////////
     //////// Stopping //////
     ////////////////////////
 
+    timer_pool_stop();
     tasks_pool_stop();
 
     // stop all pools
@@ -150,7 +150,6 @@ void manapi::net::http::stop_pool() {
     {
         MANAPI_LOG ("pool #{} is stopping...", pool.first);
         pool.second->stop();
-        delete pool.second;
         MANAPI_LOG ("pool #{} stopped successfully", pool.first);
     }
 

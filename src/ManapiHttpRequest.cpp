@@ -130,18 +130,18 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
         THROW_MANAPI_EXCEPTION("{}", "this method cannot have a body");
     }
 
-    const auto header     = utils::parse_header_value(get_headers().at(http_header.CONTENT_TYPE));
+    const auto header     = utils::parse_header_value(get_headers().at(HTTP_HEADER.CONTENT_TYPE));
 
     if (header.empty())
     {
-        THROW_MANAPI_EXCEPTION ("header value is empty: {}", http_header.CONTENT_TYPE);
+        THROW_MANAPI_EXCEPTION ("header value is empty: {}", HTTP_HEADER.CONTENT_TYPE);
     }
 
     const std::string *content_type = &header[0].value;
 
     manapi::utils::MAP_STR_STR params;
 
-    if (*content_type == http_mime.MULTIPART_FORM_DATA)
+    if (*content_type == HTTP_MIME.MULTIPART_FORM_DATA)
     {
         if (!header[0].params.contains("boundary"))
         {
@@ -170,7 +170,7 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
             });
         }
     }
-    else if (*content_type == http_mime.APPLICATION_X_WWW_FORM_URLENCODED)
+    else if (*content_type == HTTP_MIME.APPLICATION_X_WWW_FORM_URLENCODED)
     {
         request_data->body_part = std::min (request_data->body_part, request_data->body_left);
 
@@ -464,11 +464,11 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
             const auto parsed_header = utils::parse_header(line);
             const auto header_value = utils::parse_header_value(parsed_header.second);
 
-            if (parsed_header.first == http_header.CONTENT_DISPOSITION)
+            if (parsed_header.first == HTTP_HEADER.CONTENT_DISPOSITION)
             {
                 if (header_value.empty())
                 {
-                    THROW_MANAPI_EXCEPTION("header value is empty: {}", http_header.CONTENT_DISPOSITION);
+                    THROW_MANAPI_EXCEPTION("header value is empty: {}", HTTP_HEADER.CONTENT_DISPOSITION);
                 }
 
                 if (header_value[0].params.contains("name"))
@@ -497,11 +497,11 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
                 }
             }
 
-            else if (parsed_header.first == http_header.CONTENT_TYPE)
+            else if (parsed_header.first == HTTP_HEADER.CONTENT_TYPE)
             {
                 if (header_value.empty())
                 {
-                    THROW_MANAPI_EXCEPTION("{} can not be empty", http_header.CONTENT_TYPE);
+                    THROW_MANAPI_EXCEPTION("{} can not be empty", HTTP_HEADER.CONTENT_TYPE);
                 }
 
                 if (file_data.exists)

@@ -26,6 +26,11 @@ manapi::utils::bigint::bigint(const double &num, const size_t &precision) {
     this->parse(num);
 }
 
+manapi::utils::bigint::bigint(const long double &num, const size_t &precision) {
+    mpf_init2 (x, precision);
+    this->parse(num);
+}
+
 manapi::utils::bigint::bigint(const unsigned long &num, const size_t &precision) {
     mpf_init2 (x, precision);
     this->parse(num);
@@ -80,6 +85,10 @@ void manapi::utils::bigint::parse(const double &num) {
     mpf_set_d (x, num);
 }
 
+void manapi::utils::bigint::parse(const long double &num) {
+    mpf_set_d (x, static_cast <double> (num));
+}
+
 std::string manapi::utils::bigint::stringify() const {
     mp_exp_t exponent;
     char *ptr       = mpf_get_str (nullptr, &exponent, 10, 0, x);
@@ -101,6 +110,14 @@ std::string manapi::utils::bigint::stringify() const {
     }
 
     return "0";
+}
+
+ssize_t manapi::utils::bigint::numberify() const {
+    return mpf_get_si(x);
+}
+
+double manapi::utils::bigint::decimalify() const {
+    return mpf_get_d(x);
 }
 
 manapi::utils::bigint manapi::utils::bigint::operator+(const manapi::utils::bigint &oth) const {

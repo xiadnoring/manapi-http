@@ -85,7 +85,7 @@ namespace manapi::net {
         std::string SSL_HANDSHAKE_FAILED_525            = "SSL Handshake Failed";
         std::string INVALID_SSL_CERTIFICATE_526         = "Invalid SSL Certificate";
 
-    } http_status;
+    } HTTP_STATUS;
 
     static const struct {
         std::string CONTENT_RANGE       = "content-range";
@@ -115,7 +115,7 @@ namespace manapi::net {
         std::string KEEP_ALIVE          = "keep-alive";
         std::string ALT_SVC             = "alt-svc";
         std::string AUTHORIZATION       = "authorization";
-    } http_header;
+    } HTTP_HEADER;
 
     static const struct {
         std::string TEXT_PLAIN                          = "text/plain";
@@ -160,38 +160,38 @@ namespace manapi::net {
         std::string FONT_WOFF2                          = "font/woff2";
         std::string FONT_OTF                            = "font/otf";
 
-    } http_mime;
+    } HTTP_MIME;
 
     static manapi::utils::safe_unordered_map <std::string, std::string> mime_by_extension = {
-        {"txt", http_mime.TEXT_PLAIN},
-        {"mp4", http_mime.VIDEO_MP4},
-        {"js",  http_mime.TEXT_JS},
-        {"mjs", http_mime.TEXT_JS},
-        {"css", http_mime.TEXT_CSS},
-        {"mp4", http_mime.VIDEO_MP4},
-        {"mp3", http_mime.AUDIO_MP3},
-        {"html", http_mime.TEXT_HTML},
-        {"zip", http_mime.APPLICATION_ZIP},
-        {"gzip", http_mime.APPLICATION_GZIP},
-        {"tar", http_mime.APPLICATION_TAR},
-        {"png", http_mime.IMAGE_PNG},
-        {"jpeg", http_mime.IMAGE_JPEG},
-        {"jpg", http_mime.IMAGE_JPEG},
-        {"svg", http_mime.IMAGE_SVG},
-        {"ttf", http_mime.FONT_TTF},
-        {"woff", http_mime.FONT_WOFF},
-        {"woff2", http_mime.FONT_WOFF2},
-        {"otf", http_mime.FONT_OTF},
-        {"webp", http_mime.IMAGE_WEBP},
-        {"webm", http_mime.VIDEO_WEBM},
-        {"weba", http_mime.AUDIO_WEBA},
-        {"pdf", http_mime.APPLICATION_PDF},
-        {"json", http_mime.APPLICATION_JSON},
-        {"htm", http_mime.TEXT_HTML},
-        {"gif", http_mime.IMAGE_GIF},
-        {"bmp", http_mime.IMAGE_BMP},
-        {"bin", http_mime.APPLICATION_OCTET_STREAM},
-        {"",    http_mime.APPLICATION_OCTET_STREAM}
+        {"txt", HTTP_MIME.TEXT_PLAIN},
+        {"mp4", HTTP_MIME.VIDEO_MP4},
+        {"js",  HTTP_MIME.TEXT_JS},
+        {"mjs", HTTP_MIME.TEXT_JS},
+        {"css", HTTP_MIME.TEXT_CSS},
+        {"mp4", HTTP_MIME.VIDEO_MP4},
+        {"mp3", HTTP_MIME.AUDIO_MP3},
+        {"html", HTTP_MIME.TEXT_HTML},
+        {"zip", HTTP_MIME.APPLICATION_ZIP},
+        {"gzip", HTTP_MIME.APPLICATION_GZIP},
+        {"tar", HTTP_MIME.APPLICATION_TAR},
+        {"png", HTTP_MIME.IMAGE_PNG},
+        {"jpeg", HTTP_MIME.IMAGE_JPEG},
+        {"jpg", HTTP_MIME.IMAGE_JPEG},
+        {"svg", HTTP_MIME.IMAGE_SVG},
+        {"ttf", HTTP_MIME.FONT_TTF},
+        {"woff", HTTP_MIME.FONT_WOFF},
+        {"woff2", HTTP_MIME.FONT_WOFF2},
+        {"otf", HTTP_MIME.FONT_OTF},
+        {"webp", HTTP_MIME.IMAGE_WEBP},
+        {"webm", HTTP_MIME.VIDEO_WEBM},
+        {"weba", HTTP_MIME.AUDIO_WEBA},
+        {"pdf", HTTP_MIME.APPLICATION_PDF},
+        {"json", HTTP_MIME.APPLICATION_JSON},
+        {"htm", HTTP_MIME.TEXT_HTML},
+        {"gif", HTTP_MIME.IMAGE_GIF},
+        {"bmp", HTTP_MIME.IMAGE_BMP},
+        {"bin", HTTP_MIME.APPLICATION_OCTET_STREAM},
+        {"",    HTTP_MIME.APPLICATION_OCTET_STREAM}
     };
 }
 

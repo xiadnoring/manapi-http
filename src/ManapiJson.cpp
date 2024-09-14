@@ -23,7 +23,7 @@ manapi::utils::json::json(const std::string &str, bool is_json) {
     }
     else
     {
-        type = MANAPI_JSON_STRING;
+        type = type_string;
         src = new std::string (str);
     }
 }
@@ -35,7 +35,7 @@ manapi::utils::json::json(const std::u32string &str, bool is_json) {
     }
     else
     {
-        type = MANAPI_JSON_STRING;
+        type = type_string;
         src = new std::string (str32to4(str));
     }
 }
@@ -56,7 +56,7 @@ manapi::utils::json::json(json &&other) noexcept {
     src = other.src;
     type = other.type;
 
-    other.type = MANAPI_JSON_NULL;
+    other.type = type_null;
     other.src = nullptr;
 }
 
@@ -69,7 +69,7 @@ manapi::utils::json::json(const char *plain_text, bool is_json)
     else
     {
         src = new std::string (plain_text);
-        type = MANAPI_JSON_STRING;
+        type = type_string;
     }
 }
 
@@ -83,7 +83,7 @@ manapi::utils::json::json(const double &num)
     this->parse(num);
 }
 
-manapi::utils::json::json(const double long &num)
+manapi::utils::json::json(const json::DECIMAL &num)
 {
     this->parse(num);
 }
@@ -95,7 +95,15 @@ manapi::utils::json::json(const bigint &num)
 
 manapi::utils::json::json(const bool &value)
 {
-    this->operator=(value);
+    this->parse(value);
+}
+
+manapi::utils::json::json(const OBJECT &obj) {
+    this->parse(obj);
+}
+
+manapi::utils::json::json(const ARRAY &arr) {
+    this->parse(arr);
 }
 
 manapi::utils::json::json(const nullptr_t &n)
@@ -109,7 +117,7 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
         // nothing
         return;
     }
-    if (data.size() == 1 && data.begin()->type != MANAPI_JSON_PAIR)
+    if (data.size() == 1 && data.begin()->type != type_pair)
     {
         // equal
         this->operator=(*data.begin());
@@ -124,7 +132,7 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
         auto value = *it;
 
         // resolve pair to array
-        if (value.type == MANAPI_JSON_PAIR)
+        if (value.type == type_pair)
         {
             json arr = json::array ();
             arr.push_back(reinterpret_cast <std::pair <json, json> *> (value.src)->first);
@@ -135,7 +143,7 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
 
         // do not need to malloc json
         src = new std::pair <json, json> (*key, std::move(value));
-        type = MANAPI_JSON_PAIR;
+        type = type_pair;
     }
     else {
         // array or map
@@ -145,7 +153,7 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
 
         for (const auto &it: data)
         {
-            if (it.type != MANAPI_JSON_PAIR)
+            if (it.type != type_pair)
             {
                 map = false;
 
@@ -155,11 +163,11 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
 
         if (map)
         {
-            type = MANAPI_JSON_MAP;
+            type = type_object;
             src = new json::OBJECT ();
         }
         else {
-            type = MANAPI_JSON_ARRAY;
+            type = type_array;
             src = new json::ARRAY ();
         }
 
@@ -177,7 +185,7 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
         {
             for (auto it = data.begin(); it != data.end(); it++)
             {
-                if (it->type == MANAPI_JSON_PAIR)
+                if (it->type == type_pair)
                 {
                     // we need to resolve pair to array
 
@@ -219,28 +227,38 @@ manapi::utils::json::~json() {
 }
 
 void manapi::utils::json::parse(const ssize_t &num) {
-    type    = MANAPI_JSON_NUMBER;
+    type    = type_number;
     src     = new ssize_t (num);
 }
 
 void manapi::utils::json::parse(const int &num) {
-    type    = MANAPI_JSON_NUMBER;
+    type    = type_number;
     src     = new ssize_t (num);
 }
 
 void manapi::utils::json::parse(const double &num) {
-    type    = MANAPI_JSON_DECIMAL;
-    src     = new double long (num);
+    type    = type_decimal;
+    src     = new json::DECIMAL (num);
 }
 
-void manapi::utils::json::parse(const double long &num) {
-    type    = MANAPI_JSON_DECIMAL;
-    src     = new double long (num);
+void manapi::utils::json::parse(const json::DECIMAL &num) {
+    type    = type_decimal;
+    src     = new json::DECIMAL (num);
 }
 
 void manapi::utils::json::parse(const bigint &num) {
-    type    = MANAPI_JSON_BIGINT;
+    type    = type_bigint;
     src     = new bigint(num);
+}
+
+void manapi::utils::json::parse(const OBJECT &obj) {
+    type    = type_object;
+    src     = new OBJECT (obj);
+}
+
+void manapi::utils::json::parse(const ARRAY &arr) {
+    type    = type_array;
+    src     = new ARRAY (arr);
 }
 
 void manapi::utils::json::parse(const std::string &plain_text) {
@@ -248,7 +266,7 @@ void manapi::utils::json::parse(const std::string &plain_text) {
 }
 
 void manapi::utils::json::parse(const nullptr_t &n) {
-    type    = MANAPI_JSON_NULL;
+    type    = type_null;
     src     = nullptr;
 }
 
@@ -267,16 +285,16 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
 
         switch (plain_text[i]) {
             case '{':
-                type = MANAPI_JSON_MAP;
+                type = type_object;
                 break;
             case '[':
-                type = MANAPI_JSON_ARRAY;
+                type = type_array;
                 break;
             case '"':
-                type = MANAPI_JSON_STRING;
+                type = type_string;
                 break;
             default:
-                type = MANAPI_JSON_NUMERIC;
+                type = type_numeric;
                 break;
         }
 
@@ -290,7 +308,7 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
     bool opened_quote;
 
     switch (type) {
-        case MANAPI_JSON_MAP:
+        case type_object:
             src = new json::OBJECT ();
 
             opened_quote    = false;
@@ -382,7 +400,7 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
             }
 
             break;
-        case MANAPI_JSON_ARRAY:
+        case type_array:
             src = new std::vector<json *> ();
 
             // bcz we know that it is an array -> skip the first char ('[')
@@ -444,7 +462,7 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
             }
 
             break;
-        case MANAPI_JSON_STRING:
+        case type_string:
             opened_quote = false;
 
             for (size_t i = start_cut; i <= end_cut; i++) {
@@ -478,7 +496,7 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
             src = new std::string(str32to4(sub_plain_text));
 
             break;
-        case MANAPI_JSON_NUMERIC:
+        case type_numeric:
 
             size_t i = start_cut;
 
@@ -496,7 +514,7 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
 
             if (plain_text[i] >= '0' && plain_text[i] <= '9') {
                 // we think that it is the integer
-                type = MANAPI_JSON_NUMBER;
+                type = type_number;
 
                 sub_plain_text += plain_text[i];
                 // next
@@ -513,11 +531,11 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
 
                         switch (plain_text[i]) {
                             case '.':
-                                if (type == MANAPI_JSON_DECIMAL)
+                                if (type == type_decimal)
                                     error_invalid_char(plain_text, i);
 
                                 // its decimal
-                                type            = MANAPI_JSON_DECIMAL;
+                                type            = type_decimal;
                                 sub_plain_text  += plain_text[i];
                                 break;
                             case '}':
@@ -536,18 +554,18 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                     // bigint for all type of number
                     src     = new bigint(str32to4(sub_plain_text), bigint_precision);
 
-                    type    = MANAPI_JSON_BIGINT;
+                    type    = type_bigint;
                 }
                 else {
 
-                    if (type == MANAPI_JSON_NUMBER)
+                    if (type == type_number)
                         // numeric
                         src = new ssize_t(std::stoll(str32to4(sub_plain_text)));
                     else {
                         if (plain_text[end_cut] == '.')
                             error_invalid_char(plain_text, end_cut);
                         // decimal
-                        src = new double long(std::stold(str32to4(sub_plain_text)));
+                        src = new json::DECIMAL(std::stold(str32to4(sub_plain_text)));
                     }
                 }
             }
@@ -567,27 +585,27 @@ void manapi::utils::json::parse(const std::u32string &plain_text, const bool &us
                 // true
                 if (sub_plain_text == JSON_W_TRUE) {
                     src     = new bool (true);
-                    type    = MANAPI_JSON_BOOLEAN;
+                    type    = type_boolean;
                     break;
                 }
 
                 // false
                 if (sub_plain_text == JSON_W_FALSE) {
                     src     = new bool (false);
-                    type    = MANAPI_JSON_BOOLEAN;
+                    type    = type_boolean;
                     break;
                 }
 
                 // null
                 if (sub_plain_text == JSON_W_NULL) {
                     src     = nullptr;
-                    type    = MANAPI_JSON_NULL;
+                    type    = type_null;
                     break;
                 }
 
                 // otherwise -> null
                 src         = nullptr;
-                type        = MANAPI_JSON_NULL;
+                type        = type_null;
 
                 // TODO escape sub_plain_text
                 throw json_parse_exception(std::format("Invalid string: '{}' ({}, {})",
@@ -624,26 +642,26 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
 #define JSON_DUMP_LAST_SPACES   for (size_t z = 0; z < first_spaces; z++) str += ' ';
     std::string str;
 
-    if (type == MANAPI_JSON_STRING)
+    if (type == type_string)
         // TODO: what the hell is that: str32to4(foo(str4to32(...)))
         str = '"' + str32to4(escape_string(str4to32(*reinterpret_cast<std::string *> (src)))) + '"';
 
-    else if (type == MANAPI_JSON_DECIMAL)
-        str = std::to_string(*reinterpret_cast<double long *> (src));
+    else if (type == type_decimal)
+        str = std::to_string(*reinterpret_cast<json::DECIMAL *> (src));
 
-    else if (type == MANAPI_JSON_NUMBER)
+    else if (type == type_number)
         str = std::to_string(*reinterpret_cast<ssize_t *> (src));
 
-    else if (type == MANAPI_JSON_BIGINT)
+    else if (type == type_bigint)
         str = reinterpret_cast <bigint *> (src)->stringify();
 
-    else if (type == MANAPI_JSON_BOOLEAN)
+    else if (type == type_boolean)
         str = *reinterpret_cast<bool *> (src) == 1 ? JSON_TRUE : JSON_FALSE;
 
-    else if (type == MANAPI_JSON_NULL)
+    else if (type == type_null)
         str = JSON_NULL;
 
-    else if (type == MANAPI_JSON_MAP) {
+    else if (type == type_object) {
         const bool      spaces_enabled  = spaces > 0;
         const size_t    total_spaces    = first_spaces + spaces;
 
@@ -683,7 +701,7 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
         str += '}';
     }
 
-    else if (type == MANAPI_JSON_ARRAY) {
+    else if (type == type_array) {
         const bool      spaces_enabled  = spaces > 0;
         const size_t    total_spaces    = first_spaces + spaces;
 
@@ -720,9 +738,9 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
         str += ']';
     }
 
-    else if (type == MANAPI_JSON_PAIR)
+    else if (type == type_pair)
     {
-        THROW_MANAPI_EXCEPTION("A bug has been detected: {}", "type = MANAPI_JSON_PAIR");
+        THROW_MANAPI_EXCEPTION("A bug has been detected: {}", "type = type_pair");
     }
 
     return str;
@@ -761,7 +779,7 @@ manapi::utils::json &manapi::utils::json::at(const std::u32string &key) const {
 }
 
 manapi::utils::json &manapi::utils::json::at(const std::string &key) const {
-    if (type != MANAPI_JSON_MAP)
+    if (type != type_object)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
@@ -777,7 +795,7 @@ manapi::utils::json &manapi::utils::json::at(const std::string &key) const {
 }
 
 manapi::utils::json &manapi::utils::json::at(const size_t &index) const {
-    if (type != MANAPI_JSON_ARRAY)
+    if (type != type_array)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
@@ -793,46 +811,46 @@ manapi::utils::json &manapi::utils::json::at(const size_t &index) const {
 }
 
 manapi::utils::json& manapi::utils::json::operator=(const std::string &str) {
-    delete_value ();
+    utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
-    type    = MANAPI_JSON_STRING;
+    type    = type_string;
     src     = new std::string (str);
 
     return *this;
 }
 
 manapi::utils::json &manapi::utils::json::operator=(const bool &b) {
-    delete_value();
+    utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
-    type    = MANAPI_JSON_BOOLEAN;
+    type    = type_boolean;
     src     = new bool (b);
 
     return *this;
 }
 
 manapi::utils::json &manapi::utils::json::operator=(const ssize_t &num) {
-    delete_value();
+    utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
-    type    = MANAPI_JSON_NUMBER;
+    type    = type_number;
     src     = new ssize_t (num);
 
     return *this;
 }
 
 manapi::utils::json &manapi::utils::json::operator=(const double &num) {
-    delete_value();
+    utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
-    type    = MANAPI_JSON_DECIMAL;
-    src     = new double long (num);
+    type    = type_decimal;
+    src     = new json::DECIMAL (num);
 
     return *this;
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const double long &num) {
-    delete_value();
+manapi::utils::json &manapi::utils::json::operator=(const json::DECIMAL &num) {
+    utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
-    type    = MANAPI_JSON_DECIMAL;
-    src     = new double long (num);
+    type    = type_decimal;
+    src     = new json::DECIMAL (num);
 
     return *this;
 }
@@ -842,9 +860,9 @@ manapi::utils::json &manapi::utils::json::operator=(const long long &num) {
 }
 
 manapi::utils::json &manapi::utils::json::operator=(nullptr_t const &n) {
-    delete_value();
+    utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
-    type    = MANAPI_JSON_NULL;
+    type    = type_null;
     src     = nullptr;
 
     return *this;
@@ -863,9 +881,9 @@ manapi::utils::json &manapi::utils::json::operator=(const int &num) {
 }
 
 manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::bigint &num) {
-    delete_value();
+    utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
-    type    = MANAPI_JSON_BIGINT;
+    type    = type_bigint;
     src     = new bigint(num);
 
     return *this;
@@ -883,36 +901,36 @@ manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::json &o
         this->root                  = true;
 
         switch (type) {
-            case MANAPI_JSON_STRING:
+            case type_string:
                 src = new std::string (*reinterpret_cast<std::string *> (obj.src));
             break;
-            case MANAPI_JSON_NUMBER:
+            case type_number:
                 src = new ssize_t (*reinterpret_cast<ssize_t *> (obj.src));
             break;
-            case MANAPI_JSON_DECIMAL:
-                src = new double long (*reinterpret_cast<double long *> (obj.src));
+            case type_decimal:
+                src = new json::DECIMAL (*reinterpret_cast<json::DECIMAL *> (obj.src));
             break;
-            case MANAPI_JSON_BIGINT:
+            case type_bigint:
                 src = new bigint(*reinterpret_cast<bigint *> (obj.src));
             break;
-            case MANAPI_JSON_ARRAY:
+            case type_array:
             {
                 const auto arr_oth = reinterpret_cast <json::ARRAY  *> (obj.src);
 
                 src = new json::ARRAY (*arr_oth);
                 break;
             }
-            case MANAPI_JSON_MAP:
+            case type_object:
             {
                 const auto map_oth = reinterpret_cast <json::OBJECT  *> (obj.src);
 
                 src = new json::OBJECT(*map_oth);
                 break;
             }
-            case MANAPI_JSON_BOOLEAN:
+            case type_boolean:
                 src = new bool(*reinterpret_cast<bool *> (obj.src));
             break;
-            case MANAPI_JSON_NULL:
+            case type_null:
                 src = nullptr;
             break;
         }
@@ -937,7 +955,7 @@ void manapi::utils::json::insert(const std::u32string &key, const manapi::utils:
 }
 
 void manapi::utils::json::insert(const std::string &key, const manapi::utils::json &obj) {
-    if (type != MANAPI_JSON_MAP)
+    if (type != type_object)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
@@ -957,7 +975,7 @@ void manapi::utils::json::insert(const std::string &key, const manapi::utils::js
 }
 
 void manapi::utils::json::push_back(manapi::utils::json obj) {
-    if (type != MANAPI_JSON_ARRAY)
+    if (type != type_array)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
@@ -970,7 +988,7 @@ void manapi::utils::json::push_back(manapi::utils::json obj) {
 }
 
 void manapi::utils::json::pop_back() {
-    if (type != MANAPI_JSON_ARRAY)
+    if (type != type_array)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
@@ -993,7 +1011,7 @@ void manapi::utils::json::push_back(const std::string &arg) {
     json Json;
 
     Json.src        = new std::string (arg);
-    Json.type       = MANAPI_JSON_STRING;
+    Json.type       = type_string;
 
     this->push_back(std::move(Json));
 }
@@ -1006,7 +1024,7 @@ void manapi::utils::json::push_back(const ssize_t &arg) {
 manapi::utils::json manapi::utils::json::object() {
     json obj;
 
-    obj.type    = MANAPI_JSON_MAP;
+    obj.type    = type_object;
     obj.src     = new json::OBJECT;
 
     return obj;
@@ -1016,7 +1034,7 @@ manapi::utils::json manapi::utils::json::array() {
     // rvalue, arr not be destroyed
     json arr;
 
-    arr.type    = MANAPI_JSON_ARRAY;
+    arr.type    = type_array;
     arr.src     = new json::ARRAY ;
 
     return arr;
@@ -1039,7 +1057,7 @@ bool manapi::utils::json::contains(const std::u32string &key) const {
 }
 
 bool manapi::utils::json::contains(const std::string &key) const {
-    if (type != MANAPI_JSON_MAP)
+    if (type != type_object)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
@@ -1052,7 +1070,7 @@ void manapi::utils::json::erase(const std::u32string &key) {
 }
 
 void manapi::utils::json::erase(const std::string &key) {
-    if (type != MANAPI_JSON_MAP)
+    if (type != type_object)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
@@ -1061,35 +1079,121 @@ void manapi::utils::json::erase(const std::string &key) {
 }
 
 bool manapi::utils::json::is_object() const {
-    return type == MANAPI_JSON_MAP;
+    return type == type_object;
 }
 
 bool manapi::utils::json::is_array() const {
-    return type == MANAPI_JSON_ARRAY;
+    return type == type_array;
 }
 
 bool manapi::utils::json::is_string() const {
-    return type == MANAPI_JSON_STRING;
+    return type == type_string;
 }
 
 bool manapi::utils::json::is_number() const {
-    return type == MANAPI_JSON_NUMBER;
+    return type == type_number;
 }
 
 bool manapi::utils::json::is_null() const {
-    return type == MANAPI_JSON_NULL;
+    return type == type_null;
 }
 
 bool manapi::utils::json::is_decimal() const {
-    return type == MANAPI_JSON_DECIMAL;
+    return type == type_decimal;
 }
 
 bool manapi::utils::json::is_bigint() const {
-    return type == MANAPI_JSON_BIGINT;
+    return type == type_bigint;
 }
 
 bool manapi::utils::json::is_bool() const {
-    return type == MANAPI_JSON_BOOLEAN;
+    return type == type_boolean;
+}
+
+const manapi::utils::json::OBJECT &manapi::utils::json::as_object() const {
+    if (type == type_object) {
+        return *static_cast<json::OBJECT *> (src);
+    }
+    THROW_MANAPI_JSON_MISSING_FUNCTION;
+}
+
+const manapi::utils::json::ARRAY & manapi::utils::json::as_array() const {
+    if (type == type_array) {
+        return *static_cast<json::ARRAY *> (src);
+    }
+    THROW_MANAPI_JSON_MISSING_FUNCTION;
+}
+
+manapi::utils::json::STRING manapi::utils::json::as_string() const {
+    if (type == type_string) {
+        return *static_cast<json::STRING *> (src);
+    }
+    if (type == type_number) {
+        return std::to_string(*static_cast<json::NUMBER *> (src));
+    }
+    if (type == type_bigint) {
+        return static_cast<json::BIGINT *> (src)->stringify();
+    }
+    if (type == type_decimal) {
+        return std::to_string(*static_cast<json::DECIMAL *> (src));
+    }
+    THROW_MANAPI_JSON_MISSING_FUNCTION;
+}
+
+manapi::utils::json::NUMBER manapi::utils::json::as_number() const {
+    if (type == type_number) {
+        return *static_cast<json::NUMBER *> (src);
+    }
+    if (type == type_bigint) {
+        return static_cast<json::BIGINT *> (src)->numberify();
+    }
+    if (type == type_decimal) {
+        return static_cast <json::NUMBER> (*static_cast<json::DECIMAL *> (src));
+    }
+    THROW_MANAPI_JSON_MISSING_FUNCTION;
+}
+
+manapi::utils::json::NULLPTR manapi::utils::json::as_null() const {
+    if (type == type_null) {
+        return nullptr;
+    }
+    THROW_MANAPI_JSON_MISSING_FUNCTION;
+}
+
+manapi::utils::json::DECIMAL manapi::utils::json::as_decimal() const {
+    if (type == type_decimal) {
+        return *static_cast<json::DECIMAL *> (src);
+    }
+    if (type == type_number) {
+        return static_cast<json::DECIMAL> (*static_cast<json::NUMBER *> (src));
+    }
+    if (type == type_bigint) {
+        return static_cast<json::BIGINT *> (src)->decimalify();
+    }
+    THROW_MANAPI_JSON_MISSING_FUNCTION;
+}
+
+manapi::utils::json::BIGINT manapi::utils::json::as_bigint() const {
+    if (type == type_bigint) {
+        return *static_cast<json::BIGINT *> (src);
+    }
+    if (type == type_number) {
+        return bigint (*static_cast<json::NUMBER *> (src));
+    }
+    if (type == type_decimal) {
+        return bigint (*static_cast<json::DECIMAL *> (src));
+    }
+    if (type == type_string) {
+        return bigint (*static_cast<json::STRING *> (src));
+    }
+    THROW_MANAPI_JSON_MISSING_FUNCTION;
+}
+
+const manapi::utils::json::BOOLEAN & manapi::utils::json::as_bool() const {
+    if (type == type_boolean) {
+        return *static_cast<json::BOOLEAN *> (src);
+    }
+    THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
 size_t manapi::utils::json::size() const {
@@ -1120,7 +1224,7 @@ manapi::utils::json &manapi::utils::json::operator+(const ssize_t &num) {
     }
     else if (is_decimal())
     {
-        (*reinterpret_cast <long double *> (src)) += num;
+        (*reinterpret_cast <json::DECIMAL *> (src)) += num;
     }
     else
     {
@@ -1144,31 +1248,30 @@ manapi::utils::json &manapi::utils::json::operator-(const int &num) {
 
 void manapi::utils::json::delete_value_static(const short &type, void *src) {
     switch (type) {
-        case MANAPI_JSON_NULL:
+        case type_null:
             break;
-        case MANAPI_JSON_ARRAY:
+        case type_array:
             delete reinterpret_cast<json::ARRAY  *> (src);
             break;
-
-        case MANAPI_JSON_MAP:
+        case type_object:
             delete reinterpret_cast<json::OBJECT *> (src);
             break;
-        case MANAPI_JSON_BOOLEAN:
+        case type_boolean:
             delete reinterpret_cast<bool *> (src);
             break;
-        case MANAPI_JSON_NUMBER:
+        case type_number:
             delete reinterpret_cast<ssize_t *> (src);
             break;
-        case MANAPI_JSON_STRING:
+        case type_string:
             delete reinterpret_cast<std::string *> (src);
             break;
-        case MANAPI_JSON_DECIMAL:
-            delete reinterpret_cast<double long*> (src);
+        case type_decimal:
+            delete reinterpret_cast<json::DECIMAL*> (src);
             break;
-        case MANAPI_JSON_BIGINT:
+        case type_bigint:
             delete reinterpret_cast<manapi::utils::bigint *> (src);
             break;
-        case MANAPI_JSON_PAIR:
+        case type_pair:
             delete reinterpret_cast<std::pair <json, json> *> (src);
             break;
     }
@@ -1176,7 +1279,7 @@ void manapi::utils::json::delete_value_static(const short &type, void *src) {
 
 void manapi::utils::json::throw_could_not_use_func(const std::string &func) const
 {
-    THROW_MANAPI_EXCEPTION("json object with type {} could not use func: {}", type, func);
+    THROW_MANAPI_EXCEPTION("json object with type {} could not use func: {}", static_cast <int> (type), func);
 }
 
 

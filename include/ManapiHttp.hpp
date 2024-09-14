@@ -54,7 +54,7 @@ namespace manapi::net {
 
         std::unique_ptr<std::promise <void>> pool_promise;
 
-        std::unordered_map<size_t, http_pool *> pools;
+        std::unordered_map<size_t, std::unique_ptr<http_pool>> pools;
 
         size_t                      next_pool_id = 0;
     };

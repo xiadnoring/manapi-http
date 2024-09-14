@@ -162,7 +162,7 @@ void manapi::net::http_task::udp_doit() {
                     return -1;
                 }
 
-                size_t keep_alive = config->get_keep_alive() * 1000;
+                size_t keep_alive = config->get_send_timeout() * 1000;
 
                 utils::before_delete bd_m_worker ([this] () -> void {quic_m_write.unlock(); });
                 if (!quic_m_write.try_lock_for(std::chrono::milliseconds(keep_alive)))
@@ -224,7 +224,7 @@ void manapi::net::http_task::udp_doit() {
 
                 if (!res)
                 {
-                    MANAPI_LOG("quic write timeout ({}s): capacity: {}. stream_id: {}", config->get_keep_alive(), capacity, stream_id);
+                    MANAPI_LOG("quic write timeout ({}s): capacity: {}. stream_id: {}", config->get_send_timeout(), capacity, stream_id);
                     // timeout / lock failed
                     is_deleting = true;
                 }
@@ -261,13 +261,13 @@ void manapi::net::http_task::udp_doit() {
         {
             if (is_deleting) { return; }
 
-            if (!quic_m_write.try_lock_for(std::chrono::seconds (config->get_keep_alive())))
+            if (!quic_m_write.try_lock_for(std::chrono::seconds (config->get_send_timeout())))
             {
                 if (is_deleting) { return; }
 
                 if (preSize == static_cast<struct file_transfer_information *> (buff)->size)
                 {
-                    MANAPI_LOG("quic write timeout ({}s): {}", config->get_keep_alive(), conn_io->key);
+                    MANAPI_LOG("quic write timeout ({}s): {}", config->get_send_timeout(), conn_io->key);
                     is_deleting = true;
                 }
                 else
@@ -372,7 +372,7 @@ void manapi::net::http_task::udp_doit() {
 
     if (request_data.has_body)
     {
-        if (!request_data.headers.contains(http_header.CONTENT_LENGTH))
+        if (!request_data.headers.contains(HTTP_HEADER.CONTENT_LENGTH))
         {
             THROW_MANAPI_EXCEPTION("{}", "content-length not exists");
         }
@@ -382,7 +382,7 @@ void manapi::net::http_task::udp_doit() {
 
         // data not contains headers
         request_data.headers_part = 0;
-        request_data.body_size = std::stoull(request_data.headers[http_header.CONTENT_LENGTH]);
+        request_data.body_size = std::stoull(request_data.headers[HTTP_HEADER.CONTENT_LENGTH]);
         request_data.body_left = request_data.body_size;
         request_data.body_ptr = (char *) buff;
 
@@ -439,10 +439,11 @@ void manapi::net::http_task::udp_loop_event(QUIC_MAP_CONNS_T *quic_map_conns, cl
         &config->get_server_address(),
         config->get_server_len()
     };
+
     while (true) {
         {
             std::lock_guard<std::mutex> lk (conn_io->buffers_mutex);
-            if (conn_io->buffers.empty()) { increase_responsing.call(); break; }
+            if (conn_io->buffers.empty()) { break; }
             auto first = conn_io->buffers.begin();
             const ssize_t done = quiche_conn_recv(conn_io->conn, (uint8_t *)first->data(), first->size(), &recv_info);
             conn_io->buffers.erase(first);
@@ -594,7 +595,7 @@ void manapi::net::http_task::udp_loop_event(QUIC_MAP_CONNS_T *quic_map_conns, cl
                         lk.unlock();
 
                         // wait the init connection
-                        if (!task->quic_m_worker.try_lock_for(std::chrono::seconds (config->get_keep_alive())))
+                        if (!task->quic_m_worker.try_lock_for(std::chrono::seconds (100)))
                         {
                             task->is_deleting = true;
                             MANAPI_LOG("quic_m_worker.try_lock_for(...) timeout \n"
@@ -660,9 +661,11 @@ void manapi::net::http_task::udp_loop_event(QUIC_MAP_CONNS_T *quic_map_conns, cl
             }
         }
 
+
         if (conn_io->is_deleting) { return; }
         http_task::quic_flush_egress(quic_map_conns, conn_io, site);
     }
+
     //config->append_task(new function_task ([config] () -> void { http_task::quic_generate_output_packages (config); }), 2);
 }
 
@@ -726,7 +729,7 @@ bool manapi::net::http_task::socket_wait_select() const {
     FD_ZERO (&read_fds);
     FD_SET  (conn_fd, &read_fds);
 
-    timeout.tv_sec = config->get_keep_alive(); // keep alive in n sec
+    timeout.tv_sec = config->get_recv_timeout(); // keep alive in n sec
     timeout.tv_usec = 0;
 
     int ready = select(conn_fd + 1, &read_fds, nullptr, nullptr, &timeout);
@@ -738,7 +741,7 @@ bool manapi::net::http_task::socket_wait_select() const {
 
     else if (ready == 0)
     {
-        THROW_MANAPI_EXCEPTION("The waiting time of {} seconds has been exceeded", config->get_keep_alive());
+        THROW_MANAPI_EXCEPTION("The waiting time of {} seconds has been exceeded", config->get_recv_timeout());
     }
 
     const bool result = FD_ISSET(conn_fd, &read_fds);
@@ -815,7 +818,7 @@ void manapi::net::http_task::tcp_doit() {
 
                 tcp_parse_request_response((char *) buff, *socket_block_size, request_data.body_index);
 
-                request_data.has_body = request_data.headers.contains(http_header.CONTENT_LENGTH);
+                request_data.has_body = request_data.headers.contains(HTTP_HEADER.CONTENT_LENGTH);
 
                 const auto handler = site->get_handler(request_data);
 
@@ -838,7 +841,7 @@ void manapi::net::http_task::tcp_doit() {
 
                     // request.body_size <- now this is the size of all read data
 
-                    request_data.body_size = std::stoull(request_data.headers[http_header.CONTENT_LENGTH]);
+                    request_data.body_size = std::stoull(request_data.headers[HTTP_HEADER.CONTENT_LENGTH]);
                     request_data.body_left = request_data.body_size;
                     request_data.body_ptr = (char *)buff + request_data.body_index * sizeof(char);
 
@@ -900,14 +903,14 @@ void manapi::net::http_task::handle_request(const http_handler_page *data, const
                 catch (const std::exception &e) {
                     MANAPI_LOG("Unexpected error: %s", e.what());
 
-                    send_error_response(503, http_status.SERVICE_UNAVAILABLE_503, data->error);
+                    send_error_response(503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error);
                 }
 
                 return;
             }
         }
 
-        return send_error_response (404, http_status.NOT_FOUND_404, data->error);
+        return send_error_response (404, HTTP_STATUS.NOT_FOUND_404, data->error);
     }
 
     try
@@ -919,13 +922,13 @@ void manapi::net::http_task::handle_request(const http_handler_page *data, const
     {
         MANAPI_LOG("Unexpected error: {}", e.what());
 
-        send_error_response (503, http_status.SERVICE_UNAVAILABLE_503, data->error);
+        send_error_response (503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error);
     }
     catch (const std::exception &e)
     {
         MANAPI_LOG("Unexpected error: {}", e.what());
 
-        send_error_response (503, http_status.SERVICE_UNAVAILABLE_503, data->error);
+        send_error_response (503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error);
     }
 }
 
@@ -999,7 +1002,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
 
             if (compressor != nullptr)
             {
-                res.set_header(http_header.CONTENT_ENCODING, compress);
+                res.set_header(HTTP_HEADER.CONTENT_ENCODING, compress);
             }
         }
     }
@@ -1008,13 +1011,12 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
     bool exists_compressor = compressor != nullptr;
 
     // set time
-    res.set_header(http_header.DATE, manapi::utils::time ("%a, %d %b %Y %H:%M:%S GMT", false));
+    res.set_header(HTTP_HEADER.DATE, manapi::utils::time ("%a, %d %b %Y %H:%M:%S GMT", false));
 
     if (config->get_http_version() < versions::HTTP_v2)
     {
         // if HTTP/0.9, HTTP/1.0 or HTTP/1.1
-        res.set_header(http_header.CONNECTION, http_header.KEEP_ALIVE);
-        res.set_header(http_header.KEEP_ALIVE, utils::stringify_header_value({{"", {{"timeout", std::to_string(config->get_keep_alive())}}}, {"", {{"max", "1000"}}}}));
+        res.set_header(HTTP_HEADER.CONNECTION, "close");
     }
 
     if (res.is_file())
@@ -1061,7 +1063,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
                     }
                 }
 
-                res.set_header(http_header.CONTENT_TYPE, mimetype);
+                res.set_header(HTTP_HEADER.CONTENT_TYPE, mimetype);
             }
             std::vector<utils::replace_founded_item> replacers;
 
@@ -1105,8 +1107,8 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
                     THROW_MANAPI_EXCEPTION("{}", "replacers can not be use with partial");
                 }
 
-                res.set_status(206, http_status.PARTIAL_CONTENT_206);
-                res.set_header(http_header.ACCEPT_RANGES, "bytes");
+                res.set_status(206, HTTP_STATUS.PARTIAL_CONTENT_206);
+                res.set_header(HTTP_HEADER.ACCEPT_RANGES, "bytes");
 
                 ssize_t start   = 0,
                         back    = (ssize_t)(config->get_partial_data_min_size()) - 1,
@@ -1131,8 +1133,8 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
                     case 0:
                         size = back - start + 1;
 
-                        res.set_header(http_header.CONTENT_LENGTH, std::to_string(size));
-                        res.set_header(http_header.CONTENT_RANGE, "bytes " + std::to_string(start) + '-' + std::to_string(back) + '/' + std::to_string(fileSize));
+                        res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(size));
+                        res.set_header(HTTP_HEADER.CONTENT_RANGE, "bytes " + std::to_string(start) + '-' + std::to_string(back) + '/' + std::to_string(fileSize));
 
                         if (mask_response(res) >= 0)
                         {
@@ -1159,7 +1161,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
             }
             else
             {
-                res.set_header(http_header.CONTENT_LENGTH, std::to_string(dynamicFileSize));
+                res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(dynamicFileSize));
 
                 if (mask_response (res) >= 0)
                 {
@@ -1206,11 +1208,11 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
             unwrap_plaintext.disable();
         }
 
-        res.set_header(http_header.CONTENT_LENGTH, std::to_string(plaintext->size()));
+        res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(plaintext->size()));
 
-        if (!res.get_headers().contains(http_header.CONTENT_TYPE))
+        if (!res.get_headers().contains(HTTP_HEADER.CONTENT_TYPE))
         {
-            res.set_header(http_header.CONTENT_TYPE, "text/html; charset=UTF-8");
+            res.set_header(HTTP_HEADER.CONTENT_TYPE, "text/html; charset=UTF-8");
         }
 
         if (mask_response (res) >= 0)
@@ -1230,11 +1232,11 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
 
         proxy->handle_headers([this, &res] (const std::map <std::string, std::string> &headers) -> void {
              res.set_status_code(200);
-             res.set_status_message(http_status.OK_200);
+             res.set_status_message(HTTP_STATUS.OK_200);
 
-             if (headers.contains(http_header.CONTENT_LENGTH))
+             if (headers.contains(HTTP_HEADER.CONTENT_LENGTH))
              {
-                 res.set_header(http_header.CONTENT_LENGTH, headers.at(http_header.CONTENT_LENGTH));
+                 res.set_header(HTTP_HEADER.CONTENT_LENGTH, headers.at(HTTP_HEADER.CONTENT_LENGTH));
              }
 
              mask_response(res);

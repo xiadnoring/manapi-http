@@ -12,8 +12,6 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "ManapiLocker.hpp"
-
 namespace manapi::net {
     template <class T>
     class threadpool {

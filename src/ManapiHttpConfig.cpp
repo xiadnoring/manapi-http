@@ -61,6 +61,18 @@ manapi::net::config::config(const utils::json &config) {
         keep_alive = config["keep_alive"].get<size_t>();
     }
 
+    // =================[recv_timeout           ]================= //
+    if (config.contains("recv_timeout"))
+    {
+        recv_timeout = config["recv_timeout"].get<size_t>();
+    }
+
+    // =================[send_timeout           ]================= //
+    if (config.contains("send_timeout"))
+    {
+        send_timeout = config["send_timeout"].get<size_t>();
+    }
+
     // =================[http_implement         ]================= //
     if (config.contains("http_implement"))
     {
@@ -184,6 +196,14 @@ void manapi::net::config::set_keep_alive(const long int &seconds) {
 
 const size_t &manapi::net::config::get_keep_alive() const {
     return keep_alive;
+}
+
+const size_t & manapi::net::config::get_recv_timeout() const {
+    return recv_timeout;
+}
+
+const size_t & manapi::net::config::get_send_timeout() const {
+    return send_timeout;
 }
 
 void manapi::net::config::set_port(const std::string &_port) {

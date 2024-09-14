@@ -31,6 +31,15 @@ manapi::net::http_response::~http_response() {
 void manapi::net::http_response::set_header(const std::string &key, const std::string &value) {
     headers[key] = value;
 }
+
+void manapi::net::http_response::remove_header(const std::string &key) {
+    headers.erase(key);
+}
+
+bool manapi::net::http_response::has_header(const std::string &key) {
+    return headers.contains(key);
+}
+
 /**
  * if key exists returning the pointer to the string otherwise returning nullptr
  * @param key the key of the header
@@ -51,6 +60,7 @@ void manapi::net::http_response::text(const std::string &plain_text) {
 }
 
 void manapi::net::http_response::json(const utils::json &jp, const size_t &spaces) {
+    set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.APPLICATION_JSON);
     text(jp.dump (spaces));
 }
 
@@ -129,8 +139,8 @@ void manapi::net::http_response::set_compress_enabled (const bool &status) {
 }
 
 const std::string &manapi::net::http_response::get_compress() {
-    if (compress_enabled && compress.empty() && request_data->headers.contains(http_header.ACCEPT_ENCODING)) {
-        std::string *value = &request_data->headers.at(http_header.ACCEPT_ENCODING);
+    if (compress_enabled && compress.empty() && request_data->headers.contains(HTTP_HEADER.ACCEPT_ENCODING)) {
+        std::string *value = &request_data->headers.at(HTTP_HEADER.ACCEPT_ENCODING);
         const auto data = utils::parse_header_value(*value);
 
         for (const auto &a: data) {
@@ -145,12 +155,12 @@ const std::string &manapi::net::http_response::get_compress() {
 }
 
 void manapi::net::http_response::detect_ranges () {
-    if (!request_data->headers.contains(http_header.RANGE))
+    if (!request_data->headers.contains(HTTP_HEADER.RANGE))
     {
         return;
     }
 
-    const auto values = utils::parse_header_value(request_data->headers.at(http_header.RANGE));
+    const auto values = utils::parse_header_value(request_data->headers.at(HTTP_HEADER.RANGE));
 
     for (const auto& value: values) {
         if (value.params.contains("bytes")) {

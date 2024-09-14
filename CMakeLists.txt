@@ -42,7 +42,6 @@ set(CMAKE_CXX_STANDARD 23)
 
 set(MANAPI_HTTP_FILES
         include/ManapiHttp.hpp
-        include/ManapiLocker.hpp
         include/ManapiThreadPool.hpp
         include/ManapiTask.hpp
         include/ManapiTaskHttp.hpp
@@ -66,7 +65,6 @@ set(MANAPI_HTTP_FILES
         include/http3/ManapiQuic.h
 
         src/ManapiHttp.cpp
-        src/ManapiLocker.cpp
         src/ManapiThreadPool.cpp
         src/ManapiTask.cpp
         src/ManapiTaskHttp.cpp
@@ -89,7 +87,9 @@ set(MANAPI_HTTP_FILES
         include/ManapiSite.hpp
         include/ManapiSite.hpp
         src/ManapiHttpConfig.cpp
-        include/ManapiHttpConfig.hpp)
+        include/ManapiHttpConfig.hpp
+        include/extensions/ManapiJsonWebTokenTraits.hpp
+        include/extensions/ManapiJsonWebTokenDefaults.hpp)
 
 if (MANAPI_BUILD_TYPE STREQUAL "exe")
     # EXE
@@ -114,7 +114,7 @@ endif ()
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
 if (MANAPI_BUILD_METHOD STREQUAL "conan")
-    target_link_libraries       (${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES} gmp::gmp openssl::openssl ZLIB::ZLIB libev::libev quiche::quiche  CURL::libcurl)
+    target_link_libraries       (${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES} gmp::gmp openssl::openssl ZLIB::ZLIB libev::libev quiche::quiche CURL::libcurl)
 else ()
     target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${QUIC_LIBRARIES} ${LIBEV_LIBRARIES} ${OPENSSL_LIBRARIES} ${CURL_LIBRARIES} ${MSQUIC_LIBRARIES})
     target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${QUIC_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MSQUIC_INCLUDE_DIRS})

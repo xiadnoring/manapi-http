@@ -113,7 +113,7 @@ namespace manapi::net {
         void                    send_file (http_response &res, std::ifstream &f, ssize_t size, std::vector<utils::replace_founded_item> &replacers) const;
         void                    send_file (http_response &res, std::ifstream &f, ssize_t size) const;
 
-        void                    handle_request (const http_handler_page *data, const size_t &status = 200, const std::string &message = http_status.OK_200);
+        void                    handle_request (const http_handler_page *data, const size_t &status = 200, const std::string &message = HTTP_STATUS.OK_200);
         static void             execute_custom_handler (const http_handler_page *handler, http_request &req, http_response &resp);
         void                    send_error_response (const size_t &status, const std::string &message, const http_handler_functions *error);
 

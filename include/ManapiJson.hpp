@@ -6,22 +6,30 @@
 #include <vector>
 #include "ManapiBigint.hpp"
 
-#define MANAPI_JSON_NULL        0
-#define MANAPI_JSON_NUMERIC     1
-#define MANAPI_JSON_STRING      2
-#define MANAPI_JSON_DECIMAL     3
-#define MANAPI_JSON_BOOLEAN     4
-#define MANAPI_JSON_MAP         5
-#define MANAPI_JSON_ARRAY       6
-#define MANAPI_JSON_NUMBER      7
-#define MANAPI_JSON_BIGINT      8
-#define MANAPI_JSON_PAIR        9
-
 namespace manapi::utils {
     class json {
     public:
-        typedef std::map <std::string, json>  OBJECT;
-        typedef std::vector <json>            ARRAY;
+        typedef std::map <std::string, manapi::utils::json> OBJECT;
+        typedef std::vector <manapi::utils::json> ARRAY;
+        typedef double long DECIMAL;
+        typedef ssize_t NUMBER;
+        typedef nullptr_t NULLPTR;
+        typedef std::string STRING;
+        typedef bigint BIGINT;
+        typedef bool BOOLEAN;
+
+        enum types {
+            type_null = 0,
+            type_numeric = 1,
+            type_string = 2,
+            type_decimal = 3,
+            type_boolean = 4,
+            type_object = 5,
+            type_array = 6,
+            type_number = 7,
+            type_bigint = 8,
+            type_pair = 9
+        };
 
         static json object ();
         static json array ();
@@ -35,17 +43,19 @@ namespace manapi::utils {
 
         // Do not use explicit
 
-        json(const std::string &str, bool is_json = false);
+        json(const STRING &str, bool is_json = false);
         json(const std::u32string &str, bool is_json = false);
-        json(const ssize_t &num);
+        json(const NUMBER &num);
         json(const size_t &num);
         json(const char *plain_text, bool is_json = false);
         json(const int &num);
         json(const double &num);
-        json(const double long &num);
-        json(const bigint &num);
-        json(const nullptr_t &n);
-        json(const bool &value);
+        json(const DECIMAL &num);
+        json(const BIGINT &num);
+        json(const NULLPTR &n);
+        json(const BOOLEAN &value);
+        json(const OBJECT &obj);
+        json(const ARRAY &arr);
 
         ~json();
 
@@ -55,11 +65,13 @@ namespace manapi::utils {
 
         // numbers
         void parse (const size_t &num);
-        void parse (const ssize_t &num);
+        void parse (const NUMBER &num);
         void parse (const int &num);
         void parse (const double &num);
-        void parse (const double long &num);
-        void parse (const bigint &num);
+        void parse (const DECIMAL &num);
+        void parse (const BIGINT &num);
+        void parse (const OBJECT &obj);
+        void parse (const ARRAY &arr);
 
         bool contains (const std::string &key) const;
 
@@ -133,6 +145,15 @@ namespace manapi::utils {
         [[nodiscard]] bool is_bigint      () const;
         [[nodiscard]] bool is_bool        () const;
 
+        [[nodiscard]] const OBJECT &as_object () const;
+        [[nodiscard]] const ARRAY &as_array () const;
+        [[nodiscard]] STRING as_string () const;
+        [[nodiscard]] NUMBER as_number () const;
+        [[nodiscard]] NULLPTR as_null () const;
+        [[nodiscard]] DECIMAL as_decimal () const;
+        [[nodiscard]] BIGINT as_bigint () const;
+        [[nodiscard]] const BOOLEAN &as_bool () const;
+
         template <typename T>
         T &get () const { return *static_cast <T *> (src); }
 
@@ -155,7 +176,7 @@ namespace manapi::utils {
         void                        delete_value ();
 
         void    *src                = nullptr;
-        short   type                = MANAPI_JSON_NULL;
+        types   type                = type_null;
         size_t  start_cut           = 0;
         size_t  end_cut             = 0;
 
