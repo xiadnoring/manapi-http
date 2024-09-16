@@ -107,6 +107,7 @@ namespace manapi::net {
         bool                                contains_compressor (const std::string &name) const;
 
         void                                set_config (const std::string &path);
+        void                                set_config_object (const utils::json &config);
         const manapi::utils::json           &get_config ();
 
         const std::string                   *get_compressed_cache_file (const std::string &file, const std::string &algorithm) const;

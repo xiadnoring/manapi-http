@@ -69,8 +69,12 @@ void manapi::net::site::set_config(const std::string &path) {
     }
 
     config = manapi::filesystem::config::read (config_path);
-
     setup_config ();
+}
+
+void manapi::net::site::set_config_object(const utils::json &config) {
+    this->config = config;
+    setup_config();
 }
 
 const manapi::utils::json &manapi::net::site::get_config() {
@@ -192,9 +196,10 @@ void manapi::net::site::save() {
 }
 
 void manapi::net::site::save_config() {
-    // main config
-    manapi::filesystem::config::write(config_path, config);
-
+    if (!manapi::filesystem::exists(config_path) && manapi::filesystem::is_file(config_path)) {
+        // main config
+        manapi::filesystem::config::write(config_path, config);
+    }
     // cache config
     manapi::filesystem::config::write(*config_cache_dir + default_config_name, cache_config);
 }

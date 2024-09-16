@@ -88,23 +88,30 @@ namespace manapi::utils {
 
         // TRASH (no with const json &obj)
         json &operator=     (const std::u32string   &str);
-        json &operator=     (const std::string      &str);
+        json &operator=     (const STRING           &str);
         json &operator=     (const char             *str);
-        json &operator=     (const bool             &b);
-        json &operator=     (const ssize_t          &num);
+        json &operator=     (const BOOLEAN          &b);
+        json &operator=     (const NUMBER           &num);
         json &operator=     (const int              &num);
         json &operator=     (const double           &num);
-        json &operator=     (const double long      &num);
+        json &operator=     (const DECIMAL          &num);
         json &operator=     (const long long        &num);
-        json &operator=     (const nullptr_t        &n);
-        json &operator=     (const bigint           &num);
+        json &operator=     (const NULLPTR          &n);
+        json &operator=     (const BIGINT           &num);
         json &operator=     (const json             &obj);
         json &operator=     (json                   &&obj);
         json &operator=     (const std::initializer_list <json> &data);
-        json &operator-     (const ssize_t          &num);
+        json &operator-     (const NUMBER           &num);
         json &operator-     (const int              &num);
-        json &operator+     (const ssize_t          &num);
+        json &operator-     (const DECIMAL          &num);
+        json &operator-     (const double           &num);
+        json &operator-     (const BIGINT           &num);
+        json &operator+     (const NUMBER           &num);
         json &operator+     (const int              &num);
+        json &operator+     (const DECIMAL          &num);
+        json &operator+     (const double           &num);
+        json &operator+     (const BIGINT           &num);
+
 
         void insert         (const std::string &key, const json &obj);
         void insert         (const std::u32string &key, const json &obj);

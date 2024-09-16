@@ -1216,7 +1216,7 @@ size_t manapi::utils::json::size() const {
 manapi::utils::json &manapi::utils::json::operator+(const ssize_t &num) {
     if (is_bigint())
     {
-        reinterpret_cast <bigint *> (src)->operator+(num);
+        (*static_cast <BIGINT *> (src)) += num;
     }
     else if (is_number())
     {
@@ -1238,11 +1238,80 @@ manapi::utils::json &manapi::utils::json::operator+(const int &num) {
     return this->operator+((ssize_t) num);
 }
 
+manapi::utils::json & manapi::utils::json::operator+(const DECIMAL &num) {
+    if (is_bigint())
+    {
+        (*static_cast <BIGINT *> (src)) += num;
+    }
+    else if (is_number())
+    {
+        (*static_cast <NUMBER *> (src)) += static_cast<NUMBER> (num);
+    }
+    else if (is_decimal())
+    {
+        (*static_cast <DECIMAL *> (src)) += num;
+    }
+    else {
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
+    }
+    return *this;
+}
+
+manapi::utils::json & manapi::utils::json::operator+(const double &num) {
+    if (is_bigint())
+    {
+        (*static_cast <BIGINT *> (src)) += num;
+    }
+    else if (is_number())
+    {
+        (*static_cast <NUMBER *> (src)) += static_cast<NUMBER> (num);
+    }
+    else if (is_decimal())
+    {
+        (*static_cast <DECIMAL *> (src)) += num;
+    }
+    else {
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
+    }
+    return *this;
+}
+
+manapi::utils::json & manapi::utils::json::operator+(const BIGINT &num) {
+    if (is_bigint())
+    {
+        (*static_cast <BIGINT *> (src)) += num;
+    }
+    else if (is_number())
+    {
+        (*static_cast <NUMBER *> (src)) += num.numberify();
+    }
+    else if (is_decimal())
+    {
+        (*static_cast <DECIMAL *> (src)) += num.decimalify();
+    }
+    else {
+        THROW_MANAPI_JSON_MISSING_FUNCTION;
+    }
+    return *this;
+}
+
 manapi::utils::json &manapi::utils::json::operator-(const ssize_t &num) {
     return this->operator+(-num);
 }
 
 manapi::utils::json &manapi::utils::json::operator-(const int &num) {
+    return this->operator+(-num);
+}
+
+manapi::utils::json & manapi::utils::json::operator-(const DECIMAL &num) {
+    return this->operator+(-num);
+}
+
+manapi::utils::json & manapi::utils::json::operator-(const double &num) {
+    return this->operator+(-num);
+}
+
+manapi::utils::json & manapi::utils::json::operator-(const BIGINT &num) {
     return this->operator+(-num);
 }
 
