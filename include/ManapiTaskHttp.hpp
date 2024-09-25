@@ -115,7 +115,7 @@ namespace manapi::net {
 
         void                    handle_request (const http_handler_page *data, const size_t &status = 200, const std::string &message = HTTP_STATUS.OK_200);
         static void             execute_custom_handler (const http_handler_page *handler, http_request &req, http_response &resp);
-        void                    send_error_response (const size_t &status, const std::string &message, const http_handler_functions *error);
+        void                    send_error_response (const size_t &status, const std::string &message, const http_handler_page *error);
 
         static void             parse_uri_path_dynamic (request_data_t &request_data, char *response, const size_t &size, size_t &i, const std::function <void()>& finished = nullptr);
 

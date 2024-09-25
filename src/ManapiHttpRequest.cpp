@@ -651,3 +651,11 @@ const std::unique_ptr<const manapi::utils::json_mask> &manapi::net::http_request
 const std::unique_ptr<const manapi::utils::json_mask> &manapi::net::http_request::get_get_mask() const {
     return static_cast<const http_handler_page *> (page_handler)->handler->get_mask;
 }
+
+void manapi::net::http_request::stop_propagation(const bool &stop_propagation) {
+    is_propagation = !stop_propagation;
+}
+
+const bool & manapi::net::http_request::get_propagation() {
+    return is_propagation;
+}

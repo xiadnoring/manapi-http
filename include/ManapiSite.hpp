@@ -63,7 +63,7 @@ namespace manapi::net {
 
     struct http_handler_page {
         const http_handler_functions                                *handler = nullptr;
-        const http_handler_functions                                *error = nullptr;
+        std::unique_ptr<http_handler_page>                          error = nullptr;
         std::vector<const http_handler_functions*>                  layer;
         std::string                                                 *statics = nullptr;
         size_t                                                      statics_parts_len{};

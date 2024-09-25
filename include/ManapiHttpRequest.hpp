@@ -47,6 +47,9 @@ namespace manapi::net {
 
         [[nodiscard]] const std::unique_ptr<const manapi::utils::json_mask> &get_post_mask () const;
         [[nodiscard]] const std::unique_ptr<const manapi::utils::json_mask> &get_get_mask () const;
+
+        void                                        stop_propagation (const bool &stop_propagation = true);
+        [[nodiscard]] const bool&                   get_propagation ();
     private:
         void                                        parse_map_url_param ();
         static void                                 buff_to_extra_buff (const request_data_t *req_data, const size_t &start, const size_t &end, char *dest, size_t &size);
@@ -83,6 +86,8 @@ namespace manapi::net {
         bool                                        first_line = true;
 
         char                                        *buff_extra;
+
+        bool                                        is_propagation = true;
     };
 }
 

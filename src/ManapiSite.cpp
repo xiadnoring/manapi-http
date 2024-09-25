@@ -215,17 +215,16 @@ void manapi::net::site::check_exists_method_on_url(const std::string &url,
 
 manapi::net::http_handler_page manapi::net::site::get_handler(request_data_t &request_data) const {
     http_handler_page handler_page;
+    handler_page.error = std::make_unique<http_handler_page>();
+    // how much we will take the layers from handler_page.layers at the start to the handler_page.error.layer
+    size_t error_layer_depth = 0;
+    bool not_found = false;
     try
     {
         const http_uri_part *cur = &handlers;
         const size_t path_size = request_data.divided == -1 ? request_data.path.size() : request_data.divided;
         for (size_t i = 0; i <= path_size; i++)
         {
-            if (cur->errors != nullptr && cur->errors->contains(request_data.method))
-            {
-                // find errors handlers for method!
-                handler_page.error = &cur->errors->at(request_data.method);
-            }
 
             if (cur->statics != nullptr && cur->statics->contains(request_data.method))
             {
@@ -238,63 +237,69 @@ manapi::net::http_handler_page manapi::net::site::get_handler(request_data_t &re
                 handler_page.layer.push_back(&cur->layers->at(request_data.method));
             }
 
+            if (cur->errors != nullptr && cur->errors->contains(request_data.method))
+            {
+                // find errors handlers for method!
+                handler_page.error->handler = &cur->errors->at(request_data.method);
+                error_layer_depth = handler_page.layer.size();
+            }
+
             if (i == path_size)
             { break; }
 
             if (cur->map == nullptr || !cur->map->contains(request_data.path.at(i))) {
-                if (cur->regexes == nullptr)
-                { return handler_page; }
+                if (cur->regexes != nullptr) {
+                    std::smatch match;
+                    bool find = false;
 
-                std::smatch match;
-                bool find = false;
+                    for (const auto &regex: *cur->regexes) {
+                        // regex.first  <- regex string
+                        // regex.second <- pair <regex, value (maybe next or handler)>
 
-                for (const auto &regex: *cur->regexes) {
-                    // regex.first  <- regex string
-                    // regex.second <- pair <regex, value (maybe next or handler)>
+                        if (std::regex_match(request_data.path.at(i), match, regex.second.first)) {
+                            cur     = regex.second.second.get();
+                            find    = true;
 
-                    if (std::regex_match(request_data.path.at(i), match, regex.second.first)) {
-                        cur     = regex.second.second.get();
-                        find    = true;
+                            if (cur->params == nullptr) {
+                                // bug
 
-                        if (cur->params == nullptr) {
-                            // bug
+                                MANAPI_LOG("{}", "cur->regexes_title (params) is null.");
+                                return handler_page;
+                            }
 
-                            MANAPI_LOG("{}", "cur->regexes_title (params) is null.");
-                            return handler_page;
+                            const size_t expected_size = match.size() - 1;
+                            if (cur->params->size() != expected_size) {
+                                // bug
+
+                                MANAPI_LOG("The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
+                                           cur->params->size(), expected_size, request_data.path.at(i));
+                                return handler_page;
+                            }
+
+                            // get params
+                            for (size_t z = 0; z < cur->params->size(); z++)
+                            { request_data.params.insert({cur->params->at(z), match.str(z + 1)}); }
+
+
+                            break;
                         }
-
-                        const size_t expected_size = match.size() - 1;
-                        if (cur->params->size() != expected_size) {
-                            // bug
-
-                            MANAPI_LOG("The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
-                                       cur->params->size(), expected_size, request_data.path.at(i));
-                            return handler_page;
-                        }
-
-                        // get params
-                        for (size_t z = 0; z < cur->params->size(); z++)
-                        { request_data.params.insert({cur->params->at(z), match.str(z + 1)}); }
-
-
-                        break;
                     }
+
+                    if (find)
+                    { continue; }
                 }
-
-                if (find)
-                { continue; }
-
-                return handler_page;
+                not_found = true;
+                break;
             }
 
             cur = cur->map->at(request_data.path.at(i)).get();
         }
 
+        std::copy_n(handler_page.layer.begin(), error_layer_depth, std::back_inserter(handler_page.error->layer));
+
         // handler page
 
-        if (cur->handlers == nullptr) {
-            // TODO: error
-
+        if (not_found || cur->handlers == nullptr) {
             return handler_page;
         }
 
@@ -305,12 +310,11 @@ manapi::net::http_handler_page manapi::net::site::get_handler(request_data_t &re
         }
 
         handler_page.handler = handler;
-
-        return handler_page;
+        return std::move(handler_page);
     }
     catch (const std::exception &e)
     {
-        return handler_page;
+        return std::move(handler_page);
     }
 }
 

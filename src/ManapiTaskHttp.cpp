@@ -868,14 +868,20 @@ void manapi::net::http_task::tcp_doit() {
 void manapi::net::http_task::handle_request(const http_handler_page *data, const size_t &status, const std::string &message) {
     http_request    req (socket_information, request_data, this, config, data);
     http_response   res (request_data, status, message, new api::pool (site->get_tasks_pool().get()), config);
+    try
+    {
+        // handle layers
+        for (const auto &layer: data->layer) {
+            layer->handler (req, res);
 
-    // handle layers
-    for (const auto &layer: data->layer) {
-        layer->handler (req, res);
-    }
+            if (!req.get_propagation()) {
+                // skip other layers and handlers
+                goto finish;
+            }
+        }
 
-    // handler function not be found
-    if (data->handler == nullptr)
+        // handler function not be found
+        if (data->handler == nullptr)
     {
 
         // check exists static folder/file
@@ -903,32 +909,31 @@ void manapi::net::http_task::handle_request(const http_handler_page *data, const
                 catch (const std::exception &e) {
                     MANAPI_LOG("Unexpected error: %s", e.what());
 
-                    send_error_response(503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error);
+                    send_error_response(503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error.get());
                 }
 
                 return;
             }
         }
 
-        return send_error_response (404, HTTP_STATUS.NOT_FOUND_404, data->error);
+        return send_error_response (404, HTTP_STATUS.NOT_FOUND_404, data->error.get());
     }
-
-    try
-    {
         execute_custom_handler (data, req, res);
-        send_response (res);
+
+        finish:
+            send_response (res);
     }
     catch (const manapi::utils::exception &e)
     {
         MANAPI_LOG("Unexpected error: {}", e.what());
 
-        send_error_response (503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error);
+        send_error_response (503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error.get());
     }
     catch (const std::exception &e)
     {
         MANAPI_LOG("Unexpected error: {}", e.what());
 
-        send_error_response (503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error);
+        send_error_response (503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error.get());
     }
 }
 
@@ -1516,19 +1521,14 @@ ssize_t manapi::net::http_task::read_next() const {
     return mask_read(reinterpret_cast <char *>(buff), config->get_socket_block_size());
 }
 
-void manapi::net::http_task::send_error_response(const size_t &status, const std::string &message, const http_handler_functions *error) {
+void manapi::net::http_task::send_error_response(const size_t &status, const std::string &message, const http_handler_page *error) {
     if (error == nullptr)
     {
         // TODO: Default error page
         return;
     }
 
-    http_handler_page handler;
-
-    handler.error = nullptr;
-    handler.handler = error;
-
-    handle_request(&handler, status, message);
+    handle_request(error, status, message);
 }
 
 // MASKS

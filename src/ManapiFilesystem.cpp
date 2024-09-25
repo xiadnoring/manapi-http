@@ -121,13 +121,17 @@ std::string manapi::filesystem::read (const std::string &path) {
     }
 
     utils::before_delete close_ofstream ([&in] () { in.close(); });
+    const ssize_t size = get_size(in);
 
-    std::string content, line;
-
-    while (std::getline(in, line))
-    {
-        content += line;
+    // 20 MB
+    if (size >= 20 * 1024 * 1024) {
+        MANAPI_LOG("The size of the file: {} is so large for read with this function.", size);
     }
+
+    std::string content;
+    content.resize(size);
+
+    in.read (content.data(), size);
 
     return content;
 }

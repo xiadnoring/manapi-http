@@ -31,6 +31,10 @@ int main(int argc, char *argv[]) {
             resp.file ("/opt/clion.zip");
         });
 
+        server.GET ("+layer", [] (REQ(req), RESP(resp)) -> void {
+            resp.set_header("BALLS", "BALLS");
+        });
+
         server.OPTIONS("+error", [] (REQ(req), RESP(resp)) -> void {
             resp.set_header("allow", "OPTIONS, GET, POST");
             resp.set_status(204, HTTP_STATUS.NO_CONTENT_204);
