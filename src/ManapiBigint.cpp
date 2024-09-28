@@ -3,6 +3,7 @@
 #include <memory.h>
 #include <codecvt>
 
+#include "ManapiUtils.hpp"
 #include "ManapiBigint.hpp"
 
 manapi::utils::bigint zero (0LL);

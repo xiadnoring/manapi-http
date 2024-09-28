@@ -1,8 +1,8 @@
 #include <iostream>
 #include <format>
-#include <manapihttp/ManapiHttp.h>
-#include <manapihttp/ManapiTaskHttp.h>
-#include <manapihttp/ManapiFilesystem.h>
+#include <manapihttp/ManapiHttp.hpp>
+#include <manapihttp/ManapiTaskHttp.hpp>
+#include <manapihttp/ManapiFilesystem.hpp>
 
 using namespace manapi::utils;
 using namespace manapi::net;
@@ -15,6 +15,10 @@ int main ()
     http server;
 
     server.set_config ("config.json");
+
+    server.GET ("/", [](REQ(req), RESP(resp)) {
+        resp.text("hello world");
+    });
 
     server.GET ("/", ".");
 
@@ -65,9 +69,9 @@ int main ()
         resp.text ("ok");
     });
 
-    auto f = server.run();
+    std::cout << "Hello world\n";
 
-    f.get();
+    server.pool(20).get();
 
     return 0;
 }

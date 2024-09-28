@@ -2,6 +2,7 @@
 #define MANAPIHTTPCONFIG_HPP
 
 #include <string>
+#include <functional>
 
 #include <quiche.h>
 #include <openssl/ssl.h>

@@ -1,14 +1,23 @@
 {
-  "address": "localhost",
-  "cache_dir": "/tmp/manapi_http/cache/",
-  "http_version": "3",
-  "partial_data_min_size": 4194304,
-  "port": "8888",
+  "pools": [
+    {
+      "address": "localhost",
+      "http_version": "3",
+      "http_implement": "quic",
+      "partial_data_min_size": 4194304,
+      "port": "8888",
+      "socket_block_size": 4096,
+      "keep_alive": 1,
+      "quic_cc_algo": "RENO",
+      "quic_debug": false,
+      "quic_implement": "quiche",
+      "ssl": {
+        "cert": "/home/Timur/Documents/ssl/quic/cert.crt",
+        "enabled": true,
+        "key": "/home/Timur/Documents/ssl/quic/cert.key"
+      }
+    }
+  ],
   "save_config": false,
-  "socket_block_size": 4096,
-  "ssl": {
-    "cert": "self-signed-ssl/cert.crt",
-    "enabled": true,
-    "key": "self-signed-ssl/cert.key"
-  }
+  "cache_dir": "/tmp/manapi_http/cache/"
 }

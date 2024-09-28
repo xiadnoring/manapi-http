@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 #include <iostream>
-#include "ManapiUtils.hpp"
 #include "gmp.h"
 
 namespace manapi::utils {

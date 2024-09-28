@@ -11,6 +11,8 @@
 #include <fstream>
 #include <unistd.h>
 
+#include "ManapiJson.hpp"
+
 #ifdef MANAPI_HTTP_BUILD_DEBUG
 #define MANAPI_LOG(msg, ...)                manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg, __VA_ARGS__)
 #define MANAPI_LOG2(msg)                    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg);
@@ -47,8 +49,6 @@ namespace manapi::net {
 }
 
 namespace manapi::utils {
-    class json;
-
     struct replace_founded_item {
         std::string key;
         const std::string *value;

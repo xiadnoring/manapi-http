@@ -3,6 +3,7 @@
 
 #include <jwt-cpp/jwt.h>
 #include "../ManapiJson.hpp"
+#include "../ManapiUtils.hpp"
 
 namespace jwt {
     namespace traits {
@@ -58,8 +59,15 @@ namespace jwt {
             }
 
             static bool parse(value_type& val, const std::string& str) {
-                val = manapi::utils::json (str, true);
-                return true;
+                try {
+                    val = manapi::utils::json (str, true);
+                    return true;
+                }
+                catch (std::exception const &e) {
+                    MANAPI_LOG ("failed to parse: {}", e.what());
+                }
+
+                return false;
             }
 
             static std::string serialize(const value_type& val) { return val.dump(); }

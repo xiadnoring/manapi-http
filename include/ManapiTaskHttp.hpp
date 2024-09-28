@@ -154,6 +154,8 @@ namespace manapi::net {
         ev::io                  *ev_io;
         bool                    is_deleting     = false;
 
+        file_transfer_information fti;
+
     };
 }
 

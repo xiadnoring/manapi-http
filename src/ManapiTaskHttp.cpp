@@ -38,13 +38,9 @@
 
 // HEADER CLASS
 
+
 manapi::net::http_task::~http_task() {
-    switch (buff_type)
-    {
-        case MANAPI_HTTP_BUFF_BINARY: delete []static_cast <uint8_t *> (buff); break;
-        case MANAPI_HTTP_BUFF_FILE: delete static_cast<struct file_transfer_information *> (buff); break;
-        default: break;
-    }
+    delete []static_cast <uint8_t *> (buff);
 }
 
 manapi::net::http_task::http_task(int _fd, const sockaddr &_client, const socklen_t &_client_len, class manapi::net::site *site, class manapi::net::config *config, const enum conn_type &conn_type) {
@@ -255,7 +251,7 @@ void manapi::net::http_task::udp_doit() {
 
         ssize_t preSize = size;
 
-        (*static_cast <struct file_transfer_information *> (buff)) = { .filePath = filePath, .start = start, .size = size };
+        fti = { .filePath = filePath, .start = start, .size = size };
         quic_m_worker.unlock();
         while (true)
         {
@@ -265,14 +261,14 @@ void manapi::net::http_task::udp_doit() {
             {
                 if (is_deleting) { return; }
 
-                if (preSize == static_cast<struct file_transfer_information *> (buff)->size)
+                if (preSize == fti.size)
                 {
                     MANAPI_LOG("quic write timeout ({}s): {}", config->get_send_timeout(), conn_io->key);
                     is_deleting = true;
                 }
                 else
                 {
-                    preSize = static_cast<struct file_transfer_information *> (buff)->size;
+                    preSize = fti.size;
                     if (preSize == 0) { break; }
                     continue;
                 }
@@ -510,7 +506,7 @@ void manapi::net::http_task::udp_loop_event(QUIC_MAP_CONNS_T *quic_map_conns, cl
                             }
                             else if (task->buff_type == MANAPI_HTTP_BUFF_FILE)
                             {
-                                auto fileData = static_cast<struct file_transfer_information *> (task->buff);
+                                auto fileData = &task->fti;
                                 std::ifstream f (fileData->filePath, std::ios::in | std::ios::binary);
                                 if (f.is_open()) {
                                     manapi::utils::before_delete close_stream ([&f] () -> void { f.close(); });
@@ -1087,16 +1083,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
                 }
             }
 
-            {
-                buff_type = conn_type == CONN_UDP ? MANAPI_HTTP_BUFF_FILE : MANAPI_HTTP_BUFF_BINARY;
-                if (buff_size < sizeof (struct file_transfer_information)) {
-                    delete[] static_cast<uint8_t *> (buff);
-                    buff_size = sizeof (struct file_transfer_information);
-                    buff = malloc(buff_size);
-                }
-
-                memset(buff, '\0', sizeof (struct file_transfer_information));
-            }
+            buff_type = conn_type == CONN_UDP ? MANAPI_HTTP_BUFF_FILE : MANAPI_HTTP_BUFF_BINARY;
 
             // partial enabled
             if (res.get_partial_enabled() && config->get_partial_data_min_size() <= fileSize)
@@ -1338,7 +1325,7 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
     ssize_t replacer_index = 0;
     ssize_t current_key_index = 0;
 
-    while (size != current)
+    while (size > current)
     {
         const ssize_t left = size - current;
 
@@ -1355,8 +1342,8 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
 
         while (replacer_index != replacers.size() && index > replacers[replacer_index].pos.first + shift)
         {
-            ssize_t key_size = replacers[replacer_index].pos.second - replacers[replacer_index].pos.first + 1;
-            ssize_t start_index_in_block = block_size - (index - (replacers[replacer_index].pos.first + shift + current_key_index));
+            const ssize_t key_size = replacers[replacer_index].pos.second - replacers[replacer_index].pos.first + 1;
+            const ssize_t start_index_in_block = block_size - (index - (replacers[replacer_index].pos.first + shift + current_key_index));
 
             ssize_t index_in_block = start_index_in_block;
 
@@ -1388,8 +1375,9 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
 
                 if (index_in_block < block_size)
                 {
-                    auto needed = block_size - index_in_block;
+                    const auto needed = block_size - index_in_block;
 
+                    // we want to align block to block_size if it possible
                     if (index < size)
                     {
 
@@ -1398,13 +1386,17 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
 
                         f.seekg(current);
                         f.read(block.data() + index_in_block * sizeof(char), needed);
-
-                        current = f.tellg() - block_size;
                     }
                     else
                     {
-                        shift -= key_left_size;
+                        // no data left
+                        //shift -= key_left_size;
+                        // decrease block_size
+                        block_size -= key_left_size;
                     }
+
+                    // update current
+                    current = f.tellg() - block_size;
                 }
                 else
                 {
@@ -1421,16 +1413,16 @@ void manapi::net::http_task::send_file (manapi::net::http_response &res, std::if
                 continue;
             }
             // if KEY_SIZE < VALUE_SIZE
-            else if (current_key_index == key_size && current_key_index < replacers[replacer_index].value->size()) {
+            if (current_key_index == key_size && current_key_index < replacers[replacer_index].value->size()) {
                 next:
                 // shift >>
                 bool repeat = false;
 
-                ssize_t value_left_size = (ssize_t) replacers[replacer_index].value->size() - current_key_index;
+                const auto value_left_size = static_cast<ssize_t> (replacers[replacer_index].value->size()) - current_key_index;
 
                 // replace
                 ssize_t i = index_in_block;
-                ssize_t free_space = block_size - (ssize_t) i;
+                ssize_t free_space = block_size - i;
 
                 if (free_space < value_left_size)
                 {

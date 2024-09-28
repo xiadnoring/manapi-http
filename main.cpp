@@ -14,6 +14,8 @@ using namespace manapi::net;
 using namespace std;
 
 int main(int argc, char *argv[]) {
+    json a ({{"boolean", "привет мир \\ \" 😈 hihihihi-ha"}});
+    std::cout << a.dump(4) << "\n";
     debug_print_memory("start");
     {
         http server;

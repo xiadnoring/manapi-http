@@ -1,4 +1,5 @@
 #include "ManapiHttpConfig.hpp"
+#include "ManapiUtils.hpp"
 
 manapi::net::config::config(const utils::json &config) {
     // =================[partial data min size  ]================= //

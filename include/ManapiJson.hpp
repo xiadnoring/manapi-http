@@ -72,6 +72,7 @@ namespace manapi::utils {
         void parse (const BIGINT &num);
         void parse (const OBJECT &obj);
         void parse (const ARRAY &arr);
+        void parse (const BOOLEAN &val);
 
         bool contains (const std::string &key) const;
 
@@ -130,13 +131,25 @@ namespace manapi::utils {
         void push_back      (const ssize_t &arg);
 
         template<class T>
-        constexpr auto begin          () const
+        constexpr auto begin () const
         {
             return get_ptr<T>()->begin();
         }
 
         template<class T>
-        constexpr auto end            () const
+        constexpr auto end () const
+        {
+            return get_ptr<T>()->end();
+        }
+
+        template<class T>
+        auto begin ()
+        {
+            return get_ptr<T>()->begin();
+        }
+
+        template<class T>
+        auto end ()
         {
             return get_ptr<T>()->end();
         }
@@ -152,20 +165,125 @@ namespace manapi::utils {
         [[nodiscard]] bool is_bigint      () const;
         [[nodiscard]] bool is_bool        () const;
 
+        /**
+         * strict object retrieval
+         * @return
+         */
         [[nodiscard]] const OBJECT &as_object () const;
+        /**
+         * strict array retrieval
+         * @return
+         */
         [[nodiscard]] const ARRAY &as_array () const;
-        [[nodiscard]] STRING as_string () const;
-        [[nodiscard]] NUMBER as_number () const;
+        /**
+         * strict string retrieval
+         * @return
+         */
+        [[nodiscard]] const STRING &as_string () const;
+        /**
+         * strict number retrieval
+         * @return
+         */
+        [[nodiscard]] const NUMBER &as_number () const;
+        /**
+         * strict null retrieval
+         * @return
+         */
         [[nodiscard]] NULLPTR as_null () const;
-        [[nodiscard]] DECIMAL as_decimal () const;
-        [[nodiscard]] BIGINT as_bigint () const;
+        /**
+         * strict decimal retrieval
+         * @return
+         */
+        [[nodiscard]] const DECIMAL &as_decimal () const;
+        /**
+         * strict bigint retrieval
+         * @return
+         */
+        [[nodiscard]] const BIGINT &as_bigint () const;
+        /**
+         * strict boolean retrieval
+         * @return
+         */
         [[nodiscard]] const BOOLEAN &as_bool () const;
 
-        template <typename T>
-        T &get () const { return *static_cast <T *> (src); }
+        /**
+         * non-strict object retrieval
+         *
+         * @note object - object
+         * @return
+         */
+        [[nodiscard]] OBJECT as_object_cast () const;
+        /**
+         * non-strict array retrieval
+         *
+         * @note array - array
+         * @return
+         */
+        [[nodiscard]] ARRAY as_array_cast () const;
+        /**
+         * non-strict string retrieval
+         *
+         * string - string
+         * number - string
+         * bigint - string
+         * decimal - string
+         * @return
+         */
+        [[nodiscard]] STRING as_string_cast () const;
+        /**
+         * non-strict number retrieval
+         *
+         * @note number - number
+         * @note decimal - number
+         * @note bigint - number
+         * @return
+         */
+        [[nodiscard]] NUMBER as_number_cast () const;
+        /**
+         * non-strict null retrieval
+         *
+         * @note null - null
+         * @return
+         */
+        [[nodiscard]] NULLPTR as_null_cast () const;
+        /**
+         * non-strict deciaml retrieval
+         *
+         * @note decimal - decimal
+         * @note bigint - decimal
+         * @note number - decimal
+         * @return
+         */
+        [[nodiscard]] DECIMAL as_decimal_cast () const;
+        /**
+         * non-strict bigint retrieval
+         *
+         * @note bigint - bigint
+         * @note number - bigint
+         * @note decimal - bigint
+         * @note string - bigint
+         * @return
+         */
+        [[nodiscard]] BIGINT as_bigint_cast () const;
+        /**
+         * non-strict boolean retrieval
+         *
+         * @note boolean - boolean
+         * @return
+         */
+        [[nodiscard]] BOOLEAN as_bool_cast () const;
 
         template <typename T>
-        T* get_ptr () const { return static_cast <T *> (src); }
+        [[nodiscard]] const T &get () const { return *static_cast <T *> (src); }
+
+        template <typename T>
+        const T* get_ptr () const { return static_cast <T *> (src); }
+
+        template <typename T>
+        [[nodiscard]] T &get () { return *static_cast <T *> (src); }
+
+        template <typename T>
+        T* get_ptr () { return static_cast <T *> (src); }
 
         [[nodiscard]] std::string dump    (const size_t &spaces = 0, const size_t &first_spaces = 0) const;
 

@@ -1,4 +1,5 @@
 #include "ManapiJsonMask.hpp"
+#include "ManapiUtils.hpp"
 
 #define MANAPI_JSON_ANY (-1)
 #define MANAPI_JSON_NONE (-2)
@@ -171,7 +172,7 @@ void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &
         // calc params
         for (; i < m; i++)
         {
-            char &c = str->at(i);
+            char c = str->at(i);
 
             if (bracket || square_bracket)
             {
