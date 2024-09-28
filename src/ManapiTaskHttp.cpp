@@ -1031,7 +1031,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
                 THROW_MANAPI_EXCEPTION("{}", "replacers can not be use with compressing");
             }
 
-            filepath = compress_file (res.get_file(), *site->config_cache_dir, compress, compressor);
+            filepath = compress_file (res.get_file(), site->config_cache_dir, compress, compressor);
         }
 
         else

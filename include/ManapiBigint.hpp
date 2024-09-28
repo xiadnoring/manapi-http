@@ -37,6 +37,7 @@ namespace manapi::utils {
         void        parse       (const long double      &num);
 
         void        set_precision (const size_t &precision);
+        [[nodiscard]] size_t      get_precision () const;
 
         bigint     operator/   (const bigint &oth) const;
         bigint     operator/   (const int &oth) const;

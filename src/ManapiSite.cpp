@@ -85,22 +85,23 @@ void manapi::net::site::setup_config() {
     // =================[cache config]================= //
     if (config.contains("cache_dir"))
     {
-        config_cache_dir = &config["cache_dir"].get<std::string>();
+        const auto b = config.at("cache_dir");
+        config_cache_dir = b.as_string();
     }
     else
     {
-        config_cache_dir = &default_cache_dir;
+        config_cache_dir = default_cache_dir;
     }
 
-    manapi::filesystem::append_delimiter(*config_cache_dir);
+    manapi::filesystem::append_delimiter(config_cache_dir);
 
-    if (!manapi::filesystem::exists(*config_cache_dir))
+    if (!manapi::filesystem::exists(config_cache_dir))
     {
-        manapi::filesystem::mkdir(*config_cache_dir);
+        manapi::filesystem::mkdir(config_cache_dir);
     }
     else
     {
-        std::string path = *config_cache_dir + default_config_name;
+        std::string path = config_cache_dir + default_config_name;
         if (manapi::filesystem::exists(path))
         {
             cache_config = manapi::filesystem::config::read(path);
@@ -116,32 +117,32 @@ void manapi::net::site::setup_config() {
     }
 }
 
-const std::string *manapi::net::site::get_compressed_cache_file(const std::string &file, const std::string &algorithm) const {
+const std::string *manapi::net::site::get_compressed_cache_file(const std::string &file, const std::string &algorithm) {
     if (!cache_config.contains(algorithm))
     {
         return nullptr;
     }
 
 
-    auto files = &cache_config[algorithm];
+    auto &files = cache_config[algorithm];
 
-    if (!files->contains(file))
+    if (!files.contains(file))
     {
         return nullptr;
     }
 
-    auto file_info = &files->at(file);
+    auto &file_info = files[file];
 
-    if (*file_info->at("last-write").get_ptr<std::string>() == manapi::filesystem::last_time_write(file, true)) {
-        auto compressed = file_info->at("compressed").get_ptr<std::string>();
+    if (file_info.at("last-write").get<std::string>() == manapi::filesystem::last_time_write(file, true)) {
+        auto &compressed = file_info.at("compressed").get<std::string>();
 
-        if (manapi::filesystem::exists(*compressed))
+        if (manapi::filesystem::exists(compressed))
         {
-            return compressed;
+            return &compressed;
         }
     }
 
-    files->erase(file);
+    files.erase(file);
 
     return nullptr;
 }
@@ -201,7 +202,7 @@ void manapi::net::site::save_config() {
         manapi::filesystem::config::write(config_path, config);
     }
     // cache config
-    manapi::filesystem::config::write(*config_cache_dir + default_config_name, cache_config);
+    manapi::filesystem::config::write(config_cache_dir + default_config_name, cache_config);
 }
 
 void manapi::net::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {

@@ -74,7 +74,9 @@ void manapi::filesystem::mkdir (const std::string &path, bool recursive) {
 
 void manapi::filesystem::append_delimiter (std::string &path) {
     if (path.empty() || path.back() != std::filesystem::path::preferred_separator)
+    {
         path.push_back(std::filesystem::path::preferred_separator);
+    }
 }
 
 ssize_t manapi::filesystem::get_size (std::ifstream& f) {

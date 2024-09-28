@@ -535,6 +535,7 @@ manapi::utils::bigint& manapi::utils::bigint::operator=(const manapi::utils::big
     cleanup();
 
     mpf_init(x);
+    mpf_set_prec(x, oth.get_precision());
     mpf_set(x, oth.x);
 
     return *this;
@@ -563,6 +564,11 @@ void manapi::utils::bigint::cleanup() {
 void manapi::utils::bigint::set_precision(const size_t &precision) {
     mpf_set_prec (x, precision);
 }
+
+size_t manapi::utils::bigint::get_precision() const {
+    return mpf_get_prec(x);
+}
+
 // other
 
 std::ostream &operator<<(std::ostream &os, const manapi::utils::bigint &m) {

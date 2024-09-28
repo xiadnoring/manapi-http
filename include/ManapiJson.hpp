@@ -18,6 +18,8 @@ namespace manapi::utils {
         typedef bigint BIGINT;
         typedef bool BOOLEAN;
 
+        typedef std::u32string UNICODE_STRING;
+
         enum types {
             type_null = 0,
             type_numeric = 1,
@@ -44,7 +46,7 @@ namespace manapi::utils {
         // Do not use explicit
 
         json(const STRING &str, bool is_json = false);
-        json(const std::u32string &str, bool is_json = false);
+        json(const UNICODE_STRING &str, bool is_json = false);
         json(const NUMBER &num);
         json(const size_t &num);
         json(const char *plain_text, bool is_json = false);
@@ -61,7 +63,7 @@ namespace manapi::utils {
 
         // string
         void parse (const std::string &plain_text);
-        void parse (const std::u32string &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128, size_t start = 0);
+        void parse (const UNICODE_STRING &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128, size_t start = 0);
 
         // numbers
         void parse (const size_t &num);
@@ -79,16 +81,29 @@ namespace manapi::utils {
         // other
         void parse (const nullptr_t &n);
 
-        json &operator[]    (const std::string      &key)   const;
-        json &operator[]    (const std::u32string   &key)   const;
-        json &operator[]    (const size_t           &index) const;
+        const json &operator[] (const STRING &key) const;
+        const json &operator[] (const UNICODE_STRING &key) const;
+        const json &operator[] (const size_t &index) const;
+        const json &operator[] (const int &index) const;
 
-        [[nodiscard]] json &at            (const std::string      &key)   const;
-        [[nodiscard]] json &at            (const std::u32string   &key)   const;
-        [[nodiscard]] json &at            (const size_t           &index) const;
+        json &operator[] (const STRING &key);
+        json &operator[] (const UNICODE_STRING &key);
+        json &operator[] (const size_t &index);
+        json &operator[] (const int &index);
+
+        [[nodiscard]] const json &at (const std::string &key) const;
+        [[nodiscard]] const json &at (const UNICODE_STRING &key) const;
+        [[nodiscard]] const json &at (const size_t &index) const;
+        [[nodiscard]] const json &at (const int &index) const;
+
+        json &at (const std::string &key);
+        json &at (const UNICODE_STRING &key);
+        json &at (const size_t &index);
+        json &at (const int &index);
+
 
         // TRASH (no with const json &obj)
-        json &operator=     (const std::u32string   &str);
+        json &operator=     (const UNICODE_STRING   &str);
         json &operator=     (const STRING           &str);
         json &operator=     (const char             *str);
         json &operator=     (const BOOLEAN          &b);
@@ -114,47 +129,32 @@ namespace manapi::utils {
         json &operator+     (const BIGINT           &num);
 
 
-        void insert         (const std::string &key, const json &obj);
-        void insert         (const std::u32string &key, const json &obj);
-        void erase          (const std::string &key);
-        void erase          (const std::u32string &key);
+        void insert         (const STRING &key, const json &obj);
+        void insert         (const UNICODE_STRING &key, const json &obj);
+        void erase          (const STRING &key);
+        void erase          (const UNICODE_STRING &key);
 
         void push_back      (json obj);
         void pop_back       ();
 
-        // to be cool ;)
-        void insert         (const std::u32string &key, const std::u32string &arg);
-        void insert         (const std::u32string &key, const ssize_t &arg);
+        template<class T> constexpr auto begin () const
+        { return get_ptr<T>()->begin(); }
 
-        void push_back      (const std::string &arg);
-        void push_back      (const std::u32string &arg);
-        void push_back      (const ssize_t &arg);
+        template<class T> constexpr auto end () const
+        { return get_ptr<T>()->end(); }
 
-        template<class T>
-        constexpr auto begin () const
-        {
-            return get_ptr<T>()->begin();
-        }
+        template<class T> auto begin ()
+        { return get_ptr<T>()->begin(); }
 
-        template<class T>
-        constexpr auto end () const
-        {
-            return get_ptr<T>()->end();
-        }
+        template<class T> auto end ()
+        { return get_ptr<T>()->end(); }
 
-        template<class T>
-        auto begin ()
-        {
-            return get_ptr<T>()->begin();
-        }
+        [[nodiscard]] const ARRAY &each() const;
+        [[nodiscard]] const OBJECT &entries() const;
+        [[nodiscard]] ARRAY &each();
+        [[nodiscard]] OBJECT &entries();
 
-        template<class T>
-        auto end ()
-        {
-            return get_ptr<T>()->end();
-        }
-
-        [[nodiscard]] bool contains       (const std::u32string &key) const;
+        [[nodiscard]] bool contains       (const UNICODE_STRING &key) const;
 
         [[nodiscard]] bool is_object      () const;
         [[nodiscard]] bool is_array       () const;
@@ -285,16 +285,16 @@ namespace manapi::utils {
         template <typename T>
         T* get_ptr () { return static_cast <T *> (src); }
 
-        [[nodiscard]] std::string dump    (const size_t &spaces = 0, const size_t &first_spaces = 0) const;
+        [[nodiscard]] std::string dump (const size_t &spaces = 0, const size_t &first_spaces = 0) const;
 
         [[nodiscard]] size_t size () const;
     protected:
-        [[nodiscard]] size_t get_start_cut  ()      const;
-        [[nodiscard]] size_t get_end_cut    ()      const;
+        [[nodiscard]] size_t get_start_cut () const;
+        [[nodiscard]] size_t get_end_cut () const;
 
         bool   root                 = true;
     private:
-        static void                 error_invalid_char (const std::u32string &plain_text, const size_t &i);
+        static void                 error_invalid_char (const UNICODE_STRING &plain_text, const size_t &i);
         static void                 error_unexpected_end (const size_t &i);
         static void                 delete_value_static (const short &type, void *src);
         void                        throw_could_not_use_func (const std::string &func) const;

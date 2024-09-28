@@ -110,14 +110,14 @@ namespace manapi::net {
         void                                set_config_object (const utils::json &config);
         const manapi::utils::json           &get_config ();
 
-        const std::string                   *get_compressed_cache_file (const std::string &file, const std::string &algorithm) const;
+        const std::string                   *get_compressed_cache_file (const std::string &file, const std::string &algorithm);
         void                                set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
 
         const std::unique_ptr<manapi::net::threadpool<manapi::net::task>> &get_tasks_pool () const;
         void                                tasks_pool_stop ();
         void                                tasks_pool_init (const size_t &thread_num);
 
-        std::string                         *config_cache_dir = nullptr;
+        std::string                         config_cache_dir;
     protected:
         void                                setup ();
         void                                timer_pool_setup (threadpool<task> *tasks_pool);
