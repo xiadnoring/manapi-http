@@ -12,9 +12,9 @@
       "quic_debug": false,
       "quic_implement": "quiche",
       "ssl": {
-        "cert": "/home/Timur/Documents/ssl/quic/cert.crt",
+        "cert": "self-signed-ssl/cert.crt",
         "enabled": true,
-        "key": "/home/Timur/Documents/ssl/quic/cert.key"
+        "key": "self-signed-ssl/cert.key"
       }
     }
   ],
