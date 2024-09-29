@@ -186,7 +186,7 @@ bool manapi::net::http_response::get_partial_enabled() const {
     return partial_enabled;
 }
 
-const manapi::utils::MAP_STR_STR *manapi::net::http_response::get_replacers() {
+const manapi::net::utils::MAP_STR_STR *manapi::net::http_response::get_replacers() {
     return replacers;
 }
 

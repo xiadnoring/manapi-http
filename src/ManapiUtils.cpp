@@ -25,7 +25,7 @@ static std::mutex           log_mutex;
 // ===================== [ Math ] ============================= //
 // ============================================================ //
 
-size_t      manapi::utils::random (const size_t &_min, const size_t &_max) {
+size_t      manapi::net::utils::random (const size_t &_min, const size_t &_max) {
     std::uniform_int_distribution<std::mt19937::result_type > dist (_min, _max);
 
     return dist (random_ng);
@@ -37,7 +37,7 @@ size_t      manapi::utils::random (const size_t &_min, const size_t &_max) {
  * @param count     the power
  * @return
  */
-size_t manapi::utils::pow (const size_t &x, const size_t &count) {
+size_t manapi::net::utils::pow (const size_t &x, const size_t &count) {
     size_t result = 1;
 
     for (size_t i = 0; i < count; i++)
@@ -57,7 +57,7 @@ size_t manapi::utils::pow (const size_t &x, const size_t &count) {
  * @param size  the size of the string
  * @param c     the char which will be added at the end of the string
  */
-[[maybe_unused]] void manapi::utils::rjust (std::string &str, const size_t &size, const char &c) {
+[[maybe_unused]] void manapi::net::utils::rjust (std::string &str, const size_t &size, const char &c) {
     while (str.size() < size)
         str += c;
 }
@@ -69,7 +69,7 @@ size_t manapi::utils::pow (const size_t &x, const size_t &count) {
  * @param size  the size of the string
  * @param c     the char which will be added at the start of the string
  */
-[[maybe_unused]] void manapi::utils::ljust (std::string &str, const size_t &size, const char &c) {
+[[maybe_unused]] void manapi::net::utils::ljust (std::string &str, const size_t &size, const char &c) {
     if (str.size() >= size) return;
 
     std::string new_string;
@@ -82,31 +82,31 @@ size_t manapi::utils::pow (const size_t &x, const size_t &count) {
     str.insert(0, new_string);
 }
 
-bool manapi::utils::is_space_symbol (const char &symbol) {
+bool manapi::net::utils::is_space_symbol (const char &symbol) {
     return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
 }
 
-bool manapi::utils::is_space_symbol(const unsigned char &symbol) {
+bool manapi::net::utils::is_space_symbol(const unsigned char &symbol) {
     return is_space_symbol(static_cast<char> (symbol));
 }
 
-bool manapi::utils::is_space_symbol (const wchar_t &symbol) {
+bool manapi::net::utils::is_space_symbol (const wchar_t &symbol) {
     return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
 }
 
-bool manapi::utils::is_space_symbol (const char32_t &symbol) {
+bool manapi::net::utils::is_space_symbol (const char32_t &symbol) {
     return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
 }
 
-char manapi::utils::hex2dec(const char &a) {
+char manapi::net::utils::hex2dec(const char &a) {
     return (char)(a >= 'A' ? a - 'A' + 10 : a - '0');
 }
 
-char manapi::utils::dec2hex(const char &a) {
+char manapi::net::utils::dec2hex(const char &a) {
     return (char)(a >= 10 ? a - 10 + 'A' : a + '0');
 }
 
-std::string manapi::utils::escape_string (const std::string &str) {
+std::string manapi::net::utils::escape_string (const std::string &str) {
     std::string escaped;
 
     for (const auto &i : str) {
@@ -135,7 +135,7 @@ std::string manapi::utils::escape_string (const std::string &str) {
     return escaped;
 }
 
-std::u32string manapi::utils::escape_string (const std::u32string &str) {
+std::u32string manapi::net::utils::escape_string (const std::u32string &str) {
     std::u32string escaped;
 
     for (const auto &i : str) {
@@ -180,20 +180,20 @@ std::u32string manapi::utils::escape_string (const std::u32string &str) {
     return escaped;
 }
 
-bool manapi::utils::escape_char_need (const char &ch) {
+bool manapi::net::utils::escape_char_need (const char &ch) {
     // if ch >= 128 -> non-ascii (maybe utf)
     return ch < 127 && ( ch == '"' || ch == '\\');
 }
 
-bool manapi::utils::escape_char_need (const wchar_t &ch) {
+bool manapi::net::utils::escape_char_need (const wchar_t &ch) {
     return ch == '"' || ch == '\\';
 }
 
-bool manapi::utils::escape_char_need (const char32_t &ch) {
+bool manapi::net::utils::escape_char_need (const char32_t &ch) {
     return ch == '"' || ch == '\\';
 }
 
-bool manapi::utils::valid_special_symbol(const char &c) {
+bool manapi::net::utils::valid_special_symbol(const char &c) {
     /**
      * ascii
      * 0 - 127
@@ -201,7 +201,7 @@ bool manapi::utils::valid_special_symbol(const char &c) {
     return c >= 0;
 }
 
-std::string manapi::utils::random_string (const size_t &len) {
+std::string manapi::net::utils::random_string (const size_t &len) {
     const char ptr[] = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_-";
     const size_t back = sizeof(ptr) - 2;
 
@@ -214,17 +214,17 @@ std::string manapi::utils::random_string (const size_t &len) {
     return result;
 }
 
-std::string manapi::utils::generate_cache_name (const std::string &file, const std::string &ext) {
-    std::string name = manapi::filesystem::basename(std::forward<const std::string&> (file));
+std::string manapi::net::utils::generate_cache_name (const std::string &file, const std::string &ext) {
+    std::string name = manapi::net::filesystem::basename(std::forward<const std::string&> (file));
 
-    name += manapi::utils::time ("-%Y_%m_%d_%H_%M_%S-", true) + random_string(25);
+    name += manapi::net::utils::time ("-%Y_%m_%d_%H_%M_%S-", true) + random_string(25);
     name += '.';
     name += ext;
 
     return name;
 }
 
-std::string manapi::utils::encode_url(const std::string &str) {
+std::string manapi::net::utils::encode_url(const std::string &str) {
     std::ostringstream escaped;
     escaped.fill('0');
     escaped << std::hex;
@@ -251,9 +251,9 @@ std::string manapi::utils::encode_url(const std::string &str) {
     return escaped.str();
 }
 
-std::string manapi::utils::decode_url(const std::string &str) {}
+std::string manapi::net::utils::decode_url(const std::string &str) {}
 
-std::string manapi::utils::json2form(const json &obj) {
+std::string manapi::net::utils::json2form(const json &obj) {
     if (!obj.is_object())
     {
         THROW_MANAPI_EXCEPTION("{}", "is_object() -> false in json2form(...)");
@@ -280,8 +280,8 @@ std::string manapi::utils::json2form(const json &obj) {
     return std::move(data);
 }
 
-const std::string &manapi::utils::mime_by_file_path(const std::string &path) {
-    const std::string extension = manapi::filesystem::extension(path);
+const std::string &manapi::net::utils::mime_by_file_path(const std::string &path) {
+    const std::string extension = manapi::net::filesystem::extension(path);
     manapi::net::mime_by_extension.lock();
     utils::before_delete unlock ([] () -> void { manapi::net::mime_by_extension.unlock(); });
 
@@ -298,7 +298,7 @@ const std::string &manapi::utils::mime_by_file_path(const std::string &path) {
 // ======================== [ Time ] ========================== //
 // ============================================================ //
 
-std::string manapi::utils::time (const std::string &fmt, bool local) {
+std::string manapi::net::utils::time (const std::string &fmt, bool local) {
     std::time_t now = std::time(0);
     std::tm *ltm;
 
@@ -313,7 +313,7 @@ std::string manapi::utils::time (const std::string &fmt, bool local) {
     return oss.str();
 }
 
-std::vector <manapi::utils::replace_founded_item> manapi::utils::found_replacers_in_file
+std::vector <manapi::net::utils::replace_founded_item> manapi::net::utils::found_replacers_in_file
         (const std::string &path, const size_t &start, const size_t &size, const MAP_STR_STR &replacers) {
     // SPECIAL
     std::string special_key;
@@ -427,24 +427,24 @@ std::vector <manapi::utils::replace_founded_item> manapi::utils::found_replacers
 // ===================== [ Classes ] ========================== //
 // ============================================================ //
 
-manapi::utils::exception::exception(std::string message_): message(std::move(message_)) {}
+manapi::net::utils::exception::exception(std::string message_): message(std::move(message_)) {}
 
-const char *manapi::utils::exception::what() const noexcept {
+const char *manapi::net::utils::exception::what() const noexcept {
     return message.data();
 }
 
-manapi::utils::before_delete::before_delete(const std::function<void()> &f) {
+manapi::net::utils::before_delete::before_delete(const std::function<void()> &f) {
     this->f = f;
 }
 
-manapi::utils::before_delete::~before_delete() {
+manapi::net::utils::before_delete::~before_delete() {
     if (f != nullptr && autostart)
     {
         f();
     }
 }
 
-void manapi::utils::before_delete::call () {
+void manapi::net::utils::before_delete::call () {
     if (f != nullptr)
     {
         f();
@@ -453,16 +453,16 @@ void manapi::utils::before_delete::call () {
     disable();
 }
 
-void manapi::utils::before_delete::disable() {
+void manapi::net::utils::before_delete::disable() {
     autostart = false;
 }
 
-void manapi::utils::before_delete::enable() {
+void manapi::net::utils::before_delete::enable() {
     autostart = true;
 }
 
 
-std::pair<std::string, std::string> manapi::utils::parse_header(const std::string &header) {
+std::pair<std::string, std::string> manapi::net::utils::parse_header(const std::string &header) {
     std::pair <std::string, std::string> parsed;
 
     bool is_key = true;
@@ -492,12 +492,12 @@ std::pair<std::string, std::string> manapi::utils::parse_header(const std::strin
     return parsed;
 }
 
-std::string manapi::utils::stringify_header (const std::pair<std::string, std::string> &header)
+std::string manapi::net::utils::stringify_header (const std::pair<std::string, std::string> &header)
 {
     return header.first + ": " + header.second;
 }
 
-std::vector <manapi::net::header_value_t> manapi::utils::parse_header_value (const std::string &header_value) {
+std::vector <manapi::net::header_value_t> manapi::net::utils::parse_header_value (const std::string &header_value) {
     std::vector <manapi::net::header_value_t> data;
 
     bool        opened_queues   = false;
@@ -577,7 +577,7 @@ std::vector <manapi::net::header_value_t> manapi::utils::parse_header_value (con
     return data;
 }
 
-std::string manapi::utils::stringify_header_value (const std::vector <manapi::net::header_value_t> &header_value) {
+std::string manapi::net::utils::stringify_header_value (const std::vector <manapi::net::header_value_t> &header_value) {
     std::string result;
 
     if (!header_value.empty()) {
@@ -625,28 +625,28 @@ std::string manapi::utils::stringify_header_value (const std::vector <manapi::ne
 // ===================== [ Unicode ] ========================== //
 // ============================================================ //
 
-std::string manapi::utils::str16to4 (const std::u16string &str16)
+std::string manapi::net::utils::str16to4 (const std::u16string &str16)
 {
     return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.to_bytes(str16);
 }
-std::string manapi::utils::str16to4 (const char16_t &str16)
+std::string manapi::net::utils::str16to4 (const char16_t &str16)
 {
     return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.to_bytes(str16);
 }
-std::u16string manapi::utils::str4to16 (const std::string &str)
+std::u16string manapi::net::utils::str4to16 (const std::string &str)
 {
     return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.from_bytes(str);
 }
 
-std::string manapi::utils::str32to4 (const std::u32string &str32)
+std::string manapi::net::utils::str32to4 (const std::u32string &str32)
 {
     return std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.to_bytes(str32);
 }
-std::string manapi::utils::str32to4 (const char32_t &str32)
+std::string manapi::net::utils::str32to4 (const char32_t &str32)
 {
     return std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.to_bytes(str32);
 }
-std::u32string manapi::utils::str4to32 (const std::string &str)
+std::u32string manapi::net::utils::str4to32 (const std::string &str)
 {
     return std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.from_bytes(str);
 }

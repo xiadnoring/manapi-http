@@ -6,7 +6,7 @@
 
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 
-manapi::net::http_request::http_request(const manapi::utils::manapi_socket_information &_ip_data, manapi::net::request_data_t &_request_data, void* _http_task, class config *config, const void *_handler)
+manapi::net::http_request::http_request(const manapi::net::utils::manapi_socket_information &_ip_data, manapi::net::request_data_t &_request_data, void* _http_task, class config *config, const void *_handler)
 {
     this->config = config;
 
@@ -25,7 +25,7 @@ manapi::net::http_request::~http_request() {
     }
 }
 
-const manapi::utils::manapi_socket_information &manapi::net::http_request::get_ip_data() const {
+const manapi::net::utils::manapi_socket_information &manapi::net::http_request::get_ip_data() const {
     return *ip_data;
 }
 
@@ -106,9 +106,9 @@ std::string manapi::net::http_request::text() {
     return body;
 }
 
-manapi::utils::json manapi::net::http_request::json()
+manapi::net::utils::json manapi::net::http_request::json()
 {
-    auto data = manapi::utils::json (this->text(), true);
+    auto data = manapi::net::utils::json (this->text(), true);
 
     // TODO: check with json_mask during processing read_mask()
     const auto &post_mask = get_post_mask();
@@ -123,7 +123,7 @@ manapi::utils::json manapi::net::http_request::json()
     return data;
 }
 
-manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
+manapi::net::utils::MAP_STR_STR manapi::net::http_request::form ()
 {
     if (!request_data->has_body)
     {
@@ -139,7 +139,7 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
 
     const std::string *content_type = &header[0].value;
 
-    manapi::utils::MAP_STR_STR params;
+    manapi::net::utils::MAP_STR_STR params;
 
     if (*content_type == HTTP_MIME.MULTIPART_FORM_DATA)
     {
@@ -200,9 +200,9 @@ manapi::utils::MAP_STR_STR manapi::net::http_request::form ()
                 size_extra++;
 
                 if (size_extra == 2) {
-                    const char c = (char) (manapi::utils::hex2dec(buff_extra[0]) << 4 | manapi::utils::hex2dec(buff_extra[1]));
+                    const char c = (char) (manapi::net::utils::hex2dec(buff_extra[0]) << 4 | manapi::net::utils::hex2dec(buff_extra[1]));
 
-                    if (manapi::utils::valid_special_symbol(c))
+                    if (manapi::net::utils::valid_special_symbol(c))
                     {
                         (*current)  += c;
                     }
@@ -644,11 +644,11 @@ const std::string &manapi::net::http_request::get_query_param(const std::string 
     THROW_MANAPI_EXCEPTION("Can not find query param by name: {}", name);
 }
 
-const std::unique_ptr<const manapi::utils::json_mask> &manapi::net::http_request::get_post_mask() const {
+const std::unique_ptr<const manapi::net::utils::json_mask> &manapi::net::http_request::get_post_mask() const {
     return static_cast<const http_handler_page *> (page_handler)->handler->post_mask;
 }
 
-const std::unique_ptr<const manapi::utils::json_mask> &manapi::net::http_request::get_get_mask() const {
+const std::unique_ptr<const manapi::net::utils::json_mask> &manapi::net::http_request::get_get_mask() const {
     return static_cast<const http_handler_page *> (page_handler)->handler->get_mask;
 }
 

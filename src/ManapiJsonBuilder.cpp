@@ -3,7 +3,7 @@
 #include "ManapiUnicode.hpp"
 #include "ManapiUtils.hpp"
 
-manapi::utils::json_builder::json_builder(const bool &use_bigint, const size_t &bigint_precision) {
+manapi::net::utils::json_builder::json_builder(const bool &use_bigint, const size_t &bigint_precision) {
     this->start_cut = 0;
     this->end_cut = 0;
     this->use_bigint = use_bigint;
@@ -12,16 +12,16 @@ manapi::utils::json_builder::json_builder(const bool &use_bigint, const size_t &
     action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
 }
 
-manapi::utils::json_builder::~json_builder() = default;
+manapi::net::utils::json_builder::~json_builder() = default;
 
-manapi::utils::json_builder & manapi::utils::json_builder::operator<<(const std::string &str) {
+manapi::net::utils::json_builder & manapi::net::utils::json_builder::operator<<(const std::string &str) {
     if (getting) { getting = false; }
     size_t j = 0;
     _parse(str, j);
     return *this;
 }
 
-manapi::utils::json manapi::utils::json_builder::get() {
+manapi::net::utils::json manapi::net::utils::json_builder::get() {
     getting = true;
     if (!ready)
     {
@@ -32,7 +32,7 @@ manapi::utils::json manapi::utils::json_builder::get() {
     return std::move(object);
 }
 
-void manapi::utils::json_builder::_parse(const std::string &plain_text, size_t &j, bool root) {
+void manapi::net::utils::json_builder::_parse(const std::string &plain_text, size_t &j, bool root) {
 
     this->use_bigint = use_bigint;
     this->bigint_precision = bigint_precision;
@@ -52,7 +52,7 @@ void manapi::utils::json_builder::_parse(const std::string &plain_text, size_t &
     }
 }
 
-void manapi::utils::json_builder::_check_type(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_check_type(const std::string &plain_text, size_t &j) {
     for (; j < plain_text.size(); i++, j++)
     {
         const unsigned char &c = plain_text.at(j);
@@ -95,7 +95,7 @@ void manapi::utils::json_builder::_check_type(const std::string &plain_text, siz
     }
 }
 
-void manapi::utils::json_builder::_build_string(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_build_string(const std::string &plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
         unsigned char c = plain_text.at(j);
@@ -164,7 +164,7 @@ void manapi::utils::json_builder::_build_string(const std::string &plain_text, s
     }
 }
 
-void manapi::utils::json_builder::_build_numeric(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_build_numeric(const std::string &plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
         unsigned char c = plain_text[j];
@@ -249,7 +249,7 @@ void manapi::utils::json_builder::_build_numeric(const std::string &plain_text, 
     }
 }
 
-void manapi::utils::json_builder::_build_numeric_string(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_build_numeric_string(const std::string &plain_text, size_t &j) {
     for (; j < plain_text.size(); i++, j++)
     {
         unsigned char c = plain_text[j];
@@ -301,10 +301,11 @@ void manapi::utils::json_builder::_build_numeric_string(const std::string &plain
     }
 }
 
-void manapi::utils::json_builder::_build_object(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_build_object(const std::string &plain_text, size_t &j) {
     doit:
     if (item != nullptr)
     {
+        i -= j;
         item->_parse(plain_text, j, false);
         i = i + j;
 
@@ -399,10 +400,11 @@ void manapi::utils::json_builder::_build_object(const std::string &plain_text, s
     }
 }
 
-void manapi::utils::json_builder::_build_array(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_build_array(const std::string &plain_text, size_t &j) {
     doit:
     if (item != nullptr)
     {
+        i -= j;
         item->_parse(plain_text, j, false);
         i = i + j;
 
@@ -486,7 +488,7 @@ void manapi::utils::json_builder::_build_array(const std::string &plain_text, si
     }
 }
 
-void manapi::utils::json_builder::_check_end(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_check_end(const std::string &plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
         if (!is_space_symbol(plain_text[j]))
@@ -496,7 +498,7 @@ void manapi::utils::json_builder::_check_end(const std::string &plain_text, size
     }
 }
 
-bool manapi::utils::json_builder::_valid_utf_char(const std::string &plain_text, const size_t &i, size_t &left) {
+bool manapi::net::utils::json_builder::_valid_utf_char(const std::string &plain_text, const size_t &i, size_t &left) {
     const unsigned char &c = plain_text[i];
     if (left > 0 || c > 127) {
         if (left == 0)
@@ -523,7 +525,7 @@ bool manapi::utils::json_builder::_valid_utf_char(const std::string &plain_text,
     return false;
 }
 
-void manapi::utils::json_builder::_valid_utf_string(const std::string &str) {
+void manapi::net::utils::json_builder::_valid_utf_string(const std::string &str) {
     size_t wchar_left = 0;
     for (size_t i = 0; i < str.size(); i++)
     {
@@ -531,7 +533,7 @@ void manapi::utils::json_builder::_valid_utf_string(const std::string &str) {
     }
 }
 
-void manapi::utils::json_builder::_reset() {
+void manapi::net::utils::json_builder::_reset() {
     // object can not be clean up here
     this->start_cut = 0;
     this->end_cut = 0;

@@ -509,7 +509,7 @@ void manapi::net::http_task::udp_loop_event(QUIC_MAP_CONNS_T *quic_map_conns, cl
                                 auto fileData = &task->fti;
                                 std::ifstream f (fileData->filePath, std::ios::in | std::ios::binary);
                                 if (f.is_open()) {
-                                    manapi::utils::before_delete close_stream ([&f] () -> void { f.close(); });
+                                    manapi::net::utils::before_delete close_stream ([&f] () -> void { f.close(); });
                                     const ssize_t capacity = std::min (quiche_conn_stream_capacity(conn_io->conn, stream_id), fileData->size);
                                     if (capacity < 0) { task->is_deleting = true; task->quic_m_write.unlock(); continue; }
                                     uint8_t buff [capacity];
@@ -852,7 +852,7 @@ void manapi::net::http_task::tcp_doit() {
                 handle_request(&handler);
             }
         }
-        catch (const manapi::utils::exception &e)
+        catch (const manapi::net::utils::exception &e)
         {
             MANAPI_LOG("close connection: {}", e.what());
         }
@@ -888,12 +888,12 @@ void manapi::net::http_task::handle_request(const http_handler_page *data, const
 
             for (size_t i = data->statics_parts_len; i < request_data.path.size(); i++)
             {
-                path += manapi::filesystem::delimiter + request_data.path[i];
+                path += manapi::net::filesystem::delimiter + request_data.path[i];
             }
 
-            path = manapi::filesystem::join (*data->statics, path);
+            path = manapi::net::filesystem::join (*data->statics, path);
 
-            if (manapi::filesystem::exists(path) && manapi::filesystem::is_file(path))
+            if (manapi::net::filesystem::exists(path) && manapi::net::filesystem::is_file(path))
             {
                 res.set_compress_enabled(true);
                 res.set_partial_status(true);
@@ -919,7 +919,7 @@ void manapi::net::http_task::handle_request(const http_handler_page *data, const
         finish:
             send_response (res);
     }
-    catch (const manapi::utils::exception &e)
+    catch (const manapi::net::utils::exception &e)
     {
         MANAPI_LOG("Unexpected error: {}", e.what());
 
@@ -963,7 +963,7 @@ size_t manapi::net::http_task::read_next_part(size_t &size, size_t &i, void *_ht
     return next_block;
 }
 
-std::string manapi::net::http_task::compress_file(const std::string &file, const std::string &folder, const std::string &compress, manapi::utils::compress::TEMPLATE_INTERFACE compressor) const {
+std::string manapi::net::http_task::compress_file(const std::string &file, const std::string &folder, const std::string &compress, manapi::net::utils::compress::TEMPLATE_INTERFACE compressor) const {
     std::string filepath;
 
     // compressor
@@ -987,7 +987,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
     std::string response;
     std::string compressed;
 
-    manapi::utils::compress::TEMPLATE_INTERFACE compressor = nullptr;
+    manapi::net::utils::compress::TEMPLATE_INTERFACE compressor = nullptr;
 
     auto &compress = res.get_compress();
     auto &body     = res.get_body();
@@ -996,7 +996,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
     if (!compress.empty()) {
         if (!res.is_file()                  ||
             !res.get_partial_enabled()      ||
-            manapi::filesystem::get_size(res.get_file()) < config->get_partial_data_min_size()
+            manapi::net::filesystem::get_size(res.get_file()) < config->get_partial_data_min_size()
             ) {
 
             compressor = site->get_compressor(compress);
@@ -1012,7 +1012,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
     bool exists_compressor = compressor != nullptr;
 
     // set time
-    res.set_header(HTTP_HEADER.DATE, manapi::utils::time ("%a, %d %b %Y %H:%M:%S GMT", false));
+    res.set_header(HTTP_HEADER.DATE, manapi::net::utils::time ("%a, %d %b %Y %H:%M:%S GMT", false));
 
     if (config->get_http_version() < versions::HTTP_v2)
     {
@@ -1069,7 +1069,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
             std::vector<utils::replace_founded_item> replacers;
 
             // get file size
-            const ssize_t fileSize = manapi::filesystem::get_size(f);
+            const ssize_t fileSize = manapi::net::filesystem::get_size(f);
             ssize_t dynamicFileSize = fileSize;
 
             // replacers
@@ -1972,9 +1972,9 @@ void manapi::net::http_task::parse_uri_path_dynamic(request_data_t &request_data
 
             if (hex_index == 1)
             {
-                char x = (char)(manapi::utils::hex2dec(hex_symbols[0]) << 4 | manapi::utils::hex2dec(hex_symbols[1]));
+                char x = (char)(manapi::net::utils::hex2dec(hex_symbols[0]) << 4 | manapi::net::utils::hex2dec(hex_symbols[1]));
 
-                if (true || manapi::utils::valid_special_symbol(x))
+                if (true || manapi::net::utils::valid_special_symbol(x))
                 {
                     request_data.path.back()    += x;
                 }

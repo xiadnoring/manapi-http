@@ -135,7 +135,7 @@ namespace manapi::net {
         {
             task->doit();
         }
-        catch (const manapi::utils::exception &e) {
+        catch (const manapi::net::utils::exception &e) {
             MANAPI_LOG ("Task Manapi Exception: {}", e.what());
         }
         catch (const std::exception &e) {

@@ -6,7 +6,7 @@
 #define Z_DEFAULT_COMPRESSION   0
 #define Z_DEFAULT_STRATEGY      0
 
-namespace manapi::utils::compress {
+namespace manapi::net::utils::compress {
     typedef std::string (*TEMPLATE_INTERFACE) (const std::string &, const std::string *);
 
     std::string deflate (const std::string &data, const int &level = Z_DEFAULT_COMPRESSION, const int &strategy = Z_DEFAULT_STRATEGY, const std::string *folder = nullptr);

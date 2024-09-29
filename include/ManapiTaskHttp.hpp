@@ -107,7 +107,7 @@ namespace manapi::net {
         void                    tcp_parse_request_response (char *response, const size_t &size, size_t &i);
         ssize_t                 tcp_send_response (http_response &res);
 
-        std::string             compress_file (const std::string &file, const std::string &folder, const std::string &compress, manapi::utils::compress::TEMPLATE_INTERFACE compressor) const;
+        std::string             compress_file (const std::string &file, const std::string &folder, const std::string &compress, manapi::net::utils::compress::TEMPLATE_INTERFACE compressor) const;
 
         void                    send_text (const std::string &text, const size_t &size) const;
         void                    send_file (http_response &res, std::ifstream &f, ssize_t size, std::vector<utils::replace_founded_item> &replacers) const;

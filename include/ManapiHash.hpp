@@ -3,7 +3,7 @@
 
 #include <string>
 
-namespace manapi::hash {
+namespace manapi::net::hash {
     class SHA256 {
         protected:
             typedef unsigned char uint8;

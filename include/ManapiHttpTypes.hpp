@@ -162,7 +162,7 @@ namespace manapi::net {
 
     } HTTP_MIME;
 
-    static manapi::utils::safe_unordered_map <std::string, std::string> mime_by_extension = {
+    static manapi::net::utils::safe_unordered_map <std::string, std::string> mime_by_extension = {
         {"txt", HTTP_MIME.TEXT_PLAIN},
         {"mp4", HTTP_MIME.VIDEO_MP4},
         {"js",  HTTP_MIME.TEXT_JS},

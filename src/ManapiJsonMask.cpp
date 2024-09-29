@@ -11,7 +11,7 @@
 #define MANAPI_MASK_COMPARE_EQUAL_OR_GREATER 3
 #define MANAPI_MASK_COMPARE_EQUAL_OR_LESS 4
 
-manapi::utils::json_mask::json_mask(const std::initializer_list<json> &data)
+manapi::net::utils::json_mask::json_mask(const std::initializer_list<json> &data)
 {
     information = data;
     initial_resolve_information (information);
@@ -19,22 +19,22 @@ manapi::utils::json_mask::json_mask(const std::initializer_list<json> &data)
     enabled = true;
 }
 
-manapi::utils::json_mask::json_mask(const nullptr_t &n)
+manapi::net::utils::json_mask::json_mask(const nullptr_t &n)
 {
     enabled = false;
 }
 
-manapi::utils::json_mask::~json_mask() = default;
+manapi::net::utils::json_mask::~json_mask() = default;
 
-bool manapi::utils::json_mask::is_enabled() const {
+bool manapi::net::utils::json_mask::is_enabled() const {
     return enabled;
 }
 
-void manapi::utils::json_mask::set_enabled(const bool &status) {
+void manapi::net::utils::json_mask::set_enabled(const bool &status) {
     enabled = status;
 }
 
-bool manapi::utils::json_mask::valid(const manapi::utils::json &obj) const
+bool manapi::net::utils::json_mask::valid(const manapi::net::utils::json &obj) const
 {
     if (!enabled)
     {
@@ -44,7 +44,7 @@ bool manapi::utils::json_mask::valid(const manapi::utils::json &obj) const
     return recursive_valid (obj, information);
 }
 
-bool manapi::utils::json_mask::valid(const std::map<std::string, std::string> &obj) const
+bool manapi::net::utils::json_mask::valid(const std::map<std::string, std::string> &obj) const
 {
     if (!enabled)
     {
@@ -61,7 +61,7 @@ bool manapi::utils::json_mask::valid(const std::map<std::string, std::string> &o
     return recursive_valid (a, information);
 }
 
-void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &obj)
+void manapi::net::utils::json_mask::initial_resolve_information(manapi::net::utils::json &obj)
 {
     if (obj.is_string())
     {
@@ -401,7 +401,7 @@ void manapi::utils::json_mask::initial_resolve_information(manapi::utils::json &
     }
 }
 
-bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, const manapi::utils::json &item, const bool &is_complex) {
+bool manapi::net::utils::json_mask::recursive_valid(const manapi::net::utils::json &obj, const manapi::net::utils::json &item, const bool &is_complex) {
     const auto &information = is_complex ? item["obj"] : item;
 
     if (information.is_array())
@@ -644,7 +644,7 @@ bool manapi::utils::json_mask::recursive_valid(const manapi::utils::json &obj, c
     return false;
 }
 
-bool manapi::utils::json_mask::default_compare_information(const manapi::utils::json &obj, const manapi::utils::json &information, const bool &by_size) {
+bool manapi::net::utils::json_mask::default_compare_information(const manapi::net::utils::json &obj, const manapi::net::utils::json &information, const bool &by_size) {
     if (by_size)
     {
         // by length

@@ -6,7 +6,7 @@
 #include <iostream>
 #include "gmp.h"
 
-namespace manapi::utils {
+namespace manapi::net::utils {
     class bigint {
     public:
         bigint();
@@ -138,7 +138,7 @@ namespace manapi::utils {
     };
 }
 
-std::ostream &operator<<(std::ostream &os, const manapi::utils::bigint &m);
-std::istream &operator>>(std::istream &is, manapi::utils::bigint &m);
+std::ostream &operator<<(std::ostream &os, const manapi::net::utils::bigint &m);
+std::istream &operator>>(std::istream &is, manapi::net::utils::bigint &m);
 
 #endif //MANAPIHTTP_MANAPIBIGINT_H

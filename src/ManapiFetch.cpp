@@ -26,7 +26,7 @@ size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *use
         str.pop_back();
     }
 
-    auto header = manapi::utils::parse_header(str);
+    auto header = manapi::net::utils::parse_header(str);
     reinterpret_cast <curl_data_t *> (userdata)->headers->insert(header);
 
     return n_items * size;
@@ -173,8 +173,8 @@ std::string manapi::net::fetch::text() {
     return content;
 }
 
-manapi::utils::json manapi::net::fetch::json() {
-    return manapi::utils::json (text(), true);
+manapi::net::utils::json manapi::net::fetch::json() {
+    return manapi::net::utils::json (text(), true);
 }
 
 
@@ -224,7 +224,7 @@ void manapi::net::fetch::set_headers(const std::map<std::string, std::string> &h
     // headers
     for (const auto &header: headers)
     {
-        curl_headers = curl_slist_append(curl_headers, manapi::utils::stringify_header(header).data());
+        curl_headers = curl_slist_append(curl_headers, manapi::net::utils::stringify_header(header).data());
     }
 }
 

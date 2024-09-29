@@ -5,7 +5,7 @@
 #include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
 
-namespace manapi::filesystem {
+namespace manapi::net::filesystem {
     static char delimiter = std::filesystem::path::preferred_separator;
     static std::string string_delimiter (&delimiter, 1);
 
@@ -37,7 +37,7 @@ namespace manapi::filesystem {
     }
 }
 
-namespace manapi::filesystem::config {
+namespace manapi::net::filesystem::config {
     void write  (const std::string &name, utils::json &data);
     utils::json read   (const std::string &name);
 }

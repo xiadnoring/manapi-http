@@ -9,7 +9,7 @@
 #include "ManapiThreadPool.hpp"
 #include "ManapiTask.hpp"
 
-namespace manapi::utils {
+namespace manapi::net::utils {
     struct timer_task {
         std::function <void()> task;
         std::chrono::time_point<std::chrono::high_resolution_clock> point;

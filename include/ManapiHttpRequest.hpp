@@ -20,7 +20,7 @@ namespace manapi::net {
 
     class http_request {
     public:
-        http_request(const manapi::utils::manapi_socket_information &ip_data, manapi::net::request_data_t &request_data, void* http_task, class config *config, const void *handler);
+        http_request(const manapi::net::utils::manapi_socket_information &ip_data, manapi::net::request_data_t &request_data, void* http_task, class config *config, const void *handler);
         ~http_request();
 
         [[nodiscard]] const utils::manapi_socket_information &get_ip_data () const;
@@ -30,8 +30,8 @@ namespace manapi::net {
         [[nodiscard]] const std::string             &get_param (const std::string &param) const;
         [[nodiscard]] std::string                   dump() const;
         std::string                                 text ();
-        manapi::utils::json                         json ();
-        manapi::utils::MAP_STR_STR                  form ();
+        manapi::net::utils::json                         json ();
+        manapi::net::utils::MAP_STR_STR                  form ();
         const size_t                                &get_body_size ();
         void                                        set_max_plain_body_size (const size_t &size);
         const file_data_t                           &inf_file ();
@@ -45,8 +45,8 @@ namespace manapi::net {
 
         const std::string&                          get_query_param (const std::string &name);
 
-        [[nodiscard]] const std::unique_ptr<const manapi::utils::json_mask> &get_post_mask () const;
-        [[nodiscard]] const std::unique_ptr<const manapi::utils::json_mask> &get_get_mask () const;
+        [[nodiscard]] const std::unique_ptr<const manapi::net::utils::json_mask> &get_post_mask () const;
+        [[nodiscard]] const std::unique_ptr<const manapi::net::utils::json_mask> &get_get_mask () const;
 
         void                                        stop_propagation (const bool &stop_propagation = true);
         [[nodiscard]] const bool&                   get_propagation ();

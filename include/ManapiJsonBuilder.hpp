@@ -6,7 +6,7 @@
 
 #include "ManapiJson.hpp"
 
-namespace manapi::utils {
+namespace manapi::net::utils {
     class json_builder {
     public:
         explicit json_builder (const bool &use_bigint = false, const size_t &bigint_precision = 128);

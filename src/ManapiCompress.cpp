@@ -6,23 +6,23 @@
 
 #define CHUNK_SIZE 4096
 
-void manapi::utils::compress::throw_could_not_compress_file (const std::string &name, const std::string &src, const std::string &dest)
+void manapi::net::utils::compress::throw_could_not_compress_file (const std::string &name, const std::string &src, const std::string &dest)
 {
     THROW_MANAPI_EXCEPTION("Could not compress file with {}. src: {}, dest: {}", name, escape_string(src), escape_string(dest));
 }
 
-void manapi::utils::compress::throw_could_not_open_file (const std::string &name, const std::string &path)
+void manapi::net::utils::compress::throw_could_not_open_file (const std::string &name, const std::string &path)
 {
     THROW_MANAPI_EXCEPTION("{}: Could not open file by location {}", name, escape_string(path));
 }
 
-void manapi::utils::compress::throw_file_exists (const std::string &name, const std::string &path) {
+void manapi::net::utils::compress::throw_file_exists (const std::string &name, const std::string &path) {
     THROW_MANAPI_EXCEPTION("{}: File by following path exists: {}", name, path);
 }
 
-std::string manapi::utils::compress::deflate(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
+std::string manapi::net::utils::compress::deflate(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
     if (folder != nullptr) {
-        std::string dest = *folder + manapi::utils::generate_cache_name(str, "deflate");
+        std::string dest = *folder + manapi::net::utils::generate_cache_name(str, "deflate");
 
         if (!deflate_compress_file(str, dest, level, strategy))
         {
@@ -44,11 +44,11 @@ std::string manapi::utils::compress::deflate(const std::string &str, const int &
     return buff;
 }
 
-std::string manapi::utils::compress::deflate (const std::string &str, const std::string *folder) {
-    return std::move(manapi::utils::compress::deflate(str, Z_BEST_COMPRESSION, Z_BINARY, folder));
+std::string manapi::net::utils::compress::deflate (const std::string &str, const std::string *folder) {
+    return std::move(manapi::net::utils::compress::deflate(str, Z_BEST_COMPRESSION, Z_BINARY, folder));
 }
 
-bool manapi::utils::compress::deflate_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
+bool manapi::net::utils::compress::deflate_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
 {
     if (filesystem::exists (dest))
     {
@@ -110,7 +110,7 @@ bool manapi::utils::compress::deflate_compress_file(const std::string &src, cons
 }
 
 /* decompress */
-bool manapi::utils::compress::deflate_decompress_file(const std::string &src, const std::string &dest)
+bool manapi::net::utils::compress::deflate_decompress_file(const std::string &src, const std::string &dest)
 {
     if (filesystem::exists (dest))
     {
@@ -182,9 +182,9 @@ bool manapi::utils::compress::deflate_decompress_file(const std::string &src, co
     return result == Z_STREAM_END;
 }
 
-std::string manapi::utils::compress::gzip(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
+std::string manapi::net::utils::compress::gzip(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
     if (folder != nullptr) {
-        std::string dest = *folder + manapi::utils::generate_cache_name(str, "gzip");
+        std::string dest = *folder + manapi::net::utils::generate_cache_name(str, "gzip");
 
         if (!gzip_compress_file(str, dest, level, strategy))
         {
@@ -222,11 +222,11 @@ std::string manapi::utils::compress::gzip(const std::string &str, const int &lev
     return std::move(output);
 }
 
-std::string manapi::utils::compress::gzip (const std::string &str, const std::string *folder) {
+std::string manapi::net::utils::compress::gzip (const std::string &str, const std::string *folder) {
     return std::move(gzip(str, Z_BEST_COMPRESSION, Z_BINARY, folder));
 }
 
-bool manapi::utils::compress::gzip_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
+bool manapi::net::utils::compress::gzip_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
 {
     if (filesystem::exists (dest))
     {

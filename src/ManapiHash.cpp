@@ -40,7 +40,7 @@
 #include <fstream>
 #include "ManapiHash.hpp"
 
-namespace manapi::hash {
+namespace manapi::net::hash {
     const unsigned int SHA256::sha256_k[64] = //UL = uint32
             {0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
              0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,

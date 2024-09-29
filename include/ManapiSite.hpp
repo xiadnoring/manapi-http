@@ -42,7 +42,7 @@ namespace manapi::net {
         std::unordered_map  <uint64_t, task *> tasks;
     };
 
-    typedef manapi::utils::safe_unordered_map <std::string, http_quic_conn_io *> QUIC_MAP_CONNS_T;
+    typedef manapi::net::utils::safe_unordered_map <std::string, http_quic_conn_io *> QUIC_MAP_CONNS_T;
 
     struct http_uri_part;
 
@@ -101,14 +101,14 @@ namespace manapi::net {
 
         http_handler_page                   get_handler (request_data_t &request_data) const;
 
-        void set_compressor (const std::string &name, manapi::utils::compress::TEMPLATE_INTERFACE handler);
-        manapi::utils::compress::TEMPLATE_INTERFACE get_compressor (const std::string &name);
+        void set_compressor (const std::string &name, manapi::net::utils::compress::TEMPLATE_INTERFACE handler);
+        manapi::net::utils::compress::TEMPLATE_INTERFACE get_compressor (const std::string &name);
 
         bool                                contains_compressor (const std::string &name) const;
 
         void                                set_config (const std::string &path);
         void                                set_config_object (const utils::json &config);
-        const manapi::utils::json           &get_config ();
+        const manapi::net::utils::json           &get_config ();
 
         const std::string                   *get_compressed_cache_file (const std::string &file, const std::string &algorithm);
         void                                set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
@@ -125,7 +125,7 @@ namespace manapi::net {
         void                                setup_config ();
         void                                save ();
         void                                save_config ();
-        manapi::utils::json                 config;
+        manapi::net::utils::json                 config;
     private:
         static void                         check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void                         check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
@@ -133,14 +133,14 @@ namespace manapi::net {
         http_uri_part                       *build_uri_part (const std::string &uri, size_t &type);
         std::unique_ptr<utils::timerpool>   timerpool;
 
-        manapi::utils::json                 cache_config;
+        manapi::net::utils::json                 cache_config;
 
         std::string                         config_path = "/tmp/http.json";
         bool                                enabled_save_config     = false;
 
         http_uri_part                       handlers;
 
-        std::map <std::string, manapi::utils::compress::TEMPLATE_INTERFACE> compressors;
+        std::map <std::string, manapi::net::utils::compress::TEMPLATE_INTERFACE> compressors;
 
         static std::string                  default_cache_dir;
         static std::string                  default_config_name;

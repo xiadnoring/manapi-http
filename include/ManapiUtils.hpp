@@ -10,18 +10,15 @@
 #include <netinet/in.h>
 #include <fstream>
 #include <unistd.h>
+#include <atomic>
 
 #include "ManapiJson.hpp"
 
-#ifdef MANAPI_HTTP_BUILD_DEBUG
-#define MANAPI_LOG(msg, ...)                manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg, __VA_ARGS__)
-#define MANAPI_LOG2(msg)                    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg);
-#else
-#define MANAPI_LOG(msg, ...)
-#endif
+#define MANAPI_LOG(msg, ...)                manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg, __VA_ARGS__)
+#define MANAPI_LOG2(msg)                    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg);
 
-#define THROW_MANAPI_EXCEPTION(msg, ...)    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg, __VA_ARGS__)
-#define THROW_MANAPI_EXCEPTION2(msg, ...)    manapi::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg)
+#define THROW_MANAPI_EXCEPTION(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg, __VA_ARGS__)
+#define THROW_MANAPI_EXCEPTION2(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg)
 
 #define MANAPI_HTTP_RESP_TEXT 0
 #define MANAPI_HTTP_RESP_FILE 1
@@ -48,7 +45,7 @@ namespace manapi::net {
     typedef std::map <std::string, std::vector <manapi::net::header_value_t> > headers_t;
 }
 
-namespace manapi::utils {
+namespace manapi::net::utils {
     struct replace_founded_item {
         std::string key;
         const std::string *value;
@@ -163,7 +160,7 @@ namespace manapi::utils {
 
         if (except)
         {
-            throw manapi::utils::exception (information);
+            throw manapi::net::utils::exception (information);
         }
     }
 
@@ -191,9 +188,9 @@ namespace manapi::utils {
 }
 
 template <>
-struct std::hash <manapi::utils::manapi_socket_information>
+struct std::hash <manapi::net::utils::manapi_socket_information>
 {
-    std::size_t operator()(const manapi::utils::manapi_socket_information& k) const {
+    std::size_t operator()(const manapi::net::utils::manapi_socket_information& k) const {
         return std::hash <std::string>()(k.ip) ^ (std::hash <uint16_t>()(k.port) >> (sizeof (size_t) - sizeof (uint16_t)));
     }
 };

@@ -5,16 +5,16 @@
 #include "ManapiUtils.hpp"
 #include "ManapiTaskFunction.hpp"
 
-manapi::utils::timerpool::timerpool(net::threadpool<net::task> &threadpool, const size_t &delay) {
+manapi::net::utils::timerpool::timerpool(net::threadpool<net::task> &threadpool, const size_t &delay) {
     this->delay = delay;
     this->threadpool = &threadpool;
 }
 
-manapi::utils::timerpool::~timerpool() {
+manapi::net::utils::timerpool::~timerpool() {
     stop();
 }
 
-size_t manapi::utils::timerpool::append_timer(const std::chrono::milliseconds &duration, const std::function<void()> &task) {
+size_t manapi::net::utils::timerpool::append_timer(const std::chrono::milliseconds &duration, const std::function<void()> &task) {
     std::lock_guard<std::mutex> lk (mx);
     while (tasks.contains(index)) { index++; if (index == ULLONG_MAX) { index = 0; } }
     const size_t id = index; index++;
@@ -23,13 +23,13 @@ size_t manapi::utils::timerpool::append_timer(const std::chrono::milliseconds &d
     return id;
 }
 
-void manapi::utils::timerpool::remove_timer(const size_t &id) {
+void manapi::net::utils::timerpool::remove_timer(const size_t &id) {
     if (id == 0) { return; }
     std::lock_guard<std::mutex> lk (mx);
     tasks.erase(id);
 }
 
-void manapi::utils::timerpool::start() {
+void manapi::net::utils::timerpool::start() {
     while (!is_stop) {
         {
             std::lock_guard<std::mutex> lk (mx);
@@ -53,10 +53,10 @@ void manapi::utils::timerpool::start() {
     }
 }
 
-void manapi::utils::timerpool::stop() {
+void manapi::net::utils::timerpool::stop() {
     is_stop = true;
 }
 
-void manapi::utils::timerpool::doit() {
+void manapi::net::utils::timerpool::doit() {
     start();
 }

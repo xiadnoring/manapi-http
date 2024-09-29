@@ -8,7 +8,7 @@
 static const std::string folder_configs;
 #define MANAPI_FILESYSTEM_COPY_BUFFER_SIZE 4096LL
 
-std::string manapi::filesystem::basename(const std::string& path) {
+std::string manapi::net::filesystem::basename(const std::string& path) {
     size_t pos = path.find_last_of(std::filesystem::path::preferred_separator);
 
     if (pos != std::string::npos)
@@ -19,7 +19,7 @@ std::string manapi::filesystem::basename(const std::string& path) {
     return path;
 }
 
-std::string manapi::filesystem::extension(const std::string& path) {
+std::string manapi::net::filesystem::extension(const std::string& path) {
     size_t pos = path.find_last_of('.');
 
     if (pos != std::string::npos)
@@ -30,21 +30,21 @@ std::string manapi::filesystem::extension(const std::string& path) {
     return "";
 }
 
-bool manapi::filesystem::exists(const std::string& path) {
+bool manapi::net::filesystem::exists(const std::string& path) {
     std::filesystem::path f(path);
 
     return std::filesystem::exists(f);
 }
 
-void manapi::filesystem::config::write(const std::string &name, manapi::utils::json &data) {
-    manapi::filesystem::write(folder_configs + name, data.dump(4));
+void manapi::net::filesystem::config::write(const std::string &name, manapi::net::utils::json &data) {
+    manapi::net::filesystem::write(folder_configs + name, data.dump(4));
 }
 
-manapi::utils::json manapi::filesystem::config::read(const std::string &name) {
-    return utils::json (manapi::filesystem::read (folder_configs + name), true);
+manapi::net::utils::json manapi::net::filesystem::config::read(const std::string &name) {
+    return utils::json (manapi::net::filesystem::read (folder_configs + name), true);
 }
 
-std::string manapi::filesystem::last_time_write (const std::filesystem::path &f, bool time) {
+std::string manapi::net::filesystem::last_time_write (const std::filesystem::path &f, bool time) {
     std::filesystem::file_time_type last_write_time = std::filesystem::last_write_time(f);
 
     auto tp = last_write_time;
@@ -58,12 +58,12 @@ std::string manapi::filesystem::last_time_write (const std::filesystem::path &f,
     return buffer.str();
 }
 
-std::string manapi::filesystem::last_time_write (const std::string &path, bool time) {
+std::string manapi::net::filesystem::last_time_write (const std::string &path, bool time) {
     std::filesystem::path f (path);
     return last_time_write(f, time);
 }
 
-void manapi::filesystem::mkdir (const std::string &path, bool recursive) {
+void manapi::net::filesystem::mkdir (const std::string &path, bool recursive) {
     if (recursive) {
         std::filesystem::create_directories(path);
         return;
@@ -72,14 +72,14 @@ void manapi::filesystem::mkdir (const std::string &path, bool recursive) {
     std::filesystem::create_directory(path);
 }
 
-void manapi::filesystem::append_delimiter (std::string &path) {
+void manapi::net::filesystem::append_delimiter (std::string &path) {
     if (path.empty() || path.back() != std::filesystem::path::preferred_separator)
     {
         path.push_back(std::filesystem::path::preferred_separator);
     }
 }
 
-ssize_t manapi::filesystem::get_size (std::ifstream& f) {
+ssize_t manapi::net::filesystem::get_size (std::ifstream& f) {
     f.seekg(0, std::ifstream::end);
     const ssize_t fileSize = f.tellg();
     f.seekg(0, std::ifstream::beg);
@@ -87,7 +87,7 @@ ssize_t manapi::filesystem::get_size (std::ifstream& f) {
     return fileSize;
 }
 
-ssize_t manapi::filesystem::get_size (const std::string& path) {
+ssize_t manapi::net::filesystem::get_size (const std::string& path) {
     std::ifstream f (path);
     if (!f.is_open())
     {
@@ -96,12 +96,12 @@ ssize_t manapi::filesystem::get_size (const std::string& path) {
 
     utils::before_delete close_ifstream ([&f] () { f.close(); });
 
-    const ssize_t result = manapi::filesystem::get_size(f);
+    const ssize_t result = manapi::net::filesystem::get_size(f);
 
     return result;
 }
 
-void manapi::filesystem::write (const std::string &path, const std::string &data) {
+void manapi::net::filesystem::write (const std::string &path, const std::string &data) {
     std::ofstream out (path);
 
     if (!out.is_open())
@@ -114,7 +114,7 @@ void manapi::filesystem::write (const std::string &path, const std::string &data
     out << data;
 }
 
-std::string manapi::filesystem::read (const std::string &path) {
+std::string manapi::net::filesystem::read (const std::string &path) {
     std::ifstream in (path);
 
     if (!in.is_open())
@@ -138,7 +138,7 @@ std::string manapi::filesystem::read (const std::string &path) {
     return content;
 }
 
-void manapi::filesystem::copy (std::ifstream &f, const ssize_t &start, const ssize_t &back, std::ofstream &o) {
+void manapi::net::filesystem::copy (std::ifstream &f, const ssize_t &start, const ssize_t &back, std::ofstream &o) {
     if (!f.is_open() || !o.is_open()) {
         f.close();
         o.close();
@@ -164,7 +164,7 @@ void manapi::filesystem::copy (std::ifstream &f, const ssize_t &start, const ssi
     f.seekg(0);
 }
 
-std::string manapi::filesystem::back (std::string str) {
+std::string manapi::net::filesystem::back (std::string str) {
     size_t size = str.size();
 
     // clean delimiters at the end
@@ -204,7 +204,7 @@ std::string manapi::filesystem::back (std::string str) {
     return str;
 }
 
-std::string manapi::filesystem::clean (const std::string &str) {
+std::string manapi::net::filesystem::clean (const std::string &str) {
     std::string cleaned;
     size_t size = str.size();
 
@@ -270,12 +270,12 @@ std::string manapi::filesystem::clean (const std::string &str) {
     return cleaned;
 }
 
-bool manapi::filesystem::is_dir (const std::string &str) {
+bool manapi::net::filesystem::is_dir (const std::string &str) {
     std::filesystem::path p (str);
 
     return std::filesystem::is_directory(p);
 }
 
-bool manapi::filesystem::is_file (const std::string &str) {
+bool manapi::net::filesystem::is_file (const std::string &str) {
     return !is_dir (str);
 }

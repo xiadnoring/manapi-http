@@ -11,15 +11,15 @@ const static std::string JSON_TRUE   = "true";
 const static std::string JSON_FALSE  = "false";
 const static std::string JSON_NULL   = "null";
 
-const static manapi::utils::json::UNICODE_STRING JSON_W_TRUE   = manapi::utils::str4to32("true");
-const static manapi::utils::json::UNICODE_STRING JSON_W_FALSE  = manapi::utils::str4to32("false");
-const static manapi::utils::json::UNICODE_STRING JSON_W_NULL   = manapi::utils::str4to32("null");
+const static manapi::net::utils::json::UNICODE_STRING JSON_W_TRUE   = manapi::net::utils::str4to32("true");
+const static manapi::net::utils::json::UNICODE_STRING JSON_W_FALSE  = manapi::net::utils::str4to32("false");
+const static manapi::net::utils::json::UNICODE_STRING JSON_W_NULL   = manapi::net::utils::str4to32("null");
 
 #define THROW_MANAPI_JSON_MISSING_FUNCTION this->throw_could_not_use_func(__FUNCTION__)
 
-manapi::utils::json::json() = default;
+manapi::net::utils::json::json() = default;
 
-manapi::utils::json::json(const std::string &str, bool is_json) {
+manapi::net::utils::json::json(const std::string &str, bool is_json) {
     if (is_json)
     {
         this->parse(str);
@@ -32,7 +32,7 @@ manapi::utils::json::json(const std::string &str, bool is_json) {
     }
 }
 
-manapi::utils::json::json(const UNICODE_STRING &str, bool is_json) {
+manapi::net::utils::json::json(const UNICODE_STRING &str, bool is_json) {
     if (is_json)
     {
         this->parse(str);
@@ -44,19 +44,19 @@ manapi::utils::json::json(const UNICODE_STRING &str, bool is_json) {
     }
 }
 
-manapi::utils::json::json(const NUMBER &num) {
+manapi::net::utils::json::json(const NUMBER &num) {
     this->parse(num);
 }
 
-manapi::utils::json::json(const size_t &num) {
+manapi::net::utils::json::json(const size_t &num) {
     this->parse(num);
 }
 
-manapi::utils::json::json(const manapi::utils::json &other) {
+manapi::net::utils::json::json(const manapi::net::utils::json &other) {
     *this = other;
 }
 
-manapi::utils::json::json(json &&other) noexcept {
+manapi::net::utils::json::json(json &&other) noexcept {
     src = other.src;
     type = other.type;
 
@@ -64,7 +64,7 @@ manapi::utils::json::json(json &&other) noexcept {
     other.src = nullptr;
 }
 
-manapi::utils::json::json(const char *plain_text, bool is_json)
+manapi::net::utils::json::json(const char *plain_text, bool is_json)
 {
     if (is_json)
     {
@@ -77,45 +77,45 @@ manapi::utils::json::json(const char *plain_text, bool is_json)
     }
 }
 
-manapi::utils::json::json(const int &num)
+manapi::net::utils::json::json(const int &num)
 {
     this->parse(num);
 }
 
-manapi::utils::json::json(const double &num)
+manapi::net::utils::json::json(const double &num)
 {
     this->parse(num);
 }
 
-manapi::utils::json::json(const DECIMAL &num)
+manapi::net::utils::json::json(const DECIMAL &num)
 {
     this->parse(num);
 }
 
-manapi::utils::json::json(const BIGINT &num)
+manapi::net::utils::json::json(const BIGINT &num)
 {
     this->parse(num);
 }
 
-manapi::utils::json::json(const BOOLEAN &value)
+manapi::net::utils::json::json(const BOOLEAN &value)
 {
     this->parse(value);
 }
 
-manapi::utils::json::json(const OBJECT &obj) {
+manapi::net::utils::json::json(const OBJECT &obj) {
     this->parse(obj);
 }
 
-manapi::utils::json::json(const ARRAY &arr) {
+manapi::net::utils::json::json(const ARRAY &arr) {
     this->parse(arr);
 }
 
-manapi::utils::json::json(const nullptr_t &n)
+manapi::net::utils::json::json(const nullptr_t &n)
 {
     this->parse(n);
 }
 
-manapi::utils::json::json (const std::initializer_list<json> &data) {
+manapi::net::utils::json::json (const std::initializer_list<json> &data) {
     if (data.size() == 0)
     {
         // nothing
@@ -226,68 +226,68 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
     }
 }
 
-manapi::utils::json::~json() {
+manapi::net::utils::json::~json() {
     delete_value();
 }
 
-void manapi::utils::json::parse(const NUMBER &num) {
+void manapi::net::utils::json::parse(const NUMBER &num) {
     type    = type_number;
     src     = new NUMBER (num);
 }
 
-void manapi::utils::json::parse(const int &num) {
+void manapi::net::utils::json::parse(const int &num) {
     this->parse(static_cast<NUMBER> (num));
 }
 
-void manapi::utils::json::parse(const double &num) {
+void manapi::net::utils::json::parse(const double &num) {
     this->parse(static_cast<DECIMAL> (num));
 }
 
-void manapi::utils::json::parse(const DECIMAL &num) {
+void manapi::net::utils::json::parse(const DECIMAL &num) {
     type    = type_decimal;
     src     = new DECIMAL (num);
 }
 
-void manapi::utils::json::parse(const BIGINT &num) {
+void manapi::net::utils::json::parse(const BIGINT &num) {
     type    = type_bigint;
     src     = new BIGINT(num);
 }
 
-void manapi::utils::json::parse(const OBJECT &obj) {
+void manapi::net::utils::json::parse(const OBJECT &obj) {
     type    = type_object;
     src     = new OBJECT (obj);
 }
 
-void manapi::utils::json::parse(const ARRAY &arr) {
+void manapi::net::utils::json::parse(const ARRAY &arr) {
     type    = type_array;
     src     = new ARRAY (arr);
 }
 
-void manapi::utils::json::parse(const BOOLEAN &val) {
+void manapi::net::utils::json::parse(const BOOLEAN &val) {
     type    = type_boolean;
     src     = new BOOLEAN (val);
 }
 
-void manapi::utils::json::parse(const UNICODE_STRING &plain_text) {
+void manapi::net::utils::json::parse(const UNICODE_STRING &plain_text) {
     this->parse(str32to4(plain_text));
 }
 
-void manapi::utils::json::parse(const NULLPTR &n) {
+void manapi::net::utils::json::parse(const NULLPTR &n) {
     type    = type_null;
     src     = nullptr;
 }
 
-void manapi::utils::json::parse(const STRING &plain_text, const bool &use_bigint, const size_t &bigint_precision) {
+void manapi::net::utils::json::parse(const STRING &plain_text, const bool &use_bigint, const size_t &bigint_precision) {
     json_builder builder (use_bigint, bigint_precision);
     builder << plain_text;
     *this = builder.get();
 }
 
-void manapi::utils::json::parse(const size_t &num) {
+void manapi::net::utils::json::parse(const size_t &num) {
     this->parse (static_cast<NUMBER> (num));
 }
 
-std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_spaces) const {
+std::string manapi::net::utils::json::dump(const size_t &spaces, const size_t &first_spaces) const {
 #define JSON_DUMP_NEED_NEW_LINE if (spaces_enabled) str += '\n';
 #define JSON_DUMP_NEED_NEW_LINE_OR_SPACE    JSON_DUMP_NEED_NEW_LINE \
                                             else str += ' ';
@@ -411,67 +411,67 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
     return str;
 }
 
-size_t manapi::utils::json::get_start_cut() const {
+size_t manapi::net::utils::json::get_start_cut() const {
     return start_cut;
 }
 
-size_t manapi::utils::json::get_end_cut() const {
+size_t manapi::net::utils::json::get_end_cut() const {
     return end_cut;
 }
 
-void manapi::utils::json::error_invalid_char(const UNICODE_STRING &plain_text, const size_t &i) {
+void manapi::net::utils::json::error_invalid_char(const UNICODE_STRING &plain_text, const size_t &i) {
     throw json_parse_exception(std::format("Invalid char '{}' at {}", str32to4(plain_text[i]), i + 1));
 }
 
-void manapi::utils::json::error_invalid_char(const STRING &plain_text, const size_t &i) {
+void manapi::net::utils::json::error_invalid_char(const STRING &plain_text, const size_t &i) {
     throw json_parse_exception(std::format("Invalid char '{}' at {}", plain_text[i], i + 1));
 }
 
-void manapi::utils::json::error_unexpected_end(const size_t &i) {
+void manapi::net::utils::json::error_unexpected_end(const size_t &i) {
     throw json_parse_exception(std::format("Unexpected end of JSON input at {}", i + 1));
 }
 
-void manapi::utils::json::delete_value() {
+void manapi::net::utils::json::delete_value() {
     delete_value_static(type, src);
 }
 
-manapi::utils::json &manapi::utils::json::operator[](const STRING &key) {
+manapi::net::utils::json &manapi::net::utils::json::operator[](const STRING &key) {
     return std::ref(this->at(key));
 }
 
-manapi::utils::json &manapi::utils::json::operator[](const UNICODE_STRING &key) {
+manapi::net::utils::json &manapi::net::utils::json::operator[](const UNICODE_STRING &key) {
     return std::ref(this->at(key));
 }
 
-manapi::utils::json &manapi::utils::json::operator[](const size_t &index) {
+manapi::net::utils::json &manapi::net::utils::json::operator[](const size_t &index) {
     return std::ref(this->at(index));
 }
 
-manapi::utils::json & manapi::utils::json::operator[](const int &index) {
+manapi::net::utils::json & manapi::net::utils::json::operator[](const int &index) {
     return std::ref(this->at(index));
 }
 
-const manapi::utils::json & manapi::utils::json::operator[](const STRING &key) const {
+const manapi::net::utils::json & manapi::net::utils::json::operator[](const STRING &key) const {
     return std::ref(this->at(key));
 }
 
-const manapi::utils::json & manapi::utils::json::operator[](const UNICODE_STRING &key) const {
+const manapi::net::utils::json & manapi::net::utils::json::operator[](const UNICODE_STRING &key) const {
     return std::ref(this->at(key));
 }
 
-const manapi::utils::json & manapi::utils::json::operator[](const size_t &index) const {
+const manapi::net::utils::json & manapi::net::utils::json::operator[](const size_t &index) const {
     return std::ref(this->at(index));
 }
 
-const manapi::utils::json & manapi::utils::json::operator[](const int &index) const {
+const manapi::net::utils::json & manapi::net::utils::json::operator[](const int &index) const {
     return std::ref(this->at(index));
 }
 
-manapi::utils::json &manapi::utils::json::at(const UNICODE_STRING &key)  {
+manapi::net::utils::json &manapi::net::utils::json::at(const UNICODE_STRING &key)  {
     return std::ref(this->at(str32to4(key)));
 }
 
-manapi::utils::json &manapi::utils::json::at(const std::string &key)  {
+manapi::net::utils::json &manapi::net::utils::json::at(const std::string &key)  {
     if (type != type_object)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -487,7 +487,7 @@ manapi::utils::json &manapi::utils::json::at(const std::string &key)  {
     return map.at(key);
 }
 
-manapi::utils::json &manapi::utils::json::at(const size_t &index)  {
+manapi::net::utils::json &manapi::net::utils::json::at(const size_t &index)  {
     if (type != type_array)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -503,11 +503,11 @@ manapi::utils::json &manapi::utils::json::at(const size_t &index)  {
     return arr.at(index);
 }
 
-manapi::utils::json & manapi::utils::json::at(const int &index) {
+manapi::net::utils::json & manapi::net::utils::json::at(const int &index) {
     return std::ref(this->at(static_cast<size_t> (index)));
 }
 
-const manapi::utils::json & manapi::utils::json::at(const std::string &key) const {
+const manapi::net::utils::json & manapi::net::utils::json::at(const std::string &key) const {
     if (type != type_object)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -523,11 +523,11 @@ const manapi::utils::json & manapi::utils::json::at(const std::string &key) cons
     return map.at(key);
 }
 
-const manapi::utils::json & manapi::utils::json::at(const UNICODE_STRING &key) const {
+const manapi::net::utils::json & manapi::net::utils::json::at(const UNICODE_STRING &key) const {
     return std::ref(this->at(str32to4(key)));
 }
 
-const manapi::utils::json & manapi::utils::json::at(const size_t &index) const {
+const manapi::net::utils::json & manapi::net::utils::json::at(const size_t &index) const {
     if (type != type_array)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -543,11 +543,11 @@ const manapi::utils::json & manapi::utils::json::at(const size_t &index) const {
     return arr.at(index);
 }
 
-const manapi::utils::json & manapi::utils::json::at(const int &index) const {
+const manapi::net::utils::json & manapi::net::utils::json::at(const int &index) const {
     return std::ref(this->at(static_cast<size_t> (index)));
 }
 
-manapi::utils::json& manapi::utils::json::operator=(const std::string &str) {
+manapi::net::utils::json& manapi::net::utils::json::operator=(const std::string &str) {
     utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     type    = type_string;
@@ -556,7 +556,7 @@ manapi::utils::json& manapi::utils::json::operator=(const std::string &str) {
     return *this;
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const bool &b) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(const bool &b) {
     utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     type    = type_boolean;
@@ -565,7 +565,7 @@ manapi::utils::json &manapi::utils::json::operator=(const bool &b) {
     return *this;
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const ssize_t &num) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(const ssize_t &num) {
     utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     type    = type_number;
@@ -574,7 +574,7 @@ manapi::utils::json &manapi::utils::json::operator=(const ssize_t &num) {
     return *this;
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const double &num) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(const double &num) {
     utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     type    = type_decimal;
@@ -583,7 +583,7 @@ manapi::utils::json &manapi::utils::json::operator=(const double &num) {
     return *this;
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const json::DECIMAL &num) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(const json::DECIMAL &num) {
     utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     type    = type_decimal;
@@ -592,11 +592,11 @@ manapi::utils::json &manapi::utils::json::operator=(const json::DECIMAL &num) {
     return *this;
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const long long &num) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(const long long &num) {
     return this->operator=(static_cast<NUMBER> (num));
 }
 
-manapi::utils::json &manapi::utils::json::operator=(nullptr_t const &n) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(nullptr_t const &n) {
     utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     type    = type_null;
@@ -605,19 +605,19 @@ manapi::utils::json &manapi::utils::json::operator=(nullptr_t const &n) {
     return *this;
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const UNICODE_STRING &str) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(const UNICODE_STRING &str) {
     return this->operator=(str32to4(str));
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const char *str) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(const char *str) {
     return this->operator=(STRING(str));
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const int &num) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(const int &num) {
     return this->operator=(static_cast<NUMBER> (num));
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::bigint &num) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(const manapi::net::utils::bigint &num) {
     utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     type    = type_bigint;
@@ -626,7 +626,7 @@ manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::bigint 
     return *this;
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::json &obj) {
+manapi::net::utils::json &manapi::net::utils::json::operator=(const manapi::net::utils::json &obj) {
     if (&obj != this)
     {
         // temp values
@@ -673,21 +673,21 @@ manapi::utils::json &manapi::utils::json::operator=(const manapi::utils::json &o
     return *this;
 }
 
-manapi::utils::json & manapi::utils::json::operator=(json &&obj) {
+manapi::net::utils::json & manapi::net::utils::json::operator=(json &&obj) {
     std::swap(src, obj.src);
     std::swap(type, obj.type);
     return *this;
 }
 
-manapi::utils::json &manapi::utils::json::operator=(const std::initializer_list <json> &data) {
-    return *this = manapi::utils::json (data);
+manapi::net::utils::json &manapi::net::utils::json::operator=(const std::initializer_list <json> &data) {
+    return *this = manapi::net::utils::json (data);
 }
 
-void manapi::utils::json::insert(const UNICODE_STRING &key, const manapi::utils::json &obj) {
+void manapi::net::utils::json::insert(const UNICODE_STRING &key, const manapi::net::utils::json &obj) {
     insert (str32to4(key), obj);
 }
 
-void manapi::utils::json::insert(const std::string &key, const manapi::utils::json &obj) {
+void manapi::net::utils::json::insert(const std::string &key, const manapi::net::utils::json &obj) {
     if (type != type_object)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -705,7 +705,7 @@ void manapi::utils::json::insert(const std::string &key, const manapi::utils::js
     get<OBJECT>().insert({key, std::move(item)});
 }
 
-void manapi::utils::json::push_back(manapi::utils::json obj) {
+void manapi::net::utils::json::push_back(manapi::net::utils::json obj) {
     if (type != type_array)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -716,7 +716,7 @@ void manapi::utils::json::push_back(manapi::utils::json obj) {
     get<ARRAY>().push_back(std::move(obj));
 }
 
-void manapi::utils::json::pop_back() {
+void manapi::net::utils::json::pop_back() {
     if (type != type_array)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -725,7 +725,7 @@ void manapi::utils::json::pop_back() {
     get<ARRAY>().pop_back();
 }
 
-manapi::utils::json manapi::utils::json::object() {
+manapi::net::utils::json manapi::net::utils::json::object() {
     json obj;
 
     obj.type    = type_object;
@@ -734,7 +734,7 @@ manapi::utils::json manapi::utils::json::object() {
     return std::move(obj);
 }
 
-manapi::utils::json manapi::utils::json::array() {
+manapi::net::utils::json manapi::net::utils::json::array() {
     // rvalue, arr not be destroyed
     json arr;
 
@@ -744,7 +744,7 @@ manapi::utils::json manapi::utils::json::array() {
     return std::move(arr);
 }
 
-manapi::utils::json manapi::utils::json::array(const std::initializer_list<json> &data) {
+manapi::net::utils::json manapi::net::utils::json::array(const std::initializer_list<json> &data) {
     // rvalue, arr not be destroyed
     auto arr = json::array();
 
@@ -756,27 +756,27 @@ manapi::utils::json manapi::utils::json::array(const std::initializer_list<json>
     return std::move(arr);
 }
 
-const manapi::utils::json::ARRAY & manapi::utils::json::each() const {
+const manapi::net::utils::json::ARRAY & manapi::net::utils::json::each() const {
     return as_array();
 }
 
-const manapi::utils::json::OBJECT & manapi::utils::json::entries() const {
+const manapi::net::utils::json::OBJECT & manapi::net::utils::json::entries() const {
     return as_object();
 }
 
-manapi::utils::json::ARRAY & manapi::utils::json::each() {
+manapi::net::utils::json::ARRAY & manapi::net::utils::json::each() {
     return get<ARRAY>();
 }
 
-manapi::utils::json::OBJECT & manapi::utils::json::entries() {
+manapi::net::utils::json::OBJECT & manapi::net::utils::json::entries() {
     return get<OBJECT>();
 }
 
-bool manapi::utils::json::contains(const UNICODE_STRING &key) const {
+bool manapi::net::utils::json::contains(const UNICODE_STRING &key) const {
     return contains(str32to4(key));
 }
 
-bool manapi::utils::json::contains(const std::string &key) const {
+bool manapi::net::utils::json::contains(const std::string &key) const {
     if (type != type_object)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -785,11 +785,11 @@ bool manapi::utils::json::contains(const std::string &key) const {
     return get<OBJECT>().contains(key);
 }
 
-void manapi::utils::json::erase(const UNICODE_STRING &key) {
+void manapi::net::utils::json::erase(const UNICODE_STRING &key) {
     erase(str32to4(key));
 }
 
-void manapi::utils::json::erase(const std::string &key) {
+void manapi::net::utils::json::erase(const std::string &key) {
     if (type != type_object)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -798,109 +798,109 @@ void manapi::utils::json::erase(const std::string &key) {
     get<OBJECT>().erase(key);
 }
 
-bool manapi::utils::json::is_object() const {
+bool manapi::net::utils::json::is_object() const {
     return type == type_object;
 }
 
-bool manapi::utils::json::is_array() const {
+bool manapi::net::utils::json::is_array() const {
     return type == type_array;
 }
 
-bool manapi::utils::json::is_string() const {
+bool manapi::net::utils::json::is_string() const {
     return type == type_string;
 }
 
-bool manapi::utils::json::is_number() const {
+bool manapi::net::utils::json::is_number() const {
     return type == type_number;
 }
 
-bool manapi::utils::json::is_null() const {
+bool manapi::net::utils::json::is_null() const {
     return type == type_null;
 }
 
-bool manapi::utils::json::is_decimal() const {
+bool manapi::net::utils::json::is_decimal() const {
     return type == type_decimal;
 }
 
-bool manapi::utils::json::is_bigint() const {
+bool manapi::net::utils::json::is_bigint() const {
     return type == type_bigint;
 }
 
-bool manapi::utils::json::is_bool() const {
+bool manapi::net::utils::json::is_bool() const {
     return type == type_boolean;
 }
 
-const manapi::utils::json::OBJECT & manapi::utils::json::as_object() const {
+const manapi::net::utils::json::OBJECT & manapi::net::utils::json::as_object() const {
     if (type == type_object) {
         return *static_cast<json::OBJECT *> (src);
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-const manapi::utils::json::ARRAY & manapi::utils::json::as_array() const {
+const manapi::net::utils::json::ARRAY & manapi::net::utils::json::as_array() const {
     if (type == type_array) {
         return *static_cast<json::ARRAY *> (src);
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-const manapi::utils::json::STRING & manapi::utils::json::as_string() const {
+const manapi::net::utils::json::STRING & manapi::net::utils::json::as_string() const {
     if (type == type_string) {
         return *static_cast<json::STRING *> (src);
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-const manapi::utils::json::NUMBER & manapi::utils::json::as_number() const {
+const manapi::net::utils::json::NUMBER & manapi::net::utils::json::as_number() const {
     if (type == type_number) {
         return *static_cast<json::NUMBER *> (src);
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-const manapi::utils::json::BIGINT & manapi::utils::json::as_bigint() const {
+const manapi::net::utils::json::BIGINT & manapi::net::utils::json::as_bigint() const {
     if (type == type_bigint) {
         return *static_cast<json::BIGINT *> (src);
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-const manapi::utils::json::BOOLEAN & manapi::utils::json::as_bool() const {
+const manapi::net::utils::json::BOOLEAN & manapi::net::utils::json::as_bool() const {
     if (type == type_boolean) {
         return *static_cast<json::BOOLEAN *> (src);
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-const manapi::utils::json::DECIMAL & manapi::utils::json::as_decimal() const {
+const manapi::net::utils::json::DECIMAL & manapi::net::utils::json::as_decimal() const {
     if (type == type_decimal) {
         return *static_cast<json::DECIMAL *> (src);
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::utils::json::NULLPTR manapi::utils::json::as_null() const {
+manapi::net::utils::json::NULLPTR manapi::net::utils::json::as_null() const {
     if (type == type_null) {
         return nullptr;
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::utils::json::OBJECT manapi::utils::json::as_object_cast() const {
+manapi::net::utils::json::OBJECT manapi::net::utils::json::as_object_cast() const {
     if (type == type_object) {
         return as_object();
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::utils::json::ARRAY manapi::utils::json::as_array_cast() const {
+manapi::net::utils::json::ARRAY manapi::net::utils::json::as_array_cast() const {
     if (type == type_array) {
         return as_array();
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::utils::json::STRING manapi::utils::json::as_string_cast() const {
+manapi::net::utils::json::STRING manapi::net::utils::json::as_string_cast() const {
     if (type == type_string) {
         return as_string();
     }
@@ -916,7 +916,7 @@ manapi::utils::json::STRING manapi::utils::json::as_string_cast() const {
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::utils::json::NUMBER manapi::utils::json::as_number_cast() const {
+manapi::net::utils::json::NUMBER manapi::net::utils::json::as_number_cast() const {
     if (type == type_number) {
         return as_number();
     }
@@ -930,14 +930,14 @@ manapi::utils::json::NUMBER manapi::utils::json::as_number_cast() const {
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::utils::json::NULLPTR manapi::utils::json::as_null_cast() const {
+manapi::net::utils::json::NULLPTR manapi::net::utils::json::as_null_cast() const {
     if (type == type_null) {
         return as_null();
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::utils::json::DECIMAL manapi::utils::json::as_decimal_cast() const {
+manapi::net::utils::json::DECIMAL manapi::net::utils::json::as_decimal_cast() const {
     if (type == type_decimal) {
         return as_decimal();
     }
@@ -950,7 +950,7 @@ manapi::utils::json::DECIMAL manapi::utils::json::as_decimal_cast() const {
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::utils::json::BIGINT manapi::utils::json::as_bigint_cast() const {
+manapi::net::utils::json::BIGINT manapi::net::utils::json::as_bigint_cast() const {
     if (type == type_bigint) {
         return as_bigint();
     }
@@ -966,14 +966,14 @@ manapi::utils::json::BIGINT manapi::utils::json::as_bigint_cast() const {
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::utils::json::BOOLEAN manapi::utils::json::as_bool_cast() const {
+manapi::net::utils::json::BOOLEAN manapi::net::utils::json::as_bool_cast() const {
     if (type == type_boolean) {
         return as_bool();
     }
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-size_t manapi::utils::json::size() const {
+size_t manapi::net::utils::json::size() const {
     if (is_array())
     {
         return as_array().size();
@@ -990,7 +990,7 @@ size_t manapi::utils::json::size() const {
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::utils::json &manapi::utils::json::operator+(const ssize_t &num) {
+manapi::net::utils::json &manapi::net::utils::json::operator+(const ssize_t &num) {
     if (is_bigint())
     {
         get<BIGINT>() += num;
@@ -1011,11 +1011,11 @@ manapi::utils::json &manapi::utils::json::operator+(const ssize_t &num) {
     return *this;
 }
 
-manapi::utils::json &manapi::utils::json::operator+(const int &num) {
+manapi::net::utils::json &manapi::net::utils::json::operator+(const int &num) {
     return this->operator+(static_cast<NUMBER> (num));
 }
 
-manapi::utils::json & manapi::utils::json::operator+(const DECIMAL &num) {
+manapi::net::utils::json & manapi::net::utils::json::operator+(const DECIMAL &num) {
     if (is_bigint())
     {
         get<BIGINT>() += num;
@@ -1034,11 +1034,11 @@ manapi::utils::json & manapi::utils::json::operator+(const DECIMAL &num) {
     return *this;
 }
 
-manapi::utils::json & manapi::utils::json::operator+(const double &num) {
+manapi::net::utils::json & manapi::net::utils::json::operator+(const double &num) {
     return this->operator+(static_cast<DECIMAL> (num));
 }
 
-manapi::utils::json & manapi::utils::json::operator+(const BIGINT &num) {
+manapi::net::utils::json & manapi::net::utils::json::operator+(const BIGINT &num) {
     if (is_bigint())
     {
         get<BIGINT>() += num;
@@ -1057,7 +1057,7 @@ manapi::utils::json & manapi::utils::json::operator+(const BIGINT &num) {
     return *this;
 }
 
-manapi::utils::json & manapi::utils::json::operator+(const STRING &str) {
+manapi::net::utils::json & manapi::net::utils::json::operator+(const STRING &str) {
     if (is_string())
     {
         get<STRING>() += str;
@@ -1069,71 +1069,71 @@ manapi::utils::json & manapi::utils::json::operator+(const STRING &str) {
     return *this;
 }
 
-void manapi::utils::json::operator+=(const STRING &str) {
+void manapi::net::utils::json::operator+=(const STRING &str) {
     *this = this->operator+(str);
 }
 
-void manapi::utils::json::operator-=(const NUMBER &num) {
+void manapi::net::utils::json::operator-=(const NUMBER &num) {
     *this = this->operator-(num);
 }
 
-void manapi::utils::json::operator-=(const int &num) {
+void manapi::net::utils::json::operator-=(const int &num) {
     *this = this->operator-(num);
 }
 
-void manapi::utils::json::operator-=(const DECIMAL &num) {
+void manapi::net::utils::json::operator-=(const DECIMAL &num) {
     *this = this->operator-(num);
 }
 
-void manapi::utils::json::operator-=(const double &num) {
+void manapi::net::utils::json::operator-=(const double &num) {
     *this = this->operator-(num);
 }
 
-void manapi::utils::json::operator-=(const BIGINT &num) {
+void manapi::net::utils::json::operator-=(const BIGINT &num) {
     *this = this->operator-(num);
 }
 
-void manapi::utils::json::operator+=(const NUMBER &num) {
+void manapi::net::utils::json::operator+=(const NUMBER &num) {
     *this = this->operator+(num);
 }
 
-void manapi::utils::json::operator+=(const int &num) {
+void manapi::net::utils::json::operator+=(const int &num) {
     *this = this->operator+(num);
 }
 
-void manapi::utils::json::operator+=(const DECIMAL &num) {
+void manapi::net::utils::json::operator+=(const DECIMAL &num) {
     *this = this->operator+(num);
 }
 
-void manapi::utils::json::operator+=(const double &num) {
+void manapi::net::utils::json::operator+=(const double &num) {
     *this = this->operator+(num);
 }
 
-void manapi::utils::json::operator+=(const BIGINT &num) {
+void manapi::net::utils::json::operator+=(const BIGINT &num) {
     *this = this->operator+(num);
 }
 
-manapi::utils::json &manapi::utils::json::operator-(const ssize_t &num) {
+manapi::net::utils::json &manapi::net::utils::json::operator-(const ssize_t &num) {
     return this->operator+(-num);
 }
 
-manapi::utils::json &manapi::utils::json::operator-(const int &num) {
+manapi::net::utils::json &manapi::net::utils::json::operator-(const int &num) {
     return this->operator+(-num);
 }
 
-manapi::utils::json & manapi::utils::json::operator-(const DECIMAL &num) {
+manapi::net::utils::json & manapi::net::utils::json::operator-(const DECIMAL &num) {
     return this->operator+(-num);
 }
 
-manapi::utils::json & manapi::utils::json::operator-(const double &num) {
+manapi::net::utils::json & manapi::net::utils::json::operator-(const double &num) {
     return this->operator+(-num);
 }
 
-manapi::utils::json & manapi::utils::json::operator-(const BIGINT &num) {
+manapi::net::utils::json & manapi::net::utils::json::operator-(const BIGINT &num) {
     return this->operator+(-num);
 }
 
-void manapi::utils::json::delete_value_static(const short &type, void *src) {
+void manapi::net::utils::json::delete_value_static(const short &type, void *src) {
     switch (type) {
         case type_null:
             break;
@@ -1166,7 +1166,7 @@ void manapi::utils::json::delete_value_static(const short &type, void *src) {
     }
 }
 
-void manapi::utils::json::throw_could_not_use_func(const std::string &func) const
+void manapi::net::utils::json::throw_could_not_use_func(const std::string &func) const
 {
     THROW_MANAPI_EXCEPTION("json object with type {} could not use func: {}", static_cast <int> (type), func);
 }
@@ -1174,10 +1174,10 @@ void manapi::utils::json::throw_could_not_use_func(const std::string &func) cons
 
 // Exceptions
 
-manapi::utils::json_parse_exception::json_parse_exception(const std::string &msg) {
+manapi::net::utils::json_parse_exception::json_parse_exception(const std::string &msg) {
     message = msg;
 }
 
-const char *manapi::utils::json_parse_exception::what() const noexcept {
+const char *manapi::net::utils::json_parse_exception::what() const noexcept {
     return message.data();
 }

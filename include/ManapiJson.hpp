@@ -6,11 +6,11 @@
 #include <vector>
 #include "ManapiBigint.hpp"
 
-namespace manapi::utils {
+namespace manapi::net::utils {
     class json {
     public:
-        typedef std::map <std::string, manapi::utils::json> OBJECT;
-        typedef std::vector <manapi::utils::json> ARRAY;
+        typedef std::map <std::string, manapi::net::utils::json> OBJECT;
+        typedef std::vector <manapi::net::utils::json> ARRAY;
         typedef double long DECIMAL;
         typedef ssize_t NUMBER;
         typedef nullptr_t NULLPTR;

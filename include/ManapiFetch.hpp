@@ -32,7 +32,7 @@ namespace manapi::net {
         void doit() override;
 
         std::string text();
-        manapi::utils::json json();
+        manapi::net::utils::json json();
 
         const std::map <std::string, std::string> &get_headers();
     private:
