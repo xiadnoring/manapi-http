@@ -89,7 +89,11 @@ set(MANAPI_HTTP_FILES
         src/ManapiHttpConfig.cpp
         include/ManapiHttpConfig.hpp
         include/extensions/ManapiJsonWebTokenTraits.hpp
-        include/extensions/ManapiJsonWebTokenDefaults.hpp)
+        include/extensions/ManapiJsonWebTokenDefaults.hpp
+        src/ManapiUnicode.cpp
+        include/ManapiUnicode.hpp
+        src/ManapiJsonBuilder.cpp
+        include/ManapiJsonBuilder.hpp)
 
 if (MANAPI_BUILD_TYPE STREQUAL "exe")
     # EXE

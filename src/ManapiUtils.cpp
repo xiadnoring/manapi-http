@@ -86,6 +86,10 @@ bool manapi::utils::is_space_symbol (const char &symbol) {
     return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
 }
 
+bool manapi::utils::is_space_symbol(const unsigned char &symbol) {
+    return is_space_symbol(static_cast<char> (symbol));
+}
+
 bool manapi::utils::is_space_symbol (const wchar_t &symbol) {
     return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
 }
@@ -177,7 +181,8 @@ std::u32string manapi::utils::escape_string (const std::u32string &str) {
 }
 
 bool manapi::utils::escape_char_need (const char &ch) {
-    return ch == '"' || ch == '\\';
+    // if ch >= 128 -> non-ascii (maybe utf)
+    return ch < 127 && ( ch == '"' || ch == '\\');
 }
 
 bool manapi::utils::escape_char_need (const wchar_t &ch) {
@@ -191,7 +196,7 @@ bool manapi::utils::escape_char_need (const char32_t &ch) {
 bool manapi::utils::valid_special_symbol(const char &c) {
     /**
      * ascii
-     * 0 - 128
+     * 0 - 127
      */
     return c >= 0;
 }

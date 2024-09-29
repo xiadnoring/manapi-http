@@ -7,11 +7,24 @@
 #include "ManapiFilesystem.hpp"
 #include "ManapiTaskFunction.hpp"
 #include "ManapiFetch.hpp"
+#include "ManapiJsonBuilder.hpp"
 #include "ManapiJsonMask.hpp"
+#include "ManapiUnicode.hpp"
 
 using namespace manapi::utils;
 using namespace manapi::net;
 using namespace std;
+std::string binary(unsigned x)
+{
+    // Warning: this breaks for numbers with more than 64 bits
+    char buffer[64];
+    char* p = buffer + 64;
+    do
+    {
+        *--p = '0' + (x & 1);
+    } while (x >>= 1);
+    return std::string(p, buffer + 64);
+}
 
 int main(int argc, char *argv[]) {
     debug_print_memory("start");

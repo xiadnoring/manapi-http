@@ -62,8 +62,8 @@ namespace manapi::utils {
         ~json();
 
         // string
-        void parse (const std::string &plain_text);
-        void parse (const UNICODE_STRING &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128, size_t start = 0);
+        void parse (const UNICODE_STRING &plain_text);
+        void parse (const STRING &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128);
 
         // numbers
         void parse (const size_t &num);
@@ -301,16 +301,19 @@ namespace manapi::utils {
         [[nodiscard]] std::string dump (const size_t &spaces = 0, const size_t &first_spaces = 0) const;
 
         [[nodiscard]] size_t size () const;
+
+        static void                 error_invalid_char (const UNICODE_STRING &plain_text, const size_t &i);
+        static void                 error_invalid_char (const STRING &plain_text, const size_t &i);
+        static void                 error_unexpected_end (const size_t &i);
     protected:
         [[nodiscard]] size_t get_start_cut () const;
         [[nodiscard]] size_t get_end_cut () const;
 
         bool   root                 = true;
     private:
-        static void                 error_invalid_char (const UNICODE_STRING &plain_text, const size_t &i);
-        static void                 error_unexpected_end (const size_t &i);
         static void                 delete_value_static (const short &type, void *src);
         void                        throw_could_not_use_func (const std::string &func) const;
+
         void                        delete_value ();
 
         void    *src                = nullptr;

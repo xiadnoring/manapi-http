@@ -3,7 +3,9 @@
 
 #include "ManapiJson.hpp"
 #include "ManapiBigint.hpp"
+#include "ManapiUnicode.hpp"
 #include "ManapiUtils.hpp"
+#include "ManapiJsonBuilder.hpp"
 
 const static std::string JSON_TRUE   = "true";
 const static std::string JSON_FALSE  = "false";
@@ -24,6 +26,7 @@ manapi::utils::json::json(const std::string &str, bool is_json) {
     }
     else
     {
+        json_builder::_valid_utf_string(str);
         type = type_string;
         src = new STRING (str);
     }
@@ -65,7 +68,7 @@ manapi::utils::json::json(const char *plain_text, bool is_json)
 {
     if (is_json)
     {
-        this->parse(plain_text);
+        this->parse(STRING(plain_text));
     }
     else
     {
@@ -176,7 +179,7 @@ manapi::utils::json::json (const std::initializer_list<json> &data) {
         {
             for (const auto & it : data)
             {
-                auto &key = reinterpret_cast <std::pair <json, json> *> (it.src)->first.get<std::string>();
+                auto &key = reinterpret_cast <std::pair <json, json> *> (it.src)->first.get<STRING>();
                 json value = reinterpret_cast <std::pair <json, json> *> (it.src)->second;
 
                 get<OBJECT>().insert({key, std::move(value)});
@@ -265,8 +268,8 @@ void manapi::utils::json::parse(const BOOLEAN &val) {
     src     = new BOOLEAN (val);
 }
 
-void manapi::utils::json::parse(const STRING &plain_text) {
-    this->parse(str4to32(plain_text));
+void manapi::utils::json::parse(const UNICODE_STRING &plain_text) {
+    this->parse(str32to4(plain_text));
 }
 
 void manapi::utils::json::parse(const NULLPTR &n) {
@@ -274,366 +277,10 @@ void manapi::utils::json::parse(const NULLPTR &n) {
     src     = nullptr;
 }
 
-void manapi::utils::json::parse(const UNICODE_STRING &plain_text, const bool &use_bigint, const size_t &bigint_precision, size_t start) {
-    if (plain_text.empty())
-    {
-        error_unexpected_end (0);
-    }
-
-    start_cut       = start;
-    end_cut         = plain_text.size() - 1;
-
-    for (size_t i = start_cut; i <= end_cut; i++) {
-        if (is_space_symbol(plain_text[i]))
-        {
-            continue;
-        }
-
-        switch (plain_text[i]) {
-            case '{':
-                type = type_object;
-                break;
-            case '[':
-                type = type_array;
-                break;
-            case '"':
-                type = type_string;
-                break;
-            default:
-                type = type_numeric;
-                break;
-        }
-
-        start_cut = i;
-
-        break;
-    }
-
-    UNICODE_STRING sub_plain_text;
-    UNICODE_STRING key;
-    bool opened_quote;
-
-    switch (type) {
-        case type_object:
-            src = new OBJECT ();
-
-            opened_quote    = false;
-
-            for (size_t i = start; i <= end_cut; i ++) {
-                // delete extra '\' in string
-                if (opened_quote && plain_text[i] == '\\') {
-                    i++;
-                    if (i > end_cut)
-                        error_unexpected_end(end_cut);
-                }
-                // opened " for key
-                else if (plain_text[i] == '"') {
-                    opened_quote = !opened_quote;
-
-                    continue;
-                }
-
-                if (opened_quote) {
-                    // add to key
-                    key += plain_text[i];
-                } else {
-                    if (plain_text[i] == ':') {
-
-                        // if key empty
-                        if (key.empty()) {
-                            error_unexpected_end(i);
-                        }
-
-                        json obj;
-                        obj.root = false;
-                        obj.parse(plain_text, use_bigint, bigint_precision, i + 1);
-                        i = obj.get_end_cut() + 1;
-                        get<OBJECT>().insert({str32to4(key), std::move(obj)});
-
-                        if (i > end_cut)
-                        {
-                            error_invalid_char(plain_text, end_cut);
-                        }
-
-                        // skip to ',' or '}'
-
-                        for (; i <= end_cut; i++) {
-                            if (is_space_symbol(plain_text[i]))
-                            {
-                                continue;
-                            }
-
-                            else if (plain_text[i] == '}') {
-                                end_cut = i;
-                                break;
-                            }
-
-                            else if (plain_text[i] == ',')
-                            {
-                                break;
-                            }
-
-                            else
-                            {
-                                error_invalid_char(plain_text, i);
-                            }
-                        }
-
-                        key = UNICODE_STRING();
-                    }
-                    else if (plain_text[i] == '}') {
-                        if (!key.empty())
-                        {
-                            error_invalid_char(plain_text, i);
-                        }
-
-                        end_cut = i;
-                        break;
-                    } else {
-                        if (is_space_symbol(plain_text[i]) || plain_text[i] == '{')
-                        {
-                            continue;
-                        }
-
-                        error_invalid_char(plain_text, i);
-                    }
-                }
-            }
-
-            if (plain_text[end_cut] != '}')
-            {
-                error_invalid_char(plain_text, end_cut);
-            }
-
-            break;
-        case type_array:
-            src = new std::vector<json *> ();
-
-            // bcz we know that it is an array -> skip the first char ('[')
-
-            for (size_t i = start_cut + 1; i <= end_cut; i++) {
-                if (plain_text[i] == ']') {
-                    // the end
-                    end_cut = i;
-                    break;
-                }
-
-                // skip the space symbols
-                if (is_space_symbol(plain_text[i]))
-                {
-                    continue;
-                }
-
-                json obj;
-                obj.root = false;
-                obj.parse(plain_text, use_bigint, bigint_precision, i);
-                i = obj.get_end_cut() + 1;
-
-                if (i > end_cut)
-                {
-                    error_unexpected_end(end_cut);
-                }
-
-                // append
-                get<ARRAY>().push_back(std::move(obj));
-
-                // skip all chars to ','
-                for (; i <= end_cut; i++) {
-                    if (is_space_symbol(plain_text[i]))
-                    {
-                        continue;
-                    }
-
-                    else if (plain_text[i] == ',')
-                    {
-                        break;
-                    }
-
-                    else if (plain_text[i] == ']') {
-                        // the end
-                        end_cut = i;
-                        break;
-                    }
-
-                    else
-                    {
-                        error_invalid_char(plain_text, i);
-                    }
-                }
-            }
-
-            if (plain_text[end_cut] != ']')
-            {
-                error_unexpected_end(end_cut);
-            }
-
-            break;
-        case type_string:
-            opened_quote = false;
-
-            for (size_t i = start_cut; i <= end_cut; i++) {
-                if (plain_text[i] == '\\') {
-                    i++;
-
-                    if (i > end_cut)
-                    {
-                        error_unexpected_end(end_cut);
-                    }
-
-                    // TODO: Bad escaped char
-
-                } else if (plain_text[i] == '"') {
-                    opened_quote = !opened_quote;
-
-                    if (!opened_quote) {
-                        // closed string
-                        end_cut = i;
-                        break;
-                    }
-
-                    continue;
-                }
-
-                if (opened_quote)
-                    sub_plain_text.push_back(plain_text[i]);
-            }
-            if (opened_quote)
-                error_unexpected_end(end_cut);
-            src = new STRING(str32to4(sub_plain_text));
-
-            break;
-        case type_numeric:
-
-            size_t i = start_cut;
-
-            if (i >= plain_text.size()) {
-                error_invalid_char(plain_text, plain_text.size() - 1);
-            }
-
-            if (plain_text[i] == '-') {
-                sub_plain_text += '-';
-
-                i++;
-                if (i >= plain_text.size())
-                    error_invalid_char(plain_text, plain_text.size() - 1);
-            }
-
-            if (plain_text[i] >= '0' && plain_text[i] <= '9') {
-                // we think that it is the integer
-                type = type_number;
-
-                sub_plain_text += plain_text[i];
-                // next
-                i++;
-
-                for (; i <= end_cut; i++) {
-                    if (plain_text[i] >= '0' && plain_text[i] <= '9')
-                        sub_plain_text += plain_text[i];
-                    else {
-                        if (is_space_symbol(plain_text[i])) {
-                            end_cut = i;
-                            break;
-                        }
-
-                        switch (plain_text[i]) {
-                            case '.':
-                                if (type == type_decimal)
-                                    error_invalid_char(plain_text, i);
-
-                                // its decimal
-                                type            = type_decimal;
-                                sub_plain_text  += plain_text[i];
-                                break;
-                            case '}':
-                            case ']':
-                            case ',':
-                                // bcz we didnt consider this char ('}', ',') in this type
-                                end_cut = i - 1;
-                                break;
-                            default:
-                                error_invalid_char(plain_text, i);
-                        }
-                    }
-                }
-
-                if (use_bigint) {
-                    // bigint for all type of number
-                    src     = new BIGINT(str32to4(sub_plain_text), bigint_precision);
-
-                    type    = type_bigint;
-                }
-                else {
-
-                    if (type == type_number)
-                        // numeric
-                        src = new NUMBER(std::stoll(str32to4(sub_plain_text)));
-                    else {
-                        if (plain_text[end_cut] == '.')
-                            error_invalid_char(plain_text, end_cut);
-                        // decimal
-                        src = new DECIMAL(std::stold(str32to4(sub_plain_text)));
-                    }
-                }
-            }
-            else {
-                for (; i <= end_cut; i++) {
-                    if (is_space_symbol(plain_text[i]) || plain_text[i] == '}' ||
-                            plain_text[i] == ',' || plain_text[i] == ']') {
-                        // i - 1 (not just i) bcz this is not true, or false}
-                        end_cut = i - 1;
-                        break;
-                    }
-
-                    sub_plain_text += plain_text[i];
-                }
-                // check if its true, false, null ->
-
-                // true
-                if (sub_plain_text == JSON_W_TRUE) {
-                    src     = new BOOLEAN (true);
-                    type    = type_boolean;
-                    break;
-                }
-
-                // false
-                if (sub_plain_text == JSON_W_FALSE) {
-                    src     = new BOOLEAN (false);
-                    type    = type_boolean;
-                    break;
-                }
-
-                // null
-                if (sub_plain_text == JSON_W_NULL) {
-                    src     = nullptr;
-                    type    = type_null;
-                    break;
-                }
-
-                // otherwise -> null
-                src         = nullptr;
-                type        = type_null;
-
-                // TODO escape sub_plain_text
-                throw json_parse_exception(std::format("Invalid string: '{}' ({}, {})",
-                                                       manapi::utils::str32to4(sub_plain_text), start_cut + 1,
-                                                       end_cut + 1));
-            }
-
-            break;
-    }
-
-    if (root)
-    {
-        for (size_t i = end_cut + 1; i < plain_text.size(); i++)
-        {
-            if (is_space_symbol(plain_text[i]))
-            {
-                continue;
-            }
-
-            error_invalid_char(plain_text, i);
-        }
-    }
+void manapi::utils::json::parse(const STRING &plain_text, const bool &use_bigint, const size_t &bigint_precision) {
+    json_builder builder (use_bigint, bigint_precision);
+    builder << plain_text;
+    *this = builder.get();
 }
 
 void manapi::utils::json::parse(const size_t &num) {
@@ -651,7 +298,7 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
     if (type == type_string)
     {
         // TODO: what the hell is that: str32to4(foo(str4to32(...)))
-        str = '"' + str32to4(escape_string(str4to32(as_string()))) + '"';
+        str = '"' + escape_string(as_string()) + '"';
     }
 
     else if (type == type_decimal)
@@ -696,7 +343,7 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
                 JSON_DUMP_NEED_SPACES
 
                 str += '"';
-                str += str32to4(escape_string(str4to32(it->first))) + "\": " + it->second.dump(spaces, total_spaces);
+                str += escape_string(it->first) + "\": " + it->second.dump(spaces, total_spaces);
                 ++it;
             }
 
@@ -708,7 +355,7 @@ std::string manapi::utils::json::dump(const size_t &spaces, const size_t &first_
                 JSON_DUMP_NEED_SPACES
 
                 str += '"';
-                str += str32to4(escape_string(str4to32(it->first))) + "\": " + it->second.dump(spaces, total_spaces);
+                str += escape_string(it->first) + "\": " + it->second.dump(spaces, total_spaces);
             }
         }
 
@@ -774,6 +421,10 @@ size_t manapi::utils::json::get_end_cut() const {
 
 void manapi::utils::json::error_invalid_char(const UNICODE_STRING &plain_text, const size_t &i) {
     throw json_parse_exception(std::format("Invalid char '{}' at {}", str32to4(plain_text[i]), i + 1));
+}
+
+void manapi::utils::json::error_invalid_char(const STRING &plain_text, const size_t &i) {
+    throw json_parse_exception(std::format("Invalid char '{}' at {}", plain_text[i], i + 1));
 }
 
 void manapi::utils::json::error_unexpected_end(const size_t &i) {
@@ -1329,7 +980,7 @@ size_t manapi::utils::json::size() const {
     }
     if (is_string())
     {
-        return str4to32(as_string()).size();
+        return as_string().size();
     }
     if (is_object())
     {

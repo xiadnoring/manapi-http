@@ -69,6 +69,7 @@ namespace manapi::utils {
     typedef std::vector <std::string>           VEC_STR;
 
     bool            is_space_symbol    (const char &symbol);
+    bool            is_space_symbol    (const unsigned char &symbol);
     bool            is_space_symbol    (const wchar_t &symbol);
     bool            is_space_symbol    (const char32_t &symbol);
 
