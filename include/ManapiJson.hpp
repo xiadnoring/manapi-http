@@ -127,6 +127,18 @@ namespace manapi::utils {
         json &operator+     (const DECIMAL          &num);
         json &operator+     (const double           &num);
         json &operator+     (const BIGINT           &num);
+        json &operator+     (const STRING           &str);
+        void operator+=     (const STRING           &str);
+        void operator-=     (const NUMBER           &num);
+        void operator-=     (const int              &num);
+        void operator-=     (const DECIMAL          &num);
+        void operator-=     (const double           &num);
+        void operator-=     (const BIGINT           &num);
+        void operator+=     (const NUMBER           &num);
+        void operator+=     (const int              &num);
+        void operator+=     (const DECIMAL          &num);
+        void operator+=     (const double           &num);
+        void operator+=     (const BIGINT           &num);
 
 
         void insert         (const STRING &key, const json &obj);
@@ -274,16 +286,17 @@ namespace manapi::utils {
         [[nodiscard]] BOOLEAN as_bool_cast () const;
 
         template <typename T>
+        [[nodiscard]] T &get () { return *static_cast <T *> (src); }
+
+        template <typename T>
+        T* get_ptr () { return static_cast <T *> (src); }
+
+        template <typename T>
         [[nodiscard]] const T &get () const { return *static_cast <T *> (src); }
 
         template <typename T>
         const T* get_ptr () const { return static_cast <T *> (src); }
 
-        template <typename T>
-        [[nodiscard]] T &get () { return *static_cast <T *> (src); }
-
-        template <typename T>
-        T* get_ptr () { return static_cast <T *> (src); }
 
         [[nodiscard]] std::string dump (const size_t &spaces = 0, const size_t &first_spaces = 0) const;
 

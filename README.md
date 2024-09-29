@@ -94,8 +94,8 @@ int main ()
             {"id", "{string(<=2)|number(>=0 <100)}"}
             {"first-name", "{string(>=5 <70)}"},
             {"last-name", "{string(>=5 <70)}"},
-            {"age", "number(>=18 <100)"},
-            {"tags", "string(>=3 <10)[<10]"}
+            {"age", "{number(>=18 <100)}"},
+            {"tags", "{string(>=3 <10)[<10]}"}
         };
         
         server.POST ("/api/[key]/form", [&flag](REQ(req), RESP(resp)) {
@@ -131,7 +131,7 @@ int main ()
         resp.text ("ok");
     });
 
-    auto f = server.run();
+    auto f = server.pool(20);
     
     f.get();
     
