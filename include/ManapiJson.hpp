@@ -17,6 +17,7 @@ namespace manapi::net::utils {
         typedef std::string STRING;
         typedef bigint BIGINT;
         typedef bool BOOLEAN;
+        typedef std::pair <json, json> PAIR;
 
         typedef std::u32string UNICODE_STRING;
 
@@ -139,6 +140,8 @@ namespace manapi::net::utils {
         void operator+=     (const DECIMAL          &num);
         void operator+=     (const double           &num);
         void operator+=     (const BIGINT           &num);
+
+        bool operator==     (const json &) const;
 
 
         void insert         (const STRING &key, const json &obj);
@@ -303,7 +306,7 @@ namespace manapi::net::utils {
         [[nodiscard]] size_t size () const;
 
         static void                 error_invalid_char (const UNICODE_STRING &plain_text, const size_t &i);
-        static void                 error_invalid_char (const STRING &plain_text, const size_t &i);
+        static void                 error_invalid_char (const std::string_view &plain_text, const size_t &i);
         static void                 error_unexpected_end (const size_t &i);
     protected:
         [[nodiscard]] size_t get_start_cut () const;
@@ -315,12 +318,42 @@ namespace manapi::net::utils {
         void                        throw_could_not_use_func (const std::string &func) const;
 
         void                        delete_value ();
+        void                        _set_object ();
+        void                        _set_bool ();
+        void                        _set_array ();
+        void                        _set_string ();
+        void                        _set_number ();
+        void                        _set_decimal ();
+        void                        _set_bigint ();
+        void                        _set_nullptr ();
+        void                        _set_pair ();
+        void                        _set_object (const OBJECT &val);
+        void                        _set_bool (const BOOLEAN &val);
+        void                        _set_array (const ARRAY &val);
+        void                        _set_string (const STRING &val);
+        void                        _set_number (const NUMBER &val);
+        void                        _set_decimal (const DECIMAL &val);
+        void                        _set_bigint (const BIGINT &val);
+        void                        _set_pair (json first, json second);
+#ifdef MANAPI_HTTP_BUILD_DEBUG
+        void                        _debug_symb_reinit ();
+#endif
 
         void    *src                = nullptr;
         types   type                = type_null;
         size_t  start_cut           = 0;
         size_t  end_cut             = 0;
 
+#ifdef MANAPI_HTTP_BUILD_DEBUG
+        BOOLEAN *_debug_bool_src    = nullptr;
+        ARRAY   *_debug_array_src   = nullptr;
+        BIGINT  *_debug_bigint_src  = nullptr;
+        OBJECT  *_debug_object_src  = nullptr;
+        STRING  *_debug_string_src  = nullptr;
+        NUMBER  *_debug_number_src  = nullptr;
+        DECIMAL *_debug_decimal_src = nullptr;
+        PAIR    *_debug_pair_src = nullptr;
+#endif
     };
 
     class json_parse_exception : public std::exception {

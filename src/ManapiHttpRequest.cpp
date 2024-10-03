@@ -4,6 +4,8 @@
 #include "ManapiTaskHttp.hpp"
 #include "ManapiHttpRequest.hpp"
 
+#include "ManapiJsonBuilder.hpp"
+
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 
 manapi::net::http_request::http_request(const manapi::net::utils::manapi_socket_information &_ip_data, manapi::net::request_data_t &_request_data, void* _http_task, class config *config, const void *_handler)
@@ -86,41 +88,24 @@ std::string manapi::net::http_request::text() {
     size_t j                    = 0;
     //size_t socket_block_size    = http_server->get_socket_block_size();
 
-    request_data->body_part = std::min (request_data->body_part, request_data->body_left);
-
-    // TODO: speed up
-    for (; request_data->body_index < request_data->body_left; ++request_data->body_index, ++j) {
-        if (request_data->body_index >= request_data->body_part) {
-            request_data->body_part = manapi::net::http_task::read_next_part (request_data->body_left, request_data->body_index, http_task, request_data);
-            if (request_data->body_part == 0)
-            {
-                break;
-            }
-
-            request_data->body_part       = std::min (request_data->body_part, request_data->body_left);
-        }
-
-        body[j] = request_data->body_ptr[request_data->body_index];
-    }
+    _read_body([&body, &j] (const char *data, const size_t &size) -> void {
+        memcpy (body.data() + j, data, size);
+        j += size;
+    });
 
     return body;
 }
 
 manapi::net::utils::json manapi::net::http_request::json()
 {
-    auto data = manapi::net::utils::json (this->text(), true);
-
     // TODO: check with json_mask during processing read_mask()
     const auto &post_mask = get_post_mask();
-    if (post_mask != nullptr)
-    {
-        if (!post_mask->valid (data))
-        {
-            THROW_MANAPI_EXCEPTION("{}", "peer's JSON failed validatation");
-        }
-    }
+    utils::json_builder builder (*post_mask);
+    _read_body([&builder] (const char *data, const size_t &size) -> void {
+        builder << std::string_view (data, size);
+    });
 
-    return data;
+    return std::move(builder.get());
 }
 
 manapi::net::utils::MAP_STR_STR manapi::net::http_request::form ()
@@ -658,4 +643,26 @@ void manapi::net::http_request::stop_propagation(const bool &stop_propagation) {
 
 const bool & manapi::net::http_request::get_propagation() {
     return is_propagation;
+}
+
+void manapi::net::http_request::_read_body(const std::function<void(const char *, const size_t &)> &handler) {
+    request_data->body_part = std::min (request_data->body_part, request_data->body_left);
+
+    // TODO: speed up
+    while (request_data->body_index < request_data->body_left) {
+        if (request_data->body_index >= request_data->body_part) {
+            request_data->body_part = manapi::net::http_task::read_next_part (request_data->body_left, request_data->body_index, http_task, request_data);
+            if (request_data->body_part == 0)
+            {
+                break;
+            }
+
+            request_data->body_part       = std::min (request_data->body_part, request_data->body_left);
+        }
+
+
+        ///body[j] = request_data->body_ptr[request_data->body_index];
+        handler (request_data->body_ptr, request_data->body_part - request_data->body_index);
+        request_data->body_index = request_data->body_part;
+    }
 }

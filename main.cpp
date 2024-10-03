@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
         });
 
         const json_mask post_mask = {
-            {"first-name", "{string(>=5 <50)|none}"},
+            {"first-name", "{string(>=5 <50)}"},
             {"last-name", "{string(>=5 <70)}"},
             {"file", "{any}"}
         };

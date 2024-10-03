@@ -15,10 +15,12 @@ namespace manapi::net::utils {
 
         [[nodiscard]] bool valid (const json &obj) const;
         [[nodiscard]] bool valid (const std::map <std::string, std::string> &obj) const;
+
+        [[nodiscard]] const json &get_api_tree () const;
     private:
-        json information;
         bool enabled;
 
+        json information;
         static void initial_resolve_information (json &obj);
         static bool recursive_valid (const json &obj, const json &information, const bool &is_complex = true);
         static bool default_compare_information (const json &obj, const json &information, const bool &by_size = true);

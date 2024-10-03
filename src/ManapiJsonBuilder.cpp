@@ -3,18 +3,32 @@
 #include "ManapiUnicode.hpp"
 #include "ManapiUtils.hpp"
 
-manapi::net::utils::json_builder::json_builder(const bool &use_bigint, const size_t &bigint_precision) {
+manapi::net::utils::json_builder::json_builder(const json_mask &mask, const bool &use_bigint, const size_t &bigint_precision)  {
     this->start_cut = 0;
     this->end_cut = 0;
     this->use_bigint = use_bigint;
     this->bigint_precision = bigint_precision;
+    this->current_types = mask.get_api_tree().is_null() ? nullptr : &mask.get_api_tree()["obj"];
+    this->current_type = 0;
+
+    action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
+}
+
+manapi::net::utils::json_builder::
+json_builder(const json &mask, const bool &use_bigint, const size_t &bigint_precision) {
+    this->start_cut = 0;
+    this->end_cut = 0;
+    this->use_bigint = use_bigint;
+    this->bigint_precision = bigint_precision;
+    this->current_types = mask == nullptr ? nullptr : &mask;
+    this->current_type = 0;
 
     action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
 }
 
 manapi::net::utils::json_builder::~json_builder() = default;
 
-manapi::net::utils::json_builder & manapi::net::utils::json_builder::operator<<(const std::string &str) {
+manapi::net::utils::json_builder & manapi::net::utils::json_builder::operator<<(const std::string_view &str) {
     if (getting) { getting = false; }
     size_t j = 0;
     _parse(str, j);
@@ -32,7 +46,7 @@ manapi::net::utils::json manapi::net::utils::json_builder::get() {
     return std::move(object);
 }
 
-void manapi::net::utils::json_builder::_parse(const std::string &plain_text, size_t &j, bool root) {
+void manapi::net::utils::json_builder::_parse(const std::string_view &plain_text, size_t &j, bool root) {
 
     this->use_bigint = use_bigint;
     this->bigint_precision = bigint_precision;
@@ -52,7 +66,7 @@ void manapi::net::utils::json_builder::_parse(const std::string &plain_text, siz
     }
 }
 
-void manapi::net::utils::json_builder::_check_type(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_check_type(const std::string_view &plain_text, size_t &j) {
     for (; j < plain_text.size(); i++, j++)
     {
         const unsigned char &c = plain_text.at(j);
@@ -92,12 +106,16 @@ void manapi::net::utils::json_builder::_check_type(const std::string &plain_text
     {
         // type was found
         start_cut = i;
+
+        _check_eq_type ();
     }
 }
 
-void manapi::net::utils::json_builder::_build_string(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_build_string(const std::string_view &plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
+        _check_max_mean(true);
+
         unsigned char c = plain_text.at(j);
         if (_valid_utf_char(plain_text, j, wchar_left))
         {
@@ -152,19 +170,22 @@ void manapi::net::utils::json_builder::_build_string(const std::string &plain_te
             json::error_unexpected_end(j);
         }
 
-        ready = true;
-
         // closed string
         i++;
         j++;
 
         end_cut = i;
         object = buffer;
+        _check_string();
+
+        // clean up only after passing the checks
         buffer.clear();
+
+        ready = true;
     }
 }
 
-void manapi::net::utils::json_builder::_build_numeric(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_build_numeric(const std::string_view &plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
         unsigned char c = plain_text[j];
@@ -223,7 +244,6 @@ void manapi::net::utils::json_builder::_build_numeric(const std::string &plain_t
     finish:
     if (j != plain_text.size() || getting)
     {
-        ready = true;
         // bcz we didnt consider this chars ('}', ',') in this type
         end_cut = i;
 
@@ -244,12 +264,16 @@ void manapi::net::utils::json_builder::_build_numeric(const std::string &plain_t
             }
         }
 
+        _check_numeric();
 
+        // clean up only after passing the checks
         buffer.clear();
+
+        ready = true;
     }
 }
 
-void manapi::net::utils::json_builder::_build_numeric_string(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_build_numeric_string(const std::string_view &plain_text, size_t &j) {
     for (; j < plain_text.size(); i++, j++)
     {
         unsigned char c = plain_text[j];
@@ -269,7 +293,7 @@ void manapi::net::utils::json_builder::_build_numeric_string(const std::string &
 
         // check if this is true, false, null ->
 
-        const std::string value = std::move(buffer);
+        const std::string_view value = std::move(buffer);
 
         ready = true;
 
@@ -277,6 +301,7 @@ void manapi::net::utils::json_builder::_build_numeric_string(const std::string &
         if (value == "true") {
             type = json::type_boolean;
             object.parse (true);
+            _check_numeric();
             return;
         }
 
@@ -284,6 +309,7 @@ void manapi::net::utils::json_builder::_build_numeric_string(const std::string &
         if (value == "false") {
             type = json::type_boolean;
             object.parse (false);
+            _check_numeric();
             return;
         }
 
@@ -291,6 +317,7 @@ void manapi::net::utils::json_builder::_build_numeric_string(const std::string &
         if (value == "null") {
             type = json::type_null;
             object.parse (nullptr);
+            _check_numeric();
             return;
         }
 
@@ -301,7 +328,7 @@ void manapi::net::utils::json_builder::_build_numeric_string(const std::string &
     }
 }
 
-void manapi::net::utils::json_builder::_build_object(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_build_object(const std::string_view &plain_text, size_t &j) {
     doit:
     if (item != nullptr)
     {
@@ -368,7 +395,14 @@ void manapi::net::utils::json_builder::_build_object(const std::string &plain_te
                 goto finish;
             }
 
-            item = std::make_unique<json_builder>(use_bigint, bigint_precision);
+            if (is_key || current_types == nullptr)
+            {
+                item = std::make_unique<json_builder> (json(nullptr), use_bigint, bigint_precision);
+            }
+            else
+            {
+                item = std::make_unique<json_builder>(get_current_type()["data"][key]["obj"], use_bigint, bigint_precision);
+            }
             goto doit;
         }
 
@@ -393,14 +427,17 @@ void manapi::net::utils::json_builder::_build_object(const std::string &plain_te
         i++;
         j++;
 
+        end_cut = i;
         is_key = true;
         key.clear();
-        end_cut = i;
+
+        _check_object();
+
         ready = true;
     }
 }
 
-void manapi::net::utils::json_builder::_build_array(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_build_array(const std::string_view &plain_text, size_t &j) {
     doit:
     if (item != nullptr)
     {
@@ -459,7 +496,26 @@ void manapi::net::utils::json_builder::_build_array(const std::string &plain_tex
                 goto finish;
             }
 
-            item = std::make_unique<json_builder>(use_bigint, bigint_precision);
+            // if exists default (TYPE(...)[...]) or exists ({..., ..., ...})
+
+            if (current_types == nullptr)
+            {
+                item = std::make_unique<json_builder>(json(nullptr), use_bigint, bigint_precision);
+            }
+            else
+            {
+                const auto &current = get_current_type();
+
+                if (current.contains("default"))
+                {
+                    item = std::make_unique<json_builder>(get_current_type()["default"], use_bigint, bigint_precision);
+                }
+                else
+                {
+                    item = std::make_unique<json_builder>(get_current_type()["data"][element_index]["obj"], use_bigint, bigint_precision);
+                }
+            }
+            element_index++;
             goto doit;
         }
 
@@ -484,11 +540,13 @@ void manapi::net::utils::json_builder::_build_array(const std::string &plain_tex
         j++;
 
         end_cut = i;
+        _check_array();
+
         ready = true;
     }
 }
 
-void manapi::net::utils::json_builder::_check_end(const std::string &plain_text, size_t &j) {
+void manapi::net::utils::json_builder::_check_end(const std::string_view &plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
         if (!is_space_symbol(plain_text[j]))
@@ -498,7 +556,205 @@ void manapi::net::utils::json_builder::_check_end(const std::string &plain_text,
     }
 }
 
-bool manapi::net::utils::json_builder::_valid_utf_char(const std::string &plain_text, const size_t &i, size_t &left) {
+void manapi::net::utils::json_builder::_reset_type() {
+    max_mean_size = nullptr;
+    min_mean_size = nullptr;
+}
+
+void manapi::net::utils::json_builder::_next_type() {
+    current_type++;
+
+    if (current_types != nullptr && current_types->is_array() && current_type < current_types->size())
+    {
+        _check_eq_type();
+        return;
+    }
+
+    THROW_MANAPI_EXCEPTION2("json_mask error");
+}
+
+void manapi::net::utils::json_builder::_check_eq_type() {
+    _reset_type();
+
+    if (current_types == nullptr)
+    {
+        return;
+    }
+    auto &current = get_current_type();
+    auto &current_type = current["type"].as_number();
+    if (current.contains("max_mean")) { max_mean_size = &current["max_mean"].as_number(); }
+    if (current.contains("min_mean")) { min_mean_size = &current["min_mean"].as_number(); }
+
+    if (current_type == -1)
+    {
+        // this solve is better
+        current_types = nullptr;
+        return;
+    }
+
+    if (type == json::type_numeric)
+    {
+        if (current_type == json::type_decimal || current_type == json::type_bigint || current_type == json::type_number)
+        {
+            return;
+        }
+    }
+    else {
+        if (current_type == type)
+        {
+            return;
+        }
+    }
+
+    _next_type();
+    _check_eq_type();
+}
+
+bool manapi::net::utils::json_builder::_check_max_mean(const bool &building) {
+    if (max_mean_size == nullptr) { return true; }
+
+    if (building)
+    {
+        switch (type)
+        {
+            case json::type_string:
+                if (buffer.size() < *max_mean_size) { return true; }
+            default:
+                return true;
+        }
+    }
+    else
+    {
+        switch (type)
+        {
+            case json::type_string:
+                if (object.size() < *max_mean_size) { return true; }
+            break;
+            case json::type_number:
+                if (object.as_number() < *max_mean_size) { return true; }
+            break;
+            case json::type_bigint:
+                if (object.as_bigint() < *max_mean_size) { return true; }
+            break;
+            case json::type_decimal:
+                if (object.as_decimal() < *max_mean_size) { return true; }
+            break;
+            case json::type_array:
+            case json::type_object:
+                if (object.size() < *max_mean_size) { return true; }
+            break;
+            default:
+                return true;
+        }
+    }
+    _next_type();
+    return false;
+}
+
+bool manapi::net::utils::json_builder::_check_min_mean() {
+    if (min_mean_size == nullptr) { return true; }
+
+    switch (type)
+    {
+        case json::type_string:
+            if (object.size() > *min_mean_size) { return true; }
+        break;
+        case json::type_number:
+            if (object.as_number() > *min_mean_size) { return true; }
+        break;
+        case json::type_bigint:
+            if (object.as_bigint() > *min_mean_size) { return true; }
+        break;
+        case json::type_decimal:
+            if (object.as_decimal() > *min_mean_size) { return true; }
+        break;
+        case json::type_array:
+        case json::type_object:
+            if (object.size() > *min_mean_size) { return true; }
+        break;
+        default:
+            return true;
+    }
+
+    _next_type();
+    return false;
+}
+
+bool manapi::net::utils::json_builder::_check_mean() {
+    auto &current = get_current_type();
+    if (!current.contains("mean") || (current["mean"] == object)) { return true; }
+
+    _next_type();
+    return false;
+}
+
+bool manapi::net::utils::json_builder::_check_type_none_complex_value() {
+    auto &current = get_current_type();
+    if (!current.contains("value"))
+    {
+        return true;
+    }
+    auto &value = current["value"];
+    if (value.is_array() || value.is_object())
+    {
+        return true;
+    }
+    if ((current["value"] == object)) { return true; }
+
+    _next_type();
+    return false;
+}
+
+bool manapi::net::utils::json_builder::_check_default() {
+    return (current_types == nullptr) || (_check_max_mean() && _check_min_mean() && _check_mean () && _check_type_none_complex_value());
+}
+
+void manapi::net::utils::json_builder::_check_string() {
+    while (true)
+    {
+        if (_check_default())
+        {
+            break;
+        }
+    }
+}
+
+void manapi::net::utils::json_builder::_check_numeric() {
+    while (true)
+    {
+        if (_check_default())
+        {
+            break;
+        }
+    }
+}
+
+void manapi::net::utils::json_builder::_check_object() {
+    while (true)
+    {
+        if (_check_default())
+        {
+            break;
+        }
+    }
+}
+
+void manapi::net::utils::json_builder::_check_array() {
+    while (true)
+    {
+        if (_check_default())
+        {
+            break;
+        }
+    }
+}
+
+const manapi::net::utils::json & manapi::net::utils::json_builder::get_current_type() {
+    if (current_types->is_array()) { return current_types->at(current_type); }
+    return *current_types;
+}
+
+bool manapi::net::utils::json_builder::_valid_utf_char(const std::string_view &plain_text, const size_t &i, size_t &left) {
     const unsigned char &c = plain_text[i];
     if (left > 0 || c > 127) {
         if (left == 0)
@@ -525,7 +781,7 @@ bool manapi::net::utils::json_builder::_valid_utf_char(const std::string &plain_
     return false;
 }
 
-void manapi::net::utils::json_builder::_valid_utf_string(const std::string &str) {
+void manapi::net::utils::json_builder::_valid_utf_string(const std::string_view &str) {
     size_t wchar_left = 0;
     for (size_t i = 0; i < str.size(); i++)
     {
@@ -547,6 +803,8 @@ void manapi::net::utils::json_builder::_reset() {
     this->item = nullptr;
     this->wchar_left = 0;
     this->key.clear();
+
+    _reset_type();
 
     action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
 }

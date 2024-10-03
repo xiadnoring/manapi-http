@@ -61,6 +61,10 @@ bool manapi::net::utils::json_mask::valid(const std::map<std::string, std::strin
     return recursive_valid (a, information);
 }
 
+const manapi::net::utils::json & manapi::net::utils::json_mask::get_api_tree() const {
+    return information;
+}
+
 void manapi::net::utils::json_mask::initial_resolve_information(manapi::net::utils::json &obj)
 {
     if (obj.is_string())
@@ -73,10 +77,18 @@ void manapi::net::utils::json_mask::initial_resolve_information(manapi::net::uti
                 || *str->rbegin() != '}')
         {
             obj = {
-                    {"type", json::type_string},
-                    {"value", *str}
+                {
+                    "obj",
+                    {
+                        {"type", json::type_string},
+                        {"value", *str}
+                    }
+                },
+                {
+                    "none",
+                    false
+                }
             };
-
             return;
         }
 
@@ -392,7 +404,7 @@ void manapi::net::utils::json_mask::initial_resolve_information(manapi::net::uti
         obj = {
             {
                 "obj", {
-                        {"type", json::type_object},
+                        {"type", json::type_array},
                         {"data", std::move(obj)}
                 },
             },
@@ -420,7 +432,7 @@ bool manapi::net::utils::json_mask::recursive_valid(const manapi::net::utils::js
 
     // information is a map
 
-    auto &type = information["type"].get<ssize_t>();
+    auto &type = information["type"].as_number();
 
     if (type == json::type_string)
     {
@@ -438,7 +450,7 @@ bool manapi::net::utils::json_mask::recursive_valid(const manapi::net::utils::js
         // by value ex: STR1 != STR2
         if (information.contains("value"))
         {
-            return *information["value"].get_ptr<std::string>() == *obj.get_ptr<std::string>();
+            return information["value"].as_string() == obj.as_string();
         }
 
         // ex: {string}
@@ -460,12 +472,12 @@ bool manapi::net::utils::json_mask::recursive_valid(const manapi::net::utils::js
         // false / true
         if (information.contains("value"))
         {
-            return *obj.get_ptr<bool>() == *information["value"].get_ptr<bool>();
+            return obj.as_bool() == information["value"].as_bool();
         }
 
         if (information.contains("mean"))
         {
-            return *obj.get_ptr<bool>() == *information["mean"].get_ptr<bool>();
+            return obj.as_bool() == information["mean"].as_bool();
         }
 
         // ex: {bool}
@@ -482,12 +494,12 @@ bool manapi::net::utils::json_mask::recursive_valid(const manapi::net::utils::js
         // invalid value
         if (information.contains("value"))
         {
-            return *obj.get_ptr<ssize_t>() == *information["value"].get_ptr<ssize_t>();
+            return obj.as_number() == information["value"].as_number();
         }
 
         if (information.contains("mean"))
         {
-            return *obj.get_ptr<ssize_t>() == *information["mean"].get_ptr<ssize_t>();
+            return obj.as_number() == information["mean"].as_number();
         }
 
         // ex: {number}
@@ -504,12 +516,12 @@ bool manapi::net::utils::json_mask::recursive_valid(const manapi::net::utils::js
         // invalid value
         if (information.contains("value"))
         {
-            return *obj.get_ptr<double long>() == *information["value"].get_ptr<double long>();
+            return obj.as_decimal() == information["value"].as_decimal();
         }
 
         if (information.contains("mean"))
         {
-            return *obj.get_ptr<double long>() == *information["mean"].get_ptr<double long>();
+            return obj.as_decimal() == information["mean"].as_decimal();
         }
 
         // ex: {decimal}
@@ -526,12 +538,12 @@ bool manapi::net::utils::json_mask::recursive_valid(const manapi::net::utils::js
         // invalid value
         if (information.contains("value"))
         {
-            return *obj.get_ptr<bigint>() == *information["value"].get_ptr<bigint>();
+            return obj.as_bigint() == information["value"].as_bigint();
         }
 
         if (information.contains("mean"))
         {
-            return *obj.get_ptr<bigint>() == *information["mean"].get_ptr<bigint>();
+            return obj.as_bigint() == information["mean"].as_bigint();
         }
 
         // ex: {bigint}
@@ -576,7 +588,7 @@ bool manapi::net::utils::json_mask::recursive_valid(const manapi::net::utils::js
                 // incorrect key
                 if (!obj.contains(it->first))
                 {
-                    return it->second["none"].get<bool>();
+                    return it->second["none"].as_bool();
                 }
                 // incorrect value
                 if (!recursive_valid(obj.at(it->first), it->second))
@@ -650,7 +662,7 @@ bool manapi::net::utils::json_mask::default_compare_information(const manapi::ne
         // by length
         if (information.contains("mean"))
         {
-            if (obj.size() != *information["mean"].get_ptr<ssize_t>())
+            if (obj.size() != information["mean"].as_number())
             {
                 return false;
             }
@@ -658,7 +670,7 @@ bool manapi::net::utils::json_mask::default_compare_information(const manapi::ne
 
         if (information.contains("min_mean"))
         {
-            if (obj.size() <= *information["min_mean"].get_ptr<ssize_t>())
+            if (obj.size() <= information["min_mean"].as_number())
             {
                 return false;
             }
@@ -666,7 +678,7 @@ bool manapi::net::utils::json_mask::default_compare_information(const manapi::ne
 
         if (information.contains("max_mean"))
         {
-            if (obj.size() >= *information["max_mean"].get_ptr<ssize_t>())
+            if (obj.size() >= information["max_mean"].as_number())
             {
                 return false;
             }

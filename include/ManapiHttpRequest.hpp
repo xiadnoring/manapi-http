@@ -51,6 +51,7 @@ namespace manapi::net {
         void                                        stop_propagation (const bool &stop_propagation = true);
         [[nodiscard]] const bool&                   get_propagation ();
     private:
+        void                                        _read_body (const std::function<void(const char *, const size_t &)> &handler);
         void                                        parse_map_url_param ();
         static void                                 buff_to_extra_buff (const request_data_t *req_data, const size_t &start, const size_t &end, char *dest, size_t &size);
         static void                                 chars2string (std::string &str, const char *ptr, const size_t &size);
