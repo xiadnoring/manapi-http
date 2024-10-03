@@ -20,7 +20,7 @@ const static manapi::net::utils::json::UNICODE_STRING JSON_W_NULL   = manapi::ne
 #ifdef MANAPI_HTTP_BUILD_DEBUG
 #define MANAPI_JSON_DEBUG_FUNC_REINIT _debug_symb_reinit();
 #else
-#define MANAPI_JSON_DEBUG_FUNC_RESET
+#define MANAPI_JSON_DEBUG_FUNC_REINIT
 #endif
 
 manapi::net::utils::json::json() = default;
