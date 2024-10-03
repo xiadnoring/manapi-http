@@ -28,12 +28,12 @@ namespace manapi::net {
         ~http();
         std::future <void>      pool (const size_t &thread_num = 20);
 
-        void GET    (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
-        void POST   (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
-        void OPTIONS(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
-        void PUT    (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
-        void DELETE (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
-        void PATCH  (const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
+        void GET    (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
+        void POST   (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
+        void OPTIONS(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
+        void PUT    (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
+        void DELETE (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
+        void PATCH  (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
 
         void GET    (const std::string &uri, const std::string &folder);
 

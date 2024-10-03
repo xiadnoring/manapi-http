@@ -30,7 +30,7 @@ namespace manapi::net {
         [[nodiscard]] const std::string             &get_param (const std::string &param) const;
         [[nodiscard]] std::string                   dump() const;
         std::string                                 text ();
-        manapi::net::utils::json                         json ();
+        manapi::json                         json ();
         manapi::net::utils::MAP_STR_STR                  form ();
         const size_t                                &get_body_size ();
         void                                        set_max_plain_body_size (const size_t &size);
@@ -45,8 +45,8 @@ namespace manapi::net {
 
         const std::string&                          get_query_param (const std::string &name);
 
-        [[nodiscard]] const std::unique_ptr<const manapi::net::utils::json_mask> &get_post_mask () const;
-        [[nodiscard]] const std::unique_ptr<const manapi::net::utils::json_mask> &get_get_mask () const;
+        [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &get_post_mask () const;
+        [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &get_get_mask () const;
 
         void                                        stop_propagation (const bool &stop_propagation = true);
         [[nodiscard]] const bool&                   get_propagation ();

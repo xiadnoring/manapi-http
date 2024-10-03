@@ -7,7 +7,7 @@
 #include "ManapiJson.hpp"
 #include "ManapiJsonMask.hpp"
 
-namespace manapi::net::utils {
+namespace manapi {
     class json_builder {
     public:
         explicit json_builder (const json_mask &mask = nullptr, const bool &use_bigint = false, const size_t &bigint_precision = 128);

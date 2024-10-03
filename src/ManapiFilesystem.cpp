@@ -36,12 +36,12 @@ bool manapi::net::filesystem::exists(const std::string& path) {
     return std::filesystem::exists(f);
 }
 
-void manapi::net::filesystem::config::write(const std::string &name, manapi::net::utils::json &data) {
+void manapi::net::filesystem::config::write(const std::string &name, manapi::json &data) {
     manapi::net::filesystem::write(folder_configs + name, data.dump(4));
 }
 
-manapi::net::utils::json manapi::net::filesystem::config::read(const std::string &name) {
-    return utils::json (manapi::net::filesystem::read (folder_configs + name), true);
+manapi::json manapi::net::filesystem::config::read(const std::string &name) {
+    return json (manapi::net::filesystem::read (folder_configs + name), true);
 }
 
 std::string manapi::net::filesystem::last_time_write (const std::filesystem::path &f, bool time) {

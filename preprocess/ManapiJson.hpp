@@ -6,11 +6,13 @@
 #include <vector>
 #include "ManapiBigint.hpp"
 
-namespace manapi::net::utils {
+#define MANAPI_JSON_DEBUG {{ VAR_MANAPI_JSON_DEBUG }}
+
+namespace manapi {
     class json {
     public:
-        typedef std::map <std::string, manapi::net::utils::json> OBJECT;
-        typedef std::vector <manapi::net::utils::json> ARRAY;
+        typedef std::map <std::string, manapi::json> OBJECT;
+        typedef std::vector <manapi::json> ARRAY;
         typedef double long DECIMAL;
         typedef ssize_t NUMBER;
         typedef nullptr_t NULLPTR;
@@ -335,8 +337,49 @@ namespace manapi::net::utils {
         void                        _set_decimal (const DECIMAL &val);
         void                        _set_bigint (const BIGINT &val);
         void                        _set_pair (json first, json second);
-#ifdef MANAPI_HTTP_BUILD_DEBUG
-        void                        _debug_symb_reinit ();
+#if MANAPI_JSON_DEBUG
+        void                        _debug_symb_reinit () {
+            _debug_bool_src = nullptr;
+            _debug_array_src = nullptr;
+            _debug_bigint_src = nullptr;
+            _debug_object_src = nullptr;
+            _debug_string_src = nullptr;
+            _debug_number_src = nullptr;
+            _debug_decimal_src = nullptr;
+            _debug_pair_src = nullptr;
+
+            switch (type)
+            {
+                case type_array:
+                    _debug_array_src = &get<ARRAY> ();
+                break;
+                case type_object:
+                    _debug_object_src = &get<OBJECT> ();
+                break;
+                case type_number:
+                    _debug_number_src = &get<NUMBER> ();
+                break;
+                case type_bigint:
+                    _debug_bigint_src = &get<BIGINT> ();
+                break;
+                case type_boolean:
+                    _debug_bool_src = &get<BOOLEAN> ();
+                break;
+                case type_decimal:
+                    _debug_decimal_src = &get<DECIMAL> ();
+                break;
+                case type_pair:
+                    _debug_pair_src = &get<PAIR> ();
+                break;
+                case type_string:
+                    _debug_string_src = &get<STRING> ();
+                break;
+                default:
+                break;
+            }
+        }
+#else
+        void                        _debug_symb_reinit () {};
 #endif
 
         void    *src                = nullptr;
@@ -344,7 +387,7 @@ namespace manapi::net::utils {
         size_t  start_cut           = 0;
         size_t  end_cut             = 0;
 
-#ifdef MANAPI_HTTP_BUILD_DEBUG
+#if MANAPI_JSON_DEBUG
         BOOLEAN *_debug_bool_src    = nullptr;
         ARRAY   *_debug_array_src   = nullptr;
         BIGINT  *_debug_bigint_src  = nullptr;

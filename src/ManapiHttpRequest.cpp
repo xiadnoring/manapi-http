@@ -96,11 +96,11 @@ std::string manapi::net::http_request::text() {
     return body;
 }
 
-manapi::net::utils::json manapi::net::http_request::json()
+manapi::json manapi::net::http_request::json()
 {
     // TODO: check with json_mask during processing read_mask()
     const auto &post_mask = get_post_mask();
-    utils::json_builder builder (*post_mask);
+    json_builder builder (*post_mask);
     _read_body([&builder] (const char *data, const size_t &size) -> void {
         builder << std::string_view (data, size);
     });
@@ -629,11 +629,11 @@ const std::string &manapi::net::http_request::get_query_param(const std::string 
     THROW_MANAPI_EXCEPTION("Can not find query param by name: {}", name);
 }
 
-const std::unique_ptr<const manapi::net::utils::json_mask> &manapi::net::http_request::get_post_mask() const {
+const std::unique_ptr<const manapi::json_mask> &manapi::net::http_request::get_post_mask() const {
     return static_cast<const http_handler_page *> (page_handler)->handler->post_mask;
 }
 
-const std::unique_ptr<const manapi::net::utils::json_mask> &manapi::net::http_request::get_get_mask() const {
+const std::unique_ptr<const manapi::json_mask> &manapi::net::http_request::get_get_mask() const {
     return static_cast<const http_handler_page *> (page_handler)->handler->get_mask;
 }
 

@@ -10,12 +10,13 @@ class ManapiHttpConan(ConanFile):
 
     options = {
         "shared": [True, False],
-        "fPIC": [True, False]
+        "fPIC": [True, False],
+        "json-debug": [True, False]
     }
 
-    default_options = {"shared": False, "fPIC": True}
+    default_options = {"shared": False, "fPIC": True, "json-debug": True}
 
-    exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt"
+    exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -29,6 +30,10 @@ class ManapiHttpConan(ConanFile):
         deps.generate()
 
         tc = CMakeToolchain(self)
+
+        if self.options['json-debug']:
+            tc.variables['MANAPI_JSON_DEBUG'] = True
+
         tc.generate()
 
     def build(self):

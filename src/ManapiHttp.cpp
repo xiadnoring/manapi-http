@@ -67,7 +67,7 @@ std::future<void> manapi::net::http::pool(const size_t &thread_num) {
         // init all pools
         if (config.contains("pools"))
         {
-            for (auto it = config["pools"].begin<utils::json::ARRAY>(); it != config["pools"].end<utils::json::ARRAY>(); it++, next_pool_id++)
+            for (auto it = config["pools"].begin<json::ARRAY>(); it != config["pools"].end<json::ARRAY>(); it++, next_pool_id++)
             {
                 auto p = std::make_unique<http_pool> (*it, this, next_pool_id);
                 p->run();
@@ -89,27 +89,27 @@ std::future<void> manapi::net::http::pool(const size_t &thread_num) {
     return pool_promise->get_future();
 }
 
-void manapi::net::http::GET(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+void manapi::net::http::GET(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
     this->set_handler("GET", uri, handler, get_mask, post_mask);
 }
 
-void manapi::net::http::POST(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+void manapi::net::http::POST(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
     this->set_handler("POST", uri, handler, get_mask, post_mask);
 }
 
-void manapi::net::http::OPTIONS(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+void manapi::net::http::OPTIONS(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
     this->set_handler("OPTIONS", uri, handler, get_mask, post_mask);
 }
 
-void manapi::net::http::PUT(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+void manapi::net::http::PUT(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
     this->set_handler("PUT", uri, handler, get_mask, post_mask);
 }
 
-void manapi::net::http::PATCH(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+void manapi::net::http::PATCH(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
     this->set_handler("PATCH", uri, handler, get_mask, post_mask);
 }
 
-void manapi::net::http::DELETE(const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+void manapi::net::http::DELETE(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
     this->set_handler("DELETE", uri, handler, get_mask, post_mask);
 }
 

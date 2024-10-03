@@ -48,7 +48,7 @@ namespace manapi::net {
 
     class config {
     public:
-        config (const utils::json &config);
+        config (const json &config);
         ~config ();
 
         void set_socket_block_size (const size_t &s);

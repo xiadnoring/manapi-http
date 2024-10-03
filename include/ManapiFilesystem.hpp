@@ -38,8 +38,8 @@ namespace manapi::net::filesystem {
 }
 
 namespace manapi::net::filesystem::config {
-    void write  (const std::string &name, utils::json &data);
-    utils::json read   (const std::string &name);
+    void write  (const std::string &name, json &data);
+    json read   (const std::string &name);
 }
 
 #endif //MANAPIHTTP_MANAPIFILESYSTEM_H

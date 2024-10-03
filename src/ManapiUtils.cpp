@@ -269,11 +269,11 @@ std::string manapi::net::utils::json2form(const json &obj) {
         loop:
         if (it->second.is_string())
         {
-            data += encode_url(it->first) + "=" + encode_url(it->second.get<std::string>());
+            data += net::utils::encode_url(it->first) + "=" + net::utils::encode_url(it->second.get<std::string>());
         }
         else
         {
-            data += encode_url(it->first) + "=" + encode_url(it->second.dump());
+            data += net::utils::encode_url(it->first) + "=" + net::utils::encode_url(it->second.dump());
         }
 
     }

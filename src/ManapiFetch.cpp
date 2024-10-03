@@ -173,8 +173,8 @@ std::string manapi::net::fetch::text() {
     return content;
 }
 
-manapi::net::utils::json manapi::net::fetch::json() {
-    return manapi::net::utils::json (text(), true);
+manapi::json manapi::net::fetch::json() {
+    return manapi::json (text(), true);
 }
 
 

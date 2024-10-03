@@ -42,8 +42,8 @@ void manapi::net::site::setup() {
     // std::ios_base::sync_with_stdio(false);
     // std::cout.tie(nullptr);
 
-    config                      = manapi::net::utils::json::object();
-    cache_config                = manapi::net::utils::json::object();
+    config                      = manapi::json::object();
+    cache_config                = manapi::json::object();
 
     set_compressor("deflate", manapi::net::utils::compress::deflate);
     set_compressor("gzip", manapi::net::utils::compress::gzip);
@@ -72,12 +72,12 @@ void manapi::net::site::set_config(const std::string &path) {
     setup_config ();
 }
 
-void manapi::net::site::set_config_object(const utils::json &config) {
+void manapi::net::site::set_config_object(const json &config) {
     this->config = config;
     setup_config();
 }
 
-const manapi::net::utils::json &manapi::net::site::get_config() {
+const manapi::json &manapi::net::site::get_config() {
     return config;
 }
 
@@ -150,10 +150,10 @@ const std::string *manapi::net::site::get_compressed_cache_file(const std::strin
 void manapi::net::site::set_compressed_cache_file(const std::string &file, const std::string &compressed, const std::string &algorithm) {
     if (!cache_config.contains(algorithm))
     {
-        cache_config.insert(algorithm, manapi::net::utils::json::object());
+        cache_config.insert(algorithm, manapi::json::object());
     }
 
-    manapi::net::utils::json file_info = manapi::net::utils::json::object();
+    manapi::json file_info = manapi::json::object();
 
     file_info.insert("last-write", manapi::net::filesystem::last_time_write(file, true));
     file_info.insert("compressed", compressed);
@@ -335,7 +335,7 @@ void manapi::net::site::remove_timer(const size_t &id) {
     timerpool->remove_timer(id);
 }
 
-manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &method, const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask, const utils::json_mask &post_mask) {
+manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
     size_t  type            = URI_PAGE_DEFAULT;
 
     http_uri_part *cur      = build_uri_part(uri, type);
@@ -344,12 +344,12 @@ manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &me
 
     if (get_mask.is_enabled())
     {
-        functions.get_mask = std::make_unique<utils::json_mask> (get_mask);
+        functions.get_mask = std::make_unique<json_mask> (get_mask);
     }
 
     if (post_mask.is_enabled())
     {
-        functions.post_mask = std::make_unique<utils::json_mask> (post_mask);
+        functions.post_mask = std::make_unique<json_mask> (post_mask);
     }
 
     functions.handler = handler;

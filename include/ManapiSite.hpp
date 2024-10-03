@@ -49,8 +49,8 @@ namespace manapi::net {
     struct http_handler_functions {
         handler_template_t handler = nullptr;
 
-        std::unique_ptr<const utils::json_mask> post_mask = nullptr;
-        std::unique_ptr<const utils::json_mask> get_mask = nullptr;
+        std::unique_ptr<const json_mask> post_mask = nullptr;
+        std::unique_ptr<const json_mask> get_mask = nullptr;
     };
 
     typedef std::map<std::string, std::unique_ptr<http_uri_part>>   handlers_map_t;
@@ -96,7 +96,7 @@ namespace manapi::net {
         size_t                              append_timer (const std::chrono::milliseconds &m, const std::function<void()> &t);
         void                                remove_timer (const size_t &id);
 
-        http_uri_part                       *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, const utils::json_mask &get_mask = nullptr, const utils::json_mask &post_mask = nullptr);
+        http_uri_part                       *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
         http_uri_part                       *set_handler (const std::string &method, const std::string &uri, const std::string &folder);
 
         http_handler_page                   get_handler (request_data_t &request_data) const;
@@ -107,8 +107,8 @@ namespace manapi::net {
         bool                                contains_compressor (const std::string &name) const;
 
         void                                set_config (const std::string &path);
-        void                                set_config_object (const utils::json &config);
-        const manapi::net::utils::json           &get_config ();
+        void                                set_config_object (const json &config);
+        const manapi::json           &get_config ();
 
         const std::string                   *get_compressed_cache_file (const std::string &file, const std::string &algorithm);
         void                                set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
@@ -125,7 +125,7 @@ namespace manapi::net {
         void                                setup_config ();
         void                                save ();
         void                                save_config ();
-        manapi::net::utils::json                 config;
+        manapi::json                 config;
     private:
         static void                         check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void                         check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
@@ -133,7 +133,7 @@ namespace manapi::net {
         http_uri_part                       *build_uri_part (const std::string &uri, size_t &type);
         std::unique_ptr<utils::timerpool>   timerpool;
 
-        manapi::net::utils::json                 cache_config;
+        manapi::json                 cache_config;
 
         std::string                         config_path = "/tmp/http.json";
         bool                                enabled_save_config     = false;

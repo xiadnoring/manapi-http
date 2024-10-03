@@ -88,7 +88,7 @@ namespace manapi::net::utils {
 
     std::string     encode_url          (const std::string &str);
     std::string     decode_url          (const std::string &str);
-    std::string     json2form           (const utils::json &obj);
+    std::string     json2form           (const json &obj);
 
     const std::string     &mime_by_file_path  (const std::string &path);
 

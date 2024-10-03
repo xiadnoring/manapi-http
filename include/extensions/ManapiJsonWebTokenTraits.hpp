@@ -8,13 +8,13 @@
 namespace jwt {
     namespace traits {
         struct manapi_json {
-            using value_type = manapi::net::utils::json;
-            using object_type = manapi::net::utils::json::OBJECT;
-            using array_type = manapi::net::utils::json::ARRAY;
-            using string_type = manapi::net::utils::json::STRING;
-            using number_type = manapi::net::utils::json::DECIMAL;
-            using integer_type = manapi::net::utils::json::NUMBER;
-            using boolean_type = manapi::net::utils::json::BOOLEAN;
+            using value_type = manapi::json;
+            using object_type = manapi::json::OBJECT;
+            using array_type = manapi::json::ARRAY;
+            using string_type = manapi::json::STRING;
+            using number_type = manapi::json::DECIMAL;
+            using integer_type = manapi::json::NUMBER;
+            using boolean_type = manapi::json::BOOLEAN;
             static jwt::json::type get_type(const value_type& val) {
                 using jwt::json::type;
                 if (val.is_bool()) return type::boolean;
@@ -60,7 +60,7 @@ namespace jwt {
 
             static bool parse(value_type& val, const std::string& str) {
                 try {
-                    val = manapi::net::utils::json (str, true);
+                    val = manapi::json (str, true);
                     return true;
                 }
                 catch (std::exception const &e) {

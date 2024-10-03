@@ -11,7 +11,7 @@
 #define MANAPI_MASK_COMPARE_EQUAL_OR_GREATER 3
 #define MANAPI_MASK_COMPARE_EQUAL_OR_LESS 4
 
-manapi::net::utils::json_mask::json_mask(const std::initializer_list<json> &data)
+manapi::json_mask::json_mask(const std::initializer_list<json> &data)
 {
     information = data;
     initial_resolve_information (information);
@@ -19,22 +19,22 @@ manapi::net::utils::json_mask::json_mask(const std::initializer_list<json> &data
     enabled = true;
 }
 
-manapi::net::utils::json_mask::json_mask(const nullptr_t &n)
+manapi::json_mask::json_mask(const nullptr_t &n)
 {
     enabled = false;
 }
 
-manapi::net::utils::json_mask::~json_mask() = default;
+manapi::json_mask::~json_mask() = default;
 
-bool manapi::net::utils::json_mask::is_enabled() const {
+bool manapi::json_mask::is_enabled() const {
     return enabled;
 }
 
-void manapi::net::utils::json_mask::set_enabled(const bool &status) {
+void manapi::json_mask::set_enabled(const bool &status) {
     enabled = status;
 }
 
-bool manapi::net::utils::json_mask::valid(const manapi::net::utils::json &obj) const
+bool manapi::json_mask::valid(const manapi::json &obj) const
 {
     if (!enabled)
     {
@@ -44,7 +44,7 @@ bool manapi::net::utils::json_mask::valid(const manapi::net::utils::json &obj) c
     return recursive_valid (obj, information);
 }
 
-bool manapi::net::utils::json_mask::valid(const std::map<std::string, std::string> &obj) const
+bool manapi::json_mask::valid(const std::map<std::string, std::string> &obj) const
 {
     if (!enabled)
     {
@@ -61,11 +61,11 @@ bool manapi::net::utils::json_mask::valid(const std::map<std::string, std::strin
     return recursive_valid (a, information);
 }
 
-const manapi::net::utils::json & manapi::net::utils::json_mask::get_api_tree() const {
+const manapi::json & manapi::json_mask::get_api_tree() const {
     return information;
 }
 
-void manapi::net::utils::json_mask::initial_resolve_information(manapi::net::utils::json &obj)
+void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 {
     if (obj.is_string())
     {
@@ -159,7 +159,7 @@ void manapi::net::utils::json_mask::initial_resolve_information(manapi::net::uti
         }
         else
         {
-            THROW_MANAPI_EXCEPTION ("Could not resolve type for this expression: {}", escape_string(*str));
+            THROW_MANAPI_EXCEPTION ("Could not resolve type for this expression: {}", net::utils::escape_string(*str));
         }
 
         if (!special_type) {
@@ -413,7 +413,7 @@ void manapi::net::utils::json_mask::initial_resolve_information(manapi::net::uti
     }
 }
 
-bool manapi::net::utils::json_mask::recursive_valid(const manapi::net::utils::json &obj, const manapi::net::utils::json &item, const bool &is_complex) {
+bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::json &item, const bool &is_complex) {
     const auto &information = is_complex ? item["obj"] : item;
 
     if (information.is_array())
@@ -656,7 +656,7 @@ bool manapi::net::utils::json_mask::recursive_valid(const manapi::net::utils::js
     return false;
 }
 
-bool manapi::net::utils::json_mask::default_compare_information(const manapi::net::utils::json &obj, const manapi::net::utils::json &information, const bool &by_size) {
+bool manapi::json_mask::default_compare_information(const manapi::json &obj, const manapi::json &information, const bool &by_size) {
     if (by_size)
     {
         // by length

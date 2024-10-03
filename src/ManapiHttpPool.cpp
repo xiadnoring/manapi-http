@@ -14,7 +14,7 @@
 #include "ManapiTaskHttp.hpp"
 #include "ManapiTaskFunction.hpp"
 
-manapi::net::http_pool::http_pool(const utils::json &config, class site *site, const size_t &id) : config (config) {
+manapi::net::http_pool::http_pool(const json &config, class site *site, const size_t &id) : config (config) {
     this->id = id;
     this->site = site;
 

@@ -17,7 +17,7 @@
 namespace manapi::net {
     class http_pool {
     public:
-        explicit http_pool(const utils::json &config, class site *site, const size_t &id);
+        explicit http_pool(const json &config, class site *site, const size_t &id);
         ~http_pool();
 
         ev::loop_ref                get_loop ();

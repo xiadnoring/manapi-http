@@ -1,7 +1,7 @@
 #include "ManapiHttpConfig.hpp"
 #include "ManapiUtils.hpp"
 
-manapi::net::config::config(const utils::json &config) {
+manapi::net::config::config(const json &config) {
     // =================[partial data min size  ]================= //
     if (config.contains("partial_data_min_size"))
     {

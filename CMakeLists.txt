@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.9)
 project(manapihttp VERSION 0.0.1 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
 
+cmake_policy(SET CMP0070 NEW)
+
 if (NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     message(STATUS "This project has a top-level one called [${CMAKE_PROJECT_NAME}]")
 else ()
@@ -37,6 +39,17 @@ else ()
 endif ()
 
 
+# Preprocesses
+if (MANAPI_JSON_DEBUG)
+    set(MANAPI_JSON_DEBUG "true")
+else ()
+    set(MANAPI_JSON_DEBUG "false")
+endif ()
+
+file(READ preprocess/ManapiJson.hpp TEXT)
+string(REPLACE "{{ VAR_MANAPI_JSON_DEBUG }}" ${MANAPI_JSON_DEBUG} TEXT "${TEXT}")
+file(GENERATE OUTPUT include/ManapiJson.hpp CONTENT "${TEXT}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS include/ManapiJson.hpp)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -49,7 +62,6 @@ set(MANAPI_HTTP_FILES
         include/ManapiHttpResponse.hpp
         include/ManapiHttpRequest.hpp
         include/ManapiBigint.hpp
-        include/ManapiJson.hpp
         include/ManapiThreadSafe.hpp
         include/ManapiHttpTypes.hpp
         include/ManapiFilesystem.hpp
@@ -63,6 +75,7 @@ set(MANAPI_HTTP_FILES
         include/ManapiHttpPool.hpp
         include/ManapiJsonMask.hpp
         include/http3/ManapiQuic.h
+        ${CMAKE_CURRENT_BINARY_DIR}/include/ManapiJson.hpp
 
         src/ManapiHttp.cpp
         src/ManapiThreadPool.cpp
@@ -126,6 +139,7 @@ endif ()
 
 # Include public headers from the folder
 target_include_directories  (${PROJECT_NAME} PRIVATE include)
+target_include_directories  (${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/include)
 
 if (MANAPI_BUILD_TYPE STREQUAL "exe")
     # nothing
@@ -141,6 +155,7 @@ else ()
             LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR})
     install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
 
     install(EXPORT ManapiHttpConfig DESTINATION lib/cmake/${PROJECT_NAME})
 
