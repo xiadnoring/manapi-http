@@ -101,7 +101,7 @@ manapi::net::config::config(const json &config) {
             tls_version = versions::TLS_v1_3;
         }
         else {
-            THROW_MANAPI_EXCEPTION("invalid tls_version in config: {}", tls_version_string);
+            THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "invalid tls_version in config: {}", tls_version_string);
         }
     }
 
@@ -130,7 +130,7 @@ manapi::net::config::config(const json &config) {
             quic_cc_algo = versions::QUIC_CC_NONE;
         }
         else {
-            THROW_MANAPI_EXCEPTION("invalid quic_cc_algo in config: {}", quic_cc_algo_string);
+            THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo in config: {}", quic_cc_algo_string);
         }
     }
 
@@ -292,7 +292,7 @@ const int & manapi::net::config::get_socket_fd() const {
 }
 
 bool manapi::net::config::contains_compressor(const std::string &name) const {
-    if (function_contains_compressor == nullptr) { THROW_MANAPI_EXCEPTION("function_contains_compressor = {}. We need to set function before call", "nullptr"); }
+    if (function_contains_compressor == nullptr) { THROW_MANAPI_EXCEPTION(ERR_FATAL, "function_contains_compressor = {}. We need to set function before call", "nullptr"); }
     return function_contains_compressor (name);
 }
 

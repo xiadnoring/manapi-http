@@ -159,7 +159,7 @@ manapi::bigint manapi::bigint::operator+(const int &oth) const {
 manapi::bigint manapi::bigint::operator/(const manapi::bigint &oth) const {
     if (oth == zero)
     {
-        THROW_MANAPI_EXCEPTION("{}", "Divided by zero");
+        THROW_MANAPI_EXCEPTION(net::ERR_DIVIDED_BY_ZERO, "{}", "Divided by zero");
     }
 
     bigint n;

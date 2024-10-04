@@ -16,12 +16,12 @@ namespace manapi::net {
 
         if (thread_num <= 0)
         {
-            THROW_MANAPI_EXCEPTION("threadpool cant init because thread_number = {}", 0);
+            THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "threadpool cant init because thread_number = {}", 0);
         }
 
         if (queues_count <= 0)
         {
-            THROW_MANAPI_EXCEPTION("{} < 0 in threadpool", "queues_count");
+            THROW_MANAPI_EXCEPTION(ERR_FATAL, "{} < 0 in threadpool", "queues_count");
         }
 
         task_queues.resize(queues_count);

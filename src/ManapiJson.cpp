@@ -16,11 +16,12 @@ const static manapi::json::UNICODE_STRING JSON_W_FALSE  = manapi::net::utils::st
 const static manapi::json::UNICODE_STRING JSON_W_NULL   = manapi::net::utils::str4to32("null");
 
 #define THROW_MANAPI_JSON_MISSING_FUNCTION this->throw_could_not_use_func(__FUNCTION__)
+#define THROW_MANAPI_JSON_ERROR(errnum, msg, ...) throw manapi::json_parse_exception (errnum, std::format(msg, __VA_ARGS__));
 
 manapi::json::json() = default;
 
-manapi::json::json(const std::string &str, bool is_json) {
-    if (is_json)
+manapi::json::json(const STRING_VIEW &str, const bool &to_parse) {
+    if (to_parse)
     {
         this->parse(str);
     }
@@ -31,8 +32,13 @@ manapi::json::json(const std::string &str, bool is_json) {
     }
 }
 
-manapi::json::json(const UNICODE_STRING &str, bool is_json) {
-    if (is_json)
+manapi::json::json(const STRING &str) {
+    json_builder::_valid_utf_string(str);
+    _set_string(str);
+}
+
+manapi::json::json(const UNICODE_STRING &str, const bool &to_parse) {
+    if (to_parse)
     {
         this->parse(str);
     }
@@ -63,11 +69,11 @@ manapi::json::json(json &&other) noexcept {
     other._set_nullptr();
 }
 
-manapi::json::json(const char *plain_text, bool is_json)
+manapi::json::json(const char *plain_text, const bool &to_parse)
 {
-    if (is_json)
+    if (to_parse)
     {
-        this->parse(STRING(plain_text));
+        this->parse(STRING_VIEW (plain_text));
     }
     else
     {
@@ -265,7 +271,7 @@ void manapi::json::parse(const NULLPTR &n) {
     src     = nullptr;
 }
 
-void manapi::json::parse(const STRING &plain_text, const bool &use_bigint, const size_t &bigint_precision) {
+void manapi::json::parse(const STRING_VIEW &plain_text, const bool &use_bigint, const size_t &bigint_precision) {
     json_builder builder (json_mask(nullptr), use_bigint, bigint_precision);
     builder << plain_text;
     *this = builder.get();
@@ -393,7 +399,7 @@ std::string manapi::json::dump(const size_t &spaces, const size_t &first_spaces)
 
     else if (type == type_pair)
     {
-        THROW_MANAPI_EXCEPTION("A bug has been detected: {}", "type = type_pair");
+        THROW_MANAPI_JSON_ERROR (ERR_JSON_BUG, "Bug has been deteceted: {}", "type = type_pair");
     }
 
     return str;
@@ -408,15 +414,15 @@ size_t manapi::json::get_end_cut() const {
 }
 
 void manapi::json::error_invalid_char(const UNICODE_STRING &plain_text, const size_t &i) {
-    throw json_parse_exception(std::format("Invalid char '{}' at {}", net::utils::str32to4(plain_text[i]), i + 1));
+    THROW_MANAPI_JSON_ERROR(ERR_JSON_INVALID_CHAR, "Invalid char '{}' at {}", net::utils::str32to4(plain_text[i]), i + 1);
 }
 
-void manapi::json::error_invalid_char(const std::string_view &plain_text, const size_t &i) {
-    throw json_parse_exception(std::format("Invalid char '{}' at {}", plain_text[i], i + 1));
+void manapi::json::error_invalid_char(const STRING_VIEW &plain_text, const size_t &i) {
+    THROW_MANAPI_JSON_ERROR(ERR_JSON_INVALID_CHAR, "Invalid char '{}' at {}", plain_text[i], i + 1);
 }
 
 void manapi::json::error_unexpected_end(const size_t &i) {
-    throw json_parse_exception(std::format("Unexpected end of JSON input at {}", i + 1));
+    THROW_MANAPI_JSON_ERROR(ERR_JSON_UNEXPECTED_END, "Unexpected end of JSON input at {}", i + 1);
 }
 
 void manapi::json::delete_value() {
@@ -492,7 +498,7 @@ void manapi::json::_set_array(const ARRAY &val) {
     get<ARRAY>() = val;
 }
 
-void manapi::json::_set_string(const STRING &val) {
+void manapi::json::_set_string(const STRING_VIEW &val) {
     _set_string();
     get<STRING>() = val;
 }
@@ -565,7 +571,7 @@ manapi::json &manapi::json::at(const std::string &key)  {
 
     if (!map.contains(key))
     {
-        THROW_MANAPI_EXCEPTION("No such key. ({})", net::utils::escape_string(key));
+        THROW_MANAPI_JSON_ERROR(ERR_JSON_NO_SUCH_KEY, "No such key. ({})", net::utils::escape_string(key));
     }
 
     return map.at(key);
@@ -581,7 +587,7 @@ manapi::json &manapi::json::at(const size_t &index)  {
 
     if (arr.size() <= index)
     {
-        THROW_MANAPI_EXCEPTION("Out of range. Index: {}. Size: {}", index, arr.size());
+        THROW_MANAPI_JSON_ERROR(ERR_JSON_OUT_OF_RANGE, "Out of range. Index: {}. Size: {}", index, arr.size());
     }
 
     return arr.at(index);
@@ -601,7 +607,7 @@ const manapi::json & manapi::json::at(const std::string &key) const {
 
     if (!map.contains(key))
     {
-        THROW_MANAPI_EXCEPTION("No such key. ({})", net::utils::escape_string(key));
+        THROW_MANAPI_JSON_ERROR(ERR_JSON_NO_SUCH_KEY, "No such key. ({})", net::utils::escape_string(key));
     }
 
     return map.at(key);
@@ -621,7 +627,7 @@ const manapi::json & manapi::json::at(const size_t &index) const {
 
     if (arr.size() <= index)
     {
-        THROW_MANAPI_EXCEPTION("Out of range. Index: {}. Size: {}", index, arr.size());
+        THROW_MANAPI_JSON_ERROR(ERR_JSON_OUT_OF_RANGE, "Out of range. Index: {}. Size: {}", index, arr.size());
     }
 
     return arr.at(index);
@@ -767,7 +773,7 @@ void manapi::json::insert(const UNICODE_STRING &key, const manapi::json &obj) {
     insert (net::utils::str32to4(key), obj);
 }
 
-void manapi::json::insert(const std::string &key, const manapi::json &obj) {
+void manapi::json::insert(const STRING &key, const manapi::json &obj) {
     if (type != type_object)
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
@@ -776,7 +782,7 @@ void manapi::json::insert(const std::string &key, const manapi::json &obj) {
 
     if (get<OBJECT>().contains(key))
     {
-        THROW_MANAPI_EXCEPTION("duplicate key: {}", net::utils::escape_string(key));
+        THROW_MANAPI_JSON_ERROR(ERR_JSON_DUPLICATE_KEY, "duplicate key: {}", net::utils::escape_string(key));
     }
 
     json item = obj;
@@ -1294,20 +1300,25 @@ void manapi::json::delete_value_static(const short &type, void *src) {
             delete static_cast<std::pair <json, json> *> (src);
             break;
         default:
-            THROW_MANAPI_EXCEPTION("JSON BUG: Invalid type of data to delete: {}", static_cast<int> (type_pair));
+            THROW_MANAPI_JSON_ERROR(ERR_JSON_BUG, "JSON BUG: Invalid type of data to delete: {}", static_cast<int> (type_pair));
     }
 }
 
 void manapi::json::throw_could_not_use_func(const std::string &func) const
 {
-    THROW_MANAPI_EXCEPTION("json object with type {} could not use func: {}", static_cast <int> (type), func);
+    THROW_MANAPI_JSON_ERROR(ERR_JSON_UNSUPPORTED_TYPE, "json object with type {} could not use func: {}", static_cast <int> (type), func);
 }
 
 
 // Exceptions
 
-manapi::json_parse_exception::json_parse_exception(const std::string &msg) {
-    message = msg;
+manapi::json_parse_exception::json_parse_exception(const json_err_num &errnum, const std::string &msg) {
+    this->message = std::format ("{}. json errnum = {}", msg, static_cast<int>(errnum));
+    this->errnum = errnum;
+}
+
+const manapi::json_err_num &manapi::json_parse_exception::get_err_num () const {
+    return this->errnum;
 }
 
 const char *manapi::json_parse_exception::what() const noexcept {

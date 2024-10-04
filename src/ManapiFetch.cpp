@@ -79,7 +79,7 @@ manapi::net::fetch::~fetch() {
 void manapi::net::fetch::doit() {
     if (curl == nullptr)
     {
-        THROW_MANAPI_EXCEPTION("curl can not be init: {}", url);
+        THROW_MANAPI_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl can not be init: {}", url);
     }
 
     utils::before_delete clean_up ([&] () {

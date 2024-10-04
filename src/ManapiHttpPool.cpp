@@ -36,7 +36,7 @@ SSL_CTX *manapi::net::http_pool::ssl_create_context(const size_t &version) {
         case versions::DTLS_v1:     method = DTLSv1_server_method();    break;
         case versions::DTLS_v1_2:   method = DTLSv1_2_server_method();  break;
         case versions::DTLS_v1_3:   method = DTLS_server_method();      break;
-        default: THROW_MANAPI_EXCEPTION("can not find the initialization method openssl (tls_version): {}", version);
+        default: THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "can not find the initialization method openssl (tls_version): {}", version);
     }
 
 
@@ -44,7 +44,7 @@ SSL_CTX *manapi::net::http_pool::ssl_create_context(const size_t &version) {
 
     if (!ctx)
     {
-        THROW_MANAPI_EXCEPTION("{}", "cannot create openssl context for tcp connections");
+        THROW_MANAPI_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot create openssl context for tcp connections");
     }
 
     SSL_CTX_set_mode(ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
@@ -294,7 +294,7 @@ int manapi::net::http_pool::_pool() {
                     case versions::HTTP_v1_1:   http_application_protocol = "\x08http/1.1"; break;
                     case versions::HTTP_v2:     http_application_protocol = "\x06http/2";   break;
                     case versions::HTTP_v3:     http_application_protocol = "\x02h3";       break;
-                    default: THROW_MANAPI_EXCEPTION("invalid http_version, default -> {}", "HTTP_v3");
+                    default: THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "invalid http_version, default -> {}", "HTTP_v3");
                 }
 
                 quiche_config_set_application_protos(config.get_quic_config(), reinterpret_cast <const uint8_t *> (http_application_protocol.data()), http_application_protocol.size());
@@ -321,7 +321,7 @@ int manapi::net::http_pool::_pool() {
                     case versions::QUIC_CC_RENO:    algo = QUICHE_CC_RENO;      break;
                     case versions::QUIC_CC_BBR:     algo = QUICHE_CC_BBR;       break;
                     case versions::QUIC_CC_BBR2:    algo = QUICHE_CC_BBR2;      break;
-                    default: THROW_MANAPI_EXCEPTION("invalid quic_cc_algo: {}", config.get_quic_cc_algo());
+                    default: THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo: {}", config.get_quic_cc_algo());
                 }
 
                 quiche_config_set_cc_algorithm                      (config.get_quic_config(), algo);
@@ -334,7 +334,7 @@ int manapi::net::http_pool::_pool() {
 
             if (config.get_http3_config() == nullptr)
             {
-                THROW_MANAPI_EXCEPTION("{}", "failed to create HTTP/3 config");
+                THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "{}", "failed to create HTTP/3 config");
                 return 1;
             }
         }
@@ -344,14 +344,14 @@ int manapi::net::http_pool::_pool() {
         }
         else
         {
-            THROW_MANAPI_EXCEPTION("invalid quic_implement: {}", config.get_quic_implement());
+            THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_implement: {}", config.get_quic_implement());
         }
 
         ev_io->set <http_pool, &http_pool::new_connection_quic> (this);
     }
     else
     {
-        THROW_MANAPI_EXCEPTION("invalid http_implement: {}", config.get_http_implement());
+        THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "invalid http_implement: {}", config.get_http_implement());
     }
 
     // create watcher
@@ -565,11 +565,11 @@ manapi::net::site & manapi::net::http_pool::get_site() const {
 void manapi::net::http_pool::ssl_configure_context() {
     if (SSL_CTX_use_certificate_file(config.get_openssl_ctx(), config.get_ssl_config().cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
-        THROW_MANAPI_EXCEPTION("{}", "cannot use cert file openssl");
+        THROW_MANAPI_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use cert file openssl");
     }
 
     if (SSL_CTX_use_PrivateKey_file(config.get_openssl_ctx(), config.get_ssl_config().key.data(), SSL_FILETYPE_PEM) <= 0)
     {
-        THROW_MANAPI_EXCEPTION("{}", "cannot use private key file openssl");
+        THROW_MANAPI_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use private key file openssl");
     }
 }

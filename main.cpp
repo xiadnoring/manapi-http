@@ -16,7 +16,7 @@ using namespace manapi::net;
 using namespace std;
 
 int main () {
-    manapi::json a (R"({"hello": [78,]})", true);
+    manapi::json a (R"({"hello": [78,d]})", true);
     std::cout << a.dump(2) << "\n";
 }
 

@@ -256,7 +256,7 @@ std::string manapi::net::utils::decode_url(const std::string &str) {}
 std::string manapi::net::utils::json2form(const json &obj) {
     if (!obj.is_object())
     {
-        THROW_MANAPI_EXCEPTION("{}", "is_object() -> false in json2form(...)");
+        THROW_MANAPI_EXCEPTION(ERR_UNSUPPORTED, "{}", "arg must be json object in json2form(...)");
     }
 
     std::string data;
@@ -330,7 +330,7 @@ std::vector <manapi::net::utils::replace_founded_item> manapi::net::utils::found
 
     if (!f.is_open())
     {
-        THROW_MANAPI_EXCEPTION("Could not open the following file for finding replacers ({})", escape_string(path));
+        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "Could not open the following file for finding replacers ({})", escape_string(path));
     }
 
     // while i < block_size or opened, bcz replacer can be on some blocks
@@ -427,10 +427,16 @@ std::vector <manapi::net::utils::replace_founded_item> manapi::net::utils::found
 // ===================== [ Classes ] ========================== //
 // ============================================================ //
 
-manapi::net::utils::exception::exception(std::string message_): message(std::move(message_)) {}
+manapi::net::utils::exception::exception(const err_num &errnum, std::string message_): message(std::move(message_)) {
+    this->errnum = errnum;
+}
 
 const char *manapi::net::utils::exception::what() const noexcept {
     return message.data();
+}
+
+const manapi::net::err_num & manapi::net::utils::exception::get_err_num() const {
+    return errnum;
 }
 
 manapi::net::utils::before_delete::before_delete(const std::function<void()> &f) {
@@ -636,6 +642,14 @@ std::string manapi::net::utils::str16to4 (const char16_t &str16)
 std::u16string manapi::net::utils::str4to16 (const std::string &str)
 {
     return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.from_bytes(str);
+}
+
+const std::string & manapi::net::utils::get_msg_by_err_num(const err_num &errnum) {
+    if (err_msg.contains(errnum))
+    {
+        return err_msg.at(errnum);
+    }
+    return err_msg.at(ERR_UNDEFINED);
 }
 
 std::string manapi::net::utils::str32to4 (const std::u32string &str32)

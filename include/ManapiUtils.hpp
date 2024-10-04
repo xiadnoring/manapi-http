@@ -12,13 +12,17 @@
 #include <unistd.h>
 #include <atomic>
 
+#include "ManapiHttpTypes.hpp"
 #include "ManapiJson.hpp"
 
-#define MANAPI_LOG(msg, ...)                manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg, __VA_ARGS__)
-#define MANAPI_LOG2(msg)                    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, msg);
+#define MANAPI_LOG(msg, ...)                manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, manapi::net::ERR_DEBUG, msg, __VA_ARGS__)
+#define MANAPI_LOG2(msg)                    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, manapi::net::ERR_DEBUG, msg);
 
-#define THROW_MANAPI_EXCEPTION(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg, __VA_ARGS__)
-#define THROW_MANAPI_EXCEPTION2(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, msg)
+//#define THROW_MANAPI_EXCEPTION(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, manapi::net::ERR_UNDEFINED, msg, __VA_ARGS__)
+//#define THROW_MANAPI_EXCEPTION2(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, manapi::net::ERR_UNDEFINED, msg)
+
+#define THROW_MANAPI_EXCEPTION(errnum, msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, errnum, msg, __VA_ARGS__)
+#define THROW_MANAPI_EXCEPTION2(errnum, msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, errnum, msg)
 
 #define MANAPI_HTTP_RESP_TEXT 0
 #define MANAPI_HTTP_RESP_FILE 1
@@ -112,9 +116,11 @@ namespace manapi::net::utils {
 
     class exception : public std::exception {
     public:
-        explicit exception (std::string message_);
+        explicit exception (const err_num &errnum, std::string message_);
         [[nodiscard]] const char * what() const noexcept override;
+        [[nodiscard]] const err_num &get_err_num () const;
     private:
+        err_num errnum;
         std::string message;
     };
 
@@ -143,11 +149,12 @@ namespace manapi::net::utils {
     // ====================[ Debug ]===============================
 
 
+    const std::string &get_msg_by_err_num (const err_num &errnum);
     template <class... Args>
-    void _log               (const size_t &line, const std::string &file_name, const std::string &func, const bool &except, const std::string &format, Args&& ...args)
+    void _log               (const size_t &line, const std::string &file_name, const std::string &func, const bool &except, const err_num &errnum, const std::string &format, Args&& ...args)
     {
-        std::string head = std::format ("[{}]: {}() ({}:{}): ", utils::time("%H:%M:%S", true), func, file_name, line);
-        std::string information = std::vformat(format, std::make_format_args(args...));
+        const auto head = std::format ("[{}][{}]: {}() ({}:{}): ", utils::time("%H:%M:%S", true), static_cast<size_t>(errnum), func, file_name, line);
+        const auto information = std::vformat(format, std::make_format_args(args...));
 
         if (except)
         {
@@ -160,7 +167,7 @@ namespace manapi::net::utils {
 
         if (except)
         {
-            throw manapi::net::utils::exception (information);
+            throw manapi::net::utils::exception (errnum, information);
         }
     }
 

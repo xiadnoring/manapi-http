@@ -91,7 +91,7 @@ ssize_t manapi::net::filesystem::get_size (const std::string& path) {
     std::ifstream f (path);
     if (!f.is_open())
     {
-        THROW_MANAPI_EXCEPTION("cannot open the file by following path: {}", path);
+        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "cannot open the file by following path: {}", path);
     }
 
     utils::before_delete close_ifstream ([&f] () { f.close(); });
@@ -106,7 +106,7 @@ void manapi::net::filesystem::write (const std::string &path, const std::string 
 
     if (!out.is_open())
     {
-        THROW_MANAPI_EXCEPTION("cannot open config to write: {}", path);
+        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "cannot open config to write: {}", path);
     }
 
     utils::before_delete close_ofstream ([&out] () { out.close(); });
@@ -119,7 +119,7 @@ std::string manapi::net::filesystem::read (const std::string &path) {
 
     if (!in.is_open())
     {
-        THROW_MANAPI_EXCEPTION("cannot open config to read: {}", path);
+        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "cannot open config to read: {}", path);
     }
 
     utils::before_delete close_ofstream ([&in] () { in.close(); });
@@ -143,7 +143,7 @@ void manapi::net::filesystem::copy (std::ifstream &f, const ssize_t &start, cons
         f.close();
         o.close();
 
-        THROW_MANAPI_EXCEPTION("{}", "cannot open files for operations");
+        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "{}", "cannot open files for operations");
     }
 
     f.seekg (start);

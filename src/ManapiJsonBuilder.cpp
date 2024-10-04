@@ -322,7 +322,7 @@ void manapi::json_builder::_build_numeric_string(const std::string_view &plain_t
         }
 
         // TODO escape sub_plain_text
-        throw json_parse_exception(std::format("Invalid string: '{}' ({}, {})",
+        throw json_parse_exception(ERR_JSON_INVALID_STRING, std::format("Invalid string: '{}' ({}, {})",
                                                value, start_cut + 1,
                                                end_cut));
     }
@@ -570,7 +570,7 @@ void manapi::json_builder::_next_type() {
         return;
     }
 
-    THROW_MANAPI_EXCEPTION2("json_mask error");
+    throw json_parse_exception(ERR_JSON_MASK_VERIFY_FAILED, "json_mask error");
 }
 
 void manapi::json_builder::_check_eq_type() {

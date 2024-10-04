@@ -193,6 +193,43 @@ namespace manapi::net {
         {"bin", HTTP_MIME.APPLICATION_OCTET_STREAM},
         {"",    HTTP_MIME.APPLICATION_OCTET_STREAM}
     };
+
+    enum err_num {
+        ERR_OK = 0,
+        ERR_FATAL = 1,
+        ERR_UNDEFINED = 2,
+        ERR_DEBUG = 3,
+        ERR_COMPRESS_DATA = 4,
+        ERR_FILE_EXISTS = 5,
+        ERR_FILE_IO = 6,
+        ERR_HTTP_PARAM_MISSING = 7,
+        ERR_HTTP_BODY_MISSING = 8,
+        ERR_HTTP_BODY_SO_LONG = 9,
+        ERR_HTTP_CONTENT_TYPE_MISSING = 10,
+        ERR_HTTP_BODY_BOUNDARY_MISSING = 12,
+        ERR_HTTP_INVALID_CONTENT_TYPE = 13,
+        ERR_HTTP_BODY_MASK_FAILED = 14,
+        ERR_HTTP_BODY_NOT_CONTAINS_FILE = 15,
+        ERR_HTTP_IMPORTANT_HEADER_MISSING = 16,
+        ERR_HTTP_PROTOCOL_ERROR = 17,
+        ERR_HTTP_QUERY_PARAM_MISSING = 18,
+        ERR_DIVIDED_BY_ZERO = 19,
+        ERR_EXTERNAL_LIB_CRASH = 20,
+        ERR_CONFIG_ERROR = 21,
+        ERR_HTTP_HEADER_MISSING = 22,
+        ERR_HTTP_HEADER_INVALID = 23,
+        ERR_HTTP_ADD_PAGE = 24,
+        ERR_HTTP_SETTINGS_INCOMPATIBILITY = 25,
+        ERR_HTTP_UNSUPPORTED = 26,
+        ERR_UNSUPPORTED = 27
+    };
+
+    const std::map <err_num, std::string> err_msg {
+        {ERR_OK, "OK"},
+        {ERR_FATAL, "Fatal"},
+        {ERR_UNDEFINED, "Undefined"},
+        {ERR_DEBUG, "Debug"}
+    };
 }
 
 #endif //MANAPIHTTP_MANAPIHTTPTYPES_H

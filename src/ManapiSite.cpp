@@ -206,12 +206,12 @@ void manapi::net::site::save_config() {
 }
 
 void manapi::net::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPI_EXCEPTION("The method {} already contains in the url {}", method, url); }
+    if (m->contains((method))) { THROW_MANAPI_EXCEPTION(ERR_HTTP_ADD_PAGE, "The method {} already contains in the url {}", method, url); }
 }
 
 void manapi::net::site::check_exists_method_on_url(const std::string &url,
     const std::unique_ptr<handlers_static_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPI_EXCEPTION("The method {} already contains in the static url {}", method, url); }
+    if (m->contains((method))) { THROW_MANAPI_EXCEPTION(ERR_HTTP_ADD_PAGE, "The method {} already contains in the static url {}", method, url); }
 }
 
 manapi::net::http_handler_page manapi::net::site::get_handler(request_data_t &request_data) const {
@@ -404,7 +404,7 @@ manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &me
 
             break;
         default:
-            THROW_MANAPI_EXCEPTION("{}", "can not use the special pages with the static files");
+            THROW_MANAPI_EXCEPTION(ERR_HTTP_ADD_PAGE, "{}", "can not use the special pages with the static files");
     }
 
 

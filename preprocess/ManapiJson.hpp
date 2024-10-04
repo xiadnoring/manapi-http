@@ -17,6 +17,7 @@ namespace manapi {
         typedef ssize_t NUMBER;
         typedef nullptr_t NULLPTR;
         typedef std::string STRING;
+        typedef std::string_view STRING_VIEW;
         typedef bigint BIGINT;
         typedef bool BOOLEAN;
         typedef std::pair <json, json> PAIR;
@@ -48,13 +49,14 @@ namespace manapi {
 
         // Do not use explicit
 
-        json(const STRING &str, bool is_json = false);
-        json(const UNICODE_STRING &str, bool is_json = false);
+        json(const STRING_VIEW &str, const bool &to_parse = false);
+        json(const UNICODE_STRING &str, const bool &to_parse = false);
         json(const NUMBER &num);
         json(const size_t &num);
-        json(const char *plain_text, bool is_json = false);
+        json(const char *plain_text, const bool &to_parse = false);
         json(const int &num);
         json(const double &num);
+        json(const STRING &str);
         json(const DECIMAL &num);
         json(const BIGINT &num);
         json(const NULLPTR &n);
@@ -66,7 +68,7 @@ namespace manapi {
 
         // string
         void parse (const UNICODE_STRING &plain_text);
-        void parse (const STRING &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128);
+        void parse (const STRING_VIEW &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128);
 
         // numbers
         void parse (const size_t &num);
@@ -94,7 +96,7 @@ namespace manapi {
         json &operator[] (const size_t &index);
         json &operator[] (const int &index);
 
-        [[nodiscard]] const json &at (const std::string &key) const;
+        [[nodiscard]] const json &at (const STRING &key) const;
         [[nodiscard]] const json &at (const UNICODE_STRING &key) const;
         [[nodiscard]] const json &at (const size_t &index) const;
         [[nodiscard]] const json &at (const int &index) const;
@@ -308,7 +310,7 @@ namespace manapi {
         [[nodiscard]] size_t size () const;
 
         static void                 error_invalid_char (const UNICODE_STRING &plain_text, const size_t &i);
-        static void                 error_invalid_char (const std::string_view &plain_text, const size_t &i);
+        static void                 error_invalid_char (const STRING_VIEW &plain_text, const size_t &i);
         static void                 error_unexpected_end (const size_t &i);
     protected:
         [[nodiscard]] size_t get_start_cut () const;
@@ -332,7 +334,7 @@ namespace manapi {
         void                        _set_object (const OBJECT &val);
         void                        _set_bool (const BOOLEAN &val);
         void                        _set_array (const ARRAY &val);
-        void                        _set_string (const STRING &val);
+        void                        _set_string (const STRING_VIEW &val);
         void                        _set_number (const NUMBER &val);
         void                        _set_decimal (const DECIMAL &val);
         void                        _set_bigint (const BIGINT &val);
@@ -399,12 +401,26 @@ namespace manapi {
 #endif
     };
 
+    enum json_err_num {
+        ERR_JSON_INVALID_CHAR = 0,
+        ERR_JSON_INVALID_STRING = 1,
+        ERR_JSON_NO_SUCH_KEY = 2,
+        ERR_JSON_OUT_OF_RANGE = 3,
+        ERR_JSON_DUPLICATE_KEY = 4,
+        ERR_JSON_UNSUPPORTED_TYPE = 5,
+        ERR_JSON_BUG = 6,
+        ERR_JSON_UNEXPECTED_END = 7,
+        ERR_JSON_MASK_VERIFY_FAILED = 8
+    };
+
     class json_parse_exception : public std::exception {
     public:
-        explicit json_parse_exception(const std::string &msg);
+        explicit json_parse_exception(const json_err_num &errnum, const std::string &msg);
         [[nodiscard]] const char *what () const noexcept override;
+        [[nodiscard]] const json_err_num &get_err_num () const;
     private:
         std::string message;
+        json_err_num errnum;
     };
 }
 

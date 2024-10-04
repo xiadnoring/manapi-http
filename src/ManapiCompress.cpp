@@ -8,16 +8,16 @@
 
 void manapi::net::utils::compress::throw_could_not_compress_file (const std::string &name, const std::string &src, const std::string &dest)
 {
-    THROW_MANAPI_EXCEPTION("Could not compress file with {}. src: {}, dest: {}", name, escape_string(src), escape_string(dest));
+    THROW_MANAPI_EXCEPTION(ERR_COMPRESS_DATA, "Could not compress file with {}. src: {}, dest: {}", name, escape_string(src), escape_string(dest));
 }
 
 void manapi::net::utils::compress::throw_could_not_open_file (const std::string &name, const std::string &path)
 {
-    THROW_MANAPI_EXCEPTION("{}: Could not open file by location {}", name, escape_string(path));
+    THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "{}: Could not open file by location {}", name, escape_string(path));
 }
 
 void manapi::net::utils::compress::throw_file_exists (const std::string &name, const std::string &path) {
-    THROW_MANAPI_EXCEPTION("{}: File by following path exists: {}", name, path);
+    THROW_MANAPI_EXCEPTION(ERR_FILE_EXISTS, "{}: File by following path exists: {}", name, path);
 }
 
 std::string manapi::net::utils::compress::deflate(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
@@ -199,7 +199,7 @@ std::string manapi::net::utils::compress::gzip(const std::string &str, const int
 
     if(deflateInit2(&stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK)
     {
-        THROW_MANAPI_EXCEPTION ("gzip: {}", "deflateInit(...) failed!");
+        THROW_MANAPI_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "deflateInit(...) failed!");
     }
 
     char out_buff[CHUNK_SIZE];

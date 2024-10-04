@@ -11,6 +11,9 @@
 #define MANAPI_MASK_COMPARE_EQUAL_OR_GREATER 3
 #define MANAPI_MASK_COMPARE_EQUAL_OR_LESS 4
 
+#define THROW_MANAPI_JSON_ERROR(errnum, msg, ...) throw manapi::json_parse_exception(errnum, std::format(msg, __VA_ARGS__));
+#define THROW_MANAPI_JSON_ERROR2(errnum, msg) throw manapi::json_parse_exception(errnum, std::format(msg));
+
 manapi::json_mask::json_mask(const std::initializer_list<json> &data)
 {
     information = data;
@@ -38,7 +41,7 @@ bool manapi::json_mask::valid(const manapi::json &obj) const
 {
     if (!enabled)
     {
-        THROW_MANAPI_EXCEPTION("{}", "json_mask is not enabled to valid the object.");
+        THROW_MANAPI_JSON_ERROR2(ERR_JSON_MASK_VERIFY_FAILED, "json_mask is not enabled to valid the object.");
     }
 
     return recursive_valid (obj, information);
@@ -48,7 +51,7 @@ bool manapi::json_mask::valid(const std::map<std::string, std::string> &obj) con
 {
     if (!enabled)
     {
-        THROW_MANAPI_EXCEPTION("{}", "json_mask is not enabled to valid the object.");
+        THROW_MANAPI_JSON_ERROR2(ERR_JSON_MASK_VERIFY_FAILED, "json_mask is not enabled to valid the object.");
     }
 
     json a = json::object();
@@ -159,7 +162,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
         }
         else
         {
-            THROW_MANAPI_EXCEPTION ("Could not resolve type for this expression: {}", net::utils::escape_string(*str));
+            THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Could not resolve type for this expression: {}", net::utils::escape_string(*str));
         }
 
         if (!special_type) {
@@ -209,14 +212,14 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                         }
                         else
                         {
-                            THROW_MANAPI_EXCEPTION ("Invalid symbol at {}: {}", i, c);
+                            THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
                         }
                     }
                     else if (c == '>')
                     {
                         if (compare_type != MANAPI_MASK_COMPARE_EQUAL && compare_type != MANAPI_MASK_COMPARE_NONE)
                         {
-                            THROW_MANAPI_EXCEPTION ("Invalid symbol at {}: {}", i, c);
+                            THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
                         }
 
                         compare_type = MANAPI_MASK_COMPARE_GREATER;
@@ -225,7 +228,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                     {
                         if (compare_type != MANAPI_MASK_COMPARE_EQUAL && compare_type != MANAPI_MASK_COMPARE_NONE)
                         {
-                            THROW_MANAPI_EXCEPTION ("Invalid symbol at {}: {}", i, c);
+                            THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
                         }
 
                         compare_type = MANAPI_MASK_COMPARE_LESS;
@@ -271,7 +274,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                 }
                 else if (c != ' ')
                 {
-                    THROW_MANAPI_EXCEPTION ("Invalid symbol at {}: {}", i, c);
+                    THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
                 }
 
                 // calc size
@@ -312,7 +315,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                         key = "min_mean";
                         break;
                     default:
-                        THROW_MANAPI_EXCEPTION ("Bug has been detected: {}", "compare type has invalid value");
+                        THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Bug has been detected: {}", "compare type has invalid value");
                 }
 
                 if (parsed.is_object())
@@ -334,7 +337,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
             {
                 if (ntype == json::type_array || ntype == json::type_object)
                 {
-                    THROW_MANAPI_EXCEPTION ("Invalid symbol at {}: {}", i, c);
+                    THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
                 }
                 bracket = true;
             }
@@ -343,7 +346,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
             {
                 if (ntype == json::type_array || ntype == json::type_object)
                 {
-                    THROW_MANAPI_EXCEPTION ("Invalid symbol at {}: {}", i, c);
+                    THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
                 }
                 square_bracket = true;
             }
@@ -366,7 +369,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 
             else
             {
-                THROW_MANAPI_EXCEPTION ("Invalid symbol at {}: {}", i, c);
+                THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
             }
         }
 
