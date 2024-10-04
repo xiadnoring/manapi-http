@@ -2,7 +2,7 @@
 #define MANAPIHTTP_MANAPIHTTPTYPES_H
 
 #include <string>
-
+#include <map>
 #include "ManapiThreadSafe.hpp"
 
 namespace manapi::net {
