@@ -106,7 +106,9 @@ set(MANAPI_HTTP_FILES
         src/ManapiUnicode.cpp
         include/ManapiUnicode.hpp
         src/ManapiJsonBuilder.cpp
-        include/ManapiJsonBuilder.hpp)
+        include/ManapiJsonBuilder.hpp
+        include/ManapiBeforeDelete.hpp
+        src/ManapiBeforeDelete.cpp)
 
 if (MANAPI_BUILD_TYPE STREQUAL "exe")
     # EXE

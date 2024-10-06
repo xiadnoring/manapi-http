@@ -445,34 +445,6 @@ const manapi::net::err_num & manapi::net::utils::exception::get_err_num() const 
     return errnum;
 }
 
-manapi::net::utils::before_delete::before_delete(const std::function<void()> &f) {
-    this->f = f;
-}
-
-manapi::net::utils::before_delete::~before_delete() {
-    if (f != nullptr && autostart)
-    {
-        f();
-    }
-}
-
-void manapi::net::utils::before_delete::call () {
-    if (f != nullptr)
-    {
-        f();
-    }
-
-    disable();
-}
-
-void manapi::net::utils::before_delete::disable() {
-    autostart = false;
-}
-
-void manapi::net::utils::before_delete::enable() {
-    autostart = true;
-}
-
 
 std::pair<std::string, std::string> manapi::net::utils::parse_header(const std::string &header) {
     std::pair <std::string, std::string> parsed;

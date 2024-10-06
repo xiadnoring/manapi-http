@@ -1877,7 +1877,7 @@ manapi::net::http_quic_conn_io * manapi::net::http_task::quic_create_connection(
         conn_io->timer_id       = 0;
 
         quic_map_conns->lock();
-        const bool result_insert = quic_map_conns->insert(conn_io->key, conn_io).second;
+        const bool result_insert = quic_map_conns->insert({conn_io->key, conn_io}).second;
         quic_map_conns->unlock();
 
         if (!result_insert)

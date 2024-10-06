@@ -13,6 +13,7 @@
 #include <atomic>
 
 #include "ManapiHttpTypes.hpp"
+#include "ManapiBeforeDelete.hpp"
 #include "ManapiJson.hpp"
 
 #define MANAPI_LOG(msg, ...)                manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, manapi::net::ERR_DEBUG, msg, __VA_ARGS__)
@@ -122,18 +123,6 @@ namespace manapi::net::utils {
     private:
         err_num errnum;
         std::string message;
-    };
-
-    class before_delete {
-    public:
-        explicit before_delete (const std::function <void()> &f);
-        ~before_delete();
-        void call ();
-        void disable ();
-        void enable ();
-    private:
-        bool autostart = true;
-        std::function <void()> f;
     };
 
     // ====================[ Strings ]===============================

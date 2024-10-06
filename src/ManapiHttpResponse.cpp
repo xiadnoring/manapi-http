@@ -194,14 +194,18 @@ const manapi::net::utils::MAP_STR_STR *manapi::net::http_response::get_replacers
 }
 
 void manapi::net::http_response::set_custom_data(const custom_data_t &data) {
+    clear_custom_data();
+
     custom_data = data;
 }
 
 void manapi::net::http_response::clear_custom_data() {
-    custom_data.clean (custom_data.src);
+    if (custom_data.src != nullptr) {
+        custom_data.clean (custom_data.src);
 
-    custom_data.src = nullptr;
-    custom_data.clean = nullptr;
+        custom_data.src = nullptr;
+        custom_data.clean = nullptr;
+    }
 }
 
 const manapi::net::custom_data_t & manapi::net::http_response::get_custom_data() {

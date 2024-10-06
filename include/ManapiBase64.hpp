@@ -14,7 +14,7 @@
 #include <bit>  // For std::bit_cast.
 #endif
 
-namespace base64 {
+namespace manapi::net::encrypt::base64 {
 
     namespace detail {
 
