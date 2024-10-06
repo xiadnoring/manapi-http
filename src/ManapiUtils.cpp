@@ -120,6 +120,12 @@ std::string manapi::net::utils::escape_string (const std::string &str) {
             case '\r':
                 escaped += "\\r";
                 break;
+            case '\f':
+                escaped += "\\f";
+                break;
+            case '\b':
+                escaped += "\\b";
+                break;
             default:
                 if (escape_char_need(i)) {
                     escaped.push_back('\\');

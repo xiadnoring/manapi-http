@@ -291,7 +291,6 @@ std::string manapi::json::dump(const size_t &spaces, const size_t &first_spaces)
 
     if (type == type_string)
     {
-        // TODO: what the hell is that: net::utils::str32to4(foo(str4to32(...)))
         str = '"' + net::utils::escape_string(as_string()) + '"';
     }
 
