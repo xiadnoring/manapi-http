@@ -25,6 +25,9 @@ manapi::net::http_response::~http_response() {
     {
         delete replacers;
     }
+
+    // delete custom data if it exists
+    clear_custom_data();
 }
 
 
@@ -188,6 +191,21 @@ bool manapi::net::http_response::get_partial_enabled() const {
 
 const manapi::net::utils::MAP_STR_STR *manapi::net::http_response::get_replacers() {
     return replacers;
+}
+
+void manapi::net::http_response::set_custom_data(const custom_data_t &data) {
+    custom_data = data;
+}
+
+void manapi::net::http_response::clear_custom_data() {
+    custom_data.clean (custom_data.src);
+
+    custom_data.src = nullptr;
+    custom_data.clean = nullptr;
+}
+
+const manapi::net::custom_data_t & manapi::net::http_response::get_custom_data() {
+    return custom_data;
 }
 
 void manapi::net::http_response::set_replacers(const utils::MAP_STR_STR &_replacers) {

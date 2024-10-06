@@ -30,8 +30,8 @@ namespace manapi::net {
         [[nodiscard]] const std::string             &get_param (const std::string &param) const;
         [[nodiscard]] std::string                   dump() const;
         std::string                                 text ();
-        manapi::json                         json ();
-        manapi::net::utils::MAP_STR_STR                  form ();
+        manapi::json                                json ();
+        manapi::net::utils::MAP_STR_STR             form ();
         const size_t                                &get_body_size ();
         void                                        set_max_plain_body_size (const size_t &size);
         const file_data_t                           &inf_file ();
@@ -42,6 +42,7 @@ namespace manapi::net {
 
         bool                                        contains_header (const std::string &name);
         const std::string&                          get_header      (const std::string &name);
+        bool                                        has_header      (const std::string &name);
 
         const std::string&                          get_query_param (const std::string &name);
 

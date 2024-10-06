@@ -8,6 +8,11 @@
 #include "ManapiApi.hpp"
 
 namespace manapi::net {
+    struct custom_data_t {
+        void *src = nullptr;
+        std::function <void(void *)> clean;
+    };
+
     class http_response {
     public:
         http_response               (manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, api::pool *tasks, class config *config);
@@ -56,8 +61,15 @@ namespace manapi::net {
 
         const utils::MAP_STR_STR        *get_replacers ();
 
+        void                            set_custom_data (const struct custom_data_t &data);
+        void                            clear_custom_data ();
+        const struct custom_data_t      &get_custom_data ();
+
         manapi::net::api::pool          *tasks;
     private:
+        // custom data for layers
+        custom_data_t                   custom_data;
+
         size_t                          type;
         // detect the range header
         void                            detect_ranges    ();

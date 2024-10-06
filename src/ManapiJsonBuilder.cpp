@@ -123,28 +123,71 @@ void manapi::json_builder::_build_string(const std::string_view &plain_text, siz
         }
         else
         {
-            if (escaped)
-            {
-                escaped = false;
-            }
-            else
-            {
-                if (c == '\\')
-                {
-
-                    escaped = true;
-                    continue;
+            if (escapedSpecial) {
+                if (escaped) {
+                    escaped = false;
+                    switch (c) {
+                        case '\\':
+                        break;
+                        default:
+                            throw json_parse_exception(ERR_JSON_BAD_ESCAPED_CHAR, "Bad escaped character at " + std::to_string(i));
+                    }
                 }
-
-                if (c == '"')
+                else {
+                    switch (c) {
+                        case 't':
+                            c = '\t';
+                        break;
+                        case 'n':
+                            c = '\n';
+                        break;
+                        case 'r':
+                            c = '\r';
+                        break;
+                        case 'f':
+                            c = '\f';
+                        break;
+                        case 'b':
+                            c = '\b';
+                        break;
+                        case '\\':
+                            escaped = true;
+                            continue;
+                        default:
+                            throw json_parse_exception(ERR_JSON_BAD_ESCAPED_CHAR, "Bad escaped character at " + std::to_string(i));
+                    }
+                }
+                escapedSpecial = false;
+            }
+            else {
+                if (escaped)
                 {
-                    opened_quote = !opened_quote;
+                    escaped = false;
 
-                    if (!opened_quote) {
-                        goto finish;
+                    if (opened_quote && c == '\\') {
+                        escapedSpecial = true;
+                        continue;
+                    }
+                }
+                else
+                {
+                    if (c == '\\')
+                    {
+
+                        escaped = true;
+                        continue;
                     }
 
-                    continue;
+                    if (c == '"')
+                    {
+                        opened_quote = !opened_quote;
+
+                        if (!opened_quote) {
+                            goto finish;
+                        }
+
+                        continue;
+                    }
                 }
             }
         }
@@ -796,6 +839,7 @@ void manapi::json_builder::_reset() {
     this->type = json::type_null;
     this->opened_quote = false;
     this->escaped = false;
+    this->escapedSpecial = false;
     this->go_to_delimiter = false;
     this->getting = false;
     this->ready = false;

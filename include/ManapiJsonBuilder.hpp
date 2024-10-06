@@ -71,6 +71,7 @@ namespace manapi {
         size_t wchar_left = 0;
         // escaped with '/'
         bool escaped = false;
+        bool escapedSpecial = false;
         // is key in _build_object
         bool is_key = true;
         std::string key{};

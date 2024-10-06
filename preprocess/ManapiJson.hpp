@@ -410,7 +410,8 @@ namespace manapi {
         ERR_JSON_UNSUPPORTED_TYPE = 5,
         ERR_JSON_BUG = 6,
         ERR_JSON_UNEXPECTED_END = 7,
-        ERR_JSON_MASK_VERIFY_FAILED = 8
+        ERR_JSON_MASK_VERIFY_FAILED = 8,
+        ERR_JSON_BAD_ESCAPED_CHAR = 9
     };
 
     class json_parse_exception : public std::exception {
