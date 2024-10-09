@@ -6,9 +6,9 @@
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpTypes.hpp"
 
-manapi::net::http_response::http_response(manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, api::pool *tasks, class config *config): status_code(_status), status_message(std::move(_message)), http_version("1.1") {
+manapi::net::http_response::http_response(manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, std::unique_ptr<api::pool> tasks, class config *config): status_code(_status), status_message(std::move(_message)), http_version("1.1") {
     this->config = config;
-    this->tasks = tasks;
+    this->tasks = std::move(tasks);
 
     request_data    = &_request_data;
 
@@ -18,14 +18,6 @@ manapi::net::http_response::http_response(manapi::net::request_data_t &_request_
 }
 
 manapi::net::http_response::~http_response() {
-    delete tasks;
-
-    // if replacers exists
-    if (replacers != nullptr)
-    {
-        delete replacers;
-    }
-
     // delete custom data if it exists
     clear_custom_data();
 }
@@ -189,8 +181,8 @@ bool manapi::net::http_response::get_partial_enabled() const {
     return partial_enabled;
 }
 
-const manapi::net::utils::MAP_STR_STR *manapi::net::http_response::get_replacers() {
-    return replacers;
+const manapi::net::utils::MAP_STR_STR *manapi::net::http_response::get_replacers() const {
+    return replacers.get();
 }
 
 void manapi::net::http_response::set_custom_data(const custom_data_t &data) {
@@ -216,7 +208,7 @@ void manapi::net::http_response::set_replacers(const utils::MAP_STR_STR &_replac
     set_compress_enabled(false);
     set_partial_status  (false);
 
-    replacers = new utils::MAP_STR_STR (_replacers);
+    replacers = std::make_unique<utils::MAP_STR_STR> (_replacers);
 }
 
 void manapi::net::http_response::set_partial_status(const bool &auto_partial_status) {

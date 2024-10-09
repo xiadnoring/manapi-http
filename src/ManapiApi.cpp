@@ -9,20 +9,18 @@ manapi::net::api::pool::~pool() {
 
 }
 
-void manapi::net::api::pool::await(manapi::net::task *t) {
+void manapi::net::api::pool::await(std::unique_ptr<manapi::net::task> t) {
     t->doit();
-
-    delete t;
 }
 
-void manapi::net::api::pool::async(manapi::net::task *t) {
-    task_pool->append_task(t);
+void manapi::net::api::pool::async(std::unique_ptr<manapi::net::task> t) {
+    task_pool->append_task(std::move(t));
 }
 
 void manapi::net::api::pool::await(const std::function<void()> &func) {
-    this->await(new function_task (func));
+    this->await(std::move(std::make_unique<function_task>(func)));
 }
 
 void manapi::net::api::pool::async(const std::function<void()> &func) {
-    this->async(new function_task (func));
+    this->async(std::move(std::make_unique<function_task>(func)));
 }

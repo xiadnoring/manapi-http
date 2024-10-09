@@ -72,7 +72,8 @@ void manapi::net::http_pool::stop() {
         // clean connections (need to break loop)
         for (auto it = quic_map_conns.begin(); it != quic_map_conns.end();)
         {
-            http_task::quic_delete_conn_io(it->second, site);
+            it->second->mutex.lock();
+            http_task::quic_delete_conn_io(it->second.get(), site);
             it = quic_map_conns.erase(it);
         }
 
@@ -103,11 +104,10 @@ std::future <int> manapi::net::http_pool::run() {
     // wait until another loop is stopping
     m_running.lock();
 
-    pool_promise = new std::promise <int> ();
+    pool_promise = std::make_unique<std::promise <int> > ();
 
     std::thread t ([this] () {
-        utils::before_delete unwrap_pool_promise ([this] () {
-            delete pool_promise;
+        utils::before_delete unwrap_pool_promise ([this] () -> void {
             pool_promise = nullptr;
 
             m_running.unlock();
@@ -141,7 +141,7 @@ int manapi::net::http_pool::_pool() {
     int so_reuseaddr_param = 1;
     timeval recv_timeout{}, send_timeout{};
 
-    ev_io  = new ev::io (loop);
+    ev_io  = std::make_unique<ev::io> (loop);
 
     utils::before_delete bd_clean_up ([this] () -> void {
         if (config.get_http_implement() == "quic")
@@ -167,8 +167,6 @@ int manapi::net::http_pool::_pool() {
         local = nullptr;
 
         close(config.get_socket_fd());
-
-        delete ev_io;
     });
 
     if (config.get_http_implement() == "tls")
@@ -417,14 +415,11 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
             const std::string dcid_str (reinterpret_cast <const char *> (d_cid), d_cid_len);
 
             // LOCK UNORDERED MAP OF THE CONNECTIONS
-            quic_map_conns.lock();
+            auto unlock_quic_map_conns = quic_map_conns.lock_guard();
 
-            // UNLOCK UNORDERED MAP OF THE CONNECTIONS AFTER DELETING OR CALLING unwrap.call(...)
-            utils::before_delete unlock_quic_map_conns ([this] () -> void { quic_map_conns.unlock(); });
-
-            auto conn_io = quic_map_conns.contains(dcid_str) ? quic_map_conns.at(dcid_str) : nullptr;
             bool new_connection_pool = false;
-            if (conn_io == nullptr)
+            manapi::net::http_quic_conn_io *conn_io = nullptr;
+            if (!quic_map_conns.contains(dcid_str))
             {
                 MANAPI_LOG("connections: {} ({})", quic_map_conns.size() + 1, dcid_str);
                 // UNLOCK UNORDERED MAP
@@ -506,7 +501,7 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
                     continue;
                 }
 
-                conn_io = http_task::quic_create_connection(d_cid, d_cid_len, od_cid, od_cid_len, config.get_socket_fd(), client, client_len, &config, site, &quic_map_conns);
+                conn_io = http_task::quic_create_connection(d_cid, d_cid_len, od_cid, od_cid_len, config.get_socket_fd(), client, client_len, &config, site, &quic_map_conns).get();
 
                 if (conn_io == nullptr)
                 {
@@ -517,6 +512,7 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
             }
             else
             {
+                conn_io = quic_map_conns.at(dcid_str).get();
                 if (!conn_io->is_responsing) { new_connection_pool = true; conn_io->is_responsing = true; }
                 unlock_quic_map_conns.call();
             }
@@ -526,7 +522,7 @@ void manapi::net::http_pool::new_connection_quic(ev::io &watcher, int revents) {
                 conn_io->buffers.emplace_back((char *) buff, buff_size);
                 if (new_connection_pool) {
                     get_site().append_task(
-                        new function_task ([this, dcid_str, client, client_len] () -> void { http_task::udp_loop_event (&quic_map_conns, site, &config, dcid_str, reinterpret_cast<const sockaddr &>(client), client_len); }),
+                        std::move(std::make_unique<function_task> ([this, dcid_str, client, client_len] () -> void { http_task::udp_loop_event (&quic_map_conns, site, &config, dcid_str, reinterpret_cast<const sockaddr &>(client), client_len); })),
                         2);
                 }
             }
@@ -548,14 +544,14 @@ void manapi::net::http_pool::new_connection_tls(ev::io &watcher, int revents) {
         return;
     }
 
-    auto *ta = new http_task(conn_fd, reinterpret_cast<const sockaddr &>(client), len, site, &config, CONN_TCP);
+    auto ta = std::make_unique<http_task>(conn_fd, reinterpret_cast<const sockaddr &>(client), len, site, &config, CONN_TCP);
 
     if (config.get_ssl_config().enabled)
     {
         ta->ssl = SSL_new(config.get_openssl_ctx());
     }
 
-    get_site().append_task(ta, 1);
+    get_site().append_task(std::move(ta), 1);
 }
 
 manapi::net::site & manapi::net::http_pool::get_site() const {

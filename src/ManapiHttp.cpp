@@ -23,13 +23,7 @@ std::vector <manapi::net::http *> manapi::net::http::running;
 
 void handler_interrupt (int sig)
 {
-    manapi::net::http::stopped_interrupt = true;
-
-    for (auto it = manapi::net::http::running.begin(); it != manapi::net::http::running.end(); )
-    {
-        (*it)->stop();
-        it = manapi::net::http::running.erase(it);
-    }
+    manapi::net::http::stop_all_servers();
 
     if (sig == SIGFPE)
     {
@@ -132,15 +126,22 @@ void manapi::net::http::stop(bool wait) {
     }
 }
 
+void manapi::net::http::stop_all_servers() {
+    manapi::net::http::stopped_interrupt = true;
+
+    for (auto it = manapi::net::http::running.begin(); it != manapi::net::http::running.end(); )
+    {
+        (*it)->stop();
+        it = manapi::net::http::running.erase(it);
+    }
+}
+
 void manapi::net::http::stop_pool() {
     std::unique_lock <std::mutex> lk (m_stopping);
 
     http::running.push_back(this);
 
     cv_stopping.wait(lk, [this] () -> bool { return stopping; });
-    ////////////////////////
-    //////// Stopping //////
-    ////////////////////////
 
     timer_pool_stop();
     tasks_pool_stop();
@@ -152,8 +153,9 @@ void manapi::net::http::stop_pool() {
         pool.second->stop();
         MANAPI_LOG ("pool #{} stopped successfully", pool.first);
     }
-
     pools.clear();
+
+    // reset
     next_pool_id = 0;
     stopping = false;
 
@@ -172,5 +174,5 @@ void manapi::net::http::stop_pool() {
         }
     }
 
-    MANAPI_LOG("{}", "all tasks are closed");
+    MANAPI_LOG2("all tasks are closed");
 }

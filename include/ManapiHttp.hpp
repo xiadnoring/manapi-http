@@ -39,9 +39,10 @@ namespace manapi::net {
 
         void                        stop (bool wait = false);
 
-        static std::vector <http *> running;
-        static bool                 stopped_interrupt;
+        static void stop_all_servers ();
     private:
+        static bool                 stopped_interrupt;
+        static std::vector <http *> running;
         void                        stop_pool ();
 
         class site                  current;

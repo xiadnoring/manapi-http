@@ -12,8 +12,8 @@ namespace manapi::net::api {
         explicit pool (threadpool<task> *_task_pool);
         ~pool ();
 
-        void await (task *t);
-        void async (task *t);
+        void await (std::unique_ptr<task> t);
+        void async (std::unique_ptr<task>t);
 
         void await (const std::function<void()> &func);
         void async (const std::function<void()> &func);

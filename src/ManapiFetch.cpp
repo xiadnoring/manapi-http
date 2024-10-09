@@ -52,23 +52,11 @@ size_t curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user
 
 manapi::net::fetch::fetch(const std::string &_url) {
     url     = _url;
-    method  = new std::string ("GET");
+    method  = "GET";
     curl    = curl_easy_init();
 }
 
 manapi::net::fetch::~fetch() {
-    if (!method_linked)
-    {
-        delete method;
-        method = nullptr;
-    }
-
-    if (!body_linked)
-    {
-        delete body;
-        body = nullptr;
-    }
-
     if (curl != nullptr)
     {
         curl_easy_cleanup(curl);
@@ -114,20 +102,11 @@ void manapi::net::fetch::doit() {
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, curl_headers);
     }
 
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method->data());
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method.data());
 
     // body of the request
-    if (body != nullptr)
-    {
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body->data());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, body->size());
-    }
-    else if (*method == "POST")
-    {
-        // if request has method POST, we must send Content-Length: 0
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, nullptr);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, 0);
-    }
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.data());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, body.size());
 
     if (data.first_chunk_body && data.handler_headers != nullptr)
     {
@@ -182,42 +161,12 @@ void manapi::net::fetch::handle_headers(const std::function<void(const std::map 
     handler_headers = _handler;
 }
 
-void manapi::net::fetch::set_method(const std::string &_method, const bool &linked) {
-    if (!method_linked)
-    {
-        // if exists
-        delete method;
-    }
-
-    method_linked = linked;
-
-    if (linked)
-    {
-        method = &_method;
-    }
-    else
-    {
-        method = new std::string (_method);
-    }
+void manapi::net::fetch::set_method(const std::string &_method) {
+    method = _method;
 }
 
-void manapi::net::fetch::set_body(const std::string &data, const bool &linked) {
-    if (!body_linked)
-    {
-        // if exists
-        delete body;
-    }
-
-    body_linked = linked;
-
-    if (linked)
-    {
-        body = &data;
-    }
-    else
-    {
-        body = new std::string (data);
-    }
+void manapi::net::fetch::set_body(const std::string &data) {
+    body = data;
 }
 
 void manapi::net::fetch::set_headers(const std::map<std::string, std::string> &headers) {

@@ -2,6 +2,8 @@
 
 #include "ManapiFilesystem.hpp"
 #include "ManapiSite.hpp"
+
+#include "ManapiTaskFunction.hpp"
 #include "ManapiThreadPool.hpp"
 
 namespace manapi::net {
@@ -51,8 +53,7 @@ void manapi::net::site::setup() {
 
 void manapi::net::site::timer_pool_setup(threadpool<task> *tasks_pool) {
     timerpool = std::make_unique<utils::timerpool>(*tasks_pool, 5);
-    timerpool->to_delete = false;
-    tasks_pool->append_task(timerpool.get());
+    tasks_pool->append_task(std::make_unique<function_task>([this] () -> void { timerpool->doit(); }));
 }
 
 void manapi::net::site::timer_pool_stop() {
@@ -323,8 +324,8 @@ manapi::net::site::site() = default;
 
 manapi::net::site::~site() = default;
 
-void manapi::net::site::append_task(task *t, const int &level) {
-    tasks_pool->append_task(t, level);
+void manapi::net::site::append_task(std::unique_ptr<task> t, const int &level) {
+    tasks_pool->append_task(std::move(t), level);
 }
 
 size_t manapi::net::site::append_timer(const std::chrono::milliseconds &duration, const std::function<void()> &task) {

@@ -607,7 +607,7 @@ bool manapi::net::http_request::has_header(const std::string &name) {
 void manapi::net::http_request::parse_map_url_param() {
     if (map_url_params == nullptr)
     {
-        map_url_params = new std::map<std::string, std::string>();
+        map_url_params = std::make_unique<std::map <std::string, std::string> >();
     }
 
     if (request_data->divided != -1)

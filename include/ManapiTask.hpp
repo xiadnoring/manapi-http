@@ -19,7 +19,6 @@ namespace manapi::net {
 
         void stop ();
 
-        bool to_delete = true;
         bool to_retry = false;
     };
 }

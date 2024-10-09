@@ -42,6 +42,11 @@ manapi::json manapi::json_builder::get() {
         size_t j = 0;
         action("", j);
     }
+    if (object.is_null()) {
+        // maybe no content provided
+        // TODO: think
+        _check_eq_type();
+    }
     _reset ();
     return std::move(object);
 }

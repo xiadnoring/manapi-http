@@ -18,7 +18,7 @@ namespace manapi::net {
     public:
         threadpool(size_t thread_num = 20, size_t queues_count = 3);
         ~threadpool();
-        bool append_task (T *task, int level = 0);
+        bool append_task (std::unique_ptr<T> task, int level = 0);
         void start();
         void stop();
         size_t get_count_stopped_task ();
@@ -29,15 +29,15 @@ namespace manapi::net {
         // this vector contains all threads for this thread pool
         std::vector <std::thread> all_threads;
         // this vector of queue which contains tasks
-        std::vector <std::deque<T *>> task_queues;
+        std::vector <std::deque<std::unique_ptr<T> > > task_queues;
         // queue mutex
         std::mutex queue_mutex;
         // the function that the thread runs. Execute run() function
         static void *worker(void *arg);
         void run();
         // execute the task
-        void task_doit (T *task);
-        T *getTask();
+        void task_doit (std::unique_ptr<T> task);
+        std::unique_ptr<T> getTask();
         bool is_stop;
 
         sigset_t blockedSignal{};

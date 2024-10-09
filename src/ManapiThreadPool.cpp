@@ -54,7 +54,7 @@ namespace manapi::net {
     }
 
     template<class T>
-    bool threadpool<T>::append_task(T *task, int level) {
+    bool threadpool<T>::append_task(std::unique_ptr<T> task, int level) {
         if (is_stop)
         {
             return false;
@@ -68,13 +68,13 @@ namespace manapi::net {
         {
             queue_mutex.unlock();
 
-            std::thread t ([this, task] () -> void { task_doit(task); });
+            std::thread t ([this, &task] () -> void { task_doit(std::move(task)); });
             t.detach();
         }
         else
         {
             // add into the queue
-            task_queues[level].push_front (task);
+            task_queues[level].push_front (std::move(task));
 
             queue_mutex.unlock();
 
@@ -87,21 +87,21 @@ namespace manapi::net {
     }
 
     template<class T>
-    T* threadpool<T>::getTask() {
-        T *task = nullptr;
+    std::unique_ptr<T> threadpool<T>::getTask() {
+        std::unique_ptr<T> task = nullptr;
         std::lock_guard<std::mutex> lk (queue_mutex);
         // from n ... 0 by level
         for (auto task_queue = task_queues.rbegin(); task_queue != task_queues.rend(); task_queue++)
         {
             if (!task_queue->empty())
             {
-                task = task_queue->back();
+                task = std::move(task_queue->back());
                 task_queue->pop_back();
                 break;
             }
         }
 
-        return task;
+        return std::move(task);
     }
 
     template<class T>
@@ -114,7 +114,7 @@ namespace manapi::net {
     template<class T>
     void threadpool<T>::run() {
         while (!is_stop) {
-            T* task = getTask();
+            auto task = getTask();
             if (task == nullptr)
             {
                 std::unique_lock<std::mutex> lk (m);
@@ -122,7 +122,7 @@ namespace manapi::net {
             }
             else
             {
-                task_doit(task);
+                task_doit(std::move(task));
             }
         }
 
@@ -130,7 +130,7 @@ namespace manapi::net {
     }
 
     template<class T>
-    void threadpool<T>::task_doit(T *task) {
+    void threadpool<T>::task_doit(std::unique_ptr<T> task) {
         try
         {
             task->doit();
@@ -142,20 +142,12 @@ namespace manapi::net {
             MANAPI_LOG ("Task Default Exception: {}", e.what());
         }
 
-        if (task->to_delete)
+        if (task->to_retry)
         {
-            delete task;
-        }
-        else
-        {
-            if (task->to_retry)
-            {
-                // RESET
-                task->to_retry = false;
-                task->to_delete = true;
+            // RESET
+            task->to_retry = false;
 
-                append_task(task);
-            }
+            append_task(std::move(task));
         }
     }
 

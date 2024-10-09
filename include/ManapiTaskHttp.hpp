@@ -50,16 +50,16 @@ namespace manapi::net {
 
         // QUIC TOOLS
 
-        static http_quic_conn_io*quic_create_connection (uint8_t *s_cid, size_t s_cid_len, uint8_t *od_cid, size_t od_cid_len, const int &conn_fd, const sockaddr_storage &client, const socklen_t &client_len, class config *config, class site *site, QUIC_MAP_CONNS_T *quic_map_conns);
+        static std::unique_ptr<manapi::net::http_quic_conn_io> &quic_create_connection (uint8_t *s_cid, size_t s_cid_len, uint8_t *od_cid, size_t od_cid_len, const int &conn_fd, const sockaddr_storage &client, const socklen_t &client_len, class config *config, class site *site, quic_map_conns_t *quic_map_conns);
         static int              quic_get_header         (uint8_t *name, size_t name_len, uint8_t *value, size_t value_len, void *argp);
-        static void             quic_flush_egress       (QUIC_MAP_CONNS_T *conns, manapi::net::http_quic_conn_io *conn_io, class site *site);
-        static void             quic_delete_conn_io     (http_quic_conn_io *conn_io, class site *site);
+        static void             quic_flush_egress       (quic_map_conns_t *conns, manapi::net::http_quic_conn_io *conn_io, class site *site);
+        static void             quic_delete_conn_io     (manapi::net::http_quic_conn_io *conn_io, class site *site);
 /**
          * to_delete -> true
          * and skip await I/O
          */
         static void             quic_set_to_delete (http_task *task);
-        static void             quic_timeout_cb (std::string cid, QUIC_MAP_CONNS_T *conns, class site *site);
+        static void             quic_timeout_cb (std::string cid, quic_map_conns_t *conns, class site *site);
         static void             mint_token(const uint8_t *d_cid, size_t d_cid_len, struct sockaddr_storage *addr, socklen_t addr_len, uint8_t *token, size_t *token_len);
         static bool             validate_token(const uint8_t *token, size_t token_len, struct sockaddr_storage *addr, socklen_t addr_len, uint8_t *od_cid, size_t *od_cid_len);
         static uint8_t          *gen_cid(uint8_t *cid, const size_t &cid_len);
@@ -76,8 +76,8 @@ namespace manapi::net {
         ssize_t                 openssl_read            (char *buff, const size_t &buff_size) const;
         ssize_t                 openssl_write           (const char *buff, const size_t &buff_size) const;
 
-        static void             quic_generate_output_packages (QUIC_MAP_CONNS_T *quic_map_conns, class site *site);
-        static void             udp_loop_event (QUIC_MAP_CONNS_T *quic_map_conns, class site *site, class config *config, const std::string &scid, const sockaddr &client, const socklen_t &client_len);
+        static void             quic_generate_output_packages (quic_map_conns_t *quic_map_conns, class site *site);
+        static void             udp_loop_event (quic_map_conns_t *quic_map_conns, class site *site, class config *config, const std::string &scid, const sockaddr &client, const socklen_t &client_len);
 
         MANAPI_HTTP_READ_INTERFACE          mask_read;
         MANAPI_HTTP_WRITE_INTERFACE         mask_write;

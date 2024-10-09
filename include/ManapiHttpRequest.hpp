@@ -83,7 +83,7 @@ namespace manapi::net {
         file_data_t                                 file_data;
 
         // url get params ?param1=xxx&param2=xxx
-        std::map <std::string, std::string>         *map_url_params = nullptr;
+        std::unique_ptr<std::map <std::string, std::string>> map_url_params;
 
         bool                                        first_line = true;
 

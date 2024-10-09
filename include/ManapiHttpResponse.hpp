@@ -15,7 +15,7 @@ namespace manapi::net {
 
     class http_response {
     public:
-        http_response               (manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, api::pool *tasks, class config *config);
+        http_response               (manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, std::unique_ptr<api::pool> tasks, class config *config);
         ~http_response              ();
 
         void set_compress           (const  std::string &name);
@@ -59,13 +59,13 @@ namespace manapi::net {
 
         std::vector <std::pair <ssize_t, ssize_t> > ranges;
 
-        const utils::MAP_STR_STR        *get_replacers ();
+        const utils::MAP_STR_STR        *get_replacers () const;
 
         void                            set_custom_data (const struct custom_data_t &data);
         void                            clear_custom_data ();
         const struct custom_data_t      &get_custom_data ();
 
-        manapi::net::api::pool          *tasks;
+        std::unique_ptr<api::pool>      tasks;
     private:
         // custom data for layers
         custom_data_t                   custom_data;
@@ -87,10 +87,10 @@ namespace manapi::net {
         bool                            compress_enabled        = false;
         bool                            partial_enabled         = false;
 
-        manapi::net::utils::MAP_STR_STR      headers;
-        manapi::net::request_data_t     *request_data;
+        manapi::net::utils::MAP_STR_STR headers;
+        manapi::net::request_data_t *request_data;
 
-        manapi::net::utils::MAP_STR_STR      *replacers = nullptr;
+        std::unique_ptr<manapi::net::utils::MAP_STR_STR> replacers;
     };
 }
 

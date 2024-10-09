@@ -40,7 +40,7 @@ void manapi::net::utils::timerpool::start() {
             for (auto task = tasks.begin(); task != tasks.end();) {
                 if (now >= task->second.point) {
                     const auto func = task->second.task;
-                    try { threadpool->append_task(new net::function_task([func] () -> void { func (); })); }
+                    try { threadpool->append_task(std::make_unique<net::function_task>([func] () -> void { func (); })); }
                     catch (std::exception const &e) { MANAPI_LOG("Timer Task Exception: {}", e.what()); }
                     now = std::chrono::high_resolution_clock::now();
                     task = tasks.erase(task);

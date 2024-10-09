@@ -42,7 +42,7 @@ namespace manapi::net {
         std::unordered_map  <uint64_t, task *> tasks;
     };
 
-    typedef manapi::net::utils::safe_unordered_map <std::string, http_quic_conn_io *> QUIC_MAP_CONNS_T;
+    typedef manapi::net::utils::safe_unordered_map <std::string, std::unique_ptr<http_quic_conn_io> > quic_map_conns_t;
 
     struct http_uri_part;
 
@@ -92,7 +92,7 @@ namespace manapi::net {
         site ();
         ~site();
 
-        void                                append_task (task *t, const int &level = 0);
+        void                                append_task (std::unique_ptr<task> t, const int &level = 0);
         size_t                              append_timer (const std::chrono::milliseconds &m, const std::function<void()> &t);
         void                                remove_timer (const size_t &id);
 

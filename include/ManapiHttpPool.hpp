@@ -31,7 +31,7 @@ namespace manapi::net {
         class site                  &get_site () const;
 
         // quic data
-        QUIC_MAP_CONNS_T            quic_map_conns;
+        quic_map_conns_t            quic_map_conns;
 
         utils::safe_unordered_map <utils::manapi_socket_information, task *> peer_by_ip;
         std::mutex                  recv_m;
@@ -53,11 +53,12 @@ namespace manapi::net {
 
         ev::dynamic_loop            loop;
         addrinfo                    *local          = nullptr;
-        std::promise <int>          *pool_promise   = nullptr;
+        std::unique_ptr<std::promise <int> >
+                                    pool_promise;
 
         class site                  *site;
         // watchers
-        ev::io                      *ev_io = nullptr;
+        std::unique_ptr<ev::io>     ev_io;
     };
 }
 
