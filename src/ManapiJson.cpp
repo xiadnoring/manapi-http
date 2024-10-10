@@ -11,10 +11,6 @@ const static std::string JSON_TRUE   = "true";
 const static std::string JSON_FALSE  = "false";
 const static std::string JSON_NULL   = "null";
 
-const static manapi::json::UNICODE_STRING JSON_W_TRUE   = manapi::net::utils::str4to32("true");
-const static manapi::json::UNICODE_STRING JSON_W_FALSE  = manapi::net::utils::str4to32("false");
-const static manapi::json::UNICODE_STRING JSON_W_NULL   = manapi::net::utils::str4to32("null");
-
 #define THROW_MANAPI_JSON_MISSING_FUNCTION this->throw_could_not_use_func(__FUNCTION__)
 #define THROW_MANAPI_JSON_ERROR(errnum, msg, ...) throw manapi::json_parse_exception (errnum, std::format(msg, __VA_ARGS__));
 
@@ -170,58 +166,11 @@ manapi::json::json (const std::initializer_list<json> &data) {
 
         if (map)
         {
-            _set_object();
-        }
-        else {
-            _set_array();
-        }
-
-        if (map)
-        {
-            for (const auto & it : data)
-            {
-                auto &key = static_cast <PAIR *> (it.src)->first.get<STRING>();
-                json value = static_cast <PAIR *> (it.src)->second;
-                get<OBJECT>().insert({key, std::move(value)});
-            }
+            *this = json::object(data);
         }
         else
         {
-            for (auto it = data.begin(); it != data.end(); it++)
-            {
-                if (it->type == type_pair)
-                {
-                    // we need to resolve pair to array
-
-                    json first = static_cast <PAIR *> (it->src)->first;
-                    json second = static_cast <PAIR *> (it->src)->second;
-
-                    json element (json::array());
-
-                    try
-                    {
-                        element.get<ARRAY>().push_back(std::move(first));
-                        element.get<ARRAY>().push_back(std::move(second));
-
-                        get<ARRAY>().push_back(std::move(element));
-                    }
-                    catch (const json_parse_exception &e)
-                    {
-                        throw json_parse_exception(e);
-                    }
-                }
-                else
-                {
-                    try
-                    {
-                        get<ARRAY>().push_back(*it);
-                    }
-                    catch (const json_parse_exception &e)
-                    {
-                        throw json_parse_exception(e);
-                    }
-                }
-            }
+            *this = json::array(data);
         }
     }
 }
@@ -568,12 +517,12 @@ manapi::json &manapi::json::at(const std::string &key)  {
 
     auto &map = this->get<OBJECT>();
 
-    if (!map.contains(key))
-    {
-        THROW_MANAPI_JSON_ERROR(ERR_JSON_NO_SUCH_KEY, "No such key. ({})", net::utils::escape_string(key));
-    }
+    // if (!map.contains(key))
+    // {
+    //     THROW_MANAPI_JSON_ERROR(ERR_JSON_NO_SUCH_KEY, "No such key. ({})", net::utils::escape_string(key));
+    // }
 
-    return map.at(key);
+    return map[key];
 }
 
 manapi::json &manapi::json::at(const size_t &index)  {
@@ -827,13 +776,57 @@ manapi::json manapi::json::array() {
     return std::move(arr);
 }
 
+manapi::json manapi::json::object(const std::initializer_list<json> &data) {
+    auto obj = json::object();
+
+    for (const auto & it : data)
+    {
+        auto &key = static_cast <PAIR *> (it.src)->first.get<STRING>();
+        json value = static_cast <PAIR *> (it.src)->second;
+        obj.get<OBJECT>().insert({key, std::move(value)});
+    }
+
+    return std::move(obj);
+}
+
 manapi::json manapi::json::array(const std::initializer_list<json> &data) {
     // rvalue, arr not be destroyed
     auto arr = json::array();
 
-    for (const auto &it: data)
+    for (const auto & it : data)
     {
-        arr.get<ARRAY>().push_back(it);
+        if (it.type == type_pair)
+        {
+            // we need to resolve pair to array
+
+            json first = static_cast <PAIR *> (it.src)->first;
+            json second = static_cast <PAIR *> (it.src)->second;
+
+            json element (json::array());
+
+            try
+            {
+                element.get<ARRAY>().push_back(std::move(first));
+                element.get<ARRAY>().push_back(std::move(second));
+
+                arr.get<ARRAY>().push_back(std::move(element));
+            }
+            catch (const json_parse_exception &e)
+            {
+                throw json_parse_exception(e);
+            }
+        }
+        else
+        {
+            try
+            {
+                arr.get<ARRAY>().push_back(it);
+            }
+            catch (const json_parse_exception &e)
+            {
+                throw json_parse_exception(e);
+            }
+        }
     }
 
     return std::move(arr);

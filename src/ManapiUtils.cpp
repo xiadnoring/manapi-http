@@ -98,15 +98,16 @@ bool manapi::net::utils::is_space_symbol (const char32_t &symbol) {
     return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
 }
 
-char manapi::net::utils::hex2dec(const char &a) {
-    return (char)(a >= 'A' ? a - 'A' + 10 : a - '0');
+char manapi::net::utils::hex2dec(char a) {
+    a = static_cast<char> (std::toupper(a));
+    return static_cast <char>(a >= 'A' ? a - 'A' + 10 : a - '0');
 }
 
-char manapi::net::utils::dec2hex(const char &a) {
-    return (char)(a >= 10 ? a - 10 + 'A' : a + '0');
+char manapi::net::utils::dec2hex(char a) {
+    return static_cast <char> (a >= 10 ? a - 10 + 'A' : a + '0');
 }
 
-std::string manapi::net::utils::escape_string (const std::string &str) {
+std::string manapi::net::utils::escape_string (const std::string &str, const char &quotes) {
     std::string escaped;
 
     for (const auto &i : str) {
@@ -127,7 +128,7 @@ std::string manapi::net::utils::escape_string (const std::string &str) {
                 escaped += "\\b";
                 break;
             default:
-                if (escape_char_need(i)) {
+                if (escape_char_need(i, quotes)) {
                     escaped.push_back('\\');
                     escaped.push_back(i);
 
@@ -186,17 +187,17 @@ std::u32string manapi::net::utils::escape_string (const std::u32string &str) {
     return escaped;
 }
 
-bool manapi::net::utils::escape_char_need (const char &ch) {
+bool manapi::net::utils::escape_char_need (const char &ch, const char &quotes) {
     // if ch >= 128 -> non-ascii (maybe utf)
-    return ch < 127 && ( ch == '"' || ch == '\\');
+    return ch < 127 && ( ch == quotes || ch == '\\' || ch == '/');
 }
 
 bool manapi::net::utils::escape_char_need (const wchar_t &ch) {
-    return ch == '"' || ch == '\\';
+    return ch == '"' || ch == '\\' || ch == '/';
 }
 
 bool manapi::net::utils::escape_char_need (const char32_t &ch) {
-    return ch == '"' || ch == '\\';
+    return ch == '"' || ch == '\\' || ch == '/';
 }
 
 bool manapi::net::utils::valid_special_symbol(const char &c) {

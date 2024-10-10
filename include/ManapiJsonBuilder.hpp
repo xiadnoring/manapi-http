@@ -86,6 +86,10 @@ namespace manapi {
 
         bool getting = false;
         bool ready = false;
+        bool exp_already = false;
+        bool operate_already = false;
+        int utf_escaped_status = -1;
+        unsigned char utf_escaped[4]{};
 
         size_t element_index = 0;
 

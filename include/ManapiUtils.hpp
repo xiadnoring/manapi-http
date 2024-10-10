@@ -80,12 +80,12 @@ namespace manapi::net::utils {
     [[maybe_unused]] void rjust (std::string &str, const size_t &size, const char &c);
     [[maybe_unused]] void ljust (std::string &str, const size_t &size, const char &c);
 
-    char            hex2dec             (const char &a);
-    char            dec2hex             (const char &a);
-    std::string     escape_string       (const std::string &str);
+    char            hex2dec             (char a);
+    char            dec2hex             (char a);
+    std::string     escape_string       (const std::string &str, const char &quotes = '"');
     std::u32string  escape_string       (const std::u32string &str);
     bool            valid_special_symbol(const char &c);
-    bool            escape_char_need    (const char &c);
+    bool            escape_char_need    (const char &c, const char &quotes = '"');
     bool            escape_char_need    (const wchar_t &c);
     bool            escape_char_need    (const char32_t &c);
 

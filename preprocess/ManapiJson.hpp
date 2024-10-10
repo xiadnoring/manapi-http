@@ -41,6 +41,7 @@ namespace manapi {
         static json array ();
 
         static json array (const std::initializer_list<json> &data);
+        static json object (const std::initializer_list<json> &data);
 
         json();
         json(const json &other);

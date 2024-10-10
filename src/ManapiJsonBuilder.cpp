@@ -1,5 +1,6 @@
-#include "ManapiJsonBuilder.hpp"
+#include <sstream>
 
+#include "ManapiJsonBuilder.hpp"
 #include "ManapiUnicode.hpp"
 #include "ManapiUtils.hpp"
 
@@ -148,7 +149,14 @@ void manapi::json_builder::_build_string(const std::string_view &plain_text, siz
                     case 'b':
                         c = '\b';
                     break;
+                    case 'u':
+                        // \u1234 must be
+                        utf_escaped_status = 0;
+                        continue;
+                    break;
                     case '\\':
+                        break;
+                    case '/':
                         break;
                     case '"':
                         break;
@@ -158,6 +166,49 @@ void manapi::json_builder::_build_string(const std::string_view &plain_text, siz
             }
             else
             {
+                if (utf_escaped_status != -1) {
+                    // we grab ascii chars for utf char
+                    c = std::tolower(c);
+                    if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
+                        // U+0000 - U+007F -> 0yyyzzzz
+                        // U+0080 - U+07FF -> 110xxxyy10yyzzzz
+                        // U+0800 - U+FFFF -> 1110wwww10xxxxyy10yyzzzz
+                        // U+010000 - U+10FFFF -> 11110uvv10vvwwww10xxxxyy10yyzzzz
+                        utf_escaped[utf_escaped_status++] = net::utils::hex2dec(c);
+
+                        if (utf_escaped_status == sizeof (utf_escaped)) {
+
+                            if (utf_escaped[0] == 0 && utf_escaped[1] <= 7) {
+                                if (utf_escaped[1] == 0 && utf_escaped[2] <= 7) {
+                                    // 0yyy zzzz
+                                    buffer.push_back(static_cast<char> (utf_escaped[2] << 4 | utf_escaped[3]));
+                                }
+                                else {
+                                    // 110x xxyy 10yy zzzz
+                                    // 1100 0000 <- 192 (128 + 64)
+                                    // 100000000 <- 128
+                                    buffer.push_back(static_cast<char> (static_cast<unsigned char>(192) | (utf_escaped[1] << 2) | (utf_escaped[2] >> 2)));
+                                    buffer.push_back(static_cast<char> (static_cast<unsigned char>(128) | (static_cast<unsigned char> (utf_escaped[2] << 6) >> 2) | utf_escaped[3]));
+                                }
+                            }
+                            else {
+                                // 1110 wwww 10xx xxyy 10yy zzzz
+                                // 1110 0000 <- 224 (128 + 64 + 32)
+                                // 1000 0000 <- 128
+                                buffer.push_back(static_cast<char> (static_cast<unsigned char> (224) | (utf_escaped[0])));
+                                buffer.push_back(static_cast<char> (static_cast<unsigned char> (128) | (utf_escaped[1] << 2) | (utf_escaped[2] >> 2)));
+                                buffer.push_back(static_cast<char> (static_cast<unsigned char> (128) | (static_cast<unsigned char> (utf_escaped[2] << 6) >> 2) | utf_escaped[3]));
+                            }
+
+                            utf_escaped_status = -1;
+                        }
+                        continue;
+                    }
+
+                    // error
+                    throw json_parse_exception (ERR_JSON_BAD_ESCAPED_CHAR, "bad Unicode escape at " + std::to_string(i));
+                }
+
                 switch (c) {
                     case '\t':
                     case '\n':
@@ -228,15 +279,22 @@ void manapi::json_builder::_build_numeric(const std::string_view &plain_text, si
     {
         unsigned char c = plain_text[j];
 
-        if (buffer.empty() && c == '-')
+        if (buffer.empty())
         {
-            buffer += '-';
+            operate_already = true;
 
-            continue;
+            if (c == '-' || c == '+') {
+                buffer += static_cast<char> (c);
+                continue;
+            }
         }
 
         if (c >= '0' && c <= '9')
         {
+            if (buffer.size() == 1 && buffer[0] == '0') {
+                // it can't be
+                json::error_invalid_char(plain_text, j);
+            }
             buffer += static_cast<char> (c);
         }
         else {
@@ -259,6 +317,26 @@ void manapi::json_builder::_build_numeric(const std::string_view &plain_text, si
             }
 
             switch (c) {
+                case '-':
+                case '+':
+                    if (operate_already) {
+                        json::error_invalid_char(plain_text, j);
+                    }
+                    operate_already = true;
+                    buffer += static_cast<char> (c);
+                break;
+                case 'e':
+                case 'E':
+                    // exp
+                    if (exp_already) {
+                        json::error_invalid_char(plain_text, j);
+                    }
+                    if (type != json::type_decimal) {
+                        type = json::type_decimal;
+                    }
+                    buffer += static_cast<char> (c);
+                    operate_already = false;
+                break;
                 case '.':
                     if (type == json::type_decimal)
                     {
@@ -292,13 +370,19 @@ void manapi::json_builder::_build_numeric(const std::string_view &plain_text, si
         }
         else
         {
+            std::stringstream stream (buffer);
+
             if (type == json::type_decimal)
             {
-                object.parse(static_cast<json::DECIMAL> (std::stold(buffer)));
+                json::DECIMAL d;
+                stream >> d;
+                object.parse(d);
             }
             else if (type == json::type_number)
             {
-                object.parse(static_cast<json::NUMBER> (std::stoll(buffer)));
+                json::NUMBER n;
+                stream >> n;
+                object.parse(static_cast<json::NUMBER> (n));
             }
         }
 
@@ -840,7 +924,10 @@ void manapi::json_builder::_reset() {
     this->i = 0;
     this->item = nullptr;
     this->wchar_left = 0;
+    this->utf_escaped_status = -1;
     this->key.clear();
+    this->exp_already = false;
+    this->operate_already = false;
 
     _reset_type();
 
