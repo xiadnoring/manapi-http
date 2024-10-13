@@ -16,19 +16,23 @@ using namespace manapi::net;
 using namespace std;
 
 int main () {
-    std::map <std::string, std::string> a = {};
-    a["hello"] = "test";
-    std::cout << a["hello"] << "\n";
     debug_print_memory("start");
     auto begin = std::chrono::steady_clock::now();
-    {
-        manapi::json json (R"({"num": 0.5e+5})", true);
-        json["hello"] = manapi::json::array({"hello", "world"});
-        json["hello"][0] = "test";
-        std::cout << json.dump() << "\n";
-    }
-    auto end = std::chrono::steady_clock::now();
 
+
+    {
+        manapi::json_mask mask = {
+            {"hello", "{number(>=0)}"},
+            {"content", "{bool(=0)|number(=56)}"}
+        };
+
+        manapi::json_builder builder (mask);
+        builder << R"({"hello": 78, "content": 57})";
+        std::cout << builder.get().dump(2) << "\n";
+    }
+
+
+    auto end = std::chrono::steady_clock::now();
     auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     std::cout << "The time: " << elapsed_ms.count() << " ms\n";
     debug_print_memory("start");

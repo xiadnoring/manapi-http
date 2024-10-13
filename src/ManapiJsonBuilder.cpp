@@ -100,7 +100,7 @@ void manapi::json_builder::_check_type(const std::string_view &plain_text, size_
                 action = std::bind(&json_builder::_build_string, this, std::placeholders::_1, std::placeholders::_2);
                 goto finish;
             default:
-                type = json::type_number;
+                type = json::type_numeric;
                 action = std::bind(&json_builder::_build_numeric, this, std::placeholders::_1, std::placeholders::_2);
                 goto finish;
         }
@@ -291,6 +291,7 @@ void manapi::json_builder::_build_numeric(const std::string_view &plain_text, si
 
         if (c >= '0' && c <= '9')
         {
+            if (type == json::type_numeric) { type = json::type_number; }
             if (buffer.size() == 1 && buffer[0] == '0') {
                 // it can't be
                 json::error_invalid_char(plain_text, j);
@@ -716,7 +717,12 @@ void manapi::json_builder::_check_eq_type() {
 
     if (type == json::type_numeric)
     {
-        if (current_type == json::type_decimal || current_type == json::type_bigint || current_type == json::type_number)
+        if (
+            current_type == json::type_decimal ||
+            current_type == json::type_bigint ||
+            current_type == json::type_number ||
+            current_type == json::type_boolean ||
+            current_type == json::type_null)
         {
             return;
         }
@@ -779,7 +785,7 @@ bool manapi::json_builder::_check_min_mean() {
     switch (type)
     {
         case json::type_string:
-            if (object.size() > *min_mean_size) { return true; }
+            if (*min_mean_size < 0 || object.size() > *min_mean_size) { return true; }
         break;
         case json::type_number:
             if (object.as_number() > *min_mean_size) { return true; }
@@ -792,7 +798,7 @@ bool manapi::json_builder::_check_min_mean() {
         break;
         case json::type_array:
         case json::type_object:
-            if (object.size() > *min_mean_size) { return true; }
+            if (*min_mean_size < 0 || object.size() > *min_mean_size) { return true; }
         break;
         default:
             return true;
