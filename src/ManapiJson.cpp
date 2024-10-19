@@ -1066,83 +1066,87 @@ size_t manapi::json::size() const {
     THROW_MANAPI_JSON_MISSING_FUNCTION;
 }
 
-manapi::json &manapi::json::operator+(const ssize_t &num) {
-    if (is_bigint())
+manapi::json manapi::json::operator+(const ssize_t &num) {
+    auto n = *this;
+    if (n.is_bigint())
     {
-        get<BIGINT>() += num;
+        n.get<BIGINT>() += num;
     }
-    else if (is_number())
+    else if (n.is_number())
     {
-        get<NUMBER>() += num;
+        n.get<NUMBER>() += num;
     }
-    else if (is_decimal())
+    else if (n.is_decimal())
     {
-        get<DECIMAL>() += num;
+        n.get<DECIMAL>() += num;
     }
     else
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
 
-    return *this;
+    return std::move(n);
 }
 
-manapi::json &manapi::json::operator+(const int &num) {
-    return this->operator+(static_cast<NUMBER> (num));
+manapi::json manapi::json::operator+(const int &num) {
+    return std::move(this->operator+(static_cast<NUMBER> (num)));
 }
 
-manapi::json & manapi::json::operator+(const DECIMAL &num) {
-    if (is_bigint())
+manapi::json manapi::json::operator+(const DECIMAL &num) {
+    auto n = *this;
+    if (n.is_bigint())
     {
-        get<BIGINT>() += num;
+        n.get<BIGINT>() += num;
     }
-    else if (is_number())
+    else if (n.is_number())
     {
-        get<NUMBER>() += static_cast<NUMBER> (num);
+        n.get<NUMBER>() += static_cast<NUMBER> (num);
     }
-    else if (is_decimal())
+    else if (n.is_decimal())
     {
-        get<DECIMAL>() += num;
+        n.get<DECIMAL>() += num;
     }
     else {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
-    return *this;
+    return std::move(n);
 }
 
-manapi::json & manapi::json::operator+(const double &num) {
-    return this->operator+(static_cast<DECIMAL> (num));
+manapi::json manapi::json::operator+(const double &num) {
+    return std::move(this->operator+(static_cast<DECIMAL> (num)));
 }
 
-manapi::json & manapi::json::operator+(const BIGINT &num) {
-    if (is_bigint())
+manapi::json manapi::json::operator+(const BIGINT &num) {
+    auto n = *this;
+    if (n.is_bigint())
     {
-        get<BIGINT>() += num;
+        n.get<BIGINT>() += num;
     }
-    else if (is_number())
+    else if (n.is_number())
     {
-        get<NUMBER>() += num.numberify();
+        n.get<NUMBER>() += num.numberify();
     }
-    else if (is_decimal())
+    else if (n.is_decimal())
     {
-        get<DECIMAL>() += num.decimalify();
+        n.get<DECIMAL>() += num.decimalify();
     }
     else {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
-    return *this;
+    return std::move(n);
 }
 
-manapi::json & manapi::json::operator+(const STRING &str) {
-    if (is_string())
+manapi::json manapi::json::operator+(const STRING &str) {
+    auto n = *this;
+    if (n.is_string())
     {
-        get<STRING>() += str;
+        n.get<STRING>() += str;
     }
     else
     {
         THROW_MANAPI_JSON_MISSING_FUNCTION;
     }
-    return *this;
+    return std::move(n);
 }
 
 void manapi::json::operator+=(const STRING &str) {
@@ -1243,24 +1247,24 @@ bool manapi::json::operator==(const json &x) const {
     return false;
 }
 
-manapi::json &manapi::json::operator-(const ssize_t &num) {
-    return this->operator+(-num);
+manapi::json manapi::json::operator-(const ssize_t &num) {
+    return std::move(this->operator+(-num));
 }
 
-manapi::json &manapi::json::operator-(const int &num) {
-    return this->operator+(-num);
+manapi::json manapi::json::operator-(const int &num) {
+    return std::move(this->operator+(-num));
 }
 
-manapi::json & manapi::json::operator-(const DECIMAL &num) {
-    return this->operator+(-num);
+manapi::json manapi::json::operator-(const DECIMAL &num) {
+    return std::move(this->operator+(-num));
 }
 
-manapi::json & manapi::json::operator-(const double &num) {
-    return this->operator+(-num);
+manapi::json manapi::json::operator-(const double &num) {
+    return std::move(this->operator+(-num));
 }
 
-manapi::json & manapi::json::operator-(const BIGINT &num) {
-    return this->operator+(-num);
+manapi::json manapi::json::operator-(const BIGINT &num) {
+    return std::move(this->operator+(-num));
 }
 
 void manapi::json::delete_value_static(const short &type, void *src) {

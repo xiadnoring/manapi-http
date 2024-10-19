@@ -14,8 +14,11 @@ namespace manapi {
         explicit json_builder (const json &mask, const bool &use_bigint = false, const size_t &bigint_precision = 128);
         ~json_builder();
         json_builder &operator<< (const std::string_view &str);
+        json_builder &operator<< (const char &c);
         json get ();
-
+        [[nodiscard]] const bool &is_ready () const;
+        [[nodiscard]] bool is_empty () const;
+        void clear ();
         /**
          *
          * @param plain_text
@@ -41,9 +44,9 @@ namespace manapi {
         void _check_eq_type ();
         bool _check_max_mean (const bool &building = false);
         bool _check_min_mean ();
-        bool _check_mean ();
         bool _check_type_none_complex_value ();
         bool _check_default ();
+        bool _check_meta_value ();
         void _check_string ();
         void _check_numeric ();
         void _check_object ();

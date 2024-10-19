@@ -36,6 +36,10 @@ manapi::json_builder & manapi::json_builder::operator<<(const std::string_view &
     return *this;
 }
 
+manapi::json_builder & manapi::json_builder::operator<<(const char &c) {
+    return this->operator<<(std::string_view(&c, 1));
+}
+
 manapi::json manapi::json_builder::get() {
     getting = true;
     if (!ready)
@@ -50,6 +54,18 @@ manapi::json manapi::json_builder::get() {
     }
     _reset ();
     return std::move(object);
+}
+
+const bool & manapi::json_builder::is_ready() const {
+    return ready;
+}
+
+bool manapi::json_builder::is_empty() const {
+    return i == 0 && type == json::type_null;
+}
+
+void manapi::json_builder::clear() {
+    _reset();
 }
 
 void manapi::json_builder::_parse(const std::string_view &plain_text, size_t &j, bool root) {
@@ -808,14 +824,6 @@ bool manapi::json_builder::_check_min_mean() {
     return false;
 }
 
-bool manapi::json_builder::_check_mean() {
-    auto &current = get_current_type();
-    if (!current.contains("mean") || (current["mean"] == object)) { return true; }
-
-    _next_type();
-    return false;
-}
-
 bool manapi::json_builder::_check_type_none_complex_value() {
     auto &current = get_current_type();
     if (!current.contains("value"))
@@ -834,7 +842,16 @@ bool manapi::json_builder::_check_type_none_complex_value() {
 }
 
 bool manapi::json_builder::_check_default() {
-    return (current_types == nullptr) || (_check_max_mean() && _check_min_mean() && _check_mean () && _check_type_none_complex_value());
+    return (current_types == nullptr) || (_check_max_mean() && _check_min_mean() && _check_type_none_complex_value() && _check_meta_value());
+}
+
+bool manapi::json_builder::_check_meta_value() {
+    const auto &current = get_current_type ();
+    if (!current.contains("value")) { return true; }
+
+    if (current.at("value") == object) { return true; }
+    _next_type();
+    return false;
 }
 
 void manapi::json_builder::_check_string() {

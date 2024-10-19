@@ -123,17 +123,17 @@ namespace manapi {
         json &operator=     (const json             &obj);
         json &operator=     (json                   &&obj);
         json &operator=     (const std::initializer_list <json> &data);
-        json &operator-     (const NUMBER           &num);
-        json &operator-     (const int              &num);
-        json &operator-     (const DECIMAL          &num);
-        json &operator-     (const double           &num);
-        json &operator-     (const BIGINT           &num);
-        json &operator+     (const NUMBER           &num);
-        json &operator+     (const int              &num);
-        json &operator+     (const DECIMAL          &num);
-        json &operator+     (const double           &num);
-        json &operator+     (const BIGINT           &num);
-        json &operator+     (const STRING           &str);
+        json operator-     (const NUMBER           &num);
+        json operator-     (const int              &num);
+        json operator-     (const DECIMAL          &num);
+        json operator-     (const double           &num);
+        json operator-     (const BIGINT           &num);
+        json operator+     (const NUMBER           &num);
+        json operator+     (const int              &num);
+        json operator+     (const DECIMAL          &num);
+        json operator+     (const double           &num);
+        json operator+     (const BIGINT           &num);
+        json operator+     (const STRING           &str);
         void operator+=     (const STRING           &str);
         void operator-=     (const NUMBER           &num);
         void operator-=     (const int              &num);
@@ -391,14 +391,14 @@ namespace manapi {
         size_t  end_cut             = 0;
 
 #if MANAPI_JSON_DEBUG
-        BOOLEAN *_debug_bool_src    = nullptr;
-        ARRAY   *_debug_array_src   = nullptr;
-        BIGINT  *_debug_bigint_src  = nullptr;
-        OBJECT  *_debug_object_src  = nullptr;
-        STRING  *_debug_string_src  = nullptr;
-        NUMBER  *_debug_number_src  = nullptr;
-        DECIMAL *_debug_decimal_src = nullptr;
-        PAIR    *_debug_pair_src = nullptr;
+        const BOOLEAN *_debug_bool_src    = nullptr;
+        const ARRAY   *_debug_array_src   = nullptr;
+        const BIGINT  *_debug_bigint_src  = nullptr;
+        const OBJECT  *_debug_object_src  = nullptr;
+        const STRING  *_debug_string_src  = nullptr;
+        const NUMBER  *_debug_number_src  = nullptr;
+        const DECIMAL *_debug_decimal_src = nullptr;
+        const PAIR    *_debug_pair_src = nullptr;
 #endif
     };
 

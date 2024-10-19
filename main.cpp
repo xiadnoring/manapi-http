@@ -22,12 +22,12 @@ int main () {
 
     {
         manapi::json_mask mask = {
-            {"hello", "{number(>=0)}"},
-            {"content", "{bool(=0)|number(=56)}"}
+            {"hello", R"({string(>=5 <=100)})"},
+            {"test", R"({number(>=5 <=15)})"}
         };
 
         manapi::json_builder builder (mask);
-        builder << R"({"hello": 78, "content": 57})";
+        builder << R"({"hello": "hello2", "test": 11})";
         std::cout << builder.get().dump(2) << "\n";
     }
 

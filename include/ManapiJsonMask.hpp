@@ -21,6 +21,7 @@ namespace manapi {
         bool enabled;
 
         json information;
+        static void _insert_meta_row (json &information, const std::string &key, const json &value);
         static void initial_resolve_information (json &obj);
         static bool recursive_valid (const json &obj, const json &information, const bool &is_complex = true);
         static bool default_compare_information (const json &obj, const json &information, const bool &by_size = true);

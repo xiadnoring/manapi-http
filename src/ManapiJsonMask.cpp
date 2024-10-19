@@ -1,5 +1,6 @@
 #include "ManapiJsonMask.hpp"
 #include "ManapiUtils.hpp"
+#include "ManapiJsonBuilder.hpp"
 
 #define MANAPI_JSON_ANY (-1)
 #define MANAPI_JSON_NONE (-2)
@@ -68,6 +69,18 @@ const manapi::json & manapi::json_mask::get_api_tree() const {
     return information;
 }
 
+void manapi::json_mask::_insert_meta_row(json &information, const std::string &key, const json &value) {
+    if (information.is_object())
+    {
+        information.insert(key, value);
+    }
+    else
+    {
+        // array
+        information[information.size() - 1].insert(key, value);
+    }
+}
+
 void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 {
     if (obj.is_string())
@@ -107,6 +120,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 
         bool bracket = false;
         bool square_bracket = false;
+        bool quotes = false;
 
         // calc type
         for (; i < m; i++)
@@ -178,8 +192,9 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
             }
         }
 
-        std::string buff;
         json        parsed_buff;
+
+        json_builder builder;
 
         // compare type (=, >=, <=, >, <)
         char        compare_type = MANAPI_MASK_COMPARE_NONE;
@@ -191,146 +206,162 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 
             if (bracket || square_bracket)
             {
-                // allows only <=, >= and =
-                for (; i < m; i++)
-                {
-                    c = str->at(i);
-
-                    if (c == '=')
+                if (c == '"' && ntype == json::type_string) {
+                    if (!quotes) {
+                        if (!builder.is_empty()) {
+                            THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
+                        }
+                    }
+                    builder << '"';
+                    if (quotes) {
+                        if (builder.is_ready()) {
+                            _insert_meta_row(parsed, "value", builder.get());
+                            quotes = false;
+                        }
+                    }
+                    else {
+                        quotes = true;
+                    }
+                    continue;
+                }
+                if (quotes) {
+                    builder << c;
+                }
+                else {
+                    // allows only <=, >= and =
+                    for (; i < m; i++)
                     {
-                        if (compare_type == MANAPI_MASK_COMPARE_GREATER)
+                        c = str->at(i);
+
+                        if (c == '=')
                         {
-                            compare_type = MANAPI_MASK_COMPARE_EQUAL_OR_GREATER;
+                            if (compare_type == MANAPI_MASK_COMPARE_GREATER)
+                            {
+                                compare_type = MANAPI_MASK_COMPARE_EQUAL_OR_GREATER;
+                            }
+                            else if (compare_type == MANAPI_MASK_COMPARE_LESS)
+                            {
+                                compare_type = MANAPI_MASK_COMPARE_EQUAL_OR_LESS;
+                            }
+                            else if (compare_type == MANAPI_MASK_COMPARE_NONE)
+                            {
+                                compare_type = MANAPI_MASK_COMPARE_EQUAL;
+                            }
+                            else
+                            {
+                                THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
+                            }
                         }
-                        else if (compare_type == MANAPI_MASK_COMPARE_LESS)
+                        else if (c == '>')
                         {
-                            compare_type = MANAPI_MASK_COMPARE_EQUAL_OR_LESS;
+                            if (compare_type != MANAPI_MASK_COMPARE_EQUAL && compare_type != MANAPI_MASK_COMPARE_NONE)
+                            {
+                                THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
+                            }
+
+                            compare_type = MANAPI_MASK_COMPARE_GREATER;
                         }
-                        else if (compare_type == MANAPI_MASK_COMPARE_NONE)
+                        else if (c == '<')
                         {
-                            compare_type = MANAPI_MASK_COMPARE_EQUAL;
+                            if (compare_type != MANAPI_MASK_COMPARE_EQUAL && compare_type != MANAPI_MASK_COMPARE_NONE)
+                            {
+                                THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
+                            }
+
+                            compare_type = MANAPI_MASK_COMPARE_LESS;
                         }
                         else
                         {
-                            THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
+                            break;
                         }
                     }
-                    else if (c == '>')
+
+
+                    if ((bracket && c == ')') || (square_bracket && c == ']'))
                     {
-                        if (compare_type != MANAPI_MASK_COMPARE_EQUAL && compare_type != MANAPI_MASK_COMPARE_NONE)
+
+                        if (bracket)
                         {
-                            THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
+                            bracket = false;
                         }
 
-                        compare_type = MANAPI_MASK_COMPARE_GREATER;
-                    }
-                    else if (c == '<')
-                    {
-                        if (compare_type != MANAPI_MASK_COMPARE_EQUAL && compare_type != MANAPI_MASK_COMPARE_NONE)
+                        if (square_bracket)
                         {
-                            THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
-                        }
+                            // change type to array
+                            ntype = json::type_array;
 
-                        compare_type = MANAPI_MASK_COMPARE_LESS;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-
-                if (std::isdigit(c) || c == '.')
-                {
-                    buff += c;
-                    continue;
-                }
-
-                if ((bracket && c == ')') || (square_bracket && c == ']'))
-                {
-
-                    if (bracket)
-                    {
-                        bracket = false;
-                    }
-
-                    if (square_bracket)
-                    {
-                        // change type to array
-                        ntype = json::type_array;
-
-                        parsed = {
+                            parsed = {
                                 {"type", ntype},
                                 {"default", parsed}
-                        };
+                            };
 
-                        square_bracket = false;
+                            square_bracket = false;
+                        }
+
+                        if (builder.is_empty())
+                        {
+                            continue;
+                        }
+
+                    }
+                    else if (c != ' ')
+                    {
+                        builder << c;
+                        continue;
+                        //THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
                     }
 
-                    if (buff.empty())
-                    {
+                    if (builder.is_empty()) {
                         continue;
                     }
 
-                }
-                else if (c != ' ')
-                {
-                    THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
-                }
+                    // calc size
 
-                // calc size
+                    if (ntype == json::type_decimal)
+                    {
+                        parsed_buff = builder.get().as_decimal_cast();
+                    }
+                    else if (ntype == json::type_bigint)
+                    {
+                        parsed_buff = builder.get().as_bigint_cast();
+                    }
+                    else if (ntype == json::type_boolean)
+                    {
+                        parsed_buff = builder.get().as_bool_cast();
+                    }
+                    else
+                    {
+                        // others
+                        parsed_buff = builder.get().as_number_cast();
+                    }
 
-                if (ntype == json::type_decimal)
-                {
-                    parsed_buff = std::stold(buff);
-                }
-                else if (ntype == json::type_bigint)
-                {
-                    parsed_buff = bigint(buff);
-                }
-                else if (ntype == json::type_boolean)
-                {
-                    parsed_buff = bool(std::stold(buff));
-                }
-                else
-                {
-                    // others
-                    parsed_buff = std::stoll(buff);
-                }
-
-                std::string key;
-
-                switch (compare_type) {
-                    case MANAPI_MASK_COMPARE_NONE:
-                    case MANAPI_MASK_COMPARE_EQUAL:
-                        key = "mean";
+                    switch (compare_type) {
+                        case MANAPI_MASK_COMPARE_NONE:
+                            // its value
+                            _insert_meta_row (parsed, "value", parsed_buff);
                         break;
-                    case MANAPI_MASK_COMPARE_EQUAL_OR_LESS:
-                        parsed_buff = parsed_buff + 1;
-                    case MANAPI_MASK_COMPARE_LESS:
-                        key = "max_mean";
+                        case MANAPI_MASK_COMPARE_EQUAL:
+                            _insert_meta_row (parsed, "max_mean", parsed_buff + 1);
+                            _insert_meta_row (parsed, "min_mean", parsed_buff - 1);
                         break;
-                    case MANAPI_MASK_COMPARE_EQUAL_OR_GREATER:
-                        parsed_buff = parsed_buff - 1;
-                    case MANAPI_MASK_COMPARE_GREATER:
-                        key = "min_mean";
+                        case MANAPI_MASK_COMPARE_EQUAL_OR_LESS:
+                            parsed_buff = parsed_buff + 1;
+                        case MANAPI_MASK_COMPARE_LESS:
+                            _insert_meta_row (parsed, "max_mean", parsed_buff);
                         break;
-                    default:
-                        THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Bug has been detected: {}", "compare type has invalid value");
-                }
+                        case MANAPI_MASK_COMPARE_EQUAL_OR_GREATER:
+                            parsed_buff = parsed_buff - 1;
+                        case MANAPI_MASK_COMPARE_GREATER:
+                            _insert_meta_row (parsed, "min_mean", parsed_buff);
+                        break;
+                        default:
+                            THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Bug has been detected: {}", "compare type has invalid value");
+                    }
 
-                if (parsed.is_object())
-                {
-                    parsed.insert(key, parsed_buff);
+                    // clean up
+                    builder.clear();
+                    compare_type = -1;
                 }
-                else
-                {
-                    // array
-                    parsed[parsed.size() - 1].insert(key, parsed_buff);
-                }
-
-                // clean up
-                buff = "";
-                compare_type = -1;
             }
 
             else if (c == '(')
@@ -340,6 +371,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                     THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
                 }
                 bracket = true;
+                builder.clear();
             }
 
             else if (c == '[')
@@ -349,6 +381,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                     THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
                 }
                 square_bracket = true;
+                builder.clear();
             }
 
             else if (c == '|')
@@ -374,6 +407,10 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
         }
 
         end:
+
+        if (!builder.is_empty()) {
+            THROW_MANAPI_JSON_ERROR(ERR_JSON_UNEXPECTED_END, "Unexpected end at {}", m);
+        }
 
         obj = {
             {"obj", std::move(parsed)},
