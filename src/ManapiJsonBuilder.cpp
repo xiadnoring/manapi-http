@@ -468,6 +468,13 @@ void manapi::json_builder::_build_numeric_string(const std::string_view &plain_t
 }
 
 void manapi::json_builder::_build_object(const std::string_view &plain_text, size_t &j) {
+    const auto next_parent_for_child = [this] () -> const json& {
+        _next_type();
+        _check_part_object();
+
+        return get_current_type()["value"][key]["obj"];
+    };
+
     doit:
     if (item != nullptr)
     {
@@ -540,7 +547,8 @@ void manapi::json_builder::_build_object(const std::string_view &plain_text, siz
             }
             else
             {
-                item = std::make_unique<json_builder>(get_current_type()["data"][key]["obj"], use_bigint, bigint_precision);
+                item = std::make_unique<json_builder>(get_current_type()["value"][key]["obj"], use_bigint, bigint_precision);
+                item->next_parent = next_parent_for_child;
             }
             goto doit;
         }
@@ -651,7 +659,7 @@ void manapi::json_builder::_build_array(const std::string_view &plain_text, size
                 }
                 else
                 {
-                    item = std::make_unique<json_builder>(get_current_type()["data"][element_index]["obj"], use_bigint, bigint_precision);
+                    item = std::make_unique<json_builder>(get_current_type()["value"][element_index]["obj"], use_bigint, bigint_precision);
                 }
             }
             element_index++;
@@ -703,13 +711,22 @@ void manapi::json_builder::_reset_type() {
 void manapi::json_builder::_next_type() {
     current_type++;
 
-    if (current_types != nullptr && current_types->is_array() && current_type < current_types->size())
+    if ((current_types != nullptr && current_types->is_array() && current_type < current_types->size()) || _next_parent())
     {
         _check_eq_type();
         return;
     }
 
     throw json_parse_exception(ERR_JSON_MASK_VERIFY_FAILED, "json_mask error");
+}
+
+bool manapi::json_builder::_next_parent() {
+    if (next_parent != nullptr) {
+        current_types = &next_parent();
+        current_type = 0;
+        return true;
+    }
+    return false;
 }
 
 void manapi::json_builder::_check_eq_type() {
@@ -847,7 +864,7 @@ bool manapi::json_builder::_check_default() {
 
 bool manapi::json_builder::_check_meta_value() {
     const auto &current = get_current_type ();
-    if (!current.contains("value")) { return true; }
+    if (object.is_array() || object.is_object() || !current.contains("value")) { return true; }
 
     if (current.at("value") == object) { return true; }
     _next_type();
@@ -891,6 +908,18 @@ void manapi::json_builder::_check_array() {
         {
             break;
         }
+    }
+}
+
+void manapi::json_builder::_check_part_object() {
+    while (true) {
+        json_mask mask_child;
+        mask_child.set_api_tree({{"obj", get_current_type()}, {"none", false}});
+        mask_child.set_complete_status(false);
+        if (mask_child.valid(object)) {
+            break;
+        }
+        _next_type();
     }
 }
 

@@ -41,6 +41,7 @@ namespace manapi {
 
         void _reset_type ();
         void _next_type ();
+        bool _next_parent ();
         void _check_eq_type ();
         bool _check_max_mean (const bool &building = false);
         bool _check_min_mean ();
@@ -51,6 +52,8 @@ namespace manapi {
         void _check_numeric ();
         void _check_object ();
         void _check_array ();
+
+        void _check_part_object ();
 
         [[nodiscard]] const json &get_current_type ();
 
@@ -97,6 +100,7 @@ namespace manapi {
         size_t element_index = 0;
 
         std::unique_ptr<json_builder> item = nullptr;
+        std::function <const json &()> next_parent;
     };
 }
 

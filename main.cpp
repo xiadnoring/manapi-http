@@ -21,13 +21,43 @@ int main () {
 
 
     {
-        manapi::json_mask mask = {
-            {"hello", R"({string(>=5 <=100)})"},
-            {"test", R"({number(>=5 <=15)})"}
-        };
-
+        manapi::json_mask mask2 ({
+            {"hello", "{string(5)[]}"}
+        });
+        manapi::json_mask mask ({
+                {"hello", manapi::json_mask::ARRAY(manapi::json_mask::OR (manapi::json::array({
+                        {
+                            {"type", "{number(1)}"},
+                            {"data", "{string(<=50)}"},
+                            {"atest", "{string(>=5)|none}"}
+                        },
+                        {
+                            {"type", "{number(2)}"},
+                            {"data", "{number(>=0)}"}
+                        },
+                        {
+                            {"type", "{number(3)}"},
+                            {"file", {
+                                {"name", "{string(<=50)}"},
+                                {"size", "{number(>=1000 <=5000)}"}
+                            }}
+                        }
+                    })))
+                }
+            });
+        // manapi::json a = {
+        //     {"hello", {
+        //         {"type", 3},
+        //         {"file", {
+        //             {"name", "hello"},
+        //             {"size", 78},
+        //             {"hello", "78"}
+        //         }}
+        //     }}
+        // };
+        // std::cout << mask.valid(a) << "\n";
         manapi::json_builder builder (mask);
-        builder << R"({"hello": "hello2", "test": 11})";
+        builder << R"({"hello": [{"type": 1, "data": "78"}, {"type": 2, "data": 78}, {"type": 3, "file": {"name": "file.txt", "size": 1788}}]})";
         std::cout << builder.get().dump(2) << "\n";
     }
 

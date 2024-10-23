@@ -59,10 +59,12 @@ manapi::json::json(const manapi::json &other) {
 manapi::json::json(json &&other) noexcept {
     src = other.src;
     type = other.type;
+    custom_data = other.custom_data;
 
     _debug_symb_reinit();
 
     other._set_nullptr();
+    other.custom_data = {nullptr, nullptr, nullptr};
 }
 
 manapi::json::json(const char *plain_text, const bool &to_parse)
@@ -176,6 +178,7 @@ manapi::json::json (const std::initializer_list<json> &data) {
 }
 
 manapi::json::~json() {
+    clear_custom_data();
     delete_value();
 }
 
@@ -699,6 +702,16 @@ manapi::json &manapi::json::operator=(const manapi::json &obj) {
         }
 
         delete_value_static (temp_type, temp_src);
+
+        // custom data
+        if (obj.custom_data.src != nullptr) {
+            if (obj.custom_data.copier == nullptr) {
+                MANAPI_LOG2("copier = nullptr, but custom data was copied.");
+            }
+            else {
+                set_custom_data({obj.custom_data.copier (obj.custom_data.src), obj.custom_data.deleter, obj.custom_data.copier});
+            }
+        }
     }
     return *this;
 }
@@ -706,6 +719,7 @@ manapi::json &manapi::json::operator=(const manapi::json &obj) {
 manapi::json & manapi::json::operator=(json &&obj) {
     std::swap(src, obj.src);
     std::swap(type, obj.type);
+    std::swap(custom_data, obj.custom_data);
 
     obj._debug_symb_reinit();
     _debug_symb_reinit();
@@ -737,6 +751,13 @@ void manapi::json::insert(const STRING &key, const manapi::json &obj) {
     item.root = false;
 
     get<OBJECT>().insert({key, std::move(item)});
+}
+
+void manapi::json::push_back(manapi::json::ARRAY::const_iterator begin, manapi::json::ARRAY::const_iterator end) {
+    if (type != type_array) { THROW_MANAPI_JSON_MISSING_FUNCTION; }
+    for (auto it = begin; it != end; ++it) {
+        push_back(*it);
+    }
 }
 
 void manapi::json::push_back(manapi::json obj) {
@@ -1064,6 +1085,24 @@ size_t manapi::json::size() const {
     }
 
     THROW_MANAPI_JSON_MISSING_FUNCTION;
+}
+
+bool manapi::json::empty () const {
+    return this->size() == 0;
+}
+
+void manapi::json::clear_custom_data () {
+    if (custom_data.deleter != nullptr) { custom_data.deleter (custom_data.src); custom_data.deleter = nullptr; }
+    if (custom_data.copier != nullptr) { custom_data.copier = nullptr; }
+    if (custom_data.src != nullptr) { custom_data.src = nullptr; }
+}
+
+void manapi::json::set_custom_data (const json_custom_data_t &_custom_data) {
+    custom_data = _custom_data;
+}
+
+const manapi::json_custom_data_t & manapi::json::get_custom_data () const {
+    return this->custom_data;
 }
 
 manapi::json manapi::json::operator+(const ssize_t &num) {

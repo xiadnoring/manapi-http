@@ -3,12 +3,19 @@
 
 #include <string>
 #include <map>
+#include <functional>
 #include <vector>
 #include "ManapiBigint.hpp"
 
 #define MANAPI_JSON_DEBUG {{ VAR_MANAPI_JSON_DEBUG }}
 
 namespace manapi {
+    struct json_custom_data_t {
+        void *src = nullptr;
+        std::function<void(void *)> deleter;
+        std::function<void *(void *)> copier;
+    };
+
     class json {
     public:
         typedef std::map <std::string, manapi::json> OBJECT;
@@ -123,17 +130,17 @@ namespace manapi {
         json &operator=     (const json             &obj);
         json &operator=     (json                   &&obj);
         json &operator=     (const std::initializer_list <json> &data);
-        json operator-     (const NUMBER           &num);
-        json operator-     (const int              &num);
-        json operator-     (const DECIMAL          &num);
-        json operator-     (const double           &num);
-        json operator-     (const BIGINT           &num);
-        json operator+     (const NUMBER           &num);
-        json operator+     (const int              &num);
-        json operator+     (const DECIMAL          &num);
-        json operator+     (const double           &num);
-        json operator+     (const BIGINT           &num);
-        json operator+     (const STRING           &str);
+        json operator-      (const NUMBER           &num);
+        json operator-      (const int              &num);
+        json operator-      (const DECIMAL          &num);
+        json operator-      (const double           &num);
+        json operator-      (const BIGINT           &num);
+        json operator+      (const NUMBER           &num);
+        json operator+      (const int              &num);
+        json operator+      (const DECIMAL          &num);
+        json operator+      (const double           &num);
+        json operator+      (const BIGINT           &num);
+        json operator+      (const STRING           &str);
         void operator+=     (const STRING           &str);
         void operator-=     (const NUMBER           &num);
         void operator-=     (const int              &num);
@@ -149,13 +156,14 @@ namespace manapi {
         bool operator==     (const json &) const;
 
 
-        void insert         (const STRING &key, const json &obj);
-        void insert         (const UNICODE_STRING &key, const json &obj);
-        void erase          (const STRING &key);
-        void erase          (const UNICODE_STRING &key);
+        void insert (const STRING &key, const json &obj);
+        void insert (const UNICODE_STRING &key, const json &obj);
+        void erase (const STRING &key);
+        void erase (const UNICODE_STRING &key);
 
-        void push_back      (json obj);
-        void pop_back       ();
+        void push_back (json obj);
+        void push_back (ARRAY::const_iterator begin, ARRAY::const_iterator end);
+        void pop_back ();
 
         template<class T> constexpr auto begin () const
         { return get_ptr<T>()->begin(); }
@@ -309,39 +317,44 @@ namespace manapi {
         [[nodiscard]] std::string dump (const size_t &spaces = 0, const size_t &first_spaces = 0) const;
 
         [[nodiscard]] size_t size () const;
+        [[nodiscard]] bool empty () const;
 
-        static void                 error_invalid_char (const UNICODE_STRING &plain_text, const size_t &i);
-        static void                 error_invalid_char (const STRING_VIEW &plain_text, const size_t &i);
-        static void                 error_unexpected_end (const size_t &i);
+        static void error_invalid_char (const UNICODE_STRING &plain_text, const size_t &i);
+        static void error_invalid_char (const STRING_VIEW &plain_text, const size_t &i);
+        static void error_unexpected_end (const size_t &i);
+
+        void clear_custom_data ();
+        void set_custom_data (const json_custom_data_t &data);
+        [[nodiscard]] const json_custom_data_t &get_custom_data () const;
     protected:
         [[nodiscard]] size_t get_start_cut () const;
         [[nodiscard]] size_t get_end_cut () const;
 
-        bool   root                 = true;
+        bool root = true;
     private:
-        static void                 delete_value_static (const short &type, void *src);
-        void                        throw_could_not_use_func (const std::string &func) const;
+        static void delete_value_static (const short &type, void *src);
+        void throw_could_not_use_func (const std::string &func) const;
 
-        void                        delete_value ();
-        void                        _set_object ();
-        void                        _set_bool ();
-        void                        _set_array ();
-        void                        _set_string ();
-        void                        _set_number ();
-        void                        _set_decimal ();
-        void                        _set_bigint ();
-        void                        _set_nullptr ();
-        void                        _set_pair ();
-        void                        _set_object (const OBJECT &val);
-        void                        _set_bool (const BOOLEAN &val);
-        void                        _set_array (const ARRAY &val);
-        void                        _set_string (const STRING_VIEW &val);
-        void                        _set_number (const NUMBER &val);
-        void                        _set_decimal (const DECIMAL &val);
-        void                        _set_bigint (const BIGINT &val);
-        void                        _set_pair (json first, json second);
+        void delete_value ();
+        void _set_object ();
+        void _set_bool ();
+        void _set_array ();
+        void _set_string ();
+        void _set_number ();
+        void _set_decimal ();
+        void _set_bigint ();
+        void _set_nullptr ();
+        void _set_pair ();
+        void _set_object (const OBJECT &val);
+        void _set_bool (const BOOLEAN &val);
+        void _set_array (const ARRAY &val);
+        void _set_string (const STRING_VIEW &val);
+        void _set_number (const NUMBER &val);
+        void _set_decimal (const DECIMAL &val);
+        void _set_bigint (const BIGINT &val);
+        void _set_pair (json first, json second);
 #if MANAPI_JSON_DEBUG
-        void                        _debug_symb_reinit () {
+        void _debug_symb_reinit () {
             _debug_bool_src = nullptr;
             _debug_array_src = nullptr;
             _debug_bigint_src = nullptr;
@@ -382,13 +395,14 @@ namespace manapi {
             }
         }
 #else
-        void                        _debug_symb_reinit () {};
+        void _debug_symb_reinit () {};
 #endif
 
-        void    *src                = nullptr;
-        types   type                = type_null;
-        size_t  start_cut           = 0;
-        size_t  end_cut             = 0;
+        void    *src = nullptr;
+        types   type = type_null;
+        size_t  start_cut = 0;
+        size_t  end_cut = 0;
+        json_custom_data_t custom_data;
 
 #if MANAPI_JSON_DEBUG
         const BOOLEAN *_debug_bool_src    = nullptr;
