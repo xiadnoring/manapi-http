@@ -7,6 +7,7 @@ namespace manapi {
     class json_mask {
     public:
         json_mask(const std::initializer_list<json> &data);
+        json_mask(const json &data);
         json_mask(const nullptr_t &n = nullptr);
         ~json_mask();
 

@@ -15,8 +15,14 @@ namespace manapi::net::utils::compress {
     bool deflate_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy);
     bool deflate_decompress_file(const std::string &src, const std::string &dest);
 
+    std::string deflate_compress_string (const std::string &original, const int &level = Z_DEFAULT_COMPRESSION, const int &strategy = Z_DEFAULT_STRATEGY);
+    std::string deflate_decompress_string (const std::string &compressed);
+
     std::string gzip (const std::string &data, const int &level = Z_DEFAULT_COMPRESSION, const int &strategy = Z_DEFAULT_STRATEGY, const std::string *folder = nullptr);
     std::string gzip (const std::string &data,const std::string *folder = nullptr);
+
+    std::string gzip_compress_string (const std::string &original, const int &level = Z_DEFAULT_COMPRESSION, const int &strategy = Z_DEFAULT_STRATEGY);
+    std::string gzip_decompress_string (const std::string &compressed);
 
     bool gzip_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy);
     bool gzip_decompress_file(const std::string &src, const std::string &dest);

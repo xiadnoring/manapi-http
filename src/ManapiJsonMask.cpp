@@ -23,6 +23,13 @@ manapi::json_mask::json_mask(const std::initializer_list<json> &data)
     enabled = true;
 }
 
+manapi::json_mask::json_mask(const json &data) {
+    information = data;
+    initial_resolve_information(information);
+
+    enabled = true;
+}
+
 manapi::json_mask::json_mask(const nullptr_t &n)
 {
     enabled = false;
@@ -99,6 +106,8 @@ manapi::json manapi::json_mask::OR(json data, bool none) {
 }
 
 manapi::json manapi::json_mask::ARRAY(json data, bool none) {
+    initial_resolve_information(data);
+
     json prepared = {
         {"obj", {
             {"default", std::move(data["obj"])},
@@ -434,10 +443,6 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 
             else if (c == '[')
             {
-                if (ntype == json::type_array || ntype == json::type_object)
-                {
-                    THROW_MANAPI_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Invalid symbol at {}: {}", i, c);
-                }
                 square_bracket = true;
                 builder.clear();
             }
@@ -752,7 +757,7 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
 
             for (size_t i = 0; i < obj.size(); i++)
             {
-                if (!recursive_valid(obj.at(i), _default))
+                if (!recursive_valid(obj.at(i), _default, false))
                 {
                     return false;
                 }
