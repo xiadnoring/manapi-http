@@ -18,6 +18,27 @@ using namespace manapi::net;
 using namespace std;
 
 // int main () {
+//     threadpool<task> thp;
+//     timerpool tp (thp);
+//     thp.start();
+//
+//     thp.append_task(std::make_unique<function_task>([&tp] () -> void {
+//         tp.start();
+//     }));
+//
+//     tp.append_interval(std::chrono::milliseconds (1000), [] () -> void {
+//         cout << "OK 1\n";
+//     });
+//
+//     tp.append_interval(std::chrono::milliseconds (2000), [] () -> void {
+//         this_thread::sleep_for(5s);
+//         cout << "OK 3\n";
+//     });
+//
+//     getchar();
+//
+//     tp.stop();
+//
 //     return 0;
 // }
 
