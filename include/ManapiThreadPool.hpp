@@ -8,9 +8,10 @@
 #include <cerrno>
 #include <pthread.h>
 #include <iostream>
-#include <atomic>
 #include <mutex>
 #include <condition_variable>
+
+#include "components/Atomic.hpp"
 
 namespace manapi::net {
     template <class T>
@@ -44,7 +45,7 @@ namespace manapi::net {
         std::mutex m;
         std::condition_variable cv;
 
-        std::atomic<size_t> stopped;
+        Atomic <ssize_t> stopped;
     };
 }
 

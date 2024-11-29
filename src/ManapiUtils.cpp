@@ -11,10 +11,14 @@
 #include <unicode/utf32.h>
 #include <unicode/utf16.h>
 #include <unicode/utf8.h>
+#include <set>
 
+#include "ManapiHttpMime.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiFilesystem.hpp"
 #include "ManapiHttpTypes.hpp"
+
+static const std::set <char> uri_allowed_symbols = {'-', '_', '.', '~', '!', '*', '\'', '(', ')', ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '.', '#', '[', ']', '%'};
 
 static std::random_device   random_dev;
 static std::mt19937         random_ng (random_dev());
@@ -96,6 +100,10 @@ bool manapi::net::utils::is_space_symbol (const wchar_t &symbol) {
 
 bool manapi::net::utils::is_space_symbol (const char32_t &symbol) {
     return symbol == '\r' || symbol == '\n' || symbol == '\t' || symbol == ' ';
+}
+
+bool manapi::net::utils::uri_allowed_symbol(const char &c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || uri_allowed_symbols.contains(c);
 }
 
 char manapi::net::utils::hex2dec(char a) {
@@ -218,7 +226,7 @@ std::string manapi::net::utils::random_string (const size_t &len) {
     for (size_t i = 0; i < len; i++)
         result[i] = ptr[random(0, back)];
 
-    return result;
+    return std::move(result);
 }
 
 std::string manapi::net::utils::generate_cache_name (const std::string &file, const std::string &ext) {
@@ -289,8 +297,8 @@ std::string manapi::net::utils::json2form(const json &obj) {
 
 const std::string &manapi::net::utils::mime_by_file_path(const std::string &path) {
     const std::string extension = manapi::net::filesystem::extension(path);
-    manapi::net::mime_by_extension.lock();
-    utils::before_delete unlock ([] () -> void { manapi::net::mime_by_extension.unlock(); });
+    // manapi::net::mime_by_extension.lock();
+    // utils::before_delete unlock ([] () -> void { manapi::net::mime_by_extension.unlock(); });
 
     if (manapi::net::mime_by_extension.contains(extension))
     {

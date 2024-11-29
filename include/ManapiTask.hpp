@@ -19,7 +19,7 @@ namespace manapi::net {
 
         void stop ();
 
-        bool to_retry = false;
+        bool retry = false;
     };
 }
 

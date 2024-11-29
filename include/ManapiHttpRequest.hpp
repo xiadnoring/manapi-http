@@ -10,6 +10,10 @@
 #include "ManapiJson.hpp"
 #include "ManapiJsonMask.hpp"
 
+namespace manapi::net::http {
+    class base;
+}
+
 namespace manapi::net {
     struct file_data_t {
         bool        exists      = false;
@@ -20,7 +24,7 @@ namespace manapi::net {
 
     class http_request {
     public:
-        http_request(const manapi::net::utils::manapi_socket_information &ip_data, manapi::net::request_data_t &request_data, void* http_task, class config *config, const void *handler);
+        http_request(const manapi::net::utils::manapi_socket_information &ip_data, manapi::net::request_data_t &request_data, class manapi::net::http::base *http_task, http::config &config, const void *handler);
         ~http_request();
 
         [[nodiscard]] const utils::manapi_socket_information &get_ip_data () const;
@@ -65,13 +69,13 @@ namespace manapi::net {
         request_data_t                              *request_data;
 
         // parent
-        void                                        *http_task;
+        http::base                                  *http_task;
 
         // handler
         const void                                  *page_handler;
 
         // server
-        class config                                *config;
+        http::config                                &config;
 
         // boundary --XXXXXxxxXXX for form data
         std::string                                 body_boundary;

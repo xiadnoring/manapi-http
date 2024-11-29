@@ -1,7 +1,7 @@
 #include <fstream>
 #include <format>
 #include "ManapiFilesystem.hpp"
-#include "ManapiCompress.hpp"
+#include "../include/compress/ManapiCompress.hpp"
 #include "ManapiBeforeDelete.hpp"
 #include <zlib.h>
 

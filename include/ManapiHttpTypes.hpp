@@ -115,84 +115,8 @@ namespace manapi::net {
         std::string KEEP_ALIVE          = "keep-alive";
         std::string ALT_SVC             = "alt-svc";
         std::string AUTHORIZATION       = "authorization";
+        std::string UPGRADE             = "upgrade";
     } HTTP_HEADER;
-
-    static const struct {
-        std::string TEXT_PLAIN                          = "text/plain";
-        std::string TEXT_HTML                           = "text/html";
-        std::string TEXT_CSS                            = "text/css";
-        std::string TEXT_JS                             = "text/javascript";
-        std::string TEXT_CSV                            = "text/csv";
-
-        std::string APPLICATION_JS                      = "application/javascript";
-        std::string APPLICATION_JSON                    = "application/json";
-        std::string APPLICATION_JSON_LD                 = "application/ld+json";
-        std::string APPLICATION_OCTET_STREAM            = "application/octet-stream";
-        std::string APPLICATION_GZIP                    = "application/gzip";
-        std::string APPLICATION_PDF                     = "application/pdf";
-        std::string APPLICATION_RAR                     = "application/vnd.rar";
-        std::string APPLICATION_SHELL                   = "application/x-sh";
-        std::string APPLICATION_ZIP                     = "application/zip";
-        std::string APPLICATION_TAR                     = "application/x-tar";
-
-        std::string MULTIPART_FORM_DATA                 = "multipart/form-data";
-
-        std::string APPLICATION_X_WWW_FORM_URLENCODED   = "application/x-www-form-urlencoded";
-
-        std::string VIDEO_MP4                           = "video/mp4";
-        std::string VIDEO_MPEG                          = "video/mpeg";
-        std::string VIDEO_WEBM                          = "audio/webm";
-
-        std::string AUDIO_MP3                           = "audio/mp3";
-        std::string AUDIO_AAC                           = "audio/aac";
-        std::string AUDIO_WAV                           = "audio/wav";
-        std::string AUDIO_WEBA                          = "audio/webm";
-
-        std::string IMAGE_GIF                           = "image/gif";
-        std::string IMAGE_JPEG                          = "image/jpeg";
-        std::string IMAGE_PNG                           = "image/png";
-        std::string IMAGE_SVG                           = "image/svg+xml";
-        std::string IMAGE_WEBP                          = "image/webp";
-        std::string IMAGE_BMP                           = "image/bmp";
-
-        std::string FONT_TTF                            = "font/ttf";
-        std::string FONT_WOFF                           = "font/woff";
-        std::string FONT_WOFF2                          = "font/woff2";
-        std::string FONT_OTF                            = "font/otf";
-
-    } HTTP_MIME;
-
-    static manapi::net::utils::safe_unordered_map <std::string, std::string> mime_by_extension = {
-        {"txt", HTTP_MIME.TEXT_PLAIN},
-        {"mp4", HTTP_MIME.VIDEO_MP4},
-        {"js",  HTTP_MIME.TEXT_JS},
-        {"mjs", HTTP_MIME.TEXT_JS},
-        {"css", HTTP_MIME.TEXT_CSS},
-        {"mp4", HTTP_MIME.VIDEO_MP4},
-        {"mp3", HTTP_MIME.AUDIO_MP3},
-        {"html", HTTP_MIME.TEXT_HTML},
-        {"zip", HTTP_MIME.APPLICATION_ZIP},
-        {"gzip", HTTP_MIME.APPLICATION_GZIP},
-        {"tar", HTTP_MIME.APPLICATION_TAR},
-        {"png", HTTP_MIME.IMAGE_PNG},
-        {"jpeg", HTTP_MIME.IMAGE_JPEG},
-        {"jpg", HTTP_MIME.IMAGE_JPEG},
-        {"svg", HTTP_MIME.IMAGE_SVG},
-        {"ttf", HTTP_MIME.FONT_TTF},
-        {"woff", HTTP_MIME.FONT_WOFF},
-        {"woff2", HTTP_MIME.FONT_WOFF2},
-        {"otf", HTTP_MIME.FONT_OTF},
-        {"webp", HTTP_MIME.IMAGE_WEBP},
-        {"webm", HTTP_MIME.VIDEO_WEBM},
-        {"weba", HTTP_MIME.AUDIO_WEBA},
-        {"pdf", HTTP_MIME.APPLICATION_PDF},
-        {"json", HTTP_MIME.APPLICATION_JSON},
-        {"htm", HTTP_MIME.TEXT_HTML},
-        {"gif", HTTP_MIME.IMAGE_GIF},
-        {"bmp", HTTP_MIME.IMAGE_BMP},
-        {"bin", HTTP_MIME.APPLICATION_OCTET_STREAM},
-        {"",    HTTP_MIME.APPLICATION_OCTET_STREAM}
-    };
 
     enum err_num {
         ERR_OK = 0,
@@ -204,7 +128,7 @@ namespace manapi::net {
         ERR_FILE_IO = 6,
         ERR_HTTP_PARAM_MISSING = 7,
         ERR_HTTP_BODY_MISSING = 8,
-        ERR_HTTP_BODY_SO_LONG = 9,
+        ERR_HTTP_BODY_TOO_LONG = 9,
         ERR_HTTP_CONTENT_TYPE_MISSING = 10,
         ERR_HTTP_BODY_BOUNDARY_MISSING = 12,
         ERR_HTTP_INVALID_CONTENT_TYPE = 13,
@@ -221,7 +145,10 @@ namespace manapi::net {
         ERR_HTTP_ADD_PAGE = 24,
         ERR_HTTP_SETTINGS_INCOMPATIBILITY = 25,
         ERR_HTTP_UNSUPPORTED = 26,
-        ERR_UNSUPPORTED = 27
+        ERR_UNSUPPORTED = 27,
+        ERR_STORAGE_OBJECT_IS_NULL = 28,
+        ERR_FUNCTION_IS_NULL = 29,
+        ERR_HTTP_CONNECTION_WAS_CLOSED = 30
     };
 
     const std::map <err_num, std::string> err_msg {

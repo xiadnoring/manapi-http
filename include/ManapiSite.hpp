@@ -3,14 +3,13 @@
 
 #include <chrono>
 #include <regex>
-#include <quiche.h>
 #include <list>
 
 #include "ManapiJson.hpp"
 #include "ManapiJsonMask.hpp"
 #include "ManapiTask.hpp"
 #include "ManapiTimerPool.hpp"
-#include "ManapiCompress.hpp"
+#include "compress/ManapiCompress.hpp"
 #include "ManapiThreadSafe.hpp"
 
 #include "ManapiHttpRequest.hpp"
@@ -26,8 +25,6 @@ namespace manapi::net {
 
     struct http_quic_conn_io {
         int                     sock_fd;
-        quiche_conn             *conn;
-        quiche_h3_conn          *http3;
         sockaddr_storage        peer_addr;
         socklen_t               peer_addr_len;
         size_t                  timer_id;
@@ -93,7 +90,8 @@ namespace manapi::net {
         ~site();
 
         void                                append_task (std::unique_ptr<task> t, const int &level = 0);
-        size_t                              append_timer (const std::chrono::milliseconds &m, const std::function<void()> &t);
+        size_t                              append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
+        size_t                              append_interval (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         void                                remove_timer (const size_t &id);
 
         http_uri_part                       *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
@@ -108,7 +106,7 @@ namespace manapi::net {
 
         void                                set_config (const std::string &path);
         void                                set_config_object (const json &config);
-        const manapi::json           &get_config ();
+        const manapi::json                  &get_config ();
 
         const std::string                   *get_compressed_cache_file (const std::string &file, const std::string &algorithm);
         void                                set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
@@ -125,7 +123,7 @@ namespace manapi::net {
         void                                setup_config ();
         void                                save ();
         void                                save_config ();
-        manapi::json                 config;
+        manapi::json                        config;
     private:
         static void                         check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void                         check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
@@ -133,7 +131,7 @@ namespace manapi::net {
         http_uri_part                       *build_uri_part (const std::string &uri, size_t &type);
         std::unique_ptr<utils::timerpool>   timerpool;
 
-        manapi::json                 cache_config;
+        manapi::json                        cache_config;
 
         std::string                         config_path = "/tmp/http.json";
         bool                                enabled_save_config     = false;

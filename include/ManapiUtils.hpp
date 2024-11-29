@@ -10,7 +10,6 @@
 #include <netinet/in.h>
 #include <fstream>
 #include <unistd.h>
-#include <atomic>
 
 #include "ManapiHttpTypes.hpp"
 #include "ManapiBeforeDelete.hpp"
@@ -74,6 +73,8 @@ namespace manapi::net::utils {
     bool            is_space_symbol    (const unsigned char &symbol);
     bool            is_space_symbol    (const wchar_t &symbol);
     bool            is_space_symbol    (const char32_t &symbol);
+
+    bool            uri_allowed_symbol (const char &c);
 
     size_t          pow (const size_t &x, const size_t &count);
 
@@ -205,7 +206,7 @@ namespace manapi::net {
         std::string                         method;
         // PATH
         std::string                         uri;
-        // version http
+        // version server
         std::string                         http;
         // split by '/'
         std::vector <std::string>           path;
@@ -220,6 +221,8 @@ namespace manapi::net {
         size_t                              body_part;
 
         bool                                has_body    = false;
+
+        std::string buffer;
     };
 }
 

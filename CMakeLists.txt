@@ -9,6 +9,12 @@ else ()
     message(STATUS "This project is a top-level one")
 endif ()
 
+OPTION(MANAPI_QUICHE_SUPPORT "Quiche support by Cloudflare" OFF)
+OPTION(MANAPI_MSQUIC_SUPPORT "QUIC Implementation by Microsoft" OFF)
+OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
+
+message(STATUS "Quiche support - ${MANAPI_QUICHE_SUPPORT}")
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_definitions(MANAPI_HTTP_BUILD_DEBUG)
 endif ()
@@ -20,8 +26,11 @@ if (MANAPI_BUILD_METHOD STREQUAL "conan")
     find_package(OpenSSL REQUIRED)
     find_package(ZLIB REQUIRED)
     find_package(libev REQUIRED)
-    find_package(quiche REQUIRED)
     find_package(CURL REQUIRED)
+
+    if (MANAPI_QUICHE_SUPPORT)
+        find_package(quiche REQUIRED)
+    endif ()
 else ()
     message(STATUS "Build method: default")
 
@@ -29,13 +38,20 @@ else ()
 
     # include finders
     include(./cmake/FindLibev.cmake)
-    include(./cmake/FindMsQuic.cmake)
+    include(./cmake/FindLsQPack.cmake)
 
     pkg_check_modules(GMP REQUIRED gmp)
     pkg_check_modules(ZLIB REQUIRED zlib)
-    pkg_check_modules(QUIC REQUIRED quiche)
     pkg_check_modules(OPENSSL REQUIRED openssl)
     pkg_check_modules(CURL REQUIRED libcurl)
+
+    if (MANAPI_QUICHE_SUPPORT)
+        pkg_check_modules(QUIC REQUIRED quiche)
+    endif ()
+
+    if (MANAPI_MSQUIC_SUPPORT)
+        include(./cmake/FindMsQuic.cmake)
+    endif ()
 endif ()
 
 
@@ -57,7 +73,6 @@ set(MANAPI_HTTP_FILES
         include/ManapiHttp.hpp
         include/ManapiThreadPool.hpp
         include/ManapiTask.hpp
-        include/ManapiTaskHttp.hpp
         include/ManapiUtils.hpp
         include/ManapiHttpResponse.hpp
         include/ManapiHttpRequest.hpp
@@ -66,7 +81,7 @@ set(MANAPI_HTTP_FILES
         include/ManapiHttpTypes.hpp
         include/ManapiFilesystem.hpp
         include/ManapiBase64.hpp
-        include/ManapiCompress.hpp
+        include/compress/ManapiCompress.hpp
         include/ManapiTaskFunction.hpp
         include/ManapiHash.hpp
         include/ManapiFetch.hpp
@@ -74,13 +89,11 @@ set(MANAPI_HTTP_FILES
         include/ManapiTimerPool.hpp
         include/ManapiHttpPool.hpp
         include/ManapiJsonMask.hpp
-        include/http3/ManapiQuic.h
         ${CMAKE_CURRENT_BINARY_DIR}/include/ManapiJson.hpp
 
         src/ManapiHttp.cpp
         src/ManapiThreadPool.cpp
         src/ManapiTask.cpp
-        src/ManapiTaskHttp.cpp
         src/ManapiUtils.cpp
         src/ManapiHttpResponse.cpp
         src/ManapiHttpRequest.cpp
@@ -94,7 +107,6 @@ set(MANAPI_HTTP_FILES
         src/ManapiFetch.cpp
         src/ManapiJsonMask.cpp
         src/ManapiHttpPool.cpp
-        src/http3/ManapiQuic.cpp
         src/ManapiTimerPool.cpp
         src/ManapiSite.cpp
         include/ManapiSite.hpp
@@ -108,7 +120,30 @@ set(MANAPI_HTTP_FILES
         src/ManapiJsonBuilder.cpp
         include/ManapiJsonBuilder.hpp
         include/ManapiBeforeDelete.hpp
-        src/ManapiBeforeDelete.cpp)
+        src/ManapiBeforeDelete.cpp
+        src/worker/Base.cpp
+        include/worker/Base.hpp
+        src/http/Base.cpp
+        include/http/Base.hpp
+        src/ManapiTaskHttp.cpp
+        include/ManapiTaskHttp.hpp
+        src/worker/TLS.cpp
+        include/worker/TLS.hpp
+        src/http/HTTPv1_1.cpp
+        include/http/HTTPv1_1.hpp
+        include/http/HTTPv1_1.hpp
+        src/http/HTTPv2.cpp
+        src/http/HeaderView.cpp
+        include/http/HeaderView.hpp
+        include/compress/ManapiHPack.hpp
+        include/worker/HTTPv2.hpp
+        src/worker/HTTPv2.cpp
+        include/components/SmartBuffer.hpp
+        src/components/SmartBuffer.cpp
+        include/components/ConnectionsStorage.hpp
+        include/ManapiHttpMime.hpp
+        src/ManapiHttpMime.cpp
+        include/components/Atomic.hpp)
 
 if (MANAPI_BUILD_TYPE STREQUAL "exe")
     # EXE
@@ -133,10 +168,24 @@ endif ()
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
 if (MANAPI_BUILD_METHOD STREQUAL "conan")
-    target_link_libraries       (${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES} gmp::gmp openssl::openssl ZLIB::ZLIB libev::libev quiche::quiche CURL::libcurl)
+    target_link_libraries       (${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES} gmp::gmp openssl::openssl ZLIB::ZLIB libev::libev CURL::libcurl)
+    if (MANAPI_QUICHE_SUPPORT)
+        target_link_libraries(${PROJECT_NAME} PUBLIC quiche::quiche)
+    endif ()
 else ()
-    target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${QUIC_LIBRARIES} ${LIBEV_LIBRARIES} ${OPENSSL_LIBRARIES} ${CURL_LIBRARIES} ${MSQUIC_LIBRARIES})
-    target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${QUIC_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${MSQUIC_INCLUDE_DIRS})
+    target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${LIBEV_LIBRARIES} ${LSQPACK_LIBRARIES} ${OPENSSL_LIBRARIES} ${CURL_LIBRARIES})
+    target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${LSQPACK_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
+
+    if (MANAPI_QUICHE_SUPPORT)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${QUIC_INCLUDE_DIRS})
+    endif ()
+
+    if (MANAPI_MSQUIC_SUPPORT)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${MSQUIC_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${MSQUIC_INCLUDE_DIRS})
+    endif ()
+
 endif ()
 
 # Include public headers from the folder

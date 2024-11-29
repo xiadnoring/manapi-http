@@ -11,10 +11,12 @@ class ManapiHttpConan(ConanFile):
     options = {
         "shared": [True, False],
         "fPIC": [True, False],
-        "json-debug": [True, False]
+        "json-debug": [True, False],
+        "quiche-support": [True, False],
+        "msquic-support": [True, False]
     }
 
-    default_options = {"shared": False, "fPIC": True, "json-debug": True}
+    default_options = {"shared": False, "fPIC": True, "json-debug": True, "quiche-support": False, "msquic-support": True}
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
 
@@ -31,8 +33,9 @@ class ManapiHttpConan(ConanFile):
 
         tc = CMakeToolchain(self)
 
-        if self.options['json-debug']:
-            tc.variables['MANAPI_JSON_DEBUG'] = True
+        tc.variables['MANAPI_JSON_DEBUG'] = self.options.get_safe('json-debug', True)
+        tc.variables['MANAPI_QUICHE_SUPPORT'] = self.options.get_safe('quiche-support', True)
+        tc.variables['MANAPI_MSQUIC_SUPPORT'] = self.options.get_safe('msquic-support', True)
 
         tc.generate()
 
@@ -50,8 +53,10 @@ class ManapiHttpConan(ConanFile):
         self.requires("openssl/3.2.2")
         self.requires("zlib/1.3.1")
         self.requires("gmp/6.3.0")
-        self.requires("quiche/0.22.0")
         self.requires("libcurl/8.6.0")
+
+        if self.options.get_safe('quiche-support', True):
+            self.requires("quiche/0.22.0")
 
     def package_info(self):
         self.cpp_info.set_property("cmake_find_mode", "both")

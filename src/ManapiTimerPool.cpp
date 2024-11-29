@@ -60,7 +60,10 @@ void manapi::net::utils::timerpool::start() {
                         catch (std::exception const &e) { MANAPI_LOG("Timer Task Exception: {}", e.what()); }
                     }
                     else {
-                        try { threadpool->append_task(std::make_unique<net::function_task>([func] () -> void { func (); })); }
+                        try { threadpool->append_task(std::make_unique<net::function_task>([func] () -> void {
+                            try { func (); }
+                            catch (std::exception const &e) { MANAPI_LOG("Unexpected error: {}", e.what()); }
+                        })); }
                         catch (std::exception const &e) { MANAPI_LOG("Timer Task Exception: {}", e.what()); }
                         task = tasks.erase(task);
                         continue;
@@ -82,7 +85,7 @@ void manapi::net::utils::timerpool::stop() {
     is_stop = true;
 
     std::unique_lock<std::mutex> lk (state_mutex);
-    cv.wait(lk, [this] () -> bool { return deps == 0; });
+    cv.wait(lk, [this] () -> bool { return deps.get().first == 0; });
 }
 
 void manapi::net::utils::timerpool::doit() {

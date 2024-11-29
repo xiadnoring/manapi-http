@@ -5,9 +5,7 @@
 #include <functional>
 #include <map>
 #include <regex>
-#include <atomic>
 #include <thread>
-#include <quiche.h>
 #include <openssl/ssl.h>
 #include <future>
 #include <ev++.h>
@@ -21,11 +19,11 @@
 #include "ManapiHttpResponse.hpp"
 #include "ManapiHttpRequest.hpp"
 
-namespace manapi::net {
-    class http : public site {
+namespace manapi::net::http {
+    class server : public site {
     public:
-        http();
-        ~http();
+        server();
+        ~server();
         std::future <void>      pool (const size_t &thread_num = 20);
 
         void GET    (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
@@ -42,7 +40,7 @@ namespace manapi::net {
         static void stop_all_servers ();
     private:
         static bool                 stopped_interrupt;
-        static std::vector <http *> running;
+        static std::vector <server *> running;
         void                        stop_pool ();
 
         class site                  current;

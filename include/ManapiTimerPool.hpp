@@ -5,7 +5,6 @@
 #include <functional>
 #include <mutex>
 #include <unordered_map>
-#include <atomic>
 
 #include "ManapiThreadPool.hpp"
 #include "ManapiTask.hpp"
@@ -30,7 +29,7 @@ namespace manapi::net::utils {
         void doit ();
     protected:
         // wait while deps being exists
-        std::atomic <size_t> deps;
+        Atomic <ssize_t> deps;
         std::mutex state_mutex;
         std::condition_variable cv;
 

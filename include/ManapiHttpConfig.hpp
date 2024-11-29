@@ -3,15 +3,13 @@
 
 #include <string>
 #include <functional>
+#include <sys/socket.h>
 
-#include <quiche.h>
 #include <openssl/ssl.h>
 
 #include "ManapiJson.hpp"
 
-namespace manapi::net {
-    constexpr static size_t quic_token_max_len = sizeof ("quiche") - 1 + sizeof (struct sockaddr_storage) + QUICHE_MAX_CONN_ID_LEN;
-
+namespace manapi::net::http {
     struct ssl_config_t {
         bool            enabled = false;
         std::string     key;
@@ -19,7 +17,7 @@ namespace manapi::net {
     };
 
     namespace versions {
-        enum {
+        enum tls {
             TLS_v1 = 0,
             TLS_v1_1 = 1,
             TLS_v1_2 = 2,
@@ -37,7 +35,7 @@ namespace manapi::net {
             QUIC_CC_BBR2 = 4
         };
 
-        enum {
+        enum http {
             HTTP_v0_9 = 0,
             HTTP_v1_0 = 1,
             HTTP_v1_1 = 2,
@@ -68,8 +66,8 @@ namespace manapi::net {
         void set_keep_alive (const long int &seconds);
         [[nodiscard]] const size_t& get_keep_alive () const;
 
-        [[nodiscard]] const size_t& get_recv_timeout () const;
-        [[nodiscard]] const size_t& get_send_timeout () const;
+        [[nodiscard]] const ssize_t& get_recv_timeout () const;
+        [[nodiscard]] const ssize_t& get_send_timeout () const;
 
         void set_port (const std::string &_port);
         [[nodiscard]] const std::string& get_port () const;
@@ -94,17 +92,20 @@ namespace manapi::net {
         void set_server_len (const size_t &len);
         [[nodiscard]] const socklen_t &get_server_len () const;
 
-        void set_http3_config (quiche_h3_config *config);
-        quiche_h3_config *get_http3_config ();
-
-        void set_quic_config (quiche_config *config);
-        quiche_config *get_quic_config ();
+        // void set_http3_config (quiche_h3_config *config);
+        // quiche_h3_config *get_http3_config ();
+        //
+        // void set_quic_config (quiche_config *config);
+        // quiche_config *get_quic_config ();
 
         void set_socket_fd (const int &fd);
         [[nodiscard]] const int &get_socket_fd () const;
 
         bool contains_compressor (const std::string &name) const;
         void set_function_contains_compressor (const std::function<bool(const std::string &name)> &func);
+
+        static const std::string &stringify_http_version (const versions::http &version);
+        static http::versions::http parse_http_version (const std::string &version);
     private:
         // settings
         bool                        quic_debug              = false;
@@ -112,7 +113,7 @@ namespace manapi::net {
         size_t                      tls_version             = versions::TLS_v1_3;
         size_t                      max_header_block_size   = 4096;
         size_t                      socket_block_size       = 1350;
-        size_t                      partial_data_min_size   = 4194304;
+        size_t                      partial_data_min_size   = 0;
         size_t                      http_version            = versions::HTTP_v1_1;
         std::string                 http_version_str        = "1.1";
         std::string                 address                 = "0.0.0.0";
@@ -122,14 +123,16 @@ namespace manapi::net {
         std::string                 quic_implement          = "quiche";
         sockaddr                    server_addr;
         socklen_t                   server_len;
-        quiche_h3_config            *http3_config;
-        quiche_config               *quic_config;
+
         int                         sock_fd{};
-        size_t                      recv_timeout            = 2;
-        size_t                      send_timeout            = 2;
+        ssize_t                     recv_timeout            = 1000;
+        ssize_t                     send_timeout            = 1000;
 
         ssl_config_t                ssl_config;
         SSL_CTX                     *ctx;
+
+        // quiche_h3_config            *http3_config;
+        // quiche_config               *quic_config;
 
         std::function<bool(const std::string &name)> function_contains_compressor = nullptr;
     };

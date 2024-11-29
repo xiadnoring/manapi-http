@@ -1,5 +1,5 @@
-#ifndef BASE64_HPP_
-#define BASE64_HPP_
+#ifndef MANAPIHTTP_BASE64_HPP_
+#define MANAPIHTTP_BASE64_HPP_
 
 #include <algorithm>
 #include <array>
@@ -693,4 +693,4 @@ inline constexpr size_t decidx2{3};
 
 }  // namespace base64
 
-#endif  // BASE64_HPP_
+#endif  // MANAPIHTTP_BASE64_HPP_

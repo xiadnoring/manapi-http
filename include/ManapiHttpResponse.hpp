@@ -6,6 +6,7 @@
 #include "ManapiJson.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiApi.hpp"
+#include "ManapiHttpConfig.hpp"
 
 namespace manapi::net {
     struct custom_data_t {
@@ -15,7 +16,7 @@ namespace manapi::net {
 
     class http_response {
     public:
-        http_response               (manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, std::unique_ptr<api::pool> tasks, class config *config);
+        http_response               (manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, std::unique_ptr<api::pool> tasks, http::config &config);
         ~http_response              ();
 
         void set_compress           (const  std::string &name);
@@ -73,7 +74,7 @@ namespace manapi::net {
         size_t                          type;
         // detect the range header
         void                            detect_ranges    ();
-        class config                    *config;
+        http::config                    &config;
 
         std::string                     data;
 

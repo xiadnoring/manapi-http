@@ -1,14 +1,15 @@
 #include <format>
 #include <fstream>
 #include <memory.h>
-#include "ManapiTaskHttp.hpp"
-#include "ManapiHttpRequest.hpp"
 
+#include "ManapiHttpRequest.hpp"
 #include "ManapiJsonBuilder.hpp"
+#include "ManapiHttpMime.hpp"
+#include "http/Base.hpp"
 
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 
-manapi::net::http_request::http_request(const manapi::net::utils::manapi_socket_information &_ip_data, manapi::net::request_data_t &_request_data, void* _http_task, class config *config, const void *_handler)
+manapi::net::http_request::http_request(const manapi::net::utils::manapi_socket_information &_ip_data, manapi::net::request_data_t &_request_data, http::base *_http_task, http::config &config, const void *_handler) : config(config)
 {
     this->config = config;
 
@@ -80,7 +81,7 @@ std::string manapi::net::http_request::text() {
 
     if (request_data->body_size > max_plain_body_size)
     {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_BODY_SO_LONG, "plain body can have only {} length", max_plain_body_size);
+        THROW_MANAPI_EXCEPTION(ERR_HTTP_BODY_TOO_LONG, "plain body can have only {} length", max_plain_body_size);
     }
 
     body.resize(request_data->body_size);
@@ -139,7 +140,7 @@ manapi::net::utils::MAP_STR_STR manapi::net::http_request::form ()
         std::string *value_ptr;
         bool        next = true;
 
-        buff_extra = new char[std::max(4096UL,  config->get_socket_block_size() * 4)];
+        buff_extra = new char[std::max(4096UL,  config.get_socket_block_size() * 4)];
 
         while (next)
         {
@@ -170,8 +171,18 @@ manapi::net::utils::MAP_STR_STR manapi::net::http_request::form ()
 
         for (; request_data->body_index < request_data->body_left; request_data->body_index++) {
             if (request_data->body_index >= request_data->body_part) {
+                request_data->body_left -= request_data->body_index;
+                request_data->body_index =0;
                 // get the next data
-                request_data->body_part = manapi::net::http_task::read_next_part (request_data->body_left, request_data->body_index, http_task, request_data);
+                ssize_t rhs = http_task->read (request_data->buffer.data(), request_data->buffer.size());
+                if (rhs == -1) {
+                    THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
+                }
+                if (rhs > request_data->body_left) {
+                    THROW_MANAPI_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
+                }
+                request_data->body_part = rhs;
+
                 if (request_data->body_part == 0)
                 {
                     break;
@@ -347,8 +358,17 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
                 buff_to_extra_buff (request_data, checkpoint, request_data->body_index, buff_extra, size_extra);
             }
 
-            request_data->body_part = manapi::net::http_task::read_next_part (request_data->body_left, request_data->body_index, http_task, request_data);
-            request_data->body_part = std::min(request_data->body_part, request_data->body_left);
+            request_data->body_left -= request_data->body_index;
+            request_data->body_index =0;
+            // get the next data
+            ssize_t rhs = http_task->read (request_data->buffer.data(), request_data->buffer.size());
+            if (rhs == -1) {
+                THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
+            }
+            if (rhs > request_data->body_left) {
+                THROW_MANAPI_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
+            }
+            request_data->body_part = std::min(static_cast <size_t>(rhs), request_data->body_left);
 
             // read next block
             if (request_data->body_part == 0)
@@ -655,7 +675,17 @@ void manapi::net::http_request::_read_body(const std::function<void(const char *
     // TODO: speed up
     while (request_data->body_index < request_data->body_left) {
         if (request_data->body_index >= request_data->body_part) {
-            request_data->body_part = manapi::net::http_task::read_next_part (request_data->body_left, request_data->body_index, http_task, request_data);
+            request_data->body_left -= request_data->body_index;
+            request_data->body_index =0;
+            // get the next data
+            ssize_t rhs = http_task->read (request_data->buffer.data(), request_data->buffer.size());
+            if (rhs == -1) {
+                THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
+            }
+            if (rhs > request_data->body_left) {
+                THROW_MANAPI_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
+            }
+            request_data->body_part = rhs;
             if (request_data->body_part == 0)
             {
                 break;

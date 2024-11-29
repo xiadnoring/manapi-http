@@ -5,8 +5,9 @@
 #include "ManapiUtils.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpTypes.hpp"
+#include "ManapiHttpMime.hpp"
 
-manapi::net::http_response::http_response(manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, std::unique_ptr<api::pool> tasks, class config *config): status_code(_status), status_message(std::move(_message)), http_version("1.1") {
+manapi::net::http_response::http_response(manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, std::unique_ptr<api::pool> tasks, http::config &config): config(config), status_code(_status), status_message(std::move(_message)), http_version("1.1") {
     this->config = config;
     this->tasks = std::move(tasks);
 
@@ -139,7 +140,7 @@ const std::string &manapi::net::http_response::get_compress() {
         const auto data = utils::parse_header_value(*value);
 
         for (const auto &a: data) {
-            if (config->contains_compressor(a.value)) {
+            if (config.contains_compressor(a.value)) {
                 compress = a.value;
                 break;
             }
@@ -212,10 +213,10 @@ void manapi::net::http_response::set_replacers(const utils::MAP_STR_STR &_replac
 }
 
 void manapi::net::http_response::set_partial_status(const bool &auto_partial_status) {
-    if (has_ranges())
-    {
+    //if (has_ranges())
+    //{
         partial_enabled = auto_partial_status;
-    }
+    //}
 }
 
 void manapi::net::http_response::proxy(const std::string &url) {

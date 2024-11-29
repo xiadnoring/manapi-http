@@ -332,6 +332,10 @@ size_t manapi::net::site::append_timer(const std::chrono::milliseconds &duration
     return timerpool->append_timer(duration, task);
 }
 
+size_t manapi::net::site::append_interval(const std::chrono::milliseconds &duration, const std::function<void()> &task) {
+    return timerpool->append_interval(duration, task);
+}
+
 void manapi::net::site::remove_timer(const size_t &id) {
     timerpool->remove_timer(id);
 }

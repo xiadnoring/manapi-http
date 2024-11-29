@@ -39,7 +39,7 @@ namespace manapi::net {
 
     template<class T>
     size_t threadpool<T>::get_count_stopped_task() {
-        return stopped;
+        return stopped.get().first;
     }
 
     template<class T>
@@ -126,7 +126,7 @@ namespace manapi::net {
             }
         }
 
-        stopped++;
+        ++stopped;
     }
 
     template<class T>
@@ -138,14 +138,14 @@ namespace manapi::net {
         catch (const manapi::net::utils::exception &e) {
             MANAPI_LOG ("Task Manapi Exception: {}", e.what());
         }
-        catch (const std::exception &e) {
-            MANAPI_LOG ("Task Default Exception: {}", e.what());
-        }
+        // catch (const std::exception &e) {
+        //     MANAPI_LOG ("Task Default Exception: {}", e.what());
+        // }
 
-        if (task->to_retry)
+        if (task->retry)
         {
             // RESET
-            task->to_retry = false;
+            task->retry = false;
 
             append_task(std::move(task));
         }

@@ -6,13 +6,15 @@
 #include <list>
 #include <future>
 #include <openssl/ssl.h>
-#include <quiche.h>
+#include <functional>
 
 #include "ManapiHttpConfig.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
 #include "ManapiTask.hpp"
 #include "ManapiSite.hpp"
+#include "worker/Base.hpp"
+#include "http/Base.hpp"
 
 namespace manapi::net {
     class http_pool {
@@ -20,45 +22,42 @@ namespace manapi::net {
         explicit http_pool(const json &config, class site *site, const size_t &id);
         ~http_pool();
 
-        ev::loop_ref                get_loop ();
+        ev::loop_ref get_loop ();
 
-        void                        stop ();
-        std::future <int>           run ();
+        void stop ();
+        std::future <int> run ();
 
-        void                        new_connection_quic    (ev::io &watcher, int revents);
-        void                        new_connection_tls     (ev::io &watcher, int revents);
+        void new_connection_quic    (ev::io &watcher, int revents);
+        void new_connection_tls     (ev::io &watcher, int revents);
 
-        class site                  &get_site () const;
+        class site &get_site () const;
 
         // quic data
-        quic_map_conns_t            quic_map_conns;
+        quic_map_conns_t quic_map_conns;
 
         utils::safe_unordered_map <utils::manapi_socket_information, task *> peer_by_ip;
-        std::mutex                  recv_m;
+        std::mutex recv_m;
 
-        const int                   &get_fd ();
+        const int &get_fd ();
     private:
-        int                         _pool ();
-        static SSL_CTX*             ssl_create_context (const size_t &version = versions::TLS_v1_3);
-        void                        ssl_configure_context ();
+        int _pool ();
 
-        size_t                      id;
+        size_t id;
 
-        class config                config;
+        std::shared_ptr <http::config> config;
+        std::shared_ptr <worker::base> worker;
 
         // pool
 
-        std::mutex                  m_running;
-        std::mutex                  m_initing;
+        std::mutex m_running;
+        std::mutex m_initing;
 
-        ev::dynamic_loop            loop;
-        addrinfo                    *local          = nullptr;
-        std::unique_ptr<std::promise <int> >
-                                    pool_promise;
+        ev::dynamic_loop loop;
+        std::unique_ptr<std::promise <int> > pool_promise;
 
-        class site                  *site;
+        class site *site;
         // watchers
-        std::unique_ptr<ev::io>     ev_io;
+        std::unique_ptr<ev::io> ev_io;
     };
 }
 
