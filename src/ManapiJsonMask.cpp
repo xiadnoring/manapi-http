@@ -124,8 +124,7 @@ void manapi::json_mask::set_complete_status(const bool &complete) {
 }
 
 void manapi::json_mask::_set_status_prepared(json &data) {
-    data.set_custom_data({new bool (true), [] (void *src) -> void { delete static_cast<bool *> (src); },
-        [] (void *src) -> void* { return new bool (*static_cast<bool *> (src)); }});
+    data["__manapi_prepared"] = true;
 }
 
 void manapi::json_mask::_insert_meta_row(json &information, const std::string &key, const json &value) {
@@ -143,10 +142,8 @@ void manapi::json_mask::_insert_meta_row(json &information, const std::string &k
 void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 {
     {
-        const auto &custom_data = obj.get_custom_data();
-        if (custom_data.src != nullptr && *static_cast<bool *> (custom_data.src)) {
-            // no any actions needed
-            obj.clear_custom_data();
+        if (obj.is_object() && obj["__manapi_prepared"] == true) {
+            obj.erase("__manapi_prepared");
             return;
         }
     }
@@ -209,9 +206,9 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
         {
             ntype = json::type_string;
         }
-        else if (type == "number")
+        else if (type == "integer")
         {
-            ntype = json::type_number;
+            ntype = json::type_integer;
         }
         else if (type == "decimal")
         {
@@ -229,9 +226,9 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
         {
             ntype = json::type_null;
         }
-        else if (type == "numeric")
+        else if (type == "number")
         {
-            ntype = json::type_numeric;
+            ntype = json::type_number;
         }
         else if (type == "any")
         {
@@ -399,7 +396,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                     else
                     {
                         // others
-                        parsed_buff = builder.get().as_number_cast();
+                        parsed_buff = builder.get().as_integer_cast();
                     }
 
                     switch (compare_type) {
@@ -535,7 +532,7 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
 
     // information is a map
 
-    auto &type = information["type"].as_number();
+    auto &type = information["type"].as_integer();
 
     if (type == json::type_string)
     {
@@ -586,10 +583,10 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
         // ex: {bool}
         return true;
     }
-    if (type == json::type_number)
+    if (type == json::type_integer)
     {
         // invalid type
-        if (!obj.is_number())
+        if (!obj.is_integer())
         {
             return false;
         }
@@ -597,12 +594,12 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
         // invalid value
         if (information.contains("value"))
         {
-            return obj.as_number() == information["value"].as_number();
+            return obj.as_integer() == information["value"].as_integer();
         }
 
         if (information.contains("mean"))
         {
-            return obj.as_number() == information["mean"].as_number();
+            return obj.as_integer() == information["mean"].as_integer();
         }
 
         // ex: {number}
@@ -652,9 +649,9 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
         // ex: {bigint}
         return true;
     }
-    if (type == json::type_numeric)
+    if (type == json::type_number)
     {
-        if (!obj.is_bigint() && !obj.is_number() && !obj.is_decimal())
+        if (!obj.is_bigint() && !obj.is_integer() && !obj.is_decimal())
         {
             return false;
         }
@@ -779,7 +776,7 @@ bool manapi::json_mask::default_compare_information(const manapi::json &obj, con
     {
         if (information.contains("min_mean"))
         {
-            if (obj.size() <= information["min_mean"].as_number())
+            if (obj.size() <= information["min_mean"].as_integer())
             {
                 return false;
             }
@@ -787,7 +784,7 @@ bool manapi::json_mask::default_compare_information(const manapi::json &obj, con
 
         if (information.contains("max_mean"))
         {
-            if (obj.size() >= information["max_mean"].as_number())
+            if (obj.size() >= information["max_mean"].as_integer())
             {
                 return false;
             }

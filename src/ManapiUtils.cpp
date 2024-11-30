@@ -147,7 +147,7 @@ std::string manapi::net::utils::escape_string (const std::string &str, const cha
         }
     }
 
-    return escaped;
+    return std::move(escaped);
 }
 
 std::u32string manapi::net::utils::escape_string (const std::u32string &str) {
@@ -192,7 +192,7 @@ std::u32string manapi::net::utils::escape_string (const std::u32string &str) {
         }
     }
 
-    return escaped;
+    return std::move(escaped);
 }
 
 bool manapi::net::utils::escape_char_need (const char &ch, const char &quotes) {
@@ -236,7 +236,7 @@ std::string manapi::net::utils::generate_cache_name (const std::string &file, co
     name += '.';
     name += ext;
 
-    return name;
+    return std::move(name);
 }
 
 std::string manapi::net::utils::encode_url(const std::string &str) {
@@ -426,7 +426,7 @@ std::vector <manapi::net::utils::replace_founded_item> manapi::net::utils::found
             continue;
         }
 
-        else if (c == '{') {
+        if (c == '{') {
             special = true;
 
             pos.first = j;
@@ -435,7 +435,7 @@ std::vector <manapi::net::utils::replace_founded_item> manapi::net::utils::found
 
     f.close();
 
-    return founded;
+    return std::move(founded);
 }
 
 // ============================================================ //
@@ -482,12 +482,12 @@ std::pair<std::string, std::string> manapi::net::utils::parse_header(const std::
         *ptr += c;
     }
 
-    return parsed;
+    return std::move(parsed);
 }
 
 std::string manapi::net::utils::stringify_header (const std::pair<std::string, std::string> &header)
 {
-    return header.first + ": " + header.second;
+    return std::move(header.first + ": " + header.second);
 }
 
 std::vector <manapi::net::header_value_t> manapi::net::utils::parse_header_value (const std::string &header_value) {
@@ -522,13 +522,13 @@ std::vector <manapi::net::header_value_t> manapi::net::utils::parse_header_value
                 continue;
             }
 
-            else if (!opened_queues) {
+            if (!opened_queues) {
                 if (header_value[i] == '=')
                 {
                     is_key = false;
                     continue;
                 }
-                else if (header_value[i] == ';' || header_value[i] == ',')
+                if (header_value[i] == ';' || header_value[i] == ',')
                 {
                     p:
                     if (is_key) {
@@ -567,7 +567,7 @@ std::vector <manapi::net::header_value_t> manapi::net::utils::parse_header_value
         }
     }
 
-    return data;
+    return std::move(data);
 }
 
 std::string manapi::net::utils::stringify_header_value (const std::vector <manapi::net::header_value_t> &header_value) {
@@ -606,7 +606,7 @@ std::string manapi::net::utils::stringify_header_value (const std::vector <manap
         }
     }
 
-    return result;
+    return std::move(result);
 }
 
 // ============================================================ //
@@ -620,15 +620,15 @@ std::string manapi::net::utils::stringify_header_value (const std::vector <manap
 
 std::string manapi::net::utils::str16to4 (const std::u16string &str16)
 {
-    return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.to_bytes(str16);
+    return std::move(std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.to_bytes(str16));
 }
 std::string manapi::net::utils::str16to4 (const char16_t &str16)
 {
-    return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.to_bytes(str16);
+    return std::move(std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.to_bytes(str16));
 }
 std::u16string manapi::net::utils::str4to16 (const std::string &str)
 {
-    return std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.from_bytes(str);
+    return std::move(std::wstring_convert< std::codecvt_utf8<char16_t>, char16_t >{}.from_bytes(str));
 }
 
 const std::string & manapi::net::utils::get_msg_by_err_num(const err_num &errnum) {
@@ -641,13 +641,13 @@ const std::string & manapi::net::utils::get_msg_by_err_num(const err_num &errnum
 
 std::string manapi::net::utils::str32to4 (const std::u32string &str32)
 {
-    return std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.to_bytes(str32);
+    return std::move(std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.to_bytes(str32));
 }
 std::string manapi::net::utils::str32to4 (const char32_t &str32)
 {
-    return std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.to_bytes(str32);
+    return std::move(std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.to_bytes(str32));
 }
 std::u32string manapi::net::utils::str4to32 (const std::string &str)
 {
-    return std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.from_bytes(str);
+    return std::move(std::wstring_convert< std::codecvt_utf8<char32_t>, char32_t >{}.from_bytes(str));
 }

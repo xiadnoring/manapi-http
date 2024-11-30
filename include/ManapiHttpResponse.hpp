@@ -22,15 +22,15 @@ namespace manapi::net {
         void set_compress           (const  std::string &name);
         void set_compress_enabled   (const bool &status);
 
-        void text                   (const std::string &plain_text);
-        void json                   (const manapi::json &jp, const size_t &spaces = 0);
+        void text                   (std::string plain_text);
+        void json                   (const manapi::json &data, const size_t &spaces = 0);
         void set_status             (const size_t &_status_code, const std::string &_status_message);
         void set_status_code        (const size_t &_status_code);
         void set_status_message     (const std::string &_status_message);
         void set_replacers          (const utils::MAP_STR_STR &_replacers);
         void set_partial_status     (const bool &auto_partial_status);
-        void file                   (const std::string &path);
-        void proxy                  (const std::string &url);
+        void file                   (std::string path);
+        void proxy                  (std::string url);
 
         [[deprecated]]
         const std::string               &get_http_version   ();

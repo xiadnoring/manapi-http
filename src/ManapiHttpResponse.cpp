@@ -50,14 +50,14 @@ const std::string &manapi::net::http_response::get_header(const std::string &key
     THROW_MANAPI_EXCEPTION(ERR_HTTP_HEADER_MISSING, "The header '{}' could not be found", key);
 }
 
-void manapi::net::http_response::text(const std::string &plain_text) {
-    data            = plain_text;
+void manapi::net::http_response::text(std::string plain_text) {
+    data            = std::move(plain_text);
     type            = MANAPI_HTTP_RESP_TEXT;
 }
 
-void manapi::net::http_response::json(const class json &jp, const size_t &spaces) {
+void manapi::net::http_response::json(const manapi::json& data, const size_t &spaces) {
     set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.APPLICATION_JSON);
-    text(jp.dump (spaces));
+    text(std::move(data.dump (spaces)));
 }
 
 void manapi::net::http_response::set_status_code(const size_t &_status_code) {
@@ -73,8 +73,8 @@ void manapi::net::http_response::set_status(const size_t &_status_code, const st
     status_message  = _status_message;
 }
 
-void manapi::net::http_response::file(const std::string &path) {
-    data                = path;
+void manapi::net::http_response::file(std::string path) {
+    data                = std::move(path);
     type                = MANAPI_HTTP_RESP_FILE;
 }
 
@@ -219,9 +219,9 @@ void manapi::net::http_response::set_partial_status(const bool &auto_partial_sta
     //}
 }
 
-void manapi::net::http_response::proxy(const std::string &url) {
+void manapi::net::http_response::proxy(std::string url) {
     type = MANAPI_HTTP_RESP_PROXY;
-    data = url;
+    data = std::move(url);
 
     set_compress_enabled(false);
 }

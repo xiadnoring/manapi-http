@@ -45,7 +45,7 @@ namespace jwt {
 
             static integer_type as_integer(const value_type& val) {
                 if (!val.is_number()) throw std::bad_cast();
-                return val.as_number();
+                return val.as_integer();
             }
 
             static boolean_type as_boolean(const value_type& val) {
@@ -53,7 +53,7 @@ namespace jwt {
                 return val.as_bool();
             }
 
-            static number_type as_number(const value_type& val) {
+            static number_type as_integer(const value_type& val) {
                 if (!val.is_decimal()) throw std::bad_cast();
                 return static_cast<double> (val.as_decimal());
             }

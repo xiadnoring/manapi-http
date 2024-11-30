@@ -116,7 +116,7 @@ void manapi::json_builder::_check_type(const std::string_view &plain_text, size_
                 action = std::bind(&json_builder::_build_string, this, std::placeholders::_1, std::placeholders::_2);
                 goto finish;
             default:
-                type = json::type_numeric;
+                type = json::type_number;
                 action = std::bind(&json_builder::_build_numeric, this, std::placeholders::_1, std::placeholders::_2);
                 goto finish;
         }
@@ -307,7 +307,7 @@ void manapi::json_builder::_build_numeric(const std::string_view &plain_text, si
 
         if (c >= '0' && c <= '9')
         {
-            if (type == json::type_numeric) { type = json::type_number; }
+            if (type == json::type_number) { type = json::type_integer; }
             if (buffer.size() == 1 && buffer[0] == '0') {
                 // it can't be
                 json::error_invalid_char(plain_text, j);
@@ -395,11 +395,11 @@ void manapi::json_builder::_build_numeric(const std::string_view &plain_text, si
                 stream >> d;
                 object.parse(d);
             }
-            else if (type == json::type_number)
+            else if (type == json::type_integer)
             {
-                json::NUMBER n;
+                json::INTEGER n;
                 stream >> n;
-                object.parse(static_cast<json::NUMBER> (n));
+                object.parse(static_cast<json::INTEGER> (n));
             }
         }
 
@@ -737,9 +737,9 @@ void manapi::json_builder::_check_eq_type() {
         return;
     }
     auto &current = get_current_type();
-    auto &current_type = current["type"].as_number();
-    if (current.contains("max_mean")) { max_mean_size = &current["max_mean"].as_number(); }
-    if (current.contains("min_mean")) { min_mean_size = &current["min_mean"].as_number(); }
+    auto &current_type = current["type"].as_integer();
+    if (current.contains("max_mean")) { max_mean_size = &current["max_mean"].as_integer(); }
+    if (current.contains("min_mean")) { min_mean_size = &current["min_mean"].as_integer(); }
 
     if (current_type == -1)
     {
@@ -748,12 +748,12 @@ void manapi::json_builder::_check_eq_type() {
         return;
     }
 
-    if (type == json::type_numeric)
+    if (type == json::type_number)
     {
         if (
             current_type == json::type_decimal ||
             current_type == json::type_bigint ||
-            current_type == json::type_number ||
+            current_type == json::type_integer ||
             current_type == json::type_boolean ||
             current_type == json::type_null)
         {
@@ -791,8 +791,8 @@ bool manapi::json_builder::_check_max_mean(const bool &building) {
             case json::type_string:
                 if (object.size() < *max_mean_size) { return true; }
             break;
-            case json::type_number:
-                if (object.as_number() < *max_mean_size) { return true; }
+            case json::type_integer:
+                if (object.as_integer() < *max_mean_size) { return true; }
             break;
             case json::type_bigint:
                 if (object.as_bigint() < *max_mean_size) { return true; }
@@ -820,8 +820,8 @@ bool manapi::json_builder::_check_min_mean() {
         case json::type_string:
             if (*min_mean_size < 0 || object.size() > *min_mean_size) { return true; }
         break;
-        case json::type_number:
-            if (object.as_number() > *min_mean_size) { return true; }
+        case json::type_integer:
+            if (object.as_integer() > *min_mean_size) { return true; }
         break;
         case json::type_bigint:
             if (object.as_bigint() > *min_mean_size) { return true; }

@@ -10,18 +10,12 @@
 #define MANAPI_JSON_DEBUG {{ VAR_MANAPI_JSON_DEBUG }}
 
 namespace manapi {
-    struct json_custom_data_t {
-        void *src = nullptr;
-        std::function<void(void *)> deleter;
-        std::function<void *(void *)> copier;
-    };
-
     class json {
     public:
         typedef std::map <std::string, manapi::json> OBJECT;
         typedef std::vector <manapi::json> ARRAY;
         typedef double long DECIMAL;
-        typedef ssize_t NUMBER;
+        typedef ssize_t INTEGER;
         typedef nullptr_t NULLPTR;
         typedef std::string STRING;
         typedef std::string_view STRING_VIEW;
@@ -33,13 +27,13 @@ namespace manapi {
 
         enum types {
             type_null = 0,
-            type_numeric = 1,
+            type_number = 1,
             type_string = 2,
             type_decimal = 3,
             type_boolean = 4,
             type_object = 5,
             type_array = 6,
-            type_number = 7,
+            type_integer = 7,
             type_bigint = 8,
             type_pair = 9
         };
@@ -59,7 +53,7 @@ namespace manapi {
 
         json(const STRING_VIEW &str, const bool &to_parse = false);
         json(const UNICODE_STRING &str, const bool &to_parse = false);
-        json(const NUMBER &num);
+        json(const INTEGER &num);
         json(const size_t &num);
         json(const char *plain_text, const bool &to_parse = false);
         json(const int &num);
@@ -78,9 +72,9 @@ namespace manapi {
         void parse (const UNICODE_STRING &plain_text);
         void parse (const STRING_VIEW &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128);
 
-        // numbers
+        // integers
         void parse (const size_t &num);
-        void parse (const NUMBER &num);
+        void parse (const INTEGER &num);
         void parse (const int &num);
         void parse (const double &num);
         void parse (const DECIMAL &num);
@@ -120,7 +114,7 @@ namespace manapi {
         json &operator=     (const STRING           &str);
         json &operator=     (const char             *str);
         json &operator=     (const BOOLEAN          &b);
-        json &operator=     (const NUMBER           &num);
+        json &operator=     (const INTEGER           &num);
         json &operator=     (const int              &num);
         json &operator=     (const double           &num);
         json &operator=     (const DECIMAL          &num);
@@ -130,30 +124,31 @@ namespace manapi {
         json &operator=     (const json             &obj);
         json &operator=     (json                   &&obj);
         json &operator=     (const std::initializer_list <json> &data);
-        json operator-      (const NUMBER           &num);
+        json operator-      (const INTEGER           &num);
         json operator-      (const int              &num);
         json operator-      (const DECIMAL          &num);
         json operator-      (const double           &num);
         json operator-      (const BIGINT           &num);
-        json operator+      (const NUMBER           &num);
+        json operator+      (const INTEGER           &num);
         json operator+      (const int              &num);
         json operator+      (const DECIMAL          &num);
         json operator+      (const double           &num);
         json operator+      (const BIGINT           &num);
         json operator+      (const STRING           &str);
         void operator+=     (const STRING           &str);
-        void operator-=     (const NUMBER           &num);
+        void operator-=     (const INTEGER           &num);
         void operator-=     (const int              &num);
         void operator-=     (const DECIMAL          &num);
         void operator-=     (const double           &num);
         void operator-=     (const BIGINT           &num);
-        void operator+=     (const NUMBER           &num);
+        void operator+=     (const INTEGER           &num);
         void operator+=     (const int              &num);
         void operator+=     (const DECIMAL          &num);
         void operator+=     (const double           &num);
         void operator+=     (const BIGINT           &num);
 
         bool operator==     (const json &) const;
+        bool operator==     (const bool &) const;
 
 
         void insert (const STRING &key, const json &obj);
@@ -187,7 +182,7 @@ namespace manapi {
         [[nodiscard]] bool is_object      () const;
         [[nodiscard]] bool is_array       () const;
         [[nodiscard]] bool is_string      () const;
-        [[nodiscard]] bool is_number      () const;
+        [[nodiscard]] bool is_integer     () const;
         [[nodiscard]] bool is_null        () const;
         [[nodiscard]] bool is_decimal     () const;
         [[nodiscard]] bool is_bigint      () const;
@@ -209,10 +204,10 @@ namespace manapi {
          */
         [[nodiscard]] const STRING &as_string () const;
         /**
-         * strict number retrieval
+         * strict integer retrieval
          * @return
          */
-        [[nodiscard]] const NUMBER &as_number () const;
+        [[nodiscard]] const INTEGER &as_integer () const;
         /**
          * strict null retrieval
          * @return
@@ -252,21 +247,21 @@ namespace manapi {
          * non-strict string retrieval
          *
          * string - string
-         * number - string
+         * integer - string
          * bigint - string
          * decimal - string
          * @return
          */
         [[nodiscard]] STRING as_string_cast () const;
         /**
-         * non-strict number retrieval
+         * non-strict integer retrieval
          *
-         * @note number - number
-         * @note decimal - number
-         * @note bigint - number
+         * @note integer - integer
+         * @note decimal - integer
+         * @note bigint - integer
          * @return
          */
-        [[nodiscard]] NUMBER as_number_cast () const;
+        [[nodiscard]] INTEGER as_integer_cast () const;
         /**
          * non-strict null retrieval
          *
@@ -279,7 +274,7 @@ namespace manapi {
          *
          * @note decimal - decimal
          * @note bigint - decimal
-         * @note number - decimal
+         * @note integer - decimal
          * @return
          */
         [[nodiscard]] DECIMAL as_decimal_cast () const;
@@ -287,7 +282,7 @@ namespace manapi {
          * non-strict bigint retrieval
          *
          * @note bigint - bigint
-         * @note number - bigint
+         * @note integer - bigint
          * @note decimal - bigint
          * @note string - bigint
          * @return
@@ -322,14 +317,7 @@ namespace manapi {
         static void error_invalid_char (const UNICODE_STRING &plain_text, const size_t &i);
         static void error_invalid_char (const STRING_VIEW &plain_text, const size_t &i);
         static void error_unexpected_end (const size_t &i);
-
-        void clear_custom_data ();
-        void set_custom_data (const json_custom_data_t &data);
-        [[nodiscard]] const json_custom_data_t &get_custom_data () const;
     protected:
-        [[nodiscard]] size_t get_start_cut () const;
-        [[nodiscard]] size_t get_end_cut () const;
-
         bool root = true;
     private:
         static void delete_value_static (const short &type, void *src);
@@ -340,7 +328,7 @@ namespace manapi {
         void _set_bool ();
         void _set_array ();
         void _set_string ();
-        void _set_number ();
+        void _set_integer ();
         void _set_decimal ();
         void _set_bigint ();
         void _set_nullptr ();
@@ -349,7 +337,7 @@ namespace manapi {
         void _set_bool (const BOOLEAN &val);
         void _set_array (const ARRAY &val);
         void _set_string (const STRING_VIEW &val);
-        void _set_number (const NUMBER &val);
+        void _set_integer (const INTEGER &val);
         void _set_decimal (const DECIMAL &val);
         void _set_bigint (const BIGINT &val);
         void _set_pair (json first, json second);
@@ -360,7 +348,7 @@ namespace manapi {
             _debug_bigint_src = nullptr;
             _debug_object_src = nullptr;
             _debug_string_src = nullptr;
-            _debug_number_src = nullptr;
+            _debug_integer_src = nullptr;
             _debug_decimal_src = nullptr;
             _debug_pair_src = nullptr;
 
@@ -372,8 +360,8 @@ namespace manapi {
                 case type_object:
                     _debug_object_src = &get<OBJECT> ();
                 break;
-                case type_number:
-                    _debug_number_src = &get<NUMBER> ();
+                case type_integer:
+                    _debug_integer_src = &get<INTEGER> ();
                 break;
                 case type_bigint:
                     _debug_bigint_src = &get<BIGINT> ();
@@ -400,9 +388,6 @@ namespace manapi {
 
         void    *src = nullptr;
         types   type = type_null;
-        size_t  start_cut = 0;
-        size_t  end_cut = 0;
-        json_custom_data_t custom_data;
 
 #if MANAPI_JSON_DEBUG
         const BOOLEAN *_debug_bool_src    = nullptr;
@@ -410,7 +395,7 @@ namespace manapi {
         const BIGINT  *_debug_bigint_src  = nullptr;
         const OBJECT  *_debug_object_src  = nullptr;
         const STRING  *_debug_string_src  = nullptr;
-        const NUMBER  *_debug_number_src  = nullptr;
+        const INTEGER *_debug_integer_src  = nullptr;
         const DECIMAL *_debug_decimal_src = nullptr;
         const PAIR    *_debug_pair_src = nullptr;
 #endif
