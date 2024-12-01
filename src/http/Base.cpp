@@ -1,3 +1,5 @@
+#include <memory.h>
+
 #include "http/Base.hpp"
 
 #include "ManapiFetch.hpp"
@@ -69,7 +71,7 @@ void manapi::net::http::base::send_response_file(manapi::net::http_response &res
 
     if (FEATURE_EXISTS(features.compressor)) {
         if (FEATURE_EXISTS(features.replacers)) {
-            THROW_MANAPI_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
         }
 
         filepath = compress_file(res.get_file(), site.config_cache_dir, features.compress, features.compressor);
@@ -82,7 +84,7 @@ void manapi::net::http::base::send_response_file(manapi::net::http_response &res
     f.open(filepath, std::ios::binary | std::ios::in);
 
     if (!f.is_open()) {
-        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "Could not open the file by the following path: {}", filepath);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Could not open the file by the following path: {}", filepath);
     } else {
         // close ifstream before deleting
         utils::before_delete unwrap_ifstream([&f]() -> void { f.close(); });
@@ -117,14 +119,14 @@ void manapi::net::http::base::send_response_file(manapi::net::http_response &res
         // partial enabled
         if (res.get_partial_enabled() && config->get_partial_data_min_size() <= fileSize) {
             if (FEATURE_EXISTS(features.compressor)) {
-                THROW_MANAPI_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
+                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
                                        "the compress '{}' with the partial content is not supported.",
                                        utils::escape_string(res.get_compress()));
             }
 
 
             if (FEATURE_EXISTS(features.replacers)) {
-                THROW_MANAPI_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be use with partial");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be use with partial");
             }
 
             res.set_status(206, HTTP_STATUS.PARTIAL_CONTENT_206);
@@ -164,7 +166,7 @@ void manapi::net::http::base::send_response_file(manapi::net::http_response &res
                     break;
 
                 default:
-                    THROW_MANAPI_EXCEPTION2(ERR_HTTP_UNSUPPORTED, "multi bytes unsupported");
+                    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_UNSUPPORTED, "multi bytes unsupported");
             }
         } else {
             res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(dynamicFileSize));
@@ -206,7 +208,7 @@ void manapi::net::http::base::send_response_text(manapi::net::http_response &res
     if (mask_response(res, false) >= 0) {
         send_text(*plaintext, plaintext->size());
     } else {
-        MANAPI_LOG("{}", "mask_response(...) < 0");
+        MANAPIHTTP_LOG("{}", "mask_response(...) < 0");
     }
 }
 
@@ -228,7 +230,7 @@ void manapi::net::http::base::send_response_proxy(manapi::net::http_response &re
         const ssize_t sw = worker->write(*connection, buffer, size, false);
 
         if (sw < 0) {
-            THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not write pocket: {}", "mask_write() < 0");
+            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not write pocket: {}", "mask_write() < 0");
         }
 
         return sw;
@@ -287,7 +289,7 @@ void manapi::net::http::base::handle_request(const http_handler_page *data, requ
                     try {
                         send_response(res);
                     } catch (const std::exception &e) {
-                        MANAPI_LOG("Unexpected error: {}", e.what());
+                        MANAPIHTTP_LOG("Unexpected error: {}", e.what());
 
                         send_error_response(503, request_data, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error.get());
                     }
@@ -307,12 +309,12 @@ void manapi::net::http::base::handle_request(const http_handler_page *data, requ
             case ERR_HTTP_CONNECTION_WAS_CLOSED:
                 return;
             default:
-                MANAPI_LOG("Unexpected error: {}", e.what());
+                MANAPIHTTP_LOG("Unexpected error: {}", e.what());
                 send_error_response(503, request_data, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error.get());
         }
     }
     catch (const std::exception &e) {
-        MANAPI_LOG("Unexpected error: {}", e.what());
+        MANAPIHTTP_LOG("Unexpected error: {}", e.what());
 
         send_error_response(503, request_data, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error.get());
     }
@@ -548,12 +550,12 @@ void manapi::net::http::base::send_text(const std::string &text, const size_t &s
         const ssize_t result = worker->write(*connection, current, sent, true);
 
         if (result <= 0) {
-            THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not send the text: mask_write(...) = {}. Size: {}",
+            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not send the text: mask_write(...) = {}. Size: {}",
                                    result, sent);
         }
 
         if (result > sent) {
-            THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Total sent size > prepared sent size. {} > {}", result,
+            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Total sent size > prepared sent size. {} > {}", result,
                                    sent);
         }
 

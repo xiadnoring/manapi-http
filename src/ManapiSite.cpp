@@ -1,7 +1,11 @@
-#include <openssl/ssl.h>
-
 #include "ManapiFilesystem.hpp"
 #include "ManapiSite.hpp"
+
+#include "worker/Base.hpp"
+#include "worker/TCP.hpp"
+#include "worker/OpenSSL_TLS.hpp"
+#include "worker/QUIC.hpp"
+#include "worker/HTTPv2.hpp"
 
 #include "ManapiTaskFunction.hpp"
 #include "ManapiThreadPool.hpp"
@@ -37,9 +41,17 @@ bool manapi::net::site::contains_compressor(const std::string &name) const {
     return compressors.contains(name);
 }
 
-void manapi::net::site::setup() {
-    SSL_library_init();
+void manapi::net::site::set_transport_protocol_worker(const std::string &type, const std::string &name, const std::function<std::shared_ptr<worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker) {
+    transport_protocol_workers[type][name] = [this, worker] (std::shared_ptr<http::config> &&config) {
+        return worker (*this, std::forward<decltype(config)>(config));
+    };
+}
 
+const std::map<std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &manapi::net::site::get_transport_protocol_worker(const std::string &type) {
+    return transport_protocol_workers[type];
+}
+
+void manapi::net::site::setup() {
     // fast ios
     // std::ios_base::sync_with_stdio(false);
     // std::cout.tie(nullptr);
@@ -49,6 +61,15 @@ void manapi::net::site::setup() {
 
     set_compressor("deflate", manapi::net::utils::compress::deflate);
     set_compressor("gzip", manapi::net::utils::compress::gzip);
+
+    set_transport_protocol_worker("tcp", "default", worker::TCP::create);
+#if MANAPIHTTP_OPENSSL_DEPENDENCY
+    set_transport_protocol_worker("tls", "openssl", worker::OpenSSL_TLS::create);
+#endif
+
+#if MANAPIHTTP_WOLFSSL_DEPENDENCY
+
+#endif
 }
 
 void manapi::net::site::timer_pool_setup(threadpool<task> *tasks_pool) {
@@ -207,12 +228,12 @@ void manapi::net::site::save_config() {
 }
 
 void manapi::net::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPI_EXCEPTION(ERR_HTTP_ADD_PAGE, "The method {} already contains in the url {}", method, url); }
+    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_ADD_PAGE, "The method {} already contains in the url {}", method, url); }
 }
 
 void manapi::net::site::check_exists_method_on_url(const std::string &url,
     const std::unique_ptr<handlers_static_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPI_EXCEPTION(ERR_HTTP_ADD_PAGE, "The method {} already contains in the static url {}", method, url); }
+    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_ADD_PAGE, "The method {} already contains in the static url {}", method, url); }
 }
 
 manapi::net::http_handler_page manapi::net::site::get_handler(request_data_t &request_data) const {
@@ -265,7 +286,7 @@ manapi::net::http_handler_page manapi::net::site::get_handler(request_data_t &re
                             if (cur->params == nullptr) {
                                 // bug
 
-                                MANAPI_LOG("{}", "cur->regexes_title (params) is null.");
+                                MANAPIHTTP_LOG("{}", "cur->regexes_title (params) is null.");
                                 return handler_page;
                             }
 
@@ -273,7 +294,7 @@ manapi::net::http_handler_page manapi::net::site::get_handler(request_data_t &re
                             if (cur->params->size() != expected_size) {
                                 // bug
 
-                                MANAPI_LOG("The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
+                                MANAPIHTTP_LOG("The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
                                            cur->params->size(), expected_size, request_data.path.at(i));
                                 return handler_page;
                             }
@@ -409,7 +430,7 @@ manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &me
 
             break;
         default:
-            THROW_MANAPI_EXCEPTION(ERR_HTTP_ADD_PAGE, "{}", "can not use the special pages with the static files");
+            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_ADD_PAGE, "{}", "can not use the special pages with the static files");
     }
 
 
@@ -462,7 +483,7 @@ manapi::net::http_uri_part *manapi::net::site::build_uri_part(const std::string 
                                 {
                                     if (std::find(past_params->get()->begin(), past_params->get()->end(), param) !=
                                         past_params->get()->end())
-                                        MANAPI_LOG("Warning: a param with a title '{}' is already in use. ({})",
+                                        MANAPIHTTP_LOG("Warning: a param with a title '{}' is already in use. ({})",
                                                    param, uri);
                                 }
                             }
@@ -490,7 +511,7 @@ manapi::net::http_uri_part *manapi::net::site::build_uri_part(const std::string 
                     {
                         if (buff == "+error") { type = URI_PAGE_ERROR; }
                         else if (buff == "+layer") { type = URI_PAGE_LAYER; }
-                        else { MANAPI_LOG("The first char '{}' is reserved for special pages in {}", '+', buff); }
+                        else { MANAPIHTTP_LOG("The first char '{}' is reserved for special pages in {}", '+', buff); }
 
                         break;
                     }

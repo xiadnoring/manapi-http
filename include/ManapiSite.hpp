@@ -15,10 +15,9 @@
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpResponse.hpp"
 
-#define MANAPI_QUIC_CONNECTION_ID_LEN 16
-#define MANAPI_MAX_DATAGRAM_SIZE 1350
-#define MANAPI_SEND_BURST_LIMIT 65507
-#define MANAPI_QUIC_CAPACITY_MIN 5
+namespace manapi::net::worker {
+    class base;
+}
 
 namespace manapi::net {
     typedef std::function <void(manapi::net::http_request &req, manapi::net::http_response &res)> handler_template_t;
@@ -39,7 +38,7 @@ namespace manapi::net {
         std::unordered_map  <uint64_t, task *> tasks;
     };
 
-    typedef manapi::net::utils::safe_unordered_map <std::string, std::unique_ptr<http_quic_conn_io> > quic_map_conns_t;
+    typedef manapi::net::utils::atomic_map <std::string, std::unique_ptr<http_quic_conn_io> > quic_map_conns_t;
 
     struct http_uri_part;
 
@@ -89,61 +88,63 @@ namespace manapi::net {
         site ();
         ~site();
 
-        void                                append_task (std::unique_ptr<task> t, const int &level = 0);
-        size_t                              append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
-        size_t                              append_interval (const std::chrono::milliseconds &duration, const std::function<void()> &task);
-        void                                remove_timer (const size_t &id);
+        void append_task (std::unique_ptr<task> t, const int &level = 0);
+        size_t append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
+        size_t append_interval (const std::chrono::milliseconds &duration, const std::function<void()> &task);
+        void remove_timer (const size_t &id);
 
-        http_uri_part                       *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
-        http_uri_part                       *set_handler (const std::string &method, const std::string &uri, const std::string &folder);
+        http_uri_part *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
+        http_uri_part *set_handler (const std::string &method, const std::string &uri, const std::string &folder);
 
-        http_handler_page                   get_handler (request_data_t &request_data) const;
+        http_handler_page get_handler (request_data_t &request_data) const;
 
         void set_compressor (const std::string &name, manapi::net::utils::compress::TEMPLATE_INTERFACE handler);
         manapi::net::utils::compress::TEMPLATE_INTERFACE get_compressor (const std::string &name);
 
-        bool                                contains_compressor (const std::string &name) const;
+        [[nodiscard]] bool contains_compressor (const std::string &name) const;
 
-        void                                set_config (const std::string &path);
-        void                                set_config_object (const json &config);
-        const manapi::json                  &get_config ();
+        void set_transport_protocol_worker (const std::string &type, const std::string &name, const std::function<std::shared_ptr<class worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker);
+        const std::map <std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &get_transport_protocol_worker (const std::string &type);
 
-        const std::string                   *get_compressed_cache_file (const std::string &file, const std::string &algorithm);
-        void                                set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
+        void set_config (const std::string &path);
+        void set_config_object (const json &config);
+        const manapi::json &get_config ();
 
-        const std::unique_ptr<manapi::net::threadpool<manapi::net::task>> &get_tasks_pool () const;
-        void                                tasks_pool_stop ();
-        void                                tasks_pool_init (const size_t &thread_num);
+        const std::string *get_compressed_cache_file (const std::string &file, const std::string &algorithm);
+        void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
 
-        std::string                         config_cache_dir;
+        [[nodiscard]] const std::unique_ptr<manapi::net::threadpool<manapi::net::task>> &get_tasks_pool () const;
+        void tasks_pool_stop ();
+        void tasks_pool_init (const size_t &thread_num);
+
+        std::string config_cache_dir;
     protected:
-        void                                setup ();
-        void                                timer_pool_setup (threadpool<task> *tasks_pool);
-        void                                timer_pool_stop ();
-        void                                setup_config ();
-        void                                save ();
-        void                                save_config ();
-        manapi::json                        config;
+        void setup ();
+        void timer_pool_setup (threadpool<task> *tasks_pool);
+        void timer_pool_stop ();
+        void setup_config ();
+        void save ();
+        void save_config ();
+        manapi::json config;
     private:
-        static void                         check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
-        static void                         check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
-        std::unique_ptr<threadpool<task>>   tasks_pool = nullptr;
-        http_uri_part                       *build_uri_part (const std::string &uri, size_t &type);
-        std::unique_ptr<utils::timerpool>   timerpool;
+        static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
+        static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
+        std::unique_ptr<threadpool<task>> tasks_pool = nullptr;
+        http_uri_part *build_uri_part (const std::string &uri, size_t &type);
+        std::unique_ptr<utils::timerpool> timerpool;
 
-        manapi::json                        cache_config;
+        manapi::json cache_config;
 
-        std::string                         config_path = "/tmp/http.json";
-        bool                                enabled_save_config     = false;
+        std::string config_path = "/tmp/http.json";
+        bool enabled_save_config     = false;
 
-        http_uri_part                       handlers;
+        http_uri_part handlers;
 
         std::map <std::string, manapi::net::utils::compress::TEMPLATE_INTERFACE> compressors;
+        std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers;
 
-        static std::string                  default_cache_dir;
-        static std::string                  default_config_name;
-        // config
-
+        static std::string default_cache_dir;
+        static std::string default_config_name;
     };
 }
 

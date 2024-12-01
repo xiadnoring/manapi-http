@@ -47,12 +47,12 @@ const std::string &manapi::net::http_response::get_header(const std::string &key
         return headers[key];
     }
 
-    THROW_MANAPI_EXCEPTION(ERR_HTTP_HEADER_MISSING, "The header '{}' could not be found", key);
+    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_HEADER_MISSING, "The header '{}' could not be found", key);
 }
 
 void manapi::net::http_response::text(std::string plain_text) {
     data            = std::move(plain_text);
-    type            = MANAPI_HTTP_RESP_TEXT;
+    type            = MANAPIHTTP_HTTP_RESP_TEXT;
 }
 
 void manapi::net::http_response::json(const manapi::json& data, const size_t &spaces) {
@@ -75,19 +75,19 @@ void manapi::net::http_response::set_status(const size_t &_status_code, const st
 
 void manapi::net::http_response::file(std::string path) {
     data                = std::move(path);
-    type                = MANAPI_HTTP_RESP_FILE;
+    type                = MANAPIHTTP_HTTP_RESP_FILE;
 }
 
 bool manapi::net::http_response::is_file() const {
-    return type == MANAPI_HTTP_RESP_FILE;
+    return type == MANAPIHTTP_HTTP_RESP_FILE;
 }
 
 bool manapi::net::http_response::is_text() const {
-    return type == MANAPI_HTTP_RESP_TEXT;
+    return type == MANAPIHTTP_HTTP_RESP_TEXT;
 }
 
 bool manapi::net::http_response::is_proxy() const {
-    return type == MANAPI_HTTP_RESP_PROXY;
+    return type == MANAPIHTTP_HTTP_RESP_PROXY;
 }
 
 bool manapi::net::http_response::is_no_data() const {
@@ -165,7 +165,7 @@ void manapi::net::http_response::detect_ranges () {
 
             if (pos_delimiter == std::string::npos)
             {
-                THROW_MANAPI_EXCEPTION(ERR_HTTP_HEADER_INVALID, "invalid the header range: {}", range_str);
+                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_HEADER_INVALID, "invalid the header range: {}", range_str);
             }
 
             // trans 2 size_t range
@@ -220,7 +220,7 @@ void manapi::net::http_response::set_partial_status(const bool &auto_partial_sta
 }
 
 void manapi::net::http_response::proxy(std::string url) {
-    type = MANAPI_HTTP_RESP_PROXY;
+    type = MANAPIHTTP_HTTP_RESP_PROXY;
     data = std::move(url);
 
     set_compress_enabled(false);

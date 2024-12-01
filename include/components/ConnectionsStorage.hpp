@@ -132,7 +132,7 @@ namespace manapi::net::worker {
 
     template<typename T>
     void connection_storage<T>::_check_contains() {
-        if (s == nullptr) { THROW_MANAPI_EXCEPTION2(ERR_STORAGE_OBJECT_IS_NULL, "That storage not contains anything"); }
+        if (s == nullptr) { THROW_MANAPIHTTP_EXCEPTION2(ERR_STORAGE_OBJECT_IS_NULL, "That storage not contains anything"); }
     }
 
     template<typename T>
@@ -204,7 +204,7 @@ namespace manapi::net::worker {
 
     template<typename T>
     void connection_iterator<T>::_check_contains() {
-        if (count == nullptr) { THROW_MANAPI_EXCEPTION2(ERR_STORAGE_OBJECT_IS_NULL, "class connection_iterator(...): That storage not contains anything"); }
+        if (count == nullptr) { THROW_MANAPIHTTP_EXCEPTION2(ERR_STORAGE_OBJECT_IS_NULL, "class connection_iterator(...): That storage not contains anything"); }
     }
 
     template<typename K, typename V>

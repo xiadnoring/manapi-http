@@ -64,7 +64,7 @@ namespace jwt {
                     return true;
                 }
                 catch (std::exception const &e) {
-                    MANAPI_LOG ("failed to parse: {}", e.what());
+                    MANAPIHTTP_LOG ("failed to parse: {}", e.what());
                 }
 
                 return false;

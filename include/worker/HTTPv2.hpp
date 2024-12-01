@@ -82,7 +82,7 @@ namespace manapi::net::worker {
     };
 
     struct http_v2_session_t {
-        size_t id;
+        int id;
         bool body;
         std::map <std::string, std::string> headers;
         http2_conn_type type = HTTP2_CONN_IDLE;
@@ -111,14 +111,15 @@ namespace manapi::net::worker {
         http_v2 (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~http_v2() override;
 
-        static std::shared_ptr<http_v2> create (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         void parse_request(ssize_t j, ssize_t size);
         void init_settings ();
         void set_callbacks (const http_v2_callbacks_t &callbacks);
+
         ssize_t response (worker::connection &connection, http_response &resp, bool finish) override;
 
         std::shared_ptr<worker::connection> connection;
         std::string buffer;
+        std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
     private:
         void generate_error (http2_error_type errnum, std::string errmsg, int last_stream_id = 0) noexcept(false);
 
@@ -151,7 +152,7 @@ namespace manapi::net::worker {
 
         void _parse_number (char &c, size_t &num, size_t &length);
 
-        void send_frame (http2_frame_type frame, char flag, int stream_id, std::string_view data);
+        void send_frame (http2_frame_type frame, uint8_t flag, uint32_t stream_id, std::string_view data);
         void send_empty_frame (http2_frame_type frame, char flag, int stream_id);
         void send_ping_frame (std::string data={});
         void close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "", int last_stream_id = 0);
@@ -199,10 +200,10 @@ namespace manapi::net::worker {
         } parse_vars;
 
         struct protocol_http2_t {
-            ssize_t length = 9 + 6; // 9 must-have octets in the header + 6 metadata
+            ssize_t length = 9 + 8; // 9 must-have octets in the header + 8 metadata
             ssize_t type = 0;
-            ssize_t stream_id = 0;
-            size_t flag = 0;
+            int stream_id = 0;
+            uint8_t flag = 0;
             bool initial_frame = true;
             bool closed = false;
             std::map <int, std::pair <int, std::function <void(int value)>>> settings;
@@ -226,11 +227,9 @@ namespace manapi::net::worker {
 
         std::map <int, http_v2_session_t> sessions;
 
-        std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
         std::function<void(char&)> current, next;
         http_v2_callbacks_t callbacks{};
         std::shared_ptr<worker::base> worker;
-        net::site &site;
 
         std::shared_ptr<connections_storage <int, http_v2_thread_data_t>> threads;
         std::mutex finishmx;

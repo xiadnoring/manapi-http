@@ -15,20 +15,19 @@ So many important utils will be supported out of the box, for example, `JSON`, `
 For compile this project, you need to install below projects:
 - OpenSSL 3.3.1 or greater
 - zlib 1.3.1 or greater
-- quiche 0.21.0 or greater
 - gmp 6.3.0 or greater
 - libev 4.33-3 or greater
 - curl 8.8.0-1 or greater
 
 ### For Arch Linux
 ```bash
-pacman -S gmp openssl libev quiche zlib libevdev curl
+pacman -S gmp openssl libev zlib libevdev curl
 ```
 
 or 
 
 ```bash
-paru -S gmp openssl libev quiche zlib libevdev curl
+paru -S gmp openssl libev zlib libevdev curl
 ```
 
 ### For Windows
@@ -47,17 +46,17 @@ cmake -DCMAKE_BUILD_TYPE=Debug/Release ...
 
 ### Build as Executable
 ```bash
-cmake ... -DMANAPI_BUILD_TYPE=exe
+cmake ... -DMANAPIHTTP_BUILD_TYPE=exe
 ```
 
 ### Build as Library
 ```bash
-cmake ... -DMANAPI_BUILD_TYPE=lib
+cmake ... -DMANAPIHTTP_BUILD_TYPE=lib
 ```
 
 ### Build with Conan
 ```bash
-cmake ... -DMANAPI_BUILD_METHOD=conan
+cmake ... -DMANAPIHTTP_BUILD_METHOD=conan
 ```
 
 ## Example

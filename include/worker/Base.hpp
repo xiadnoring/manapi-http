@@ -6,6 +6,7 @@
 
 #include "ManapiHttpConfig.hpp"
 #include "ManapiHttpResponse.hpp"
+#include "ManapiSite.hpp"
 #include "ManapiUtils.hpp"
 
 namespace manapi::net::worker {
@@ -17,9 +18,11 @@ namespace manapi::net::worker {
 
         template <typename T>
         T &as () {
-            const auto pointer = ptr.get();
-            if (pointer == nullptr) { THROW_MANAPI_EXCEPTION2(ERR_FATAL, "Pointer is null"); }
-            return *reinterpret_cast<T *> (pointer);
+            const auto pointer = static_cast <T *> (ptr.get());
+            if (pointer == nullptr) {
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Pointer is null");
+            }
+            return *pointer;
         }
 
         sockaddr_storage client{};
@@ -31,7 +34,7 @@ namespace manapi::net::worker {
 
     class base {
     public:
-        base ();
+        base (net::site &site);
         base (base &&n) noexcept;
         virtual ~base ();
 
@@ -42,13 +45,16 @@ namespace manapi::net::worker {
 
         virtual connection accept ();
 
+        virtual void onrecv (const std::shared_ptr<worker::base> &worker);
+
         base &operator= (base &&n) noexcept;
 
         virtual ssize_t response (worker::connection &connection, http_response &resp, bool finish);
-
+        static std::shared_ptr<base> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::function<ssize_t(connection &conn, const void *buff, const size_t &size, bool finish)> write;
         std::function<ssize_t(connection &conn, void *buff, const size_t &size)> read;
     protected:
+        net::site &site;
         std::shared_ptr<manapi::net::http::config> config;
     };
 }

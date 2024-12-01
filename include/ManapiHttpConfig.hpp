@@ -5,8 +5,6 @@
 #include <functional>
 #include <sys/socket.h>
 
-#include <openssl/ssl.h>
-
 #include "ManapiJson.hpp"
 
 namespace manapi::net::http {
@@ -72,14 +70,12 @@ namespace manapi::net::http {
         void set_port (const std::string &_port);
         [[nodiscard]] const std::string& get_port () const;
 
-        [[nodiscard]] const std::string& get_http_implement () const;
+        [[nodiscard]] const std::string& get_implementation () const;
+        [[nodiscard]] const std::string& get_transport () const;
         [[nodiscard]] const std::string& get_address () const;
         [[nodiscard]] const std::string& get_quic_implement () const;
 
         [[nodiscard]] const size_t& get_tls_version () const;
-
-        [[nodiscard]] SSL_CTX *get_openssl_ctx ();
-        void set_openssl_ctx (SSL_CTX *ctx);
 
         [[nodiscard]] const bool &is_quic_debug () const;
 
@@ -118,22 +114,16 @@ namespace manapi::net::http {
         std::string                 http_version_str        = "1.1";
         std::string                 address                 = "0.0.0.0";
         std::string                 port                    = "8888";// settings
-        std::string                 http_implement          = "tls";
+        std::string                 implementation          = "default";
+        std::string                 transport               = "tcp";
         size_t                      keep_alive              = 2;
-        std::string                 quic_implement          = "quiche";
         sockaddr                    server_addr;
         socklen_t                   server_len;
 
         int                         sock_fd{};
         ssize_t                     recv_timeout            = 1000;
         ssize_t                     send_timeout            = 1000;
-
         ssl_config_t                ssl_config;
-        SSL_CTX                     *ctx;
-
-        // quiche_h3_config            *http3_config;
-        // quiche_config               *quic_config;
-
         std::function<bool(const std::string &name)> function_contains_compressor = nullptr;
     };
 }

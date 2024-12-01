@@ -16,12 +16,12 @@ namespace manapi::net {
 
         if (thread_num <= 0)
         {
-            THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "threadpool cant init because thread_number = {}", 0);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "threadpool cant init because thread_number = {}", 0);
         }
 
         if (queues_count <= 0)
         {
-            THROW_MANAPI_EXCEPTION(ERR_FATAL, "{} < 0 in threadpool", "queues_count");
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{} < 0 in threadpool", "queues_count");
         }
 
         task_queues.resize(queues_count);
@@ -136,10 +136,10 @@ namespace manapi::net {
             task->doit();
         }
         catch (const manapi::net::utils::exception &e) {
-            MANAPI_LOG ("Task Manapi Exception: {}", e.what());
+            MANAPIHTTP_LOG ("Task Manapi Exception: {}", e.what());
         }
         // catch (const std::exception &e) {
-        //     MANAPI_LOG ("Task Default Exception: {}", e.what());
+        //     MANAPIHTTP_LOG ("Task Default Exception: {}", e.what());
         // }
 
         if (task->retry)

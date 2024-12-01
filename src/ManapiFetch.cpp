@@ -67,7 +67,7 @@ manapi::net::fetch::~fetch() {
 void manapi::net::fetch::doit() {
     if (curl == nullptr)
     {
-        THROW_MANAPI_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl can not be init: {}", url);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl can not be init: {}", url);
     }
 
     utils::before_delete clean_up ([&] () {
@@ -124,7 +124,7 @@ void manapi::net::fetch::doit() {
 
     if (resp != CURLE_OK)
     {
-        MANAPI_LOG ("Connection failed: {}", url);
+        MANAPIHTTP_LOG ("Connection failed: {}", url);
     }
 
     curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &status_code);

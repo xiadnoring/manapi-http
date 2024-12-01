@@ -1,0 +1,3 @@
+#pragma once
+
+#define MANAPIHTTP_JSON_DEBUG {{ VAR_MANAPIHTTP_JSON_DEBUG }}

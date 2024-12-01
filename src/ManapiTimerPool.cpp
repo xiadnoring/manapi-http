@@ -57,14 +57,14 @@ void manapi::net::utils::timerpool::start() {
                                 cv.notify_all();
                             }));
                         }
-                        catch (std::exception const &e) { MANAPI_LOG("Timer Task Exception: {}", e.what()); }
+                        catch (std::exception const &e) { MANAPIHTTP_LOG("Timer Task Exception: {}", e.what()); }
                     }
                     else {
                         try { threadpool->append_task(std::make_unique<net::function_task>([func] () -> void {
                             try { func (); }
-                            catch (std::exception const &e) { MANAPI_LOG("Unexpected error: {}", e.what()); }
+                            catch (std::exception const &e) { MANAPIHTTP_LOG("Unexpected error: {}", e.what()); }
                         })); }
-                        catch (std::exception const &e) { MANAPI_LOG("Timer Task Exception: {}", e.what()); }
+                        catch (std::exception const &e) { MANAPIHTTP_LOG("Timer Task Exception: {}", e.what()); }
                         task = tasks.erase(task);
                         continue;
                     }

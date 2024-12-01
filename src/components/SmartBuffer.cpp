@@ -70,20 +70,20 @@ ssize_t manapi::net::worker::smart_w_buffer::_work(bool flag) {
     cv.wait(lk, [this] () -> bool {
         return this->sent > 0 || disabled;
     });
-    if (disabled) { THROW_MANAPI_EXCEPTION2(ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed"); }
-    if (callback == nullptr) { THROW_MANAPI_EXCEPTION2(ERR_FUNCTION_IS_NULL, "class smart_w_buffer(...): Function was not set"); }
+    if (disabled) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed"); }
+    if (callback == nullptr) { THROW_MANAPIHTTP_EXCEPTION2(ERR_FUNCTION_IS_NULL, "class smart_w_buffer(...): Function was not set"); }
 
     auto ss = buffer.size();
     ssize_t buff_size = std::min(static_cast<ssize_t>(buffer.size()), static_cast<ssize_t>(this->sent));
     auto ptr = buffer.data();
     auto end = buffer.data() + buffer.size();
-    if (frame_size == 0) { THROW_MANAPI_EXCEPTION2(ERR_DIVIDED_BY_ZERO, "Why frame_size equals 0 ???!"); }
+    if (frame_size == 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_DIVIDED_BY_ZERO, "Why frame_size equals 0 ???!"); }
     // frame_size only
     auto limit = ptr + (buff_size / frame_size) * frame_size;
     while (limit > ptr) {
         const bool last = end <= ptr + frame_size;
         auto rhs = callback (ptr, frame_size, (flag && last));
-        if (rhs <= 0) { THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "эм"); }
+        if (rhs <= 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "эм"); }
         ptr += frame_size;
     }
 
@@ -96,7 +96,7 @@ ssize_t manapi::net::worker::smart_w_buffer::_work(bool flag) {
     ssize_t total = ptr - buffer.data();
     this->sent -= total;
     try { buffer = buffer.substr( total); }
-    catch (std::exception const &e) { MANAPI_LOG("тут ошибка: {}", e.what()); }
+    catch (std::exception const &e) { MANAPIHTTP_LOG("тут ошибка: {}", e.what()); }
 
     return total;
 }

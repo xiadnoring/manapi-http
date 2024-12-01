@@ -12,11 +12,11 @@ class ManapiHttpConan(ConanFile):
         "shared": [True, False],
         "fPIC": [True, False],
         "json-debug": [True, False],
-        "quiche-support": [True, False],
-        "msquic-support": [True, False]
+        "openssl-dependency": [True, False],
+        "wolfssl-dependency": [True, False]
     }
 
-    default_options = {"shared": False, "fPIC": True, "json-debug": True, "quiche-support": False, "msquic-support": True}
+    default_options = {"shared": False, "fPIC": True, "json-debug": True, "wolfssl-dependency": True, "openssl-dependency": True}
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
 
@@ -33,9 +33,9 @@ class ManapiHttpConan(ConanFile):
 
         tc = CMakeToolchain(self)
 
-        tc.variables['MANAPI_JSON_DEBUG'] = self.options.get_safe('json-debug', True)
-        tc.variables['MANAPI_QUICHE_SUPPORT'] = self.options.get_safe('quiche-support', True)
-        tc.variables['MANAPI_MSQUIC_SUPPORT'] = self.options.get_safe('msquic-support', True)
+        tc.variables['MANAPIHTTP_JSON_DEBUG'] = self.options.get_safe('json-debug', True)
+        tc.variables['MANAPIHTTP_WOLFSSL_SUPPORT'] = self.options.get_safe('wolfssl-support', True)
+        tc.variables['MANAPIHTTP_OPENSSL_SUPPORT'] = self.options.get_safe('openssl-support', True)
 
         tc.generate()
 
@@ -50,14 +50,15 @@ class ManapiHttpConan(ConanFile):
 
     def requirements(self):
         self.requires("libev/4.33")
-        self.requires("openssl/3.2.2")
         self.requires("zlib/1.3.1")
         self.requires("gmp/6.3.0")
         self.requires("libcurl/8.6.0")
 
-        if self.options.get_safe('quiche-support', True):
-            self.requires("quiche/0.22.0")
+        if self.options.get_safe('openssl-dependency'):
+            self.requires("openssl/3.2.2")
 
+        if self.options.get_safe('wolfssl-dependency'):
+            self.requires("wolfssl/5.7.2")
     def package_info(self):
         self.cpp_info.set_property("cmake_find_mode", "both")
         self.cpp_info.set_property("cmake_file_name", "manapihttp")

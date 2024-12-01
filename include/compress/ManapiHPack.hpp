@@ -862,7 +862,7 @@ namespace manapi::net::utils::compress::hpack
 							}
 							else
 							{
-								MANAPI_LOG("multiheaders doesnt contains {}", n);
+								MANAPIHTTP_LOG("multiheaders doesnt contains {}", n);
 								existing->second = value;
 								// either maybe fail the whole thing
 							}

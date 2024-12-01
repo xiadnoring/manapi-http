@@ -45,7 +45,7 @@ manapi::net::http::config::config(const json &config) {
             http_version_str    = "1.1";
             http_version        = versions::HTTP_v1_1;
 
-            MANAPI_LOG("http version '{}' is invalid in the config", http_version_str);
+            MANAPIHTTP_LOG("http version '{}' is invalid in the config", http_version_str);
         }
     }
 
@@ -92,10 +92,16 @@ manapi::net::http::config::config(const json &config) {
         send_timeout = config["send_timeout"].get<ssize_t>();
     }
 
-    // =================[http_implement         ]================= //
-    if (config.contains("http_implement"))
+    // =================[implementation         ]================= //
+    if (config.contains("implementation"))
     {
-        http_implement = config["http_implement"].get<std::string>();
+        implementation = config["implementation"].get<std::string>();
+    }
+
+    // =================[transport         ]================= //
+    if (config.contains("transport"))
+    {
+        transport = config["transport"].get<std::string>();
     }
 
     // =================[tls_version            ]================= //
@@ -119,7 +125,7 @@ manapi::net::http::config::config(const json &config) {
             tls_version = versions::TLS_v1_3;
         }
         else {
-            THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "invalid tls_version in config: {}", tls_version_string);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid tls_version in config: {}", tls_version_string);
         }
     }
 
@@ -148,7 +154,7 @@ manapi::net::http::config::config(const json &config) {
             quic_cc_algo = versions::QUIC_CC_NONE;
         }
         else {
-            THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo param in the config: {}", quic_cc_algo_string);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo param in the config: {}", quic_cc_algo_string);
         }
     }
 
@@ -156,12 +162,6 @@ manapi::net::http::config::config(const json &config) {
     if (config.contains("quic_debug"))
     {
         quic_debug = config["quic_debug"].get<bool>();
-    }
-
-    // =================[quic_implement         ]================= //
-    if (config.contains("quic_implement"))
-    {
-        quic_implement = config["quic_implement"].get<std::string>();
     }
 }
 
@@ -233,28 +233,21 @@ const std::string &manapi::net::http::config::get_port() const {
     return port;
 }
 
-const std::string & manapi::net::http::config::get_http_implement() const {
-    return http_implement;
+const std::string & manapi::net::http::config::get_implementation() const {
+    return implementation;
 }
+
+const std::string & manapi::net::http::config::get_transport() const {
+    return transport;
+}
+
 
 const std::string & manapi::net::http::config::get_address() const {
     return address;
 }
 
-const std::string & manapi::net::http::config::get_quic_implement() const {
-    return quic_implement;
-}
-
 const size_t & manapi::net::http::config::get_tls_version() const {
     return tls_version;
-}
-
-SSL_CTX * manapi::net::http::config::get_openssl_ctx() {
-    return ctx;
-}
-
-void manapi::net::http::config::set_openssl_ctx(SSL_CTX *ctx) {
-    this->ctx = ctx;
 }
 
 const bool & manapi::net::http::config::is_quic_debug() const {
@@ -310,7 +303,7 @@ const int & manapi::net::http::config::get_socket_fd() const {
 }
 
 bool manapi::net::http::config::contains_compressor(const std::string &name) const {
-    if (function_contains_compressor == nullptr) { THROW_MANAPI_EXCEPTION(ERR_FATAL, "function_contains_compressor = {}. We need to set function before call", "nullptr"); }
+    if (function_contains_compressor == nullptr) { THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "function_contains_compressor = {}. We need to set function before call", "nullptr"); }
     return function_contains_compressor (name);
 }
 

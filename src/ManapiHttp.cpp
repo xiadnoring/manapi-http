@@ -147,9 +147,9 @@ void manapi::net::http::server::stop_pool() {
     // stop all pools
     for (const auto &pool: pools)
     {
-        MANAPI_LOG ("pool #{} is stopping...", pool.first);
+        MANAPIHTTP_LOG ("pool #{} is stopping...", pool.first);
         pool.second->stop();
-        MANAPI_LOG ("pool #{} stopped successfully", pool.first);
+        MANAPIHTTP_LOG ("pool #{} stopped successfully", pool.first);
     }
     pools.clear();
 
@@ -172,5 +172,5 @@ void manapi::net::http::server::stop_pool() {
         }
     }
 
-    MANAPI_LOG2("all tasks are closed");
+    MANAPIHTTP_LOG2("all tasks are closed");
 }

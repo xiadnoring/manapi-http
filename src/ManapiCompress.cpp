@@ -9,16 +9,16 @@
 
 void manapi::net::utils::compress::throw_could_not_compress_file (const std::string &name, const std::string &src, const std::string &dest)
 {
-    THROW_MANAPI_EXCEPTION(ERR_COMPRESS_DATA, "Could not compress file with {}. src: {}, dest: {}", name, escape_string(src), escape_string(dest));
+    THROW_MANAPIHTTP_EXCEPTION(ERR_COMPRESS_DATA, "Could not compress file with {}. src: {}, dest: {}", name, escape_string(src), escape_string(dest));
 }
 
 void manapi::net::utils::compress::throw_could_not_open_file (const std::string &name, const std::string &path)
 {
-    THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "{}: Could not open file by location {}", name, escape_string(path));
+    THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "{}: Could not open file by location {}", name, escape_string(path));
 }
 
 void manapi::net::utils::compress::throw_file_exists (const std::string &name, const std::string &path) {
-    THROW_MANAPI_EXCEPTION(ERR_FILE_EXISTS, "{}: File by following path exists: {}", name, path);
+    THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_EXISTS, "{}: File by following path exists: {}", name, path);
 }
 
 std::string manapi::net::utils::compress::deflate(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
@@ -67,7 +67,7 @@ bool manapi::net::utils::compress::deflate_compress_file(const std::string &src,
 
     if(deflateInit(&stream, level) != Z_OK)
     {
-        MANAPI_LOG("defalte: {}", "deflateInit(...) failed!");
+        MANAPIHTTP_LOG("defalte: {}", "deflateInit(...) failed!");
 
         return false;
     }
@@ -129,7 +129,7 @@ bool manapi::net::utils::compress::deflate_decompress_file(const std::string &sr
     int result = inflateInit(&stream);
     if(result != Z_OK)
     {
-        MANAPI_LOG("defalte: {}", "inflateInit(...) failed!");
+        MANAPIHTTP_LOG("defalte: {}", "inflateInit(...) failed!");
 
         return false;
     }
@@ -151,7 +151,7 @@ bool manapi::net::utils::compress::deflate_decompress_file(const std::string &sr
             if(result == Z_NEED_DICT || result == Z_DATA_ERROR ||
                result == Z_MEM_ERROR)
             {
-                MANAPI_LOG("defalte: {}", "inflate(...) failed! inflate() = {}", result);
+                MANAPIHTTP_LOG("defalte: {}", "inflate(...) failed! inflate() = {}", result);
                 inflateEnd(&stream);
                 return false;
             }
@@ -196,7 +196,7 @@ std::string manapi::net::utils::compress::deflate_decompress_string(const std::s
     int result = inflateInit(&stream);
     if(result != Z_OK)
     {
-        THROW_MANAPI_EXCEPTION (ERR_COMPRESS_DATA, "defalte: {}", "inflateInit(...) failed!");
+        THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "defalte: {}", "inflateInit(...) failed!");
     }
 
     do {
@@ -217,7 +217,7 @@ std::string manapi::net::utils::compress::deflate_decompress_string(const std::s
                result == Z_MEM_ERROR)
             {
                 inflateEnd(&stream);
-                THROW_MANAPI_EXCEPTION (ERR_COMPRESS_DATA, "defalte: {}", "inflate(...) failed!");
+                THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "defalte: {}", "inflate(...) failed!");
             }
 
             uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
@@ -228,7 +228,7 @@ std::string manapi::net::utils::compress::deflate_decompress_string(const std::s
 
     inflateEnd(&stream);
 
-    if (result != Z_STREAM_END) { THROW_MANAPI_EXCEPTION (ERR_COMPRESS_DATA, "defalte: {}", "result != Z_STREAM_END"); }
+    if (result != Z_STREAM_END) { THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "defalte: {}", "result != Z_STREAM_END"); }
 
     return std::move(buff);
 }
@@ -261,7 +261,7 @@ std::string manapi::net::utils::compress::gzip_compress_string(const std::string
 
     if(deflateInit2(&stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK)
     {
-        THROW_MANAPI_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "deflateInit(...) failed!");
+        THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "deflateInit(...) failed!");
     }
 
     int flush;
@@ -302,7 +302,7 @@ std::string manapi::net::utils::compress::gzip_decompress_string(const std::stri
     int result = inflateInit2(&stream, 15 | 16);
     if(result != Z_OK)
     {
-        THROW_MANAPI_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "inflateInit(...) failed!");
+        THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "inflateInit(...) failed!");
     }
 
     do {
@@ -323,7 +323,7 @@ std::string manapi::net::utils::compress::gzip_decompress_string(const std::stri
                result == Z_MEM_ERROR)
             {
                 inflateEnd(&stream);
-                THROW_MANAPI_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "inflate(...) failed!");
+                THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "inflate(...) failed!");
             }
 
             uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
@@ -334,7 +334,7 @@ std::string manapi::net::utils::compress::gzip_decompress_string(const std::stri
 
     inflateEnd(&stream);
 
-    if (result != Z_STREAM_END) { THROW_MANAPI_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "result != Z_STREAM_END"); }
+    if (result != Z_STREAM_END) { THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "result != Z_STREAM_END"); }
 
     return std::move(buff);
 }
@@ -365,7 +365,7 @@ bool manapi::net::utils::compress::gzip_compress_file(const std::string &src, co
 
     if(deflateInit2(&stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK)
     {
-        MANAPI_LOG("gzip: {}", "deflateInit(...) failed!");
+        MANAPIHTTP_LOG("gzip: {}", "deflateInit(...) failed!");
         return false;
     }
 
@@ -425,7 +425,7 @@ bool manapi::net::utils::compress::gzip_decompress_file(const std::string &src, 
     int result = inflateInit2(&stream, 15 | 16);
     if(result != Z_OK)
     {
-        MANAPI_LOG("gzip: {}", "inflateInit2(...) failed!");
+        MANAPIHTTP_LOG("gzip: {}", "inflateInit2(...) failed!");
 
         return false;
     }
@@ -449,7 +449,7 @@ bool manapi::net::utils::compress::gzip_decompress_file(const std::string &src, 
                result == Z_MEM_ERROR)
             {
                 inflateEnd(&stream);
-                THROW_MANAPI_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "inflate(...) failed!");
+                THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "inflate(...) failed!");
             }
 
             uint32_t nbytes = CHUNK_SIZE - stream.avail_out;

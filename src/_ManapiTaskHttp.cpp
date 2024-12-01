@@ -25,13 +25,13 @@
 #include "ManapiFilesystem.hpp"
 #include "ManapiTaskFunction.hpp"
 
-#define MANAPI_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(_x) if (_x == size) {         \
+#define MANAPIHTTP_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(_x) if (_x == size) {         \
 request_data.headers_size += _x;                                                \
 if (!manapi::net::http_task::read_next_part (maxsize, _x, this, &request_data)) \
     return;                                                                     \
 }
 
-#define MANAPI_QUIC_CONNECTION_ID_LEN 16
+#define MANAPIHTTP_QUIC_CONNECTION_ID_LEN 16
 
 manapi::net::http_task::~http_task() {
     delete []static_cast<uint8_t *>(buff);
@@ -70,7 +70,7 @@ void manapi::net::http_task::doit() {
             break;
         }
         default:
-            THROW_MANAPI_EXCEPTION(ERR_CONFIG_ERROR, "invalid connection protocol: conn_type = {}", conn_type);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid connection protocol: conn_type = {}", conn_type);
     }
 }
 
@@ -102,7 +102,7 @@ void manapi::net::http_task::udp_doit() {
 
                 if (!res) {
                     ssize_t capacity = quiche_conn_stream_capacity(conn_io->conn, stream_id);
-                    MANAPI_LOG("quic read timeout. capacity: {}", capacity);
+                    MANAPIHTTP_LOG("quic read timeout. capacity: {}", capacity);
                     // timeout / lock failed
                     is_deleting = true;
                 }
@@ -138,7 +138,7 @@ void manapi::net::http_task::udp_doit() {
             is_deleting = true;
         }
 
-        while (capacity < MANAPI_QUIC_CAPACITY_MIN) {
+        while (capacity < MANAPIHTTP_QUIC_CAPACITY_MIN) {
             {
                 if (is_deleting) {
                     return -1;
@@ -148,7 +148,7 @@ void manapi::net::http_task::udp_doit() {
 
                 utils::before_delete bd_m_worker([this]() -> void { quic_m_write.unlock(); });
                 if (!quic_m_write.try_lock_for(std::chrono::milliseconds(keep_alive))) {
-                    MANAPI_LOG("quic write timeout({}s): {}", keep_alive, conn_io->key);
+                    MANAPIHTTP_LOG("quic write timeout({}s): {}", keep_alive, conn_io->key);
                     is_deleting = true;
                 }
 
@@ -176,7 +176,7 @@ void manapi::net::http_task::udp_doit() {
                     capacity = quiche_conn_stream_capacity(conn_io->conn, stream_id);
 
                     if (capacity <= QUICHE_H3_ERR_DONE) {
-                        MANAPI_LOG("capacity <= QUICHE_H3_ERR_DONE: {}", capacity);
+                        MANAPIHTTP_LOG("capacity <= QUICHE_H3_ERR_DONE: {}", capacity);
                         // timeout / lock failed
                         is_deleting = true;
                         break;
@@ -186,7 +186,7 @@ void manapi::net::http_task::udp_doit() {
                         break;
                     }
 
-                    if (capacity >= MANAPI_QUIC_CAPACITY_MIN) {
+                    if (capacity >= MANAPIHTTP_QUIC_CAPACITY_MIN) {
                         res = true;
                         break;
                     }
@@ -199,7 +199,7 @@ void manapi::net::http_task::udp_doit() {
                 }
 
                 if (!res) {
-                    MANAPI_LOG("quic write timeout ({}s): capacity: {}. stream_id: {}", config->get_send_timeout(),
+                    MANAPIHTTP_LOG("quic write timeout ({}s): capacity: {}. stream_id: {}", config->get_send_timeout(),
                                capacity, stream_id);
                     // timeout / lock failed
                     is_deleting = true;
@@ -212,13 +212,13 @@ void manapi::net::http_task::udp_doit() {
         }
 
 
-        const bool final = (capacity - MANAPI_QUIC_CAPACITY_MIN + 1) <= part_buff_size;
+        const bool final = (capacity - MANAPIHTTP_QUIC_CAPACITY_MIN + 1) <= part_buff_size;
 
         const ssize_t written = quiche_h3_send_body(conn_io->http3, conn_io->conn, stream_id, (uint8_t *) part_buff,
                                                     std::min(part_buff_size, (size_t) capacity), final);
 
         if (written <= QUICHE_H3_ERR_DONE) {
-            MANAPI_LOG("write error: capacity: {}", capacity);
+            MANAPIHTTP_LOG("write error: capacity: {}", capacity);
         }
 
         return written;
@@ -239,7 +239,7 @@ void manapi::net::http_task::udp_doit() {
                 if (is_deleting) { return; }
 
                 if (preSize == fti.size) {
-                    MANAPI_LOG("quic write timeout ({}s): {}", config->get_send_timeout(), conn_io->key);
+                    MANAPIHTTP_LOG("quic write timeout ({}s): {}", config->get_send_timeout(), conn_io->key);
                     is_deleting = true;
                 } else {
                     preSize = fti.size;
@@ -323,7 +323,7 @@ void manapi::net::http_task::udp_doit() {
 
             // if (!task_doit_mutex.try_lock_for(std::chrono::seconds(config->get_keep_alive())))
             // {
-            //     MANAPI_LOG ("timeout task wait doit: {}", "task_doit_mutex.try_lock_for(...) = false");
+            //     MANAPIHTTP_LOG ("timeout task wait doit: {}", "task_doit_mutex.try_lock_for(...) = false");
             // }
 
             // delete task;
@@ -336,7 +336,7 @@ void manapi::net::http_task::udp_doit() {
 
     if (request_data.has_body) {
         if (!request_data.headers.contains(HTTP_HEADER.CONTENT_LENGTH)) {
-            THROW_MANAPI_EXCEPTION(ERR_HTTP_IMPORTANT_HEADER_MISSING, "{}", "content-length not exists");
+            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_IMPORTANT_HEADER_MISSING, "{}", "content-length not exists");
         }
 
         // we accept peer body
@@ -404,7 +404,7 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
             const ssize_t done = quiche_conn_recv(conn_io->conn, (uint8_t *) first->data(), first->size(), &recv_info);
             conn_io->buffers.erase(first);
             if (done < 0) {
-                MANAPI_LOG("failed to process packet: {}", done);
+                MANAPIHTTP_LOG("failed to process packet: {}", done);
                 return;
             }
         }
@@ -422,7 +422,7 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
                 conn_io->http3 = quiche_h3_conn_new_with_transport(conn_io->conn, config->get_http3_config());
 
                 if (conn_io->http3 == nullptr) {
-                    THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "{}",
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "{}",
                                            "failed to create HTTP/3 connection: quiche_h3_conn_new_with_transport(...) = nullptr");
                     return;
                 }
@@ -451,14 +451,14 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
                                 continue;
                             }
 
-                            if (task->buff_type == MANAPI_HTTP_BUFF_BINARY) {
-                                //MANAPI_LOG("{}", "WRITE UNLOCK");
+                            if (task->buff_type == MANAPIHTTP_HTTP_BUFF_BINARY) {
+                                //MANAPIHTTP_LOG("{}", "WRITE UNLOCK");
 
                                 // notify: we got write stream
                                 task->quic_m_write.unlock();
 
                                 task->quic_m_worker.lock();
-                            } else if (task->buff_type == MANAPI_HTTP_BUFF_FILE) {
+                            } else if (task->buff_type == MANAPIHTTP_HTTP_BUFF_FILE) {
                                 auto fileData = &task->fti;
                                 std::ifstream f(fileData->filePath, std::ios::in | std::ios::binary);
                                 if (f.is_open()) {
@@ -478,13 +478,13 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
                                         conn_io->http3, conn_io->conn, stream_id, buff, capacity, final);
                                     if (written < 0) {
                                         task->quic_m_write.unlock();
-                                        THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "ERROR");
+                                        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "ERROR");
                                     }
                                     fileData->start += written;
                                     fileData->size -= written;
                                     if (final) { task->quic_m_write.unlock(); }
                                     if (fileData->size < 0) {
-                                        MANAPI_LOG("fileData->size < 0, = {}. This is a bug", fileData->size);
+                                        MANAPIHTTP_LOG("fileData->size < 0, = {}. This is a bug", fileData->size);
                                         task->quic_m_write.unlock();
                                     }
                                 }
@@ -510,7 +510,7 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
 
                 switch (quiche_h3_event_type(ev)) {
                     case QUICHE_H3_EVENT_FINISHED: {
-                        MANAPI_LOG("{}", "FINISHED");
+                        MANAPIHTTP_LOG("{}", "FINISHED");
                         break;
                     }
 
@@ -521,7 +521,7 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
                         const int rc = quiche_h3_event_for_each_header(ev, quic_get_header, &task->request_data);
 
                         if (rc != 0) {
-                            THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR,
+                            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR,
                                                     "failed to process headers: quiche_h3_event_for_each_header(...) != 0");
                         }
                         //TODO: resolve if the first connection is timeout -> second also
@@ -534,7 +534,7 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
                         task->is_deleting = false;
 
                         if (conn_io->tasks.contains(stream_id)) {
-                            THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "stream_id {} exists", stream_id);
+                            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "stream_id {} exists", stream_id);
                         }
 
                         // LOCK
@@ -552,7 +552,7 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
                         // wait the init connection
                         if (!p_task->quic_m_worker.try_lock_for(std::chrono::seconds(100))) {
                             p_task->is_deleting = true;
-                            MANAPI_LOG("quic_m_worker.try_lock_for(...) timeout \n"
+                            MANAPIHTTP_LOG("quic_m_worker.try_lock_for(...) timeout \n"
                                        "id: {}", conn_io->key);
                         }
                         break;
@@ -583,26 +583,26 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
                     }
 
                     case QUICHE_H3_EVENT_RESET:
-                        MANAPI_LOG("{}", "RESET");
+                        MANAPIHTTP_LOG("{}", "RESET");
 
                         if (quiche_conn_close(conn_io->conn, true, 0, nullptr, 0) < 0) {
-                            THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "failed to close connection: {}",
+                            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "failed to close connection: {}",
                                                    conn_io->key);
                         }
 
                         break;
 
                     case QUICHE_H3_EVENT_PRIORITY_UPDATE:
-                        MANAPI_LOG("{}", "PRIORITY_UPDATE");
+                        MANAPIHTTP_LOG("{}", "PRIORITY_UPDATE");
                         break;
 
                     case QUICHE_H3_EVENT_GOAWAY: {
-                        MANAPI_LOG("{}", "got GOAWAY");
+                        MANAPIHTTP_LOG("{}", "got GOAWAY");
                         break;
                     }
 
                     default:
-                        MANAPI_LOG("{}", "INVALID EVENT");
+                        MANAPIHTTP_LOG("{}", "INVALID EVENT");
                         break;
                 }
             }
@@ -641,7 +641,7 @@ void manapi::net::http_task::quic_generate_output_packages(quic_map_conns_t *qui
                         quiche_conn_stats(it->second->conn, &stats);
                         quiche_conn_path_stats(it->second->conn, 0, &path_stats);
 
-                        MANAPI_LOG("connection closed, recv={} sent={} lost={} rtt={} ns cwnd={}",
+                        MANAPIHTTP_LOG("connection closed, recv={} sent={} lost={} rtt={} ns cwnd={}",
                                    stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
                         // multi thread
@@ -650,7 +650,7 @@ void manapi::net::http_task::quic_generate_output_packages(quic_map_conns_t *qui
                         lock_connection.unlock();
                         it = quic_map_conns->erase(it);
 
-                        MANAPI_LOG("connections: {}", quic_map_conns->size());
+                        MANAPIHTTP_LOG("connections: {}", quic_map_conns->size());
 
                         continue;
                     }
@@ -675,9 +675,9 @@ bool manapi::net::http_task::socket_wait_select() const {
     int ready = select(conn_fd + 1, &read_fds, nullptr, nullptr, &timeout);
 
     if (ready < 0) {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "unknow socket status (select() < 0): {}", conn_fd);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "unknow socket status (select() < 0): {}", conn_fd);
     } else if (ready == 0) {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "The waiting time of {} seconds has been exceeded",
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "The waiting time of {} seconds has been exceeded",
                                config->get_recv_timeout());
     }
 
@@ -726,7 +726,7 @@ void manapi::net::http_task::tcp_doit() {
                 const auto res = SSL_accept(ssl);
 
                 if (!res) {
-                    THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "couldnt SSL accept: SSL_accept(ssl) = {}", res);
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "couldnt SSL accept: SSL_accept(ssl) = {}", res);
                 }
             } else {
                 mask_write = [this](auto &&PH1, auto &&PH2) -> ssize_t {
@@ -742,7 +742,7 @@ void manapi::net::http_task::tcp_doit() {
             const ssize_t size = read_next();
 
             if (size == -1) {
-                THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not read from the socket: {}", conn_fd);
+                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not read from the socket: {}", conn_fd);
             } else {
                 const size_t *socket_block_size = &config->get_socket_block_size();
 
@@ -788,7 +788,7 @@ void manapi::net::http_task::tcp_doit() {
                 handle_request(&handler);
             }
         } catch (const manapi::net::utils::exception &e) {
-            MANAPI_LOG("close connection: {}", e.what());
+            MANAPIHTTP_LOG("close connection: {}", e.what());
         }
     }
 }
@@ -831,7 +831,7 @@ void manapi::net::http_task::handle_request(const http_handler_page *data, const
                     try {
                         send_response(res);
                     } catch (const std::exception &e) {
-                        MANAPI_LOG("Unexpected error: %s", e.what());
+                        MANAPIHTTP_LOG("Unexpected error: %s", e.what());
 
                         send_error_response(503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error.get());
                     }
@@ -847,12 +847,12 @@ void manapi::net::http_task::handle_request(const http_handler_page *data, const
     finish:
         send_response(res);
     } catch (const manapi::net::utils::exception &e) {
-        MANAPI_LOG("Unexpected error: {}", e.what());
+        MANAPIHTTP_LOG("Unexpected error: {}", e.what());
 
         send_error_response(503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error.get());
     }
     catch (const std::exception &e) {
-        MANAPI_LOG("Unexpected error: {}", e.what());
+        MANAPIHTTP_LOG("Unexpected error: {}", e.what());
 
         send_error_response(503, HTTP_STATUS.SERVICE_UNAVAILABLE_503, data->error.get());
     }
@@ -867,7 +867,7 @@ size_t manapi::net::http_task::read_next_part(size_t &size, size_t &i, void *_ht
     const ssize_t next_block = reinterpret_cast<http_task *>(_http_task)->read_next();
 
     if (next_block == -1) {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() < {}", "0");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() < {}", "0");
     }
 
     if (next_block == 0) {
@@ -875,7 +875,7 @@ size_t manapi::net::http_task::read_next_part(size_t &size, size_t &i, void *_ht
     }
 
     if (next_block > request_data->body_size) {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_BODY_TOO_LONG, "body limit: next_block({}) > body_size({})", next_block,
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_TOO_LONG, "body limit: next_block({}) > body_size({})", next_block,
                                request_data->body_size);
     }
 
@@ -945,7 +945,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
 
         if (exists_compressor) {
             if (exists_replacers) {
-                THROW_MANAPI_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be use with compressing");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be use with compressing");
             }
 
             filepath = compress_file(res.get_file(), site->config_cache_dir, compress, compressor);
@@ -958,7 +958,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
         f.open(filepath, std::ios::binary | std::ios::in);
 
         if (!f.is_open()) {
-            THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "Could not open the file by the following path: {}", filepath);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Could not open the file by the following path: {}", filepath);
         } else {
             // close ifstream before deleting
             utils::before_delete unwrap_ifstream([&f]() -> void { f.close(); });
@@ -990,19 +990,19 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
                 }
             }
 
-            buff_type = conn_type == CONN_UDP ? MANAPI_HTTP_BUFF_FILE : MANAPI_HTTP_BUFF_BINARY;
+            buff_type = conn_type == CONN_UDP ? MANAPIHTTP_HTTP_BUFF_FILE : MANAPIHTTP_HTTP_BUFF_BINARY;
 
             // partial enabled
             if (res.get_partial_enabled() && config->get_partial_data_min_size() <= fileSize) {
                 if (exists_compressor) {
-                    THROW_MANAPI_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
                                            "the compress '{}' with the partial content is not supported.",
                                            utils::escape_string(res.get_compress()));
                 }
 
 
                 if (exists_replacers) {
-                    THROW_MANAPI_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be use with partial");
+                    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be use with partial");
                 }
 
                 res.set_status(206, HTTP_STATUS.PARTIAL_CONTENT_206);
@@ -1032,7 +1032,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
                                        std::to_string(fileSize));
 
                         if (mask_response(res) >= 0) {
-                            if (buff_type == MANAPI_HTTP_BUFF_FILE) {
+                            if (buff_type == MANAPIHTTP_HTTP_BUFF_FILE) {
                                 mask_write_file(filepath, start, size);
                             } else {
                                 // set start position
@@ -1046,7 +1046,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
                         break;
 
                     default:
-                        THROW_MANAPI_EXCEPTION2(ERR_HTTP_UNSUPPORTED, "multi bytes unsupported");
+                        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_UNSUPPORTED, "multi bytes unsupported");
                 }
             } else {
                 res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(dynamicFileSize));
@@ -1054,7 +1054,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
                 if (mask_response(res) >= 0) {
                     if (replacers.empty()) {
                         // without replacers
-                        if (buff_type == MANAPI_HTTP_BUFF_FILE) {
+                        if (buff_type == MANAPIHTTP_HTTP_BUFF_FILE) {
                             mask_write_file(filepath, 0, dynamicFileSize);
                         } else {
                             send_file(res, f, fileSize);
@@ -1092,7 +1092,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
         if (mask_response(res) >= 0) {
             send_text(*plaintext, plaintext->size());
         } else {
-            MANAPI_LOG("{}", "mask_response(...) < 0");
+            MANAPIHTTP_LOG("{}", "mask_response(...) < 0");
         }
 
         return;
@@ -1114,7 +1114,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
             const ssize_t sw = mask_write(buffer, size);
 
             if (sw < 0) {
-                THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not write pocket: {}", "mask_write() < 0");
+                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not write pocket: {}", "mask_write() < 0");
             }
 
             return sw;
@@ -1136,12 +1136,12 @@ void manapi::net::http_task::send_text(const std::string &text, const size_t &si
         const ssize_t result = mask_write(current, sent);
 
         if (result <= 0) {
-            THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not send the text: mask_write(...) = {}. Size: {}",
+            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not send the text: mask_write(...) = {}. Size: {}",
                                    result, sent);
         }
 
         if (result > sent) {
-            THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Total sent size > prepared sent size. {} > {}", result,
+            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Total sent size > prepared sent size. {} > {}", result,
                                    sent);
         }
 
@@ -1420,7 +1420,7 @@ void manapi::net::http_task::tcp_parse_request_response(char *response, const si
 
     // Method
     for (; i < maxsize; i++) {
-        MANAPI_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(i);
+        MANAPIHTTP_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(i);
 
         if (response[i] == ' ') {
             break;
@@ -1434,12 +1434,12 @@ void manapi::net::http_task::tcp_parse_request_response(char *response, const si
     // scip \n
     i++;
     parse_uri_path_dynamic(request_data, (char *) response, size, i, [&maxsize, this, &size, &i]() {
-        MANAPI_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(i);
+        MANAPIHTTP_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(i);
     });
 
     // HTTP
     for (i++; i < maxsize; i++) {
-        MANAPI_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(i);
+        MANAPIHTTP_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(i);
 
         if (response[i] == '\r') {
             continue;
@@ -1461,7 +1461,7 @@ void manapi::net::http_task::tcp_parse_request_response(char *response, const si
     bool dbl = false;
 
     for (i++; i < maxsize; i++) {
-        MANAPI_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(i);
+        MANAPIHTTP_TASK_HTTP_TCP_NEXT_BLOCK_IF_NEEDED(i);
 
         if (response[i] == '\n') {
             is_key = true;
@@ -1505,7 +1505,7 @@ void manapi::net::http_task::tcp_parse_request_response(char *response, const si
     }
 
     if (maxsize == i) {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "request header is too large. Max: {}", maxsize);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "request header is too large. Max: {}", maxsize);
     }
 
     request_data.headers_size += i;
@@ -1565,13 +1565,13 @@ bool manapi::net::http_task::validate_token(const uint8_t *token, size_t token_l
 uint8_t *manapi::net::http_task::gen_cid(uint8_t *cid, const size_t &cid_len) {
     const int rng = open("/dev/urandom", O_RDONLY);
     if (rng < 0) {
-        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "{}", "failed to open /dev/urandom: open(...) < 0");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "{}", "failed to open /dev/urandom: open(...) < 0");
         return nullptr;
     }
 
     const ssize_t rand_len = read(rng, cid, cid_len);
     if (rand_len < 0) {
-        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "{}", "failed to create connection ID: read(...) < 0");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "{}", "failed to create connection ID: read(...) < 0");
         return nullptr;
     }
 
@@ -1580,13 +1580,13 @@ uint8_t *manapi::net::http_task::gen_cid(uint8_t *cid, const size_t &cid_len) {
 
 void manapi::net::http_task::quic_flush_egress(quic_map_conns_t *conns, manapi::net::http_quic_conn_io *conn_io,
                                                class site *site) {
-    uint8_t out[MANAPI_MAX_DATAGRAM_SIZE];
+    uint8_t out[MANAPIHTTP_MAX_DATAGRAM_SIZE];
 
     quiche_send_info send_info;
 
     while (true) {
         if (conn_io->conn == nullptr) {
-            MANAPI_LOG("ERROR: {}", "conn_io->conn = nullptr");
+            MANAPIHTTP_LOG("ERROR: {}", "conn_io->conn = nullptr");
         }
 
         const ssize_t written = quiche_conn_send(conn_io->conn, out, sizeof(out), &send_info);
@@ -1597,14 +1597,14 @@ void manapi::net::http_task::quic_flush_egress(quic_map_conns_t *conns, manapi::
         }
 
         if (written < 0) {
-            MANAPI_LOG("failed to create packet: {}", written);
+            MANAPIHTTP_LOG("failed to create packet: {}", written);
             return;
         }
 
         const ssize_t sent = sendto(conn_io->sock_fd, out, written, 0, (struct sockaddr *) &conn_io->peer_addr,
                                     conn_io->peer_addr_len);
         if (sent != written) {
-            THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "failed to send: sendto(...) != written");
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "failed to send: sendto(...) != written");
             return;
         }
 
@@ -1662,8 +1662,8 @@ std::unique_ptr<manapi::net::http_quic_conn_io> &manapi::net::http_task::quic_cr
     uint8_t *s_cid, size_t s_cid_len, uint8_t *od_cid, size_t od_cid_len, const int &conn_fd,
     const sockaddr_storage &client, const socklen_t &client_len, class config *config, class site *site,
     quic_map_conns_t *quic_map_conns) {
-    if (s_cid_len != MANAPI_QUIC_CONNECTION_ID_LEN) {
-        THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "failed, s_cid length too short");
+    if (s_cid_len != MANAPIHTTP_QUIC_CONNECTION_ID_LEN) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "failed, s_cid length too short");
     }
 
     std::unique_ptr<http_quic_conn_io> conn_io = std::make_unique<http_quic_conn_io>();
@@ -1693,7 +1693,7 @@ std::unique_ptr<manapi::net::http_quic_conn_io> &manapi::net::http_task::quic_cr
                                       config->get_quic_config());
 
         if (conn_io->conn == nullptr) {
-            THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR,
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR,
                                     "failed to create connection: quiche_accept(...) = nullptr");
         }
 
@@ -1709,7 +1709,7 @@ std::unique_ptr<manapi::net::http_quic_conn_io> &manapi::net::http_task::quic_cr
         quic_map_conns->unlock();
 
         if (!result_insert.second) {
-            THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "failed to insert to connections map");
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "failed to insert to connections map");
         }
     }
 
@@ -1731,7 +1731,7 @@ void manapi::net::http_task::quic_timeout_cb(std::string cid, quic_map_conns_t *
     // TODO: WHY DOWNLOAD DATA BY CLIENT CAUSED BY THIS ??!!
     quiche_conn_on_timeout(p->conn);
 
-    MANAPI_LOG("timeout: {}", p->key);
+    MANAPIHTTP_LOG("timeout: {}", p->key);
     quic_flush_egress(conns, p, site);
 
     if (!p->is_responsing && quiche_conn_is_closed(p->conn)) {
@@ -1743,7 +1743,7 @@ void manapi::net::http_task::quic_timeout_cb(std::string cid, quic_map_conns_t *
         quiche_conn_stats(p->conn, &stats);
         quiche_conn_path_stats(p->conn, 0, &path_stats);
 
-        MANAPI_LOG("(timer) connection closed: {}, recv={} sent={} lost={} rtt={} ns cwnd={}",
+        MANAPIHTTP_LOG("(timer) connection closed: {}, recv={} sent={} lost={} rtt={} ns cwnd={}",
                    p->key, stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd); {
             quic_delete_conn_io(p, site);
 
@@ -1852,7 +1852,7 @@ void manapi::net::http_task::parse_uri_path_dynamic(request_data_t &request_data
 
 void manapi::net::http_task::quic_delete_conn_io(manapi::net::http_quic_conn_io *conn_io, class site *site) { {
         if (conn_io->is_responsing) {
-            MANAPI_LOG2("conn_io->is_responsing = true");
+            MANAPIHTTP_LOG2("conn_io->is_responsing = true");
             return;
         }
         conn_io->is_deleting = true;
@@ -1885,7 +1885,7 @@ void manapi::net::http_task::quic_delete_conn_io(manapi::net::http_quic_conn_io 
             //         break;
             //     }
             //
-            //     MANAPI_LOG("wait for the task ({}) to complete", it->first);
+            //     MANAPIHTTP_LOG("wait for the task ({}) to complete", it->first);
             //
             //     return;
             // }

@@ -14,12 +14,12 @@
 #include "ManapiHttpRequest.hpp"
 
 namespace manapi::net {
-#define MANAPI_HTTP_BUFF_BINARY 0
-#define MANAPI_HTTP_BUFF_FILE   1
+#define MANAPIHTTP_HTTP_BUFF_BINARY 0
+#define MANAPIHTTP_HTTP_BUFF_FILE   1
 
-#define MANAPI_HTTP_READ_INTERFACE std::function<ssize_t(char *buff, const size_t &buff_size)>
-#define MANAPI_HTTP_WRITE_INTERFACE std::function<ssize_t(const char *buff, const size_t &buff_size)>
-#define MANAPI_HTTP_WRITE_FILE_INTERFACE std::function<void(const std::string &filePath, const ssize_t &start, const ssize_t &size)>
+#define MANAPIHTTP_HTTP_READ_INTERFACE std::function<ssize_t(char *buff, const size_t &buff_size)>
+#define MANAPIHTTP_HTTP_WRITE_INTERFACE std::function<ssize_t(const char *buff, const size_t &buff_size)>
+#define MANAPIHTTP_HTTP_WRITE_FILE_INTERFACE std::function<void(const std::string &filePath, const ssize_t &start, const ssize_t &size)>
 
     struct file_transfer_information {
         std::string filePath;
@@ -79,16 +79,16 @@ namespace manapi::net {
         static void             quic_generate_output_packages (quic_map_conns_t *quic_map_conns, class site *site);
         static void             udp_loop_event (quic_map_conns_t *quic_map_conns, class site *site, class config *config, const std::string &scid, const sockaddr &client, const socklen_t &client_len);
 
-        MANAPI_HTTP_READ_INTERFACE          mask_read;
-        MANAPI_HTTP_WRITE_INTERFACE         mask_write;
-        MANAPI_HTTP_WRITE_FILE_INTERFACE    mask_write_file;
+        MANAPIHTTP_HTTP_READ_INTERFACE          mask_read;
+        MANAPIHTTP_HTTP_WRITE_INTERFACE         mask_write;
+        MANAPIHTTP_HTTP_WRITE_FILE_INTERFACE    mask_write_file;
 
         std::function<ssize_t(http_response &res)>                          mask_response;
 
 
         void                    *buff;
         ssize_t                 buff_size;
-        size_t                  buff_type = MANAPI_HTTP_BUFF_BINARY;
+        size_t                  buff_type = MANAPIHTTP_HTTP_BUFF_BINARY;
 
         SSL                     *ssl = nullptr;
 

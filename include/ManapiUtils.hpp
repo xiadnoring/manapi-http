@@ -15,18 +15,18 @@
 #include "ManapiBeforeDelete.hpp"
 #include "ManapiJson.hpp"
 
-#define MANAPI_LOG(msg, ...)                manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, manapi::net::ERR_DEBUG, msg, __VA_ARGS__)
-#define MANAPI_LOG2(msg)                    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, manapi::net::ERR_DEBUG, msg);
+#define MANAPIHTTP_LOG(msg, ...)                manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, manapi::net::ERR_DEBUG, msg, __VA_ARGS__)
+#define MANAPIHTTP_LOG2(msg)                    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, manapi::net::ERR_DEBUG, msg);
 
-//#define THROW_MANAPI_EXCEPTION(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, manapi::net::ERR_UNDEFINED, msg, __VA_ARGS__)
-//#define THROW_MANAPI_EXCEPTION2(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, manapi::net::ERR_UNDEFINED, msg)
+//#define THROW_MANAPIHTTP_EXCEPTION(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, manapi::net::ERR_UNDEFINED, msg, __VA_ARGS__)
+//#define THROW_MANAPIHTTP_EXCEPTION2(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, manapi::net::ERR_UNDEFINED, msg)
 
-#define THROW_MANAPI_EXCEPTION(errnum, msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, errnum, msg, __VA_ARGS__)
-#define THROW_MANAPI_EXCEPTION2(errnum, msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, errnum, msg)
+#define THROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, errnum, msg, __VA_ARGS__)
+#define THROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, errnum, msg)
 
-#define MANAPI_HTTP_RESP_TEXT 0
-#define MANAPI_HTTP_RESP_FILE 1
-#define MANAPI_HTTP_RESP_PROXY 2
+#define MANAPIHTTP_HTTP_RESP_TEXT 0
+#define MANAPIHTTP_HTTP_RESP_FILE 1
+#define MANAPIHTTP_HTTP_RESP_PROXY 2
 #define MANAPIHTTP_RESP_NO_DATA 3
 
 #define REQ(_x) manapi::net::http_request &_x
@@ -177,7 +177,7 @@ namespace manapi::net::utils {
                 }
             }
 
-            MANAPI_LOG("Memory usage ({}): {} MB", title, (memory_usage / 1024));
+            MANAPIHTTP_LOG("Memory usage ({}): {} MB", title, (memory_usage / 1024));
         }
 
         return memory_usage;

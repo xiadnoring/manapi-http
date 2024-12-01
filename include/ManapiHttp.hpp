@@ -6,7 +6,6 @@
 #include <map>
 #include <regex>
 #include <thread>
-#include <openssl/ssl.h>
 #include <future>
 #include <ev++.h>
 

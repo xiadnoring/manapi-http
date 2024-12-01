@@ -9,27 +9,38 @@ else ()
     message(STATUS "This project is a top-level one")
 endif ()
 
-OPTION(MANAPI_QUICHE_SUPPORT "Quiche support by Cloudflare" OFF)
-OPTION(MANAPI_MSQUIC_SUPPORT "QUIC Implementation by Microsoft" OFF)
+OPTION(MANAPIHTTP_JSON_DEBUG "JSON debug variables" OFF)
+OPTION(MANAPIHTTP_QUICHE_DEPENDENCY "The QUIC Implementation by Cloudflare" OFF)
+OPTION(MANAPIHTTP_MSQUIC_DEPENDENCY "The QUIC Implementation by Microsoft" OFF)
+OPTION(MANAPIHTTP_OPENSSL_DEPENDENCY "TLS, QUIC and etc implementations by OpenSSL" OFF)
+OPTION(MANAPIHTTP_WOLFSSL_DEPENDENCY "TLS, QUIC and etc implementations by WolfSSL" OFF)
+
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 
-message(STATUS "Quiche support - ${MANAPI_QUICHE_SUPPORT}")
+message(STATUS "Quiche support - ${MANAPIHTTP_QUICHE_DEPENDENCY}")
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_definitions(MANAPI_HTTP_BUILD_DEBUG)
+    add_compile_definitions(MANAPIHTTP_HTTP_BUILD_DEBUG)
 endif ()
 
-if (MANAPI_BUILD_METHOD STREQUAL "conan")
+if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     message(STATUS "Build method: conan")
 
     find_package(gmp REQUIRED)
-    find_package(OpenSSL REQUIRED)
     find_package(ZLIB REQUIRED)
     find_package(libev REQUIRED)
     find_package(CURL REQUIRED)
 
-    if (MANAPI_QUICHE_SUPPORT)
+    if (MANAPIHTTP_QUICHE_DEPENDENCY)
         find_package(quiche REQUIRED)
+    endif ()
+
+    if (MANAPIHTTP_WOLFSSL_DEPENDENCY)
+        find_package(wolfssl REQUIRED)
+    endif ()
+
+    if (MANAPIHTTP_OPENSSL_DEPENDENCY)
+        find_package(OpenSSL REQUIRED)
     endif ()
 else ()
     message(STATUS "Build method: default")
@@ -42,34 +53,43 @@ else ()
 
     pkg_check_modules(GMP REQUIRED gmp)
     pkg_check_modules(ZLIB REQUIRED zlib)
-    pkg_check_modules(OPENSSL REQUIRED openssl)
     pkg_check_modules(CURL REQUIRED libcurl)
 
-    if (MANAPI_QUICHE_SUPPORT)
+    if (MANAPIHTTP_WOLFSSL_DEPENDENCY)
+        pkg_check_modules(WOLFSSL REQUIRED wolfssl)
+    endif ()
+
+    if (MANAPIHTTP_OPENSSL_DEPENDENCY)
+        pkg_check_modules(OPENSSL REQUIRED openssl)
+    endif ()
+
+    if (MANAPIHTTP_QUICHE_DEPENDENCY)
         pkg_check_modules(QUIC REQUIRED quiche)
     endif ()
 
-    if (MANAPI_MSQUIC_SUPPORT)
+    if (MANAPIHTTP_MSQUIC_DEPENDENCY)
         include(./cmake/FindMsQuic.cmake)
     endif ()
 endif ()
 
 
 # Preprocesses
-if (MANAPI_JSON_DEBUG)
-    set(MANAPI_JSON_DEBUG "true")
+if (MANAPIHTTP_JSON_DEBUG)
+    set(MANAPIHTTP_JSON_DEBUG "true")
 else ()
-    set(MANAPI_JSON_DEBUG "false")
+    set(MANAPIHTTP_JSON_DEBUG "false")
 endif ()
 
-file(READ preprocess/ManapiJson.hpp TEXT)
-string(REPLACE "{{ VAR_MANAPI_JSON_DEBUG }}" ${MANAPI_JSON_DEBUG} TEXT "${TEXT}")
-file(GENERATE OUTPUT include/ManapiJson.hpp CONTENT "${TEXT}")
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS include/ManapiJson.hpp)
+file(READ preprocess/ManapiParams.hpp TEXT)
+string(REPLACE "{{ VAR_MANAPIHTTP_JSON_DEBUG }}" ${MANAPIHTTP_JSON_DEBUG} TEXT "${TEXT}")
+file(GENERATE OUTPUT include/ManapiParams.hpp CONTENT "${TEXT}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS include/ManapiParams.hpp)
+
+add_compile_definitions(MANAPIHTTP_OPENSSL_DEPENDENCY=$<BOOL:${MANAPIHTTP_OPENSSL_DEPENDENCY}> MANAPIHTTP_WOLFSSL_DEPENDENCY=$<BOOL:${MANAPIHTTP_WOLFSSL_DEPENDENCY}>)
 
 set(CMAKE_CXX_STANDARD 23)
 
-set(MANAPI_HTTP_FILES
+set(MANAPIHTTP_HTTP_FILES
         include/ManapiHttp.hpp
         include/ManapiThreadPool.hpp
         include/ManapiTask.hpp
@@ -89,7 +109,31 @@ set(MANAPI_HTTP_FILES
         include/ManapiTimerPool.hpp
         include/ManapiHttpPool.hpp
         include/ManapiJsonMask.hpp
-        ${CMAKE_CURRENT_BINARY_DIR}/include/ManapiJson.hpp
+        include/ManapiSite.hpp
+        include/ManapiSite.hpp
+        include/ManapiHttpConfig.hpp
+        include/extensions/ManapiJsonWebTokenTraits.hpp
+        include/extensions/ManapiJsonWebTokenDefaults.hpp
+        include/ManapiUnicode.hpp
+        include/ManapiJsonBuilder.hpp
+        include/ManapiBeforeDelete.hpp
+        include/worker/Base.hpp
+        include/http/Base.hpp
+        include/ManapiTaskHttp.hpp
+        include/worker/OpenSSL_TLS.hpp
+        include/http/HTTPv1_1.hpp
+        include/http/HTTPv1_1.hpp
+        include/http/HeaderView.hpp
+        include/compress/ManapiHPack.hpp
+        include/worker/HTTPv2.hpp
+        include/components/SmartBuffer.hpp
+        include/components/ConnectionsStorage.hpp
+        include/ManapiHttpMime.hpp
+        include/components/Atomic.hpp
+        include/worker/QUIC.hpp
+        include/worker/TCP.hpp
+        include/ManapiJson.hpp
+        ${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp
 
         src/ManapiHttp.cpp
         src/ManapiThreadPool.cpp
@@ -109,54 +153,35 @@ set(MANAPI_HTTP_FILES
         src/ManapiHttpPool.cpp
         src/ManapiTimerPool.cpp
         src/ManapiSite.cpp
-        include/ManapiSite.hpp
-        include/ManapiSite.hpp
         src/ManapiHttpConfig.cpp
-        include/ManapiHttpConfig.hpp
-        include/extensions/ManapiJsonWebTokenTraits.hpp
-        include/extensions/ManapiJsonWebTokenDefaults.hpp
         src/ManapiUnicode.cpp
-        include/ManapiUnicode.hpp
         src/ManapiJsonBuilder.cpp
-        include/ManapiJsonBuilder.hpp
-        include/ManapiBeforeDelete.hpp
         src/ManapiBeforeDelete.cpp
         src/worker/Base.cpp
-        include/worker/Base.hpp
         src/http/Base.cpp
-        include/http/Base.hpp
         src/ManapiTaskHttp.cpp
-        include/ManapiTaskHttp.hpp
-        src/worker/TLS.cpp
-        include/worker/TLS.hpp
+        src/worker/OpenSSL_TLS.cpp
         src/http/HTTPv1_1.cpp
-        include/http/HTTPv1_1.hpp
-        include/http/HTTPv1_1.hpp
         src/http/HTTPv2.cpp
         src/http/HeaderView.cpp
-        include/http/HeaderView.hpp
-        include/compress/ManapiHPack.hpp
-        include/worker/HTTPv2.hpp
         src/worker/HTTPv2.cpp
-        include/components/SmartBuffer.hpp
         src/components/SmartBuffer.cpp
-        include/components/ConnectionsStorage.hpp
-        include/ManapiHttpMime.hpp
         src/ManapiHttpMime.cpp
-        include/components/Atomic.hpp)
+        src/worker/QUIC.cpp
+        src/worker/TCP.cpp)
 
-if (MANAPI_BUILD_TYPE STREQUAL "exe")
+if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
     # EXE
     message(STATUS "Build type 'exe'")
 
-    add_compile_definitions(MANAPI_HTTP_AS_EXECUTABLE)
-    add_executable(${PROJECT_NAME} main.cpp test.cpp test.h ${MANAPI_HTTP_FILES})
+    add_compile_definitions(MANAPIHTTP_HTTP_AS_EXECUTABLE)
+    add_executable(${PROJECT_NAME} main.cpp ${MANAPIHTTP_HTTP_FILES})
 else ()
     # LIB
     message(STATUS "Build type 'lib'")
 
-    add_compile_definitions(MANAPI_HTTP_AS_LIBRARY)
-    add_library(${PROJECT_NAME} ${MANAPI_HTTP_FILES})
+    add_compile_definitions(MANAPIHTTP_HTTP_AS_LIBRARY)
+    add_library(${PROJECT_NAME} ${MANAPIHTTP_HTTP_FILES})
 
     set_target_properties(${PROJECT_NAME} PROPERTIES
             VERSION ${PROJECT_VERSION}
@@ -167,21 +192,40 @@ endif ()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
-if (MANAPI_BUILD_METHOD STREQUAL "conan")
-    target_link_libraries       (${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES} gmp::gmp openssl::openssl ZLIB::ZLIB libev::libev CURL::libcurl)
-    if (MANAPI_QUICHE_SUPPORT)
+if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
+    target_link_libraries       (${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES} gmp::gmp ZLIB::ZLIB libev::libev CURL::libcurl)
+    if (MANAPIHTTP_OPENSSL_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC openssl::openssl)
+    endif ()
+
+    if (MANAPIHTTP_WOLFSSL_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC wolfssl::wolfssl)
+    endif ()
+
+    if (MANAPIHTTP_QUICHE_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC quiche::quiche)
     endif ()
 else ()
-    target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${LIBEV_LIBRARIES} ${LSQPACK_LIBRARIES} ${OPENSSL_LIBRARIES} ${CURL_LIBRARIES})
-    target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${LSQPACK_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
+    target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${LIBEV_LIBRARIES} ${LSQPACK_LIBRARIES} ${CURL_LIBRARIES})
+    target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${LSQPACK_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
 
-    if (MANAPI_QUICHE_SUPPORT)
+    if (MANAPIHTTP_OPENSSL_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${OPENSSL_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${OPENSSL_INCLUDE_DIRS})
+    endif ()
+
+    if (MANAPIHTTP_WOLFSSL_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${WOLFSSL_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${WOLFSSL_INCLUDE_DIRS})
+    endif ()
+
+
+    if (MANAPIHTTP_QUICHE_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${QUIC_INCLUDE_DIRS})
     endif ()
 
-    if (MANAPI_MSQUIC_SUPPORT)
+    if (MANAPIHTTP_MSQUIC_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${MSQUIC_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${MSQUIC_INCLUDE_DIRS})
     endif ()
@@ -192,7 +236,7 @@ endif ()
 target_include_directories  (${PROJECT_NAME} PRIVATE include)
 target_include_directories  (${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/include)
 
-if (MANAPI_BUILD_TYPE STREQUAL "exe")
+if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
     # nothing
 else ()
     # If we want to install library

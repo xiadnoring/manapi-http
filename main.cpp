@@ -116,7 +116,7 @@ int main (int argc, char *argv[]) {
         });
 
         server.GET ("/text", [] (REQ(req), RESP(resp)) {
-            MANAPI_LOG("{}", "REQ GET");
+            MANAPIHTTP_LOG("{}", "REQ GET");
             resp.set_compress_enabled(false);
             resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.TEXT_PLAIN);
 
@@ -244,6 +244,11 @@ int main (int argc, char *argv[]) {
             this_thread::sleep_for(std::chrono::seconds(10));
 
             resp.text("ok");
+        });
+
+        server.GET ("/largeheader", [] (REQ(req), RESP(resp)) -> void {
+            resp.set_header("large", random_string(40000));
+            resp.text("hehehehe");
         });
 
         server.POST ("/form", [] (REQ(req), RESP(resp)) {

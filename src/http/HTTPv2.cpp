@@ -5,6 +5,14 @@ manapi::net::http::http_v2::http_v2(std::shared_ptr<manapi::net::worker::base> w
 
 }
 
+std::shared_ptr<manapi::net::worker::http_v2> manapi::net::http::http_v2::create(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config,manapi::net::site &site) {
+    std::shared_ptr<manapi::net::worker::http_v2> w = std::make_shared <manapi::net::worker::http_v2> (std::move(worker), std::move(config), site);
+    w->new_dependency = [w = std::weak_ptr<manapi::net::worker::http_v2> (w)] () {
+        return std::shared_ptr<manapi::net::worker::http_v2> (w);
+    };
+    return std::move(w);
+}
+
 void manapi::net::http::http_v2::parse_request(ssize_t j, ssize_t size) {
     for (size_t i = 0; i < request_data.uri.size(); i++) {
         _parse_uri(request_data.uri[i]);
@@ -19,13 +27,13 @@ void manapi::net::http::http_v2::execute_handler() {
 
 void manapi::net::http::http_v2::_parse_uri(char &c) {
     if (c == ' ') {
-        if (this->parse_vars.uri_finished) { THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "URI parse was finished with error"); }
+        if (this->parse_vars.uri_finished) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "URI parse was finished with error"); }
         this->parse_vars.uri_finished = true;
         return;
     }
 
     if (!utils::uri_allowed_symbol(c)) {
-        THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
     }
 
     if (parse_vars.hex_index >= 0) {

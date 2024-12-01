@@ -6,8 +6,7 @@
 #include <functional>
 #include <vector>
 #include "ManapiBigint.hpp"
-
-#define MANAPI_JSON_DEBUG {{ VAR_MANAPI_JSON_DEBUG }}
+#include "ManapiParams.hpp"
 
 namespace manapi {
     class json {
@@ -341,7 +340,7 @@ namespace manapi {
         void _set_decimal (const DECIMAL &val);
         void _set_bigint (const BIGINT &val);
         void _set_pair (json first, json second);
-#if MANAPI_JSON_DEBUG
+#if MANAPIHTTP_JSON_DEBUG
         void _debug_symb_reinit () {
             _debug_bool_src = nullptr;
             _debug_array_src = nullptr;
@@ -389,7 +388,7 @@ namespace manapi {
         void    *src = nullptr;
         types   type = type_null;
 
-#if MANAPI_JSON_DEBUG
+#if MANAPIHTTP_JSON_DEBUG
         const BOOLEAN *_debug_bool_src    = nullptr;
         const ARRAY   *_debug_array_src   = nullptr;
         const BIGINT  *_debug_bigint_src  = nullptr;

@@ -44,17 +44,17 @@ void manapi::net::http::HeaderView::doit() {
     std::cout<<request_data.http << "\n";
     switch (connection->version) {
         case versions::HTTP_v1_1: {
-            http::http_v1_1 client (worker, config, site);
-            client.request_data = std::move(request_data);
-            client.connection = connection;
-            client.buffer = std::move(buffer);
-            client.prepare();
-            client.parse_request(j, size);
-            client.execute_handler();
+            auto client = http::http_v1_1::create (worker, config, site);
+            client->request_data = std::move(request_data);
+            client->connection = connection;
+            client->buffer = std::move(buffer);
+            client->prepare();
+            client->parse_request(j, size);
+            client->execute_handler();
         }
         break;
         case versions::HTTP_v2: {
-            auto client = worker::http_v2::create(worker, config, site);
+            auto client = http::http_v2::create(worker, config, site);
             client->connection = connection;
             client->buffer = std::move(buffer);
             client->parse_request(j, size);
@@ -66,7 +66,7 @@ void manapi::net::http::HeaderView::doit() {
 void manapi::net::http::HeaderView::_parse_method(char &c) {
     if (!std::isalpha(c)) {
         // if (!methods.contains(parse_vars.buffer)) {
-        //     THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Invalid method: {}", parse_vars.buffer);
+        //     THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Invalid method: {}", parse_vars.buffer);
         // }
 
         request_data.method = std::move(parse_vars.buffer);
@@ -85,7 +85,7 @@ void manapi::net::http::HeaderView::_skip_white_space(char &c) {
         current = next;
         return;
     }
-    THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
 }
 
 void manapi::net::http::HeaderView::_next_line(char &c) {
@@ -104,7 +104,7 @@ void manapi::net::http::HeaderView::_next_line(char &c) {
         }
     }
 
-    THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid symbol");
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid symbol");
 }
 
 void manapi::net::http::HeaderView::_parse_uri(char &c) {
@@ -117,7 +117,7 @@ void manapi::net::http::HeaderView::_parse_uri(char &c) {
     }
 
     if (!utils::uri_allowed_symbol(c)) {
-        THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
     }
 
     request_data.uri += c;

@@ -271,7 +271,7 @@ std::string manapi::net::utils::decode_url(const std::string &str) {}
 std::string manapi::net::utils::json2form(const json &obj) {
     if (!obj.is_object())
     {
-        THROW_MANAPI_EXCEPTION(ERR_UNSUPPORTED, "{}", "arg must be json object in json2form(...)");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_UNSUPPORTED, "{}", "arg must be json object in json2form(...)");
     }
 
     std::string data;
@@ -345,7 +345,7 @@ std::vector <manapi::net::utils::replace_founded_item> manapi::net::utils::found
 
     if (!f.is_open())
     {
-        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "Could not open the following file for finding replacers ({})", escape_string(path));
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Could not open the following file for finding replacers ({})", escape_string(path));
     }
 
     // while i < block_size or opened, bcz replacer can be on some blocks

@@ -48,7 +48,7 @@ const std::string &manapi::net::http_request::get_param(const std::string &param
     if (request_data->params.contains(param))
         return request_data->params.at(param);
 
-    THROW_MANAPI_EXCEPTION(ERR_HTTP_PARAM_MISSING, "cannot find param '{}'", param);
+    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PARAM_MISSING, "cannot find param '{}'", param);
 }
 
 std::string manapi::net::http_request::dump() const {
@@ -74,14 +74,14 @@ std::string manapi::net::http_request::dump() const {
 std::string manapi::net::http_request::text() {
     if (!request_data->has_body)
     {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
     }
 
     std::string body;
 
     if (request_data->body_size > max_plain_body_size)
     {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_BODY_TOO_LONG, "plain body can have only {} length", max_plain_body_size);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_TOO_LONG, "plain body can have only {} length", max_plain_body_size);
     }
 
     body.resize(request_data->body_size);
@@ -113,14 +113,14 @@ manapi::net::utils::MAP_STR_STR manapi::net::http_request::form ()
 {
     if (!request_data->has_body)
     {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
     }
 
     const auto header     = utils::parse_header_value(get_headers().at(HTTP_HEADER.CONTENT_TYPE));
 
     if (header.empty())
     {
-        THROW_MANAPI_EXCEPTION (ERR_HTTP_CONTENT_TYPE_MISSING, "header value is empty: {}", HTTP_HEADER.CONTENT_TYPE);
+        THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_CONTENT_TYPE_MISSING, "header value is empty: {}", HTTP_HEADER.CONTENT_TYPE);
     }
 
     const std::string *content_type = &header[0].value;
@@ -131,7 +131,7 @@ manapi::net::utils::MAP_STR_STR manapi::net::http_request::form ()
     {
         if (!header[0].params.contains("boundary"))
         {
-            THROW_MANAPI_EXCEPTION(ERR_HTTP_BODY_BOUNDARY_MISSING, "{}", "boundary not found");
+            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_BOUNDARY_MISSING, "{}", "boundary not found");
         }
 
         body_boundary = SPECIAL_SYMBOLS_BOUNDARY + header[0].params.at("boundary");
@@ -176,10 +176,10 @@ manapi::net::utils::MAP_STR_STR manapi::net::http_request::form ()
                 // get the next data
                 ssize_t rhs = http_task->read (request_data->buffer.data(), request_data->buffer.size());
                 if (rhs == -1) {
-                    THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
                 }
                 if (rhs > request_data->body_left) {
-                    THROW_MANAPI_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
+                    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
                 }
                 request_data->body_part = rhs;
 
@@ -254,7 +254,7 @@ manapi::net::utils::MAP_STR_STR manapi::net::http_request::form ()
     }
     else
     {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_INVALID_CONTENT_TYPE, "Invalid POST DATA MIME-type: {}", utils::escape_string(*content_type));
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_INVALID_CONTENT_TYPE, "Invalid POST DATA MIME-type: {}", utils::escape_string(*content_type));
     }
 
     // validate data
@@ -263,7 +263,7 @@ manapi::net::utils::MAP_STR_STR manapi::net::http_request::form ()
     {
         if (!post_mask->valid(params))
         {
-            THROW_MANAPI_EXCEPTION(ERR_HTTP_BODY_MASK_FAILED, "Form Data: {} ({})", "Failed validation", utils::escape_string(*content_type));
+            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MASK_FAILED, "Form Data: {} ({})", "Failed validation", utils::escape_string(*content_type));
         }
     }
 
@@ -281,7 +281,7 @@ void manapi::net::http_request::set_max_plain_body_size(const size_t &size) {
 const manapi::net::file_data_t &manapi::net::http_request::inf_file() {
     if (!file_data.exists)
     {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_BODY_NOT_CONTAINS_FILE, "{}", "No found any file in the body of the request");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_NOT_CONTAINS_FILE, "{}", "No found any file in the body of the request");
     }
 
     return file_data;
@@ -363,10 +363,10 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
             // get the next data
             ssize_t rhs = http_task->read (request_data->buffer.data(), request_data->buffer.size());
             if (rhs == -1) {
-                THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
+                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
             }
             if (rhs > request_data->body_left) {
-                THROW_MANAPI_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
             }
             request_data->body_part = std::min(static_cast <size_t>(rhs), request_data->body_left);
 
@@ -431,7 +431,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
 
             size_t size_str = request_data->body_index + size_extra;
             if (size_str < checkpoint + 2) {
-                THROW_MANAPI_EXCEPTION(ERR_FATAL, "BUG: size_str < {}.", 0);
+                THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "BUG: size_str < {}.", 0);
             }
             size_str = size_str - checkpoint - 2;
 
@@ -459,7 +459,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
 
             if (size_extra < first + second)
             {
-                THROW_MANAPI_EXCEPTION(ERR_FATAL, "{}", "Size of the extra buffer eq -1. Maybe the recv data was not provided?");
+                THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "Size of the extra buffer eq -1. Maybe the recv data was not provided?");
             }
 
             chars2string(line, buff_extra, size_extra - (first + second));
@@ -473,7 +473,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
             {
                 if (header_value.empty())
                 {
-                    THROW_MANAPI_EXCEPTION(ERR_HTTP_IMPORTANT_HEADER_MISSING, "header value is empty: {}", HTTP_HEADER.CONTENT_DISPOSITION);
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_IMPORTANT_HEADER_MISSING, "header value is empty: {}", HTTP_HEADER.CONTENT_DISPOSITION);
                 }
 
                 if (header_value[0].params.contains("name"))
@@ -497,7 +497,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
                     }
                     else
                     {
-                        THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "{}", "the simple param can not be after the files in the body of the request");
+                        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "{}", "the simple param can not be after the files in the body of the request");
                     }
                 }
             }
@@ -506,7 +506,7 @@ void manapi::net::http_request::multipart_read_param (const std::function<void(c
             {
                 if (header_value.empty())
                 {
-                    THROW_MANAPI_EXCEPTION(ERR_HTTP_IMPORTANT_HEADER_MISSING, "{} can not be empty", HTTP_HEADER.CONTENT_TYPE);
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_IMPORTANT_HEADER_MISSING, "{} can not be empty", HTTP_HEADER.CONTENT_TYPE);
                 }
 
                 if (file_data.exists)
@@ -570,7 +570,7 @@ std::string manapi::net::http_request::set_file_to_str() {
 void manapi::net::http_request::set_file(const std::function<void(const char *, const size_t &)> &handler) {
     if (!has_file())
     {
-        THROW_MANAPI_EXCEPTION(ERR_HTTP_BODY_NOT_CONTAINS_FILE, "{}", "no file in the body of the request");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_NOT_CONTAINS_FILE, "{}", "no file in the body of the request");
     }
 
     for (char i = 0; i < 2; i++)
@@ -589,7 +589,7 @@ void manapi::net::http_request::set_file_to_local (const std::string &filepath) 
 
     if (!out.is_open())
     {
-        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "Cannot open a file to write: {}", filepath);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Cannot open a file to write: {}", filepath);
     }
 
     set_file([&] (const char *ptr, const size_t & size) {
@@ -650,7 +650,7 @@ const std::string &manapi::net::http_request::get_query_param(const std::string 
         return map_url_params->at(name);
     }
 
-    THROW_MANAPI_EXCEPTION(ERR_HTTP_QUERY_PARAM_MISSING, "Can not find query param by name: {}", name);
+    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_QUERY_PARAM_MISSING, "Can not find query param by name: {}", name);
 }
 
 const std::unique_ptr<const manapi::json_mask> &manapi::net::http_request::get_post_mask() const {
@@ -680,10 +680,10 @@ void manapi::net::http_request::_read_body(const std::function<void(const char *
             // get the next data
             ssize_t rhs = http_task->read (request_data->buffer.data(), request_data->buffer.size());
             if (rhs == -1) {
-                THROW_MANAPI_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
+                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
             }
             if (rhs > request_data->body_left) {
-                THROW_MANAPI_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
             }
             request_data->body_part = rhs;
             if (request_data->body_part == 0)

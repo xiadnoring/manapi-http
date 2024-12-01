@@ -10,6 +10,12 @@ manapi::net::http::http_v1_1::http_v1_1(std::shared_ptr<manapi::net::worker::bas
 
 manapi::net::http::http_v1_1::~http_v1_1() = default;
 
+std::shared_ptr<manapi::net::http::http_v1_1> manapi::net::http::http_v1_1::create(
+    std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config,
+    manapi::net::site &site) {
+    return std::make_shared<manapi::net::http::http_v1_1>(std::move(worker), std::move(config), site);
+}
+
 void manapi::net::http::http_v1_1::doit() {
 
 }
@@ -19,7 +25,7 @@ void manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
 
     {
         if (size == 0) {
-            THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "HTTP Status hasn't been parsed");
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "HTTP Status hasn't been parsed");
         }
 
         current = std::bind(&http_v1_1::_parse_headers, this, std::placeholders::_1);
@@ -48,7 +54,7 @@ void manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
         request_data.buffer = std::move(this->buffer);
         if (size == j) {
             ssize_t rhs = this->read(request_data.buffer.data(), request_data.buffer.size());
-            if (rhs < 0) { THROW_MANAPI_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "this->read(...) = {}", rhs); }
+            if (rhs < 0) { THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "this->read(...) = {}", rhs); }
             request_data.body_part = rhs;
             request_data.headers_part = 0; j = 0;
         }
@@ -79,7 +85,7 @@ void manapi::net::http::http_v1_1::_skip_white_space(char &c) {
         current = next;
         return;
     }
-    THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
 }
 
 void manapi::net::http::http_v1_1::_next_line(char &c) {
@@ -100,7 +106,7 @@ void manapi::net::http::http_v1_1::_next_line(char &c) {
         }
     }
 
-    THROW_MANAPI_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid symbol");
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid symbol");
 }
 
 void manapi::net::http::http_v1_1::_parse_headers(char &c) {

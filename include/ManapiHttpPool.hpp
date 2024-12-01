@@ -5,7 +5,6 @@
 #include <netdb.h>
 #include <list>
 #include <future>
-#include <openssl/ssl.h>
 #include <functional>
 
 #include "ManapiHttpConfig.hpp"
@@ -27,15 +26,14 @@ namespace manapi::net {
         void stop ();
         std::future <int> run ();
 
-        void new_connection_quic    (ev::io &watcher, int revents);
-        void new_connection_tls     (ev::io &watcher, int revents);
+        void new_connection (ev::io &watcher, int revents);
 
         class site &get_site () const;
 
         // quic data
         quic_map_conns_t quic_map_conns;
 
-        utils::safe_unordered_map <utils::manapi_socket_information, task *> peer_by_ip;
+        utils::atomic_map <utils::manapi_socket_information, task *> peer_by_ip;
         std::mutex recv_m;
 
         const int &get_fd ();

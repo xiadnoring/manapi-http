@@ -4,31 +4,30 @@
 #include <mutex>
 #include <condition_variable>
 #include <unordered_map>
+#include <map>
 
 #include "ManapiBeforeDelete.hpp"
 
 namespace manapi::net::utils {
-    template <typename K, typename V> class safe_unordered_map;
-
-    template <typename K, typename V>
-    class safe_unordered_map : public std::unordered_map<K, V> {
+    template <typename K, typename V, class C = std::unordered_map <K, V>>
+    class atomic_map : public C {
     public:
-        typedef std::unordered_map<K,V>::const_iterator const_iterator;
-        typedef std::unordered_map<K,V>::iterator iterator;
-        typedef std::unordered_map<K,V>::size_type size_type;
-        typedef std::unordered_map<K,V>::value_type value_type;
-        typedef std::unordered_map<K,V>::insert_return_type insert_return_type;
-        typedef std::pair<manapi::net::utils::safe_unordered_map<K, V>::iterator, bool> insert_return_pair;
+        typedef typename C::const_iterator const_iterator;
+        typedef typename C::iterator iterator;
+        typedef typename C::size_type size_type;
+        typedef typename C::value_type value_type;
+        typedef typename C::insert_return_type insert_return_type;
+        typedef std::pair<typename manapi::net::utils::atomic_map<K, V>::iterator, bool> insert_return_pair;
 
-        safe_unordered_map();
-        safe_unordered_map(std::initializer_list <std::pair <const K, V> > list);
+        atomic_map();
+        atomic_map(std::initializer_list <std::pair <const K, V> > list);
 
         insert_return_pair insert (K key, V value);
         insert_return_pair insert (value_type &&row);
 
         size_type erase (const K &key);
 
-        iterator erase (std::unordered_map<K, V>::iterator it);
+        iterator erase (C::iterator it);
 
         void lock ();
 
@@ -50,74 +49,74 @@ namespace manapi::net::utils {
 
 }
 
-template<typename K, typename V>
-void manapi::net::utils::safe_unordered_map<K, V>::reset() {
-    std::unordered_map<K, V>::clear();
+template<typename K, typename V, class C>
+void manapi::net::utils::atomic_map<K, V, C>::reset() {
+    C::clear();
     cv_update.notify_all();
 }
 
-template<typename K, typename V>
-void manapi::net::utils::safe_unordered_map<K, V>::wait_update() {
+template<typename K, typename V, class C>
+void manapi::net::utils::atomic_map<K, V, C>::wait_update() {
     std::unique_lock<std::mutex> lkq (m_update);
     cv_update.wait(lkq);
 }
 
-template<typename K, typename V>
-bool manapi::net::utils::safe_unordered_map<K, V>::try_lock() {
+template<typename K, typename V, class C>
+bool manapi::net::utils::atomic_map<K, V, C>::try_lock() {
     return locker.try_lock();
 }
 
-template<typename K, typename V>
-manapi::net::utils::safe_unordered_map<K, V>::safe_unordered_map() {}
+template<typename K, typename V, class C>
+manapi::net::utils::atomic_map<K, V, C>::atomic_map() {}
 
-template<typename K, typename V>
-manapi::net::utils::safe_unordered_map<K, V>::safe_unordered_map(std::initializer_list<std::pair<const K, V>> list) : std::unordered_map<K, V>(std::move(list)) {}
+template<typename K, typename V, class C>
+manapi::net::utils::atomic_map<K, V, C>::atomic_map(std::initializer_list<std::pair<const K, V>> list) : C (std::move(list)) {}
 
-template <typename K, typename V>
-manapi::net::utils::safe_unordered_map<K, V>::insert_return_pair manapi::net::utils::safe_unordered_map<K, V>::insert (K key, V value) {
-    auto it = std::unordered_map<K, V>::insert({std::move(key), std::move(value)});
+template <typename K, typename V, class C>
+manapi::net::utils::atomic_map<K, V, C>::insert_return_pair manapi::net::utils::atomic_map<K, V, C>::insert (K key, V value) {
+    auto it = C::insert({std::move(key), std::move(value)});
     cv_update.notify_all();
     return std::move(it);
 }
 
-template<typename K, typename V>
-manapi::net::utils::safe_unordered_map<K, V>::insert_return_pair manapi::net::utils::safe_unordered_map<K, V>::
+template<typename K, typename V, class C>
+manapi::net::utils::atomic_map<K, V, C>::insert_return_pair manapi::net::utils::atomic_map<K, V, C>::
 insert(value_type &&row) {
-    auto it = std::unordered_map<K, V>::insert(std::forward<decltype(row)>(row));
+    auto it = C::insert(std::forward<decltype(row)>(row));
     cv_update.notify_all();
     return std::move(it);
 }
 
-template <typename K, typename V>
-manapi::net::utils::safe_unordered_map<K, V>::size_type manapi::net::utils::safe_unordered_map<K, V>::erase (const K &key) {
-    const auto it = std::unordered_map<K, V>::erase(key);
+template <typename K, typename V, class C>
+manapi::net::utils::atomic_map<K, V, C>::size_type manapi::net::utils::atomic_map<K, V, C>::erase (const K &key) {
+    const auto it = C::erase(key);
     cv_update.notify_all();
 
     return it;
 }
 
-template <typename K, typename V>
-manapi::net::utils::safe_unordered_map<K, V>::iterator manapi::net::utils::safe_unordered_map<K, V>::erase (std::unordered_map<K, V>::iterator it) {
-    const auto n_it = std::unordered_map<K, V>::erase(it);
+template <typename K, typename V, class C>
+manapi::net::utils::atomic_map<K, V, C>::iterator manapi::net::utils::atomic_map<K, V, C>::erase (C::iterator it) {
+    const auto n_it = C::erase(it);
     cv_update.notify_all();
     return n_it;
 }
 
-template<typename K, typename V>
-void manapi::net::utils::safe_unordered_map<K, V>::unlock() {
+template<typename K, typename V, class C>
+void manapi::net::utils::atomic_map<K, V, C>::unlock() {
     // printf("UNBLOCKED\n");
     locker.unlock();
 }
 
-template<typename K, typename V>
-manapi::net::utils::before_delete manapi::net::utils::safe_unordered_map<K, V>::lock_guard() {
+template<typename K, typename V, class C>
+manapi::net::utils::before_delete manapi::net::utils::atomic_map<K, V, C>::lock_guard() {
     lock();
     manapi::net::utils::before_delete bd([this] () -> void { unlock(); });
     return std::move(bd);
 }
 
-template<typename K, typename V>
-void manapi::net::utils::safe_unordered_map<K, V>::lock() {
+template<typename K, typename V, class C>
+void manapi::net::utils::atomic_map<K, V, C>::lock() {
     // printf("BLOCKED\n");
     locker.lock();
 }

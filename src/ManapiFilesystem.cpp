@@ -6,7 +6,7 @@
 #include "ManapiFilesystem.hpp"
 
 static const std::string folder_configs;
-#define MANAPI_FILESYSTEM_COPY_BUFFER_SIZE 4096LL
+#define MANAPIHTTP_FILESYSTEM_COPY_BUFFER_SIZE 4096LL
 
 std::string manapi::net::filesystem::basename(const std::string& path) {
     size_t pos = path.find_last_of(std::filesystem::path::preferred_separator);
@@ -91,7 +91,7 @@ ssize_t manapi::net::filesystem::get_size (const std::string& path) {
     std::ifstream f (path);
     if (!f.is_open())
     {
-        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "cannot open the file by following path: {}", path);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "cannot open the file by following path: {}", path);
     }
 
     utils::before_delete close_ifstream ([&f] () { f.close(); });
@@ -106,7 +106,7 @@ void manapi::net::filesystem::write (const std::string &path, const std::string 
 
     if (!out.is_open())
     {
-        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "cannot open config to write: {}", path);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "cannot open config to write: {}", path);
     }
 
     utils::before_delete close_ofstream ([&out] () { out.close(); });
@@ -119,7 +119,7 @@ std::string manapi::net::filesystem::read (const std::string &path) {
 
     if (!in.is_open())
     {
-        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "cannot open config to read: {}", path);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "cannot open config to read: {}", path);
     }
 
     utils::before_delete close_ofstream ([&in] () { in.close(); });
@@ -127,7 +127,7 @@ std::string manapi::net::filesystem::read (const std::string &path) {
 
     // 20 MB
     if (size >= 20 * 1024 * 1024) {
-        MANAPI_LOG("The size of the file: {} is so large for read with this function.", size);
+        MANAPIHTTP_LOG("The size of the file: {} is so large for read with this function.", size);
     }
 
     std::string content;
@@ -143,17 +143,17 @@ void manapi::net::filesystem::copy (std::ifstream &f, const ssize_t &start, cons
         f.close();
         o.close();
 
-        THROW_MANAPI_EXCEPTION(ERR_FILE_IO, "{}", "cannot open files for operations");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "{}", "cannot open files for operations");
     }
 
     f.seekg (start);
 
     ssize_t size        = back - start + 1;
 
-    char buff[MANAPI_FILESYSTEM_COPY_BUFFER_SIZE];
+    char buff[MANAPIHTTP_FILESYSTEM_COPY_BUFFER_SIZE];
 
     while (size != 0) {
-        const ssize_t block_size = size > MANAPI_FILESYSTEM_COPY_BUFFER_SIZE ? MANAPI_FILESYSTEM_COPY_BUFFER_SIZE : size;
+        const ssize_t block_size = size > MANAPIHTTP_FILESYSTEM_COPY_BUFFER_SIZE ? MANAPIHTTP_FILESYSTEM_COPY_BUFFER_SIZE : size;
         f.read(buff, block_size);
 
         o.write(buff, block_size);
