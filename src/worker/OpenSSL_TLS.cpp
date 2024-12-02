@@ -97,6 +97,7 @@ void manapi::net::worker::OpenSSL_TLS::onrecv(const std::shared_ptr<worker::base
 
     if (worker->is_valid_connection(*task->connection)) {
         site.append_task(std::move(task), 1);
+        std::this_thread::yield();
     }
 }
 

@@ -14,17 +14,27 @@ namespace manapi::net {
         ~Atomic ();
         std::pair <const T &, manapi::net::utils::before_delete> get ();
         void update (const std::function<void(T &v)> &func);
-        Atomic& operator=(T n);
+        Atomic& operator=(const T &n);
         Atomic &operator++();
         Atomic &operator--();
+        bool operator>(const T &n);
+        bool operator<(const T &n);
+        bool operator>=(const T &n);
+        bool operator<=(const T &n);
+        bool operator==(const T &n);
+        bool operator!=(const T &n);
+        Atomic operator-(const T &n);
+        Atomic operator+(const T &n);
+        Atomic &operator-=(const T &n);
+        Atomic &operator+=(const T &n);
     private:
         void _wait ();
-        std::mutex gmx;
-        std::mutex mx;
-        std::mutex mdeps;
-        std::condition_variable cv;
-        size_t deps;
-        T value;
+        std::mutex gmx;             // global mutex
+        std::mutex mx;              // default mutex
+        std::mutex mdeps;           // deps mutex
+        std::condition_variable cv; // deps cv
+        size_t deps;                // deps count
+        T value;                    // value
     };
 
     template<typename T>
@@ -77,7 +87,7 @@ namespace manapi::net {
     }
 
     template<typename T>
-    Atomic<T> & Atomic<T>::operator=(T n) {
+    Atomic<T> & Atomic<T>::operator=(const T &n) {
         std::lock_guard <std::mutex> lk (gmx);
         _wait();
         value = n;
@@ -100,6 +110,120 @@ namespace manapi::net {
     template<typename T>
     Atomic<T> & Atomic<T>::operator--() {
         return *this;
+    }
+
+    template<typename T>
+    bool Atomic<T>::operator>=(const T &n) {
+        return false;
+    }
+
+    template<typename T>
+    bool Atomic<T>::operator<=(const T &n) {
+        return false;
+    }
+
+    template<typename T>
+    bool Atomic<T>::operator==(const T &n) {
+        return false;
+    }
+
+    template<typename T>
+    bool Atomic<T>::operator!=(const T &n) {
+        return false;
+    }
+
+    template<typename T>
+    Atomic<T> Atomic<T>::operator-(const T &n) {
+        return *this;
+    }
+
+    template<typename T>
+    Atomic<T> Atomic<T>::operator+(const T &n) {
+        return *this;
+    }
+
+    template<typename T>
+    Atomic<T> &Atomic<T>::operator-=(const T &n) {
+        return *this;
+    }
+
+    template<typename T>
+    Atomic<T> &Atomic<T>::operator+=(const T &n) {
+        return *this;
+    }
+
+    template<typename T>
+    bool Atomic<T>::operator<(const T &n) {
+        return false;
+    }
+
+    template<typename T>
+    bool Atomic<T>::operator>(const T &n) {
+        return false;
+    }
+
+    template<>
+    inline Atomic<size_t> &Atomic<size_t>::operator-=(const size_t &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        _wait();
+        value -= n;
+        return *this;
+    }
+
+    template<>
+    inline Atomic<size_t> &Atomic<size_t>::operator+=(const size_t &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        _wait();
+        value += n;
+        return *this;
+    }
+
+    template<>
+    inline Atomic<size_t> Atomic<size_t>::operator-(const size_t &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        return (value - n);
+    }
+
+    template<>
+    inline Atomic<size_t> Atomic<size_t>::operator+(const size_t &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        return (value + n);
+    }
+
+    template<>
+    inline bool Atomic<size_t>::operator!=(const size_t &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        return value != n;
+    }
+
+    template<>
+    inline bool Atomic<size_t>::operator==(const size_t &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        return value == n;
+    }
+
+    template<>
+    inline bool Atomic<size_t>::operator>(const size_t &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        return value > n;
+    }
+
+    template<>
+    inline bool Atomic<size_t>::operator<(const size_t &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        return value < n;
+    }
+
+    template<>
+    inline bool Atomic<size_t>::operator<=(const size_t &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        return value <= n;
+    }
+
+    template<>
+    inline bool Atomic<size_t>::operator>=(const size_t &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        return value >= n;
     }
 
     template<>

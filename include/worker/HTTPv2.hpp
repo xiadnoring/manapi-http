@@ -177,6 +177,7 @@ namespace manapi::net::worker {
 
         void settings_update_initial_window_size (int value);
         void settings_update_max_concurrent_streams (int value);
+        void setting_value_valid (const http2_setting_type &type, const int &value) noexcept(false);
 
         template <typename T>
         std::string stringify_number (T n) {
@@ -200,6 +201,7 @@ namespace manapi::net::worker {
         } parse_vars;
 
         struct protocol_http2_t {
+            std::mutex mx; // multithread
             ssize_t length = 9 + 8; // 9 must-have octets in the header + 8 metadata
             ssize_t type = 0;
             int stream_id = 0;
@@ -210,6 +212,16 @@ namespace manapi::net::worker {
             size_t padding = 0;
             ssize_t ping_interval = 800;
 
+            struct protocol_http2_window_t {
+                int read = 0;
+                int write = 0;
+
+                std::mutex readmx;
+                std::mutex writemx;
+
+                std::condition_variable writecv;
+            } window;
+
             struct protocol_http2_error_t {
                 int errnum = 0;
                 int last_stream_id = 0;
@@ -217,9 +229,9 @@ namespace manapi::net::worker {
             } error;
 
             int value = -1;
-
             ssize_t timeout = 1000;
             std::atomic<ssize_t> current_timeout = timeout;
+            std::queue <size_t> setting_timeout;
 
             manapi::net::utils::compress::hpack::decoder_t decoder;
             manapi::net::utils::compress::hpack::encoder_t encoder;
@@ -235,6 +247,8 @@ namespace manapi::net::worker {
         std::mutex finishmx;
         std::condition_variable finishcv;
         size_t ping_interval = 0;
+
+        static std::map <int, json_mask> allow_settings;
     };
 }
 

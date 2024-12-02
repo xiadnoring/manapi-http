@@ -7,6 +7,21 @@
 #include "worker/OpenSSL_TLS.hpp"
 
 #define HEADER_DEFAULT_SIZE 9
+
+std::map <int, manapi::json_mask> manapi::net::worker::http_v2::allow_settings = {
+    {HTTP2_SETTING_RESERVED, {"{null}"}},
+    {HTTP2_SETTING_ENABLE_PUSH, {"{integer(>=0 <=1)}"}},
+    {HTTP2_SETTING_MAX_FRAME_SIZE, {"{integer(>=16000 <=20000)}"}},
+    {HTTP2_SETTING_HEADER_TABLE_SIZE, {"{integer(>=2048 <=65536)}"}},
+    {HTTP2_SETTING_INITIAL_WINDOW_SIZE, {"{integer(>=1024)}"}},
+    {HTTP2_SETTING_MAX_HEADER_LIST_SIZE, {"{integer(>=1024 <=1048576)}"}},
+    {HTTP2_SETTING_TLS_RENEG_PERMITTED, {"{integer(0)}"}},
+    {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, {"{integer(>=1 <=5)}"}},
+    {HTTP2_SETTING_SETTINGS_ENABLE_METADATA, {"{integer(>=0 <=1)}"}},
+    {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, {"{integer(>=0 <=1)}"}},
+    {HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL, {"{integer(>=0 <=1)}"}}
+};
+
 manapi::net::worker::http_v2::http_v2(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site) : base(site), worker(std::move(worker)) {
     this->config = std::move(config);
     this->init_settings();
@@ -83,7 +98,8 @@ void manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
                     send_settings ({
                         {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, 1},
                         {HTTP2_SETTING_ENABLE_PUSH, 0},
-                        {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, 100}
+                        {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, 100},
+                        {HTTP2_SETTING_MAX_HEADER_LIST_SIZE,  65000}
                     });
 
                     protocol.initial_frame = false;
@@ -93,7 +109,8 @@ void manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
                     case HTTP2_FRAME_SETTINGS: {
                         if (protocol.flag & HTTP2_FLAG_SETTINGS_ACK) {
                             // settings were accepted
-
+                            site.remove_timer(protocol.setting_timeout.front());
+                            protocol.setting_timeout.pop();
                         }
                         else {
                             send_frame (HTTP2_FRAME_SETTINGS, HTTP2_FLAG_SETTINGS_ACK, 0, "");
@@ -153,6 +170,8 @@ void manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
                     case HTTP2_FRAME_WINDOW_UPDATE: {
                         if (protocol.stream_id == 0) {
                             // global
+                            std::lock_guard<std::mutex> lkwt (protocol.window.writemx);
+                            protocol.window.write += protocol.value;
                             break;
                         }
                         auto thread = threads->get(protocol.stream_id);
@@ -189,6 +208,9 @@ void manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
         MANAPIHTTP_LOG("HTTP2 Exception: {}", e.what());
     }
 
+    protocol.closed = true;
+    protocol.window.writecv.notify_all();
+
     reset_all_streams();
     site.remove_timer(ping_interval);
     std::cout << "Preparing for close\n";
@@ -198,23 +220,41 @@ void manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
 
 void manapi::net::worker::http_v2::init_settings() {
     protocol.settings[HTTP2_SETTING_HEADER_TABLE_SIZE] = {4096, [this] (int value) -> void {
+        setting_value_valid (HTTP2_SETTING_HEADER_TABLE_SIZE, value);
         protocol.settings[HTTP2_SETTING_HEADER_TABLE_SIZE].first = value;
         this->protocol.decoder.m_dynamic_max(value);
+        this->protocol.decoder.m_dynamic_max(value);
     }};
-    protocol.settings[HTTP2_SETTING_ENABLE_PUSH] = {1, nullptr};
-    protocol.settings[HTTP2_SETTING_MAX_CONCURRENT_STREAMS] = {INT_MAX, nullptr};
+    protocol.settings[HTTP2_SETTING_ENABLE_PUSH] = {1, [this] (int value) -> void {
+        setting_value_valid(HTTP2_SETTING_ENABLE_PUSH, value);
+    }};
+    protocol.settings[HTTP2_SETTING_MAX_CONCURRENT_STREAMS] = {INT_MAX, [this] (int value) -> void {
+        setting_value_valid(HTTP2_SETTING_ENABLE_PUSH, value);
+    }};
     protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE] = {65535, [this] (int value) -> void {
+        setting_value_valid(HTTP2_SETTING_INITIAL_WINDOW_SIZE, value);
         protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first = value;
     }};
     protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE] = {16384, [this] (int value) -> void {
+        setting_value_valid(HTTP2_SETTING_MAX_FRAME_SIZE, value);
         protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first = value;
         buffer.resize(value);
     }};
-    protocol.settings[HTTP2_SETTING_MAX_HEADER_LIST_SIZE] = {INT_MAX, nullptr};
-    protocol.settings[HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL] = {0, nullptr};
-    protocol.settings[HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES] = {0, nullptr};
-    protocol.settings[HTTP2_SETTING_TLS_RENEG_PERMITTED] = {0x00, nullptr};
-    protocol.settings[HTTP2_SETTING_SETTINGS_ENABLE_METADATA] = {0, nullptr};
+    protocol.settings[HTTP2_SETTING_MAX_HEADER_LIST_SIZE] = {INT_MAX, [this] (int value) -> void {
+        setting_value_valid(HTTP2_SETTING_MAX_HEADER_LIST_SIZE, value);
+    }};
+    protocol.settings[HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL] = {0, [this] (int value) -> void {
+        setting_value_valid(HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL, value);
+    }};
+    protocol.settings[HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES] = {0, [this] (int value) -> void {
+        setting_value_valid(HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, value);
+    }};
+    protocol.settings[HTTP2_SETTING_TLS_RENEG_PERMITTED] = {0x00, [this] (int value) -> void {
+        setting_value_valid(HTTP2_SETTING_TLS_RENEG_PERMITTED, value);
+    }};
+    protocol.settings[HTTP2_SETTING_SETTINGS_ENABLE_METADATA] = {0, [this] (int value) -> void {
+        setting_value_valid(HTTP2_SETTING_SETTINGS_ENABLE_METADATA, value);
+    }};
 }
 
 void manapi::net::worker::http_v2::set_callbacks(const http_v2_callbacks_t &callbacks) {
@@ -421,12 +461,11 @@ void manapi::net::worker::http_v2::_parse_setting_value(char &c) {
     parse_vars.i ++;
 
     if (parse_vars.i == 4) {
-        if (parse_vars.nkey >= protocol.settings.size()) {
-            generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "Invalid setting name");
+        auto param = protocol.settings.find(parse_vars.nkey);
+        if (param != protocol.settings.end()) {
+            auto &update = param->second.second;
+            if (update != nullptr) { update(parse_vars.buffint); }
         }
-
-        auto &update = protocol.settings[parse_vars.nkey].second;
-        if (update != nullptr) { update(parse_vars.buffint); }
 
         parse_vars.nkey = 0;
         parse_vars.buffint = 0;
@@ -637,6 +676,13 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
 }
 
 void manapi::net::worker::http_v2::send_settings(const std::vector<std::pair<short, int>> &options) {
+    protocol.setting_timeout.push(site.append_timer(std::chrono::milliseconds(1000), [worker = std::move(new_dependency ())] () -> void {
+        std::lock_guard<std::mutex> lk (worker->protocol.mx);
+        // timeout
+        if (worker->protocol.closed) { return; }
+        worker->protocol.closed = true;
+        worker->close_connection(HTTP2_ERROR_SETTINGS_TIMEOUT, "recv settings timeout");
+    }));
     std::string data;
     for (const auto &option: options) {
         auto &update = protocol.settings[option.first].second;
@@ -650,6 +696,10 @@ ssize_t manapi::net::worker::http_v2::send_data(int stream_id, const void *buf, 
     if (size == 0) {
         return size;
     }
+
+    std::unique_lock<std::mutex> lk (protocol.window.writemx);
+    protocol.window.writecv.wait(lk, [this, &size] () -> bool { return protocol.window.write >= size || protocol.closed; });
+    protocol.window.write -= static_cast<int> (size);
     char cflag = 0x00;
     if (finish) { cflag |= HTTP2_FLAG_DATA_END_STREAM; }
     send_frame(HTTP2_FRAME_DATA, cflag, stream_id, std::string_view(static_cast<const char *> (buf), size));
@@ -657,10 +707,15 @@ ssize_t manapi::net::worker::http_v2::send_data(int stream_id, const void *buf, 
 }
 
 void manapi::net::worker::http_v2::send_window_frame(int stream_id, int size) {
+    std::lock_guard<std::mutex> lk (protocol.window.readmx);
+    if (protocol.window.read < size) {
+        protocol.window.read += 1e6;
+        auto nsize = stringify_number <int> (protocol.window.read);
+        send_frame(HTTP2_FRAME_WINDOW_UPDATE, 0x00, 0, nsize);
+    }
+    protocol.window.read -= size;
     auto nsize = stringify_number <int> (size);
-    send_frame (HTTP2_FRAME_WINDOW_UPDATE, 0x00, 0, nsize);
     send_frame (HTTP2_FRAME_WINDOW_UPDATE, 0x00, stream_id, nsize);
-
 }
 
 void manapi::net::worker::http_v2::default_ev_headers(int id, std::map<std::string, std::string> headers) {
@@ -800,6 +855,14 @@ void manapi::net::worker::http_v2::settings_update_initial_window_size(int value
 
 void manapi::net::worker::http_v2::settings_update_max_concurrent_streams(int value) {
     protocol.settings[HTTP2_SETTING_MAX_CONCURRENT_STREAMS].first = value;
+}
+
+void manapi::net::worker::http_v2::setting_value_valid(const http2_setting_type &type, const int &value) noexcept(false) {
+    if (allow_settings[type].valid(value)) {
+        return;
+    }
+
+    generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "Invalid http2 setting param");
 }
 
 void manapi::net::worker::http_v2::_parse_header_flag (char &c) {
