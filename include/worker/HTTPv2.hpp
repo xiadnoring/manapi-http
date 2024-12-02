@@ -3,11 +3,11 @@
 
 #include <thread>
 
-#include "ManapiSite.hpp"
-#include "components/ConnectionsStorage.hpp"
-#include "components/SmartBuffer.hpp"
-#include "worker/Base.hpp"
-#include "compress/ManapiHPack.hpp"
+#include "../ManapiSite.hpp"
+#include "../components/ConnectionsStorage.hpp"
+#include "../components/SmartBuffer.hpp"
+#include "./Base.hpp"
+#include "../compress/ManapiHPack.hpp"
 
 namespace manapi::net::worker {
     enum http2_frame_type {
@@ -139,6 +139,8 @@ namespace manapi::net::worker {
         void _parse_window_update_value (char &c);
         void _parse_rst_stream_action (char &c);
 
+        void _parse_ping_data (char &c);
+
         void _parse_setting_id (char &c);
         void _parse_setting_value (char &c);
 
@@ -211,6 +213,8 @@ namespace manapi::net::worker {
             std::map <int, std::pair <int, std::function <void(int value)>>> settings;
             size_t padding = 0;
             ssize_t ping_interval = 800;
+
+            std::set <std::string> pings;
 
             struct protocol_http2_window_t {
                 int read = 0;

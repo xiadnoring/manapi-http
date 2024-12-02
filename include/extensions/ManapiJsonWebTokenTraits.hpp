@@ -13,12 +13,12 @@ namespace jwt {
             using array_type = manapi::json::ARRAY;
             using string_type = manapi::json::STRING;
             using number_type = manapi::json::DECIMAL;
-            using integer_type = manapi::json::NUMBER;
+            using integer_type = manapi::json::INTEGER;
             using boolean_type = manapi::json::BOOLEAN;
             static jwt::json::type get_type(const value_type& val) {
                 using jwt::json::type;
                 if (val.is_bool()) return type::boolean;
-                if (val.is_number()) return type::integer;
+                if (val.is_integer()) return type::integer;
                 if (val.is_bigint()) return type::number; /** bigint can be decimal */
                 if (val.is_decimal()) return type::number;
                 if (val.is_string()) return type::string;
@@ -44,7 +44,7 @@ namespace jwt {
             }
 
             static integer_type as_integer(const value_type& val) {
-                if (!val.is_number()) throw std::bad_cast();
+                if (!val.is_integer()) throw std::bad_cast();
                 return val.as_integer();
             }
 
@@ -53,7 +53,7 @@ namespace jwt {
                 return val.as_bool();
             }
 
-            static number_type as_integer(const value_type& val) {
+            static number_type as_number(const value_type& val) {
                 if (!val.is_decimal()) throw std::bad_cast();
                 return static_cast<double> (val.as_decimal());
             }

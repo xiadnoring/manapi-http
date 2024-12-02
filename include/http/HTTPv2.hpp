@@ -3,8 +3,8 @@
 
 #include <thread>
 
-#include "http/Base.hpp"
-#include "worker/HTTPv2.hpp"
+#include "./http/Base.hpp"
+#include "../worker/HTTPv2.hpp"
 
 namespace manapi::net::http {
     class http_v2 : public http::base {

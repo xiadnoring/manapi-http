@@ -4,10 +4,10 @@
 #include <string>
 #include <functional>
 
-#include "ManapiHttpConfig.hpp"
-#include "ManapiSite.hpp"
-#include "ManapiUtils.hpp"
-#include "worker/Base.hpp"
+#include "../ManapiHttpConfig.hpp"
+#include "../ManapiSite.hpp"
+#include "../ManapiUtils.hpp"
+#include "../worker/Base.hpp"
 
 namespace manapi::net::http {
     class HeaderView : public manapi::net::task {

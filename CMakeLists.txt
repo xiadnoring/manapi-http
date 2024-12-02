@@ -20,6 +20,7 @@ OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 message(STATUS "Quiche support - ${MANAPIHTTP_QUICHE_DEPENDENCY}")
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "Build type: Debug")
     add_compile_definitions(MANAPIHTTP_HTTP_BUILD_DEBUG)
 endif ()
 
@@ -239,7 +240,12 @@ target_include_directories  (${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/include
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
     # nothing
 else ()
+    message(STATUS "OK")
     # If we want to install library
+    target_compile_options(${PROJECT_NAME} PRIVATE
+            $<$<CXX_COMPILER_ID:MSVC>:/Zi>
+            $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-ggdb>
+    )
 
     include(GNUInstallDirs)
 
@@ -253,6 +259,11 @@ else ()
     install(DIRECTORY ${CMAKE_BINARY_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
 
     install(EXPORT ManapiHttpConfig DESTINATION lib/cmake/${PROJECT_NAME})
+
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+            COMPILE_PDB_NAME ${PROJECT_NAME}
+            COMPILE_PDB_OUTPUT_DIRECTORY ${CMAKE_INSTALL_BINDIR}
+    )
 
     export(TARGETS ${PROJECT_NAME} FILE ManapiHttpConfig.cmake)
 endif ()

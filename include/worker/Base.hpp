@@ -4,10 +4,10 @@
 #include <memory>
 #include <functional>
 
-#include "ManapiHttpConfig.hpp"
-#include "ManapiHttpResponse.hpp"
-#include "ManapiSite.hpp"
-#include "ManapiUtils.hpp"
+#include "../ManapiHttpConfig.hpp"
+#include "../ManapiHttpResponse.hpp"
+#include "../ManapiSite.hpp"
+#include "../ManapiUtils.hpp"
 
 namespace manapi::net::worker {
     class connection {

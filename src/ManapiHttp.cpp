@@ -39,6 +39,7 @@ manapi::net::http::server::server() {
     signal  (SIGABRT, handler_interrupt);
     signal  (SIGKILL, handler_interrupt);
     signal  (SIGTERM, handler_interrupt);
+    signal (SIGSTOP, handler_interrupt);
 
 
     stopping = false;
@@ -115,7 +116,7 @@ void manapi::net::http::server::stop(bool wait) {
         stopping = true;
     }
     {
-        cv_stopping.notify_one();
+        cv_stopping.notify_all();
 
         if (wait)
         {
@@ -141,8 +142,9 @@ void manapi::net::http::server::stop_pool() {
 
     cv_stopping.wait(lk, [this] () -> bool { return stopping; });
 
+    MANAPIHTTP_LOG2("cv_stopping -> pass");
     timer_pool_stop();
-    tasks_pool_stop();
+    MANAPIHTTP_LOG2("timer_pool_stop(...) -> pass");
 
     // stop all pools
     for (const auto &pool: pools)
@@ -152,6 +154,11 @@ void manapi::net::http::server::stop_pool() {
         MANAPIHTTP_LOG ("pool #{} stopped successfully", pool.first);
     }
     pools.clear();
+    MANAPIHTTP_LOG2("pools(...) -> pass");
+
+    tasks_pool_stop();
+
+    MANAPIHTTP_LOG2("tasks_pool_stop(...) -> pass");
 
     // reset
     next_pool_id = 0;

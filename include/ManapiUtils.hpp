@@ -176,7 +176,6 @@ namespace manapi::net::utils {
                     break;
                 }
             }
-
             MANAPIHTTP_LOG("Memory usage ({}): {} MB", title, (memory_usage / 1024));
         }
 

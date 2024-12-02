@@ -3,9 +3,9 @@
 
 #include <set>
 
-#include "worker/Base.hpp"
-#include "ManapiHttpConfig.hpp"
-#include "ManapiSite.hpp"
+#include "../worker/Base.hpp"
+#include "../ManapiHttpConfig.hpp"
+#include "../ManapiSite.hpp"
 
 namespace manapi::net::http {
     struct response_features_t {

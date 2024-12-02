@@ -5,8 +5,8 @@
 
 #include <netdb.h>
 
-#include "worker/Base.hpp"
-#include "worker/TCP.hpp"
+#include "./Base.hpp"
+#include "./TCP.hpp"
 
 namespace manapi::net::worker {
     class OpenSSL_TLS : public worker::TCP {

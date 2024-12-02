@@ -40,7 +40,7 @@ manapi::net::worker::http_v2::http_v2(std::shared_ptr<manapi::net::worker::base>
 
 manapi::net::worker::http_v2::~http_v2() {
 
-    std::cout << "Unmounted\n";
+    //std::cout << "Unmounted\n";
 }
 
 void manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
@@ -213,9 +213,9 @@ void manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
 
     reset_all_streams();
     site.remove_timer(ping_interval);
-    std::cout << "Preparing for close\n";
+    //std::cout << "Preparing for close\n";
     finishcv.wait(lk, [this] () -> bool { return threads->empty(); });
-    std::cout << "Closing...\n";
+    //std::cout << "Closing...\n";
 }
 
 void manapi::net::worker::http_v2::init_settings() {
@@ -443,6 +443,21 @@ void manapi::net::worker::http_v2::_parse_rst_stream_action(char &c) {
     }
 }
 
+void manapi::net::worker::http_v2::_parse_ping_data(char &c) {
+    parse_vars.i++;
+    parse_vars.buffer += c;
+    if (parse_vars.i == 8) {
+        auto it = protocol.pings.find(parse_vars.buffer);
+        if (it == protocol.pings.end()) {
+            generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "ping frame: ping data is invalid");
+        }
+        protocol.pings.erase(it);
+
+        parse_vars.buffer.clear();
+        parse_vars.i = 0;
+    }
+}
+
 void manapi::net::worker::http_v2::_parse_setting_id(char &c) {
     parse_vars.buffint = (parse_vars.buffint << 8) | static_cast<unsigned char>(c);
     parse_vars.i ++;
@@ -572,32 +587,33 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
             if (protocol.flag & HTTP2_FLAG_HEADERS_PADDED) {
                 parse_vars.i = 1;
                 protocol.padding = 0;
-                current = std::bind(&http_v2::_parse_number, this, std::placeholders::_1, protocol.padding, parse_vars.i);
-                next = std::bind(&http_v2::_parse_header_data, this, std::placeholders::_1);
+                current = [this](auto && PH1) { _parse_number(std::forward<decltype(PH1)>(PH1), protocol.padding, parse_vars.i); };
+                next = [this](auto && PH1) { _parse_header_data(std::forward<decltype(PH1)>(PH1)); };
             }
             else {
-                current = std::bind(&http_v2::_parse_header_data, this, std::placeholders::_1);
+                current = [this](auto && PH1) { _parse_header_data(std::forward<decltype(PH1)>(PH1)); };
             }
             break;
         }
         case HTTP2_FRAME_CONTINUATION:
-            current = std::bind(&http_v2::_parse_header_data, this, std::placeholders::_1);
+            current = [this](auto && PH1) { _parse_header_data(std::forward<decltype(PH1)>(PH1)); };
         break;
         case HTTP2_FRAME_SETTINGS:
             if (length<=0) { break; }
-            current = std::bind(&http_v2::_parse_setting_id, this, std::placeholders::_1);
+            current = [this](auto && PH1) { _parse_setting_id(std::forward<decltype(PH1)>(PH1)); };
         break;
         case HTTP2_FRAME_GOAWAY:
-            current = std::bind(&http_v2::_parse_goaway_last_stream_id, this, std::placeholders::_1);
+            current = [this](auto && PH1) { _parse_goaway_last_stream_id(std::forward<decltype(PH1)>(PH1)); };
         break;
         case HTTP2_FRAME_WINDOW_UPDATE:
-            current = std::bind(&http_v2::_parse_window_update_value, this, std::placeholders::_1);
+            current = [this](auto && PH1) { _parse_window_update_value(std::forward<decltype(PH1)>(PH1)); };
         break;
         case HTTP2_FRAME_RST_STREAM:
-            current = std::bind(&http_v2::_parse_rst_stream_action, this, std::placeholders::_1);
+            current = [this](auto && PH1) { _parse_rst_stream_action(std::forward<decltype(PH1)>(PH1)); };
         break;
         case HTTP2_FRAME_PING:
-            //std::cout << "--PING--" << "\n";
+            if (length != 8) { generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "frame ping: invalid payload length"); }
+            current = [this](auto && PH1) { _parse_ping_data(std::forward<decltype(PH1)>(PH1)); };
         break;
         case HTTP2_FRAME_DATA: {
             if (length<=0) {
@@ -606,11 +622,11 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
             if (protocol.flag & HTTP2_FLAG_HEADERS_PADDED) {
                 parse_vars.i = 1;
                 protocol.padding = 0;
-                current = std::bind(&http_v2::_parse_number, this, std::placeholders::_1, protocol.padding, parse_vars.i);
-                next = std::bind(&http_v2::_parse_body_data, this, std::placeholders::_1);
+                current = [this](auto && PH1) { _parse_number(std::forward<decltype(PH1)>(PH1), protocol.padding,  parse_vars.i); };
+                next = [this](auto && PH1) { _parse_body_data(std::forward<decltype(PH1)>(PH1)); };
             }
             else {
-                current = std::bind(&http_v2::_parse_body_data, this, std::placeholders::_1);
+                current = [this](auto && PH1) { _parse_body_data(std::forward<decltype(PH1)>(PH1)); };
             }
             break;
         }
@@ -653,11 +669,21 @@ void manapi::net::worker::http_v2::send_ping_frame(std::string data) {
     char flag = 0x00;
     if (data.size()==8) {
         flag |= HTTP2_FLAG_PING_ACK;
+        send_frame(HTTP2_FRAME_PING, flag, 0, data);
     }
     else {
-        data = utils::random_string(8);
+        if (protocol.pings.size() > 3) {
+            // timeout
+            protocol.closed = true;
+        }
+
+        do {
+            data = utils::random_string(8);
+        } while (protocol.pings.contains(data));
+
+        const auto it = protocol.pings.insert(std::move(data)).first;
+        send_frame(HTTP2_FRAME_PING, flag, 0, *it);
     }
-    send_frame(HTTP2_FRAME_PING, flag, 0, data);
 }
 
 void manapi::net::worker::http_v2::close_connection(int errnum, std::string additional_data, int last_stream_id ) {
@@ -719,16 +745,16 @@ void manapi::net::worker::http_v2::send_window_frame(int stream_id, int size) {
 }
 
 void manapi::net::worker::http_v2::default_ev_headers(int id, std::map<std::string, std::string> headers) {
-    threads->insert({id, {
-        .id = id,
-        .headers = std::move(headers),
-        .rst = false,
-        .write = {std::bind(&http_v2::send_data, this, id, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-            static_cast<size_t>(protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first},
-        .read = {std::bind(&http_v2::send_window_frame, this, id, std::placeholders::_1), 100000}
-    }});
+    site.append_task(std::make_unique<manapi::net::function_task>([headers = std::move(headers), id = id, body = sessions[id].body, &site = site, config = config, worker = new_dependency()] () -> void {
+        worker->threads->insert({id, {
+            .id = id,
+            .headers = std::move(headers),
+            .rst = false,
+            .write = {std::bind(&http_v2::send_data, worker, id, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+                static_cast<size_t>(worker->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), worker->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first},
+            .read = {std::bind(&http_v2::send_window_frame, worker, id, std::placeholders::_1), 100000}
+        }});
 
-    site.append_task(std::make_unique<manapi::net::function_task>([id = id, body = sessions[id].body, &site = site, config = config, worker = new_dependency()] () -> void {
         worker::http_v2::session_worker(id, body, site, std::move(config), std::move(worker));
     }));
 }

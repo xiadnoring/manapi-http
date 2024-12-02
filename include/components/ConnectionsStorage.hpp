@@ -6,8 +6,8 @@
 #include <map>
 #include <condition_variable>
 
-#include "components/Atomic.hpp"
-#include "ManapiHttpTypes.hpp"
+#include "./Atomic.hpp"
+#include "../ManapiHttpTypes.hpp"
 
 namespace manapi::net::worker {
     template <typename T>

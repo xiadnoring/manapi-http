@@ -29,7 +29,7 @@ namespace manapi::net::utils {
         void doit ();
     protected:
         // wait while deps being exists
-        Atomic <ssize_t> deps;
+        Atomic <size_t> deps;
         std::mutex state_mutex;
         std::condition_variable cv;
 

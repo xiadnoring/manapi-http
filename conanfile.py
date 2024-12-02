@@ -36,6 +36,7 @@ class ManapiHttpConan(ConanFile):
         tc.variables['MANAPIHTTP_JSON_DEBUG'] = self.options.get_safe('json-debug', True)
         tc.variables['MANAPIHTTP_WOLFSSL_SUPPORT'] = self.options.get_safe('wolfssl-support', True)
         tc.variables['MANAPIHTTP_OPENSSL_SUPPORT'] = self.options.get_safe('openssl-support', True)
+        tc.variables['CMAKE_BUILD_TYPE'] = self.options
 
         tc.generate()
 
@@ -47,6 +48,8 @@ class ManapiHttpConan(ConanFile):
     def package(self):
         cmake = CMake(self)
         cmake.install()
+
+
 
     def requirements(self):
         self.requires("libev/4.33")
