@@ -9,6 +9,30 @@
 #include "ManapiParams.hpp"
 
 namespace manapi {
+    enum json_err_num {
+        ERR_JSON_INVALID_CHAR = 0,
+        ERR_JSON_INVALID_STRING = 1,
+        ERR_JSON_NO_SUCH_KEY = 2,
+        ERR_JSON_OUT_OF_RANGE = 3,
+        ERR_JSON_DUPLICATE_KEY = 4,
+        ERR_JSON_UNSUPPORTED_TYPE = 5,
+        ERR_JSON_BUG = 6,
+        ERR_JSON_UNEXPECTED_END = 7,
+        ERR_JSON_MASK_VERIFY_FAILED = 8,
+        ERR_JSON_BAD_ESCAPED_CHAR = 9
+    };
+
+    class json_parse_exception : public std::exception {
+    public:
+        explicit json_parse_exception(const json_err_num &errnum, const std::string &msg);
+        json_parse_exception (json_parse_exception &&n) noexcept ;
+        [[nodiscard]] const char *what () const noexcept override;
+        [[nodiscard]] const json_err_num &get_err_num () const;
+    private:
+        std::string message;
+        json_err_num errnum;
+    };
+
     class json {
     public:
         typedef std::map <std::string, manapi::json> OBJECT;
@@ -50,11 +74,11 @@ namespace manapi {
 
         // Do not use explicit
 
-        json(const STRING_VIEW &str, const bool &to_parse = false);
-        json(const UNICODE_STRING &str, const bool &to_parse = false);
+        json(const STRING_VIEW &str, const bool &parse = false);
+        json(const UNICODE_STRING &str, const bool &parse = false);
         json(const INTEGER &num);
         json(const size_t &num);
-        json(const char *plain_text, const bool &to_parse = false);
+        json(const char *plain_text, const bool &parse = false);
         json(const int &num);
         json(const double &num);
         json(const STRING &str);
@@ -146,8 +170,14 @@ namespace manapi {
         void operator+=     (const double           &num);
         void operator+=     (const BIGINT           &num);
 
-        bool operator==     (const json &) const;
-        bool operator==     (const bool &) const;
+        bool operator==     (const json &n) const;
+        bool operator==     (const bool &n) const;
+        bool operator==     (const char *n) const;
+        bool operator==     (const std::string_view &n) const;
+        bool operator==     (const std::string &n) const;
+        bool operator==     (const ssize_t &n) const;
+        bool operator==     (const int &n) const;
+        bool operator==     (const nullptr_t &n) const;
 
 
         void insert (const STRING &key, const json &obj);
@@ -320,7 +350,7 @@ namespace manapi {
         bool root = true;
     private:
         static void delete_value_static (const short &type, void *src);
-        void throw_could_not_use_func (const std::string &func) const;
+        [[nodiscard]] manapi::json_parse_exception throw_could_not_use_func (const std::string &func) const;
 
         void delete_value ();
         void _set_object ();
@@ -382,7 +412,7 @@ namespace manapi {
             }
         }
 #else
-        void _debug_symb_reinit () {};
+        inline void _debug_symb_reinit () {};
 #endif
 
         void    *src = nullptr;
@@ -398,29 +428,6 @@ namespace manapi {
         const DECIMAL *_debug_decimal_src = nullptr;
         const PAIR    *_debug_pair_src = nullptr;
 #endif
-    };
-
-    enum json_err_num {
-        ERR_JSON_INVALID_CHAR = 0,
-        ERR_JSON_INVALID_STRING = 1,
-        ERR_JSON_NO_SUCH_KEY = 2,
-        ERR_JSON_OUT_OF_RANGE = 3,
-        ERR_JSON_DUPLICATE_KEY = 4,
-        ERR_JSON_UNSUPPORTED_TYPE = 5,
-        ERR_JSON_BUG = 6,
-        ERR_JSON_UNEXPECTED_END = 7,
-        ERR_JSON_MASK_VERIFY_FAILED = 8,
-        ERR_JSON_BAD_ESCAPED_CHAR = 9
-    };
-
-    class json_parse_exception : public std::exception {
-    public:
-        explicit json_parse_exception(const json_err_num &errnum, const std::string &msg);
-        [[nodiscard]] const char *what () const noexcept override;
-        [[nodiscard]] const json_err_num &get_err_num () const;
-    private:
-        std::string message;
-        json_err_num errnum;
     };
 }
 

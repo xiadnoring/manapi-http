@@ -17,6 +17,7 @@
 #include <set>
 
 #include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #include "ManapiUtils.hpp"
 #include "http/HeaderView.hpp"
@@ -27,8 +28,18 @@ struct connection_interface {
     bool configured = false;
 };
 
+manapi::net::Atomic <bool> manapi::net::worker::OpenSSL_TLS::gl_init = false;
+
+void ssl_library_init (bool &gl_init) {
+    if (gl_init == false) {
+        SSL_library_init();
+        SSL_load_error_strings();
+        gl_init = true;
+    }
+}
+
 manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::site &site) : TCP (site) {
-    SSL_library_init();
+    gl_init.update(ssl_library_init);
 }
 
 manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(OpenSSL_TLS &&n) noexcept : TCP (std::forward<worker::TCP>(n)) {}
@@ -131,12 +142,16 @@ SSL_CTX * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &ver
 
     switch (version)
     {
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         // ReSharper disable once CppDeprecatedEntity
         case http::versions::TLS_v1:      method = TLSv1_server_method();     break;
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         // ReSharper disable once CppDeprecatedEntity
         case http::versions::TLS_v1_1:    method = TLSv1_1_server_method();   break;
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         // ReSharper disable once CppDeprecatedEntity
         case http::versions::TLS_v1_2:    method = TLSv1_2_server_method();   break;
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         case http::versions::TLS_v1_3:    method = TLS_server_method();       break;
         default: THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR,
             "can not find the initialization method openssl (tls_version): {}", version);
@@ -189,6 +204,19 @@ void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use private key file openssl");
     }
+}
+
+std::string manapi::net::worker::OpenSSL_TLS::ssl_get_error() {
+    std::string result;
+    unsigned long l_err = ERR_get_error();
+    while(l_err!=0)
+    {
+        result += ERR_error_string(l_err, nullptr);
+        result += '\n';
+        l_err = ERR_get_error();
+    }
+
+    return std::move(result);
 }
 
 bool manapi::net::worker::OpenSSL_TLS::established(worker::connection &conn, bool flag) const {

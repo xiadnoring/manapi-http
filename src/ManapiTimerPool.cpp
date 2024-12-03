@@ -7,7 +7,7 @@
 
 manapi::net::utils::timerpool::timerpool(net::threadpool<net::task> &threadpool, const size_t &delay) {
     this->delay = delay;
-    this->deps = 0;gi
+    this->deps = 0;
     this->threadpool = &threadpool;
 }
 

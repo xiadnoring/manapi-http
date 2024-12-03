@@ -48,10 +48,11 @@ void manapi::net::worker::smart_w_buffer::add_allow_to_sent(int size) {
 size_t manapi::net::worker::smart_w_buffer::add(const void *c, size_t len, bool flag) {
     std::lock_guard<std::mutex> lk (gmx);
     size_t total_res = 0;
+    size_t align = 0;
     do {
         size_t res = std::min (this->maxsize - this->buffer.size(), len);
-        this->buffer.append(static_cast<const char *> (c), res);
-        c += res;
+        this->buffer.append(static_cast<const char *> (c) + align, res);
+        align += res;
         len -= res;
         total_res += res;
         _work(flag);
@@ -77,7 +78,7 @@ ssize_t manapi::net::worker::smart_w_buffer::_work(bool flag) {
     ssize_t buff_size = std::min(static_cast<ssize_t>(buffer.size()), static_cast<ssize_t>(this->sent));
     auto ptr = buffer.data();
     auto end = buffer.data() + buffer.size();
-    if (frame_size == 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_DIVIDED_BY_ZERO, "Why frame_size equals 0 ???!"); }
+    if (frame_size == 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_DIVIDED_BY_ZERO, "Why frame_size equals 0?"); }
     // frame_size only
     auto limit = ptr + (buff_size / frame_size) * frame_size;
     while (limit > ptr) {

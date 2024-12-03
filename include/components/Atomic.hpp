@@ -327,6 +327,20 @@ namespace manapi::net {
         --value;
         return *this;
     }
+
+    // bool
+
+    template<>
+    inline bool Atomic<bool>::operator!=(const bool &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        return value != n;
+    }
+
+    template<>
+    inline bool Atomic<bool>::operator==(const bool &n) {
+        std::lock_guard<std::mutex> lk (gmx);
+        return value == n;
+    }
 }
 
 #endif //MANAPIHTTP_ATOMIC_HPP

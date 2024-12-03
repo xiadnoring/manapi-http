@@ -3,8 +3,12 @@
 
 #include "../ManapiUtils.hpp"
 
-#define Z_DEFAULT_COMPRESSION   0
-#define Z_DEFAULT_STRATEGY      0
+#ifndef Z_DEFAULT_COMPRESSION
+#   define Z_DEFAULT_COMPRESSION 0
+#endif
+#ifndef Z_DEFAULT_STRATEGY
+#   define Z_DEFAULT_STRATEGY 0
+#endif
 
 namespace manapi::net::utils::compress {
     typedef std::string (*TEMPLATE_INTERFACE) (const std::string &, const std::string *);

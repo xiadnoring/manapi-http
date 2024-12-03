@@ -656,7 +656,7 @@ void manapi::net::worker::http_v2::send_frame(http2_frame_type frame, uint8_t fl
     if (frame != HTTP2_FRAME_PING) { protocol.current_timeout = protocol.timeout; }
     const std::string id = stringify_stream_id(stream_id);
     const std::string len = stringify_number <int> (data.size());
-    std::string response ({len[1], len[2], len[3], static_cast<char>(frame), flag, id[0], id[1], id[2], id[3]});
+    std::string response ({len[1], len[2], len[3], static_cast<char>(frame), static_cast<char> (flag), id[0], id[1], id[2], id[3]});
     response += data;
     worker->write(*connection, response.data(), response.size(), false);
 }

@@ -124,7 +124,7 @@ std::string manapi::bigint::stringify() const {
     return "0";
 }
 
-ssize_t manapi::bigint::numberify() const {
+ssize_t manapi::bigint::integerify() const {
     return mpf_get_si(x);
 }
 

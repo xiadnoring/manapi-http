@@ -266,7 +266,10 @@ std::string manapi::net::utils::encode_url(const std::string &str) {
     return escaped.str();
 }
 
-std::string manapi::net::utils::decode_url(const std::string &str) {}
+std::string manapi::net::utils::decode_url(const std::string &str) {
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "this function has not been implemented yet.");
+    return "";
+}
 
 std::string manapi::net::utils::json2form(const json &obj) {
     if (!obj.is_object())

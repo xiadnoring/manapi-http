@@ -26,7 +26,7 @@ namespace manapi {
         bigint (const bigint &other);
 
         [[nodiscard]] std::string stringify () const;
-        [[nodiscard]] ssize_t numberify () const;
+        [[nodiscard]] ssize_t integerify () const;
         [[nodiscard]] double decimalify () const;
 
         void        parse       (const size_t           &num);

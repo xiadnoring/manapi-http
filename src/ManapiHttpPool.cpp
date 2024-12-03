@@ -95,7 +95,17 @@ int manapi::net::http_pool::_pool() {
     }
     else
     {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "implementation by {} not found in {}", config->get_implementation(), config->get_transport());
+        std::string available;
+        if (!implementations.empty()) {
+            auto it = implementations.begin();
+            goto skip;
+            for (; it != implementations.end(); ++it) {
+                available += ',';
+                skip:
+                available += it->first;
+            }
+        }
+        THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "implementation by {} not found in {}. Available: [{}]", config->get_implementation(), config->get_transport(), available);
     }
 
     // create watcher

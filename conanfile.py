@@ -16,7 +16,7 @@ class ManapiHttpConan(ConanFile):
         "wolfssl-dependency": [True, False]
     }
 
-    default_options = {"shared": False, "fPIC": True, "json-debug": True, "wolfssl-dependency": True, "openssl-dependency": True}
+    default_options = {"shared": True, "fPIC": True, "json-debug": True, "wolfssl-dependency": True, "openssl-dependency": True}
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
 
@@ -33,10 +33,9 @@ class ManapiHttpConan(ConanFile):
 
         tc = CMakeToolchain(self)
 
-        tc.variables['MANAPIHTTP_JSON_DEBUG'] = self.options.get_safe('json-debug', True)
-        tc.variables['MANAPIHTTP_WOLFSSL_SUPPORT'] = self.options.get_safe('wolfssl-support', True)
-        tc.variables['MANAPIHTTP_OPENSSL_SUPPORT'] = self.options.get_safe('openssl-support', True)
-        tc.variables['CMAKE_BUILD_TYPE'] = self.options
+        tc.variables['MANAPIHTTP_JSON_DEBUG'] = self.options.get_safe('json-debug', False)
+        tc.variables['MANAPIHTTP_WOLFSSL_DEPENDENCY'] = self.options.get_safe('wolfssl-dependency', False)
+        tc.variables['MANAPIHTTP_OPENSSL_DEPENDENCY'] = self.options.get_safe('openssl-dependency', False)
 
         tc.generate()
 
@@ -57,10 +56,10 @@ class ManapiHttpConan(ConanFile):
         self.requires("gmp/6.3.0")
         self.requires("libcurl/8.6.0")
 
-        if self.options.get_safe('openssl-dependency'):
-            self.requires("openssl/3.2.2")
+        if self.options.get_safe('openssl-dependency', False):
+            self.requires("openssl/3.3.2")
 
-        if self.options.get_safe('wolfssl-dependency'):
+        if self.options.get_safe('wolfssl-dependency', False):
             self.requires("wolfssl/5.7.2")
     def package_info(self):
         self.cpp_info.set_property("cmake_find_mode", "both")

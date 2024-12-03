@@ -45,7 +45,7 @@ namespace manapi::net {
         std::mutex m;
         std::condition_variable cv;
 
-        Atomic <ssize_t> stopped;
+        Atomic <size_t> stopped;
     };
 }
 

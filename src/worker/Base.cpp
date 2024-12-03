@@ -40,7 +40,7 @@ void manapi::net::worker::base::set_config(std::shared_ptr<manapi::net::http::co
 
 bool manapi::net::worker::base::configure_connection(connection &conn) const { return false; }
 
-manapi::net::worker::connection manapi::net::worker::base::accept() {  }
+manapi::net::worker::connection manapi::net::worker::base::accept() { return {nullptr, [] (void *ptr) -> void { }}; }
 
 void manapi::net::worker::base::onrecv(const std::shared_ptr<worker::base> &worker) {}
 

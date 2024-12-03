@@ -41,7 +41,6 @@ void manapi::net::http::HeaderView::doit() {
 
     const auto version = http::config::parse_http_version(request_data.http.substr(5));
     connection->version = version;
-    std::cout<<request_data.http << "\n";
     switch (connection->version) {
         case versions::HTTP_v1_1: {
             auto client = http::http_v1_1::create (worker, config, site);

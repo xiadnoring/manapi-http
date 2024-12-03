@@ -15,14 +15,14 @@
 #include "ManapiBeforeDelete.hpp"
 #include "ManapiJson.hpp"
 
-#define MANAPIHTTP_LOG(msg, ...)                manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, manapi::net::ERR_DEBUG, msg, __VA_ARGS__)
-#define MANAPIHTTP_LOG2(msg)                    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, false, manapi::net::ERR_DEBUG, msg);
+#define MANAPIHTTP_LOG(msg, ...)                manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, manapi::net::ERR_DEBUG, msg, __VA_ARGS__)
+#define MANAPIHTTP_LOG2(msg)                    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, manapi::net::ERR_DEBUG, msg);
 
-//#define THROW_MANAPIHTTP_EXCEPTION(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, manapi::net::ERR_UNDEFINED, msg, __VA_ARGS__)
-//#define THROW_MANAPIHTTP_EXCEPTION2(msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, manapi::net::ERR_UNDEFINED, msg)
+#define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::net::utils::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg, __VA_ARGS__)
+#define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::net::utils::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg)
+#define THROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) throw RETHROW_MANAPIHTTP_EXCEPTION (errnum, msg, __VA_ARGS__)
+#define THROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) throw RETHROW_MANAPIHTTP_EXCEPTION2 (errnum, msg)
 
-#define THROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, errnum, msg, __VA_ARGS__)
-#define THROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...)    manapi::net::utils::_log (__LINE__, __FILE_NAME__, __FUNCTION__, true, errnum, msg)
 
 #define MANAPIHTTP_HTTP_RESP_TEXT 0
 #define MANAPIHTTP_HTTP_RESP_FILE 1
@@ -141,24 +141,24 @@ namespace manapi::net::utils {
 
     const std::string &get_msg_by_err_num (const err_num &errnum);
     template <class... Args>
-    void _log               (const size_t &line, const std::string &file_name, const std::string &func, const bool &except, const err_num &errnum, const std::string &format, Args&& ...args)
+    void _log (const size_t &line, const std::string &file_name, const std::string &func, const err_num &errnum, const std::string &format, Args&& ...args)
     {
         const auto head = std::format ("[{}][{}]: {}() ({}:{}): ", utils::time("%H:%M:%S", true), static_cast<size_t>(errnum), func, file_name, line);
         const auto information = std::vformat(format, std::make_format_args(args...));
 
-        if (except)
-        {
-            std::cerr << head << information << "\n";
-        }
-        else
-        {
-            std::cout << head << information << "\n";
-        }
+        std::cout << head << information << "\n";
+    }
 
-        if (except)
-        {
-            throw manapi::net::utils::exception (errnum, information);
-        }
+    const std::string &get_msg_by_err_num (const err_num &errnum);
+    template <class... Args>
+    manapi::net::utils::exception _error (const size_t &line, const std::string &file_name, const std::string &func, const err_num &errnum, const std::string &format, Args&& ...args)
+    {
+        const auto head = std::format ("[{}][{}]: {}() ({}:{}): ", utils::time("%H:%M:%S", true), static_cast<size_t>(errnum), func, file_name, line);
+        const auto information = std::vformat(format, std::make_format_args(args...));
+
+        std::cerr << head << information << "\n";
+
+        return std::move(manapi::net::utils::exception (errnum, information));
     }
 
     inline size_t debug_print_memory (const std::string &title = "common")
