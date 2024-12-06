@@ -5,7 +5,7 @@
 #include "http/HeaderView.hpp"
 
 manapi::net::http::http_v1_1::http_v1_1(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site) : base(std::move(worker), std::move(config), site) {
-    buffer.resize(this->config->get_socket_block_size());
+    buffer.resize(*this->config->get_socket_block_size());
 }
 
 manapi::net::http::http_v1_1::~http_v1_1() = default;
@@ -51,10 +51,18 @@ void manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
     request_data.has_body = content_length > 0;
 
     if (request_data.has_body) {
+        request_data.body_size = content_length;
+        request_data.body_left = request_data.body_size;
+        request_data.body_index = 0;
         request_data.buffer = std::move(this->buffer);
+
+        expect_header();
+
         if (size == j) {
             ssize_t rhs = this->read(request_data.buffer.data(), request_data.buffer.size());
-            if (rhs < 0) { THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "this->read(...) = {}", rhs); }
+            if (rhs < 0) {
+                THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "this->read(...) = {}", rhs);
+            }
             request_data.body_part = rhs;
             request_data.headers_part = 0; j = 0;
         }
@@ -62,11 +70,8 @@ void manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
             request_data.headers_part = j;
             request_data.body_part = size - request_data.headers_part;
         }
-        request_data.body_size = content_length;
-        request_data.body_left = request_data.body_size;
         request_data.body_ptr = this->request_data.buffer.data() + j;
 
-        request_data.body_index = 0;
     }
     else {
         request_data.body_ptr = nullptr;

@@ -18,7 +18,26 @@ using namespace manapi::net;
 
 using namespace std;
 
-int main2 () {
+int main3 (int argc, char *argv[]) {
+    manapi::net::fetch fetch ("https://localhost:8888/form");
+    curlformdata fd;
+    fd.setdata("first-name", "Timur");
+    fd.setdata("last-name", "Zajnullin");
+    std::ifstream ios ("/home/Timur/Music/Undertale - Epic Orchestral Medley [ Kāru ].mp3");
+    fd.setcallback("file", manapi::net::filesystem::get_size(ios), [&ios] (void *buffer, size_t size) -> size_t {
+        auto sent = ios.readsome(static_cast<char *> (buffer), size);
+        MANAPIHTTP_LOG("yeah, {}", sent);
+        return sent;
+    });
+    fetch.set_body(std::move(fd));
+    fetch.set_method("POST");
+    fetch.enable_ssl_verify(false);
+    auto data = fetch.json();
+    std::cout << fetch.get_status_code() << " " << manapi::json::stringify(data) << "\n";
+    return 0;
+}
+
+int main3 () {
     for ( int i  = 0; i < 1000; i++){
         manapi::json b (R"({"hello": "world", "world": "hello", "test": [1, 2, 5.5234, 8e10, 3, 4, 5, true]})", true);
         b.erase("hello");
@@ -254,35 +273,21 @@ int main (int argc, char *argv[]) {
 
             manapi::json obj = manapi::json::object();
 
-            for (const auto &item: formData)
-            {
-                obj.insert(item.first, item.second);
-            }
-
-            while (req.has_file())
-            {
-                ssize_t recv = 0;
-
-                std::string param_name = req.inf_file().param_name;
-                std::string file_name = req.inf_file().file_name;
-
-                req.set_file([&recv] (const char *buff, const size_t &size) {
-                    recv += size;
-                    if (size > 4096 * 3) {
-                        printf("WHAT\n");
-                    }
-                });
-
-                //req.set_file_to_local("/home/Timur/Videos/astral.mp4");
-
-                obj.insert(param_name, {
-                    {"name", file_name},
-                    {"size", recv}
-                });
-            }
-
-            std::cout << obj.dump(2) << "\n";
-
+            do {
+                if (formData.next_param()) {
+                    auto data = formData.get_param();
+                    obj.insert(data.first, data.second);
+                    continue;
+                }
+                if (formData.next_file()) {
+                    auto data = formData.about_file();
+                    obj.insert(data.param_name, std::format("[binary({})]", data.file_name));
+                    formData.get_file([] (const char *buff, const size_t &size) -> void {});
+                    continue;
+                }
+                break;
+            } while (true);
+            cout << obj.dump(2) << "\n";
             resp.json (obj, 4);
         });
 

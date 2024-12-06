@@ -67,7 +67,7 @@ void manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
                     close_connection(HTTP2_ERROR_PROTOCOL_ERROR, "timeout");
                     break;
                 }
-                protocol.current_timeout -= config->get_recv_timeout();
+                protocol.current_timeout -= *config->get_recv_timeout();
                 continue;
             }
 
@@ -556,6 +556,9 @@ void manapi::net::worker::http_v2::_parse_body_data(char &c) {
     datasize = protocol.length - static_cast<ssize_t>(protocol.padding);
     if (datasize == 1) {
         auto thread = threads->get(protocol.stream_id);
+        if (thread == nullptr) {
+            generate_error(HTTP2_ERROR_REFUSED_STREAM, std::format("stream {} doesn't exists", protocol.stream_id));
+        }
         thread->read.add(parse_vars.buffer.data(), parse_vars.buffer.size(), protocol.flag & HTTP2_FLAG_DATA_END_STREAM);
         parse_vars.buffer.clear();
     }
@@ -745,17 +748,18 @@ void manapi::net::worker::http_v2::send_window_frame(int stream_id, int size) {
 }
 
 void manapi::net::worker::http_v2::default_ev_headers(int id, std::map<std::string, std::string> headers) {
-    site.append_task(std::make_unique<manapi::net::function_task>([headers = std::move(headers), id = id, body = sessions[id].body, &site = site, config = config, worker = new_dependency()] () -> void {
-        worker->threads->insert({id, {
-            .id = id,
-            .headers = std::move(headers),
-            .rst = false,
-            .write = {std::bind(&http_v2::send_data, worker, id, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                static_cast<size_t>(worker->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), worker->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first},
-            .read = {std::bind(&http_v2::send_window_frame, worker, id, std::placeholders::_1), 100000}
-        }});
+    // think about it
+    threads->insert({id, {
+        .id = id,
+        .headers = std::move(headers),
+        .rst = false,
+        .write = {[this, id](auto && PH1, auto && PH2, auto && PH3) { return send_data(id, std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2), std::forward<decltype(PH3)>(PH3)); },
+            static_cast<size_t>(protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first},
+        .read = {[this, id](auto && PH1) { send_window_frame(id, std::forward<decltype(PH1)>(PH1)); }, 100000}
+    }});
 
-        worker::http_v2::session_worker(id, body, site, std::move(config), std::move(worker));
+    site.append_task(std::make_unique<manapi::net::function_task>([headers = std::move(headers), id = id, body = sessions[id].body, &site = site, config = config, worker = new_dependency()] () -> void {
+        worker::http_v2::session_worker(id, body, site, config, worker);
     }));
 }
 
@@ -810,7 +814,7 @@ void manapi::net::worker::http_v2::session_worker(int id, bool body, net::site &
         client.request_data.http = "HTTP/2.0";
         client.request_data.has_body = body;
         client.request_data.body_left = 0;
-        client.request_data.buffer.resize(config->get_socket_block_size());
+        client.request_data.buffer.resize(*config->get_socket_block_size());
         if (body) {
             auto contentlength = client.request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
             client.request_data.headers_part = 0;

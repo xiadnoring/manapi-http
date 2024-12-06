@@ -20,7 +20,7 @@ manapi::json::json() = default;
 manapi::json::json(const STRING_VIEW &str, const bool &parse) {
     if (parse)
     {
-        this->parse(str);
+        this->_parse(str);
     }
     else
     {
@@ -37,7 +37,7 @@ manapi::json::json(const STRING &str) {
 manapi::json::json(const UNICODE_STRING &str, const bool &parse) {
     if (parse)
     {
-        this->parse(str);
+        this->_parse(str);
     }
     else
     {
@@ -46,11 +46,11 @@ manapi::json::json(const UNICODE_STRING &str, const bool &parse) {
 }
 
 manapi::json::json(const INTEGER &num) {
-    this->parse(num);
+    this->_parse(num);
 }
 
 manapi::json::json(const size_t &num) {
-    this->parse(num);
+    this->_parse(num);
 }
 
 manapi::json::json(const manapi::json &other) {
@@ -70,7 +70,7 @@ manapi::json::json(const char *plain_text, const bool &parse)
 {
     if (parse)
     {
-        this->parse(STRING_VIEW (plain_text));
+        this->_parse(STRING_VIEW (plain_text));
     }
     else
     {
@@ -80,40 +80,40 @@ manapi::json::json(const char *plain_text, const bool &parse)
 
 manapi::json::json(const int &num)
 {
-    this->parse(num);
+    this->_parse(num);
 }
 
 manapi::json::json(const double &num)
 {
-    this->parse(num);
+    this->_parse(num);
 }
 
 manapi::json::json(const DECIMAL &num)
 {
-    this->parse(num);
+    this->_parse(num);
 }
 
 manapi::json::json(const BIGINT &num)
 {
-    this->parse(num);
+    this->_parse(num);
 }
 
 manapi::json::json(const BOOLEAN &value)
 {
-    this->parse(value);
+    this->_parse(value);
 }
 
 manapi::json::json(const OBJECT &obj) {
-    this->parse(obj);
+    this->_parse(obj);
 }
 
 manapi::json::json(const ARRAY &arr) {
-    this->parse(arr);
+    this->_parse(arr);
 }
 
 manapi::json::json(const nullptr_t &n)
 {
-    this->parse(n);
+    this->_parse(n);
 }
 
 manapi::json::json (const std::initializer_list<json> &data) {
@@ -180,63 +180,63 @@ manapi::json::~json() {
     delete_value();
 }
 
-void manapi::json::parse(const INTEGER &num) {
+void manapi::json::_parse(const INTEGER &num) {
     _set_integer(num);
 }
 
-void manapi::json::parse(const int &num) {
-    this->parse(static_cast<INTEGER> (num));
+void manapi::json::_parse(const int &num) {
+    this->_parse(static_cast<INTEGER> (num));
 }
 
-void manapi::json::parse(const double &num) {
-    this->parse(static_cast<DECIMAL> (num));
+void manapi::json::_parse(const double &num) {
+    this->_parse(static_cast<DECIMAL> (num));
 }
 
-void manapi::json::parse(const DECIMAL &num) {
+void manapi::json::_parse(const DECIMAL &num) {
     _set_decimal(num);
 }
 
-void manapi::json::parse(const BIGINT &num) {
+void manapi::json::_parse(const BIGINT &num) {
     _set_bigint(num);
 }
 
-void manapi::json::parse(const OBJECT &obj) {
+void manapi::json::_parse(const OBJECT &obj) {
     _set_object(obj);
 }
 
-void manapi::json::parse(const ARRAY &arr) {
+void manapi::json::_parse(const ARRAY &arr) {
     _set_array(arr);
 }
 
-void manapi::json::parse(const BOOLEAN &val) {
+void manapi::json::_parse(const BOOLEAN &val) {
     _set_bool(val);
 }
 
-void manapi::json::parse(const UNICODE_STRING &plain_text) {
-    this->parse(net::utils::str32to4(plain_text));
+void manapi::json::_parse(const UNICODE_STRING &plain_text) {
+    this->_parse(net::utils::str32to4(plain_text));
 }
 
-void manapi::json::parse(const NULLPTR &n) {
+void manapi::json::_parse(const NULLPTR &n) {
     type    = type_null;
     src     = nullptr;
 }
 
-void manapi::json::parse(const STRING_VIEW &plain_text, const bool &use_bigint, const size_t &bigint_precision) {
+void manapi::json::_parse(const STRING_VIEW &plain_text, const bool &use_bigint, const size_t &bigint_precision) {
     json_builder builder (json_mask(nullptr), use_bigint, bigint_precision);
     builder << plain_text;
     *this = builder.get();
 }
 
-void manapi::json::parse(const size_t &num) {
-    this->parse (static_cast<INTEGER> (num));
+void manapi::json::_parse(const size_t &num) {
+    this->_parse (static_cast<INTEGER> (num));
 }
 
-std::string manapi::json::dump(const size_t &spaces, const size_t &first_spaces) const {
+std::string manapi::json::dump(const int &spaces, const int &first_spaces) const {
 #define JSON_DUMP_NEED_NEW_LINE if (spaces_enabled) str += '\n';
 #define JSON_DUMP_NEED_NEW_LINE_OR_SPACE    JSON_DUMP_NEED_NEW_LINE \
                                             else str += ' ';
-#define JSON_DUMP_NEED_SPACES   for (size_t z = 0; z < total_spaces; z++) str += ' ';
-#define JSON_DUMP_LAST_SPACES   for (size_t z = 0; z < first_spaces; z++) str += ' ';
+#define JSON_DUMP_NEED_SPACES   for (int z = 0; z < total_spaces; z++) str += ' ';
+#define JSON_DUMP_LAST_SPACES   for (int z = 0; z < first_spaces; z++) str += ' ';
     std::string str;
 
     if (type == type_string)
@@ -270,8 +270,8 @@ std::string manapi::json::dump(const size_t &spaces, const size_t &first_spaces)
     }
 
     else if (type == type_object) {
-        const bool      spaces_enabled  = spaces > 0;
-        const size_t    total_spaces    = first_spaces + spaces;
+        const bool spaces_enabled  = spaces > 0;
+        const int total_spaces = first_spaces + spaces;
 
         auto map = as_object();
         str += '{';
@@ -310,8 +310,8 @@ std::string manapi::json::dump(const size_t &spaces, const size_t &first_spaces)
     }
 
     else if (type == type_array) {
-        const bool      spaces_enabled  = spaces > 0;
-        const size_t    total_spaces    = first_spaces + spaces;
+        const bool spaces_enabled = spaces > 0;
+        const int total_spaces = first_spaces + spaces;
 
         auto arr = as_array();
         str += '[';
@@ -723,7 +723,7 @@ void manapi::json::insert(const STRING &key, const manapi::json &obj) {
 
     if (get<OBJECT>().contains(key))
     {
-        THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_DUPLICATE_KEY, "duplicate key: {}", net::utils::escape_string(key));
+        THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_DUPLICATE_KEY, "duplicate key: \"{}\"", net::utils::escape_string(key));
     }
 
     json item = obj;
@@ -787,6 +787,14 @@ manapi::json manapi::json::object(const std::initializer_list<json> &data) {
     }
 
     return std::move(obj);
+}
+
+manapi::json manapi::json::parse(const std::string &data) {
+    return std::move(json(data, true));
+}
+
+std::string manapi::json::stringify(const json &n, const int &spaces) {
+    return std::move(n.dump(spaces));
 }
 
 manapi::json manapi::json::array(const std::initializer_list<json> &data) {

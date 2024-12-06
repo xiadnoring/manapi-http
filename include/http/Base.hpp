@@ -33,6 +33,7 @@ namespace manapi::net::http {
         void send_file(manapi::net::http_response &res, std::ifstream &f, ssize_t size, std::vector<utils::replace_founded_item> &replacers) const;
         void send_file(manapi::net::http_response &res, std::ifstream &f, ssize_t size) const;
         void send_text(const std::string &text, const size_t &size) const;
+        void expect_header ();
         std::string compress_file(const std::string &file, const std::string &folder, const std::string &compress, manapi::net::utils::compress::TEMPLATE_INTERFACE compressor) const;
         virtual ssize_t read (void *buf, size_t size);
 

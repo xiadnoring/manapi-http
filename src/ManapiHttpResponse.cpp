@@ -8,7 +8,6 @@
 #include "ManapiHttpMime.hpp"
 
 manapi::net::http_response::http_response(manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, std::unique_ptr<api::pool> tasks, http::config &config): config(config), status_code(_status), status_message(std::move(_message)), http_version("1.1") {
-    this->config = config;
     this->tasks = std::move(tasks);
 
     request_data    = &_request_data;

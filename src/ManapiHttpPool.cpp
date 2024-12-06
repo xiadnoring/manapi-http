@@ -39,7 +39,7 @@ void manapi::net::http_pool::stop() {
     MANAPIHTTP_LOG("{}", "shutdown socket");
 
     // close socket
-    shutdown(config->get_socket_fd(), SHUT_RDWR);
+    shutdown(*config->get_socket_fd(), SHUT_RDWR);
 
     // stop watcher
     ev_io->stop();
@@ -72,10 +72,6 @@ std::future <int> manapi::net::http_pool::run() {
     return pool_promise->get_future();
 }
 
-const int &manapi::net::http_pool::get_fd() {
-    return config->get_socket_fd();
-}
-
 int manapi::net::http_pool::_pool() {
     MANAPIHTTP_LOG("pool init #{}", id);
 
@@ -85,32 +81,36 @@ int manapi::net::http_pool::_pool() {
 
     ev_io  = std::make_unique<ev::io> (loop);
 
-    auto implementations = site->get_transport_protocol_worker(config->get_transport());
+    {
+        auto implementation = config->get_implementation();
+        auto transport = config->get_transport();
+        auto implementations = site->get_transport_protocol_worker(*transport);
 
-    if (implementations.contains(config->get_implementation()))
-    {
-        auto generate = implementations[config->get_implementation()];
-        worker = generate (config);
-        worker->init();
-    }
-    else
-    {
-        std::string available;
-        if (!implementations.empty()) {
-            auto it = implementations.begin();
-            goto skip;
-            for (; it != implementations.end(); ++it) {
-                available += ',';
-                skip:
-                available += it->first;
-            }
+        if (implementations.contains(*implementation))
+        {
+            auto generate = implementations[*implementation];
+            worker = generate (config);
+            worker->init();
         }
-        THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "implementation by {} not found in {}. Available: [{}]", config->get_implementation(), config->get_transport(), available);
+        else
+        {
+            std::string available;
+            if (!implementations.empty()) {
+                auto it = implementations.begin();
+                goto skip;
+                for (; it != implementations.end(); ++it) {
+                    available += ',';
+                    skip:
+                    available += it->first;
+                }
+            }
+            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "implementation by {} not found in {}. Available: [{}]", *implementation, *transport, available);
+        }
     }
 
     // create watcher
     ev_io->set <http_pool, &http_pool::new_connection> (this);
-    ev_io->start(config->get_socket_fd(), ev::READ);
+    ev_io->start(*config->get_socket_fd(), ev::READ);
 
     // say, that it can be deleted
     lock.unlock();

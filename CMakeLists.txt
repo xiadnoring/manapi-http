@@ -172,7 +172,9 @@ set(MANAPIHTTP_HTTP_FILES
         src/components/SmartBuffer.cpp
         src/ManapiHttpMime.cpp
         src/worker/QUIC.cpp
-        src/worker/TCP.cpp)
+        src/worker/TCP.cpp
+        src/components/FormData.cpp
+        include/components/FormData.hpp)
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
     # EXE
@@ -197,17 +199,17 @@ endif ()
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
-    target_link_libraries       (${PROJECT_NAME} PUBLIC ${QUIC_LIBRARIES} gmp::gmp ZLIB::ZLIB libev::libev CURL::libcurl)
+    target_link_libraries       (${PROJECT_NAME} ${QUIC_LIBRARIES} gmp::gmp ZLIB::ZLIB libev::libev CURL::libcurl)
     if (MANAPIHTTP_OPENSSL_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PUBLIC openssl::openssl)
+        target_link_libraries(${PROJECT_NAME} openssl::openssl)
     endif ()
 
     if (MANAPIHTTP_WOLFSSL_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PUBLIC wolfssl::wolfssl)
+        target_link_libraries(${PROJECT_NAME} wolfssl::wolfssl)
     endif ()
 
     if (MANAPIHTTP_QUICHE_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PUBLIC quiche::quiche)
+        target_link_libraries(${PROJECT_NAME} quiche::quiche)
     endif ()
 else ()
     target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${LIBEV_LIBRARIES} ${LSQPACK_LIBRARIES} ${CURL_LIBRARIES})

@@ -48,12 +48,64 @@ size_t curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user
     return reinterpret_cast <curl_data_t *> (user_p)->handler_body (buffer, size * n_mem_b);
 }
 
-// Class
+size_t curl_send_formdata_cb_read (char *buffer, size_t size, size_t nitems, void *userp) {
+    auto &func = *static_cast<decltype(manapi::net::curlformdata::multipart_param_value_file::callback) *> (userp);
+    return func (buffer, size * nitems);
+}
 
-manapi::net::fetch::fetch(const std::string &_url) {
-    url     = _url;
-    method  = "GET";
-    curl    = curl_easy_init();
+int curl_send_formdata_cb_seek (void *userp, curl_off_t offset, int origin) {
+    return CURL_SEEKFUNC_OK;
+}
+
+void curl_send_formdata_cb_free (void *userp) {
+    // pass
+}
+
+
+manapi::net::curlformdata::curlformdata() {}
+
+manapi::net::curlformdata::~curlformdata() = default;
+
+manapi::net::curlformdata::curlformdata(curlformdata &&fd) noexcept : mdata(std::move(fd.mdata)) {}
+
+manapi::net::curlformdata & manapi::net::curlformdata::operator=(curlformdata &&fd) noexcept {
+    this->mdata = std::move(fd.mdata);
+    return *this;
+}
+
+void manapi::net::curlformdata::setdata(const std::string &name, std::string value) {
+    std::unique_ptr<void, void (*)(void*)> udata (reinterpret_cast<void *> (new std::string(std::move(value))), [] (void *ptr) -> void {
+        delete static_cast <std::string *> (ptr);
+    });
+    mdata.insert({name, {.data = std::move(udata), .type = PARAM_DEFAULT}});
+}
+
+void manapi::net::curlformdata::setfile(const std::string &filename, std::string filepath) {
+    std::unique_ptr<void, void (*)(void*)> udata (reinterpret_cast<void *> (new std::string(std::move(filepath))), [] (void *ptr) -> void {
+        delete static_cast <std::string *> (ptr);
+    });
+    mdata.insert({filename, {.data = std::move(udata), .type = PARAM_FILE}});
+}
+
+void manapi::net::curlformdata::setcallback(const std::string &name, const long long &size, const std::function<size_t(void *buff, size_t buff_size)> &cb) {
+    std::unique_ptr<void, void (*)(void*)> udata (reinterpret_cast<void *> (new multipart_param_value_file({cb, size})), [] (void *ptr) -> void {
+        delete static_cast <multipart_param_value_file *> (ptr);
+    });
+    mdata.insert({name, {.data = std::move(udata), .type = PARAM_CALLBACK}});
+}
+
+manapi::net::curlformdata::tdata::iterator manapi::net::curlformdata::begin() {
+    return mdata.begin();
+}
+
+manapi::net::curlformdata::tdata::iterator manapi::net::curlformdata::end() {
+    return mdata.end();
+}
+
+manapi::net::fetch::fetch(const std::string &url) {
+    this->url     = url;
+    this->method  = "GET";
+    this->curl    = curl_easy_init();
 }
 
 manapi::net::fetch::~fetch() {
@@ -65,12 +117,18 @@ manapi::net::fetch::~fetch() {
 }
 
 void manapi::net::fetch::doit() {
+    curl_mime *form = nullptr;
+
     if (curl == nullptr)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl can not be init: {}", url);
     }
 
     utils::before_delete clean_up ([&] () {
+        if (form != nullptr) {
+            curl_mime_free(form);
+        }
+
         if (curl_headers != nullptr)
         {
             curl_slist_free_all(curl_headers);
@@ -104,10 +162,6 @@ void manapi::net::fetch::doit() {
 
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method.data());
 
-    // body of the request
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.data());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, body.size());
-
     if (data.first_chunk_body && data.handler_headers != nullptr)
     {
         data.first_chunk_body = false;
@@ -120,11 +174,49 @@ void manapi::net::fetch::doit() {
         handle_custom_setup (curl);
     }
 
+    // body of the request
+    switch (body) {
+        case BODY_PLAIN: {
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body_default.data());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, body_default.size());
+            break;
+        }
+        case BODY_MULTIPART: {
+            form = curl_mime_init(curl);
+            curl_mimepart *field = nullptr;
+            for (auto &param : body_formdata) {
+                field = curl_mime_addpart(form);
+                curl_mime_name(field, param.first.data());
+                switch (param.second.type) {
+                    case curlformdata::PARAM_DEFAULT: {
+                        auto &strdata = *static_cast <std::string *> (param.second.data.get());
+                        curl_mime_data(field, strdata.data(), strdata.size());
+                        break;
+                    }
+                    case curlformdata::PARAM_FILE: {
+                        auto &strdata = *static_cast <std::string *> (param.second.data.get());
+                        curl_mime_filedata(field, strdata.data());
+                        break;
+                    }
+                    case curlformdata::PARAM_CALLBACK: {
+                        auto &cbdata = *static_cast <curlformdata::multipart_param_value_file *> (param.second.data.get());
+                        curl_mime_data_cb(field, cbdata.filesize, curl_send_formdata_cb_read, curl_send_formdata_cb_seek, curl_send_formdata_cb_free, &cbdata.callback);
+                        break;
+                    }
+                }
+            }
+            curl_easy_setopt(curl, CURLOPT_MIMEPOST, form);
+            break;
+        }
+        default:
+            break;
+    }
+
     resp = curl_easy_perform(curl);
 
     if (resp != CURLE_OK)
     {
-        MANAPIHTTP_LOG ("Connection failed: {}", url);
+        MANAPIHTTP_LOG ("Connection failed: {}. Error code: {}. Error msg: {}", url, static_cast<int> (resp), curl_easy_strerror(resp));
     }
 
     curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &status_code);
@@ -153,7 +245,7 @@ std::string manapi::net::fetch::text() {
 }
 
 manapi::json manapi::net::fetch::json() {
-    return manapi::json (text(), true);
+    return std::move(manapi::json (text(), true));
 }
 
 
@@ -161,12 +253,19 @@ void manapi::net::fetch::handle_headers(const std::function<void(const std::map 
     handler_headers = _handler;
 }
 
-void manapi::net::fetch::set_method(const std::string &_method) {
-    method = _method;
+void manapi::net::fetch::set_body(curlformdata params) {
+    body = BODY_MULTIPART;
+    body_formdata = std::move(params);
 }
 
-void manapi::net::fetch::set_body(const std::string &data) {
-    body = data;
+
+void manapi::net::fetch::set_method(std::string method) {
+    this->method = std::move(method);
+}
+
+void manapi::net::fetch::set_body(std::string data) {
+    body = BODY_PLAIN;
+    body_default = std::move(data);
 }
 
 void manapi::net::fetch::set_headers(const std::map<std::string, std::string> &headers) {

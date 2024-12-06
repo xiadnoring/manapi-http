@@ -9,7 +9,7 @@
 
 namespace manapi::net {
     template<class T>
-    threadpool<T>::threadpool(size_t thread_num, size_t queues_count): thread_number(thread_num),is_stop(false),stopped(0) {
+    threadpool<T>::threadpool(size_t thread_num, size_t queues_count): thread_number(thread_num),is_stop(false),stopped(0UL) {
         sigemptyset(&blockedSignal);
         sigaddset(&blockedSignal, SIGPIPE);
         pthread_sigmask(SIG_BLOCK, &blockedSignal, nullptr);
@@ -39,7 +39,7 @@ namespace manapi::net {
 
     template<class T>
     size_t threadpool<T>::get_count_stopped_task() {
-        return stopped.get().first;
+        return *stopped.get();
     }
 
     template<class T>

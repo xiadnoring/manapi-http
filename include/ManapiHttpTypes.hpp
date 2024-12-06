@@ -116,6 +116,7 @@ namespace manapi::net {
         std::string ALT_SVC             = "alt-svc";
         std::string AUTHORIZATION       = "authorization";
         std::string UPGRADE             = "upgrade";
+        std::string EXPECT              = "expect";
     } HTTP_HEADER;
 
     enum err_num {
@@ -148,7 +149,8 @@ namespace manapi::net {
         ERR_UNSUPPORTED = 27,
         ERR_STORAGE_OBJECT_IS_NULL = 28,
         ERR_FUNCTION_IS_NULL = 29,
-        ERR_HTTP_CONNECTION_WAS_CLOSED = 30
+        ERR_HTTP_CONNECTION_WAS_CLOSED = 30,
+        ERR_HTTP_PARSER_BUG = 31
     };
 
     const std::map <err_num, std::string> err_msg {

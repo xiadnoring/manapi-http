@@ -15,36 +15,41 @@ void manapi::net::worker::QUIC::init() {
         .ai_protocol = IPPROTO_UDP
     };
 
-    if (getaddrinfo(config->get_address().data(), config->get_port().data(), &hints, &local) != 0) {
+    auto address = config->get_address();
+    auto port = config->get_port();
+
+    if (getaddrinfo(address->data(), port->data(), &hints, &local) != 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
     }
 
     config->set_server_address(*local->ai_addr);
     config->set_server_len(local->ai_addrlen);
 
-    MANAPIHTTP_LOG("HTTP QUIC PORT USED: {}. https://{}:{}", config->get_port(), config->get_address(), config->get_port());
+    MANAPIHTTP_LOG("HTTP QUIC PORT USED: {}. https://{}:{}", *port, *address, *port);
 
     // for quic
     config->set_socket_fd(socket (local->ai_family, SOCK_DGRAM, 0));
+    auto fd = config->get_socket_fd();
 
-    if (config->get_socket_fd() < 0) {
+    if (*fd < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "SOCKET ERROR");
     }
 
-    setsockopt(config->get_socket_fd(), SOL_SOCKET, SO_REUSEADDR, &reuseaddr_param, sizeof(int));
+    setsockopt((*fd), SOL_SOCKET, SO_REUSEADDR, &reuseaddr_param, sizeof(int));
 
-    if (fcntl(config->get_socket_fd(), F_SETFL, O_NONBLOCK) != 0) {
-       THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "Failed to make socket {} non-blocking", config->get_socket_fd());
+    if (fcntl(*fd, F_SETFL, O_NONBLOCK) != 0) {
+       THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "Failed to make socket {} non-blocking", *fd);
     }
 
-    if (bind(config->get_socket_fd(), local->ai_addr, local->ai_addrlen) < 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", config->get_port());
+    if (bind(*fd, local->ai_addr, local->ai_addrlen) < 0) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);
     }
 }
 
 void manapi::net::worker::QUIC::onrecv(const std::shared_ptr<worker::base> & worker) {
+    auto fd = config->get_socket_fd();
     while (true) {
-        auto rhs = recv(config->get_socket_fd(), buffer.data(), buffer.size(), 0);
+        auto rhs = recv(*fd, buffer.data(), buffer.size(), 0);
         if (rhs < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
                 break;

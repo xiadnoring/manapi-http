@@ -7,7 +7,7 @@
 
 manapi::net::utils::timerpool::timerpool(net::threadpool<net::task> &threadpool, const size_t &delay) {
     this->delay = delay;
-    this->deps = 0;
+    this->deps = 0UL;
     this->threadpool = &threadpool;
 }
 
@@ -86,7 +86,7 @@ void manapi::net::utils::timerpool::stop() {
     is_stop = true;
 
     std::unique_lock<std::mutex> lk (state_mutex);
-    cv.wait(lk, [this] () -> bool { MANAPIHTTP_LOG("{}", deps.get().first); return deps == 0; });
+    cv.wait(lk, [this] () -> bool { auto value = *deps.get(); MANAPIHTTP_LOG("{}", value); return deps == 0; });
 }
 
 void manapi::net::utils::timerpool::doit() {

@@ -67,6 +67,9 @@ namespace manapi {
         static json array (const std::initializer_list<json> &data);
         static json object (const std::initializer_list<json> &data);
 
+        static json parse (const std::string &data);
+        static std::string stringify (const json &n, const int &spaces = 2);
+
         json();
         json(const json &other);
         json(json &&other) noexcept;
@@ -91,25 +94,8 @@ namespace manapi {
 
         ~json();
 
-        // string
-        void parse (const UNICODE_STRING &plain_text);
-        void parse (const STRING_VIEW &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128);
+        [[nodiscard]] bool contains (const std::string &key) const;
 
-        // integers
-        void parse (const size_t &num);
-        void parse (const INTEGER &num);
-        void parse (const int &num);
-        void parse (const double &num);
-        void parse (const DECIMAL &num);
-        void parse (const BIGINT &num);
-        void parse (const OBJECT &obj);
-        void parse (const ARRAY &arr);
-        void parse (const BOOLEAN &val);
-
-        bool contains (const std::string &key) const;
-
-        // other
-        void parse (const nullptr_t &n);
 
         const json &operator[] (const STRING &key) const;
         const json &operator[] (const UNICODE_STRING &key) const;
@@ -338,7 +324,7 @@ namespace manapi {
         const T* get_ptr () const { return static_cast <T *> (src); }
 
 
-        [[nodiscard]] std::string dump (const size_t &spaces = 0, const size_t &first_spaces = 0) const;
+        [[nodiscard]] std::string dump (const int &spaces = 0, const int &first_spaces = 0) const;
 
         [[nodiscard]] size_t size () const;
         [[nodiscard]] bool empty () const;
@@ -349,6 +335,24 @@ namespace manapi {
     protected:
         bool root = true;
     private:
+
+        // string
+        void _parse (const UNICODE_STRING &plain_text);
+        void _parse (const STRING_VIEW &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128);
+
+        // integers
+        void _parse (const size_t &num);
+        void _parse (const INTEGER &num);
+        void _parse (const int &num);
+        void _parse (const double &num);
+        void _parse (const DECIMAL &num);
+        void _parse (const BIGINT &num);
+        void _parse (const OBJECT &obj);
+        void _parse (const ARRAY &arr);
+        void _parse (const BOOLEAN &val);
+        // other
+        void _parse (const nullptr_t &n);
+        
         static void delete_value_static (const short &type, void *src);
         [[nodiscard]] manapi::json_parse_exception throw_could_not_use_func (const std::string &func) const;
 

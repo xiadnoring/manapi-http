@@ -383,7 +383,7 @@ void manapi::json_builder::_build_numeric(const std::string_view &plain_text, si
         // finish
         if (use_bigint)
         {
-            object.parse(bigint(buffer));
+            object = json (bigint(buffer));
         }
         else
         {
@@ -393,13 +393,13 @@ void manapi::json_builder::_build_numeric(const std::string_view &plain_text, si
             {
                 json::DECIMAL d;
                 stream >> d;
-                object.parse(d);
+                object = json (d);
             }
             else if (type == json::type_integer)
             {
                 json::INTEGER n;
                 stream >> n;
-                object.parse(static_cast<json::INTEGER> (n));
+                object = json(static_cast<json::INTEGER> (n));
             }
         }
 
@@ -439,7 +439,7 @@ void manapi::json_builder::_build_numeric_string(const std::string_view &plain_t
         // true
         if (value == "true") {
             type = json::type_boolean;
-            object.parse (true);
+            object = json (true);
             _check_numeric();
             return;
         }
@@ -447,7 +447,7 @@ void manapi::json_builder::_build_numeric_string(const std::string_view &plain_t
         // false
         if (value == "false") {
             type = json::type_boolean;
-            object.parse (false);
+            object = json (false);
             _check_numeric();
             return;
         }
@@ -455,7 +455,7 @@ void manapi::json_builder::_build_numeric_string(const std::string_view &plain_t
         // null
         if (value == "null") {
             type = json::type_null;
-            object.parse (nullptr);
+            object = json(nullptr);
             _check_numeric();
             return;
         }

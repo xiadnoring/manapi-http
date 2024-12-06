@@ -35,8 +35,6 @@ namespace manapi::net {
 
         utils::atomic_map <utils::manapi_socket_information, task *> peer_by_ip;
         std::mutex recv_m;
-
-        const int &get_fd ();
     private:
         int _pool ();
 

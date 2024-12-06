@@ -54,12 +54,12 @@ bool manapi::net::worker::OpenSSL_TLS::is_valid_connection(worker::connection &c
 
 void manapi::net::worker::OpenSSL_TLS::init() {
     TCP::init();
-
-    if (config->get_ssl_config().enabled) {
+    auto sslconfig = config->get_ssl_config();
+    if (sslconfig->enabled) {
         // setup ssl certs
 
         // init
-        ctx = ssl_create_context(config->get_tls_version());
+        ctx = ssl_create_context(*config->get_tls_version());
         // setup ctx (load certs)
         ssl_configure_context();
 
@@ -120,8 +120,8 @@ std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_T
 
 manapi::net::worker::connection manapi::net::worker::OpenSSL_TLS::accept() {
     worker::connection connection (new connection_interface (-1, nullptr), connection_interface_eraser);
-    connection.as<connection_interface>().id = ::accept(config->get_socket_fd(), reinterpret_cast<struct sockaddr *>(&connection.client), &connection.len);
-    if (config->get_ssl_config().enabled) {
+    connection.as<connection_interface>().id = ::accept(*config->get_socket_fd(), reinterpret_cast<struct sockaddr *>(&connection.client), &connection.len);
+    if (config->get_ssl_config()->enabled) {
         connection.as<connection_interface>().ssl = SSL_new(ctx);
     }
     return std::move(connection);
@@ -195,12 +195,13 @@ SSL_CTX * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &ver
 }
 
 void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
-    if (SSL_CTX_use_certificate_file(ctx, config->get_ssl_config().cert.data(), SSL_FILETYPE_PEM) <= 0)
+    auto sslconfig = config->get_ssl_config();
+    if (SSL_CTX_use_certificate_file(ctx, sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use cert file openssl");
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ctx, config->get_ssl_config().key.data(), SSL_FILETYPE_PEM) <= 0)
+    if (SSL_CTX_use_PrivateKey_file(ctx, sslconfig->key.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use private key file openssl");
     }
@@ -229,7 +230,7 @@ bool manapi::net::worker::OpenSSL_TLS::established(worker::connection &conn, boo
     FD_ZERO(&fds);
     FD_SET(fd, &fds);
 
-    ssize_t tv = static_cast<ssize_t> (flag ? config->get_send_timeout() : config->get_recv_timeout());
+    ssize_t tv = static_cast<ssize_t> (flag ? (*config->get_send_timeout()) : (*config->get_recv_timeout()));
     timeout.tv_sec = tv / 1000; // keep alive in n sec
     timeout.tv_usec = tv - timeout.tv_sec * 1000;
 
@@ -244,7 +245,7 @@ bool manapi::net::worker::OpenSSL_TLS::established(worker::connection &conn, boo
     }
     if (ready == 0) {
         MANAPIHTTP_LOG("The waiting time of {} ms has been exceeded",
-                               config->get_recv_timeout());
+                               *config->get_recv_timeout());
         return false;
     }
 

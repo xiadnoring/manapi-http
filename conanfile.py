@@ -1,5 +1,6 @@
 from conan import ConanFile
 from conan.tools.cmake import CMake, CMakeDeps, cmake_layout, CMakeToolchain
+from conan.tools.apple import fix_apple_shared_install_name
 
 class ManapiHttpConan(ConanFile):
     name = "manapihttp"
@@ -16,13 +17,28 @@ class ManapiHttpConan(ConanFile):
         "wolfssl-dependency": [True, False]
     }
 
-    default_options = {"shared": True, "fPIC": True, "json-debug": True, "wolfssl-dependency": True, "openssl-dependency": True}
+    default_options = {"shared": False, "fPIC": True, "json-debug": True, "wolfssl-dependency": True, "openssl-dependency": True}
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
 
     def config_options(self):
         if self.settings.os == "Windows":
             self.options.rm_safe("fPIC")
+
+    def configure(self):
+        if self.options.shared:
+            self.options.rm_safe("fPIC")
+
+        if self.options.shared:
+            self.options["zlib/*"].shared = True
+            self.options["gmp/*"].shared = True
+            self.options["libcurl/*"].shared = True
+
+            if self.options.get_safe('openssl-dependency', False):
+                self.options["openssl/*"].shared = True
+
+            if self.options.get_safe('wolfssl-dependency', False):
+                self.options["wolfssl/*"].shared = True
 
     def layout(self):
         cmake_layout(self)
@@ -48,7 +64,7 @@ class ManapiHttpConan(ConanFile):
         cmake = CMake(self)
         cmake.install()
 
-
+        fix_apple_shared_install_name(self)
 
     def requirements(self):
         self.requires("libev/4.33")
@@ -61,10 +77,18 @@ class ManapiHttpConan(ConanFile):
 
         if self.options.get_safe('wolfssl-dependency', False):
             self.requires("wolfssl/5.7.2")
+
     def package_info(self):
         self.cpp_info.set_property("cmake_find_mode", "both")
         self.cpp_info.set_property("cmake_file_name", "manapihttp")
         self.cpp_info.set_property("cmake_target_name", "manapihttp::manapihttp")
         self.cpp_info.set_property("pkg_config_name", "manapihttp")
+
+        if self.settings.os in ["Linux", "FreeBSD"]:
+            self.cpp_info.system_libs = ["dl", "m", "pthread"]
+        elif self.settings.os == "Windows":
+            self.cpp_info.system_libs = ["ws2_32", "shlwapi"]
+            if self.options.with_ssl == "schannel":
+                self.cpp_info.system_libs.append("secur32")
 
         self.cpp_info.libs = ["manapihttp"]

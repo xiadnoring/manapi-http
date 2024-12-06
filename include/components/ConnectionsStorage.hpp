@@ -67,7 +67,7 @@ namespace manapi::net::worker {
     private:
         void _wait_editable ();
         vmap storage;
-        Atomic <ssize_t> count = 0;
+        Atomic <ssize_t> count = static_cast<long int>(0);
         std::condition_variable cv;
         std::mutex mx;
         std::mutex lmx;
@@ -132,7 +132,9 @@ namespace manapi::net::worker {
 
     template<typename T>
     void connection_storage<T>::_check_contains() {
-        if (s == nullptr) { THROW_MANAPIHTTP_EXCEPTION2(ERR_STORAGE_OBJECT_IS_NULL, "That storage not contains anything"); }
+        if (s == nullptr) {
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_STORAGE_OBJECT_IS_NULL, "That storage not contains anything");
+        }
     }
 
     template<typename T>
@@ -293,7 +295,7 @@ namespace manapi::net::worker {
     template<typename K, typename V>
     void connections_storage<K, V>::_wait_editable() {
         std::unique_lock<std::mutex> lk (mx);
-        this->cv.wait(lk, [this] () -> bool { return this->count.get().first == 0; });
+        this->cv.wait(lk, [this] () -> bool { return *(this->count.get()) == 0; });
     }
 };
 

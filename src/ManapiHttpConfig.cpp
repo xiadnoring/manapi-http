@@ -45,7 +45,7 @@ manapi::net::http::config::config(const json &config) {
             http_version_str    = "1.1";
             http_version        = versions::HTTP_v1_1;
 
-            MANAPIHTTP_LOG("http version '{}' is invalid in the config", http_version_str);
+            MANAPIHTTP_LOG("http version '{}' is invalid in the config", *http_version_str.get());
         }
     }
 
@@ -63,9 +63,11 @@ manapi::net::http::config::config(const json &config) {
 
     // =================[ssl                    ]================= //
     if (config.contains("ssl")) {
-        ssl_config.enabled  = config["ssl"]["enabled"].get<bool>();
-        ssl_config.key      = config["ssl"]["key"].get<std::string>();
-        ssl_config.cert     = config["ssl"]["cert"].get<std::string>();
+        ssl_config = {
+            .enabled  = config["ssl"]["enabled"].get<bool>(),
+            .key      = config["ssl"]["key"].get<std::string>(),
+            .cert     = config["ssl"]["cert"].get<std::string>()
+        };
     }
 
     // =================[max_header_block_size  ]================= //
@@ -173,36 +175,36 @@ void manapi::net::http::config::set_socket_block_size(const size_t &s) {
     socket_block_size = s;
 }
 
-const size_t &manapi::net::http::config::get_socket_block_size() const {
-    return socket_block_size;
+manapi::net::AtomicReference<size_t> manapi::net::http::config::get_socket_block_size() {
+    return *socket_block_size;
 }
 
 void manapi::net::http::config::set_max_header_block_size(const size_t &s) {
     max_header_block_size = s;
 }
 
-const size_t &manapi::net::http::config::get_max_header_block_size() const {
-    return max_header_block_size;
+manapi::net::AtomicReference<size_t>manapi::net::http::config::get_max_header_block_size() {
+    return *max_header_block_size;
 }
 
-const size_t &manapi::net::http::config::get_partial_data_min_size() const {
-    return partial_data_min_size;
+manapi::net::AtomicReference<size_t>manapi::net::http::config::get_partial_data_min_size() {
+    return *partial_data_min_size;
 }
 
 void manapi::net::http::config::set_http_version(const size_t &new_http_version) {
     http_version = new_http_version;
 }
 
-const size_t &manapi::net::http::config::get_http_version() const {
-    return http_version;
+manapi::net::AtomicReference<size_t>manapi::net::http::config::get_http_version() {
+    return *http_version;
 }
 
 void manapi::net::http::config::set_http_version_str(const std::string &new_http_version) {
     http_version_str = new_http_version;
 }
 
-const std::string &manapi::net::http::config::get_http_version_str() const {
-    return http_version_str;
+manapi::net::AtomicReference<std::string> manapi::net::http::config::get_http_version_str() {
+    return *http_version_str;
 }
 
 /**
@@ -213,69 +215,69 @@ void manapi::net::http::config::set_keep_alive(const long int &seconds) {
     keep_alive = seconds;
 }
 
-const size_t &manapi::net::http::config::get_keep_alive() const {
-    return keep_alive;
+manapi::net::AtomicReference<size_t>manapi::net::http::config::get_keep_alive() {
+    return *keep_alive;
 }
 
-const ssize_t & manapi::net::http::config::get_recv_timeout() const {
-    return recv_timeout;
+manapi::net::AtomicReference<ssize_t> manapi::net::http::config::get_recv_timeout() {
+    return *recv_timeout;
 }
 
-const ssize_t & manapi::net::http::config::get_send_timeout() const {
-    return send_timeout;
+manapi::net::AtomicReference<ssize_t> manapi::net::http::config::get_send_timeout() {
+    return *send_timeout;
 }
 
 void manapi::net::http::config::set_port(const std::string &_port) {
     port = _port;
 }
 
-const std::string &manapi::net::http::config::get_port() const {
-    return port;
+manapi::net::AtomicReference<std::string> manapi::net::http::config::get_port() {
+    return *port;
 }
 
-const std::string & manapi::net::http::config::get_implementation() const {
-    return implementation;
+manapi::net::AtomicReference<std::string> manapi::net::http::config::get_implementation() {
+    return *implementation;
 }
 
-const std::string & manapi::net::http::config::get_transport() const {
-    return transport;
+manapi::net::AtomicReference<std::string> manapi::net::http::config::get_transport() {
+    return *transport;
 }
 
 
-const std::string & manapi::net::http::config::get_address() const {
-    return address;
+manapi::net::AtomicReference<std::string> manapi::net::http::config::get_address() {
+    return *address;
 }
 
-const size_t & manapi::net::http::config::get_tls_version() const {
-    return tls_version;
+manapi::net::AtomicReference<size_t>manapi::net::http::config::get_tls_version() {
+    return *tls_version;
 }
 
-const bool & manapi::net::http::config::is_quic_debug() const {
-    return quic_debug;
+manapi::net::AtomicReference<bool> manapi::net::http::config::is_quic_debug() {
+    return *quic_debug;
 }
 
-const size_t & manapi::net::http::config::get_quic_cc_algo() const {
-    return quic_cc_algo;
+manapi::net::AtomicReference<size_t>manapi::net::http::config::get_quic_cc_algo() {
+    return *quic_cc_algo;
 }
 
-const manapi::net::http::ssl_config_t &manapi::net::http::config::get_ssl_config() {
-    return ssl_config;
+manapi::net::AtomicReference<manapi::net::http::ssl_config_t> manapi::net::http::config::get_ssl_config() {
+    return *ssl_config;
 }
 
 void manapi::net::http::config::set_server_address(const sockaddr &addr) {
     server_addr = addr;
 }
 
-sockaddr & manapi::net::http::config::get_server_address() {
-    return server_addr;
+manapi::net::AtomicReference<sockaddr> manapi::net::http::config::get_server_address() {
+    return *server_addr;
 }
 
 void manapi::net::http::config::set_server_len(const size_t &len) {
     server_len = len;
 }
 
-const socklen_t & manapi::net::http::config::get_server_len() const {
-    return server_len;
+manapi::net::AtomicReference<socklen_t>  manapi::net::http::config::get_server_len() {
+    return *server_len;
 }
 
 // void manapi::net::http::config::set_http3_config(quiche_h3_config *config) {
@@ -298,11 +300,11 @@ void manapi::net::http::config::set_socket_fd(const int &fd) {
     sock_fd = fd;
 }
 
-const int & manapi::net::http::config::get_socket_fd() const {
-    return sock_fd;
+manapi::net::AtomicReference<int> manapi::net::http::config::get_socket_fd() {
+    return *sock_fd;
 }
 
-bool manapi::net::http::config::contains_compressor(const std::string &name) const {
+bool manapi::net::http::config::contains_compressor(const std::string &name) {
     if (function_contains_compressor == nullptr) { THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "function_contains_compressor = {}. We need to set function before call", "nullptr"); }
     return function_contains_compressor (name);
 }

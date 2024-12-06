@@ -32,7 +32,7 @@ manapi::net::worker::TCP::TCP(TCP &&n) noexcept : base (std::forward<worker::bas
 }
 
 manapi::net::worker::TCP::~TCP() {
-    close (config->get_socket_fd());
+    close (*config->get_socket_fd());
     if (local != nullptr) { freeaddrinfo(local); }
 }
 
@@ -47,44 +47,49 @@ void manapi::net::worker::TCP::init() {
         .ai_protocol    = IPPROTO_TCP
     };
 
-    if (getaddrinfo(config->get_address().data(), config->get_port().data(), &hints, &local) != 0) {
+    auto address = config->get_address();
+    auto port = config->get_port();
+
+    if (getaddrinfo(address->data(), port->data(), &hints, &local) != 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
     }
 
     config->set_server_address(*local->ai_addr);
     config->set_server_len(local->ai_addrlen);
 
-    MANAPIHTTP_LOG("HTTP TCP PORT USED: {}. {}:{}", config->get_port(), config->get_address(), config->get_port());
+    MANAPIHTTP_LOG("HTTP TCP PORT USED: {}. {}:{}", *port, *address, *port);
 
     config->set_socket_fd(socket(AF_INET, SOCK_STREAM, 0));
-    if (config->get_socket_fd() < 0) {
+
+    auto fd = config->get_socket_fd();
+    if (*fd < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "SOCKET ERROR");
     }
     // REUSE PARAM
-    setsockopt(config->get_socket_fd(), SOL_SOCKET, SO_REUSEADDR, &so_reuseaddr_param, sizeof(int));
+    setsockopt(*fd, SOL_SOCKET, SO_REUSEADDR, &so_reuseaddr_param, sizeof(int));
 
     // TIMEOUT RECV PARAM
-    auto tv = static_cast<ssize_t> (config->get_recv_timeout());
+    auto tv = static_cast<ssize_t> (*config->get_recv_timeout());
     recv_timeout.tv_sec = tv / 1000;
     recv_timeout.tv_usec = tv - recv_timeout.tv_sec * 1000;;
-    setsockopt(config->get_socket_fd(), SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof (timeval));
+    setsockopt(*fd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof (timeval));
 
     // TIMEOUT RECV PARAM
-    tv = static_cast<ssize_t> (config->get_send_timeout());
+    tv = static_cast<ssize_t> (*config->get_send_timeout());
     send_timeout.tv_sec = tv / 1000;
     send_timeout.tv_usec = tv - send_timeout.tv_sec * 1000;
-    setsockopt(config->get_socket_fd(), SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof (timeval));
+    setsockopt(*fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof (timeval));
 
-    if (fcntl(config->get_socket_fd(), F_SETFL, O_NONBLOCK) != 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "Failed to make socket {} non-blocking", config->get_socket_fd());
+    if (fcntl(*fd, F_SETFL, O_NONBLOCK) != 0) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "Failed to make socket {} non-blocking", *fd);
     }
 
-    if (bind(config->get_socket_fd(), local->ai_addr, local->ai_addrlen) < 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", config->get_port());
+    if (bind(*fd, local->ai_addr, local->ai_addrlen) < 0) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);
     }
 
-    if (listen(config->get_socket_fd(), 10) < 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "LISTEN ERROR. sock_fd: {}", config->get_socket_fd());
+    if (listen(*fd, 10) < 0) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "LISTEN ERROR. sock_fd: {}", *fd);
     }
 
     this->write = [this](auto &&PH1, auto &&PH2, auto &&PH3, auto &&PH4) -> ssize_t {
@@ -138,7 +143,7 @@ std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::
 
 manapi::net::worker::connection manapi::net::worker::TCP::accept() {
     worker::connection connection (new connection_interface (-1), connection_interface_eraser);
-    connection.as<connection_interface>().id = ::accept(config->get_socket_fd(), reinterpret_cast<struct sockaddr *>(&connection.client), &connection.len);
+    connection.as<connection_interface>().id = ::accept(*config->get_socket_fd(), reinterpret_cast<struct sockaddr *>(&connection.client), &connection.len);
     return std::move(connection);
 }
 
@@ -170,7 +175,7 @@ bool manapi::net::worker::TCP::established(worker::connection &conn, bool flag) 
     FD_ZERO(&fds);
     FD_SET(fd, &fds);
 
-    ssize_t tv = static_cast<ssize_t> (flag ? config->get_send_timeout() : config->get_recv_timeout());
+    ssize_t tv = static_cast<ssize_t> (flag ? *config->get_send_timeout() : *config->get_recv_timeout());
     timeout.tv_sec = tv / 1000; // keep alive in n sec
     timeout.tv_usec = tv - timeout.tv_sec * 1000;
 
@@ -185,7 +190,7 @@ bool manapi::net::worker::TCP::established(worker::connection &conn, bool flag) 
     }
     if (ready == 0) {
         MANAPIHTTP_LOG("The waiting time of {} ms has been exceeded",
-                               config->get_recv_timeout());
+                               *config->get_recv_timeout());
         return false;
     }
 

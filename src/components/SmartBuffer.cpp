@@ -151,7 +151,9 @@ ssize_t manapi::net::worker::smart_r_buffer::read(void *c, size_t len) {
     this->cv.wait(lk1, [this] () -> bool {
         return this->buffer.size() > this->i || this->disabled;
     });
-    if (this->disabled) { return -1; }
+    if (this->disabled) {
+        return -1;
+    }
     std::lock_guard<std::mutex> lk2 (gmx);
     size_t size = static_cast<size_t> (std::min(this->buffer.size() - this->i, len));
     memcpy(c, this->buffer.data() + this->i, size);

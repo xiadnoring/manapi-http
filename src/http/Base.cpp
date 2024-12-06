@@ -33,7 +33,7 @@ void manapi::net::http::base::send_response(manapi::net::http_response &res) {
     if (!compress.empty()) {
         if (!res.is_file() ||
             !res.get_partial_enabled() ||
-            manapi::net::filesystem::get_size(res.get_file()) < config->get_partial_data_min_size()
+            manapi::net::filesystem::get_size(res.get_file()) < *config->get_partial_data_min_size()
         ) {
             compressor = site.get_compressor(compress);
 
@@ -51,7 +51,7 @@ void manapi::net::http::base::send_response(manapi::net::http_response &res) {
 
     // set time
     res.set_header(HTTP_HEADER.DATE, manapi::net::utils::time("%a, %d %b %Y %H:%M:%S GMT", false));
-    if (config->get_http_version() < versions::HTTP_v2) { res.set_header(HTTP_HEADER.CONNECTION, "close"); }
+    if (*config->get_http_version() < versions::HTTP_v2) { res.set_header(HTTP_HEADER.CONNECTION, "close"); }
 
     if (res.is_file()) {
         send_response_file(res, features);
@@ -117,7 +117,7 @@ void manapi::net::http::base::send_response_file(manapi::net::http_response &res
         }
 
         // partial enabled
-        if (res.get_partial_enabled() && config->get_partial_data_min_size() <= fileSize) {
+        if (res.get_partial_enabled() && *config->get_partial_data_min_size() <= fileSize) {
             if (FEATURE_EXISTS(features.compressor)) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
                                        "the compress '{}' with the partial content is not supported.",
@@ -249,7 +249,7 @@ void manapi::net::http::base::handle_request(const http_handler_page *data, requ
         .ip = inet_ntoa(reinterpret_cast<struct sockaddr_in *>(&connection->client)->sin_addr),
         .port = htons(reinterpret_cast<struct sockaddr_in *>(&connection->client)->sin_port)
     };
-    http_request req (socket_information, request_data, this, *config, data);
+    http_request req (socket_information, request_data, this, config, data);
     http_response res(request_data, status, message, std::make_unique<api::pool> (site.get_tasks_pool().get()), *config);
     try {
         // handle layers
@@ -334,7 +334,7 @@ void manapi::net::http::base::execute_custom_handler(const http_handler_page *ha
 }
 
 void manapi::net::http::base::send_file(manapi::net::http_response &res, std::ifstream &f, ssize_t size) const {
-    auto block_size = static_cast<ssize_t>(config->get_socket_block_size());
+    auto block_size = static_cast<ssize_t>(*config->get_socket_block_size());
     char block[block_size];
 
     ssize_t current = f.tellg();
@@ -367,7 +367,7 @@ void manapi::net::http::base::send_file(manapi::net::http_response &res, std::if
 
 void manapi::net::http::base::send_file(manapi::net::http_response &res, std::ifstream &f, ssize_t size, std::vector<utils::replace_founded_item> &replacers) const {
     std::string block;
-    auto block_size = static_cast<ssize_t>(config->get_socket_block_size());
+    auto block_size = static_cast<ssize_t>(*config->get_socket_block_size());
 
     block.resize(block_size);
 
@@ -469,8 +469,8 @@ void manapi::net::http::base::send_file(manapi::net::http_response &res, std::if
                 if (free_space < value_left_size) {
                     block_size += value_left_size - free_space;
 
-                    if (block_size >= config->get_socket_block_size()) {
-                        block_size = static_cast<ssize_t>(config->get_socket_block_size());
+                    if (block_size >= *config->get_socket_block_size()) {
+                        block_size = static_cast<ssize_t>(*config->get_socket_block_size());
                         repeat = true;
                     }
                 }
@@ -503,7 +503,7 @@ void manapi::net::http::base::send_file(manapi::net::http_response &res, std::if
                     // -printf("OK\n");
                 } else {
                     free_space = block_size - i;
-                    ssize_t can_read = static_cast<ssize_t> (config->get_socket_block_size()) - i;
+                    ssize_t can_read = static_cast<ssize_t> (*config->get_socket_block_size()) - i;
 
                     // we want to read chars by size can_read
                     f.seekg(current + index_in_block - shift);
@@ -562,6 +562,19 @@ void manapi::net::http::base::send_text(const std::string &text, const size_t &s
         sent -= result;
 
         current = current + result * sizeof(char);
+    }
+}
+
+void manapi::net::http::base::expect_header() {
+    const auto expect = request_data.headers.find(HTTP_HEADER.EXPECT);
+    if (expect != request_data.headers.end()) {
+        if (expect->second == "100-continue") {
+            http_response resp (request_data, 100, HTTP_STATUS.CONTINUE_100, std::make_unique<api::pool>(site.get_tasks_pool().get()), *config);
+            send_response(resp);
+        }
+        else {
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid Expect header");
+        }
     }
 }
 
