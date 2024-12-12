@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTPPOOL_H
-#define MANAPIHTTPPOOL_H
+#pragma once
 
 #include <ev++.h>
 #include <netdb.h>
@@ -10,8 +9,9 @@
 #include "ManapiHttpConfig.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
-#include "ManapiTask.hpp"
 #include "ManapiSite.hpp"
+
+#include "services/ManapiTask.hpp"
 #include "worker/Base.hpp"
 #include "http/Base.hpp"
 
@@ -56,5 +56,3 @@ namespace manapi::net {
         std::unique_ptr<ev::io> ev_io;
     };
 }
-
-#endif //MANAPIHTTPPOOL_H

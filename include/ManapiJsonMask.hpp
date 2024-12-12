@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_MANAPIJSONMASK_H
-#define MANAPIHTTP_MANAPIJSONMASK_H
+#pragma once
 
 #include "ManapiJson.hpp"
 
@@ -35,5 +34,3 @@ namespace manapi {
         static bool default_compare_information (const json &obj, const json &information, const bool &by_size = true);
     };
 }
-
-#endif //MANAPIHTTP_MANAPIJSONMASK_H

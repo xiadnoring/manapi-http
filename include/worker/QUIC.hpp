@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_QUIC_HPP
-#define MANAPIHTTP_QUIC_HPP
+#pragma once
 
 #include <netdb.h>
 
@@ -35,5 +34,3 @@ namespace manapi::net::worker {
         std::string buffer;
     };
 }
-
-#endif //MANAPIHTTP_QUIC_HPP

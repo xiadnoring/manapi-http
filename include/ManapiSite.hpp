@@ -1,16 +1,16 @@
-#ifndef MANAPISITE_HPP
-#define MANAPISITE_HPP
+#pragma once
 
 #include <chrono>
 #include <regex>
 #include <list>
 
+#include "ManapiAsync.hpp"
 #include "ManapiJson.hpp"
 #include "ManapiJsonMask.hpp"
-#include "ManapiTask.hpp"
-#include "ManapiTimerPool.hpp"
+#include "services/ManapiTask.hpp"
+#include "services/ManapiTimerPool.hpp"
 #include "compress/ManapiCompress.hpp"
-#include "ManapiThreadSafe.hpp"
+#include "components/ManapiThreadSafe.hpp"
 
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpResponse.hpp"
@@ -20,7 +20,7 @@ namespace manapi::net::worker {
 }
 
 namespace manapi::net {
-    typedef std::function <void(manapi::net::http_request &req, manapi::net::http_response &res)> handler_template_t;
+    typedef std::function <future<void>(manapi::net::http_request &req, manapi::net::http_response &res)> handler_template_t;
 
     struct http_quic_conn_io {
         int                     sock_fd;
@@ -88,7 +88,6 @@ namespace manapi::net {
         site ();
         ~site();
 
-        void append_task (std::unique_ptr<task> t, const int &level = 0);
         size_t append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         size_t append_interval (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         void remove_timer (const size_t &id);
@@ -118,6 +117,8 @@ namespace manapi::net {
         void tasks_pool_init (const size_t &thread_num);
 
         std::string config_cache_dir;
+        std::unique_ptr<utils::timerpool> timerpool;
+        std::unique_ptr<threadpool<task>> taskspool = nullptr;
     protected:
         void setup ();
         void timer_pool_setup (threadpool<task> *tasks_pool);
@@ -129,9 +130,7 @@ namespace manapi::net {
     private:
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
-        std::unique_ptr<threadpool<task>> tasks_pool = nullptr;
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);
-        std::unique_ptr<utils::timerpool> timerpool;
 
         manapi::json cache_config;
 
@@ -147,5 +146,3 @@ namespace manapi::net {
         static std::string default_config_name;
     };
 }
-
-#endif //MANAPISITE_HPP

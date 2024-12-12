@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_MANAPIUTILS_H
-#define MANAPIHTTP_MANAPIUTILS_H
+#pragma once
 
 #include <string>
 #include <map>
@@ -224,5 +223,3 @@ namespace manapi::net {
         std::string buffer;
     };
 }
-
-#endif //MANAPIHTTP_MANAPIUTILS_H

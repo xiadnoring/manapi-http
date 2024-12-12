@@ -11,7 +11,8 @@
 #include <unordered_map>
 #include <fcntl.h>
 #include <netdb.h>
-#include "ManapiTaskFunction.hpp"
+
+#include "services/ManapiTaskFunction.hpp"
 #include "ManapiHttp.hpp"
 #include "ManapiUtils.hpp"
 
@@ -42,7 +43,7 @@ manapi::net::http::server::server() {
     signal (SIGSTOP, handler_interrupt);
 
 
-    stopping = false;
+    stopping.store(false);
 
     setup ();
 }
@@ -113,7 +114,7 @@ void manapi::net::http::server::GET(const std::string &uri, const std::string &f
 void manapi::net::http::server::stop(bool wait) {
     {
         std::lock_guard <std::mutex> lk (m_initing);
-        stopping = true;
+        stopping.store(true);
     }
     {
         cv_stopping.notify_all();
@@ -123,6 +124,10 @@ void manapi::net::http::server::stop(bool wait) {
             std::lock_guard <std::mutex> lk (m_running);
         }
     }
+}
+
+manapi::net::async_delay manapi::net::http::server::delay(const std::chrono::seconds &n) {
+    return {*timerpool, n};
 }
 
 void manapi::net::http::server::stop_all_servers() {
@@ -140,7 +145,7 @@ void manapi::net::http::server::stop_pool() {
 
     server::running.push_back(this);
 
-    cv_stopping.wait(lk, [this] () -> bool { return stopping; });
+    cv_stopping.wait(lk, [this] () -> bool { return stopping.load(); });
 
     MANAPIHTTP_LOG2("cv_stopping -> pass");
     timer_pool_stop();
@@ -162,7 +167,7 @@ void manapi::net::http::server::stop_pool() {
 
     // reset
     next_pool_id = 0;
-    stopping = false;
+    stopping.store(false);
 
     this->save();
 

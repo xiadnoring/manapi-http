@@ -12,8 +12,7 @@
 #include <netdb.h>
 
 #include "ManapiHttpPool.hpp"
-#include "ManapiTaskHttp.hpp"
-#include "ManapiTaskFunction.hpp"
+#include "services/ManapiTaskFunction.hpp"
 #include "http/HTTPv1_1.hpp"
 #include <http/HTTPv2.hpp>
 
@@ -112,7 +111,7 @@ int manapi::net::http_pool::_pool() {
     ev_io->set <http_pool, &http_pool::new_connection> (this);
     ev_io->start(*config->get_socket_fd(), ev::READ);
 
-    // say, that it can be deleted
+    // say that it can be delete
     lock.unlock();
     loop.run(ev::AUTO);
 

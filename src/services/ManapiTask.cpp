@@ -2,10 +2,16 @@
 // Created by Timur on 19.05.2024.
 //
 
-#include "ManapiTask.hpp"
+#include "services/ManapiTask.hpp"
 #include "ManapiUtils.hpp"
 
 manapi::net::task::task() {}
+
+manapi::net::task::task(task &&n) noexcept {}
+
+manapi::net::task & manapi::net::task::operator=(task &&n) noexcept {
+    return *this;
+}
 
 manapi::net::task::~task() {}
 

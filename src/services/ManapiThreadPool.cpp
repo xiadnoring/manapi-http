@@ -1,10 +1,11 @@
 #include <csignal>
 
-#include "ManapiThreadPool.hpp"
+#include "services/ManapiThreadPool.hpp"
 
 #include <future>
 
-#include "ManapiTask.hpp"
+#include "services/ManapiTask.hpp"
+#include "services/ManapiTaskFunction.hpp"
 #include "ManapiUtils.hpp"
 
 namespace manapi::net {
@@ -63,31 +64,37 @@ namespace manapi::net {
         // obtain a mutex
         queue_mutex.lock();
 
+        // add into the queue
+        task_queues[level].push_front (std::move(task));
 
-        if (level >= task_queues.size())
-        {
-            queue_mutex.unlock();
+        queue_mutex.unlock();
 
-            std::thread t ([this, &task] () -> void { task_doit(std::move(task)); });
-            t.detach();
-        }
-        else
-        {
-            // add into the queue
-            task_queues[level].push_front (std::move(task));
+        // wake up the thread waiting for the task
 
-            queue_mutex.unlock();
-
-            // wake up the thread waiting for the task
-
-            cv.notify_one();
-        }
+        cv.notify_one();
 
         return true;
     }
 
     template<class T>
-    std::unique_ptr<T> threadpool<T>::getTask() {
+    void threadpool<T>::append_task(T task) {
+        this->append_task(std::make_unique<T>(std::move(task)));
+    }
+
+    template<class T>
+    void threadpool<T>::append_task(std::coroutine_handle<> handle) {
+        this->append_task(std::move(manapi::net::function_task ([handle] () -> void {
+            handle ();
+        })));
+    }
+
+    template<class T>
+    void threadpool<T>::append_task(const std::function<void()> &cb) {
+        this->append_task(std::make_unique<function_task>(cb));
+    }
+
+    template<class T>
+    std::unique_ptr<T> threadpool<T>::get_task() {
         std::unique_ptr<T> task = nullptr;
         std::lock_guard<std::mutex> lk (queue_mutex);
         // from n ... 0 by level
@@ -114,7 +121,7 @@ namespace manapi::net {
     template<class T>
     void threadpool<T>::run() {
         while (!is_stop) {
-            auto task = getTask();
+            auto task = get_task();
             if (task == nullptr)
             {
                 std::unique_lock<std::mutex> lk (m);
@@ -141,14 +148,6 @@ namespace manapi::net {
         // catch (const std::exception &e) {
         //     MANAPIHTTP_LOG ("Task Default Exception: {}", e.what());
         // }
-
-        if (task->retry)
-        {
-            // RESET
-            task->retry = false;
-
-            append_task(std::move(task));
-        }
     }
 
     template class threadpool<task>;

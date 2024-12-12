@@ -1,5 +1,4 @@
-#ifndef MANAPIBEFOREDELETE_HPP
-#define MANAPIBEFOREDELETE_HPP
+#pragma once
 
 #include <functional>
 
@@ -18,5 +17,3 @@ namespace manapi::net::utils {
         std::function <void()> f;
     };
 }
-
-#endif //MANAPIBEFOREDELETE_HPP

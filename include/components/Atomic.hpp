@@ -3,7 +3,7 @@
 
 #include <condition_variable>
 
-#include "ManapiUtils.hpp"
+#include "../ManapiUtils.hpp"
 #include "../ManapiBeforeDelete.hpp"
 
 namespace manapi::net {

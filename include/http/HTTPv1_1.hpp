@@ -12,14 +12,16 @@ namespace manapi::net::http {
         ~http_v1_1 () override;
         static std::shared_ptr<http_v1_1> create (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         void doit() override;
-        void parse_request(ssize_t j, ssize_t size) override;
-        void execute_handler () override;
+        manapi::net::future<void> parse_request(ssize_t j, ssize_t size) override;
+        manapi::net::future<void> execute_handler () override;
+
+        [[nodiscard]] bool connection_was_upgraded () const;
     protected:
         void _skip_white_space (char &c);
         void _next_line (char &c);
         void _parse_headers (char &c);
 
-        bool upgrade_connection ();
+        future<bool> upgrade_connection ();
 
         struct parse_vars_t {
             // states
@@ -38,6 +40,8 @@ namespace manapi::net::http {
 
             bool finished = false;
         } parse_vars;
+
+        bool upgraded = false;
     };
 }
 

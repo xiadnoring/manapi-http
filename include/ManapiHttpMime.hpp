@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTPMIME_HPP
-#define MANAPIHTTPMIME_HPP
+#pragma once
 
 #include <string>
 #include <map>
@@ -59,5 +58,3 @@ namespace manapi::net {
     bool mime_media (const std::string &mime);
     bool mime_partitial_data (const std::string &mime);
 }
-
-#endif //MANAPIHTTPMIME_HPP

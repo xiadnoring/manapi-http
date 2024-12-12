@@ -13,16 +13,18 @@ std::shared_ptr<manapi::net::worker::http_v2> manapi::net::http::http_v2::create
     return std::move(w);
 }
 
-void manapi::net::http::http_v2::parse_request(ssize_t j, ssize_t size) {
+manapi::net::future<void> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_t size) {
     for (size_t i = 0; i < request_data.uri.size(); i++) {
         _parse_uri(request_data.uri[i]);
     }
     this->_cleanup_uri();
+    co_return;
 }
 
-void manapi::net::http::http_v2::execute_handler() {
+manapi::net::future<void> manapi::net::http::http_v2::execute_handler() {
     const auto handler = site.get_handler(request_data);
-    handle_request(&handler, request_data);
+    co_await handle_request(&handler, request_data);
+    co_return;
 }
 
 void manapi::net::http::http_v2::_parse_uri(char &c) {

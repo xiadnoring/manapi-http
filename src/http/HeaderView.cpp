@@ -8,7 +8,7 @@
 
 manapi::net::http::HeaderView::HeaderView(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
     : worker(std::move(worker)), config(std::move(config)), site(site) {
-    this->connection = base::create_connection(this->worker);
+
 }
 
 manapi::net::http::HeaderView::HeaderView(std::shared_ptr<worker::connection> connection, std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
@@ -19,46 +19,59 @@ manapi::net::http::HeaderView::HeaderView(std::shared_ptr<worker::connection> co
 manapi::net::http::HeaderView::~HeaderView() {
 }
 
-void manapi::net::http::HeaderView::doit() {
-    worker->configure_connection(*connection);
+manapi::net::future<void> manapi::net::http::HeaderView::doit() {
+    while (true) {
+        worker->configure_connection(*connection);
 
-    request_data.path = {};
-    request_data.divided = -1;
+        request_data.path = {};
+        request_data.divided = -1;
 
-    ssize_t size = 0, j = 0;
-    buffer.resize(16384);
-    current = std::bind(&HeaderView::_parse_method, this, std::placeholders::_1);
-    while (!parse_vars.finished) {
-        size = worker->read (*connection, buffer.data(), buffer.size());
-        if (size <= 0) { break; }
-        for (j = 0; j < size && !parse_vars.finished; j++) {
-            current (buffer.at(j));
+        ssize_t size = 0, j = 0;
+        buffer.resize(16384);
+        current = std::bind(&HeaderView::_parse_method, this, std::placeholders::_1);
+        while (!parse_vars.finished) {
+            size = co_await worker->read (*connection, buffer.data(), buffer.size());
+            if (size <= 0) { break; }
+            for (j = 0; j < size && !parse_vars.finished; j++) {
+                current (buffer.at(j));
+            }
+
         }
-    }
 
-    // ghost
-    if (!parse_vars.finished) { return; }
+        // ghost
+        if (!parse_vars.finished) { co_return; }
 
-    const auto version = http::config::parse_http_version(request_data.http.substr(5));
-    connection->version = version;
-    switch (connection->version) {
-        case versions::HTTP_v1_1: {
-            auto client = http::http_v1_1::create (worker, config, site);
-            client->request_data = std::move(request_data);
-            client->connection = connection;
-            client->buffer = std::move(buffer);
-            client->prepare();
-            client->parse_request(j, size);
-            client->execute_handler();
+        const auto version = http::config::parse_http_version(request_data.http.substr(5));
+        connection->version = version;
+        switch (connection->version) {
+            case versions::HTTP_v1_1: {
+                auto client = http::http_v1_1::create (worker, config, site);
+                client->request_data = std::move(request_data);
+                client->connection = connection;
+                client->buffer = std::move(buffer);
+                client->prepare();
+                co_await client->parse_request(j, size);
+                co_await client->execute_handler();
+
+                if (client->connection_was_upgraded()) {
+                    this->parse_vars.finished = false;
+                    this->buffer = std::move(client->buffer);
+                    this->buffer.clear();
+                    continue;
+                }
+            }
+            break;
+            case versions::HTTP_v2: {
+                auto client = http::http_v2::create(worker, config, site);
+                client->connection = connection;
+                client->buffer = std::move(buffer);
+                co_await client->parse_request(j, size);
+            }
+            break;
+            default:
+                co_return;
         }
-        break;
-        case versions::HTTP_v2: {
-            auto client = http::http_v2::create(worker, config, site);
-            client->connection = connection;
-            client->buffer = std::move(buffer);
-            client->parse_request(j, size);
-        }
-        break;
+        co_return;
     }
 }
 

@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_WORKER_HTTPV2_HPP
-#define MANAPIHTTP_WORKER_HTTPV2_HPP
+#pragma once
 
 #include <thread>
 
@@ -111,11 +110,11 @@ namespace manapi::net::worker {
         http_v2 (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~http_v2() override;
 
-        void parse_request(ssize_t j, ssize_t size);
+        future<void> parse_request(ssize_t j, ssize_t size);
         void init_settings ();
         void set_callbacks (const http_v2_callbacks_t &callbacks);
 
-        ssize_t response (worker::connection &connection, http_response &resp, bool finish) override;
+        future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish) override;
 
         std::shared_ptr<worker::connection> connection;
         std::string buffer;
@@ -154,14 +153,14 @@ namespace manapi::net::worker {
 
         void _parse_number (char &c, size_t &num, size_t &length);
 
-        void send_frame (http2_frame_type frame, uint8_t flag, uint32_t stream_id, std::string_view data);
-        void send_empty_frame (http2_frame_type frame, char flag, int stream_id);
-        void send_ping_frame (std::string data={});
-        void close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "", int last_stream_id = 0);
+        future<void> send_frame (http2_frame_type frame, uint8_t flag, uint32_t stream_id, std::string_view data);
+        future<void> send_empty_frame (http2_frame_type frame, char flag, int stream_id);
+        future<void> send_ping_frame (std::string data={});
+        future<void> close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "", int last_stream_id = 0);
 
-        void send_settings (const std::vector <std::pair <short, int>> &options);
-        ssize_t send_data (int stream_id, const void *buf, ssize_t size, bool finish);
-        void send_window_frame (int stream_id, int size);
+        future<void> send_settings (const std::vector <std::pair <short, int>> &options);
+        future<ssize_t> send_data (int stream_id, const void *buf, ssize_t size, bool finish);
+        future<void> send_window_frame (int stream_id, int size);
 
         void default_ev_headers (int id, std::map <std::string, std::string> headers);
         void default_ev_data (int id);
@@ -172,8 +171,8 @@ namespace manapi::net::worker {
         void reset_all_streams ();
         static void session_worker (int id, bool body, net::site &site, std::shared_ptr<http::config> config, std::shared_ptr<worker::http_v2> worker);
 
-        ssize_t default_read (worker::connection &connection, void *buff, const size_t &size);
-        ssize_t default_write (worker::connection &connection, const void *buff, const size_t &size, bool flag);
+        future<ssize_t> default_read (worker::connection &connection, void *buff, const size_t &size);
+        future<ssize_t> default_write (worker::connection &connection, const void *buff, const size_t &size, bool flag);
 
         std::string stringify_stream_id (int stream_id);
 
@@ -255,5 +254,3 @@ namespace manapi::net::worker {
         static std::map <int, json_mask> allow_settings;
     };
 }
-
-#endif //MANAPIHTTP_WORKER_HTTPV2_HPP

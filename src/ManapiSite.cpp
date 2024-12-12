@@ -7,8 +7,8 @@
 #include "worker/QUIC.hpp"
 #include "worker/HTTPv2.hpp"
 
-#include "ManapiTaskFunction.hpp"
-#include "ManapiThreadPool.hpp"
+#include "services/ManapiTaskFunction.hpp"
+#include "services/ManapiThreadPool.hpp"
 
 namespace manapi::net {
     // default, +error, +layout in url
@@ -184,16 +184,16 @@ void manapi::net::site::set_compressed_cache_file(const std::string &file, const
 }
 
 const std::unique_ptr<manapi::net::threadpool<manapi::net::task>> & manapi::net::site::get_tasks_pool() const {
-    return tasks_pool;
+    return taskspool;
 }
 
 void manapi::net::site::tasks_pool_stop() {
-    if (tasks_pool != nullptr)
+    if (taskspool != nullptr)
     {
         // stop tasks
-        tasks_pool->stop();
+        taskspool->stop();
 
-        while (!tasks_pool->all_tasks_stopped())
+        while (!taskspool->all_tasks_stopped())
         {
             sched_yield();
         }
@@ -201,11 +201,11 @@ void manapi::net::site::tasks_pool_stop() {
 }
 
 void manapi::net::site::tasks_pool_init(const size_t &thread_num) {
-    if (tasks_pool == nullptr)
+    if (taskspool == nullptr)
     {
-        tasks_pool = std::make_unique<threadpool<task> >(thread_num);
+        taskspool = std::make_unique<threadpool<task> >(thread_num);
     }
-    tasks_pool->start();
+    taskspool->start();
 }
 
 void manapi::net::site::save() {
@@ -344,10 +344,6 @@ manapi::net::http_handler_page manapi::net::site::get_handler(request_data_t &re
 manapi::net::site::site() = default;
 
 manapi::net::site::~site() = default;
-
-void manapi::net::site::append_task(std::unique_ptr<task> t, const int &level) {
-    tasks_pool->append_task(std::move(t), level);
-}
 
 size_t manapi::net::site::append_timer(const std::chrono::milliseconds &duration, const std::function<void()> &task) {
     return timerpool->append_timer(duration, task);

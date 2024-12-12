@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_MANAPITHREADPOOL_H
-#define MANAPIHTTP_MANAPITHREADPOOL_H
+#pragma once
 
 #include <queue>
 #include <deque>
@@ -9,9 +8,10 @@
 #include <pthread.h>
 #include <iostream>
 #include <mutex>
+#include <coroutine>
 #include <condition_variable>
 
-#include "components/Atomic.hpp"
+#include "../components/Atomic.hpp"
 
 namespace manapi::net {
     template <class T>
@@ -20,6 +20,9 @@ namespace manapi::net {
         threadpool(size_t thread_num = 20, size_t queues_count = 3);
         ~threadpool();
         bool append_task (std::unique_ptr<T> task, int level = 0);
+        void append_task (T task);
+        void append_task (std::coroutine_handle<> handle);
+        void append_task (const std::function<void()> &cb);
         void start();
         void stop();
         size_t get_count_stopped_task ();
@@ -38,7 +41,7 @@ namespace manapi::net {
         void run();
         // execute the task
         void task_doit (std::unique_ptr<T> task);
-        std::unique_ptr<T> getTask();
+        std::unique_ptr<T> get_task();
         bool is_stop;
 
         sigset_t blockedSignal{};
@@ -48,5 +51,3 @@ namespace manapi::net {
         Atomic <size_t> stopped;
     };
 }
-
-#endif //MANAPIHTTP_MANAPITHREADPOOL_H

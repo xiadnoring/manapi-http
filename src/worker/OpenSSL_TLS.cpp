@@ -63,12 +63,12 @@ void manapi::net::worker::OpenSSL_TLS::init() {
         // setup ctx (load certs)
         ssl_configure_context();
 
-        this->write = [this](auto &&PH1, auto &&PH2, auto &&PH3, auto &&PH4) -> ssize_t {
-            return ssl_write(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2), std::forward<decltype(PH3)>(PH3));
+        this->write = [this](auto &PH1, auto PH2, auto &PH3, auto PH4) -> future<ssize_t> {
+            co_return co_await ssl_write(PH1, PH2, PH3);
         };
 
-        this->read = [this](auto &&PH1, auto &&PH2, auto &&PH3) -> ssize_t {
-            return ssl_read(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2), std::forward<decltype(PH3)>(PH3));
+        this->read = [this](auto &PH1, auto PH2, auto &PH3) -> future<ssize_t> {
+            co_return co_await ssl_read(PH1, PH2, PH3);
         };
     }
 }
@@ -104,11 +104,35 @@ manapi::net::worker::OpenSSL_TLS & manapi::net::worker::OpenSSL_TLS::operator=(O
 }
 
 void manapi::net::worker::OpenSSL_TLS::onrecv(const std::shared_ptr<worker::base> &worker) {
-    std::unique_ptr<http::HeaderView> task = std::make_unique<http::HeaderView>(worker, config, site);
+    auto connection = this->accept();
+    if (connection.first) { // new connection
+        std::unique_ptr<http::HeaderView> task = std::make_unique<http::HeaderView>(connection.second, worker, config, site);
 
-    if (worker->is_valid_connection(*task->connection)) {
-        site.append_task(std::move(task), 1);
-        std::this_thread::yield();
+        if (worker->is_valid_connection(*task->connection)) {
+            auto stack = task->doit();
+            auto fd = task->connection->as<connection_interface>().id;
+            stack._on_connection_finish([this, fd] () -> void {
+                stacks.update([this, &fd] (std::map<int, async_stack_storage> &n) -> void {
+                    auto it = n.find(fd);
+                    if (it != n.end()) {
+                        n.erase(it);
+                    }
+                    close (fd);
+                });
+            });
+            stack ();
+            if (!stack.finished()) {
+                stacks.update ([&] (auto &n) -> void {
+                    n.insert({fd, {
+                        .stack = std::move(stack),
+                        .storage = std::move(task)
+                    }});
+                });
+            }
+        }
+    }
+    else { // update connection
+        printf("hello world\n %d", connection.second->as<connection_interface>().id);
     }
 }
 
@@ -118,11 +142,10 @@ std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_T
     return std::move(worker);
 }
 
-manapi::net::worker::connection manapi::net::worker::OpenSSL_TLS::accept() {
-    worker::connection connection (new connection_interface (-1, nullptr), connection_interface_eraser);
-    connection.as<connection_interface>().id = ::accept(*config->get_socket_fd(), reinterpret_cast<struct sockaddr *>(&connection.client), &connection.len);
-    if (config->get_ssl_config()->enabled) {
-        connection.as<connection_interface>().ssl = SSL_new(ctx);
+std::pair <bool, std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::OpenSSL_TLS::accept() {
+    auto connection = TCP::accept([] () { return std::make_shared<worker::connection> (new connection_interface (-1), connection_interface_eraser); });
+    if (connection.first && config->get_ssl_config()->enabled) {
+        connection.second->as<connection_interface>().ssl = SSL_new(ctx);
     }
     return std::move(connection);
 }
@@ -256,20 +279,38 @@ bool manapi::net::worker::OpenSSL_TLS::established(worker::connection &conn, boo
     return result;
 }
 
-ssize_t manapi::net::worker::OpenSSL_TLS::ssl_write(connection &conn, const void *buff, const size_t &size) {
+manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &conn, const void *buff, const size_t &size) {
     std::lock_guard<std::mutex> lk (wmx);
-    if (!established(conn, true)) {
-        return -1;
+    while (true) {
+        auto rhs = SSL_write (conn.as<connection_interface>().ssl, buff, size);
+        if (rhs < 0) {
+            if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                continue;
+            }
+            break;
+        }
+
+        co_return rhs;
     }
-    return SSL_write (conn.as<connection_interface>().ssl, buff, size);
+    co_return -1;
 }
 
-ssize_t manapi::net::worker::OpenSSL_TLS::ssl_read(connection &conn, void *buff, const size_t &size) {
+manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &conn, void *buff, const size_t &size) {
     std::lock_guard<std::mutex> lk (rmx);
-    if (!established(conn, false)) {
-        return -1;
+    while (true) {
+        auto rhs = SSL_read (conn.as<connection_interface>().ssl, buff, size);
+        if (rhs < 0) {
+            if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                continue;
+            }
+
+            break;
+        }
+
+        co_return rhs;
     }
-    return SSL_read (conn.as<connection_interface>().ssl, buff, size);
+
+    co_return -1;
 }
 
 #endif // MANAPIHTTP_OPENSSL_DEPENDENCY

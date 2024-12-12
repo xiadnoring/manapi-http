@@ -1,10 +1,11 @@
-#ifndef MANAPIHTTP_MANAPIHTTPREQUEST_H
-#define MANAPIHTTP_MANAPIHTTPREQUEST_H
+#pragma once
 
 #include <netinet/in.h>
 #include <map>
 #include <string>
 #include <functional>
+
+#include "ManapiAsync.hpp"
 #include "ManapiHttpConfig.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
@@ -28,9 +29,9 @@ namespace manapi::net {
         [[nodiscard]] const utils::MAP_STR_STR &get_headers () const;
         [[nodiscard]] const std::string &get_param (const std::string &param) const;
         [[nodiscard]] std::string dump() const;
-        std::string text ();
-        manapi::json json ();
-        formdata_recv form ();
+        future<std::string> text ();
+        future<manapi::json> json ();
+        future<formdata_recv> form ();
         const size_t &get_body_size ();
         void set_max_plain_body_size (const size_t &size);
 
@@ -46,7 +47,7 @@ namespace manapi::net {
         void stop_propagation (const bool &stop_propagation = true);
         [[nodiscard]] const bool& get_propagation ();
     private:
-        void _read_body (const std::function<void(const char *, const size_t &)> &handler);
+        future<void> _read_body (const std::function<void(const char *, const size_t &)> &handler);
         void parse_map_url_param ();
         // peer ip
         const utils::manapi_socket_information *ip_data;
@@ -73,5 +74,3 @@ namespace manapi::net {
         bool is_propagation = true;
     };
 }
-
-#endif //MANAPIHTTP_MANAPIHTTPREQUEST_H

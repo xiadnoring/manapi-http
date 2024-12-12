@@ -1,9 +1,8 @@
-#ifndef MANAPIHTTP_MANAPIHTTPTYPES_H
-#define MANAPIHTTP_MANAPIHTTPTYPES_H
+#pragma once
 
 #include <string>
 #include <map>
-#include "ManapiThreadSafe.hpp"
+#include "components/ManapiThreadSafe.hpp"
 
 namespace manapi::net {
     static const struct {
@@ -160,5 +159,3 @@ namespace manapi::net {
         {ERR_DEBUG, "Debug"}
     };
 }
-
-#endif //MANAPIHTTP_MANAPIHTTPTYPES_H

@@ -1,5 +1,4 @@
-#ifndef MANAPITIMERPOOL_HPP
-#define MANAPITIMERPOOL_HPP
+#pragma once
 
 #include <chrono>
 #include <functional>
@@ -44,5 +43,3 @@ namespace manapi::net::utils {
     private:
     };
 }
-
-#endif //MANAPITIMERPOOL_HPP

@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_MANAPIHASH_H
-#define MANAPIHTTP_MANAPIHASH_H
+#pragma once
 
 #include <string>
 
@@ -52,5 +51,3 @@ namespace manapi::net::hash {
                | ((uint32) *((str) + 0) << 24);   \
     }
 }
-
-#endif //MANAPIHTTP_MANAPIHASH_H

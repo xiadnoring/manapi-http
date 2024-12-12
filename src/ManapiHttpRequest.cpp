@@ -61,7 +61,7 @@ std::string manapi::net::http_request::dump() const {
     return result;
 }
 
-std::string manapi::net::http_request::text() {
+manapi::net::future<std::string> manapi::net::http_request::text() {
     if (!request_data->has_body)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
@@ -79,29 +79,31 @@ std::string manapi::net::http_request::text() {
     size_t j                    = 0;
     //size_t socket_block_size    = http_server->get_socket_block_size();
 
-    _read_body([&body, &j] (const char *data, const size_t &size) -> void {
+    co_await _read_body([&body, &j] (const char *data, const size_t &size) -> void {
         memcpy (body.data() + j, data, size);
         j += size;
     });
 
-    return body;
+    co_return body;
 }
 
-manapi::json manapi::net::http_request::json()
+manapi::net::future<manapi::json> manapi::net::http_request::json()
 {
     // TODO: check with json_mask during processing read_mask()
     const auto &post_mask = get_post_mask();
     json_builder builder (*post_mask);
-    _read_body([&builder] (const char *data, const size_t &size) -> void {
+    co_await _read_body([&builder] (const char *data, const size_t &size) -> void {
         builder << std::string_view (data, size);
     });
 
-    return std::move(builder.get());
+    co_return std::move(builder.get());
 }
 
-manapi::net::formdata_recv manapi::net::http_request::form ()
+manapi::net::future<manapi::net::formdata_recv> manapi::net::http_request::form ()
 {
-    return  {*request_data, config, http_task};
+    formdata_recv formdata {*request_data, config, http_task};
+    co_await formdata._init();
+    co_return std::move(formdata);
 }
 
 const size_t &manapi::net::http_request::get_body_size() {
@@ -169,7 +171,7 @@ const bool & manapi::net::http_request::get_propagation() {
     return is_propagation;
 }
 
-void manapi::net::http_request::_read_body(const std::function<void(const char *, const size_t &)> &handler) {
+manapi::net::future<void> manapi::net::http_request::_read_body(const std::function<void(const char *, const size_t &)> &handler) {
     request_data->body_part = std::min (request_data->body_part, request_data->body_left);
 
     // TODO: speed up
@@ -178,7 +180,7 @@ void manapi::net::http_request::_read_body(const std::function<void(const char *
             request_data->body_left -= request_data->body_index;
             request_data->body_index =0;
             // get the next data
-            ssize_t rhs = http_task->read (request_data->buffer.data(), request_data->buffer.size());
+            ssize_t rhs = co_await http_task->read (request_data->buffer.data(), request_data->buffer.size());
             if (rhs == -1) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
             }

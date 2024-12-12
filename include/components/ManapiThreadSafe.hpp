@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <map>
 
-#include "ManapiBeforeDelete.hpp"
+#include "../ManapiBeforeDelete.hpp"
 
 namespace manapi::net::utils {
     template <typename K, typename V, class C = std::unordered_map <K, V>>

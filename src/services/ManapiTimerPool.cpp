@@ -1,9 +1,9 @@
 #include <thread>
 #include <limits>
 
-#include "ManapiTimerPool.hpp"
+#include "services/ManapiTimerPool.hpp"
 #include "ManapiUtils.hpp"
-#include "ManapiTaskFunction.hpp"
+#include "services/ManapiTaskFunction.hpp"
 
 manapi::net::utils::timerpool::timerpool(net::threadpool<net::task> &threadpool, const size_t &delay) {
     this->delay = delay;
@@ -37,7 +37,7 @@ void manapi::net::utils::timerpool::start() {
 
     while (!is_stop) {
         {
-            std::lock_guard<std::mutex> lk (mx);
+            std::lock_guard<std::mutex> sublk (mx);
 
             std::chrono::high_resolution_clock::now();
             auto now = std::chrono::high_resolution_clock::now();
@@ -71,7 +71,7 @@ void manapi::net::utils::timerpool::start() {
                     }
                 }
 
-                task++;
+                ++task;
             }
         }
 

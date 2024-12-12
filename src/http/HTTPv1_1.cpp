@@ -1,7 +1,7 @@
 #include "http/HTTPv1_1.hpp"
 
 #include "ManapiFilesystem.hpp"
-#include "ManapiFetch.hpp"
+#include "services/ManapiFetch.hpp"
 #include "http/HeaderView.hpp"
 
 manapi::net::http::http_v1_1::http_v1_1(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site) : base(std::move(worker), std::move(config), site) {
@@ -20,7 +20,7 @@ void manapi::net::http::http_v1_1::doit() {
 
 }
 
-void manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
+manapi::net::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
     request_data.body_index = 0;
 
     {
@@ -32,7 +32,7 @@ void manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
         goto skip;
 
         while (!parse_vars.finished) {
-            size = worker->read (*connection, buffer.data(), buffer.size());
+            size = co_await worker->read (*connection, buffer.data(), buffer.size());
             if (size <= 0) { break; }
             j = 0;
             skip: for (; j < size && !parse_vars.finished; j++) {
@@ -56,10 +56,10 @@ void manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
         request_data.body_index = 0;
         request_data.buffer = std::move(this->buffer);
 
-        expect_header();
+        co_await expect_header();
 
         if (size == j) {
-            ssize_t rhs = this->read(request_data.buffer.data(), request_data.buffer.size());
+            ssize_t rhs = co_await this->read(request_data.buffer.data(), request_data.buffer.size());
             if (rhs < 0) {
                 THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "this->read(...) = {}", rhs);
             }
@@ -77,12 +77,19 @@ void manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
         request_data.body_ptr = nullptr;
         request_data.body_size = 0;
     }
+
+    co_return;
 }
 
-void manapi::net::http::http_v1_1::execute_handler() {
-    if (upgrade_connection()) { return; }
+manapi::net::future<void> manapi::net::http::http_v1_1::execute_handler() {
+    if (co_await upgrade_connection()) { this->upgraded = true; co_return; }
     const auto handler = site.get_handler(request_data);
-    handle_request(&handler, request_data);
+    co_await handle_request(&handler, request_data);
+    co_return;
+}
+
+bool manapi::net::http::http_v1_1::connection_was_upgraded() const {
+    return this->upgraded;
 }
 
 void manapi::net::http::http_v1_1::_skip_white_space(char &c) {
@@ -154,7 +161,7 @@ void manapi::net::http::http_v1_1::_parse_headers(char &c) {
     }
 }
 
-bool manapi::net::http::http_v1_1::upgrade_connection() {
+manapi::net::future<bool> manapi::net::http::http_v1_1::upgrade_connection() {
     bool toupgrade = false;
 
     if (request_data.headers.contains(HTTP_HEADER.CONNECTION)) {
@@ -174,14 +181,14 @@ bool manapi::net::http::http_v1_1::upgrade_connection() {
     }
 
     if (toupgrade) {
-        http_response resp (request_data, 101, HTTP_STATUS.SWITCHING_PROTOCOLS_101, std::make_unique<api::pool> (site.get_tasks_pool().get()), *config);
+        http_response resp (request_data, 101, HTTP_STATUS.SWITCHING_PROTOCOLS_101, *config);
         resp.set_header(HTTP_HEADER.CONNECTION, "upgrade");
         resp.set_header(HTTP_HEADER.UPGRADE, "h2c");
-        send_response(resp);
+        co_await send_response(resp);
 
-        std::unique_ptr<HeaderView> hw = std::make_unique<HeaderView>(connection, worker, config, site);
-        site.append_task(std::move(hw), 1);
+        //std::unique_ptr<HeaderView> hw = std::make_unique<HeaderView>(connection, worker, config, site);
+        // TODO: thereis nothing we can do
     }
 
-    return toupgrade;
+    co_return toupgrade;
 }

@@ -1,5 +1,4 @@
-#ifndef MANAPIJSONBUILDER_HPP
-#define MANAPIJSONBUILDER_HPP
+#pragma once
 
 #include <functional>
 #include <memory>
@@ -103,5 +102,3 @@ namespace manapi {
         std::function <const json &()> next_parent;
     };
 }
-
-#endif //MANAPIJSONBUILDER_HPP

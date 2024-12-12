@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_MANAPIFILESYSTEM_H
-#define MANAPIHTTP_MANAPIFILESYSTEM_H
+#pragma once
 
 #include <filesystem>
 #include "ManapiUtils.hpp"
@@ -41,5 +40,3 @@ namespace manapi::net::filesystem::config {
     void write  (const std::string &name, json &data);
     json read   (const std::string &name);
 }
-
-#endif //MANAPIHTTP_MANAPIFILESYSTEM_H

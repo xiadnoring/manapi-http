@@ -30,10 +30,6 @@ class ManapiHttpConan(ConanFile):
             self.options.rm_safe("fPIC")
 
         if self.options.shared:
-            self.options["zlib/*"].shared = True
-            self.options["gmp/*"].shared = True
-            self.options["libcurl/*"].shared = True
-
             if self.options.get_safe('openssl-dependency', False):
                 self.options["openssl/*"].shared = True
 
@@ -88,7 +84,5 @@ class ManapiHttpConan(ConanFile):
             self.cpp_info.system_libs = ["dl", "m", "pthread"]
         elif self.settings.os == "Windows":
             self.cpp_info.system_libs = ["ws2_32", "shlwapi"]
-            if self.options.with_ssl == "schannel":
-                self.cpp_info.system_libs.append("secur32")
 
         self.cpp_info.libs = ["manapihttp"]

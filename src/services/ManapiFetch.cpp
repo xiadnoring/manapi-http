@@ -1,7 +1,7 @@
 #include <exception>
 
 #include "ManapiHttp.hpp"
-#include "ManapiFetch.hpp"
+#include "services/ManapiFetch.hpp"
 
 // Utils
 
@@ -108,12 +108,40 @@ manapi::net::fetch::fetch(const std::string &url) {
     this->curl    = curl_easy_init();
 }
 
+manapi::net::fetch::fetch(fetch &&n) noexcept {
+    this->operator=(std::forward<decltype(n)>(n));
+}
+
 manapi::net::fetch::~fetch() {
     if (curl != nullptr)
     {
         curl_easy_cleanup(curl);
         curl = nullptr;
     }
+}
+
+manapi::net::fetch & manapi::net::fetch::operator=(fetch &&n) noexcept {
+    curl_free(this->curl);
+    curl_slist_free_all(this->curl_headers);
+
+    this->status_code = n.status_code;
+    this->headers_list = std::move(n.headers_list);
+    this->url = std::move(n.url);
+    this->handle_custom_setup = std::move(n.handle_custom_setup);
+    this->handler_body = std::move(n.handler_body);
+    this->handler_headers = std::move(n.handler_headers);
+    this->body = n.body;
+    this->body_default = std::move(n.body_default);
+    this->method = std::move(n.method);
+    this->body_formdata = std::move(n.body_formdata);
+    this->curl = n.curl;
+    this->curl_headers = n.curl_headers;
+
+    n.curl = nullptr;
+    n.curl_headers = nullptr;
+    n.status_code = 200;
+    n.body = BODY_NONE;
+    return *this;
 }
 
 void manapi::net::fetch::doit() {

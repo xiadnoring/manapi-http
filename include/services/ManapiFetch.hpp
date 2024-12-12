@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_MANAPIFETCH_H
-#define MANAPIHTTP_MANAPIFETCH_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -8,8 +7,8 @@
 #include <curl/curl.h>
 
 #include "ManapiTask.hpp"
-#include "ManapiJson.hpp"
-#include "ManapiHttpRequest.hpp"
+#include "../ManapiJson.hpp"
+#include "../ManapiHttpRequest.hpp"
 
 namespace manapi::net {
 
@@ -52,7 +51,8 @@ namespace manapi::net {
     class fetch : public task {
     public:
         explicit fetch(const std::string &url);
-        ~fetch();
+        fetch(fetch &&n) noexcept;
+        ~fetch() override;
 
         enum body_type {
             BODY_NONE = 0,
@@ -60,6 +60,7 @@ namespace manapi::net {
             BODY_MULTIPART = 2
         };
 
+        fetch &operator=(fetch &&n) noexcept;
         void handle_body(const std::function<size_t(char *, const size_t&)> &handler);
         void handle_headers (const std::function<void(const std::map <std::string, std::string> &)> &handler);
 
@@ -84,9 +85,9 @@ namespace manapi::net {
         std::map <std::string, std::string> headers_list;
         std::string url;
 
-        std::function <void(CURL *)> handle_custom_setup = nullptr;
-        std::function <size_t(char *, size_t)> handler_body = nullptr;
-        std::function <void(const std::map <std::string, std::string> &)> handler_headers = nullptr;
+        std::function <void(CURL *)> handle_custom_setup;
+        std::function <size_t(char *, size_t)> handler_body;
+        std::function <void(const std::map <std::string, std::string> &)> handler_headers;
 
         body_type body = BODY_NONE;
 
@@ -98,5 +99,3 @@ namespace manapi::net {
         struct curl_slist* curl_headers = nullptr;
     };
 }
-
-#endif //MANAPIHTTP_MANAPIFETCH_H

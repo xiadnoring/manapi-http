@@ -10,12 +10,12 @@
 #include "../worker/Base.hpp"
 
 namespace manapi::net::http {
-    class HeaderView : public manapi::net::task {
+    class HeaderView {
     public:
         HeaderView (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         HeaderView (std::shared_ptr<worker::connection> connection, std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~HeaderView();
-        void doit () override;
+        future<void> doit ();
 
         std::shared_ptr <worker::connection> connection;
     private:

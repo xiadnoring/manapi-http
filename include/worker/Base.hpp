@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_WORKER_BASE_HPP
-#define MANAPIHTTP_WORKER_BASE_HPP
+#pragma once
 
 #include <memory>
 #include <functional>
@@ -41,22 +40,22 @@ namespace manapi::net::worker {
         virtual bool is_valid_connection (worker::connection &connection);
         virtual void init ();
         virtual void set_config (std::shared_ptr<manapi::net::http::config> config);
+
         virtual bool configure_connection (connection &conn) const;
 
-        virtual connection accept ();
+        virtual std::pair <bool, std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
+        virtual std::pair <bool, std::shared_ptr<manapi::net::worker::connection>> accept ();
 
         virtual void onrecv (const std::shared_ptr<worker::base> &worker);
 
         base &operator= (base &&n) noexcept;
 
-        virtual ssize_t response (worker::connection &connection, http_response &resp, bool finish);
+        virtual future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish);
         static std::shared_ptr<base> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
-        std::function<ssize_t(connection &conn, const void *buff, const size_t &size, bool finish)> write;
-        std::function<ssize_t(connection &conn, void *buff, const size_t &size)> read;
+        std::function<future<ssize_t>(connection &conn, const void *buff, const size_t &size, bool finish)> write;
+        std::function<future<ssize_t>(connection &conn, void *buff, const size_t &size)> read;
     protected:
         net::site &site;
         std::shared_ptr<manapi::net::http::config> config;
     };
 }
-
-#endif //MANAPIHTTP_WORKER_BASE_HPP

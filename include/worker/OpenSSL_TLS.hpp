@@ -21,7 +21,7 @@ namespace manapi::net::worker {
         void onrecv(const std::shared_ptr<worker::base> &worker) override;
         static std::shared_ptr<worker::OpenSSL_TLS> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
 
-        connection accept () override;
+        std::pair <bool, std::shared_ptr<manapi::net::worker::connection>> accept () override;
     private:
         static Atomic <bool> gl_init;
         static void connection_interface_eraser (void *ptr);
@@ -31,8 +31,8 @@ namespace manapi::net::worker {
 
         bool established (worker::connection &conn, bool flag) const override;
 
-        ssize_t ssl_write (connection &conn, const void *buff, const size_t &size);
-        ssize_t ssl_read (connection &conn, void *buff, const size_t &size);
+        future<ssize_t> ssl_write (connection &conn, const void *buff, const size_t &size);
+        future<ssize_t> ssl_read (connection &conn, void *buff, const size_t &size);
 
         std::mutex wmx, rmx, ssldbgmx;
         SSL_CTX *ctx = nullptr;

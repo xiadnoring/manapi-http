@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_MANAPIBIGINT_H
-#define MANAPIHTTP_MANAPIBIGINT_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -140,5 +139,3 @@ namespace manapi {
 
 std::ostream &operator<<(std::ostream &os, const manapi::bigint &m);
 std::istream &operator>>(std::istream &is, manapi::bigint &m);
-
-#endif //MANAPIHTTP_MANAPIBIGINT_H

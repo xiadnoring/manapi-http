@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_MANAPIJSON_H
-#define MANAPIHTTP_MANAPIJSON_H
+#pragma once
 
 #include <string>
 #include <map>
@@ -434,5 +433,3 @@ namespace manapi {
 #endif
     };
 }
-
-#endif //MANAPIHTTP_MANAPIJSON_H

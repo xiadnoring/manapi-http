@@ -2,17 +2,16 @@
 #include <fstream>
 #include <utility>
 #include "ManapiHttpResponse.hpp"
+
+#include "ManapiAsync.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpTypes.hpp"
 #include "ManapiHttpMime.hpp"
 
-manapi::net::http_response::http_response(manapi::net::request_data_t &_request_data, const size_t &_status, std::string _message, std::unique_ptr<api::pool> tasks, http::config &config): config(config), status_code(_status), status_message(std::move(_message)), http_version("1.1") {
-    this->tasks = std::move(tasks);
-
-    request_data    = &_request_data;
-
-    type            = MANAPIHTTP_RESP_NO_DATA;
+manapi::net::http_response::http_response(manapi::net::request_data_t &request_data, const size_t &_status, std::string message, http::config &config): config(config), status_code(_status), status_message(std::move(message)), http_version("1.1") {
+    this->request_data = &request_data;
+    this->type = MANAPIHTTP_RESP_NO_DATA;
 
     detect_ranges ();
 }

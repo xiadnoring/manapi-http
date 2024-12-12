@@ -2,6 +2,8 @@
 
 #include "worker/Base.hpp"
 
+#include <memory>
+
 manapi::net::worker::connection::connection(void *ptr, void(*eraser)(void*)): ptr (ptr, eraser) {}
 
 manapi::net::worker::connection::connection(connection &&n)  noexcept : ptr (std::move(n.ptr)) {
@@ -40,7 +42,12 @@ void manapi::net::worker::base::set_config(std::shared_ptr<manapi::net::http::co
 
 bool manapi::net::worker::base::configure_connection(connection &conn) const { return false; }
 
-manapi::net::worker::connection manapi::net::worker::base::accept() { return {nullptr, [] (void *ptr) -> void { }}; }
+std::pair<bool, std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept(
+    const std::function<std::shared_ptr<connection>()> &init) {
+    return {false, init ()};
+}
+
+std::pair <bool, std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept() { return this->accept([] () -> std::shared_ptr<connection> { return {nullptr, [] (void *ptr) -> void { }}; }); }
 
 void manapi::net::worker::base::onrecv(const std::shared_ptr<worker::base> &worker) {}
 
@@ -51,7 +58,7 @@ manapi::net::worker::base & manapi::net::worker::base::operator=(base &&n) noexc
     return *this;
 }
 
-ssize_t manapi::net::worker::base::response(worker::connection &connection, http_response &resp, bool finish) { return -1; }
+manapi::net::future<ssize_t> manapi::net::worker::base::response(worker::connection &connection, http_response &resp, bool finish) { co_return -1; }
 
 std::shared_ptr<manapi::net::worker::base> manapi::net::worker::base::create(net::site &site, std::shared_ptr<manapi::net::http::config> config) {
     auto worker = std::make_shared<base>(site);

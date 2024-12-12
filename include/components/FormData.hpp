@@ -1,7 +1,9 @@
 #ifndef MANAPIHTTP_FORMDATA_HPP
 #define MANAPIHTTP_FORMDATA_HPP
-#include "ManapiHttpConfig.hpp"
-#include "ManapiUtils.hpp"
+
+#include "ManapiAsync.hpp"
+#include "../ManapiHttpConfig.hpp"
+#include "../ManapiUtils.hpp"
 
 namespace manapi::net::http {
     class base;
@@ -18,16 +20,22 @@ namespace manapi::net {
     public:
         formdata_recv (request_data_t &request_data, std::shared_ptr<http::config> config, http::base *http_task);
         ~formdata_recv ();
+
+        formdata_recv (formdata_recv &&n) noexcept;
+        formdata_recv &operator=(formdata_recv &&n) noexcept;
+
+        future<void> _init ();
+
         [[nodiscard]] bool next_file () const;
         [[nodiscard]] bool next_param () const;
 
         [[nodiscard]] file_data_t about_file () const;
-        void get_file(const std::function<void(const char *, const size_t &)> &handler);
-        std::string get_file_to_str();
-        void save_file (const std::string &filepath);
+        future<void> get_file(const std::function<void(const char *, const size_t &)> &handler);
+        future<std::string> get_file_to_str();
+        future<void> save_file (const std::string &filepath);
 
         [[nodiscard]] const std::string &about_param () const;
-        std::pair <std::string, std::string> get_param ();
+        future<std::pair <std::string, std::string>> get_param ();
     private:
         enum data_type {
             DATA_NONE = 0,
@@ -35,13 +43,14 @@ namespace manapi::net {
             DATA_PLAIN = 2
         };
 
+        void _move (formdata_recv &&n) noexcept;
         static void buff_to_extra_buff (const request_data_t &req_data, const size_t &start, const size_t &end, std::string &dest, size_t &size);
-        void multipart_read_param (const std::function<void(const char *, const size_t &)> &send_line = nullptr);
-        void urlencoded_read_param (const std::function<void(const char *, const size_t &)> &send_line = nullptr);
+        future<void> multipart_read_param (const std::function<void(const char *, const size_t &)> &send_line = nullptr);
+        future<void> urlencoded_read_param (const std::function<void(const char *, const size_t &)> &send_line = nullptr);
 
-        std::function<void(const std::function<void(const char *, const size_t &)> &)> current_read_param;
+        std::function<future<void>(const std::function<void(const char *, const size_t &)> &)> current_read_param;
 
-        request_data_t &request_data;
+        request_data_t *request_data;
         // boundary --XXXXXxxxXXX for form data
         std::string body_boundary;
         std::shared_ptr<http::config> config;

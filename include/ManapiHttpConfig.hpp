@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTPCONFIG_HPP
-#define MANAPIHTTPCONFIG_HPP
+#pragma once
 
 #include <string>
 #include <functional>
@@ -130,5 +129,3 @@ namespace manapi::net::http {
         std::function<bool(const std::string &name)> function_contains_compressor = nullptr;
     };
 }
-
-#endif //MANAPIHTTPCONFIG_HPP

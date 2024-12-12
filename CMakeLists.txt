@@ -95,22 +95,21 @@ set(CMAKE_CXX_STANDARD 23)
 
 set(MANAPIHTTP_HTTP_FILES
         include/ManapiHttp.hpp
-        include/ManapiThreadPool.hpp
-        include/ManapiTask.hpp
+        include/services/ManapiThreadPool.hpp
+        include/services/ManapiTask.hpp
         include/ManapiUtils.hpp
         include/ManapiHttpResponse.hpp
         include/ManapiHttpRequest.hpp
         include/ManapiBigint.hpp
-        include/ManapiThreadSafe.hpp
+        include/components/ManapiThreadSafe.hpp
         include/ManapiHttpTypes.hpp
         include/ManapiFilesystem.hpp
         include/ManapiBase64.hpp
         include/compress/ManapiCompress.hpp
-        include/ManapiTaskFunction.hpp
+        include/services/ManapiTaskFunction.hpp
         include/ManapiHash.hpp
-        include/ManapiFetch.hpp
-        include/ManapiApi.hpp
-        include/ManapiTimerPool.hpp
+        include/services/ManapiFetch.hpp
+        include/services/ManapiTimerPool.hpp
         include/ManapiHttpPool.hpp
         include/ManapiJsonMask.hpp
         include/ManapiSite.hpp
@@ -123,7 +122,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiBeforeDelete.hpp
         include/worker/Base.hpp
         include/http/Base.hpp
-        include/ManapiTaskHttp.hpp
         include/worker/OpenSSL_TLS.hpp
         include/http/HTTPv1_1.hpp
         include/http/HTTPv1_1.hpp
@@ -140,8 +138,8 @@ set(MANAPIHTTP_HTTP_FILES
         ${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp
 
         src/ManapiHttp.cpp
-        src/ManapiThreadPool.cpp
-        src/ManapiTask.cpp
+        src/services/ManapiThreadPool.cpp
+        src/services/ManapiTask.cpp
         src/ManapiUtils.cpp
         src/ManapiHttpResponse.cpp
         src/ManapiHttpRequest.cpp
@@ -150,12 +148,11 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiCompress.cpp
         src/ManapiFilesystem.cpp
         src/ManapiHash.cpp
-        src/ManapiTaskFunction.cpp
-        src/ManapiApi.cpp
-        src/ManapiFetch.cpp
+        src/services/ManapiTaskFunction.cpp
+        src/services/ManapiFetch.cpp
         src/ManapiJsonMask.cpp
         src/ManapiHttpPool.cpp
-        src/ManapiTimerPool.cpp
+        src/services/ManapiTimerPool.cpp
         src/ManapiSite.cpp
         src/ManapiHttpConfig.cpp
         src/ManapiUnicode.cpp
@@ -163,7 +160,6 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiBeforeDelete.cpp
         src/worker/Base.cpp
         src/http/Base.cpp
-        src/ManapiTaskHttp.cpp
         src/worker/OpenSSL_TLS.cpp
         src/http/HTTPv1_1.cpp
         src/http/HTTPv2.cpp
@@ -174,7 +170,11 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/QUIC.cpp
         src/worker/TCP.cpp
         src/components/FormData.cpp
-        include/components/FormData.hpp)
+        include/components/FormData.hpp
+        src/ManapiAsync.cpp
+        include/ManapiAsync.hpp
+        src/services/ManapiFutureTask.cpp
+        include/services/ManapiFutureTask.hpp)
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
     # EXE
