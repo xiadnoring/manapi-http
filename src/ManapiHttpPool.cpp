@@ -18,12 +18,14 @@
 
 #include "http/HeaderView.hpp"
 
-manapi::net::http_pool::http_pool(const json &config, class site *site, const size_t &id) {
+manapi::net::http_pool::http_pool(const json &config, class site *site, const size_t &id, ev::loop_ref loop) : loop(loop) {
     this->config = std::make_shared <http::config> (config);
     this->id = id;
     this->site = site;
 
-    this->config->set_function_contains_compressor([site] (const std::string &name) -> bool { return site->contains_compressor(name); });
+    this->config->set_function_contains_compressor([site] (const std::string &name) -> bool {
+        return site->contains_compressor(name);
+    });
 }
 
 manapi::net::http_pool::~http_pool() = default;
@@ -33,8 +35,7 @@ ev::loop_ref manapi::net::http_pool::get_loop() {
 }
 
 void manapi::net::http_pool::stop() {
-    std::lock_guard <std::mutex> lock (m_initing);
-
+    std::lock_guard<std::mutex> lk (this->mx);
     MANAPIHTTP_LOG("{}", "shutdown socket");
 
     // close socket
@@ -42,43 +43,20 @@ void manapi::net::http_pool::stop() {
 
     // stop watcher
     ev_io->stop();
-
-    // break loop
-    loop.break_loop();
-
-    // wait while loop is running
-    std::lock_guard<std::mutex> lk (m_running);
 }
 
-std::future <int> manapi::net::http_pool::run() {
-    // wait until another loop is stopping
-    m_running.lock();
-
-    pool_promise = std::make_unique<std::promise <int> > ();
-
-    std::thread t ([this] () {
-        utils::before_delete unwrap_pool_promise ([this] () -> void {
-            pool_promise = nullptr;
-
-            m_running.unlock();
-        });
-
-        pool_promise->set_value(_pool());
-    });
-
-    t.detach();
-
-    return pool_promise->get_future();
+void manapi::net::http_pool::run() {
+    this->_pool();
 }
 
 int manapi::net::http_pool::_pool() {
     MANAPIHTTP_LOG("pool init #{}", id);
 
-    std::unique_lock <std::mutex> lock (m_initing);
+    std::unique_lock <std::mutex> lock (mx);
 
     MANAPIHTTP_LOG("pool start #{}", id);
 
-    ev_io  = std::make_unique<ev::io> (loop);
+    ev_io = std::make_unique<ev::io> (loop);
 
     {
         auto implementation = config->get_implementation();
@@ -90,6 +68,7 @@ int manapi::net::http_pool::_pool() {
             auto generate = implementations[*implementation];
             worker = generate (config);
             worker->init();
+            worker->loop = this->loop;
         }
         else
         {
@@ -110,10 +89,6 @@ int manapi::net::http_pool::_pool() {
     // create watcher
     ev_io->set <http_pool, &http_pool::new_connection> (this);
     ev_io->start(*config->get_socket_fd(), ev::READ);
-
-    // say that it can be delete
-    lock.unlock();
-    loop.run(ev::AUTO);
 
     return 0;
 }

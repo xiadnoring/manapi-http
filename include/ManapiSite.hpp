@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <ev++.h>
 #include <regex>
 #include <list>
 
@@ -88,6 +89,8 @@ namespace manapi::net {
         site ();
         ~site();
 
+        manapi::net::async_delay delay (const std::chrono::seconds &n);
+
         size_t append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         size_t append_interval (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         void remove_timer (const size_t &id);
@@ -126,7 +129,9 @@ namespace manapi::net {
         void setup_config ();
         void save ();
         void save_config ();
+
         manapi::json config;
+        ev::dynamic_loop loop;
     private:
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);

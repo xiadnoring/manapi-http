@@ -18,13 +18,13 @@
 namespace manapi::net {
     class http_pool {
     public:
-        explicit http_pool(const json &config, class site *site, const size_t &id);
+        explicit http_pool(const json &config, class site *site, const size_t &id, ev::loop_ref loop);
         ~http_pool();
 
         ev::loop_ref get_loop ();
 
         void stop ();
-        std::future <int> run ();
+        void run ();
 
         void new_connection (ev::io &watcher, int revents);
 
@@ -45,10 +45,9 @@ namespace manapi::net {
 
         // pool
 
-        std::mutex m_running;
-        std::mutex m_initing;
+        std::mutex mx;
 
-        ev::dynamic_loop loop;
+        ev::loop_ref loop;
         std::unique_ptr<std::promise <int> > pool_promise;
 
         class site *site;

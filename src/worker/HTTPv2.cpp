@@ -56,7 +56,7 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
     try {
         ping_interval = site.append_interval(std::chrono::milliseconds (protocol.ping_interval), [this] () -> void {
             auto future = send_ping_frame();
-            future();
+            future.get();
         });
 
         goto skip;
@@ -64,12 +64,8 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
             rhs = co_await worker->read (*connection, buffer.data(), buffer.size());
 
             if (rhs <= 0) {
-                if (protocol.current_timeout < 0) {
-                    co_await close_connection(HTTP2_ERROR_PROTOCOL_ERROR, "timeout");
-                    break;
-                }
-                protocol.current_timeout -= *config->get_recv_timeout();
-                continue;
+                co_await close_connection(HTTP2_ERROR_PROTOCOL_ERROR, "timeout");
+                break;
             }
 
             parse_vars.size = rhs;
@@ -106,6 +102,8 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
                     protocol.initial_frame = false;
                 }
 
+                MANAPIHTTP_LOG("FRAME TYPE: {}", protocol.type);
+
                 switch (protocol.type) {
                     case HTTP2_FRAME_SETTINGS: {
                         if (protocol.flag & HTTP2_FLAG_SETTINGS_ACK) {
@@ -114,7 +112,7 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
                             protocol.setting_timeout.pop();
                         }
                         else {
-                            co_await send_frame (HTTP2_FRAME_SETTINGS, HTTP2_FLAG_SETTINGS_ACK, 0, "");
+                            co_await send_frame (HTTP2_FRAME_SETTINGS, HTTP2_FLAG_SETTINGS_ACK, 0, {});
                         }
                         break;
                     }
@@ -754,7 +752,7 @@ void manapi::net::worker::http_v2::default_ev_headers(int id, std::map<std::stri
         .id = id,
         .headers = std::move(headers),
         .rst = false,
-        .write = {[this, id](auto PH1, auto PH2, auto PH3) -> future<ssize_t> { co_return co_await send_data(id, PH1, PH2, PH3); },
+        .write = {[this, id](auto PH1, auto PH2, auto PH3) -> future<ssize_t> { const auto rhs = co_await send_data(id, PH1, PH2, PH3); co_return rhs; },
             static_cast<size_t>(protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first},
         .read = {[this, id](auto PH1) -> future<void> { co_await send_window_frame(id, PH1); co_return; }, 100000}
     }});
@@ -857,7 +855,8 @@ manapi::net::future<ssize_t> manapi::net::worker::http_v2::default_read(worker::
         if (session->rst) { co_return -1; }
         worker = &session->read;
     }
-    co_return co_await worker->read(buff, size);
+    const auto rhs = co_await worker->read(buff, size);
+    co_return rhs;
 }
 
 manapi::net::future<ssize_t> manapi::net::worker::http_v2::default_write(worker::connection &connection, const void *buff, const size_t &size, bool flag) {

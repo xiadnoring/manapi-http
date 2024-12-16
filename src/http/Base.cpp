@@ -242,7 +242,8 @@ manapi::net::future<void> manapi::net::http::base::send_response_proxy(manapi::n
 }
 
 manapi::net::future<ssize_t> manapi::net::http::base::mask_response(manapi::net::http_response &resp, bool finish) {
-    co_return co_await worker->response(*connection, resp, finish);
+    const auto rhs = co_await worker->response(*connection, resp, finish);
+    co_return rhs;
 }
 
 manapi::net::future<void> manapi::net::http::base::handle_request(const http_handler_page *data, request_data_t &request_data, const size_t &status, const std::string &message) {
@@ -594,5 +595,6 @@ std::string manapi::net::http::base::compress_file(const std::string &file, cons
 }
 
 manapi::net::future<ssize_t> manapi::net::http::base::read(void *buf, size_t size) {
-    co_return co_await worker->read (*connection, buf, size);
+    auto rhs = co_await worker->read (*connection, buf, size);
+    co_return rhs;
 }

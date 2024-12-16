@@ -28,7 +28,7 @@ manapi::net::formdata_recv & manapi::net::formdata_recv::operator=(formdata_recv
 }
 
 manapi::net::future<> manapi::net::formdata_recv::_init() {
-    if (current_read_param != nullptr) {
+    if (this->current_read_param != nullptr) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "FormData Parser was already initializated");
     }
 
@@ -37,7 +37,7 @@ manapi::net::future<> manapi::net::formdata_recv::_init() {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
     }
 
-    const auto header     = utils::parse_header_value(this->request_data->headers.at(HTTP_HEADER.CONTENT_TYPE));
+    const auto header = utils::parse_header_value(this->request_data->headers.at(HTTP_HEADER.CONTENT_TYPE));
 
     if (header.empty())
     {
@@ -53,26 +53,27 @@ manapi::net::future<> manapi::net::formdata_recv::_init() {
             THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_BOUNDARY_MISSING, "{}", "boundary not found");
         }
 
-        body_boundary = SPECIAL_SYMBOLS_BOUNDARY + header[0].params.at("boundary");
+        this->body_boundary = SPECIAL_SYMBOLS_BOUNDARY + header[0].params.at("boundary");
 
         // the pointer to value of the param in a map params
-        buff_extra.resize(std::max(4096UL, this->request_data->buffer.size()));
-
+        this->buff_extra.resize(std::max(4096UL, this->request_data->buffer.size()));
+        this->content_type_form = CONTENT_TYPE_MULTIPART_FORM_DATA;
         // get the first metadata (name, type and etc)
-        current_read_param = [this] (auto &param1) -> future<void> { co_await this->multipart_read_param (param1); co_return; };
-        co_await current_read_param(nullptr);
+        this->current_read_param = [this] (auto &param1) -> future<void> { co_await this->multipart_read_param (param1); co_return; };
+        co_await this->current_read_param(nullptr);
     }
     else if (content_type == HTTP_MIME.APPLICATION_X_WWW_FORM_URLENCODED)
     {
         this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left);
+        this->content_type_form = CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED;
+        this->buff_extra.resize(2);
 
-        buff_extra.resize(2);
-
-        current_read_param = [this] (auto &param1) -> future<void> { co_await this->urlencoded_read_param (param1); co_return; };
-        co_await current_read_param(nullptr);
+        this->current_read_param = [this] (auto &param1) -> future<void> { co_await this->urlencoded_read_param (param1); co_return; };
+        co_await this->current_read_param(nullptr);
     }
     else
     {
+        this->content_type_form = CONTENT_TYPE_NONE;
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_INVALID_CONTENT_TYPE, "Invalid POST DATA MIME-type: {}", content_type);
     }
 
@@ -533,14 +534,26 @@ manapi::net::future<std::pair<std::string, std::string>> manapi::net::formdata_r
 }
 
 void manapi::net::formdata_recv::_move(formdata_recv &&n) noexcept {
-    this->current_read_param = std::move(n.current_read_param);
     this->body_boundary = std::move(n.body_boundary);
     this->buff_extra = std::move(n.buff_extra);
     this->file_data = std::move(n.file_data);
     this->first_line = n.first_line;
     this->param_data = std::move(n.param_data);
     this->type = n.type;
+    this->content_type_form = n.content_type_form;
 
+    switch (this->content_type_form) {
+        case CONTENT_TYPE_MULTIPART_FORM_DATA:
+            this->current_read_param = [this] (auto &param1) -> future<void> { co_await this->multipart_read_param (param1); co_return; };
+        break;
+        case CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED:
+            this->current_read_param = [this] (auto &param1) -> future<void> { co_await this->urlencoded_read_param (param1); co_return; };
+        break;
+        default:
+            break;
+    }
+
+    n.current_read_param = nullptr;
     n.type = DATA_NONE;
     n.first_line = true;
 }

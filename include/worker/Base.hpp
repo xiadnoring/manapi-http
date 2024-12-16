@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <functional>
+#include <ev++.h>
 
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiHttpResponse.hpp"
@@ -54,6 +55,7 @@ namespace manapi::net::worker {
         static std::shared_ptr<base> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::function<future<ssize_t>(connection &conn, const void *buff, const size_t &size, bool finish)> write;
         std::function<future<ssize_t>(connection &conn, void *buff, const size_t &size)> read;
+        ev::loop_ref loop = nullptr;
     protected:
         net::site &site;
         std::shared_ptr<manapi::net::http::config> config;

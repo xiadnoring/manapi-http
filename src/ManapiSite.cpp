@@ -357,6 +357,11 @@ void manapi::net::site::remove_timer(const size_t &id) {
     timerpool->remove_timer(id);
 }
 
+manapi::net::async_delay manapi::net::site::delay(const std::chrono::seconds &n) {
+    return {*timerpool, n};
+}
+
+
 manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
     size_t  type            = URI_PAGE_DEFAULT;
 

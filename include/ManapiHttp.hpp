@@ -33,22 +33,17 @@ namespace manapi::net::http {
 
         void GET (const std::string &uri, const std::string &folder);
 
-        void stop (bool wait = false);
-
-        manapi::net::async_delay delay (const std::chrono::seconds &n);
+        future<void> stop ();
 
         static void stop_all_servers ();
     private:
-        static bool stopped_interrupt;
-        static std::vector <server *> running;
+        static std::atomic<bool> stopped_interrupt;
+        static Atomic<std::set <server *>> running;
         void stop_pool ();
 
         class site current;
 
-        std::mutex m_initing;
-        std::mutex m_running;
-        std::mutex m_stopping;
-        std::condition_variable cv_stopping;
+        std::mutex mx;
         std::atomic <bool> stopping;
 
         std::unique_ptr<std::promise <void>> pool_promise;

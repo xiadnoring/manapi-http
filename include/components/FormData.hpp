@@ -43,6 +43,12 @@ namespace manapi::net {
             DATA_PLAIN = 2
         };
 
+        enum content_type {
+            CONTENT_TYPE_NONE = 0,
+            CONTENT_TYPE_MULTIPART_FORM_DATA = 1,
+            CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED = 2
+        };
+
         void _move (formdata_recv &&n) noexcept;
         static void buff_to_extra_buff (const request_data_t &req_data, const size_t &start, const size_t &end, std::string &dest, size_t &size);
         future<void> multipart_read_param (const std::function<void(const char *, const size_t &)> &send_line = nullptr);
@@ -62,6 +68,7 @@ namespace manapi::net {
 
         bool first_line = true;
         data_type type = DATA_NONE;
+        content_type content_type_form = CONTENT_TYPE_NONE;
     };
 }
 

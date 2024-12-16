@@ -313,8 +313,9 @@ int main (int argc, char *argv[]) {
 
         debug_print_memory("pool");
 
-        server.pool(4).get();
-        // this_thread::sleep_for(std::chrono::seconds(20));
+        server.pool(20).get();
+        debug_print_memory("preend");
+        this_thread::sleep_for(std::chrono::seconds(2));
         // server.stop();
         // this_thread::sleep_for(std::chrono::seconds(100));
 

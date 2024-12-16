@@ -22,12 +22,6 @@
 #include "ManapiUtils.hpp"
 #include "http/HeaderView.hpp"
 
-struct connection_interface {
-    int id;
-    SSL *ssl;
-    bool configured = false;
-};
-
 manapi::net::Atomic <bool> manapi::net::worker::OpenSSL_TLS::gl_init = false;
 
 void ssl_library_init (bool &gl_init) {
@@ -64,11 +58,13 @@ void manapi::net::worker::OpenSSL_TLS::init() {
         ssl_configure_context();
 
         this->write = [this](auto &PH1, auto PH2, auto &PH3, auto PH4) -> future<ssize_t> {
-            co_return co_await ssl_write(PH1, PH2, PH3);
+            const auto rhs = co_await ssl_write(PH1, PH2, PH3);
+            co_return rhs;
         };
 
         this->read = [this](auto &PH1, auto PH2, auto &PH3) -> future<ssize_t> {
-            co_return co_await ssl_read(PH1, PH2, PH3);
+            const auto rhs = co_await ssl_read(PH1, PH2, PH3);
+            co_return rhs;
         };
     }
 }
@@ -112,7 +108,7 @@ void manapi::net::worker::OpenSSL_TLS::onrecv(const std::shared_ptr<worker::base
             auto stack = task->doit();
             auto fd = task->connection->as<connection_interface>().id;
             stack._on_connection_finish([this, fd] () -> void {
-                stacks.update([this, &fd] (std::map<int, async_stack_storage> &n) -> void {
+                stacks.update([this, &fd] (std::map<int, std::shared_ptr<async_stack_storage>> &n) -> void {
                     auto it = n.find(fd);
                     if (it != n.end()) {
                         n.erase(it);
@@ -123,10 +119,8 @@ void manapi::net::worker::OpenSSL_TLS::onrecv(const std::shared_ptr<worker::base
             stack ();
             if (!stack.finished()) {
                 stacks.update ([&] (auto &n) -> void {
-                    n.insert({fd, {
-                        .stack = std::move(stack),
-                        .storage = std::move(task)
-                    }});
+                    auto it = std::make_shared<async_stack_storage>(std::move(stack), std::move(task));
+                    n.insert({fd, std::move(it)});
                 });
             }
         }
@@ -143,9 +137,10 @@ std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_T
 }
 
 std::pair <bool, std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::OpenSSL_TLS::accept() {
-    auto connection = TCP::accept([] () { return std::make_shared<worker::connection> (new connection_interface (-1), connection_interface_eraser); });
+    auto connection = TCP::accept([] () { return std::make_shared<worker::connection> (new connection_interface {-1}, connection_interface_eraser); });
     if (connection.first && config->get_ssl_config()->enabled) {
         connection.second->as<connection_interface>().ssl = SSL_new(ctx);
+
     }
     return std::move(connection);
 }

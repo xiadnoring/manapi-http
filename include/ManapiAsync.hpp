@@ -4,8 +4,13 @@
 #include <memory>
 #include <functional>
 #include <iostream>
+#include <thread>
+#include <atomic>
+#include <mutex>
 
 namespace manapi::net {
+    static std::atomic<ssize_t> ress (0);
+
     struct promise_stack_data {
         std::function<void()> cb;
         bool finished;
@@ -36,12 +41,6 @@ namespace manapi::net {
 
         void unhandled_exception () {
             exception = std::current_exception();
-        }
-
-        void run_connection_finish_data_ () {
-            if(this->connection_finish_data != nullptr && this->connection_finish_data->finished) {
-                this->connection_finish_data->cb();
-            }
         }
 
         void _check_it_owner () {
@@ -120,8 +119,12 @@ namespace manapi::net {
 
         using value_type = T;
         using promise_type = promise;
-        explicit future(std::coroutine_handle<promise> handle) : handle (handle){}
+        explicit future(std::coroutine_handle<promise> handle) : handle (handle) {
+            ress.fetch_add(1);
+        }
+
         ~future() {
+                ress.fetch_sub(1);
             if (this->handle) {
                 this->handle.destroy();
                 this->handle = {};
@@ -149,20 +152,36 @@ namespace manapi::net {
         template <typename T1 = T>
         requires(std::is_same_v<T1, void>)
         void await_resume() {
-            auto &promise = this->handle.promise();
-            if (promise.exception) {
-                std::rethrow_exception(promise.exception);
+            auto &promise_ = this->handle.promise();
+
+            if (promise_.exception) {
+                std::rethrow_exception(promise_.exception);
             }
         }
 
         template <typename T1 = T>
         requires(!std::is_same_v<T1, void>)
         T await_resume() {
-            auto &promise = this->handle.promise();
-            if (promise.exception) {
-                std::rethrow_exception(promise.exception);
+            auto &promise_ = this->handle.promise();
+            if (promise_.exception) {
+                std::rethrow_exception(promise_.exception);
             }
-            return std::move(promise.get_value());
+
+            return std::move(promise_.get_value());
+        }
+
+        template <typename T1 = T>
+        requires(std::is_same_v<T1, void>)
+        void get() {
+            if (!this->handle.done()) {
+                std::mutex mx;
+                mx.lock();
+                this->_on_connection_finish([&mx] () -> void {
+                    mx.unlock();
+                });
+                handle.resume();
+                mx.lock();
+            }
         }
 
         template <typename T1>
@@ -186,6 +205,16 @@ namespace manapi::net {
                     false,
                     &this->handle.promise()
                 );
+            }
+        }
+
+        template <typename T1>
+        requires(std::is_base_of_v<promise_base, T1>)
+        static void resume_promise (std::coroutine_handle<T1> handle) {
+            auto cnd = handle.promise().connection_finish_data;
+            handle.resume();
+            if (cnd != nullptr && cnd->finished) {
+                cnd->cb();
             }
         }
 
@@ -236,16 +265,42 @@ namespace manapi::net {
             return false;
         }
 
-        void await_suspend (std::coroutine_handle<future<>::promise> handle) {
+        template <typename T1>
+        requires(std::is_base_of_v<promise_base, T1>)
+        void await_suspend (std::coroutine_handle<T1> handle) {
             timerpool.append_timer(time, [handle] () -> void {
-                handle.resume();
-                auto &promise = handle.promise();
-                promise.run_connection_finish_data_();
+                future<>::resume_promise(handle);
             });
         }
         void await_resume () const {}
     private:
         utils::timerpool &timerpool;
         std::chrono::seconds time{};
+    };
+}
+
+namespace manapi::net {
+    class async_thread {
+    public:
+        async_thread (const std::function<void()> &cb) {
+            this->cb = cb;
+        }
+        ~async_thread() = default;
+        [[nodiscard]] bool await_ready () const {
+            return false;
+        }
+
+        template <typename T1>
+        requires(std::is_base_of_v<promise_base, T1>)
+        void await_suspend (std::coroutine_handle<T1> handle) {
+            std::jthread t ([cb = std::move(this->cb), handle] () -> void {
+                cb();
+                future<>::resume_promise(handle);
+            });
+            t.detach();
+        }
+        void await_resume () const {}
+    private:
+        std::function<void()> cb;
     };
 }

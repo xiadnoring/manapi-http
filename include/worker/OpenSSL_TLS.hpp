@@ -11,6 +11,10 @@
 namespace manapi::net::worker {
     class OpenSSL_TLS : public worker::TCP {
     public:
+        struct connection_interface : TCP::connection_interface {
+            SSL *ssl{};
+        };
+
         OpenSSL_TLS (net::site &site);
         OpenSSL_TLS (OpenSSL_TLS && n) noexcept;
         ~OpenSSL_TLS ();
