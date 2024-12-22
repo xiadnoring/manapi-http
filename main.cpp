@@ -336,8 +336,6 @@ int main (int argc, char *argv[]) {
         this_thread::sleep_for(std::chrono::seconds(2));
         // server.stop();
         // this_thread::sleep_for(std::chrono::seconds(100));
-
-
     }
 
     debug_print_memory("end");

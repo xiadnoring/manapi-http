@@ -72,62 +72,65 @@ int main ()
     
     server.GET ("/", "/static/files");
     
-    server.GET ("/+error", [](REQ(req), RESP(resp)) {
+    server.GET ("/+error", [](REQ(req), RESP(resp)) -> future<void> {
         std::map <std::string, std::string> replacers = {
             {"status_code", std::to_string(resp.get_status_code())},
             {"status_message", resp.get_status_message()}
         };
         resp.set_replacers (replacers);
         resp.file ("/error.html");
+        co_return;
     });
     
-    server.POST ("/api/+error", [](REQ(req), RESP(resp)) {
+    server.POST ("/api/+error", [](REQ(req), RESP(resp)) -> future<void>  {
         resp.json ({
             {"error", true},
             {"message", "An error has occurred"}
         });
+        co_return;
     });
     
     {
         const json_mask post_mask = {
-            {"id", "{string(<=2)|number(>=0 <100)}"}
+            {"id", "{string(<=2)|integer(>=0 <100)}"}
             {"first-name", "{string(>=5 <70)}"},
             {"last-name", "{string(>=5 <70)}"},
-            {"age", "{number(>=18 <100)}"},
+            {"age", "{integer(>=18 <100)}"},
             {"tags", "{string(>=3 <10)[<10]}"}
         };
         
-        server.POST ("/api/[key]/form", [&flag](REQ(req), RESP(resp)) {
+        server.POST ("/api/[key]/form", [&flag](REQ(req), RESP(resp)) -> future<void>  {
             if (req.get_param("key") != "123")
             {
                 throw std::runtime_error ("bad key");
             }
             
-            json jp = {
+            json data = {
                 {"flag", flag ? "yes" : "no"}
             };
             
-            auto formData = req.form();
+            auto formData = co_await req.form();
             
             for (auto &item: formData)
             {
                 jp.insert(item.first, item.second);
             }
             
-            resp.json(jp, 4);
-            
+            resp.json(data, 4);
+            co_return;
         }, nullptr, post_mask);
     }
     
-    server.GET ("/api/[key]/toggle", [&flag](REQ(req), RESP(resp)) {
+    server.GET ("/api/[key]/toggle", [&flag](REQ(req), RESP(resp)) -> future<void>  {
         if (req.get_param("key") != "123")
         {
             throw std::runtime_error ("bad key");
         }
         
-        flag = !flag;
+        flag.store(!flag.load());
         
         resp.text ("ok");
+        co_return;
     });
 
     auto f = server.pool(20);
