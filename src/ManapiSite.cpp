@@ -72,9 +72,9 @@ void manapi::net::site::setup() {
 #endif
 }
 
-void manapi::net::site::timer_pool_setup(threadpool<task> *tasks_pool) {
-    timerpool = std::make_unique<utils::timerpool>(*tasks_pool, 5);
-    tasks_pool->append_task(std::make_unique<function_task>([this] () -> void { timerpool->doit(); }));
+void manapi::net::site::timer_pool_setup(threadpool<task> *task_pool) {
+    timerpool = std::make_unique<utils::timerpool>(*task_pool, 5);
+    task_pool->append_task(std::make_unique<function_task>([this] () -> void { timerpool->doit(); }));
 }
 
 void manapi::net::site::timer_pool_stop() {
@@ -139,34 +139,35 @@ void manapi::net::site::setup_config() {
     }
 }
 
-const std::string *manapi::net::site::get_compressed_cache_file(const std::string &file, const std::string &algorithm) {
+std::string manapi::net::site::get_compressed_cache_file(const std::string &file, const std::string &algorithm) {
     if (!cache_config.contains(algorithm))
     {
-        return nullptr;
+        return {};
     }
 
 
-    auto &files = cache_config[algorithm];
+    auto &files = cache_config.at(algorithm);
 
     if (!files.contains(file))
     {
-        return nullptr;
+        return {};
     }
 
     auto &file_info = files[file];
-
     if (file_info.at("last-write").get<std::string>() == manapi::net::filesystem::last_time_write(file, true)) {
         auto &compressed = file_info.at("compressed").get<std::string>();
 
         if (manapi::net::filesystem::exists(compressed))
         {
-            return &compressed;
+            return compressed;
         }
+
+        return {};
     }
 
     files.erase(file);
 
-    return nullptr;
+    return {};
 }
 
 void manapi::net::site::set_compressed_cache_file(const std::string &file, const std::string &compressed, const std::string &algorithm) {
@@ -183,29 +184,26 @@ void manapi::net::site::set_compressed_cache_file(const std::string &file, const
     cache_config[algorithm].insert(file, file_info);
 }
 
-const std::unique_ptr<manapi::net::threadpool<manapi::net::task>> & manapi::net::site::get_tasks_pool() const {
-    return taskspool;
+std::shared_ptr<manapi::net::threadpool<manapi::net::task>> manapi::net::site::get_task_pool() const {
+    return taskpool;
 }
 
-void manapi::net::site::tasks_pool_stop() {
-    if (taskspool != nullptr)
+void manapi::net::site::task_pool_stop() {
+    if (taskpool != nullptr)
     {
         // stop tasks
-        taskspool->stop();
+        taskpool->stop();
 
-        while (!taskspool->all_tasks_stopped())
+        while (!taskpool->all_tasks_stopped())
         {
             sched_yield();
         }
     }
 }
 
-void manapi::net::site::tasks_pool_init(const size_t &thread_num) {
-    if (taskspool == nullptr)
-    {
-        taskspool = std::make_unique<threadpool<task> >(thread_num);
-    }
-    taskspool->start();
+void manapi::net::site::task_pool_init(const size_t &thread_num) {
+    taskpool->resize(thread_num);
+    taskpool->start();
 }
 
 void manapi::net::site::save() {
@@ -341,7 +339,7 @@ manapi::net::http_handler_page manapi::net::site::get_handler(request_data_t &re
     }
 }
 
-manapi::net::site::site() = default;
+manapi::net::site::site() : taskpool(std::make_unique<threadpool<task> >(0)), cache_config_mx(taskpool) {}
 
 manapi::net::site::~site() = default;
 
@@ -353,7 +351,7 @@ size_t manapi::net::site::append_interval(const std::chrono::milliseconds &durat
     return timerpool->append_interval(duration, task);
 }
 
-void manapi::net::site::remove_timer(const size_t &id) {
+void manapi::net::site:: remove_timer(const size_t &id) {
     timerpool->remove_timer(id);
 }
 

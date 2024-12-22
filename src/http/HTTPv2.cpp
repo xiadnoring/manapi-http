@@ -14,8 +14,8 @@ std::shared_ptr<manapi::net::worker::http_v2> manapi::net::http::http_v2::create
 }
 
 manapi::net::future<void> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_t size) {
-    for (size_t i = 0; i < request_data.uri.size(); i++) {
-        _parse_uri(request_data.uri[i]);
+    for (char & i : request_data.uri) {
+        _parse_uri(i);
     }
     this->_cleanup_uri();
     co_return;

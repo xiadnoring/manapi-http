@@ -25,8 +25,8 @@
 - [ ] Modular page handlers
 - [ ] Module manager
 - [ ] Other instruments (autogenerate the cert., debugging, etc)
-- [ ] Implement HTTP/2.0 Format
-- [x] Implement HTTP/3.0 Format
+- [x] Implement HTTP/2.0 Format
+- [ ] Implement HTTP/3.0 Format
 - [ ] Ready-made solutions for the API-service, site, etc
 - [ ] Docs API
 - [ ] MySQL support
@@ -40,3 +40,4 @@
 - [x] Content Range (video, audio, massive files)
 - [ ] Multiple Content Range
 - [x] Static files share
+- [ ] Async

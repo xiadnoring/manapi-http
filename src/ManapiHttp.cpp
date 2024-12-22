@@ -48,39 +48,40 @@ manapi::net::http::server::server() {
 
 std::future<void> manapi::net::http::server::pool(const size_t &thread_num) {
     {
-        if (stopping) {
+        if (server::stopping) {
             THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Application was stopped");
         }
 
-        std::unique_lock <std::mutex> lk (mx);
+        std::unique_lock <std::mutex> lk (this->mx);
 
-        running.update([this] (auto &v) {
+        server::running.update([this] (auto &v) {
             v.insert(this);
         });
 
-        tasks_pool_init(thread_num);
-        timer_pool_setup (get_tasks_pool().get());
+        task_pool_init(thread_num);
+        timer_pool_setup (get_task_pool().get());
 
-        pool_promise = std::make_unique<std::promise<void>>();
+        this->pool_promise = std::make_unique<std::promise<void>>();
+
 
         // init all pools
-        if (config.contains("pools"))
+        if (this->config.contains("pools"))
         {
-            for (auto it = config["pools"].begin<json::ARRAY>(); it != config["pools"].end<json::ARRAY>(); it++, next_pool_id++)
+            for (auto it = this->config["pools"].begin<json::ARRAY>(); it != this->config["pools"].end<json::ARRAY>(); ++it, this->next_pool_id++)
             {
                 auto p = std::make_unique<http_pool> (*it, this, this->next_pool_id, this->loop);
                 p->run();
-                pools.insert({next_pool_id, std::move(p)});
+                this->pools.insert({this->next_pool_id, std::move(p)});
             }
         }
 
-        this->taskspool->append_task([this] () -> void {
-            loop.run(ev::AUTO);
-            pool_promise->set_value();
+        this->taskpool->append_task([this] () -> void {
+            this->loop.run(ev::AUTO);
+            this->pool_promise->set_value();
         });
     }
 
-    return pool_promise->get_future();
+    return this->pool_promise->get_future();
 }
 
 void manapi::net::http::server::GET(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
@@ -127,7 +128,7 @@ void manapi::net::http::server::stop_all_servers() {
     while (!running.get()->empty())
     {
         auto it = *running.get()->begin();
-        it->stop().get();
+        it->stop().get<>(it->taskpool);
     }
 }
 
@@ -147,9 +148,9 @@ void manapi::net::http::server::stop_pool() {
     MANAPIHTTP_LOG2("pools(...) -> pass");
 
     this->loop.break_loop(ev::ALL);
-    tasks_pool_stop();
+    task_pool_stop();
 
-    MANAPIHTTP_LOG2("tasks_pool_stop(...) -> pass");
+    MANAPIHTTP_LOG2("task_pool_stop(...) -> pass");
 
     // reset
     next_pool_id = 0;

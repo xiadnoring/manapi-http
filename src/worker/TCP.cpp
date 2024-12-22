@@ -15,6 +15,7 @@
 #include <netdb.h>
 #include <set>
 #include <error.h>
+#include <future>
 
 #include "ManapiUtils.hpp"
 #include "http/HeaderView.hpp"
@@ -77,9 +78,7 @@ void manapi::net::worker::TCP::init() {
     send_timeout.tv_usec = tv - send_timeout.tv_sec * 1000;
     setsockopt(*fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof (timeval));
 
-    if (fcntl(*fd, F_SETFL, (fcntl(*fd, F_GETFL), 0) | O_NONBLOCK) != 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "Failed to make socket {} non-blocking", *fd);
-    }
+    this->set_fd_non_blocking(*fd);
 
     if (bind(*fd, local->ai_addr, local->ai_addrlen) < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);
@@ -98,13 +97,13 @@ void manapi::net::worker::TCP::init() {
     };
 }
 
-bool manapi::net::worker::TCP::configure_connection(worker::connection &connection) const {
-    auto &conn = connection.as<connection_interface>();
+manapi::net::future<bool> manapi::net::worker::TCP::configure_connection(std::shared_ptr<worker::connection> connection) {
+    auto &conn = connection->as<connection_interface>();
 
-    if (conn.configured) { return true; }
+    if (conn.configured) { co_return true; }
     conn.configured = true;
 
-    return false;
+    co_return false;
 }
 
 manapi::net::future<ssize_t> manapi::net::worker::TCP::response(worker::connection &connection, http_response &resp, bool finish) {
@@ -123,73 +122,66 @@ manapi::net::worker::TCP & manapi::net::worker::TCP::operator=(TCP &&n) noexcept
     return *this;
 }
 
+void manapi::net::worker::TCP::disable_watcher_for_status(connection &conn, const connection_status &status) {
+    auto &conn_data = conn.as<connection_interface>();
+    conn_data.mustly.fetch_xor(status);
+}
+
 void manapi::net::worker::TCP::onevent(ev::io &watcher, int revents) {
-    connection_interface *connection;
+    if (watcher.data == nullptr || watcher.fd <= 0) {
+        MANAPIHTTP_LOG("BUG: ev++.h TCP::onevent(...): watcher.data = nullptr, so that function at 0x0. fd: {}", watcher.fd);
+        return;
+    }
+    std::shared_ptr<connection> connection;
     {
         auto connections_ = this->stacks.get();
         auto it = connections_->find(watcher.fd);
-        if (it == connections_->end()) {
+        if (it == connections_->end() || !it->second) {
             return;
         }
-        connection = &it->second->storage->connection->as<connection_interface>();
+        connection = it->second->storage->connection;
     }
 
     if (!watcher.is_active()) {
         return;
     }
 
-    if ((revents & ev::READ) && (connection->status.load() == CONN_READ)) {
-        connection->status.store(CONN_IDLE);
-        site.taskspool->append_task([connection] () -> void {
-            {
-                std::lock_guard<std::mutex> lk (connection->iomutex);
-            }
-            connection->read_handle ();
-        });
-        return;
-    }
-
-    if ((revents & ev::WRITE) && (connection->status.load() == CONN_WRITE)) {
-        connection->status.store(CONN_IDLE);
-        site.taskspool->append_task([connection] () -> void {
-            {
-                std::lock_guard<std::mutex> lk (connection->iomutex);
-            }
-            connection->write_handle ();
-        });
-        return;
-    }
+    this->_lookup_event (std::move(connection), revents);
 }
 
 void manapi::net::worker::TCP::onrecv(const std::shared_ptr<worker::base> &worker) {
     auto connection = this->accept();
-    site.taskspool->append_task([this, connection = std::move(connection), worker] () -> void {
-        if (connection.first) { // new connection
-            std::unique_ptr<http::HeaderView> task = std::make_unique<http::HeaderView>(connection.second, worker, config, site);
+    if (!connection.has_value()) {
+        return;
+    }
 
-            if (worker->is_valid_connection(*task->connection)) {
-                auto stack = task->doit();
-                auto fd = task->connection->as<connection_interface>().id;
-                stack._on_connection_finish([this, fd] () -> void {
-                    stacks.update([this, &fd] (std::map<int, std::shared_ptr<async_stack_storage>> &n) -> void {
-                        auto it = n.find(fd);
-                        if (it != n.end()) {
-                            n.erase(it);
-                        }
-                        close (fd);
-                    });
+    site.taskpool->append_task([this, connection = std::move(connection.value()), worker] () -> void {
+        std::unique_ptr<http::HeaderView> task = std::make_unique<http::HeaderView>(connection, worker, config, site);
+
+        if (worker->is_valid_connection(*task->connection)) {
+            auto stack = task->doit ();
+            auto &conn = task->connection->as<connection_interface>();
+            auto fd = conn.id;
+
+            stack._on_connection_finish([this, connection = std::move(connection), fd] () -> void {
+                MANAPIHTTP_LOG("CB FINISHED {}", fd);
+                this->connection_close(connection);
+
+                stacks.update([this, &fd] (std::map<int, std::shared_ptr<async_stack_storage>> &n) -> void {
+                    auto it = n.find(fd);
+                    if (it != n.end()) {
+                        auto data = n.extract(it);
+                        data.mapped().reset();
+                    }
                 });
-                stack ();
-                if (!stack.finished()) {
-                    stacks.update ([&] (auto &n) -> void {
-                        auto it = std::make_shared<async_stack_storage>(std::move(stack), std::move(task));
-                        n.insert({fd, std::move(it)});
-                    });
-                }
-            }
-        }
-        else {
-            // error
+            }, this->site.taskpool);
+            std::shared_ptr<async_stack_storage> row;
+            stacks.update ([&] (auto &n) -> void {
+                auto it = std::make_shared<async_stack_storage>(std::move(stack), std::move(task));
+                row = it;
+                n[fd] = std::move(it);
+            });
+            row->stack();
         }
     });
 }
@@ -200,36 +192,152 @@ std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::
     return std::move(worker);
 }
 
-std::pair<bool, std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::TCP::accept(
-    const std::function<std::shared_ptr<connection>()> &init) {
+std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::TCP::accept(const std::function<std::shared_ptr<connection>()> &init) {
+
+    if (cnt_conns.load() > 2000) {
+        return {};
+    }
+
     sockaddr_storage client{};
     socklen_t len = sizeof (client);
     memset(&client, '\0', sizeof (sockaddr_storage));
 
     int fd = ::accept(*config->get_socket_fd(), reinterpret_cast<struct sockaddr *>(&client), &len);
-    auto stacks_ = stacks.get();
-    auto it = stacks_->find(fd);
-    if (it == stacks_->end()) {
-        int flgs = fcntl(fd, F_GETFL, 0);
-        flgs |= O_NONBLOCK;
-        fcntl(fd, F_SETFL, flgs);
-        auto connection = init();
-        connection->client = client;
-        connection->len = len;
-        auto &conn = connection->as<connection_interface>();
-        conn.id = fd;
-        conn.watcher = std::make_unique<ev::io>(this->loop);
-        conn.watcher->set <TCP, &TCP::onevent> (this);
-        conn.watcher->start(conn.id, ev::READ | ev::WRITE);
-
-        return {true, std::move(connection)};
+    if (fd <= 0) {
+        return {};
+    }
+    bool flag = false;
+    this->stacks.update([fd, &flag] (auto &v) -> void {
+        if (v.contains(fd)) {
+            flag = true;
+            return;
+        }
+        v.insert({fd, nullptr});
+    });
+    if (flag) {
+        return {};
     }
 
-    return {false, it->second->storage->connection};
+    MANAPIHTTP_LOG("NEW FD: {}", fd);
+
+    cnt_conns.fetch_add(1);
+    this->set_fd_non_blocking(fd);
+
+    auto connection = init();
+    connection->client = client;
+    connection->len = len;
+    auto &conn = connection->as<connection_interface>();
+    conn.id = fd;
+    conn.site = &this->site;
+    conn.worker = this;
+    conn.timer = site.append_interval(std::chrono::milliseconds(20), [this, connection, &conn] () -> void {
+        if (conn.status & CONN_READ & conn.mustly) {
+            if (conn.stats.total_read - conn.stats.last_total_read < 8 * 1024) {
+                this->connection_close(connection);
+            }
+        }
+        else if (conn.status & CONN_WRITE & conn.mustly) {
+            if (conn.stats.total_write - conn.stats.last_total_write < 8 * 1024 ) {
+                this->connection_close(connection);
+            }
+        }
+
+        conn.stats.last_total_read = conn.stats.total_read;
+        conn.stats.last_total_write = conn.stats.total_write;
+    });
+
+    conn.watcher = std::make_unique<ev::io>(this->loop);
+    conn.watcher->set <TCP, &TCP::onevent> (this);
+    conn.watcher->start(fd, ev::READ|ev::WRITE);
+
+    return std::move(connection);
 }
 
-std::pair <bool, std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::TCP::accept() {
-    return std::move(this->accept([] () { return std::make_shared<worker::connection> (new connection_interface (-1), connection_interface_eraser); }));
+std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::TCP::accept() {
+    return std::move(this->accept([this] () {
+        auto ms = std::make_shared<worker::connection> (new connection_interface (-1), connection_interface_eraser);
+        ms->as<connection_interface>().handle = [this] (auto &&P1, auto &&P2) -> void { this->_io_event (std::forward<decltype(P1)>(P1), std::forward<decltype(P2)>(P2)); };
+        return std::move(ms);
+    }));
+}
+
+void manapi::net::worker::TCP::connection_close(std::shared_ptr<connection> conn) {
+    auto &connection = conn->as<connection_interface>();
+    std::lock_guard<std::mutex> lk (connection.iomutex);
+
+    if (connection.watcher) {
+        connection.watcher->stop();
+        connection.watcher.reset();
+        shutdown(connection.id, SHUT_RDWR);
+    }
+
+    if (connection.timer.has_value()) {
+        connection.site->remove_timer(connection.timer.value());
+        connection.timer.reset();
+    }
+
+    MANAPIHTTP_LOG("connection_close(...) for {}", connection.id);
+    connection.status.fetch_or(CONN_CLOSED);
+
+    if (connection.status.load() & CONN_READ) {
+        connection.status.fetch_xor(CONN_READ);
+        site.taskpool->append_task([conn] () -> void { auto &connection = conn->as<connection_interface>(); connection.iohandle (); });
+    }
+
+    if (connection.status.load() & CONN_WRITE) {
+        connection.status.fetch_xor(CONN_WRITE);
+        site.taskpool->append_task([conn] () -> void { auto &connection = conn->as<connection_interface>(); connection.iohandle (); });
+    }
+}
+
+void manapi::net::worker::TCP::_lookup_event(std::shared_ptr<connection> storage, const int &revents) {
+    auto &connection = storage->as<connection_interface>();
+    if (connection.status & CONN_CLOSED) { return; }
+    connection.handle(std::move(storage), revents);
+}
+
+void manapi::net::worker::TCP::_io_event(std::shared_ptr<connection> storage, int revents) {
+    auto &connection = storage->as<connection_interface>();
+    auto status = connection.status.load();
+
+    if ((revents & ev::READ) && (status & CONN_READ)) {
+        //std::cout << connection.id << " EVENT READ\n";
+        connection.status.fetch_xor(CONN_READ);
+        site.taskpool->append_task([storage] () -> void {
+            auto &connection = storage->as<connection_interface>();
+            connection.iohandle ();
+        });
+        return;
+    }
+
+    if ((revents & ev::WRITE) && (status & CONN_WRITE)) {
+        connection.status.fetch_xor(CONN_WRITE);
+        site.taskpool->append_task([storage] () -> void {
+            auto &connection = storage->as<connection_interface>();
+            connection.iohandle ();
+        });
+        return;
+    }
+}
+
+void manapi::net::worker::TCP::_connection_interface_eraser(connection_interface *connection) {
+    shutdown(connection->id, SHUT_RDWR);
+    connection->status.fetch_or(CONN_CLOSED);
+
+    if (connection->timer.has_value()) {
+        connection->worker->site.remove_timer(connection->timer.value());
+        connection->timer.reset();
+    }
+
+    if (connection->watcher) {
+        connection->watcher->stop();
+        connection->watcher.reset();
+    }
+
+
+    connection->worker->cnt_conns.fetch_sub(1);
+
+    close(connection->id);
 }
 
 std::string manapi::net::worker::TCP::stringify_http_info(manapi::net::http_response &res, const http::versions::http &version, const std::string &delimiter) const {
@@ -247,65 +355,30 @@ std::string manapi::net::worker::TCP::stringify_headers(manapi::net::http_respon
 
 void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
     auto connection = static_cast<connection_interface *> (ptr);
-    {
-        std::lock_guard<std::mutex> lk (connection->iomutex);
-        if (connection->watcher) {
-            connection->watcher->stop();
-        }
-    }
-    close(connection->id);
+    _connection_interface_eraser(connection);
     delete connection;
-}
-
-bool manapi::net::worker::TCP::established(worker::connection &conn, bool flag) const {
-    int fd = conn.as<connection_interface>().id;
-
-    // struct timeval timeout{};
-    //
-    // fd_set fds;
-    //
-    // FD_ZERO(&fds);
-    // FD_SET(fd, &fds);
-    //
-    // ssize_t tv = static_cast<ssize_t> (flag ? *config->get_send_timeout() : *config->get_recv_timeout());
-    // timeout.tv_sec = tv / 1000; // keep alive in n sec
-    // timeout.tv_usec = tv - timeout.tv_sec * 1000;
-    //
-    // int ready;
-    //
-    // if (flag) { ready = select(fd + 1, nullptr, &fds, nullptr, &timeout); }
-    // else { ready = select(fd + 1, &fds, nullptr, nullptr, &timeout); }
-    //
-    // if (ready < 0) {
-    //     MANAPIHTTP_LOG("unknow socket status (select() < 0): {}", fd);
-    //     return false;
-    // }
-    // if (ready == 0) {
-    //     MANAPIHTTP_LOG("The waiting time of {} ms has been exceeded",
-    //                            *config->get_recv_timeout());
-    //     return false;
-    // }
-    //
-    // const bool result = FD_ISSET(fd, &fds);
-    //
-    // FD_CLR(fd, &fds);
-
-    return true;
 }
 
 manapi::net::future<ssize_t> manapi::net::worker::TCP::default_write(connection &conn, const void *buff, const size_t &size) const {
     auto &connection = conn.as<connection_interface>();
     while (true) {
-        std::unique_lock<std::mutex> lk (connection.iomutex);
-        connection.status.store(CONN_WRITE);
-        co_await connection_io_await{connection.write_handle, lk};
+        if (connection.status & CONN_CLOSED) {
+            break;
+        }
+
         ssize_t rhs = ::send(connection.id, buff, size, MSG_NOSIGNAL);
-        if (rhs < 0) {
+        if (rhs < 0) {;
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                //std::cout << connection.id << " CB WRITE\n";
+                if (connection.status & CONN_CLOSED) {
+                    break;
+                }
+                co_await connection_io_await{connection.iohandle, connection.status, CONN_WRITE};
                 continue;
             }
             break;
         }
+        connection.stats.total_write.fetch_add(rhs);
         co_return rhs;
     }
     co_return -1;
@@ -314,16 +387,23 @@ manapi::net::future<ssize_t> manapi::net::worker::TCP::default_write(connection 
 manapi::net::future<ssize_t> manapi::net::worker::TCP::default_read(connection &conn, void *buff, const size_t &size) const {
     auto &connection = conn.as<connection_interface>();
     while (true) {
-        std::unique_lock<std::mutex> lk (connection.iomutex);
-        connection.status.store(CONN_READ);
-        co_await connection_io_await{connection.read_handle, lk};
+        if (connection.status & CONN_CLOSED) {
+            break;
+        }
+
         ssize_t rhs = ::recv(connection.id, buff, size, MSG_DONTWAIT);
         if (rhs < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                //std::cout << connection.id << " CB READ\n";
+                if (connection.status & CONN_CLOSED) {
+                    break;
+                }
+                co_await connection_io_await{connection.iohandle, connection.status, CONN_READ};
                 continue;
             }
             break;
         }
+        connection.stats.total_read.fetch_add(rhs);
         co_return rhs;
     }
     co_return -1;

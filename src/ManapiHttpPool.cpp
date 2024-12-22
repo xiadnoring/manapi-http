@@ -18,7 +18,7 @@
 
 #include "http/HeaderView.hpp"
 
-manapi::net::http_pool::http_pool(const json &config, class site *site, const size_t &id, ev::loop_ref loop) : loop(loop) {
+manapi::net::http_pool::http_pool(const json &config, class site *site, const size_t &id, ev::loop_ref loop) : loop(std::exchange(loop, nullptr)) {
     this->config = std::make_shared <http::config> (config);
     this->id = id;
     this->site = site;
@@ -66,9 +66,9 @@ int manapi::net::http_pool::_pool() {
         if (implementations.contains(*implementation))
         {
             auto generate = implementations[*implementation];
-            worker = generate (config);
-            worker->init();
-            worker->loop = this->loop;
+            this->worker = generate (this->config);
+            this->worker->init();
+            this->worker->loop = this->loop;
         }
         else
         {

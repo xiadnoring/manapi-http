@@ -120,6 +120,7 @@ namespace manapi::net::worker {
         std::string buffer;
         std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
     private:
+        void empty_setting_timeouts ();
         void generate_error (http2_error_type errnum, std::string errmsg, int last_stream_id = 0) noexcept(false);
 
         void _skip_sm_msg (char &c);
@@ -169,7 +170,7 @@ namespace manapi::net::worker {
         void default_ev_priopity_update (int id, int prioritized_id, std::string prioritized_value);
         void default_ev_rst_stream (int id, int errnum);
         void reset_all_streams ();
-        static void session_worker (int id, bool body, net::site &site, std::shared_ptr<http::config> config, std::shared_ptr<worker::http_v2> worker);
+        static future<void> session_worker (int id, bool body, net::site &site, std::shared_ptr<http::config> config, std::shared_ptr<worker::http_v2> worker);
 
         future<ssize_t> default_read (worker::connection &connection, void *buff, const size_t &size);
         future<ssize_t> default_write (worker::connection &connection, const void *buff, const size_t &size, bool flag);
@@ -208,18 +209,17 @@ namespace manapi::net::worker {
             int stream_id = 0;
             uint8_t flag = 0;
             bool initial_frame = true;
-            bool closed = false;
+            std::atomic<bool> closed = false;
             std::map <int, std::pair <int, std::function <void(int value)>>> settings;
             size_t padding = 0;
-            ssize_t ping_interval = 800;
+            ssize_t ping_interval = 100;
 
             std::set <std::string> pings;
 
             struct protocol_http2_window_t {
-                int read = 0;
-                int write = 0;
+                std::atomic<int> read = 0;
+                std::atomic<int> write = 0;
 
-                std::mutex readmx;
                 std::mutex writemx;
 
                 std::condition_variable writecv;

@@ -45,22 +45,17 @@ manapi::json manapi::net::filesystem::config::read(const std::string &name) {
 }
 
 std::string manapi::net::filesystem::last_time_write (const std::filesystem::path &f, bool time) {
-    std::filesystem::file_time_type last_write_time = std::filesystem::last_write_time(f);
+    auto last_write_time = std::filesystem::last_write_time(f);
+    if (time) {
+        return std::format("{:%Y-%m-%d-%H-%M-%S}", last_write_time);
+    }
+    return std::format("{:%Y-%m-%d}", last_write_time);
 
-    auto tp = last_write_time;
-    auto timer = std::chrono::clock_cast<std::chrono::system_clock>(tp);
-    auto tmt = std::chrono::system_clock::to_time_t(timer);
-
-    auto tm = std::localtime(&tmt);
-
-    std::stringstream buffer;
-    buffer << std::put_time(tm, time ? "%Y-%m-%d-%H-%M-%S" : "%Y-%m-%d");
-    return buffer.str();
 }
 
 std::string manapi::net::filesystem::last_time_write (const std::string &path, bool time) {
     std::filesystem::path f (path);
-    return last_time_write(f, time);
+    return std::move(last_time_write(f, time));
 }
 
 void manapi::net::filesystem::mkdir (const std::string &path, bool recursive) {

@@ -15,6 +15,7 @@ namespace manapi::net::http {
         HeaderView (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         HeaderView (std::shared_ptr<worker::connection> connection, std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~HeaderView();
+
         future<void> doit ();
 
         std::shared_ptr <worker::connection> connection;

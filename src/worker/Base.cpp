@@ -2,6 +2,7 @@
 
 #include "worker/Base.hpp"
 
+#include <fcntl.h>
 #include <memory>
 
 manapi::net::worker::connection::connection(void *ptr, void(*eraser)(void*)): ptr (ptr, eraser) {}
@@ -43,14 +44,18 @@ void manapi::net::worker::base::set_config(std::shared_ptr<manapi::net::http::co
     this->config = std::move(config);
 }
 
-bool manapi::net::worker::base::configure_connection(connection &conn) const { return false; }
+void manapi::net::worker::base::connection_close(std::shared_ptr<connection> conn) {}
 
-std::pair<bool, std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept(
+void manapi::net::worker::base::disable_watcher_for_status(connection &conn, const connection_status &status) {}
+
+manapi::net::future<bool> manapi::net::worker::base::configure_connection(std::shared_ptr<connection> conn) { co_return false; }
+
+std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept(
     const std::function<std::shared_ptr<connection>()> &init) {
-    return {false, init ()};
+    return {};
 }
 
-std::pair <bool, std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept() { return this->accept([] () -> std::shared_ptr<connection> { return {nullptr, [] (void *ptr) -> void { }}; }); }
+std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept() { return this->accept([] () -> std::shared_ptr<connection> { return {nullptr, [] (void *ptr) -> void { }}; }); }
 
 void manapi::net::worker::base::onrecv(const std::shared_ptr<worker::base> &worker) {}
 
@@ -59,6 +64,12 @@ manapi::net::worker::base & manapi::net::worker::base::operator=(base &&n) noexc
     this->read = std::move(n.read);
     this->write = std::move(n.write);
     return *this;
+}
+
+void manapi::net::worker::base::set_fd_non_blocking(int fd) {
+    int flgs = fcntl(fd, F_GETFL, 0);
+    flgs |= O_NONBLOCK;
+    fcntl(fd, F_SETFL, flgs);
 }
 
 manapi::net::future<ssize_t> manapi::net::worker::base::response(worker::connection &connection, http_response &resp, bool finish) { co_return -1; }

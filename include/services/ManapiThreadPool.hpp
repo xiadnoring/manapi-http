@@ -19,6 +19,7 @@ namespace manapi::net {
     public:
         threadpool(size_t thread_num = 20, size_t queues_count = 3);
         ~threadpool();
+        void resize (size_t thread_num);
         bool append_task (std::unique_ptr<T> task, int level = 0);
         void append_task (T task);
         void append_task (std::coroutine_handle<> handle);
@@ -42,7 +43,7 @@ namespace manapi::net {
         // execute the task
         void task_doit (std::unique_ptr<T> task);
         std::unique_ptr<T> get_task();
-        bool is_stop;
+        std::atomic<bool> is_stop;
 
         sigset_t blockedSignal{};
         std::mutex m;

@@ -95,9 +95,10 @@ void manapi::net::utils::timerpool::doit() {
 
 void manapi::net::utils::timerpool::_update_interval_state(const size_t &id) {
     std::lock_guard<std::mutex> lk (mx);
-    auto &task = tasks[id];
-    task.enabled = true;
-    task.point = std::chrono::system_clock::now() + task.delay;
+    auto task = tasks.find(id);
+    if (task == tasks.end()) { return; }
+    task->second.enabled = true;
+    task->second.point = std::chrono::system_clock::now() + task->second.delay;
 }
 
 size_t manapi::net::utils::timerpool::_append(const std::chrono::milliseconds &duration,

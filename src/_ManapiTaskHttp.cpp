@@ -798,7 +798,7 @@ void manapi::net::http_task::tcp_doit() {
 void manapi::net::http_task::handle_request(const http_handler_page *data, const size_t &status,
                                             const std::string &message) {
     http_request req(socket_information, request_data, this, config, data);
-    http_response res(request_data, status, message, std::make_unique<api::pool> (site->get_tasks_pool().get()), config);
+    http_response res(request_data, status, message, std::make_unique<api::pool> (site->get_task_pool().get()), config);
     try {
         // handle layers
         for (const auto &layer: data->layer) {

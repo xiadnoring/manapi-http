@@ -10,20 +10,10 @@
 
 namespace manapi::net {
     template<class T>
-    threadpool<T>::threadpool(size_t thread_num, size_t queues_count): thread_number(thread_num),is_stop(false),stopped(0UL) {
+    threadpool<T>::threadpool(size_t thread_num, size_t queues_count): thread_number(thread_num),is_stop(true),stopped(0UL) {
         sigemptyset(&blockedSignal);
         sigaddset(&blockedSignal, SIGPIPE);
         pthread_sigmask(SIG_BLOCK, &blockedSignal, nullptr);
-
-        if (thread_num <= 0)
-        {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "threadpool cant init because thread_number = {}", 0);
-        }
-
-        if (queues_count <= 0)
-        {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{} < 0 in threadpool", "queues_count");
-        }
 
         task_queues.resize(queues_count);
     }
@@ -39,18 +29,37 @@ namespace manapi::net {
     }
 
     template<class T>
+    void threadpool<T>::resize(size_t thread_num) {
+        if (is_stop) {
+            this->thread_number = thread_num;
+        }
+    }
+
+    template<class T>
     size_t threadpool<T>::get_count_stopped_task() {
         return *stopped.get();
     }
 
     template<class T>
     void threadpool<T>::stop() {
-        is_stop = true;
+        if (is_stop) {
+            return;
+        }
+        is_stop.store(true);
         cv.notify_all();
     }
 
     template<class T>
     void threadpool<T>::start() {
+        if (!is_stop) {
+            return;
+        }
+        is_stop.store(false);
+
+        if (this->thread_number <= 0) {
+            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "threadpool cant init because thread_number = {}", 0);
+        }
+
         for (size_t i = all_threads.size(); i < thread_number; i++) { all_threads.emplace_back(worker, this); all_threads[i].detach(); }
     }
 

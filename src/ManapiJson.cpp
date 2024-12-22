@@ -467,39 +467,39 @@ void manapi::json::_set_pair(json first, json second) {
 }
 
 manapi::json &manapi::json::operator[](const STRING &key) {
-    return std::ref(this->at(key));
+    return this->at(key);
 }
 
 manapi::json &manapi::json::operator[](const UNICODE_STRING &key) {
-    return std::ref(this->at(key));
+    return this->at(key);
 }
 
 manapi::json &manapi::json::operator[](const size_t &index) {
-    return std::ref(this->at(index));
+    return this->at(index);
 }
 
 manapi::json & manapi::json::operator[](const int &index) {
-    return std::ref(this->at(index));
+    return this->at(index);
 }
 
 const manapi::json & manapi::json::operator[](const STRING &key) const {
-    return std::ref(this->at(key));
+    return this->at(key);
 }
 
 const manapi::json & manapi::json::operator[](const UNICODE_STRING &key) const {
-    return std::ref(this->at(key));
+    return this->at(key);
 }
 
 const manapi::json & manapi::json::operator[](const size_t &index) const {
-    return std::ref(this->at(index));
+    return this->at(index);
 }
 
 const manapi::json & manapi::json::operator[](const int &index) const {
-    return std::ref(this->at(index));
+    return this->at(index);
 }
 
 manapi::json &manapi::json::at(const UNICODE_STRING &key)  {
-    return std::ref(this->at(net::utils::str32to4(key)));
+    return this->at(net::utils::str32to4(key));
 }
 
 manapi::json &manapi::json::at(const std::string &key)  {
@@ -535,7 +535,7 @@ manapi::json &manapi::json::at(const size_t &index)  {
 }
 
 manapi::json & manapi::json::at(const int &index) {
-    return std::ref(this->at(static_cast<size_t> (index)));
+    return this->at(static_cast<size_t> (index));
 }
 
 const manapi::json & manapi::json::at(const std::string &key) const {
@@ -555,7 +555,7 @@ const manapi::json & manapi::json::at(const std::string &key) const {
 }
 
 const manapi::json & manapi::json::at(const UNICODE_STRING &key) const {
-    return std::ref(this->at(net::utils::str32to4(key)));
+    return this->at(net::utils::str32to4(key));
 }
 
 const manapi::json & manapi::json::at(const size_t &index) const {
@@ -575,7 +575,7 @@ const manapi::json & manapi::json::at(const size_t &index) const {
 }
 
 const manapi::json & manapi::json::at(const int &index) const {
-    return std::ref(this->at(static_cast<size_t> (index)));
+    return this->at(static_cast<size_t> (index));
 }
 
 manapi::json& manapi::json::operator=(const std::string &str) {

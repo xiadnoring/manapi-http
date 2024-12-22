@@ -19,9 +19,13 @@ manapi::net::http::HeaderView::HeaderView(std::shared_ptr<worker::connection> co
 manapi::net::http::HeaderView::~HeaderView() {
 }
 
+
 manapi::net::future<void> manapi::net::http::HeaderView::doit() {
+    if (!co_await worker->configure_connection(connection)) {
+        co_return;
+    }
+
     while (true) {
-        worker->configure_connection(*connection);
 
         request_data.path = {};
         request_data.divided = -1;
@@ -35,7 +39,6 @@ manapi::net::future<void> manapi::net::http::HeaderView::doit() {
             for (j = 0; j < size && !parse_vars.finished; j++) {
                 current (buffer.at(j));
             }
-
         }
 
         // ghost
@@ -66,11 +69,16 @@ manapi::net::future<void> manapi::net::http::HeaderView::doit() {
                 client->connection = connection;
                 client->buffer = std::move(buffer);
                 co_await client->parse_request(j, size);
+                long cnt = client.use_count();
+                if (cnt != 1) {
+                    MANAPIHTTP_LOG("Possible bug: http2.use_count() != 1 ({})", cnt);
+                }
             }
             break;
             default:
-                co_return;
+                break;
         }
+
         co_return;
     }
 }

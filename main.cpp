@@ -15,22 +15,41 @@
 #include "ManapiHttpMime.hpp"
 #include "compress/ManapiHPack.hpp"
 #include "ManapiAsync.hpp"
+#include "async/ManapiAsyncMutex.hpp"
 using namespace manapi::net::utils;
 using namespace manapi::net;
 
 using namespace std;
 
-// int main3 () {
-//     for ( int i  = 0; i < 1000; i++){
-//         manapi::json b (R"({"hello": "world", "world": "hello", "test": [1, 2, 5.5234, 8e10, 3, 4, 5, true]})", true);
-//         b.erase("hello");
-//     }
-//     manapi::json a = manapi::json::array({78, 78});
-//     a.push_back(78);
-//     a[0] += 22;
-//     cout <<  a.dump(2) << "\n";
-//     return 0;
+// atomic<int> a = 0;
+//
+// manapi::net::future<int> print () {
+//     a.fetch_add(1);
+//     co_return a;
 // }
+//
+// manapi::net::future<void> co_main () {
+//     for (int i = 0; i < 10000000; i++) {
+//         auto j = co_await print();
+//         if (j % 10000 == 0) {
+//             cout << j << "\n";
+//         }
+//     }
+// }
+//
+// int main () {
+//     threadpool<task> taskpool (20);
+//     taskpool.start();
+//     timerpool timerpool (taskpool, 50);
+//     taskpool.append_task([&] () -> void { timerpool.start(); });
+//
+//     auto rhs = co_main ();
+//     rhs.get<>(taskpool);
+//
+//     timerpool.stop();
+//     taskpool.stop();
+// }
+
 //
 int main (int argc, char *argv[]) {
     debug_print_memory("start");
@@ -258,9 +277,7 @@ int main (int argc, char *argv[]) {
         });
 
         server.GET("/freeze", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
-            this_thread::sleep_for(std::chrono::seconds(10));
-
-            resp.text("ok");
+            resp.text(std::to_string(1));
             co_return;
         });
 
@@ -313,7 +330,8 @@ int main (int argc, char *argv[]) {
 
         debug_print_memory("pool");
 
-        server.pool(20).get();
+        auto rhs = server.pool(20);
+        rhs.get();
         debug_print_memory("preend");
         this_thread::sleep_for(std::chrono::seconds(2));
         // server.stop();
@@ -330,82 +348,4 @@ int main (int argc, char *argv[]) {
 
     return 0;
 }
-
-
-// int main () {
-//     debug_print_memory("start");
-//     auto begin = std::chrono::steady_clock::now();
-//
-//
-//     {
-//         manapi::json_mask mask2 ({
-//             {"hello", "{string(5)[]}"}
-//         });
-//         manapi::json_mask mask ({
-//                 {"hello", manapi::json_mask::ARRAY(manapi::json_mask::OR (manapi::json::array({
-//                         {
-//                             {"type", "{number(1)}"},
-//                             {"data", "{string(<=50)}"},
-//                             {"atest", "{string(>=5)|none}"}
-//                         },
-//                         {
-//                             {"type", "{number(2)}"},
-//                             {"data", "{number(>=0)}"}
-//                         },
-//                         {
-//                             {"type", "{number(3)}"},
-//                             {"file", {
-//                                 {"name", "{string(<=50)}"},
-//                                 {"size", "{number(>=1000 <=5000)}"}
-//                             }}
-//                         }
-//                     })))
-//                 }
-//             });
-//         // manapi::json a = {
-//         //     {"hello", {
-//         //         {"type", 3},
-//         //         {"file", {
-//         //             {"name", "hello"},
-//         //             {"size", 78},
-//         //             {"hello", "78"}
-//         //         }}
-//         //     }}
-//         // };
-//         // std::cout << mask.valid(a) << "\n";
-//         manapi::json_builder builder (mask);
-//         builder << R"({"hello": [{"type": 1, "data": "78"}, {"type": 2, "data": 78}, {"type": 3, "file": {"name": "file.txt", "size": 1788}}]})";
-//         //std::cout << builder.get().dump(2) << "\n";
-//
-//         manapi::json_mask maskarr = {"{number(>=0)[][]}"};
-//         manapi::json_builder builder2 (maskarr);
-//         builder2 << R"([[5, 5], [6, 6, 7, 0]])";
-//         //cout << builder2.get().dump(2) << "\n";
-//         // cout << manapi::json ({"{string(<=150)}", "{number(>=0)[<=1000]}", "{number(>=0)}", "{number(>=0)}", "{string(<=2500)}"}).dump(2) << "\n";
-//         manapi::json_mask aa = {
-//             {"id", "{number(>=0)}"},
-//             {"zone", "{string(<=100)}"},
-//             {"do", manapi::json_mask::ARRAY(
-//                 manapi::json_mask::OR (manapi::json::array({
-//                     {
-//                         {"type", "{string(\"force-set\")}"},
-//                         {"graph", manapi::json_mask::ARRAY(
-//                             manapi::json::array({"{string(<=150)}", "{number(>=0)[<=1000]}", "{number(>=0)}", "{number(>=0)}", "{number()}", "{number()}", "{string(<=2500)}"})
-//                         )}
-//                     }}
-//                 ))
-//             )}
-//         };
-//         cout << aa.get_api_tree().dump(2) << "\n";
-//         manapi::json ab (R"({"zone":"PANDA","id":21,"do":[{"type":"force-set","graph":[["",[1],0,0,357,139,"{}"],["",[1],0,1,428,412,"{}"]]}]})", true);
-//         cout << aa.valid(ab) << "\n";
-//     }
-//
-//
-//     auto end = std::chrono::steady_clock::now();
-//     auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-//     std::cout << "The time: " << elapsed_ms.count() << " ms\n";
-//     debug_print_memory("start");
-// }
-
 

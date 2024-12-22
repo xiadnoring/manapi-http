@@ -34,6 +34,13 @@ namespace manapi::net::worker {
 
     class base {
     public:
+        enum connection_status {
+            CONN_IDLE   = 0b00000001,
+            CONN_WRITE  = 0b00000010,
+            CONN_READ   = 0b00000100,
+            CONN_CLOSED = 0b00001000
+        };
+
         base (net::site &site);
         base (base &&n) noexcept;
         virtual ~base ();
@@ -41,23 +48,29 @@ namespace manapi::net::worker {
         virtual bool is_valid_connection (worker::connection &connection);
         virtual void init ();
         virtual void set_config (std::shared_ptr<manapi::net::http::config> config);
+        virtual void connection_close (std::shared_ptr<connection> conn);
+        virtual void disable_watcher_for_status (connection &conn, const connection_status &status);
 
-        virtual bool configure_connection (connection &conn) const;
+        virtual future<bool> configure_connection (std::shared_ptr<connection> conn);
 
-        virtual std::pair <bool, std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
-        virtual std::pair <bool, std::shared_ptr<manapi::net::worker::connection>> accept ();
+        virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
+        virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
 
         virtual void onrecv (const std::shared_ptr<worker::base> &worker);
 
         base &operator= (base &&n) noexcept;
 
+        void set_fd_non_blocking (int fd);
+
         virtual future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish);
         static std::shared_ptr<base> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
+
         std::function<future<ssize_t>(connection &conn, const void *buff, const size_t &size, bool finish)> write;
         std::function<future<ssize_t>(connection &conn, void *buff, const size_t &size)> read;
+
         ev::loop_ref loop = nullptr;
-    protected:
         net::site &site;
         std::shared_ptr<manapi::net::http::config> config;
+        std::atomic<int> cnt_conns = 0;
     };
 }

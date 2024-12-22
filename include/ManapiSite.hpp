@@ -4,6 +4,7 @@
 #include <ev++.h>
 #include <regex>
 #include <list>
+#include <set>
 
 #include "ManapiAsync.hpp"
 #include "ManapiJson.hpp"
@@ -15,6 +16,7 @@
 
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpResponse.hpp"
+#include "async/ManapiAsyncMutex.hpp"
 
 namespace manapi::net::worker {
     class base;
@@ -90,7 +92,6 @@ namespace manapi::net {
         ~site();
 
         manapi::net::async_delay delay (const std::chrono::seconds &n);
-
         size_t append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         size_t append_interval (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         void remove_timer (const size_t &id);
@@ -112,19 +113,20 @@ namespace manapi::net {
         void set_config_object (const json &config);
         const manapi::json &get_config ();
 
-        const std::string *get_compressed_cache_file (const std::string &file, const std::string &algorithm);
+        std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm);
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
 
-        [[nodiscard]] const std::unique_ptr<manapi::net::threadpool<manapi::net::task>> &get_tasks_pool () const;
-        void tasks_pool_stop ();
-        void tasks_pool_init (const size_t &thread_num);
+        [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
+        void task_pool_stop ();
+        void task_pool_init (const size_t &thread_num);
 
         std::string config_cache_dir;
         std::unique_ptr<utils::timerpool> timerpool;
-        std::unique_ptr<threadpool<task>> taskspool = nullptr;
+        std::shared_ptr <threadpool<task>> taskpool = nullptr;
+        async_mutex cache_config_mx;
     protected:
         void setup ();
-        void timer_pool_setup (threadpool<task> *tasks_pool);
+        void timer_pool_setup (threadpool<task> *task_pool);
         void timer_pool_stop ();
         void setup_config ();
         void save ();
@@ -132,13 +134,13 @@ namespace manapi::net {
 
         manapi::json config;
         ev::dynamic_loop loop;
+        std::mutex loopmx;
     private:
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);
 
         manapi::json cache_config;
-
         std::string config_path = "/tmp/http.json";
         bool enabled_save_config     = false;
 

@@ -10,7 +10,7 @@
 
 std::set<std::string> manapi::net::http::base::methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 
-manapi::net::http::base::base(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site): site(site), worker(worker), config(config) {}
+manapi::net::http::base::base(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site): site(site), worker(std::move(worker)), config(std::move(config)) {}
 
 manapi::net::http::base::~base() = default;
 
@@ -72,7 +72,7 @@ manapi::net::future<void> manapi::net::http::base::send_response_file(manapi::ne
             THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
         }
 
-        filepath = compress_file(res.get_file(), site.config_cache_dir, features.compress, features.compressor);
+        filepath = co_await compress_file(res.get_file(), site.config_cache_dir, features.compress, features.compressor);
     } else {
         filepath = res.get_file();
     }
@@ -149,9 +149,7 @@ manapi::net::future<void> manapi::net::http::base::send_response_file(manapi::ne
                     size = back - start + 1;
 
                     res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(size));
-                    res.set_header(HTTP_HEADER.CONTENT_RANGE,
-                                   "bytes " + std::to_string(start) + '-' + std::to_string(back) + '/' +
-                                   std::to_string(fileSize));
+                    res.set_header(HTTP_HEADER.CONTENT_RANGE, "bytes " + std::to_string(start) + '-' + std::to_string(back) + '/' + std::to_string(fileSize));
 
                     if (co_await mask_response(res, false) >= 0) {
                             // set start position
@@ -237,7 +235,7 @@ manapi::net::future<void> manapi::net::http::base::send_response_proxy(manapi::n
     // });
     // // TODO: resolve
     // worker->write (*connection, nullptr, 0, true);
-    // site.taskspool->append_task(std::move(proxy));
+    // site.taskpool->append_task(std::move(proxy));
     co_return;
 }
 
@@ -307,6 +305,7 @@ manapi::net::future<void> manapi::net::http::base::handle_request(const http_han
 
     finish:
         co_await send_response(res);
+        co_return;
     } catch (const manapi::net::utils::exception &e) {
         switch (e.get_err_num()) {
             case ERR_HTTP_CONNECTION_WAS_CLOSED:
@@ -351,14 +350,14 @@ manapi::net::future<void> manapi::net::http::base::send_file(manapi::net::http_r
 
         const ssize_t sent = co_await worker->write (*connection, block.data(), block_size, (current + block_size) >= size);
 
-        if (sent < 0) {
+        if (sent <= 0) {
             // cannot to send
             break;
         }
 
         current += sent;
 
-        //printf("STEP: %zi LEFT: %zi NEED: %zi CURRENT: %zi\n", sent, left, size, current);
+        //printf("%s STEP: %zi LEFT: %zi NEED: %zi CURRENT: %zi\n", res.get_file().data(), sent, left, size, current);
 
         f.seekg(current);
     }
@@ -577,21 +576,23 @@ manapi::net::future<void> manapi::net::http::base::expect_header() {
     }
 }
 
-std::string manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, manapi::net::utils::compress::TEMPLATE_INTERFACE compressor) const {
+manapi::net::future<std::string> manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, manapi::net::utils::compress::TEMPLATE_INTERFACE compressor) const {
     std::string filepath;
 
     // compressor
+    auto lk = co_await site.cache_config_mx.lock_guard();
     auto cached = site.get_compressed_cache_file(file, compress);
 
-    if (cached == nullptr) {
+    if (cached.empty()) {
+        net::filesystem::mkdir(folder, true);
         filepath = compressor(file, &folder);
 
         site.set_compressed_cache_file(file, filepath, compress);
     } else {
-        filepath = *cached;
+        filepath = std::move(cached);
     }
 
-    return filepath;
+    co_return filepath;
 }
 
 manapi::net::future<ssize_t> manapi::net::http::base::read(void *buf, size_t size) {

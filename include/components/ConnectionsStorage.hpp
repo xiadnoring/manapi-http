@@ -56,6 +56,7 @@ namespace manapi::net::worker {
         ~connections_storage ();
         connection_storage<V> get (const K& key);
         void insert (vmap::value_type &&row);
+        void update (const std::function<void(vmap &n)> &cb);
         typename vmap::size_type erase (const vmap::key_type &key);
         connection_iterator<typename vmap::iterator> find (const vmap::key_type &key);
         connection_iterator<typename vmap::iterator> end ();
@@ -235,6 +236,15 @@ namespace manapi::net::worker {
         this->_wait_editable ();
         storage.insert(std::forward<decltype(row)>(row));
     }
+
+    template<typename K, typename V>
+    void connections_storage<K, V>::update(const std::function<void(vmap &n)> &cb) {
+        std::lock_guard<std::mutex> llk (this->lmx);
+        std::lock_guard<std::mutex> lk (this->gmx);
+        this->_wait_editable ();
+        cb (this->storage);
+    }
+
 
     template<typename K, typename V>
     typename connections_storage<K, V>::vmap::size_type connections_storage<K, V>::erase(const vmap::key_type &key) {
