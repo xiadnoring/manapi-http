@@ -39,10 +39,10 @@ void manapi::net::http_pool::stop() {
     MANAPIHTTP_LOG("{}", "shutdown socket");
 
     // close socket
-    shutdown(*config->get_socket_fd(), SHUT_RDWR);
+    shutdown(config->get_socket_fd(), SHUT_RDWR);
 
     // stop watcher
-    ev_io->stop();
+    watcher->stop();
 }
 
 void manapi::net::http_pool::run() {
@@ -56,7 +56,9 @@ int manapi::net::http_pool::_pool() {
 
     MANAPIHTTP_LOG("pool start #{}", id);
 
-    ev_io = std::make_unique<ev::io> (loop);
+
+    this->watcher = std::make_shared <ev::io> (this->loop);
+    this->async_watcher = std::make_shared<ev::async>(this->loop);
 
     {
         auto implementation = config->get_implementation();
@@ -69,6 +71,9 @@ int manapi::net::http_pool::_pool() {
             this->worker = generate (this->config);
             this->worker->init();
             this->worker->loop = this->loop;
+            this->worker->watcher = this->watcher;
+            this->worker->worker = std::weak_ptr<worker::base> (this->worker);
+            this->worker->async_watcher = this->async_watcher;
         }
         else
         {
@@ -86,15 +91,13 @@ int manapi::net::http_pool::_pool() {
         }
     }
 
-    // create watcher
-    ev_io->set <http_pool, &http_pool::new_connection> (this);
-    ev_io->start(*config->get_socket_fd(), ev::READ);
+    this->async_watcher->set<worker::base, &worker::base::onasync>(this->worker.get());
+    this->watcher->set <worker::base, &worker::base::onrecv> (this->worker.get());
+
+    this->async_watcher->start();
+    this->watcher->start(config->get_socket_fd(), ev::READ);
 
     return 0;
-}
-
-void manapi::net::http_pool::new_connection (ev::io &watcher, int revents) {
-    worker->onrecv(worker);
 }
 
 manapi::net::site & manapi::net::http_pool::get_site() const {

@@ -26,8 +26,6 @@ namespace manapi::net {
         void stop ();
         void run ();
 
-        void new_connection (ev::io &watcher, int revents);
-
         class site &get_site () const;
 
         // quic data
@@ -52,6 +50,7 @@ namespace manapi::net {
 
         class site *site;
         // watchers
-        std::unique_ptr<ev::io> ev_io;
+        std::shared_ptr <ev::io> watcher;
+        std::shared_ptr <ev::async> async_watcher;
     };
 }

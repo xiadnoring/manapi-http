@@ -120,7 +120,7 @@ namespace manapi::net::worker {
         std::string buffer;
         std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
     private:
-        void empty_setting_timeouts ();
+        future<void> empty_setting_timeouts ();
         void generate_error (http2_error_type errnum, std::string errmsg, int last_stream_id = 0) noexcept(false);
 
         void _skip_sm_msg (char &c);
@@ -156,6 +156,7 @@ namespace manapi::net::worker {
 
         future<void> send_frame (http2_frame_type frame, uint8_t flag, uint32_t stream_id, std::string_view data);
         future<void> send_empty_frame (http2_frame_type frame, char flag, int stream_id);
+        future<void> timer_watcher ();
         future<void> send_ping_frame (std::string data={});
         future<void> close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "", int last_stream_id = 0);
 
@@ -203,17 +204,18 @@ namespace manapi::net::worker {
         } parse_vars;
 
         struct protocol_http2_t {
-            std::mutex mx; // multithread
+            async_mutex mx; // multithread
             ssize_t length = 9 + 8; // 9 must-have octets in the header + 8 metadata
             ssize_t type = 0;
             int stream_id = 0;
             uint8_t flag = 0;
             bool initial_frame = true;
-            std::atomic<bool> closed = false;
             std::map <int, std::pair <int, std::function <void(int value)>>> settings;
             size_t padding = 0;
-            ssize_t ping_interval = 100;
-
+            ssize_t timer_interval = 20;
+            std::chrono::system_clock::time_point prev_ping_time_point = std::chrono::system_clock::now();
+            std::chrono::milliseconds ping_delay {200};
+            std::atomic<int> conn_type = 0;
             std::set <std::string> pings;
 
             struct protocol_http2_window_t {
@@ -247,8 +249,7 @@ namespace manapi::net::worker {
         std::shared_ptr<worker::base> worker;
 
         std::shared_ptr<connections_storage <int, http_v2_thread_data_t>> threads;
-        std::mutex finishmx;
-        std::condition_variable finishcv;
+        async_condition_variable finishcv;
         size_t ping_interval = 0;
 
         static std::map <int, json_mask> allow_settings;

@@ -104,7 +104,7 @@ void manapi::net::utils::timerpool::_update_interval_state(const size_t &id) {
 size_t manapi::net::utils::timerpool::_append(const std::chrono::milliseconds &duration,
                                               const std::function<void()> &task, const bool &inteval) {
     std::lock_guard<std::mutex> lk (mx);
-    while (tasks.contains(index)) { index++; if (index == ULLONG_MAX) { index = 0; } }
+    while (tasks.contains(index)) { index++; if (index == ULLONG_MAX) { index = 1; } }
     const size_t id = index; index++;
     tasks[id] = {duration, task, std::chrono::high_resolution_clock::now() + duration, inteval, true};
     if (index == ULLONG_MAX) { index = 1; }

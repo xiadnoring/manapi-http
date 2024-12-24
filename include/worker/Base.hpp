@@ -56,7 +56,8 @@ namespace manapi::net::worker {
         virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
         virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
 
-        virtual void onrecv (const std::shared_ptr<worker::base> &worker);
+        virtual void onrecv (ev::io &watcher, int revents);
+        virtual void onasync (ev::async &watcher, int revents);
 
         base &operator= (base &&n) noexcept;
 
@@ -64,11 +65,15 @@ namespace manapi::net::worker {
 
         virtual future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish);
         static std::shared_ptr<base> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
+        virtual void _timeout (std::shared_ptr<connection> storage, const int &revents);
 
         std::function<future<ssize_t>(connection &conn, const void *buff, const size_t &size, bool finish)> write;
         std::function<future<ssize_t>(connection &conn, void *buff, const size_t &size)> read;
 
         ev::loop_ref loop = nullptr;
+        std::shared_ptr<ev::io> watcher;
+        std::shared_ptr<ev::async> async_watcher;
+        std::weak_ptr<worker::base> worker;
         net::site &site;
         std::shared_ptr<manapi::net::http::config> config;
         std::atomic<int> cnt_conns = 0;

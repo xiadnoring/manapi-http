@@ -79,10 +79,8 @@ namespace manapi::net {
                     }
                     else {
                         auto tmp = data;
-                        tmp->cb();
                         tmp->already.store(true);
-                        tmp.reset();
-                        handle = nullptr;
+                        tmp->cb();
                     }
                 }
                 return  waiting ? waiting : std::noop_coroutine();
@@ -316,6 +314,7 @@ namespace manapi::net {
     };
 
     namespace async {
+        inline std::atomic <ssize_t> async_cnt = 0;
         inline std::mutex async_tasks_mx;
         inline std::unordered_map <size_t, manapi::net::future<void>> async_tasks;
 
@@ -327,9 +326,17 @@ namespace manapi::net {
             auto index = reinterpret_cast <size_t> (task.get_handle().address());
 
             task._on_connection_finish([index, taskpool, onfinish] () -> void {
-                std::lock_guard<std::mutex> lk (async_tasks_mx);
                 if (onfinish) taskpool->append_task(onfinish);
-                async_tasks.erase(index);
+                decltype(async_tasks)::node_type data;
+                {
+                    // can be self-locked
+                    std::lock_guard<std::mutex> lk (async_tasks_mx);
+                    auto it = async_tasks.find(index);
+                    if (it != async_tasks.end()) {
+                        data = std::move(async_tasks.extract(it));
+                        async_cnt.fetch_sub(1);
+                    }
+                }
             }, taskpool);
 
             task();
@@ -337,6 +344,7 @@ namespace manapi::net {
             if (!task.finished()) {
                 std::lock_guard<std::mutex> lk (async_tasks_mx);
                 async_tasks.insert({index, std::move(task)});
+                async_cnt.fetch_add(1);
             }
         }
     }

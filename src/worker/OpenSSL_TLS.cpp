@@ -72,29 +72,32 @@ manapi::net::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection
 
     if (conn.configured) { co_return true; }
 
-    if (conn.status & CONN_CLOSED) {
-        co_return false;
-    }
-
     conn.mustly.fetch_xor(CONN_READ | CONN_WRITE);
-    int timerid = this->site.append_timer(std::chrono::milliseconds(20), [this, conn = &conn, connection] () -> void {
+    std::shared_ptr<size_t> timerid = std::make_unique<size_t>(0);
+    *timerid = this->site.append_timer(std::chrono::milliseconds(500), [timerid, this, conn = &conn, connection] () -> void {
+        *timerid = 0;
         MANAPIHTTP_LOG("TIMEOUT SSL_ACCEPT: {}", conn->id);
         this->connection_close(std::move(connection));
     });
 
-    MANAPIHTTP_LOG("SSL ACCEPT: {}", conn.id);
-
     while (true) {
+        if (conn.status & CONN_CLOSED) {
+            this->site.remove_timer(*timerid);
+            co_return false;
+        }
+
+        MANAPIHTTP_LOG("SSL ACCEPT: {}", conn.id);
+
         const auto rhs = SSL_accept(conn.ssl);
         auto ssl_error = SSL_get_error(conn.ssl, rhs);
         if (ssl_error != SSL_ERROR_NONE) {
             switch (ssl_error) {
                 case SSL_ERROR_WANT_READ:
-                    // co_await connection_io_await{conn.iohandle, conn.status, CONN_READ};
+                    co_await connection_io_await{conn.iohandle, conn.status, conn.iomutex, CONN_READ};
                     continue;
                 break;
                 case SSL_ERROR_WANT_WRITE:
-                    // co_await connection_io_await{conn.iohandle, conn.status, CONN_WRITE};
+                    co_await connection_io_await{conn.iohandle, conn.status, conn.iomutex, CONN_WRITE};
                     continue;
                 break;
                 case SSL_ERROR_SSL:
@@ -115,7 +118,7 @@ manapi::net::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection
         break;
     }
 
-    this->site.remove_timer(timerid);
+    this->site.remove_timer(*timerid);
     conn.mustly.fetch_or(CONN_READ | CONN_WRITE);
     conn.status.fetch_xor(CONN_IDLE);
     conn.configured = true;
@@ -133,46 +136,41 @@ void manapi::net::worker::OpenSSL_TLS::disable_watcher_for_status(connection &co
     conn_data.mustly.fetch_xor(status);
 }
 
-void manapi::net::worker::OpenSSL_TLS::onrecv(const std::shared_ptr<worker::base> &worker) {
-    auto connection = this->accept();
-    if (!connection.has_value()) {
+void manapi::net::worker::OpenSSL_TLS::onrecv(ev::io &watcher, int revents) {
+    auto connection_optional = this->accept();
+    if (!connection_optional.has_value()) {
         return;
     }
 
-    site.taskpool->append_task([this, connection = std::move(connection.value()), worker] () -> void {
-        std::unique_ptr<http::HeaderView> task = std::make_unique<http::HeaderView>(connection, worker, config, site);
+    auto &connection = connection_optional.value();
 
-        if (worker->is_valid_connection(*task->connection)) {
-            auto stack = task->doit();
-            auto &conn_data = task->connection->as<connection_interface>();
-            auto fd = conn_data.id;
-            SSL_set_fd(conn_data.ssl, fd);
-            conn_data.status.fetch_or(CONN_IDLE);
-            //SSL_set_mode(conn_data.ssl, SSL_MODE_ASYNC);
-            //SSL_set_blocking_mode(conn_data.ssl, 0);
-            SSL_set_accept_state(conn_data.ssl);
-            stack._on_connection_finish([this, fd, connection = connection] () -> void {
-                MANAPIHTTP_LOG("CLOSE: fd: {}", fd);
-                this->connection_close(connection);
+    auto worker = std::shared_ptr<net::worker::base>(this->worker);
+    std::shared_ptr <http::HeaderView> task = std::make_shared<http::HeaderView>(connection, worker, config, site);
 
-                this->stacks.update([this, &fd] (std::map<int, std::shared_ptr<async_stack_storage>> &n) -> void {
-                    auto it = n.find(fd);
-                    if (it != n.end()) {
-                        auto data = std::move(n.extract(it));
-                        data.mapped().reset();
-                    }
-                });
-            }, this->site.taskpool);
-            std::shared_ptr<async_stack_storage> row;
-            this->stacks.update ([&] (auto &n) -> void {
-                auto it = std::make_shared<async_stack_storage>(std::move(stack), std::move(task));
-                row = it;
-                n[fd] = std::move(it);
-            });
-            MANAPIHTTP_LOG("START {}", fd);
-            row->stack();
-        }
-    });
+    if (worker->is_valid_connection(*task->connection)) {
+        auto stack = std::make_shared<future<>>(task->doit ());
+        auto &conn_data = task->connection->as<connection_interface>();
+        auto fd = conn_data.id;
+        SSL_set_fd(conn_data.ssl, fd);
+        conn_data.status.fetch_or(CONN_IDLE);
+        //SSL_set_mode(conn_data.ssl, SSL_MODE_ASYNC);
+        //SSL_set_blocking_mode(conn_data.ssl, 0);
+        SSL_set_accept_state(conn_data.ssl);
+
+        std::shared_ptr<async_stack_storage> row = std::make_shared<async_stack_storage>(stack, std::move(task));
+
+        stack->_on_connection_finish([this, connection, row, fd] () -> void {
+            MANAPIHTTP_LOG("CB FINISHED {}", fd);
+            this->connection_close(connection);
+            row->stack.reset();
+        }, this->site.taskpool);
+
+        stacks[fd] = row;
+
+        site.taskpool->append_task([this, connection, row] () -> void {
+            row->stack->operator()();
+        });
+    }
 }
 
 std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_TLS::create(net::site &site, std::shared_ptr<manapi::net::http::config> config) {
@@ -197,10 +195,23 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     return std::move(connection);
 }
 
-void manapi::net::worker::OpenSSL_TLS::_lookup_event(std::shared_ptr<connection> storage, const int &revents) {
+void manapi::net::worker::OpenSSL_TLS::connection_close(std::shared_ptr<connection> conn) {
+    auto &connection = conn->as<connection_interface>();
+    std::lock_guard<std::mutex> lk (connection.iomutex);
+    // int ssl_errno = SSL_get_error(connection.ssl, SSL_shutdown(connection.ssl));
+    // if (ssl_errno != SSL_ERROR_NONE && ssl_errno != SSL_ERROR_ZERO_RETURN) {
+    //     MANAPIHTTP_LOG("NO WAY: {}", ssl_errno);
+    // }
+    this->_connection_close(conn, connection);
+}
+
+void manapi::net::worker::OpenSSL_TLS::_lookup_event(ev::io &watcher, std::shared_ptr<connection> storage, const int &revents) {
     auto &connection = storage->as<connection_interface>();
-    if (connection.status & CONN_CLOSED) { return; }
-    connection.handle(std::move(storage), revents);
+    if (connection.status & CONN_CLOSED) {
+        this->_ev_watcher_stop (connection);
+        return;
+    }
+    connection.handle(storage, revents);
 }
 
 void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
@@ -212,12 +223,11 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
             auto lkr = co_await connection->rmx->lock_guard();
             auto lkw = co_await connection->wmx->lock_guard();
             auto ssl = std::exchange(connection->ssl, nullptr);
-            shutdown(connection->id, SHUT_RDWR);
             MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
             SSL_free(ssl);
             MANAPIHTTP_LOG("SSL CLOSED: {} ssl={:}", connection->id, static_cast<void*>(ssl));
         }
-
+        close(connection->id);
         delete connection;
         co_return;
     } ());
@@ -310,7 +320,7 @@ manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connect
     auto &connection = conn.as<connection_interface>();
     while (true) {
         int rhs;
-        int ssl_errno;
+        int ssl_errno = SSL_ERROR_NONE;
 
         {
             auto lock = co_await connection.wmx->lock_guard();
@@ -318,8 +328,12 @@ manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connect
                 break;
             }
             rhs = SSL_write(connection.ssl, buff, static_cast<int>(size));
-            ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
+            if (rhs < 0) {
+                ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
+            }
         }
+
+        // if((err = SSL_get_error(SSL*,err)) == SSL_ERROR_ZERO_RETURN)
 
         if (ssl_errno != SSL_ERROR_NONE) {
             switch (ssl_errno) {
@@ -328,11 +342,11 @@ manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connect
                     co_return -1;
                 }
                 case SSL_ERROR_WANT_WRITE:
-                    co_await connection_io_await{connection.iohandle, connection.status, CONN_WRITE};
+                    co_await connection_io_await{connection.iohandle, connection.status, connection.iomutex, CONN_WRITE};
                     continue;
                 break;
                 case SSL_ERROR_WANT_READ:
-                    co_await connection_io_await{connection.iohandle, connection.status, CONN_READ};
+                    co_await connection_io_await{connection.iohandle, connection.status, connection.iomutex, CONN_READ};
                 break;
                 case SSL_ERROR_WANT_ASYNC:
                     continue;
@@ -357,31 +371,34 @@ manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connecti
     auto &connection = conn.as<connection_interface>();
     while (true) {
         int rhs;
-        int ssl_errno;
+        int ssl_errno = SSL_ERROR_NONE;
         {
             auto lock = co_await connection.rmx->lock_guard();
             if (connection.status & CONN_CLOSED) {
                 break;
             }
+            // if(SSL_get_shutdown(SSL*) & SSL_RECEIVED_SHUTDOWN)
             rhs = SSL_read(connection.ssl, buff, static_cast<int>(size));
-            ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
+            if (rhs < 0) {
+                ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
+            }
         }
         if (ssl_errno != SSL_ERROR_NONE) {
             switch (ssl_errno) {
                 case SSL_ERROR_SYSCALL: {
                     if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        co_await connection_io_await{connection.iohandle, connection.status, CONN_READ};
+                        co_await connection_io_await{connection.iohandle, connection.status, connection.iomutex, CONN_READ};
                         continue;
                     }
                     int err = errno;
                     co_return -1;
                 }
                 case SSL_ERROR_WANT_READ:
-                    co_await connection_io_await{connection.iohandle, connection.status, CONN_READ};
+                    co_await connection_io_await{connection.iohandle, connection.status, connection.iomutex, CONN_READ};
                     continue;
                 break;
                 case SSL_ERROR_WANT_WRITE:
-                    co_await connection_io_await{connection.iohandle, connection.status, CONN_WRITE};
+                    co_await connection_io_await{connection.iohandle, connection.status, connection.iomutex, CONN_WRITE};
                 break;
                 case SSL_ERROR_WANT_ASYNC:
                     continue;

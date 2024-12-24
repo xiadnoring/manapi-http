@@ -23,11 +23,12 @@ namespace manapi::net::worker {
         future<bool> configure_connection(std::shared_ptr<connection> conn) override;
         OpenSSL_TLS &operator=(OpenSSL_TLS &&n) noexcept;
         void disable_watcher_for_status(connection &conn, const connection_status &status) override;
-        void onrecv(const std::shared_ptr<worker::base> &worker) override;
+        void onrecv(ev::io &watcher, int revents) override;
         static std::shared_ptr<worker::OpenSSL_TLS> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept () override;
+        void connection_close(std::shared_ptr<connection> conn) override;
     private:
-        void _lookup_event(std::shared_ptr<connection> storage, const int &revents) override;
+        void _lookup_event(ev::io &watcher, std::shared_ptr<connection> storage, const int &revents) override;
         static std::atomic<bool> gl_init;
         static void connection_interface_eraser (void *ptr);
         SSL_CTX* ssl_create_context (const size_t &version = http::versions::TLS_v1_3);

@@ -29,27 +29,27 @@ void manapi::net::worker::QUIC::init() {
 
     // for quic
     config->set_socket_fd(socket (local->ai_family, SOCK_DGRAM, 0));
-    auto fd = config->get_socket_fd();
+    auto &fd = config->get_socket_fd();
 
-    if (*fd < 0) {
+    if (fd < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "SOCKET ERROR");
     }
 
-    setsockopt((*fd), SOL_SOCKET, SO_REUSEADDR, &reuseaddr_param, sizeof(int));
+    setsockopt((fd), SOL_SOCKET, SO_REUSEADDR, &reuseaddr_param, sizeof(int));
 
-    if (fcntl(*fd, F_SETFL, O_NONBLOCK) != 0) {
-       THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "Failed to make socket {} non-blocking", *fd);
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) != 0) {
+       THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "Failed to make socket {} non-blocking", fd.load());
     }
 
-    if (bind(*fd, local->ai_addr, local->ai_addrlen) < 0) {
+    if (bind(fd.load(), local->ai_addr, local->ai_addrlen) < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);
     }
 }
 
-void manapi::net::worker::QUIC::onrecv(const std::shared_ptr<worker::base> & worker) {
-    auto fd = config->get_socket_fd();
+void manapi::net::worker::QUIC::onrecv(ev::io &watcher, int revents) {
+    auto &fd = config->get_socket_fd();
     while (true) {
-        auto rhs = recv(*fd, buffer.data(), buffer.size(), 0);
+        auto rhs = recv(fd, buffer.data(), buffer.size(), 0);
         if (rhs < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
                 break;

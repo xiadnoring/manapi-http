@@ -70,6 +70,10 @@ namespace manapi::net {
             return false;
         }
 
+        if (task == nullptr) {
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Task is nullptr");
+        }
+
         // obtain a mutex
         queue_mutex.lock();
 

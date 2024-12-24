@@ -57,7 +57,9 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
 
 std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept() { return this->accept([] () -> std::shared_ptr<connection> { return {nullptr, [] (void *ptr) -> void { }}; }); }
 
-void manapi::net::worker::base::onrecv(const std::shared_ptr<worker::base> &worker) {}
+void manapi::net::worker::base::onrecv(ev::io &watcher, int revents) {}
+
+void manapi::net::worker::base::onasync(ev::async &watcher, int revents) {}
 
 manapi::net::worker::base & manapi::net::worker::base::operator=(base &&n) noexcept {
     this->config = std::move(n.config);
@@ -79,6 +81,8 @@ std::shared_ptr<manapi::net::worker::base> manapi::net::worker::base::create(net
     worker->set_config(std::move(config));
     return std::move(worker);
 }
+
+void manapi::net::worker::base::_timeout(std::shared_ptr<connection> storage, const int &revents) {}
 
 
 void manapi::net::worker::base::init() {}

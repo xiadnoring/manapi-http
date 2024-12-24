@@ -95,7 +95,7 @@ namespace manapi::net::http {
         // quiche_config *get_quic_config ();
 
         void set_socket_fd (const int &fd);
-        AtomicReference<int> get_socket_fd ();
+        std::atomic <int> &get_socket_fd ();
 
         [[nodiscard]] bool contains_compressor (const std::string &name);
         void set_function_contains_compressor (const std::function<bool(const std::string &name)> &func);
@@ -122,7 +122,7 @@ namespace manapi::net::http {
         Atomic<size_t>              max_plain_param_length  = 16000UL;
         Atomic<size_t>              max_file_param_length   = 2147483648UL;
 
-        Atomic<int>                 sock_fd                 = 0;
+        std::atomic<int>            sock_fd                 = 0;
         Atomic<ssize_t>             recv_timeout            = 1000;
         Atomic<ssize_t>             send_timeout            = 1000;
         Atomic<ssl_config_t>        ssl_config;

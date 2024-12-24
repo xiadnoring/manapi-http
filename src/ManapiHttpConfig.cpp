@@ -297,11 +297,11 @@ manapi::net::AtomicReference<socklen_t>  manapi::net::http::config::get_server_l
 // }
 
 void manapi::net::http::config::set_socket_fd(const int &fd) {
-    sock_fd = fd;
+    sock_fd.store(fd);
 }
 
-manapi::net::AtomicReference<int> manapi::net::http::config::get_socket_fd() {
-    return *sock_fd;
+std::atomic<int> &manapi::net::http::config::get_socket_fd() {
+    return sock_fd;
 }
 
 bool manapi::net::http::config::contains_compressor(const std::string &name) {

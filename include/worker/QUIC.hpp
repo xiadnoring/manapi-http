@@ -10,7 +10,7 @@ namespace manapi::net::worker {
         QUIC (net::site &site);
         ~QUIC ();
         void init ();
-        void onrecv(const std::shared_ptr<worker::base> &worker) override;
+        void onrecv(ev::io &watcher, int revents) override;
         static std::shared_ptr<worker::QUIC> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
     private:
         void _parse_frame (ssize_t &size);

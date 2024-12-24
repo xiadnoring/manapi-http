@@ -21,66 +21,67 @@ manapi::net::http::HeaderView::~HeaderView() {
 
 
 manapi::net::future<void> manapi::net::http::HeaderView::doit() {
-    if (!co_await worker->configure_connection(connection)) {
-        co_return;
-    }
+    if (co_await worker->configure_connection(connection)) {
+        while (true) {
 
-    while (true) {
+            request_data.path = {};
+            request_data.divided = -1;
 
-        request_data.path = {};
-        request_data.divided = -1;
-
-        ssize_t size = 0, j = 0;
-        buffer.resize(16384);
-        current = std::bind(&HeaderView::_parse_method, this, std::placeholders::_1);
-        while (!parse_vars.finished) {
-            size = co_await worker->read (*connection, buffer.data(), buffer.size());
-            if (size <= 0) { break; }
-            for (j = 0; j < size && !parse_vars.finished; j++) {
-                current (buffer.at(j));
-            }
-        }
-
-        // ghost
-        if (!parse_vars.finished) { co_return; }
-
-        const auto version = http::config::parse_http_version(request_data.http.substr(5));
-        connection->version = version;
-        switch (connection->version) {
-            case versions::HTTP_v1_1: {
-                auto client = http::http_v1_1::create (worker, config, site);
-                client->request_data = std::move(request_data);
-                client->connection = connection;
-                client->buffer = std::move(buffer);
-                client->prepare();
-                co_await client->parse_request(j, size);
-                co_await client->execute_handler();
-
-                if (client->connection_was_upgraded()) {
-                    this->parse_vars.finished = false;
-                    this->buffer = std::move(client->buffer);
-                    this->buffer.clear();
-                    continue;
+            ssize_t size = 0, j = 0;
+            buffer.resize(16384);
+            current = std::bind(&HeaderView::_parse_method, this, std::placeholders::_1);
+            while (!parse_vars.finished) {
+                size = co_await worker->read (*connection, buffer.data(), buffer.size());
+                if (size <= 0) { break; }
+                for (j = 0; j < size && !parse_vars.finished; j++) {
+                    current (buffer.at(j));
                 }
             }
-            break;
-            case versions::HTTP_v2: {
-                auto client = http::http_v2::create(worker, config, site);
-                client->connection = connection;
-                client->buffer = std::move(buffer);
-                co_await client->parse_request(j, size);
-                long cnt = client.use_count();
-                if (cnt != 1) {
-                    MANAPIHTTP_LOG("Possible bug: http2.use_count() != 1 ({})", cnt);
+
+            // ghost
+            if (!parse_vars.finished) { co_return; }
+
+            const auto version = http::config::parse_http_version(request_data.http.substr(5));
+            connection->version = version;
+            switch (connection->version) {
+                case versions::HTTP_v1_1: {
+                    auto client = http::http_v1_1::create (worker, config, site);
+                    client->request_data = std::move(request_data);
+                    client->connection = connection;
+                    client->buffer = std::move(buffer);
+                    client->prepare();
+                    co_await client->parse_request(j, size);
+                    co_await client->execute_handler();
+
+                    if (client->connection_was_upgraded()) {
+                        this->parse_vars.finished = false;
+                        this->buffer = std::move(client->buffer);
+                        this->buffer.clear();
+                        continue;
+                    }
                 }
-            }
-            break;
-            default:
                 break;
-        }
+                case versions::HTTP_v2: {
+                    auto client = http::http_v2::create(worker, config, site);
+                    client->connection = connection;
+                    client->buffer = std::move(buffer);
+                    co_await client->parse_request(j, size);
+                    long cnt = client.use_count();
+                    if (cnt != 1) {
+                        MANAPIHTTP_LOG("Possible bug: http2.use_count() != 1 ({})", cnt);
+                    }
+                }
+                break;
+                default:
+                    break;
+            }
 
-        co_return;
+            break;
+        }
     }
+
+    this->worker->connection_close(this->connection);
+    co_return;
 }
 
 void manapi::net::http::HeaderView::_parse_method(char &c) {
