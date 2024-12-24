@@ -23,27 +23,27 @@ manapi::net::http::config::config(const json &config) {
     // =================[partial data min size  ]================= //
     if (config.contains("partial_data_min_size"))
     {
-        partial_data_min_size = config["partial_data_min_size"].get <size_t> ();
+        partial_data_min_size.store(config["partial_data_min_size"].get <size_t> ());
     }
 
     // =================[socket block size      ]================= //
     if (config.contains("socket_block_size"))
     {
-        socket_block_size = config["socket_block_size"].get <size_t> ();
+        socket_block_size.store(config["socket_block_size"].get <size_t> ());
     }
 
     // =================[http version           ]================= //
     if (config.contains("http_version")) {
         http_version_str = config["http_version"].get <std::string> ();
 
-        if (http_version_str       == "0.9")    http_version = versions::HTTP_v0_9;
-        else if (http_version_str  == "1.0")    http_version = versions::HTTP_v1_0;
-        else if (http_version_str  == "1.1")    http_version = versions::HTTP_v1_1;
-        else if (http_version_str  == "2")      http_version = versions::HTTP_v2;
-        else if (http_version_str  == "3")      http_version = versions::HTTP_v3;
+        if (http_version_str       == "0.9")    http_version.store(versions::HTTP_v0_9);
+        else if (http_version_str  == "1.0")    http_version.store(versions::HTTP_v1_0);
+        else if (http_version_str  == "1.1")    http_version.store(versions::HTTP_v1_1);
+        else if (http_version_str  == "2")      http_version.store(versions::HTTP_v2);
+        else if (http_version_str  == "3")      http_version.store(versions::HTTP_v3);
         else {
-            http_version_str    = "1.1";
-            http_version        = versions::HTTP_v1_1;
+            http_version_str = "1.1";
+            http_version.store(versions::HTTP_v1_1);
 
             MANAPIHTTP_LOG("http version '{}' is invalid in the config", *http_version_str.get());
         }
@@ -73,25 +73,25 @@ manapi::net::http::config::config(const json &config) {
     // =================[max_header_block_size  ]================= //
     if (config.contains("max_header_block_size"))
     {
-        max_header_block_size = config["max_header_block_size"].get<size_t>();
+        max_header_block_size.store(config["max_header_block_size"].get<size_t>());
     }
 
     // =================[keep_alive             ]================= //
     if (config.contains("keep_alive"))
     {
-        keep_alive = config["keep_alive"].get<size_t>();
+        keep_alive.store(config["keep_alive"].get<size_t>());
     }
 
     // =================[recv_timeout           ]================= //
     if (config.contains("recv_timeout"))
     {
-        recv_timeout = config["recv_timeout"].get<ssize_t>();
+        recv_timeout.store(config["recv_timeout"].get<ssize_t>());
     }
 
     // =================[send_timeout           ]================= //
     if (config.contains("send_timeout"))
     {
-        send_timeout = config["send_timeout"].get<ssize_t>();
+        send_timeout.store(config["send_timeout"].get<ssize_t>());
     }
 
     // =================[implementation         ]================= //
@@ -112,19 +112,19 @@ manapi::net::http::config::config(const json &config) {
         const std::string &tls_version_string = config["tls_version"].get<std::string>();
         if (tls_version_string == "1" || tls_version_string == "1.0")
         {
-            tls_version = versions::TLS_v1;
+            tls_version.store(versions::TLS_v1);
         }
         else if (tls_version_string == "1.1")
         {
-            tls_version = versions::TLS_v1_1;
+            tls_version.store(versions::TLS_v1_1);
         }
         else if (tls_version_string == "1.2")
         {
-            tls_version = versions::TLS_v1_2;
+            tls_version.store(versions::TLS_v1_2);
         }
         else if (tls_version_string == "1.3")
         {
-            tls_version = versions::TLS_v1_3;
+            tls_version.store(versions::TLS_v1_3);
         }
         else {
             THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid tls_version in config: {}", tls_version_string);
@@ -137,23 +137,23 @@ manapi::net::http::config::config(const json &config) {
         const std::string &quic_cc_algo_string = config["quic_cc_algo"].get<std::string>();
         if (quic_cc_algo_string == "CUBIC")
         {
-            quic_cc_algo = versions::QUIC_CC_CUBIC;
+            quic_cc_algo.store(versions::QUIC_CC_CUBIC);
         }
         else if (quic_cc_algo_string == "RENO")
         {
-            quic_cc_algo = versions::QUIC_CC_RENO;
+            quic_cc_algo.store(versions::QUIC_CC_RENO);
         }
         else if (quic_cc_algo_string == "BBR")
         {
-            quic_cc_algo = versions::QUIC_CC_BBR;
+            quic_cc_algo.store(versions::QUIC_CC_BBR);
         }
         else if (quic_cc_algo_string == "BBR2")
         {
-            quic_cc_algo = versions::QUIC_CC_BBR2;
+            quic_cc_algo.store(versions::QUIC_CC_BBR2);
         }
         else if (quic_cc_algo_string == "NONE")
         {
-            quic_cc_algo = versions::QUIC_CC_NONE;
+            quic_cc_algo.store(versions::QUIC_CC_NONE);
         }
         else {
             THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo param in the config: {}", quic_cc_algo_string);
@@ -163,7 +163,7 @@ manapi::net::http::config::config(const json &config) {
     // =================[quic_cc_algo           ]================= //
     if (config.contains("quic_debug"))
     {
-        quic_debug = config["quic_debug"].get<bool>();
+        quic_debug.store(config["quic_debug"].get<bool>());
     }
 }
 
@@ -172,31 +172,31 @@ manapi::net::http::config::~config() = default;
 // ======================[ configs funcs]==========================
 
 void manapi::net::http::config::set_socket_block_size(const size_t &s) {
-    socket_block_size = s;
+    socket_block_size.store(s);
 }
 
-manapi::net::AtomicReference<size_t> manapi::net::http::config::get_socket_block_size() {
-    return *socket_block_size;
+std::atomic<size_t> &manapi::net::http::config::get_socket_block_size() {
+    return socket_block_size;
 }
 
 void manapi::net::http::config::set_max_header_block_size(const size_t &s) {
-    max_header_block_size = s;
+    max_header_block_size.store(s);
 }
 
-manapi::net::AtomicReference<size_t>manapi::net::http::config::get_max_header_block_size() {
-    return *max_header_block_size;
+std::atomic<size_t> &manapi::net::http::config::get_max_header_block_size() {
+    return max_header_block_size;
 }
 
-manapi::net::AtomicReference<size_t>manapi::net::http::config::get_partial_data_min_size() {
-    return *partial_data_min_size;
+std::atomic<size_t> &manapi::net::http::config::get_partial_data_min_size() {
+    return partial_data_min_size;
 }
 
 void manapi::net::http::config::set_http_version(const size_t &new_http_version) {
-    http_version = new_http_version;
+    http_version.store(new_http_version);
 }
 
-manapi::net::AtomicReference<size_t>manapi::net::http::config::get_http_version() {
-    return *http_version;
+std::atomic<size_t> &manapi::net::http::config::get_http_version() {
+    return http_version;
 }
 
 void manapi::net::http::config::set_http_version_str(const std::string &new_http_version) {
@@ -212,19 +212,19 @@ manapi::net::AtomicReference<std::string> manapi::net::http::config::get_http_ve
  * @param seconds
  */
 void manapi::net::http::config::set_keep_alive(const long int &seconds) {
-    keep_alive = seconds;
+    keep_alive.store(seconds);
 }
 
-manapi::net::AtomicReference<size_t>manapi::net::http::config::get_keep_alive() {
-    return *keep_alive;
+std::atomic<size_t> &manapi::net::http::config::get_keep_alive() {
+    return keep_alive;
 }
 
-manapi::net::AtomicReference<ssize_t> manapi::net::http::config::get_recv_timeout() {
-    return *recv_timeout;
+std::atomic<ssize_t> &manapi::net::http::config::get_recv_timeout() {
+    return recv_timeout;
 }
 
-manapi::net::AtomicReference<ssize_t> manapi::net::http::config::get_send_timeout() {
-    return *send_timeout;
+std::atomic<ssize_t> &manapi::net::http::config::get_send_timeout() {
+    return send_timeout;
 }
 
 void manapi::net::http::config::set_port(const std::string &_port) {
@@ -248,16 +248,16 @@ manapi::net::AtomicReference<std::string> manapi::net::http::config::get_address
     return *address;
 }
 
-manapi::net::AtomicReference<size_t>manapi::net::http::config::get_tls_version() {
-    return *tls_version;
+std::atomic<size_t> &manapi::net::http::config::get_tls_version() {
+    return tls_version;
 }
 
-manapi::net::AtomicReference<bool> manapi::net::http::config::is_quic_debug() {
-    return *quic_debug;
+std::atomic<bool> &manapi::net::http::config::is_quic_debug() {
+    return quic_debug;
 }
 
-manapi::net::AtomicReference<size_t>manapi::net::http::config::get_quic_cc_algo() {
-    return *quic_cc_algo;
+std::atomic <size_t> &manapi::net::http::config::get_quic_cc_algo() {
+    return quic_cc_algo;
 }
 
 manapi::net::AtomicReference<manapi::net::http::ssl_config_t> manapi::net::http::config::get_ssl_config() {
@@ -273,11 +273,11 @@ manapi::net::AtomicReference<sockaddr> manapi::net::http::config::get_server_add
 }
 
 void manapi::net::http::config::set_server_len(const size_t &len) {
-    server_len = len;
+    server_len.store(len);
 }
 
-manapi::net::AtomicReference<socklen_t>  manapi::net::http::config::get_server_len() {
-    return *server_len;
+std::atomic<socklen_t>  &manapi::net::http::config::get_server_len() {
+    return server_len;
 }
 
 // void manapi::net::http::config::set_http3_config(quiche_h3_config *config) {

@@ -705,7 +705,7 @@ manapi::net::future<void> manapi::net::worker::http_v2::send_ping_frame(std::str
             auto lk = co_await this->protocol.mx.lock_guard();
             if (this->protocol.pings.size() > 3) {
                 // timeout
-                this->worker->connection_close(this->connection);
+                async::task_run(this->site.taskpool, this->worker->connection_close(this->connection));
                 co_return;
             }
 
@@ -733,7 +733,7 @@ manapi::net::future<void> manapi::net::worker::http_v2::close_connection(int err
     data += stringify_number<int> (last_stream_id) + stringify_number<int>(errnum) + additional_data;
     co_await this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, data);
 
-    this->worker->connection_close(this->connection);
+    async::task_run(this->site.taskpool, this->worker->connection_close(this->connection));
 }
 
 manapi::net::future<void> manapi::net::worker::http_v2::send_settings(const std::vector<std::pair<short, int>> &options) {
@@ -853,7 +853,7 @@ manapi::net::future<void> manapi::net::worker::http_v2::session_worker(int id, b
         client.request_data.http = "HTTP/2.0";
         client.request_data.has_body = body;
         client.request_data.body_left = 0;
-        client.request_data.buffer.resize(*config->get_socket_block_size());
+        client.request_data.buffer.resize(config->get_socket_block_size());
         if (body) {
             auto contentlength = client.request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
             client.request_data.headers_part = 0;

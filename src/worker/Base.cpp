@@ -44,7 +44,7 @@ void manapi::net::worker::base::set_config(std::shared_ptr<manapi::net::http::co
     this->config = std::move(config);
 }
 
-void manapi::net::worker::base::connection_close(std::shared_ptr<connection> conn) {}
+manapi::net::future<void> manapi::net::worker::base::connection_close(std::shared_ptr<connection> conn) {}
 
 void manapi::net::worker::base::disable_watcher_for_status(connection &conn, const connection_status &status) {}
 

@@ -48,24 +48,24 @@ namespace manapi::net::http {
         ~config ();
 
         void set_socket_block_size (const size_t &s);
-        [[nodiscard]] AtomicReference<size_t> get_socket_block_size ();
+        [[nodiscard]] std::atomic<size_t> &get_socket_block_size ();
 
         void set_max_header_block_size (const size_t &s);
-        [[nodiscard]] AtomicReference<size_t> get_max_header_block_size ();
+        [[nodiscard]] std::atomic<size_t> &get_max_header_block_size ();
 
-        [[nodiscard]] AtomicReference<size_t> get_partial_data_min_size ();
+        [[nodiscard]] std::atomic<size_t> &get_partial_data_min_size ();
 
         void set_http_version (const size_t &new_http_version);
-        [[nodiscard]] AtomicReference<size_t> get_http_version ();
+        [[nodiscard]] std::atomic<size_t> &get_http_version ();
 
         void set_http_version_str (const std::string &new_http_version);
         [[nodiscard]] AtomicReference<std::string> get_http_version_str ();
 
         void set_keep_alive (const long int &seconds);
-        [[nodiscard]] AtomicReference<size_t> get_keep_alive ();
+        [[nodiscard]] std::atomic<size_t> &get_keep_alive ();
 
-        [[nodiscard]] AtomicReference<ssize_t> get_recv_timeout ();
-        [[nodiscard]] AtomicReference<ssize_t> get_send_timeout ();
+        [[nodiscard]] std::atomic<ssize_t> &get_recv_timeout ();
+        [[nodiscard]] std::atomic<ssize_t> &get_send_timeout ();
 
         void set_port (const std::string &_port);
         [[nodiscard]] AtomicReference<std::string> get_port ();
@@ -75,18 +75,18 @@ namespace manapi::net::http {
         [[nodiscard]] AtomicReference<std::string> get_address ();
         [[nodiscard]] AtomicReference<std::string> get_quic_implement ();
 
-        [[nodiscard]] AtomicReference<size_t> get_tls_version ();
+        [[nodiscard]] std::atomic<size_t> &get_tls_version ();
 
-        [[nodiscard]] AtomicReference<bool> is_quic_debug ();
+        [[nodiscard]] std::atomic<bool> &is_quic_debug ();
 
-        [[nodiscard]] AtomicReference<size_t> get_quic_cc_algo ();
+        [[nodiscard]] std::atomic<size_t> &get_quic_cc_algo ();
 
         AtomicReference<ssl_config_t> get_ssl_config ();
 
         void set_server_address (const sockaddr &addr);
         AtomicReference<sockaddr> get_server_address ();
         void set_server_len (const size_t &len);
-        [[nodiscard]] AtomicReference<socklen_t> get_server_len ();
+        [[nodiscard]] std::atomic<socklen_t> &get_server_len ();
 
         // void set_http3_config (quiche_h3_config *config);
         // quiche_h3_config *get_http3_config ();
@@ -104,27 +104,27 @@ namespace manapi::net::http {
         static http::versions::http parse_http_version (const std::string &version);
     private:
         // settings
-        Atomic<bool>                quic_debug              = false;
-        Atomic<size_t>              quic_cc_algo            = versions::QUIC_CC_RENO;
-        Atomic<size_t>              tls_version             = versions::TLS_v1_3;
-        Atomic<size_t>              max_header_block_size   = 4096UL;
-        Atomic<size_t>              socket_block_size       = 1350UL;
-        Atomic<size_t>              partial_data_min_size   = 0UL;
-        Atomic<size_t>              http_version            = versions::HTTP_v1_1;
+        std::atomic<bool>           quic_debug              = false;
+        std::atomic<size_t>         quic_cc_algo            = versions::QUIC_CC_RENO;
+        std::atomic<size_t>         tls_version             = versions::TLS_v1_3;
+        std::atomic<size_t>         max_header_block_size   = 4096UL;
+        std::atomic<size_t>         socket_block_size       = 1350UL;
+        std::atomic<size_t>         partial_data_min_size   = 0UL;
+        std::atomic<size_t>         http_version            = versions::HTTP_v1_1;
         Atomic<std::string>         http_version_str        = "1.1";
         Atomic<std::string>         address                 = "0.0.0.0";
         Atomic<std::string>         port                    = "8888";// settings
         Atomic<std::string>         implementation          = "default";
         Atomic<std::string>         transport               = "tcp";
-        Atomic<size_t>              keep_alive              = 2UL;
+        std::atomic<size_t>         keep_alive              = 2UL;
         Atomic<sockaddr>            server_addr;
-        Atomic<socklen_t>           server_len;
-        Atomic<size_t>              max_plain_param_length  = 16000UL;
-        Atomic<size_t>              max_file_param_length   = 2147483648UL;
+        std::atomic<socklen_t>      server_len;
+        std::atomic<size_t>         max_plain_param_length  = 16000UL;
+        std::atomic<size_t>         max_file_param_length   = 2147483648UL;
 
         std::atomic<int>            sock_fd                 = 0;
-        Atomic<ssize_t>             recv_timeout            = 1000;
-        Atomic<ssize_t>             send_timeout            = 1000;
+        std::atomic<ssize_t>        recv_timeout            = 1000;
+        std::atomic<ssize_t>        send_timeout            = 1000;
         Atomic<ssl_config_t>        ssl_config;
         std::function<bool(const std::string &name)> function_contains_compressor = nullptr;
     };

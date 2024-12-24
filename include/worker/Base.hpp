@@ -48,7 +48,7 @@ namespace manapi::net::worker {
         virtual bool is_valid_connection (worker::connection &connection);
         virtual void init ();
         virtual void set_config (std::shared_ptr<manapi::net::http::config> config);
-        virtual void connection_close (std::shared_ptr<connection> conn);
+        virtual future<void> connection_close (std::shared_ptr<connection> conn);
         virtual void disable_watcher_for_status (connection &conn, const connection_status &status);
 
         virtual future<bool> configure_connection (std::shared_ptr<connection> conn);

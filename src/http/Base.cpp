@@ -29,7 +29,7 @@ manapi::net::future<void> manapi::net::http::base::send_response(manapi::net::ht
     if (!compress.empty()) {
         if (!res.is_file() ||
             !res.get_partial_enabled() ||
-            manapi::net::filesystem::get_size(res.get_file()) < *config->get_partial_data_min_size()
+            manapi::net::filesystem::get_size(res.get_file()) < config->get_partial_data_min_size()
         ) {
             compressor = site.get_compressor(compress);
 
@@ -47,7 +47,7 @@ manapi::net::future<void> manapi::net::http::base::send_response(manapi::net::ht
 
     // set time
     res.set_header(HTTP_HEADER.DATE, manapi::net::utils::time("%a, %d %b %Y %H:%M:%S GMT", false));
-    if (*config->get_http_version() < versions::HTTP_v2) { res.set_header(HTTP_HEADER.CONNECTION, "close"); }
+    if (config->get_http_version() < versions::HTTP_v2) { res.set_header(HTTP_HEADER.CONNECTION, "close"); }
 
     if (res.is_file()) {
         co_await send_response_file(res, features);
@@ -115,7 +115,7 @@ manapi::net::future<void> manapi::net::http::base::send_response_file(manapi::ne
         }
 
         // partial enabled
-        if (res.get_partial_enabled() && *config->get_partial_data_min_size() <= fileSize) {
+        if (res.get_partial_enabled() && config->get_partial_data_min_size() <= fileSize) {
             if (FEATURE_EXISTS(features.compressor)) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
                                        "the compress '{}' with the partial content is not supported.",
@@ -331,7 +331,7 @@ manapi::net::future<void> manapi::net::http::base::send_error_response(const siz
 }
 
 manapi::net::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, std::ifstream &f, ssize_t size) const {
-    auto block_size = static_cast<ssize_t>(*config->get_socket_block_size());
+    auto block_size = static_cast<ssize_t>(config->get_socket_block_size());
     std::string block;
     block.resize(block_size);
 
@@ -365,7 +365,7 @@ manapi::net::future<void> manapi::net::http::base::send_file(manapi::net::http_r
 
 manapi::net::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, std::ifstream &f, ssize_t size, std::vector<utils::replace_founded_item> &replacers) const {
     std::string block;
-    auto block_size = static_cast<ssize_t>(*config->get_socket_block_size());
+    auto block_size = static_cast<ssize_t>(config->get_socket_block_size());
 
     block.resize(block_size);
 
@@ -467,8 +467,8 @@ manapi::net::future<void> manapi::net::http::base::send_file(manapi::net::http_r
                 if (free_space < value_left_size) {
                     block_size += value_left_size - free_space;
 
-                    if (block_size >= *config->get_socket_block_size()) {
-                        block_size = static_cast<ssize_t>(*config->get_socket_block_size());
+                    if (block_size >= config->get_socket_block_size()) {
+                        block_size = static_cast<ssize_t>(config->get_socket_block_size());
                         repeat = true;
                     }
                 }
@@ -501,7 +501,7 @@ manapi::net::future<void> manapi::net::http::base::send_file(manapi::net::http_r
                     // -printf("OK\n");
                 } else {
                     free_space = block_size - i;
-                    ssize_t can_read = static_cast<ssize_t> (*config->get_socket_block_size()) - i;
+                    ssize_t can_read = static_cast<ssize_t> (config->get_socket_block_size()) - i;
 
                     // we want to read chars by size can_read
                     f.seekg(current + index_in_block - shift);

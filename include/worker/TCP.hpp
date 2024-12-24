@@ -18,17 +18,16 @@ namespace manapi::net::worker {
             size_t time_ms = 0;
         };
         struct connection_interface {
+            manapi::net::async_mutex iomutex;
             int id{};
             std::shared_ptr <ev::io> watcher;
             ev_timer timer;
-            long long timer_cnt = 0;
             net::site *site;
             worker::base *worker;
             connection_stat_interface stats;
             bool configured = false;
             std::atomic<int> status = 0x0;
             std::atomic<int> mustly = 0b11111111;
-            std::mutex iomutex;
             std::function<void()> iohandle;
 
             std::function<void(std::shared_ptr<connection> connection, int revents)> handle;
@@ -37,23 +36,22 @@ namespace manapi::net::worker {
         struct connection_io_await {
             std::function<void()> &iohandle;
             std::atomic<int> &iostatus;
-            std::mutex &mx;
+            async_mutex &mx;
             int status;
             void await_resume () noexcept {}
             bool await_ready () noexcept { return this->iostatus & CONN_CLOSED; }
             template<typename T>
             requires(std::is_base_of_v<promise_base, T>)
             void await_suspend (std::coroutine_handle<T> handle) {
-                std::lock_guard<std::mutex> lk (this->mx);
-
                 if (this->iostatus & CONN_CLOSED) {
+                    this->mx.unlock();
                     future<>::resume_promise(handle);
                 }
                 else {
                     this->iohandle = [handle = std::exchange(handle, nullptr)]() -> void {
                         future<>::resume_promise(handle);
                     };
-
+                    this->mx.unlock();
                     this->iostatus.fetch_or(this->status);
                 }
             }
@@ -73,9 +71,10 @@ namespace manapi::net::worker {
         static std::shared_ptr<worker::TCP> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
-        void connection_close(std::shared_ptr<connection> conn) override;
+        future<void> connection_close(std::shared_ptr<connection> conn) override;
         void onasync(ev::async &watcher, int revents) override;
     protected:
+        static future<void> io_wait (connection_interface &conn, const int &status);
         void _timeout (std::shared_ptr<connection> storage, const int &revents) override;
         void _ev_watcher_stop (connection_interface & conn);
         static void _ev_timeout (EV_P_ ev_timer *w, int revents);

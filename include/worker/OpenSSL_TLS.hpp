@@ -14,6 +14,7 @@ namespace manapi::net::worker {
         struct connection_interface : TCP::connection_interface {
             SSL *ssl{};
             std::unique_ptr<async_mutex> wmx, rmx;
+            std::atomic<int> timer_accept = 0;
         };
 
         OpenSSL_TLS (net::site &site);
@@ -26,7 +27,7 @@ namespace manapi::net::worker {
         void onrecv(ev::io &watcher, int revents) override;
         static std::shared_ptr<worker::OpenSSL_TLS> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept () override;
-        void connection_close(std::shared_ptr<connection> conn) override;
+        future<void> connection_close(std::shared_ptr<connection> conn) override;
     private:
         void _lookup_event(ev::io &watcher, std::shared_ptr<connection> storage, const int &revents) override;
         static std::atomic<bool> gl_init;

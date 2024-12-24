@@ -5,7 +5,7 @@
 #include "http/HeaderView.hpp"
 
 manapi::net::http::http_v1_1::http_v1_1(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site) : base(std::move(worker), std::move(config), site) {
-    buffer.resize(*this->config->get_socket_block_size());
+    buffer.resize(this->config->get_socket_block_size());
 }
 
 manapi::net::http::http_v1_1::~http_v1_1() = default;
