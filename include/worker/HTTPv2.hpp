@@ -121,7 +121,7 @@ namespace manapi::net::worker {
         std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
     private:
         future<void> empty_setting_timeouts ();
-        void generate_error (http2_error_type errnum, std::string errmsg, int last_stream_id = 0) noexcept(false);
+        future<void> generate_error (http2_error_type errnum, std::string errmsg, int last_stream_id = 0) noexcept(false);
 
         void _skip_sm_msg (char &c);
         void _next_line (char &c);
@@ -170,7 +170,7 @@ namespace manapi::net::worker {
         void default_ev_finished (int id);
         void default_ev_priopity_update (int id, int prioritized_id, std::string prioritized_value);
         void default_ev_rst_stream (int id, int errnum);
-        void reset_all_streams ();
+        future<void> reset_all_streams ();
         static future<void> session_worker (int id, bool body, net::site &site, std::shared_ptr<http::config> config, std::shared_ptr<worker::http_v2> worker);
 
         future<ssize_t> default_read (worker::connection &connection, void *buff, const size_t &size);
@@ -237,7 +237,7 @@ namespace manapi::net::worker {
             ssize_t timeout = 1000;
             std::atomic<ssize_t> current_timeout = timeout;
             std::queue <size_t> setting_timeout;
-
+            manapi::net::future<> parse_exception{nullptr};
             manapi::net::utils::compress::hpack::decoder_t decoder;
             manapi::net::utils::compress::hpack::encoder_t encoder;
          } protocol;
@@ -250,7 +250,7 @@ namespace manapi::net::worker {
 
         std::shared_ptr<connections_storage <int, http_v2_thread_data_t>> threads;
         async_condition_variable finishcv;
-        size_t ping_interval = 0;
+        std::atomic<size_t> ping_interval = 0;
 
         static std::map <int, json_mask> allow_settings;
     };

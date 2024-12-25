@@ -56,7 +56,7 @@ manapi::net::future<size_t> manapi::net::worker::smart_w_buffer::add(const void 
         align += res;
         len -= res;
         total_res += res;
-        co_await _work(flag);
+        co_await _work(flag && (len == 0));
     } while (len > 0);
 
     co_return total_res;
@@ -69,46 +69,51 @@ manapi::net::future<void> manapi::net::worker::smart_w_buffer::disable() {
 
 
 manapi::net::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
-    co_await this->cv.wait([this] () -> bool {
-        return this->sent > 0 || disabled;
-    });
+    while (true) {
+        co_await this->cv.wait([this] () -> bool {
+            return this->sent > 0 || disabled;
+        });
 
-    if (disabled) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
+        if (disabled) {
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
+        }
+        if (callback == nullptr) { THROW_MANAPIHTTP_EXCEPTION2(ERR_FUNCTION_IS_NULL, "class smart_w_buffer(...): Function was not set"); }
+
+        auto _available_sent = static_cast<ssize_t>(this->sent);
+        ssize_t buff_size = std::min(static_cast<ssize_t>(buffer.size()), _available_sent);
+        auto ptr = buffer.data();
+        auto end = buffer.data() + buffer.size();
+        if (frame_size == 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_DIVIDED_BY_ZERO, "Why frame_size equals 0?"); }
+        // frame_size only
+        auto limit = ptr + (buff_size / frame_size) * frame_size;
+        while (limit > ptr) {
+            const bool last = end <= ptr + frame_size;
+            auto rhs = co_await callback (ptr, frame_size, (flag && last));
+            if (rhs <= 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "эм"); }
+            ptr += rhs;
+            _available_sent -= rhs;
+        }
+
+        if (_available_sent > 0 && (ptr < end)) {
+            // less than frame_size
+            auto pred = static_cast<ssize_t>(end - ptr);
+            auto rhs = co_await callback (ptr, std::min(_available_sent, pred), flag && pred <= _available_sent);
+            ptr += rhs;
+        }
+
+        ssize_t total = ptr - buffer.data();
+        this->sent.fetch_sub(total);
+
+
+        try { buffer = buffer.substr( total); }
+        catch (std::exception const &e) { MANAPIHTTP_LOG("тут ошибка: {}", e.what()); }
+
+        if (flag && ptr < end) {
+            continue;
+        }
+
+        co_return total;
     }
-    if (callback == nullptr) { THROW_MANAPIHTTP_EXCEPTION2(ERR_FUNCTION_IS_NULL, "class smart_w_buffer(...): Function was not set"); }
-
-    auto _available_sent = static_cast<ssize_t>(this->sent);
-    ssize_t buff_size = std::min(static_cast<ssize_t>(buffer.size()), _available_sent);
-    auto ptr = buffer.data();
-    auto end = buffer.data() + buffer.size();
-    if (frame_size == 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_DIVIDED_BY_ZERO, "Why frame_size equals 0?"); }
-    // frame_size only
-    auto limit = ptr + (buff_size / frame_size) * frame_size;
-    while (limit > ptr) {
-        const bool last = end <= ptr + frame_size;
-        auto rhs = co_await callback (ptr, frame_size, (flag && last));
-        if (rhs <= 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "эм"); }
-        ptr += frame_size;
-        _available_sent -= frame_size;
-    }
-
-    if (_available_sent > 0 && (ptr < end)) {
-        // less than frame_size
-        auto pred = static_cast<ssize_t>(end - ptr);
-        auto rhs = co_await callback (ptr, std::min(_available_sent, pred), flag && pred <= _available_sent);
-        ptr += rhs;
-    }
-
-    ssize_t total = ptr - buffer.data();
-    if (total == 0) {
-        int a =0;
-    }
-    this->sent.fetch_sub(total);
-    try { buffer = buffer.substr( total); }
-    catch (std::exception const &e) { MANAPIHTTP_LOG("тут ошибка: {}", e.what()); }
-
-    co_return total;
 }
 
 manapi::net::worker::smart_r_buffer::smart_r_buffer(std::shared_ptr<threadpool<task>> taskpool, const std::function<manapi::net::future<void>(int)> &callback, int frame_size) : gmx(taskpool), cv(taskpool) {

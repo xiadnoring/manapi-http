@@ -166,7 +166,7 @@ void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
         auto stack = std::make_shared<future<>>(task->doit ());
         auto &conn = task->connection->as<connection_interface>();
         auto fd = conn.id;
-
+        this->_recv_setup_connection (*connection);
         std::shared_ptr<async_stack_storage> row = std::make_shared<async_stack_storage>(stack, task);
 
         stack->_on_connection_finish([this, connection, fd, row] () -> void {
@@ -250,6 +250,8 @@ manapi::net::future<void> manapi::net::worker::TCP::connection_close(std::shared
 
 void manapi::net::worker::TCP::onasync(ev::async &watcher, int revents) {}
 
+void manapi::net::worker::TCP::_recv_setup_connection(manapi::net::worker::connection &storage) {}
+
 manapi::net::future<> manapi::net::worker::TCP::io_wait(connection_interface &connection, const int &status) {
     co_await connection.iomutex.lock();
     co_await connection_io_await{connection.iohandle, connection.status, connection.iomutex, status};
@@ -265,16 +267,16 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage, con
     if (status & CONN_CLOSED) {
         flag = true;
     }
-    else if (status & CONN_READ & mustly) {
-        if (conn.stats.total_read - conn.stats.last_total_read < 16 * 1024) {
-            flag = true;
-        }
-    }
-    else if (status & CONN_WRITE & mustly) {
-        if (conn.stats.total_write - conn.stats.last_total_write < 16 * 1024) {
-            flag = true;
-        }
-    }
+    // else if (status & CONN_READ & mustly) {
+    //     if (conn.stats.total_read - conn.stats.last_total_read < 16 * 1024) {
+    //         flag = true;
+    //     }
+    // }
+    // else if (status & CONN_WRITE & mustly) {
+    //     if (conn.stats.total_write - conn.stats.last_total_write < 16 * 1024) {
+    //         flag = true;
+    //     }
+    // }
 
     conn.timer.repeat = 0.2; // 200ms
     ev_timer_again(this->loop, &conn.timer);
@@ -338,6 +340,8 @@ void manapi::net::worker::TCP::_io_event(std::shared_ptr<connection> storage, in
     auto &connection = storage->as<connection_interface>();
     auto status = connection.status.load();
 
+    //::cerr << connection.id << " " << revents << "\n";
+
     if ((revents & ev::READ) && (status & CONN_READ)) {
         //std::cout << connection.id << " EVENT READ\n";
         connection.status.fetch_xor(CONN_READ);
@@ -395,7 +399,7 @@ manapi::net::future<ssize_t> manapi::net::worker::TCP::default_write(connection 
             break;
         }
 
-        ssize_t rhs = ::send(connection.id, buff, size, MSG_NOSIGNAL);
+        ssize_t rhs = ::send(connection.id, buff, size, MSG_NOSIGNAL|MSG_DONTWAIT);
         if (rhs < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 //std::cout << connection.id << " CB WRITE\n";

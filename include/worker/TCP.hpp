@@ -74,6 +74,7 @@ namespace manapi::net::worker {
         future<void> connection_close(std::shared_ptr<connection> conn) override;
         void onasync(ev::async &watcher, int revents) override;
     protected:
+        virtual void _recv_setup_connection (manapi::net::worker::connection &storage);
         static future<void> io_wait (connection_interface &conn, const int &status);
         void _timeout (std::shared_ptr<connection> storage, const int &revents) override;
         void _ev_watcher_stop (connection_interface & conn);
@@ -90,13 +91,14 @@ namespace manapi::net::worker {
         static void _connection_interface_eraser (connection_interface *connection);
 
         std::map <int, std::shared_ptr<async_stack_storage>> stacks;
+
+        future<ssize_t> default_write (connection &conn, const void *buff, const size_t &size) const;
+        future<ssize_t> default_read (connection &conn, void *buff, const size_t &size) const;
     private:
         std::string stringify_http_info (manapi::net::http_response &res, const http::versions::http &version, const std::string &delimiter) const;
         std::string stringify_headers (manapi::net::http_response &res, const std::string &delimiter) const;
         static void connection_interface_eraser (void *ptr);
 
-        future<ssize_t> default_write (connection &conn, const void *buff, const size_t &size) const;
-        future<ssize_t> default_read (connection &conn, void *buff, const size_t &size) const;
 
 
         std::stack<std::shared_ptr<async_stack_storage>> tmp;

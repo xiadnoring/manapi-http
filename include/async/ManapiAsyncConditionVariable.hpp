@@ -40,9 +40,9 @@ namespace manapi::net {
         }
 
         future<void> notify_all () {
-            std::cerr << "lk(...);\n";
+            //std::cerr << "lk(...);\n";
             auto lk = co_await this->mx.lock_guard();
-            std::cerr << "notify_all(...);\n";
+            //std::cerr << "notify_all(...);\n";
             size_t _len = this->stack.size();
             for (size_t i = 0; i < _len; i++) { this->_notify_first(); }
         }

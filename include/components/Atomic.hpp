@@ -76,8 +76,8 @@ namespace manapi::net {
         {
             std::lock_guard<std::mutex> lk (*this->mdeps);
             ++(*this->deps);
-            cv.notify_all();
         }
+        cv.notify_all();
     }
 
     template<typename T>
@@ -93,8 +93,10 @@ namespace manapi::net {
     template<typename T>
     AtomicReference<T>::~AtomicReference() {
         if (this->mdeps != nullptr && this->deps != nullptr && this->cv != nullptr) {
-            std::lock_guard<std::mutex> lk (*this->mdeps);
-            --(*this->deps);
+            {
+                std::lock_guard<std::mutex> lk (*this->mdeps);
+                --(*this->deps);
+            }
             cv->notify_all();
         }
     }
@@ -158,8 +160,9 @@ namespace manapi::net {
 
     template<typename T>
     Atomic<T>::~Atomic() {
-        std::unique_lock<std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
     }
 
     template<typename T>
@@ -171,15 +174,17 @@ namespace manapi::net {
 
     template<typename T>
     void Atomic<T>::update(const std::function<void(T &v)> &func) {
-        std::unique_lock <std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         func (value);
     }
 
     template<typename T>
     Atomic<T> & Atomic<T>::operator=(const T &n) {
-        std::unique_lock <std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         value = n;
         return *this;
     }
@@ -252,7 +257,6 @@ namespace manapi::net {
     template<typename T>
     void Atomic<T>::_wait(std::unique_lock<std::mutex> &lk) {
         cv.wait(lk, [this] () -> bool {
-            std::lock_guard<std::mutex> lkdeps (mdeps);
             return deps == 0;
         });
     }
@@ -261,24 +265,27 @@ namespace manapi::net {
 
     template<>
     inline Atomic<size_t> &Atomic<size_t>::operator++() {
-        std::unique_lock<std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         ++value;
         return *this;
     }
 
     template<>
     inline Atomic<size_t> &Atomic<size_t>::operator-=(const size_t &n) {
-        std::unique_lock<std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         value -= n;
         return *this;
     }
 
     template<>
     inline Atomic<size_t> &Atomic<size_t>::operator+=(const size_t &n) {
-        std::unique_lock<std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         value += n;
         return *this;
     }
@@ -333,8 +340,9 @@ namespace manapi::net {
 
     template<>
     inline Atomic<size_t> &Atomic<size_t>::operator--() {
-        std::unique_lock<std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         --value;
         return *this;
     }
@@ -344,24 +352,27 @@ namespace manapi::net {
 
     template<>
     inline Atomic<ssize_t> &Atomic<ssize_t>::operator++() {
-        std::unique_lock<std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         ++value;
         return *this;
     }
 
     template<>
     inline Atomic<ssize_t> &Atomic<ssize_t>::operator-=(const ssize_t &n) {
-        std::unique_lock<std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         value -= n;
         return *this;
     }
 
     template<>
     inline Atomic<ssize_t> &Atomic<ssize_t>::operator+=(const ssize_t &n) {
-        std::unique_lock<std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         value += n;
         return *this;
     }
@@ -422,8 +433,9 @@ namespace manapi::net {
 
     template<>
     inline Atomic<ssize_t> &Atomic<ssize_t>::operator--() {
-        std::unique_lock<std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         --value;
         return *this;
     }
@@ -445,8 +457,9 @@ namespace manapi::net {
     // string
     template<>
     inline Atomic<std::string> & Atomic<std::string>::operator=(const char *n) {
-        std::unique_lock<std::mutex> lk (gmx);
-        _wait(lk);
+        std::scoped_lock<std::mutex> lk (gmx);
+        std::unique_lock<std::mutex> lkdeps (mdeps);
+        _wait(lkdeps);
         value = std::move(std::string(n));
         return *this;
     }

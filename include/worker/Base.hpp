@@ -35,10 +35,11 @@ namespace manapi::net::worker {
     class base {
     public:
         enum connection_status {
-            CONN_IDLE   = 0b00000001,
-            CONN_WRITE  = 0b00000010,
-            CONN_READ   = 0b00000100,
-            CONN_CLOSED = 0b00001000
+            CONN_IDLE           = 0b00000001,
+            CONN_WRITE          = 0b00000010,
+            CONN_READ           = 0b00000100,
+            CONN_CLOSED         = 0b00001000,
+            CONN_HALF_CLOSED    = 0b00010000
         };
 
         base (net::site &site);

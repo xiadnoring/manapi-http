@@ -175,6 +175,14 @@ namespace manapi::net {
             }
         }
 
+        [[nodiscard]] bool operator==(const nullptr_t &n) const {
+            return this->handle == nullptr;
+        }
+
+        [[nodiscard]] bool operator!=(const nullptr_t &n) const {
+            return false == this->operator==(std::forward<decltype(n)>(n));
+        }
+
         struct Awaiter {
             std::coroutine_handle<promise> handle;
 
