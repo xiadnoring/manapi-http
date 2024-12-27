@@ -172,7 +172,7 @@ manapi::net::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std
     auto &connection = conn->as<connection_interface>();
     auto lk = co_await connection.iomutex.lock_guard();
 
-    if (false == connection.status & CONN_CLOSED) {
+    if ((false == connection.status & CONN_CLOSED)) {
         bool flag = true;
         do {
             auto rhs = SSL_shutdown(connection.ssl);
@@ -238,7 +238,7 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
         close(connection->id);
         delete connection;
         co_return;
-    } ());
+    });
 }
 
 int manapi::net::worker::OpenSSL_TLS::_gl_openssl_async_callback(SSL *ssl, void *argp) {

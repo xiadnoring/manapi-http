@@ -12,25 +12,25 @@ namespace manapi::net {
         struct promise {
             std::mutex &mx;
             std::queue <std::coroutine_handle<future<>::promise> > &stack;
-            bool &own;
+            std::optional<std::thread::id> &own;
 
             bool await_ready () noexcept { return false; }
             void await_resume () noexcept {}
 
             void await_suspend (std::coroutine_handle<future<>::promise> handle) {
                 std::unique_lock <std::mutex> lk (this->mx);
-                if (this->own) {
+                if (this->own.has_value()) {
                     this->stack.push(std::exchange(handle, nullptr));
                 }
                 else {
-                    this->own = true;
+                    this->own = std::this_thread::get_id();
                     lk.unlock();
                     future<>::resume_promise(handle);
                 }
             }
         };
 
-        async_mutex (std::shared_ptr<threadpool<task>> taskpool) : taskpool(std::move(taskpool)), own(false) {}
+        async_mutex (std::shared_ptr<threadpool<task>> taskpool) : taskpool(std::move(taskpool)) {}
 
         manapi::net::future<void> lock () {
             co_await async_mutex::promise {this->mx, this->stack, this->own};
@@ -39,20 +39,30 @@ namespace manapi::net {
 
         bool try_to_lock () {
             std::lock_guard<std::mutex> lk (this->mx);
-            if (this->own) { return false; }
-            this->own = true;
+            if (this->own.has_value()) { return false; }
+            this->own = std::this_thread::get_id();
             return true;
         }
 
         void unlock () {
             std::lock_guard<std::mutex> lk (this->mx);
-            if (!this->own) { return; }
-            if (this->stack.empty()) { own = false; return; }
+            if (!this->own.has_value()) {
+                return;
+            }
+            if (this->stack.empty()) {
+                this->own.reset();
+                return;
+            }
             auto handle = this->stack.front();
             this->stack.pop();
             this->taskpool->append_task([handle = std::exchange(handle, nullptr)] () -> void {
                 future<>::resume_promise(handle);
             });
+        }
+
+        [[nodiscard]] bool locked () {
+            std::lock_guard<std::mutex> lk (this->mx);
+            return this->own.has_value();
         }
 
         future<utils::before_delete> lock_guard () {
@@ -71,7 +81,7 @@ namespace manapi::net {
     private:
         std::shared_ptr<threadpool<task>> taskpool;
         std::mutex mx;
-        bool own;
+        std::optional<std::thread::id> own;
         std::queue <std::coroutine_handle<future<>::promise> > stack;
     };
 }

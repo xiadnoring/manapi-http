@@ -15,39 +15,53 @@
 #include "ManapiHttpMime.hpp"
 #include "compress/ManapiHPack.hpp"
 #include "ManapiAsync.hpp"
+#include "async/ManapiAsyncConditionVariable.hpp"
 #include "async/ManapiAsyncMutex.hpp"
+#include "components/ManapiChain.hpp"
+
 using namespace manapi::net::utils;
 using namespace manapi::net;
 
 using namespace std;
 
-// atomic<int> a = 0;
+// int a = 0;
 //
-// manapi::net::future<int> print () {
-//     a.fetch_add(1);
-//     co_return a;
-// }
 //
-// manapi::net::future<void> co_main () {
-//     for (int i = 0; i < 10000000; i++) {
-//         auto j = co_await print();
-//         if (j % 10000 == 0) {
-//             cout << j << "\n";
-//         }
-//     }
+// static auto taskpool = std::make_shared<threadpool<task>> (4);
+// static async_condition_variable cv (taskpool);
+//
+// manapi::net::future<void> print (async_mutex &mx2) {
+//     co_await mx2.lock();
+//
+//     co_await cv.notify_all();
+//     std::cout << "-\n";
+//     mx2.unlock();
 // }
 //
 // int main () {
-//     threadpool<task> taskpool (20);
-//     taskpool.start();
-//     timerpool timerpool (taskpool, 50);
-//     taskpool.append_task([&] () -> void { timerpool.start(); });
+//     taskpool->start();
+//     timerpool timerpool (*taskpool, 1);
+//     taskpool->append_task([&] () -> void { timerpool.start(); });
+//     async_mutex mx2 (taskpool);
+//     for (int i = 0; i < 100000; i++) {
+//         async::task_run(taskpool, [mx2 = &mx2] () -> manapi::net::future<void> {
+//             co_await mx2->lock();
+//             std::cout << "1\n";
+//             mx2->unlock();
+//         }());
+//     }
 //
-//     auto rhs = co_main ();
-//     rhs.get<>(taskpool);
-//
+//     getchar();
 //     timerpool.stop();
-//     taskpool.stop();
+//     taskpool->stop();
+// }
+
+// int main () {
+//     manapi::chain<int> a;
+//     a.push(78);
+//     std::cout << a.size() << "\n";
+//
+//     return 0;
 // }
 
 //

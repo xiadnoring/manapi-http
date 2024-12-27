@@ -1,5 +1,6 @@
 #pragma once
 
+#include <future>
 #include <thread>
 
 #include "../ManapiSite.hpp"
@@ -88,7 +89,7 @@ namespace manapi::net::worker {
     };
 
     struct http_v2_callbacks_t {
-        std::function<void(int id, std::map <std::string, std::string> headers)> headers;
+        std::function<manapi::net::future<void>(int id, std::map <std::string, std::string> headers)> headers;
         std::function<void(int id)> data;
         std::function<void(int last_stream_id, int errnum, std::string errmsg)> goaway;
         std::function<void(int id, int prioritized_id, std::string prioritized_value)> priority_update;
@@ -101,8 +102,8 @@ namespace manapi::net::worker {
         std::map <std::string, std::string> headers;
         bool rst = false;
 
-        smart_w_buffer write;
-        smart_r_buffer read;
+        std::shared_ptr<smart_w_buffer> write;
+        std::shared_ptr<smart_r_buffer> read;
     };
 
     class http_v2 : public worker::base {
@@ -120,6 +121,7 @@ namespace manapi::net::worker {
         std::string buffer;
         std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
     private:
+        void _deps_decrease();
         future<void> empty_setting_timeouts ();
         future<void> generate_error (http2_error_type errnum, std::string errmsg, int last_stream_id = 0) noexcept(false);
 
@@ -164,7 +166,7 @@ namespace manapi::net::worker {
         future<ssize_t> send_data (int stream_id, const void *buf, ssize_t size, bool finish);
         future<void> send_window_frame (int stream_id, int size);
 
-        void default_ev_headers (int id, std::map <std::string, std::string> headers);
+        future<void> default_ev_headers (int id, std::map <std::string, std::string> headers);
         void default_ev_data (int id);
         void default_ev_goaway (int last_stream_id, int errnum, std::string errmsg);
         void default_ev_finished (int id);
@@ -210,7 +212,7 @@ namespace manapi::net::worker {
             int stream_id = 0;
             uint8_t flag = 0;
             bool initial_frame = true;
-            std::map <int, std::pair <int, std::function <void(int value)>>> settings;
+            std::map <int, std::pair <std::atomic<int>, std::function <void(int value)>>> settings;
             size_t padding = 0;
             ssize_t timer_interval = 20;
             std::chrono::system_clock::time_point prev_ping_time_point = std::chrono::system_clock::now();
@@ -219,12 +221,10 @@ namespace manapi::net::worker {
             std::set <std::string> pings;
 
             struct protocol_http2_window_t {
-                std::atomic<int> read = 0;
-                std::atomic<int> write = 0;
+                std::shared_ptr<async_condition_variable> write_cv;
 
-                std::mutex writemx;
-
-                std::condition_variable writecv;
+                std::atomic<ssize_t> read = 0;
+                std::atomic<ssize_t> write = 0;
             } window;
 
             struct protocol_http2_error_t {
@@ -248,9 +248,13 @@ namespace manapi::net::worker {
         http_v2_callbacks_t callbacks{};
         std::shared_ptr<worker::base> worker;
 
-        std::shared_ptr<connections_storage <int, http_v2_thread_data_t>> threads;
+        async_mutex threads_mutex;
+        std::map <int, http_v2_thread_data_t> threads;
+        std::atomic<size_t> thread_cnt;
+
         async_condition_variable finishcv;
         std::atomic<size_t> ping_interval = 0;
+        std::atomic<size_t> deps = 0;
 
         static std::map <int, json_mask> allow_settings;
     };

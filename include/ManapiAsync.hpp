@@ -1,5 +1,6 @@
 #pragma once
 
+#include <assert.h>
 #include <generator>
 #include <memory>
 #include <functional>
@@ -8,7 +9,7 @@
 #include <atomic>
 #include <mutex>
 #include <utility>
-#include <utility>
+#include <functional>
 
 #include "services/ManapiThreadPool.hpp"
 #include "services/ManapiTask.hpp"
@@ -231,6 +232,7 @@ namespace manapi::net {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void resume_promise (const std::coroutine_handle<T1> &handle) {
+            assert((handle.address() != nullptr));
             auto cnd = handle.promise().connection_finish_data;
             handle.resume();
             if (cnd != nullptr && cnd->finished.load()) {
@@ -324,16 +326,22 @@ namespace manapi::net {
     namespace async {
         inline std::atomic <ssize_t> async_cnt = 0;
         inline std::mutex async_tasks_mx;
-        inline std::unordered_map <size_t, manapi::net::future<void>> async_tasks;
 
-        inline void task_run(std::shared_ptr<threadpool<task>> taskpool, manapi::net::future<> task, const std::function<void()> &onfinish = nullptr) {
+        struct async_task_t {
+            std::unique_ptr<std::function <manapi::net::future<>()>> cb;
+            manapi::net::future<void> task;
+        };
+
+        inline std::unordered_map <size_t, async_task_t> async_tasks;
+
+        inline size_t _task_run_prepare (std::shared_ptr<threadpool<task>> taskpool, manapi::net::future<> &task, std::function<void()> onfinish) {
             if (task.get_handle() == nullptr) {
                 std::cerr << "Null pointer in the net::future<> task\n";
             }
 
             auto index = reinterpret_cast <size_t> (task.get_handle().address());
 
-            task._on_connection_finish([index, taskpool, onfinish] () -> void {
+            task._on_connection_finish([index, taskpool, onfinish = std::move(onfinish)] () -> void {
                 if (onfinish) taskpool->append_task(onfinish);
                 decltype(async_tasks)::node_type data;
                 {
@@ -349,9 +357,32 @@ namespace manapi::net {
 
             task();
 
+            return index;
+        }
+
+        inline void task_run(std::shared_ptr<threadpool<task>> taskpool, manapi::net::future<> task, const std::function<void()> &onfinish = nullptr) {
+            const size_t index = _task_run_prepare(std::move(taskpool), task, onfinish);
+
             if (!task.finished()) {
                 std::lock_guard<std::mutex> lk (async_tasks_mx);
-                async_tasks.insert({index, std::move(task)});
+                if (async_tasks.contains(index)) {
+                    printf("bug\n");
+                }
+                async_tasks.insert({index, {nullptr, std::move(task)}});
+                async_cnt.fetch_add(1);
+            }
+        }
+
+        inline void task_run (std::shared_ptr<threadpool<task>> taskpool, std::function<manapi::net::future<>()> callback,  const std::function<void()> &onfinish = nullptr) {
+            auto task = callback();
+            const size_t index = _task_run_prepare(std::move(taskpool), task, onfinish);
+
+            if (!task.finished()) {
+                std::lock_guard<std::mutex> lk (async_tasks_mx);
+                if (async_tasks.contains(index)) {
+                    printf("bug\n");
+                }
+                async_tasks.insert({index, async_task_t{std::make_unique<std::function<manapi::net::future<>()>>(std::move(callback)), std::move(task)}});
                 async_cnt.fetch_add(1);
             }
         }

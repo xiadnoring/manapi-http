@@ -6,23 +6,31 @@
 
 #include "ManapiAsyncMutex.hpp"
 #include "../ManapiAsync.hpp"
+#include "components/ManapiChain.hpp"
 
 namespace manapi::net {
     class async_condition_variable {
+    private:
+        struct notify_sub_t {
+            std::coroutine_handle<future<>::promise> handle;
+            std::function<bool()> cond;
+            async_mutex *mx;
+        };
     public:
         struct promise {
             std::function<bool()> cond;
+            async_mutex *gmx;
             async_mutex *mx;
             std::shared_ptr<threadpool<task>> &taskpool;
-            std::deque <std::pair<std::function<bool()>, std::coroutine_handle<future<>::promise>>> *stack;
+            chain <notify_sub_t> *stack;
 
             bool await_ready () noexcept { return false; }
             void await_resume () noexcept {}
 
             void await_suspend (std::coroutine_handle<future<>::promise> handle) {
-                async::task_run(this->taskpool, this->mx->lock(), [cond = std::move(this->cond), stack = this->stack, mx = this->mx, handle = std::exchange(handle, nullptr)] () -> void {
-                    stack->emplace_back(std::move(cond), handle);
-                    mx->unlock();
+                async::task_run(this->taskpool, this->gmx->lock(), [cond = std::move(this->cond), mx = this->mx, stack = this->stack, gmx = this->gmx, handle = std::exchange(handle, nullptr)] () -> void {
+                    stack->push({handle, std::move(cond), mx});
+                    gmx->unlock();
                 });
             }
         };
@@ -31,54 +39,81 @@ namespace manapi::net {
 
         future<void> wait (const std::function<bool()> &cond) {
             if (cond()) { co_return; }
-            co_await promise{cond, &this->mx, taskpool, &this->stack};
+            co_await promise{cond, &this->mx, nullptr, taskpool, &this->stack};
+        }
+
+        future<void> wait (async_mutex &mx, const std::function<bool()> &cond) {
+            if (cond()) {
+                if (!mx.locked()) {
+                    co_await mx.lock();
+                }
+                co_return;
+            }
+            mx.unlock();
+            co_await promise{cond, &this->mx, &mx, taskpool, &this->stack};
         }
 
         future<void> notify_one () {
             auto lk = co_await this->mx.lock_guard();
-            _notify_first();
+            co_await this->_notify_first();
         }
 
         future<void> notify_all () {
-            //std::cerr << "lk(...);\n";
             auto lk = co_await this->mx.lock_guard();
-            //std::cerr << "notify_all(...);\n";
             size_t _len = this->stack.size();
-            for (size_t i = 0; i < _len; i++) { this->_notify_first(); }
+            for (size_t i = 0; i < _len; i++) {
+                if (!co_await this->_notify_first()) {
+                    break;
+                }
+            }
         }
 
-        ~async_condition_variable () {
-            this->stop.store(true);
-            this->notify_all();
-        }
+        ~async_condition_variable () = default;
     private:
-        bool _notify_first () {
-            if (this->stack.empty()) { return false; }
-            auto data = this->stack.front();
-            this->cnt.fetch_add(1);
-            auto handle = [this, data = std::move(data)] () -> void {
-                if (data.first ()) {
-                    std:future<>::resume_promise(data.second);
-                }
-                else if (!this->stop.load()) {
-                    this->stack.emplace_back(std::move(data.first), data.second);
-                }
+        future<void> _notify_item (chain<notify_sub_t>::iterator it) {
+            auto &data = *it;
+            // if (data.mx) {
+            //     //MANAPIHTTP_LOG2("--WANT 2 BLOCK");
+            //     co_await data.mx->lock();
+            //     //MANAPIHTTP_LOG2("--BLOCKED");
+            // }
 
-                this->cnt.fetch_sub(1);
-            };
-            this->stack.pop_front();
-            if (this->stop.load()) {
-                handle();
+            bool rhs = false;
+            try { rhs = data.cond (); }
+            catch (std::exception const &e) { std::cerr << e.what() << "\n"; }
+
+            if (rhs) {
+                auto handle = std::exchange(data.handle, nullptr);
+                {
+                    auto lk = co_await this->mx.lock_guard();
+                    this->stack.erase(it);
+                }
+                //MANAPIHTTP_LOG2("--pop_front");
+                this->taskpool->append_task([handle = std::exchange(handle, nullptr)] () -> void {
+                    future<>::resume_promise(handle);
+                });
             }
             else {
-                this->taskpool->append_task(std::move(handle));
+                //MANAPIHTTP_LOG2("--UNBLOCKED");
+                if (data.mx) { data.mx->unlock(); }
+
+                if (this->stop) {
+                    auto lk = co_await this->mx.lock_guard();
+                    this->stack.erase(it);
+                }
             }
-            return true;
+        }
+        future<bool> _notify_first () {
+            if (this->stack.empty()) { co_return false; }
+            auto &data = *this->stack.rbegin();
+            if (data.mx) { co_await data.mx->lock(); }
+            async::task_run(this->taskpool, this->_notify_item(this->stack.rbegin()));
+            co_return true;
         }
         std::atomic<bool> stop = false;
         std::atomic<int> cnt = 0;
         std::shared_ptr<threadpool<task>> taskpool;
         async_mutex mx;
-        std::deque <std::pair<std::function<bool()>, std::coroutine_handle<future<>::promise>>> stack;
+        chain <notify_sub_t> stack;
     };
 }
