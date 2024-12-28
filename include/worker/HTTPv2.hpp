@@ -108,12 +108,13 @@ namespace manapi::net::worker {
 
     class http_v2 : public worker::base {
     public:
-        http_v2 (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
+        http_v2 (const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~http_v2() override;
 
         future<void> parse_request(ssize_t j, ssize_t size);
-        void init_settings ();
-        void set_callbacks (const http_v2_callbacks_t &callbacks);
+        void init_settings();
+        void init_callbacks();
+        void set_callbacks(const http_v2_callbacks_t &callbacks);
 
         future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish) override;
 
@@ -156,7 +157,7 @@ namespace manapi::net::worker {
 
         void _parse_number (char &c, size_t &num, size_t &length);
 
-        future<void> send_frame (http2_frame_type frame, uint8_t flag, uint32_t stream_id, std::string_view data);
+        future<void> send_frame (http2_frame_type frame, uint8_t flag, int stream_id, std::string_view data);
         future<void> send_empty_frame (http2_frame_type frame, char flag, int stream_id);
         future<void> timer_watcher ();
         future<void> send_ping_frame (std::string data={});
