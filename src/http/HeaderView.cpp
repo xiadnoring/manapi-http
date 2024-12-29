@@ -21,6 +21,7 @@ manapi::net::http::HeaderView::~HeaderView() {
 
 
 manapi::net::future<void> manapi::net::http::HeaderView::doit() {
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     if (co_await worker->configure_connection(connection)) {
         while (true) {
 
@@ -64,6 +65,7 @@ manapi::net::future<void> manapi::net::http::HeaderView::doit() {
                 case versions::HTTP_v2: {
                     auto client = http::http_v2::create(worker, config, site);
                     client->connection = connection;
+                    client->start = start;
                     client->buffer = std::move(buffer);
                     co_await client->parse_request(j, size);
                     long cnt = client.use_count();

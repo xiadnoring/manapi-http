@@ -345,11 +345,10 @@ int main (int argc, char *argv[]) {
         debug_print_memory("pool");
 
         auto rhs = server.pool(20);
-        this_thread::sleep_for(std::chrono::seconds(20));
 
         rhs.get();
         debug_print_memory("preend");
-        this_thread::sleep_for(std::chrono::seconds(5));
+        this_thread::sleep_for(std::chrono::seconds(2));
         // server.stop();
         //this_thread::sleep_for(std::chrono::seconds(100));
     }

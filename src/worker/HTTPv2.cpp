@@ -56,8 +56,8 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
 
     try {
         this->protocol.conn_type.fetch_or(CONN_IDLE);
-        this->ping_interval.store(this->site.append_interval(std::chrono::milliseconds (this->protocol.timer_interval), [this, dep = new_dependency()] () -> void {
-            async::task_run(this->site.taskpool, std::move(this->timer_watcher()));
+        this->ping_interval.store(co_await this->site.timerpool->async_append_interval_async(std::chrono::milliseconds (this->protocol.timer_interval), [this, dep = new_dependency()] () -> future<void> {
+            co_await this->timer_watcher();
         }));
 
         goto skip;
@@ -114,31 +114,30 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
                     protocol.window.read = 3000000;
                     co_await send_window_frame(0, static_cast<int> (protocol.window.read));
 
-                    protocol.initial_frame = false;
+                    this->protocol.initial_frame = false;
                 }
-                switch (protocol.type) {
+                switch (this->protocol.type) {
                     case HTTP2_FRAME_PRIORITY: {
-                        auto session = sessions.find(protocol.stream_id);
-                        if (session == sessions.end()) {
-                            co_await generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "stream doesn't exists");
+                        auto session = this->sessions.find(this->protocol.stream_id);
+                        if (session == this->sessions.end()) {
+                            co_await this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "stream doesn't exists");
                         }
                         // pass
                         break;
                     }
                     case HTTP2_FRAME_SETTINGS: {
-                        if (protocol.flag & HTTP2_FLAG_SETTINGS_ACK) {
+                        if (this->protocol.flag & HTTP2_FLAG_SETTINGS_ACK) {
                             // settings were accepted
-                            if (protocol.setting_timeout.empty()) {
-                                co_await generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "unexpected frame");
+                            if (this->protocol.setting_timeout.empty()) {
+                                co_await this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "unexpected frame");
                             }
-                            site.remove_timer(protocol.setting_timeout.front());
-                            protocol.setting_timeout.pop();
+                            co_await this->site.timerpool->async_remove_timer(this->protocol.setting_timeout.front());
+                            this->protocol.setting_timeout.pop();
                             if (this->protocol.conn_type & CONN_IDLE) {
                                 this->protocol.conn_type.fetch_xor(CONN_IDLE);
                             }
                         }
                         else {
-                            printf("settings accept\n");
                             co_await send_frame (HTTP2_FRAME_SETTINGS, HTTP2_FLAG_SETTINGS_ACK, 0, {});
                         }
                         break;
@@ -147,10 +146,10 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
                     case HTTP2_FRAME_CONTINUATION: {
                         auto session = sessions.find(protocol.stream_id);
                         if (session == sessions.end()) {
-                            co_await generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "stream doesn't exists");
+                            co_await this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "stream doesn't exists");
                         }
                         if (session->second.type == HTTP2_CONN_HALF_CLOSED_REMOTE || session->second.type == HTTP2_CONN_CLOSED) {
-                            co_await generate_error(HTTP2_ERROR_STREAM_CLOSED, "Invalid frame was received to half-closed(remote)", protocol.stream_id);
+                            co_await this->generate_error(HTTP2_ERROR_STREAM_CLOSED, "Invalid frame was received to half-closed(remote)", protocol.stream_id);
                         }
                         if (protocol.flag & HTTP2_FLAG_HEADERS_END_HEADERS) {
                             session->second.body = ! (protocol.flag & HTTP2_FLAG_HEADERS_END_STREAM);
@@ -172,22 +171,22 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
                     }
                     case HTTP2_FRAME_DATA: {
                         {
-                            auto lk = co_await threads_mutex.lock_guard();
-                            auto thread = threads.find(protocol.stream_id);
-                            if (thread == threads.end()) {
+                            auto lk = co_await this->threads_mutex.lock_guard();
+                            auto thread = this->threads.find(protocol.stream_id);
+                            if (thread == this->threads.end()) {
                                 lk.call();
-                                co_await generate_error(HTTP2_ERROR_PROTOCOL_ERROR, std::format("stream {} doesn't exists", protocol.stream_id));
+                                co_await this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, std::format("stream {} doesn't exists", this->protocol.stream_id));
                             }
-                            co_await thread->second.read->add(parse_vars.buffer.data(), parse_vars.buffer.size(), protocol.flag & HTTP2_FLAG_DATA_END_STREAM);
-                            parse_vars.buffer.clear();
+                            co_await thread->second.read->add(this->parse_vars.buffer.data(), this->parse_vars.buffer.size(), this->protocol.flag & HTTP2_FLAG_DATA_END_STREAM);
+                            this->parse_vars.buffer.clear();
                         }
 
                         {
-                            auto session = sessions.find(protocol.stream_id);
-                            if (session == sessions.end()) { break; }
+                            auto session = this->sessions.find(this->protocol.stream_id);
+                            if (session == this->sessions.end()) { break; }
 
-                            if (protocol.flag & HTTP2_FLAG_DATA_END_STREAM) {
-                                callbacks.finished (session->second.id);
+                            if (this->protocol.flag & HTTP2_FLAG_DATA_END_STREAM) {
+                                this->callbacks.finished (session->second.id);
                                 //sessions.erase(session);
                                 session->second.type = HTTP2_CONN_CLOSED;
                             }
@@ -196,29 +195,39 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
                         break;
                     }
                     case HTTP2_FRAME_GOAWAY: {
-                        callbacks.goaway (protocol.error.last_stream_id, protocol.error.errnum, std::move(protocol.error.errmsg));
-                        protocol.error.last_stream_id = 0;
-                        if (protocol.error.errnum == HTTP2_ERROR_STREAM_CLOSED) {
-                            protocol.conn_type.fetch_or(CONN_HALF_CLOSED);
+                        callbacks.goaway(protocol.error.last_stream_id, protocol.error.errnum, std::move(protocol.error.errmsg));
+                        if (protocol.error.errnum >= HTTP2_ERROR_NO_ERROR && protocol.error.errnum <= HTTP2_ERROR_HTTP_1_1_REQUIRED) {
+                            protocol.error.last_stream_id = 0;
+                            co_await this->generate_error(HTTP2_ERROR_NO_ERROR, {}, protocol.error.last_stream_id);
                         }
                         else {
-                            co_await generate_error(HTTP2_ERROR_NO_ERROR, {}, protocol.error.last_stream_id);
+                            // GOAWAY frame with unknown error code
+                            // The endpoint MUST NOT trigger any special behavior.
+                            protocol.error.errnum = 0;
+                            protocol.error.last_stream_id = 0;
+                            protocol.error.errmsg.clear();
                         }
                         break;
                     }
                     case HTTP2_FRAME_RST_STREAM: {
-                        auto lk = co_await threads_mutex.lock_guard();
-                        auto thread = threads.find(protocol.stream_id);
-                        if (thread == threads.end()) {
-                            lk.call();
-                            co_await generate_error(HTTP2_ERROR_PROTOCOL_ERROR, std::format("stream {} doesn't exists", protocol.stream_id));
+                        // protocol.value - err code
+                        const int &err_code = protocol.value;
+
+                        if (err_code >= HTTP2_ERROR_NO_ERROR && err_code <= HTTP2_ERROR_HTTP_1_1_REQUIRED) {
+                            auto lk = co_await threads_mutex.lock_guard();
+                            auto thread = threads.find(protocol.stream_id);
+                            if (thread == threads.end()) {
+                                lk.call();
+                                co_await this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, std::format("stream {} doesn't exists", protocol.stream_id));
+                            }
+                            callbacks.rst_stream (thread->first, err_code);
                         }
-                        callbacks.rst_stream (thread->first, protocol.value);
+
                         protocol.value = 0;
                         break;
                     }
                     case HTTP2_FRAME_WINDOW_UPDATE: {
-                        MANAPIHTTP_LOG ("window frame пришел ура праздник 🎉🎉🎉 {} {} {}", protocol.value, protocol.stream_id, protocol.flag);
+                        //MANAPIHTTP_LOG ("window frame пришел ура праздник 🎉🎉🎉 {} {} {}", protocol.value, protocol.stream_id, protocol.flag);
                         if (protocol.stream_id == 0) {
                             // global
                             protocol.window.write.fetch_add(protocol.value);
@@ -227,11 +236,14 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
                             break;
                         }
 
+                        if (this->sessions.find(this->protocol.stream_id) == this->sessions.end()) {
+                            co_await this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "stream doesn't exists");
+                        }
+
                         auto lk = co_await threads_mutex.lock_guard();
                         auto thread = threads.find(protocol.stream_id);
                         if (thread == threads.end()) {
-                            lk.call();
-                            co_await generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "stream doesn't exists");
+                            break;
                         }
                         co_await thread->second.write->add_allow_to_sent(protocol.value);
                         protocol.value = 0;
@@ -279,7 +291,7 @@ manapi::net::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j,
         std::cout << "BEEN NOTIFY " << this->threads.empty() << " " << deps << "\n";
         return this->threads.empty() && deps == 0;
     });
-    this->site.remove_timer(this->ping_interval.exchange(0));
+    co_await this->site.timerpool->async_remove_timer(this->ping_interval.exchange(0));
     if ((this->protocol.conn_type & CONN_CLOSED) == false ) {
         lk.call();
         co_await close_connection (HTTP2_ERROR_NO_ERROR, "shutdown", 0);
@@ -315,20 +327,10 @@ void manapi::net::worker::http_v2::init_settings() {
 
         async::task_run(this->site.taskpool, [dp = new_dependency(), this] () -> future<void> {
             co_await this->protocol.window.write_cv->notify_all();
-
-            std::cout << "START " << (ssize_t)this << "\n";
             auto lk = co_await this->threads_mutex.lock_guard();
-            if (!dp) {
-                printf("hm\n");
-            }
             for (auto &thread : this->threads) {
                 co_await thread.second.write->resize(this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first.load());
             }
-
-            if (!dp) {
-                printf("hm\n");
-            }
-            std::cout << "FINISH\n";
         });
     };
     this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first.store(16384);
@@ -425,7 +427,7 @@ manapi::net::future<void> manapi::net::worker::http_v2::empty_setting_timeouts()
     while (!this->protocol.setting_timeout.empty()) {
         auto id = this->protocol.setting_timeout.back();
         this->protocol.setting_timeout.pop();
-        this->site.remove_timer(id);
+        co_await this->site.timerpool->async_remove_timer(id);
     }
     co_return;
 }
@@ -442,7 +444,7 @@ void manapi::net::worker::http_v2::_skip_sm_msg(char &c) {
     parse_vars.buffer += c;
     if (parse_vars.buffer.size() == 4) {
         if (parse_vars.buffer != "SM\r\n") {
-            this->protocol.parse_exception = generate_error (HTTP2_ERROR_PROTOCOL_ERROR, "SM label is invalid");
+            this->protocol.parse_exception = this->generate_error (HTTP2_ERROR_PROTOCOL_ERROR, "SM label is invalid");
             return;
         }
         parse_vars.buffer.clear();
@@ -466,7 +468,7 @@ void manapi::net::worker::http_v2::_next_line(char &c) {
         }
     }
 
-    this->protocol.parse_exception = generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "Invalid next line: \\r\\n");
+    this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "Invalid next line: \\r\\n");
 }
 
 void manapi::net::worker::http_v2::_skip_null_octet(char &c) {
@@ -650,7 +652,7 @@ void manapi::net::worker::http_v2::_parse_header_data(char &c) {
 
     if (datasize == 1 && protocol.flag & HTTP2_FLAG_HEADERS_END_HEADERS) {
         if (!this->protocol.decoder.decode(this->parse_vars.buffer)) {
-            this->protocol.parse_exception = generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "hpack: failed to decode headers");
+            this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "hpack: failed to decode headers");
             return;
         }
         this->parse_vars.buffer.clear();
@@ -661,7 +663,7 @@ void manapi::net::worker::http_v2::_parse_header_data(char &c) {
             session.type = HTTP2_CONN_OPEN;
         }
         else {
-            this->protocol.parse_exception = generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "CONTINUATION frame instead of HEADERS Frame");
+            this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "CONTINUATION frame instead of HEADERS Frame");
             return;
         }
 
@@ -679,7 +681,7 @@ void manapi::net::worker::http_v2::_parse_header_data(char &c) {
     }
 
     else if (datasize < 1) {
-        this->protocol.parse_exception = generate_error(HTTP2_ERROR_PROTOCOL_ERROR, std::format("protocol.length - protocol.padding < 0. ({})", datasize));
+        this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, std::format("protocol.length - protocol.padding < 0. ({})", datasize));
         return;
     }
 }
@@ -699,7 +701,7 @@ void manapi::net::worker::http_v2::_parse_body_data(char &c) {
     }
 
     if (datasize < 1) {
-        this->protocol.parse_exception = generate_error(HTTP2_ERROR_PROTOCOL_ERROR, std::format("protocol.length - protocol.padding < 0. ({})", datasize));
+        this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, std::format("protocol.length - protocol.padding < 0. ({})", datasize));
         return;
     }
 }
@@ -720,22 +722,22 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
     switch (protocol.type) {
         case HTTP2_FRAME_HEADERS: {
             if (length <= 0) {
-                this->protocol.parse_exception = generate_error(HTTP2_ERROR_FRAME_SIZE_ERROR, "HEADERS Frame is empty");
+                this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_FRAME_SIZE_ERROR, "HEADERS Frame is empty");
                 return;
             }
 
             if (protocol.stream_id == 0) {
-                this->protocol.parse_exception = generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "0x0 reserved");
+                this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "0x0 reserved");
                 return;
             }
 
-            if ((!this->sessions.empty() && this->sessions.rbegin()->first + 2 != this->protocol.stream_id) || (this->sessions.empty() && this->protocol.stream_id != 1)) {
-                this->protocol.parse_exception = generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "unexpected stream id");
+            if ((!this->sessions.empty() && this->sessions.rbegin()->first >= this->protocol.stream_id)) {
+                this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "unexpected stream id");
                 return;
             }
 
             if (this->thread_cnt.load() >= protocol.settings[HTTP2_SETTING_MAX_CONCURRENT_STREAMS].first) {
-                this->protocol.parse_exception = generate_error(HTTP2_ERROR_REFUSED_STREAM, std::format("max concurrent streams-{}", protocol.settings[HTTP2_SETTING_MAX_CONCURRENT_STREAMS].first.load()));
+                this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_REFUSED_STREAM, std::format("max concurrent streams-{}", protocol.settings[HTTP2_SETTING_MAX_CONCURRENT_STREAMS].first.load()));
                 return;
             }
 
@@ -816,8 +818,8 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
 
 void manapi::net::worker::http_v2::_parse_number(char &c, size_t &num, size_t &length) {
     if (length == 0) {
-        current = next;
-        current (c);
+        this->current = this->next;
+        this->current (c);
         return;
     }
     num = (num << 8) | static_cast<unsigned char> (c);
@@ -835,7 +837,7 @@ manapi::net::future<void> manapi::net::worker::http_v2::send_frame(http2_frame_t
         std::cout << data.substr(8) << "\n";
     }
     if (co_await this->worker->write(*this->connection, response.data(), response.size(), false) <= 0) {
-        co_await generate_error(HTTP2_ERROR_STREAM_CLOSED, "stream closed", static_cast<int>(stream_id));
+        co_await this->generate_error(HTTP2_ERROR_STREAM_CLOSED, "stream closed", static_cast<int>(stream_id));
     }
 }
 
@@ -852,9 +854,10 @@ manapi::net::future<> manapi::net::worker::http_v2::timer_watcher() {
     protocol.current_timeout.fetch_sub(protocol.timer_interval);
     if (protocol.current_timeout <= 0) {
         MANAPIHTTP_LOG2("TIMEOUT HTTP2");
-        this->site.remove_timer(this->ping_interval.exchange(0));
-        co_await this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout", 0);
+        co_await this->site.timerpool->async_remove_timer(this->ping_interval.exchange(0));
         MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
+        co_await this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout", 0);
+        MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
     }
 }
 
@@ -887,7 +890,6 @@ manapi::net::future<void> manapi::net::worker::http_v2::send_ping_frame(std::str
 
 manapi::net::future<void> manapi::net::worker::http_v2::close_connection(int errnum, std::string additional_data, int last_stream_id ) {
     if (this->protocol.conn_type & CONN_CLOSED) {
-        co_await reset_all_streams();
         co_return;
     }
 
@@ -907,8 +909,8 @@ manapi::net::future<void> manapi::net::worker::http_v2::send_settings(const std:
         co_await generate_error(HTTP2_ERROR_SETTINGS_TIMEOUT, "recv settings timeout", 0);
     };
 
-    this->protocol.setting_timeout.push(this->site.append_timer(std::chrono::milliseconds(1000), [handle = std::move(handle), worker = std::move(this->new_dependency ())] () -> void {
-        async::task_run(worker->site.taskpool, handle(worker));
+    this->protocol.setting_timeout.push(co_await this->site.timerpool->async_append_timer_async(std::chrono::milliseconds(1000), [handle = std::move(handle), worker = std::move(this->new_dependency ())] () mutable -> future<void> {
+        co_await handle(std::move(worker));
     }));
     std::string data;
     for (const auto &option: options) {
@@ -928,20 +930,27 @@ manapi::net::future<ssize_t> manapi::net::worker::http_v2::send_data(int stream_
     auto sent = std::min(size, this->protocol.window.write.load());
     this->protocol.window.write.fetch_sub(sent);
     char cflag = 0x00;
-    if (finish && sent == size) { cflag |= HTTP2_FLAG_DATA_END_STREAM; }
+    if (finish && sent == size) {
+        cflag |= HTTP2_FLAG_DATA_END_STREAM;
+    }
     co_await this->send_frame(HTTP2_FRAME_DATA, cflag, stream_id, std::string_view(static_cast<const char *> (buf), sent));
+    if (finish && sent == size) {
+        auto end = std::chrono::steady_clock::now();
+        printf("\nOperation took %ld milliseconds\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+    }
     co_return sent;
 }
 
 manapi::net::future<void> manapi::net::worker::http_v2::send_window_frame(int stream_id, int size) {
     if (this->protocol.window.read < size) {
-        this->protocol.window.read.fetch_add(1e6);
-        auto nsize = stringify_number <int> (1e6);
+        this->protocol.window.read.fetch_add(1e4);
+        auto nsize = stringify_number <int> (size);
         co_await send_frame(HTTP2_FRAME_WINDOW_UPDATE, 0x00, 0, nsize);
     }
     this->protocol.window.read.fetch_sub(size);
     auto nsize = stringify_number <int> (size);
     co_await send_frame (HTTP2_FRAME_WINDOW_UPDATE, 0x00, stream_id, nsize);
+    co_return;
 }
 
 manapi::net::future<void> manapi::net::worker::http_v2::default_ev_headers(int id, std::map<std::string, std::string> headers) {
@@ -958,7 +967,13 @@ manapi::net::future<void> manapi::net::worker::http_v2::default_ev_headers(int i
                 co_return rhs;
             }, static_cast<size_t>(this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first),
             .read = std::make_shared<smart_r_buffer>(this->site.taskpool, [this, id](int size) -> future<void> {
-                co_await this->send_window_frame(id, std::forward<decltype(size)>(size));
+
+                try {
+                    co_await this->send_window_frame(id, size);
+                }
+                catch (std::exception const &e) {
+
+                }
                 co_return;
             }, 100000)
         }});
@@ -1000,13 +1015,33 @@ manapi::net::future<void> manapi::net::worker::http_v2::reset_all_streams() {
     auto lk = co_await this->threads_mutex.lock_guard();
     for (auto & thread : this->threads) {
         //co_await send_frame(HTTP2_FRAME_RST_STREAM, thread->first, this->protocol.error.errnum, this->protocol.error.errmsg);
-        default_ev_rst_stream(thread.first, HTTP2_ERROR_NO_ERROR);
+        this->callbacks.rst_stream(thread.first, HTTP2_ERROR_NO_ERROR);
         co_await thread.second.write->disable();
         co_await thread.second.read->disable();
     }
     co_return;
 }
+
+manapi::net::future<> manapi::net::worker::http_v2::delete_stream_id(const int &id) {
+    auto lk = co_await this->threads_mutex.lock_guard();
+    if (this->threads.contains(id)) {
+        this->threads.erase(id);
+        this->thread_cnt.fetch_sub(1);
+    }
+    // unbind
+    lk.call();
+
+    co_await this->finishcv.notify_all();
+}
+
+manapi::net::future<> manapi::net::worker::http_v2::reset_stream(int id, int errnum) {
+    co_await this->send_frame(HTTP2_FRAME_RST_STREAM, 0x0, id, stringify_number<int> (errnum));
+}
+
 manapi::net::future<void> manapi::net::worker::http_v2::session_worker(int id, bool body, net::site &site, std::shared_ptr<http::config> config, std::shared_ptr<worker::http_v2> worker) {
+
+    int stream_errnum = HTTP2_ERROR_NO_ERROR;
+
     try {
         http::http_v2 client (worker, config, site);
         client.connection = std::make_shared<worker::connection>(new int (id),
@@ -1045,25 +1080,20 @@ manapi::net::future<void> manapi::net::worker::http_v2::session_worker(int id, b
 
         co_await client.parse_request(0,0);
         co_await client.execute_handler();
+
     }
     catch (std::exception const &e) {
         MANAPIHTTP_LOG("session_worker(...): {}", e.what());
+        stream_errnum = HTTP2_ERROR_INTERNAL_ERROR;
     }
 
-
-    {
-        auto lk = co_await worker->threads_mutex.lock_guard();
-        if (worker->threads.contains(id)) {
-            worker->threads.erase(id);
-            worker->thread_cnt.fetch_sub(1);
-            std::cout << "N78OTIFY\n";
-        }
-        else {
-            MANAPIHTTP_LOG2("Failed to find session thread data by id");
-        }
+    if (stream_errnum != HTTP2_ERROR_NO_ERROR) {
+        // an error occurred
+        co_await worker->reset_stream (id, stream_errnum);
     }
-    co_await worker->finishcv.notify_all();
-    std::cout << "NOTIFY\n";
+
+    co_await worker->delete_stream_id (id);
+
     worker.reset();
 }
 
@@ -1114,7 +1144,7 @@ void manapi::net::worker::http_v2::settings_update_max_concurrent_streams(int va
 }
 
 void manapi::net::worker::http_v2::setting_value_valid(const http2_setting_type &type, const int &value) noexcept(false) {
-    if (this->allow_settings[type].valid(value)) {
+    if (manapi::net::worker::http_v2::allow_settings[type].valid(value)) {
         return;
     }
 

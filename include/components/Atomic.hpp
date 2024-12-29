@@ -28,28 +28,77 @@ namespace manapi::net {
     class Atomic {
     public:
         Atomic ();
-        Atomic (T v);
+
+        template<typename T1 = T>
+        Atomic (T1 v);
+
+        template<typename T1>
+        requires(std::is_same_v<T1, std::string>)
         Atomic (const char *n);
+
         ~Atomic ();
+
         AtomicReference <T> get ();
+
         void update (const std::function<void(T &v)> &func);
+
         Atomic& operator=(const T &n);
+
+        template<typename T1 = T>
+        requires(std::is_same_v<T1, std::string>)
         Atomic& operator=(const char *n);
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         Atomic &operator++();
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         Atomic &operator--();
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         bool operator>(const T &n);
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         bool operator<(const T &n);
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         bool operator>=(const T &n);
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         bool operator<=(const T &n);
-        bool operator==(const T &n);
+
+        template<typename T1>
+        bool operator==(const T1 &n);
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         bool operator!=(const T &n);
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         Atomic operator-(const T &n);
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         Atomic operator+(const T &n);
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         Atomic &operator-=(const T &n);
+
+        template<typename T1 = T>
+        requires(std::is_integral_v<T1>)
         Atomic &operator+=(const T &n);
+
         AtomicReference<T> operator*();
     private:
-        void _wait (std::unique_lock<std::mutex> &lk);
+        std::shared_ptr<std::unique_lock<std::mutex>> read_lock ();
+        utils::before_delete readwrite_lock ();
         std::mutex gmx;             // global mutex
         std::mutex mx;              // default mutex
         std::mutex mdeps;           // deps mutex
@@ -141,7 +190,8 @@ namespace manapi::net {
     }
 
     template<typename T>
-    Atomic<T>::Atomic(T v) {
+    template<typename T1>
+    Atomic<T>::Atomic(T1 v) {
         {
             std::lock_guard<std::mutex> lk (mdeps);
             deps = 0;
@@ -150,6 +200,8 @@ namespace manapi::net {
     }
 
     template<typename T>
+    template<typename T1>
+    requires(std::is_same_v<T1, std::string>)
     Atomic<T>::Atomic(const char *n) {
         {
             std::lock_guard<std::mutex> lk (mdeps);
@@ -160,313 +212,152 @@ namespace manapi::net {
 
     template<typename T>
     Atomic<T>::~Atomic() {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
+        auto lk = this->readwrite_lock();
     }
 
     template<typename T>
     AtomicReference <T> Atomic<T>::get() {
-        std::lock_guard<std::mutex> lk (gmx);
+        std::lock_guard<std::mutex> lk (this->gmx);
 
-        return std::move(AtomicReference<T> (value, deps, mdeps, cv));
+        return std::move(AtomicReference<T> (this->value, this->deps, this->mdeps, this->cv));
     }
 
     template<typename T>
     void Atomic<T>::update(const std::function<void(T &v)> &func) {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        func (value);
+        auto lk = this->readwrite_lock();
+        func (this->value);
     }
 
     template<typename T>
     Atomic<T> & Atomic<T>::operator=(const T &n) {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        value = n;
+        auto lk = this->readwrite_lock();
+        this->value = n;
         return *this;
     }
 
     template<typename T>
+    template<typename T1> requires (std::is_same_v<T1, std::string>)
     Atomic<T> & Atomic<T>::operator=(const char *n) {
+        auto lk = this->readwrite_lock();
+        this->value = n;
         return *this;
     }
 
     template<typename T>
+    template<typename T1> requires (std::is_integral_v<T1>)
     Atomic<T> & Atomic<T>::operator++() {
+        auto lk = this->readwrite_lock();
+        ++this->value;
         return *this;
     }
 
     template<typename T>
+    template<typename T1> requires (std::is_integral_v<T1>)
     Atomic<T> & Atomic<T>::operator--() {
+        auto lk = this->readwrite_lock();
+        --this->value;
         return *this;
     }
 
     template<typename T>
-    bool Atomic<T>::operator>=(const T &n) {
-        return false;
-    }
-
-    template<typename T>
-    bool Atomic<T>::operator<=(const T &n) {
-        return false;
-    }
-
-    template<typename T>
-    bool Atomic<T>::operator==(const T &n) {
-        return false;
-    }
-
-    template<typename T>
-    bool Atomic<T>::operator!=(const T &n) {
-        return false;
-    }
-
-    template<typename T>
-    Atomic<T> Atomic<T>::operator-(const T &n) {
-        return *this;
-    }
-
-    template<typename T>
-    Atomic<T> Atomic<T>::operator+(const T &n) {
-        return *this;
-    }
-
-    template<typename T>
-    Atomic<T> &Atomic<T>::operator-=(const T &n) {
-        return *this;
-    }
-
-    template<typename T>
-    Atomic<T> &Atomic<T>::operator+=(const T &n) {
-        return *this;
-    }
-
-    template<typename T>
-    bool Atomic<T>::operator<(const T &n) {
-        return false;
-    }
-
-    template<typename T>
+    template<typename T1> requires (std::is_integral_v<T1>)
     bool Atomic<T>::operator>(const T &n) {
-        return false;
+        auto lk = this->read_lock();
+        return this->value > n;
     }
 
     template<typename T>
-    void Atomic<T>::_wait(std::unique_lock<std::mutex> &lk) {
-        cv.wait(lk, [this] () -> bool {
-            return deps == 0;
-        });
+    template<typename T1> requires (std::is_integral_v<T1>)
+    bool Atomic<T>::operator<(const T &n) {
+        auto lk = this->read_lock();
+        return this->value < n;
     }
 
-    // size_t
+    template<typename T>
+    template<typename T1> requires (std::is_integral_v<T1>)
+    bool Atomic<T>::operator>=(const T &n) {
+        auto lk = this->read_lock();
+        return this->value >= n;
+    }
 
-    template<>
-    inline Atomic<size_t> &Atomic<size_t>::operator++() {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        ++value;
+    template<typename T>
+    template<typename T1> requires (std::is_integral_v<T1>)
+    bool Atomic<T>::operator<=(const T &n) {
+        auto lk = this->read_lock();
+        return this->value <= n;
+    }
+
+    template<typename T>
+    template<typename T1>
+    bool Atomic<T>::operator==(const T1 &n) {
+        auto lk = this->read_lock();
+        return this->value == n;
+    }
+
+    template<typename T>
+    template<typename T1> requires (std::is_integral_v<T1>)
+    bool Atomic<T>::operator!=(const T &n) {
+        return this->operator==(n) == false;
+    }
+
+    template<typename T>
+    template<typename T1> requires (std::is_integral_v<T1>)
+    Atomic<T> Atomic<T>::operator-(const T &n) {
+        auto lk = this->readwrite_lock();
+        return {this->value - n};
+    }
+
+    template<typename T>
+    template<typename T1> requires (std::is_integral_v<T1>)
+    Atomic<T> Atomic<T>::operator+(const T &n) {
+        auto lk = this->readwrite_lock();
+        return {this->value + n};
+    }
+
+    template<typename T>
+    template<typename T1> requires (std::is_integral_v<T1>)
+    Atomic<T> & Atomic<T>::operator-=(const T &n) {
+        auto lk = this->readwrite_lock();
+        this->value -= n;
         return *this;
     }
 
-    template<>
-    inline Atomic<size_t> &Atomic<size_t>::operator-=(const size_t &n) {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        value -= n;
-        return *this;
-    }
-
-    template<>
-    inline Atomic<size_t> &Atomic<size_t>::operator+=(const size_t &n) {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        value += n;
-        return *this;
-    }
-
-    template<>
-    inline Atomic<size_t> Atomic<size_t>::operator-(const size_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return (value - n);
-    }
-
-    template<>
-    inline Atomic<size_t> Atomic<size_t>::operator+(const size_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return (value + n);
-    }
-
-    template<>
-    inline bool Atomic<size_t>::operator!=(const size_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value != n;
-    }
-
-    template<>
-    inline bool Atomic<size_t>::operator==(const size_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value == n;
-    }
-
-    template<>
-    inline bool Atomic<size_t>::operator>(const size_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value > n;
-    }
-
-    template<>
-    inline bool Atomic<size_t>::operator<(const size_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value < n;
-    }
-
-    template<>
-    inline bool Atomic<size_t>::operator<=(const size_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value <= n;
-    }
-
-    template<>
-    inline bool Atomic<size_t>::operator>=(const size_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value >= n;
-    }
-
-    template<>
-    inline Atomic<size_t> &Atomic<size_t>::operator--() {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        --value;
-        return *this;
-    }
-
-    // ssize_t
-
-
-    template<>
-    inline Atomic<ssize_t> &Atomic<ssize_t>::operator++() {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        ++value;
-        return *this;
-    }
-
-    template<>
-    inline Atomic<ssize_t> &Atomic<ssize_t>::operator-=(const ssize_t &n) {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        value -= n;
-        return *this;
-    }
-
-    template<>
-    inline Atomic<ssize_t> &Atomic<ssize_t>::operator+=(const ssize_t &n) {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        value += n;
+    template<typename T>
+    template<typename T1> requires (std::is_integral_v<T1>)
+    Atomic<T> & Atomic<T>::operator+=(const T &n) {
+        auto lk = this->readwrite_lock();
+        this->value += n;
         return *this;
     }
 
     template<typename T>
     AtomicReference<T> Atomic<T>::operator*() {
-        std::lock_guard<std::mutex> lk (gmx);
-        return std::move(AtomicReference<T> (value, deps, mdeps, cv));
+        return this->get();
     }
 
-    template<>
-    inline Atomic<ssize_t> Atomic<ssize_t>::operator-(const ssize_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return (value - n);
+    template<typename T>
+    std::shared_ptr<std::unique_lock<std::mutex>> Atomic<T>::read_lock() {
+        auto lk = std::make_shared<std::unique_lock<std::mutex>> (this->gmx, std::try_to_lock);
+        if (!lk->owns_lock()) {
+            lk->lock();
+        }
+
+        return lk;
     }
 
-    template<>
-    inline Atomic<ssize_t> Atomic<ssize_t>::operator+(const ssize_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return (value + n);
-    }
+    template<typename T>
+    utils::before_delete Atomic<T>::readwrite_lock() {
+        auto lk = this->read_lock();
+        auto lkdeps = std::make_shared <std::unique_lock<std::mutex>> (this->mdeps, std::try_to_lock);
+        if (!lkdeps->owns_lock()) {
+            lkdeps->lock();
+        }
 
-    template<>
-    inline bool Atomic<ssize_t>::operator!=(const ssize_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value != n;
-    }
+        this->cv.wait(*lkdeps, [this] () -> bool {
+            return this->deps == 0;
+        });
 
-    template<>
-    inline bool Atomic<ssize_t>::operator==(const ssize_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value == n;
-    }
-
-    template<>
-    inline bool Atomic<ssize_t>::operator>(const ssize_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value > n;
-    }
-
-    template<>
-    inline bool Atomic<ssize_t>::operator<(const ssize_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value < n;
-    }
-
-    template<>
-    inline bool Atomic<ssize_t>::operator<=(const ssize_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value <= n;
-    }
-
-    template<>
-    inline bool Atomic<ssize_t>::operator>=(const ssize_t &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value >= n;
-    }
-
-    template<>
-    inline Atomic<ssize_t> &Atomic<ssize_t>::operator--() {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        --value;
-        return *this;
-    }
-
-    // bool
-
-    template<>
-    inline bool Atomic<bool>::operator!=(const bool &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value != n;
-    }
-
-    template<>
-    inline bool Atomic<bool>::operator==(const bool &n) {
-        std::lock_guard<std::mutex> lk (gmx);
-        return value == n;
-    }
-
-    // string
-    template<>
-    inline Atomic<std::string> & Atomic<std::string>::operator=(const char *n) {
-        std::scoped_lock<std::mutex> lk (gmx);
-        std::unique_lock<std::mutex> lkdeps (mdeps);
-        _wait(lkdeps);
-        value = std::move(std::string(n));
-        return *this;
-    }
-
-    template<>
-    inline bool Atomic<std::string>::operator==(const std::string &n) {
-        return value == n;
+        return std::move(utils::before_delete{[lk = std::move(lk), lkdeps = std::move(lkdeps)] () -> void {}});
     }
 }
 

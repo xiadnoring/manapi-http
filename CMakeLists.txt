@@ -177,7 +177,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/services/ManapiFutureTask.hpp
         include/async/ManapiAsyncMutex.hpp
         include/async/ManapiAsyncConditionVariable.hpp
-        include/components/ManapiChain.hpp)
+        include/components/ManapiChain.hpp
+        include/async/ManapiAsyncTimer.hpp)
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
     # EXE

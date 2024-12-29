@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "../ManapiAsync.hpp"
+#include "../ManapiBeforeDelete.hpp"
 
 namespace manapi::net {
     class async_mutex {
@@ -67,9 +68,9 @@ namespace manapi::net {
 
         future<utils::before_delete> lock_guard () {
             co_await this->lock();
-            co_return utils::before_delete([this] () -> void {
+            co_return std::move(utils::before_delete([this] () -> void {
                 this->unlock();
-            });
+            }));
         }
 
         ~async_mutex () {

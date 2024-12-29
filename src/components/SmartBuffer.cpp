@@ -148,13 +148,15 @@ manapi::net::future<void> manapi::net::worker::smart_r_buffer::resize(int frame_
 }
 
 manapi::net::future<void> manapi::net::worker::smart_r_buffer::add(const void *c, size_t len, bool flag) {
-    auto lk = co_await this->gmx.lock_guard();
-    if (i >= this->buffer.size()) {
-        i = 0;
-        this->buffer.clear();
+    {
+        auto lk = co_await this->gmx.lock_guard();
+        if (i >= this->buffer.size()) {
+            i = 0;
+            this->buffer.clear();
+        }
+        this->buffer.append(static_cast<const char *> (c), len);
+        //auto size = this->buffer.size();
     }
-    this->buffer.append(static_cast<const char *> (c), len);
-    //auto size = this->buffer.size();
     co_await cv.notify_all();
     //std::cout << "ура, мы получили данные " << len << "flag: " << flag << "\n";
 }
@@ -172,6 +174,7 @@ manapi::net::future<ssize_t> manapi::net::worker::smart_r_buffer::read(void *c, 
     i += size;
 
     if (this->buffer.size() == this->i) {
+        lk.call();
         co_await this->callback (this->frame_size);
     }
 

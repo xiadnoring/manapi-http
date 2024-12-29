@@ -103,7 +103,8 @@ namespace manapi::net::worker {
 
         std::stack<std::shared_ptr<async_stack_storage>> tmp;
         addrinfo *local;
-        int so_reuseaddr_param = 1;
+        int socket_param_true = 1;
+        int socket_param_false = 1;
         timeval recv_timeout{}, send_timeout{};
         addrinfo hints{};
     };

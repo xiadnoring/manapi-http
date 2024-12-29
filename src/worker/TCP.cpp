@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory.h>
 #include <arpa/inet.h>
+#include <netinet/tcp.h>
 #include <filesystem>
 #include <chrono>
 #include <thread>
@@ -39,7 +40,7 @@ bool manapi::net::worker::TCP::is_valid_connection(worker::connection &connectio
 }
 
 void manapi::net::worker::TCP::init() {
-    hints = {
+    this->hints = {
         .ai_family      = PF_UNSPEC,
         .ai_socktype    = SOCK_STREAM,
         .ai_protocol    = IPPROTO_TCP
@@ -52,31 +53,35 @@ void manapi::net::worker::TCP::init() {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
     }
 
-    config->set_server_address(*local->ai_addr);
-    config->set_server_len(local->ai_addrlen);
+    this->config->set_server_address(*local->ai_addr);
+    this->config->set_server_len(local->ai_addrlen);
 
     MANAPIHTTP_LOG("HTTP TCP PORT USED: {}. {}:{}", *port, *address, *port);
 
-    config->set_socket_fd(socket(AF_INET, SOCK_STREAM, 0));
+    this->config->set_socket_fd(socket(AF_INET, SOCK_STREAM, 0));
 
     auto &fd = config->get_socket_fd();
     if (fd < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "SOCKET ERROR");
     }
     // REUSE PARAM
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &so_reuseaddr_param, sizeof(int));
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &socket_param_true, sizeof(int));
 
     // TIMEOUT RECV PARAM
     auto tv = static_cast<ssize_t> (config->get_recv_timeout());
-    recv_timeout.tv_sec = tv / 1000;
-    recv_timeout.tv_usec = tv - recv_timeout.tv_sec * 1000;;
+    this->recv_timeout.tv_sec = tv / 1000;
+    this->recv_timeout.tv_usec = tv - recv_timeout.tv_sec * 1000;;
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof (timeval));
 
     // TIMEOUT RECV PARAM
     tv = static_cast<ssize_t> (config->get_send_timeout());
-    send_timeout.tv_sec = tv / 1000;
-    send_timeout.tv_usec = tv - send_timeout.tv_sec * 1000;
+    this->send_timeout.tv_sec = tv / 1000;
+    this->send_timeout.tv_usec = tv - send_timeout.tv_sec * 1000;
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof (timeval));
+
+    if (this->config->get_tcp_no_delay()) {
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &socket_param_true, sizeof (int));
+    }
 
     this->set_fd_non_blocking(fd);
 

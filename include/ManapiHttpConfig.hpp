@@ -102,6 +102,8 @@ namespace manapi::net::http {
 
         static const std::string &stringify_http_version (const versions::http &version);
         static http::versions::http parse_http_version (const std::string &version);
+
+        std::atomic<bool> &get_tcp_no_delay ();
     private:
         // settings
         std::atomic<bool>           quic_debug              = false;
@@ -126,6 +128,7 @@ namespace manapi::net::http {
         std::atomic<ssize_t>        recv_timeout            = 1000;
         std::atomic<ssize_t>        send_timeout            = 1000;
         Atomic<ssl_config_t>        ssl_config;
+        std::atomic<bool>           tcp_no_delay            = false;
         std::function<bool(const std::string &name)> function_contains_compressor = nullptr;
     };
 }

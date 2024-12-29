@@ -25,7 +25,7 @@ std::string manapi::net::site::default_config_name      = "config.json";
 // ======================[ configs funcs]==========================
 
 void manapi::net::site::set_compressor(const std::string &name, manapi::net::utils::compress::TEMPLATE_INTERFACE handler) {
-    compressors[name] = handler;
+    this->compressors[name] = handler;
 }
 
 manapi::net::utils::compress::TEMPLATE_INTERFACE manapi::net::site::get_compressor(const std::string &name) {
@@ -34,21 +34,21 @@ manapi::net::utils::compress::TEMPLATE_INTERFACE manapi::net::site::get_compress
         return nullptr;
     }
 
-    return compressors.at(name);
+    return this->compressors.at(name);
 }
 
 bool manapi::net::site::contains_compressor(const std::string &name) const {
-    return compressors.contains(name);
+    return this->compressors.contains(name);
 }
 
 void manapi::net::site::set_transport_protocol_worker(const std::string &type, const std::string &name, const std::function<std::shared_ptr<worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker) {
-    transport_protocol_workers[type][name] = [this, worker] (std::shared_ptr<http::config> &&config) {
+    this->transport_protocol_workers[type][name] = [this, worker] (std::shared_ptr<http::config> &&config) {
         return worker (*this, std::forward<decltype(config)>(config));
     };
 }
 
 const std::map<std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &manapi::net::site::get_transport_protocol_worker(const std::string &type) {
-    return transport_protocol_workers[type];
+    return this->transport_protocol_workers[type];
 }
 
 void manapi::net::site::setup() {
@@ -56,8 +56,8 @@ void manapi::net::site::setup() {
     // std::ios_base::sync_with_stdio(false);
     // std::cout.tie(nullptr);
 
-    config                      = manapi::json::object();
-    cache_config                = manapi::json::object();
+    this->config = manapi::json::object();
+    this->cache_config = manapi::json::object();
 
     set_compressor("deflate", manapi::net::utils::compress::deflate);
     set_compressor("gzip", manapi::net::utils::compress::gzip);
@@ -72,25 +72,25 @@ void manapi::net::site::setup() {
 #endif
 }
 
-void manapi::net::site::timer_pool_setup(threadpool<task> *task_pool) {
-    timerpool = std::make_unique<utils::timerpool>(*task_pool, 5);
-    task_pool->append_task(std::make_unique<function_task>([this] () -> void { timerpool->doit(); }));
+void manapi::net::site::timer_pool_setup(std::shared_ptr<threadpool<task>> task_pool) {
+    this->timerpool = std::make_unique<utils::timerpool>(task_pool, 1);
+    task_pool->append_task(std::make_unique<function_task>([this] () -> void { this->timerpool->doit(); }));
 }
 
 void manapi::net::site::timer_pool_stop() {
-    timerpool->stop();
+    this->timerpool->stop();
 }
 
 void manapi::net::site::set_config(const std::string &path) {
-    config_path = path;
+    this->config_path = path;
 
-    if (!manapi::net::filesystem::exists(config_path))
+    if (!manapi::net::filesystem::exists(this->config_path))
     {
-        manapi::net::filesystem::config::write(config_path, config);
+        manapi::net::filesystem::config::write(this->config_path, this->config);
         return;
     }
 
-    config = manapi::net::filesystem::config::read (config_path);
+    this->config = manapi::net::filesystem::config::read (this->config_path);
     setup_config ();
 }
 
@@ -100,53 +100,51 @@ void manapi::net::site::set_config_object(const json &config) {
 }
 
 const manapi::json &manapi::net::site::get_config() {
-    return config;
+    return this->config;
 }
 
 void manapi::net::site::setup_config() {
-    // =================[cache config]================= //
-    if (config.contains("cache_dir"))
+    if (this->config.contains("cache_dir"))
     {
         const auto b = config.at("cache_dir");
-        config_cache_dir = b.as_string();
+        this->config_cache_dir = b.as_string();
     }
     else
     {
-        config_cache_dir = default_cache_dir;
+        this->config_cache_dir = site::default_cache_dir;
     }
 
-    manapi::net::filesystem::append_delimiter(config_cache_dir);
+    manapi::net::filesystem::append_delimiter(this->config_cache_dir);
 
-    if (!manapi::net::filesystem::exists(config_cache_dir))
+    if (!manapi::net::filesystem::exists(this->config_cache_dir))
     {
-        manapi::net::filesystem::mkdir(config_cache_dir);
+        manapi::net::filesystem::mkdir(this->config_cache_dir);
     }
     else
     {
-        std::string path = config_cache_dir + default_config_name;
+        std::string path = this->config_cache_dir + site::default_config_name;
         if (manapi::net::filesystem::exists(path))
         {
-            cache_config = manapi::net::filesystem::config::read(path);
+            this->cache_config = manapi::net::filesystem::config::read(path);
         }
     }
 
-    // =================[save config            ]================= //
-    if (config.contains("save_config")) {
-        if (config["save_config"].is_bool())
+    if (this->config.contains("save_config")) {
+        if (this->config["save_config"].is_bool())
         {
-            enabled_save_config = config["save_config"].get<bool>();
+            this->enabled_save_config = this->config["save_config"].get<bool>();
         }
     }
 }
 
 std::string manapi::net::site::get_compressed_cache_file(const std::string &file, const std::string &algorithm) {
-    if (!cache_config.contains(algorithm))
+    if (!this->cache_config.contains(algorithm))
     {
         return {};
     }
 
 
-    auto &files = cache_config.at(algorithm);
+    auto &files = this->cache_config.at(algorithm);
 
     if (!files.contains(file))
     {
@@ -171,9 +169,9 @@ std::string manapi::net::site::get_compressed_cache_file(const std::string &file
 }
 
 void manapi::net::site::set_compressed_cache_file(const std::string &file, const std::string &compressed, const std::string &algorithm) {
-    if (!cache_config.contains(algorithm))
+    if (!this->cache_config.contains(algorithm))
     {
-        cache_config.insert(algorithm, manapi::json::object());
+        this->cache_config.insert(algorithm, manapi::json::object());
     }
 
     manapi::json file_info = manapi::json::object();
@@ -181,23 +179,18 @@ void manapi::net::site::set_compressed_cache_file(const std::string &file, const
     file_info.insert("last-write", manapi::net::filesystem::last_time_write(file, true));
     file_info.insert("compressed", compressed);
 
-    cache_config[algorithm].insert(file, file_info);
+    this->cache_config[algorithm].insert(file, file_info);
 }
 
 std::shared_ptr<manapi::net::threadpool<manapi::net::task>> manapi::net::site::get_task_pool() const {
-    return taskpool;
+    return this->taskpool;
 }
 
 void manapi::net::site::task_pool_stop() {
-    if (taskpool != nullptr)
+    if (this->taskpool)
     {
-        // stop tasks
-        taskpool->stop();
-
-        while (!taskpool->all_tasks_stopped())
-        {
-            sched_yield();
-        }
+        this->taskpool->stop();
+        this->taskpool->wait_stop();
     }
 }
 
@@ -207,22 +200,19 @@ void manapi::net::site::task_pool_init(const size_t &thread_num) {
 }
 
 void manapi::net::site::save() {
-    // close connections
-
-    if (enabled_save_config)
+    if (this->enabled_save_config)
     {
-        // save configs
-        save_config();
+        this->save_config();
     }
 }
 
 void manapi::net::site::save_config() {
-    if (!manapi::net::filesystem::exists(config_path) && manapi::net::filesystem::is_file(config_path)) {
+    if (!manapi::net::filesystem::exists(this->config_path) && manapi::net::filesystem::is_file(this->config_path)) {
         // main config
-        manapi::net::filesystem::config::write(config_path, config);
+        manapi::net::filesystem::config::write(this->config_path, this->config);
     }
     // cache config
-    manapi::net::filesystem::config::write(config_cache_dir + default_config_name, cache_config);
+    manapi::net::filesystem::config::write(this->config_cache_dir + site::default_config_name, this->cache_config);
 }
 
 void manapi::net::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {
@@ -344,19 +334,19 @@ manapi::net::site::site() : taskpool(std::make_unique<threadpool<task> >(0)), ca
 manapi::net::site::~site() = default;
 
 size_t manapi::net::site::append_timer(const std::chrono::milliseconds &duration, const std::function<void()> &task) {
-    return timerpool->append_timer(duration, task);
+    return this->timerpool->append_timer(duration, task);
 }
 
 size_t manapi::net::site::append_interval(const std::chrono::milliseconds &duration, const std::function<void()> &task) {
-    return timerpool->append_interval(duration, task);
+    return this->timerpool->append_interval(duration, task);
 }
 
 void manapi::net::site:: remove_timer(const size_t &id) {
-    timerpool->remove_timer(id);
+    this->timerpool->remove_timer(id);
 }
 
 manapi::net::async_delay manapi::net::site::delay(const std::chrono::seconds &n) {
-    return {*timerpool, n};
+    return {*this->timerpool, n};
 }
 
 

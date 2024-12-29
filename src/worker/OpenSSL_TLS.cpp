@@ -74,15 +74,15 @@ manapi::net::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection
 
     if (!SSL_is_init_finished(conn.ssl)) {
         conn.mustly.fetch_xor(CONN_READ | CONN_WRITE);
-        conn.timer_accept.store(this->site.append_timer(std::chrono::milliseconds(2000), [this, conn = &conn, connection] () -> void {
+        conn.timer_accept.store(co_await this->site.timerpool->async_append_timer_async(std::chrono::milliseconds(2000), [this, conn = &conn, connection] () -> future<void> {
             conn->timer_accept.store(0);
             MANAPIHTTP_LOG("TIMEOUT SSL_ACCEPT: {}", conn->id);
-            async::task_run(this->site.taskpool, this->connection_close(connection));
+            co_await this->connection_close(connection);
         }));
 
         while (true) {
             if (conn.status & CONN_CLOSED) {
-                this->site.remove_timer(conn.timer_accept);
+                co_await this->site.timerpool->async_remove_timer(conn.timer_accept);
                 conn.timer_accept.store(0);
                 co_return false;
             }
@@ -124,7 +124,7 @@ manapi::net::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection
             }
         }
 
-        conn.site->remove_timer(conn.timer_accept);
+        co_await conn.site->timerpool->async_remove_timer(conn.timer_accept);
         conn.timer_accept.store(0);
         conn.mustly.fetch_or(CONN_READ | CONN_WRITE);
     }
@@ -160,8 +160,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
             this->_io_event(std::forward<decltype(P1)>(P1), std::forward<decltype(P2)>(P2));
         };
         connection.ssl = this->config->get_ssl_config()->enabled ? SSL_new(this->ctx) : nullptr;
-        connection.wmx = std::make_unique<async_mutex>(this->site.taskpool);
-        connection.rmx = std::make_unique<async_mutex>(this->site.taskpool);
+        connection.mx = std::make_unique<async_mutex>(this->site.taskpool);
         return std::move(ms);
     });
 
@@ -228,8 +227,7 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
         TCP::_connection_interface_eraser (connection);
 
         if (connection->ssl) {
-            auto lkr = co_await connection->rmx->lock_guard();
-            auto lkw = co_await connection->wmx->lock_guard();
+            auto lkr = co_await connection->mx->lock_guard();
             auto ssl = std::exchange(connection->ssl, nullptr);
             MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
             SSL_free(ssl);
@@ -283,7 +281,7 @@ SSL_CTX * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &ver
 
     //SSL_CTX_set_mode(ctx, SSL_MODE_ASYNC);
 
-    //SSL_CTX_set_cipher_list(ctx,"RC4-MD5");
+    SSL_CTX_set_cipher_list(ctx,"TLS_AES_256_GCM_SHA384");
     SSL_CTX_set_alpn_select_cb(ctx, [] (SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,
         unsigned int inlen, void *arg) -> int {
         auto worker = static_cast<OpenSSL_TLS *> (arg);
@@ -346,7 +344,6 @@ std::string manapi::net::worker::OpenSSL_TLS::ssl_get_error(int initerr) {
 
 manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &conn, const void *buff, const size_t &size) {
     auto &connection = conn.as<connection_interface>();
-    auto lk = co_await connection.wmx->lock_guard();
     while (true) {
         int rhs;
         int ssl_errno = SSL_ERROR_NONE;
@@ -355,10 +352,12 @@ manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connect
             break;
         }
 
+        auto lk = co_await connection.mx->lock_guard();
         rhs = SSL_write(connection.ssl, buff, static_cast<int>(size));
-        if (rhs < 0) {
-            ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
+        ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
+        lk.call();
 
+        if (rhs < 0) {
             // if((err = SSL_get_error(SSL*,err)) == SSL_ERROR_ZERO_RETURN)
 
             if (ssl_errno != SSL_ERROR_NONE) {
@@ -391,7 +390,6 @@ manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connect
 manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &conn, void *buff, const size_t &size) {
     auto &connection = conn.as<connection_interface>();
 
-    auto lk = co_await connection.rmx->lock_guard();
 
     while (true) {
         int rhs;
@@ -402,9 +400,12 @@ manapi::net::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connecti
         }
 
         // if(SSL_get_shutdown(SSL*) & SSL_RECEIVED_SHUTDOWN)
+        auto lk = co_await connection.mx->lock_guard();
         rhs = SSL_read(connection.ssl, buff, static_cast<int>(size));
+        ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
+        lk.call();
+
         if (rhs < 0) {
-            ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
 
             if (ssl_errno != SSL_ERROR_NONE) {
                 switch (ssl_errno) {

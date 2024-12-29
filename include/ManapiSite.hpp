@@ -13,6 +13,7 @@
 #include "services/ManapiTimerPool.hpp"
 #include "compress/ManapiCompress.hpp"
 #include "components/ManapiThreadSafe.hpp"
+#include "async/ManapiAsyncTimer.hpp"
 
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpResponse.hpp"
@@ -126,7 +127,7 @@ namespace manapi::net {
         async_mutex cache_config_mx;
     protected:
         void setup ();
-        void timer_pool_setup (threadpool<task> *task_pool);
+        void timer_pool_setup (std::shared_ptr<threadpool<task>> task_pool);
         void timer_pool_stop ();
         void setup_config ();
         void save ();

@@ -13,7 +13,7 @@ namespace manapi::net::worker {
     public:
         struct connection_interface : TCP::connection_interface {
             SSL *ssl{};
-            std::unique_ptr<async_mutex> wmx, rmx;
+            std::unique_ptr<async_mutex> mx;
             std::atomic<int> timer_accept = 0;
         };
 

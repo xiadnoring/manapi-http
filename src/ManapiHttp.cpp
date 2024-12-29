@@ -59,7 +59,7 @@ std::future<void> manapi::net::http::server::pool(const size_t &thread_num) {
         });
 
         task_pool_init(thread_num);
-        timer_pool_setup (get_task_pool().get());
+        timer_pool_setup (get_task_pool());
 
         this->pool_promise = std::make_unique<std::promise<void>>();
 
@@ -76,6 +76,9 @@ std::future<void> manapi::net::http::server::pool(const size_t &thread_num) {
         }
 
         this->taskpool->append_task([this] () -> void {
+            this->stop_watcher = std::make_shared<ev::async>(this->loop);
+            this->stop_watcher->set<server, &server::_async_break_loop> (this);
+            this->stop_watcher->start();
             this->loop.run(ev::AUTO);
             this->pool_promise->set_value();
         });
@@ -147,7 +150,7 @@ void manapi::net::http::server::stop_pool() {
     pools.clear();
     MANAPIHTTP_LOG2("pools(...) -> pass");
 
-    this->loop.break_loop(ev::ALL);
+    this->stop_watcher->send();
     task_pool_stop();
 
     MANAPIHTTP_LOG2("task_pool_stop(...) -> pass");
@@ -163,4 +166,8 @@ void manapi::net::http::server::stop_pool() {
     });
 
     MANAPIHTTP_LOG2("all tasks are closed");
+}
+
+void manapi::net::http::server::_async_break_loop(ev::async &watcher, int revents) {
+    this->loop.break_loop();
 }

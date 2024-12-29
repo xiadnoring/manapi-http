@@ -121,6 +121,7 @@ namespace manapi::net::worker {
         std::shared_ptr<worker::connection> connection;
         std::string buffer;
         std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
+        std::chrono::steady_clock::time_point start;
     private:
         void _deps_decrease();
         future<void> empty_setting_timeouts ();
@@ -174,12 +175,14 @@ namespace manapi::net::worker {
         void default_ev_priopity_update (int id, int prioritized_id, std::string prioritized_value);
         void default_ev_rst_stream (int id, int errnum);
         future<void> reset_all_streams ();
+        future<void> delete_stream_id (const int &id);
+        future<void> reset_stream (int id, int errnum);
         static future<void> session_worker (int id, bool body, net::site &site, std::shared_ptr<http::config> config, std::shared_ptr<worker::http_v2> worker);
 
         future<ssize_t> default_read (worker::connection &connection, void *buff, const size_t &size);
         future<ssize_t> default_write (worker::connection &connection, const void *buff, const size_t &size, bool flag);
 
-        std::string stringify_stream_id (int stream_id);
+        static std::string stringify_stream_id (int stream_id);
 
         void settings_update_initial_window_size (int value);
         void settings_update_max_concurrent_streams (int value);

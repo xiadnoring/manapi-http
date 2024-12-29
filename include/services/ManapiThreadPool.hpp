@@ -10,8 +10,7 @@
 #include <mutex>
 #include <coroutine>
 #include <condition_variable>
-
-#include "../components/Atomic.hpp"
+#include <functional>
 
 namespace manapi::net {
     template <class T>
@@ -22,15 +21,13 @@ namespace manapi::net {
         void resize (size_t thread_num);
         bool append_task (std::unique_ptr<T> task, int level = 0);
         void append_task (T task);
-        void append_task (std::coroutine_handle<> handle);
         void append_task (const std::function<void()> &cb);
         void start();
         void stop();
-        size_t get_count_stopped_task ();
-        bool all_tasks_stopped ();
+        void wait_stop();
     private:
         // this number means count of the all threads
-        size_t thread_number;
+        size_t thread_num;
         // this vector contains all threads for this thread pool
         std::vector <std::thread> all_threads;
         // this vector of queue which contains tasks
@@ -49,6 +46,6 @@ namespace manapi::net {
         std::mutex m;
         std::condition_variable cv;
 
-        Atomic <size_t> stopped;
+        std::atomic <size_t> stopped;
     };
 }

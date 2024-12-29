@@ -11,6 +11,7 @@
 #include <utility>
 #include <functional>
 
+#include "ManapiUtils.hpp"
 #include "services/ManapiThreadPool.hpp"
 #include "services/ManapiTask.hpp"
 
@@ -166,14 +167,37 @@ namespace manapi::net {
         requires(std::is_same_v<T1, void>)
         void get(std::shared_ptr<threadpool<task>> taskpool) {
             if (!this->handle.done()) {
-                std::mutex mx;
-                mx.lock();
-                this->_on_connection_finish([&mx] () -> void {
-                    mx.unlock();
-                }, std::move(taskpool));
-                this->resume_promise(this->handle);
-                mx.lock();
+                auto mx = std::make_unique<std::mutex>();
+                bool stop = false;
+                {
+                    mx->lock();
+                    this->_on_connection_finish([&stop, &mx] () -> void {
+                        stop = true;
+                        mx->unlock();
+                    }, std::move(taskpool));
+                    this->resume_promise(this->handle);
+                    mx->lock();
+                }
             }
+        }
+
+        template <typename T1 = T>
+        requires(!std::is_same_v<T1, void>)
+        T1 get(std::shared_ptr<threadpool<task>> taskpool) {
+            if (!this->handle.done()) {
+                auto mx = std::make_unique<std::mutex>();
+                bool stop = false;
+                {
+                    mx->lock();
+                    this->_on_connection_finish([&stop, &mx] () -> void {
+                        stop = true;
+                        mx->unlock();
+                    }, std::move(taskpool));
+                    this->resume_promise(this->handle);
+                    mx->lock();
+                }
+            }
+            return std::move(this->handle.promise().get_value());
         }
 
         [[nodiscard]] bool operator==(const nullptr_t &n) const {
@@ -298,31 +322,7 @@ namespace manapi::net {
     };
 }
 
-#include "services/ManapiTimerPool.hpp"
 namespace manapi::net {
-    class async_delay {
-    public:
-        async_delay (utils::timerpool &timerpool, const std::chrono::seconds &time) : timerpool(timerpool) {
-            this->time = time;
-        }
-        ~async_delay() = default;
-        [[nodiscard]] bool await_ready () const {
-            return false;
-        }
-
-        template <typename T1>
-        requires(std::is_base_of_v<promise_base, T1>)
-        void await_suspend (std::coroutine_handle<T1> handle) {
-            timerpool.append_timer(time, [handle] () -> void {
-                future<>::resume_promise(handle);
-            });
-        }
-        void await_resume () const {}
-    private:
-        utils::timerpool &timerpool;
-        std::chrono::seconds time{};
-    };
-
     namespace async {
         inline std::atomic <ssize_t> async_cnt = 0;
         inline std::mutex async_tasks_mx;
@@ -387,30 +387,4 @@ namespace manapi::net {
             }
         }
     }
-}
-
-namespace manapi::net {
-    class async_thread {
-    public:
-        async_thread (const std::function<void()> &cb) {
-            this->cb = cb;
-        }
-        ~async_thread() = default;
-        [[nodiscard]] bool await_ready () const {
-            return false;
-        }
-
-        template <typename T1>
-        requires(std::is_base_of_v<promise_base, T1>)
-        void await_suspend (std::coroutine_handle<T1> handle) {
-            std::jthread t ([cb = std::move(this->cb), handle] () -> void {
-                cb();
-                future<>::resume_promise(handle);
-            });
-            t.detach();
-        }
-        void await_resume () const {}
-    private:
-        std::function<void()> cb;
-    };
 }

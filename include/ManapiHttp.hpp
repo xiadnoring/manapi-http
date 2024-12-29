@@ -40,7 +40,7 @@ namespace manapi::net::http {
         static std::atomic<bool> stopped_interrupt;
         static Atomic<std::set <server *>> running;
         void stop_pool ();
-
+        void _async_break_loop (ev::async &watcher, int revents);
         class site current;
 
         std::mutex mx;
@@ -51,5 +51,6 @@ namespace manapi::net::http {
         std::unordered_map<size_t, std::unique_ptr<http_pool>> pools;
 
         size_t next_pool_id = 0;
+        std::shared_ptr<ev::async> stop_watcher;
     };
 }
