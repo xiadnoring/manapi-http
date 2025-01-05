@@ -152,7 +152,7 @@ void manapi::net::fetch::doit() {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl can not be init: {}", url);
     }
 
-    utils::before_delete clean_up ([&] () {
+    before_delete clean_up ([&] () {
         if (form != nullptr) {
             curl_mime_free(form);
         }
@@ -250,8 +250,8 @@ void manapi::net::fetch::doit() {
     curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &status_code);
 }
 
-const std::map <std::string, std::string> &manapi::net::fetch::get_headers() {
-    return headers_list;
+std::map <std::string, std::string> manapi::net::fetch::get_headers() {
+    return std::move(this->headers_list);
 }
 
 void manapi::net::fetch::handle_body(const std::function<size_t(char *, const size_t&)> &_handler) {

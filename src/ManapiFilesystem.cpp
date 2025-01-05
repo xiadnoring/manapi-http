@@ -89,7 +89,7 @@ ssize_t manapi::net::filesystem::get_size (const std::string& path) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "cannot open the file by following path: {}", path);
     }
 
-    utils::before_delete close_ifstream ([&f] () { f.close(); });
+    before_delete close_ifstream ([&f] () { f.close(); });
 
     const ssize_t result = manapi::net::filesystem::get_size(f);
 
@@ -104,7 +104,7 @@ void manapi::net::filesystem::write (const std::string &path, const std::string 
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "cannot open config to write: {}", path);
     }
 
-    utils::before_delete close_ofstream ([&out] () { out.close(); });
+    before_delete close_ofstream ([&out] () { out.close(); });
 
     out << data;
 }
@@ -117,7 +117,7 @@ std::string manapi::net::filesystem::read (const std::string &path) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "cannot open config to read: {}", path);
     }
 
-    utils::before_delete close_ofstream ([&in] () { in.close(); });
+    before_delete close_ofstream ([&in] () { in.close(); });
     const ssize_t size = get_size(in);
 
     // 20 MB

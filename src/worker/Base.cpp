@@ -44,11 +44,11 @@ void manapi::net::worker::base::set_config(std::shared_ptr<manapi::net::http::co
     this->config = std::move(config);
 }
 
-manapi::net::future<void> manapi::net::worker::base::connection_close(std::shared_ptr<connection> conn) { co_return; }
+manapi::future<void> manapi::net::worker::base::connection_close(std::shared_ptr<connection> conn) { co_return; }
 
 void manapi::net::worker::base::disable_watcher_for_status(connection &conn, const connection_status &status) {}
 
-manapi::net::future<bool> manapi::net::worker::base::configure_connection(std::shared_ptr<connection> conn) { co_return false; }
+manapi::future<bool> manapi::net::worker::base::configure_connection(std::shared_ptr<connection> conn) { co_return false; }
 
 std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept(
     const std::function<std::shared_ptr<connection>()> &init) {
@@ -58,8 +58,6 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
 std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept() { return this->accept([] () -> std::shared_ptr<connection> { return {nullptr, [] (void *ptr) -> void { }}; }); }
 
 void manapi::net::worker::base::onrecv(ev::io &watcher, int revents) {}
-
-void manapi::net::worker::base::onasync(ev::async &watcher, int revents) {}
 
 manapi::net::worker::base & manapi::net::worker::base::operator=(base &&n) noexcept {
     this->config = std::move(n.config);
@@ -74,7 +72,7 @@ void manapi::net::worker::base::set_fd_non_blocking(int fd) {
     fcntl(fd, F_SETFL, flgs);
 }
 
-manapi::net::future<ssize_t> manapi::net::worker::base::response(worker::connection &connection, http_response &resp, bool finish) { co_return -1; }
+manapi::future<ssize_t> manapi::net::worker::base::response(worker::connection &connection, http_response &resp, bool finish) { co_return -1; }
 
 std::shared_ptr<manapi::net::worker::base> manapi::net::worker::base::create(net::site &site, std::shared_ptr<manapi::net::http::config> config) {
     auto worker = std::make_shared<base>(site);

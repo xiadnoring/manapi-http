@@ -5,17 +5,17 @@
 #include "services/ManapiTask.hpp"
 #include "ManapiUtils.hpp"
 
-manapi::net::task::task() {}
+manapi::task::task() {}
 
-manapi::net::task::task(task &&n) noexcept {}
+manapi::task::task(task &&n) noexcept {}
 
-manapi::net::task & manapi::net::task::operator=(task &&n) noexcept {
+manapi::task & manapi::task::operator=(task &&n) noexcept {
     return *this;
 }
 
-manapi::net::task::~task() {}
+manapi::task::~task() {}
 
-void manapi::net::task::doit() {}
+void manapi::task::doit() {}
 
-void manapi::net::task::stop() {}
+void manapi::task::stop() {}
 

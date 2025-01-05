@@ -112,12 +112,16 @@ const std::string &manapi::net::http_response::get_status_message() {
     return status_message;
 }
 
-const std::map<std::string, std::string> &manapi::net::http_response::get_headers() {
-    return headers;
+std::map<std::string, std::string> manapi::net::http_response::get_headers() {
+    return std::move(this->headers);
 }
 
 const std::string &manapi::net::http_response::get_body() {
     return data;
+}
+
+const std::map<std::string, std::string> & manapi::net::http_response::ref_headers() {
+    return this->headers;
 }
 
 void manapi::net::http_response::set_compress(const std::string &name) {

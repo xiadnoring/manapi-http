@@ -89,7 +89,7 @@ namespace manapi::net::worker {
     };
 
     struct http_v2_callbacks_t {
-        std::function<manapi::net::future<void>(int id, std::map <std::string, std::string> headers)> headers;
+        std::function<manapi::future<void>(int id, std::map <std::string, std::string> headers)> headers;
         std::function<void(int id)> data;
         std::function<void(int last_stream_id, int errnum, std::string errmsg)> goaway;
         std::function<void(int id, int prioritized_id, std::string prioritized_value)> priority_update;
@@ -241,7 +241,7 @@ namespace manapi::net::worker {
             ssize_t timeout = 1000;
             std::atomic<ssize_t> current_timeout = timeout;
             std::queue <size_t> setting_timeout;
-            manapi::net::future<> parse_exception{nullptr};
+            manapi::future<> parse_exception{nullptr};
             manapi::net::utils::compress::hpack::decoder_t decoder;
             manapi::net::utils::compress::hpack::encoder_t encoder;
          } protocol;

@@ -9,6 +9,9 @@
 
 #include "services/ManapiTaskFunction.hpp"
 #include "services/ManapiThreadPool.hpp"
+#include "worker/HTTPv3_clouflare_quiche.hpp"
+#include "worker/HTTPv3_tquic.hpp"
+#include "worker/OpenSSL_QUIC.hpp"
 
 namespace manapi::net {
     // default, +error, +layout in url
@@ -59,21 +62,34 @@ void manapi::net::site::setup() {
     this->config = manapi::json::object();
     this->cache_config = manapi::json::object();
 
-    set_compressor("deflate", manapi::net::utils::compress::deflate);
-    set_compressor("gzip", manapi::net::utils::compress::gzip);
+    this->set_compressor("deflate", manapi::net::utils::compress::deflate);
+    this->set_compressor("gzip", manapi::net::utils::compress::gzip);
 
-    set_transport_protocol_worker("tcp", "default", worker::TCP::create);
+    this->set_transport_protocol_worker("tcp", "default", worker::TCP::create);
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
-    set_transport_protocol_worker("tls", "openssl", worker::OpenSSL_TLS::create);
+    this->set_transport_protocol_worker("tls", "openssl", worker::OpenSSL_TLS::create);
+# if MANAPI_OPENSSL_QUIC_REALIZATION
+    this->set_transport_protocol_worker("quic", "openssl", worker::openssl_quic::create);
+# endif
 #endif
 
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
 
 #endif
+
+#if MANAPIHTTP_QUICHE_DEPENDENCY
+    this->set_transport_protocol_worker("quic", "quiche", worker::http_v3_cloudflare_quiche::create);
+#endif
+
+#if MANAPIHTTP_TQUIC_DEPENDENCY
+    this->set_transport_protocol_worker("quic", "tquic", worker::http_v3_tquic::create);
+#endif
+
+    this->set_transport_protocol_worker("quic", "default", worker::quic::create);
 }
 
 void manapi::net::site::timer_pool_setup(std::shared_ptr<threadpool<task>> task_pool) {
-    this->timerpool = std::make_unique<utils::timerpool>(task_pool, 1);
+    this->timerpool = std::make_unique<class timerpool>(task_pool, 1);
     task_pool->append_task(std::make_unique<function_task>([this] () -> void { this->timerpool->doit(); }));
 }
 
@@ -182,7 +198,7 @@ void manapi::net::site::set_compressed_cache_file(const std::string &file, const
     this->cache_config[algorithm].insert(file, file_info);
 }
 
-std::shared_ptr<manapi::net::threadpool<manapi::net::task>> manapi::net::site::get_task_pool() const {
+std::shared_ptr<manapi::threadpool<manapi::task>> manapi::net::site::get_task_pool() const {
     return this->taskpool;
 }
 
@@ -345,7 +361,7 @@ void manapi::net::site:: remove_timer(const size_t &id) {
     this->timerpool->remove_timer(id);
 }
 
-manapi::net::async_delay manapi::net::site::delay(const std::chrono::seconds &n) {
+manapi::async_delay manapi::net::site::delay(const std::chrono::seconds &n) {
     return {*this->timerpool, n};
 }
 

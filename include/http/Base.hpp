@@ -14,7 +14,7 @@ namespace manapi::net::http {
         const std::map <std::string, std::string> *replacers = nullptr;
     };
 
-    class base : public manapi::net::task {
+    class base : public manapi::task {
     public:
         base(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~base() override;

@@ -579,7 +579,7 @@ const manapi::json & manapi::json::at(const int &index) const {
 }
 
 manapi::json& manapi::json::operator=(const std::string &str) {
-    net::utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
+    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     _set_string(str);
 
@@ -587,7 +587,7 @@ manapi::json& manapi::json::operator=(const std::string &str) {
 }
 
 manapi::json &manapi::json::operator=(const bool &b) {
-    net::utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
+    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     _set_bool(b);
 
@@ -595,7 +595,7 @@ manapi::json &manapi::json::operator=(const bool &b) {
 }
 
 manapi::json &manapi::json::operator=(const ssize_t &num) {
-    net::utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
+    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     _set_integer(num);
 
@@ -603,7 +603,7 @@ manapi::json &manapi::json::operator=(const ssize_t &num) {
 }
 
 manapi::json &manapi::json::operator=(const double &num) {
-    net::utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
+    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     _set_decimal(num);
 
@@ -611,7 +611,7 @@ manapi::json &manapi::json::operator=(const double &num) {
 }
 
 manapi::json &manapi::json::operator=(const json::DECIMAL &num) {
-    net::utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
+    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     _set_decimal(num);
 
@@ -623,7 +623,7 @@ manapi::json &manapi::json::operator=(const long long &num) {
 }
 
 manapi::json &manapi::json::operator=(nullptr_t const &n) {
-    net::utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
+    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     _set_nullptr();
 
@@ -643,7 +643,7 @@ manapi::json &manapi::json::operator=(const int &num) {
 }
 
 manapi::json &manapi::json::operator=(const manapi::bigint &num) {
-    net::utils::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
+    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     _set_bigint(num);
 

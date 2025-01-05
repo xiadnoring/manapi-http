@@ -31,7 +31,7 @@ manapi::net::http_pool::http_pool(const json &config, class site *site, const si
 manapi::net::http_pool::~http_pool() = default;
 
 ev::loop_ref manapi::net::http_pool::get_loop() {
-    return loop;
+    return this->loop;
 }
 
 void manapi::net::http_pool::stop() {
@@ -39,10 +39,10 @@ void manapi::net::http_pool::stop() {
     MANAPIHTTP_LOG("{}", "shutdown socket");
 
     // close socket
-    shutdown(config->get_socket_fd(), SHUT_RDWR);
+    shutdown(this->config->get_socket_fd(), SHUT_RDWR);
 
     // stop watcher
-    watcher->stop();
+    this->watcher->stop();
 }
 
 void manapi::net::http_pool::run() {
@@ -58,7 +58,6 @@ int manapi::net::http_pool::_pool() {
 
 
     this->watcher = std::make_shared <ev::io> (this->loop);
-    this->async_watcher = std::make_shared<ev::async>(this->loop);
 
     {
         auto implementation = config->get_implementation();
@@ -69,11 +68,10 @@ int manapi::net::http_pool::_pool() {
         {
             auto generate = implementations[*implementation];
             this->worker = generate (this->config);
-            this->worker->init();
             this->worker->loop = this->loop;
             this->worker->watcher = this->watcher;
             this->worker->worker = std::weak_ptr<worker::base> (this->worker);
-            this->worker->async_watcher = this->async_watcher;
+            this->worker->init();
         }
         else
         {
@@ -91,10 +89,8 @@ int manapi::net::http_pool::_pool() {
         }
     }
 
-    this->async_watcher->set<worker::base, &worker::base::onasync>(this->worker.get());
     this->watcher->set <worker::base, &worker::base::onrecv> (this->worker.get());
 
-    this->async_watcher->start();
     this->watcher->start(config->get_socket_fd(), ev::READ);
 
     return 0;

@@ -301,7 +301,7 @@ std::string manapi::net::utils::json2form(const json &obj) {
 const std::string &manapi::net::utils::mime_by_file_path(const std::string &path) {
     const std::string extension = manapi::net::filesystem::extension(path);
     // manapi::net::mime_by_extension.lock();
-    // utils::before_delete unlock ([] () -> void { manapi::net::mime_by_extension.unlock(); });
+    // before_delete unlock ([] () -> void { manapi::net::mime_by_extension.unlock(); });
 
     if (manapi::net::mime_by_extension.contains(extension))
     {

@@ -149,13 +149,19 @@ namespace manapi::net {
         ERR_STORAGE_OBJECT_IS_NULL = 28,
         ERR_FUNCTION_IS_NULL = 29,
         ERR_HTTP_CONNECTION_WAS_CLOSED = 30,
-        ERR_HTTP_PARSER_BUG = 31
+        ERR_HTTP_PARSER_BUG = 31,
+        ERR_ALGORITHM_NO_SUPPORT = 32,
+        ERR_ALGORITHM_INIT_FAIL = 33,
+        ERR_QUIC_PROTOCOL_ERROR = 34
     };
 
     const std::map <err_num, std::string> err_msg {
         {ERR_OK, "OK"},
         {ERR_FATAL, "Fatal"},
         {ERR_UNDEFINED, "Undefined"},
-        {ERR_DEBUG, "Debug"}
+        {ERR_DEBUG, "Debug"},
+        {ERR_ALGORITHM_NO_SUPPORT, "Algotihtm not supported"},
+        {ERR_ALGORITHM_INIT_FAIL, "Failed to init an algorithm"},
+        {ERR_QUIC_PROTOCOL_ERROR, "QUIC Protocol Error"}
     };
 }

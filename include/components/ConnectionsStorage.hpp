@@ -64,7 +64,7 @@ namespace manapi::net::worker {
         bool contains (const vmap::key_type &key);
         vmap::size_type size ();
         bool empty ();
-        utils::before_delete large_request ();
+        before_delete large_request ();
     private:
         void _wait_editable ();
         vmap storage;
@@ -290,11 +290,11 @@ namespace manapi::net::worker {
     }
 
     template<typename K, typename V>
-    utils::before_delete connections_storage<K, V>::large_request() {
+    before_delete connections_storage<K, V>::large_request() {
         lmx.lock();
         std::lock_guard<std::mutex> lk (gmx);
         ++this->count;
-        utils::before_delete bd ([this] () -> void {
+        before_delete bd ([this] () -> void {
             --this->count;
             lmx.unlock();
             cv.notify_all();

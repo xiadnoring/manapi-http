@@ -3,7 +3,7 @@
 #include <mutex>
 #include <condition_variable>
 
-namespace manapi::net {
+namespace manapi {
     class task {
     public:
         task();

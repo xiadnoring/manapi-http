@@ -20,7 +20,7 @@ void manapi::net::http::http_v1_1::doit() {
 
 }
 
-manapi::net::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
+manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
     request_data.body_index = 0;
 
     {
@@ -81,7 +81,7 @@ manapi::net::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j,
     co_return;
 }
 
-manapi::net::future<void> manapi::net::http::http_v1_1::execute_handler() {
+manapi::future<void> manapi::net::http::http_v1_1::execute_handler() {
     if (co_await upgrade_connection()) { this->upgraded = true; co_return; }
     const auto handler = site.get_handler(request_data);
     co_await handle_request(&handler, request_data);
@@ -161,7 +161,7 @@ void manapi::net::http::http_v1_1::_parse_headers(char &c) {
     }
 }
 
-manapi::net::future<bool> manapi::net::http::http_v1_1::upgrade_connection() {
+manapi::future<bool> manapi::net::http::http_v1_1::upgrade_connection() {
     bool toupgrade = false;
 
     if (request_data.headers.contains(HTTP_HEADER.CONNECTION)) {

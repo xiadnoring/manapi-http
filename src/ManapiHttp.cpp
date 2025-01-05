@@ -61,8 +61,8 @@ std::future<void> manapi::net::http::server::pool(const size_t &thread_num) {
         task_pool_init(thread_num);
         timer_pool_setup (get_task_pool());
 
-        this->pool_promise = std::make_unique<std::promise<void>>();
-
+        this->pool_promise = std::promise<void>();
+        this->stop_promise = std::promise<void>();
 
         // init all pools
         if (this->config.contains("pools"))
@@ -80,11 +80,11 @@ std::future<void> manapi::net::http::server::pool(const size_t &thread_num) {
             this->stop_watcher->set<server, &server::_async_break_loop> (this);
             this->stop_watcher->start();
             this->loop.run(ev::AUTO);
-            this->pool_promise->set_value();
+            this->pool_promise.set_value();
         });
     }
 
-    return this->pool_promise->get_future();
+    return this->pool_promise.get_future();
 }
 
 void manapi::net::http::server::GET(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
@@ -115,14 +115,13 @@ void manapi::net::http::server::GET(const std::string &uri, const std::string &f
     set_handler ("GET", uri, folder);
 }
 
-manapi::net::future<void> manapi::net::http::server::stop() {
-    this->mx.lock();
-    if (this->stopping.load() == true) { co_return; }
-    this->stopping.store(true);
-    co_await async_thread ([this] () -> void {
-        this->stop_pool();
-        this->mx.unlock();
-    });
+std::future<void> manapi::net::http::server::stop() {
+    std::lock_guard<std::mutex> lk (this->mx);
+
+    if (!this->stopping.exchange(true)) {
+        this->stop_watcher->send();
+    }
+    return this->stop_promise.get_future();
 }
 
 void manapi::net::http::server::stop_all_servers() {
@@ -131,13 +130,13 @@ void manapi::net::http::server::stop_all_servers() {
     while (!running.get()->empty())
     {
         auto it = *running.get()->begin();
-        it->stop().get<>(it->taskpool);
+        it->stop().get();
     }
 }
 
 void manapi::net::http::server::stop_pool() {
     MANAPIHTTP_LOG2("cv_stopping -> pass");
-    timer_pool_stop();
+    this->timer_pool_stop();
     MANAPIHTTP_LOG2("timer_pool_stop(...) -> pass");
 
     // stop all pools
@@ -150,24 +149,27 @@ void manapi::net::http::server::stop_pool() {
     pools.clear();
     MANAPIHTTP_LOG2("pools(...) -> pass");
 
-    this->stop_watcher->send();
-    task_pool_stop();
+    std::thread ([this] () -> void {
+        this->task_pool_stop();
 
-    MANAPIHTTP_LOG2("task_pool_stop(...) -> pass");
+        MANAPIHTTP_LOG2("task_pool_stop(...) -> pass");
 
-    // reset
-    next_pool_id = 0;
-    stopping.store(false);
+        this->save();
 
-    this->save();
+        server::running.update([this] (auto &v) -> void {
+             v.erase(this);
+        });
 
-    running.update([this] (auto &v) -> void {
-         v.erase(this);
-    });
+        MANAPIHTTP_LOG2("all tasks are closed");
 
-    MANAPIHTTP_LOG2("all tasks are closed");
+        // reset
+        this->next_pool_id = 0;
+        this->stopping.store(false);
+        this->stop_promise.set_value();
+    }).detach();
 }
 
 void manapi::net::http::server::_async_break_loop(ev::async &watcher, int revents) {
     this->loop.break_loop();
+    this->stop_pool();
 }

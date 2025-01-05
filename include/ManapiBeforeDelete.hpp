@@ -2,7 +2,7 @@
 
 #include <functional>
 
-namespace manapi::net::utils {
+namespace manapi {
     class before_delete {
     public:
         explicit before_delete (const std::function <void()> &f);

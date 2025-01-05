@@ -27,7 +27,7 @@ manapi::net::formdata_recv & manapi::net::formdata_recv::operator=(formdata_recv
     return *this;
 }
 
-manapi::net::future<> manapi::net::formdata_recv::_init() {
+manapi::future<> manapi::net::formdata_recv::_init() {
     if (this->current_read_param != nullptr) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "FormData Parser was already initializated");
     }
@@ -106,7 +106,7 @@ void manapi::net::formdata_recv::buff_to_extra_buff(const request_data_t &req_da
     size += size2copy;
 }
 
-manapi::net::future<void> manapi::net::formdata_recv::multipart_read_param (const std::function<void(const char *, const size_t &)> &send_line) {
+manapi::future<void> manapi::net::formdata_recv::multipart_read_param (const std::function<void(const char *, const size_t &)> &send_line) {
     try {
         size_t  size_extra      = 0;
 
@@ -207,14 +207,14 @@ manapi::net::future<void> manapi::net::formdata_recv::multipart_read_param (cons
 
                     if (value)
                     {
-                        if (size_extra > 0)
-                        {
-                            buff_to_extra_buff (*request_data, checkpoint, this->request_data->body_index, buff_extra, size_extra);
-                            const size_t result_size = size_extra - body_boundary.size() - 2;
-
-                            send_line (buff_extra.data(), result_size);
-                        }
-                        else
+                        // if (size_extra > 0)
+                        // {
+                        //     buff_to_extra_buff (*request_data, checkpoint, this->request_data->body_index, buff_extra, size_extra);
+                        //     const size_t result_size = size_extra - body_boundary.size() - 2;
+                        //
+                        //     send_line (buff_extra.data(), result_size);
+                        // }
+                        // else
                         {
                             size_t size_str = this->request_data->body_index - checkpoint - body_boundary.size() - 2;
 
@@ -368,7 +368,7 @@ manapi::net::future<void> manapi::net::formdata_recv::multipart_read_param (cons
     }
 }
 
-manapi::net::future<void> manapi::net::formdata_recv::urlencoded_read_param(const std::function<void(const char *, const size_t &)> &send_line) {
+manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(const std::function<void(const char *, const size_t &)> &send_line) {
     size_t size_extra = 0;
     bool used_extra = false;
 
@@ -480,7 +480,7 @@ manapi::net::file_data_t manapi::net::formdata_recv::about_file() const {
     return file_data;
 }
 
-manapi::net::future<std::string> manapi::net::formdata_recv::get_file_to_str() {
+manapi::future<std::string> manapi::net::formdata_recv::get_file_to_str() {
     std::string content;
 
     co_await get_file ([&] (const char *ptr, const size_t &size) {
@@ -490,7 +490,7 @@ manapi::net::future<std::string> manapi::net::formdata_recv::get_file_to_str() {
     co_return std::move(content);
 }
 
-manapi::net::future<void> manapi::net::formdata_recv::get_file(const std::function<void(const char *, const size_t &)> &handler) {
+manapi::future<void> manapi::net::formdata_recv::get_file(const std::function<void(const char *, const size_t &)> &handler) {
     if (!next_file())
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_NOT_CONTAINS_FILE, "{}", "no file in the body of the request");
@@ -498,7 +498,7 @@ manapi::net::future<void> manapi::net::formdata_recv::get_file(const std::functi
     co_await current_read_param (handler);
 }
 
-manapi::net::future<void> manapi::net::formdata_recv::save_file (const std::string &filepath) {
+manapi::future<void> manapi::net::formdata_recv::save_file (const std::string &filepath) {
     std::ofstream out (filepath);
 
     if (!out.is_open())
@@ -522,7 +522,7 @@ const std::string & manapi::net::formdata_recv::about_param() const {
     return param_data.first;
 }
 
-manapi::net::future<std::pair<std::string, std::string>> manapi::net::formdata_recv::get_param() {
+manapi::future<std::pair<std::string, std::string>> manapi::net::formdata_recv::get_param() {
     if (!next_param()) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "No found any param in the body of the request");
     }

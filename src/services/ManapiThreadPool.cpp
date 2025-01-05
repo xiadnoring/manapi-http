@@ -8,7 +8,7 @@
 #include "services/ManapiTaskFunction.hpp"
 #include "ManapiUtils.hpp"
 
-namespace manapi::net {
+namespace manapi {
     template<class T>
     threadpool<T>::threadpool(size_t thread_num, size_t queues_count): thread_num(thread_num),is_stop(true),stopped(0) {
         sigemptyset(&this->blockedSignal);
@@ -53,7 +53,7 @@ namespace manapi::net {
         this->is_stop.store(false);
 
         if (this->thread_num <= 0) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "threadpool can't be init because thread_number = {}", 0);
+            THROW_MANAPIHTTP_EXCEPTION(net::ERR_CONFIG_ERROR, "threadpool can't be init because thread_number = {}", 0);
         }
 
         for (size_t i = this->all_threads.size(); i < this->thread_num; i++) {
@@ -70,7 +70,7 @@ namespace manapi::net {
         }
 
         if (task == nullptr) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Task is NULL");
+            THROW_MANAPIHTTP_EXCEPTION2(net::ERR_FATAL, "Task is NULL");
         }
 
         // obtain a mutex
@@ -95,7 +95,7 @@ namespace manapi::net {
 
     template<class T>
     void threadpool<T>::append_task(const std::function<void()> &cb) {
-        this->append_task(std::make_unique<function_task>(cb));
+        this->append_task(std::make_unique<net::function_task>(cb));
     }
 
     template<class T>

@@ -20,7 +20,7 @@ manapi::net::http::HeaderView::~HeaderView() {
 }
 
 
-manapi::net::future<void> manapi::net::http::HeaderView::doit() {
+manapi::future<void> manapi::net::http::HeaderView::doit() {
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     if (co_await worker->configure_connection(connection)) {
         while (true) {

@@ -98,7 +98,7 @@ namespace manapi::net {
         AtomicReference<T> operator*();
     private:
         std::shared_ptr<std::unique_lock<std::mutex>> read_lock ();
-        utils::before_delete readwrite_lock ();
+        before_delete readwrite_lock ();
         std::mutex gmx;             // global mutex
         std::mutex mx;              // default mutex
         std::mutex mdeps;           // deps mutex
@@ -346,7 +346,7 @@ namespace manapi::net {
     }
 
     template<typename T>
-    utils::before_delete Atomic<T>::readwrite_lock() {
+    before_delete Atomic<T>::readwrite_lock() {
         auto lk = this->read_lock();
         auto lkdeps = std::make_shared <std::unique_lock<std::mutex>> (this->mdeps, std::try_to_lock);
         if (!lkdeps->owns_lock()) {
@@ -357,7 +357,7 @@ namespace manapi::net {
             return this->deps == 0;
         });
 
-        return std::move(utils::before_delete{[lk = std::move(lk), lkdeps = std::move(lkdeps)] () -> void {}});
+        return std::move(before_delete{[lk = std::move(lk), lkdeps = std::move(lkdeps)] () -> void {}});
     }
 }
 

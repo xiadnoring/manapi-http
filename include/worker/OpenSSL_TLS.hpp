@@ -31,7 +31,7 @@ namespace manapi::net::worker {
         void _recv_setup_connection(manapi::net::worker::connection &storage) override;
     private:
         void _lookup_event(ev::io &watcher, std::shared_ptr<connection> storage, const int &revents) override;
-        static std::atomic<bool> gl_init;
+
         static void connection_interface_eraser (void *ptr);
         static int _gl_openssl_async_callback (SSL *ssl, void *argp);
         int openssl_async_callback (connection &storage);

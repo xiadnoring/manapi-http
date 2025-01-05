@@ -8,7 +8,7 @@
 #include "../ManapiAsync.hpp"
 #include "components/ManapiChain.hpp"
 
-namespace manapi::net {
+namespace manapi {
     class async_condition_variable {
     private:
         struct notify_sub_t {

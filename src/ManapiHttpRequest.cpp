@@ -30,8 +30,12 @@ const std::string &manapi::net::http_request::get_http_version() const {
     return request_data->http;
 }
 
-const std::map<std::string, std::string> &manapi::net::http_request::get_headers() const {
-    return request_data->headers;
+[[nodiscard]] const std::map<std::string, std::string> &manapi::net::http_request::ref_headers () const {
+    return this->request_data->headers;
+}
+
+std::map<std::string, std::string> manapi::net::http_request::get_headers() const {
+    return std::move(this->request_data->headers);
 }
 
 const std::string &manapi::net::http_request::get_param(const std::string &param) const {
@@ -50,7 +54,7 @@ std::string manapi::net::http_request::dump() const {
 
     result += "Headers: \n";
 
-    for (const auto &header: get_headers()) {
+    for (const auto &header: ref_headers()) {
         result += utils::stringify_header(header) + '\n';
     }
 
@@ -61,7 +65,7 @@ std::string manapi::net::http_request::dump() const {
     return result;
 }
 
-manapi::net::future<std::string> manapi::net::http_request::text() {
+manapi::future<std::string> manapi::net::http_request::text() {
     if (!request_data->has_body)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
@@ -87,7 +91,7 @@ manapi::net::future<std::string> manapi::net::http_request::text() {
     co_return body;
 }
 
-manapi::net::future<manapi::json> manapi::net::http_request::json()
+manapi::future<manapi::json> manapi::net::http_request::json()
 {
     // TODO: check with json_mask during processing read_mask()
     const auto &post_mask = get_post_mask();
@@ -99,7 +103,7 @@ manapi::net::future<manapi::json> manapi::net::http_request::json()
     co_return std::move(builder.get());
 }
 
-manapi::net::future<manapi::net::formdata_recv> manapi::net::http_request::form ()
+manapi::future<manapi::net::formdata_recv> manapi::net::http_request::form ()
 {
     formdata_recv formdata {*request_data, config, http_task};
     co_await formdata._init();
@@ -171,7 +175,7 @@ const bool & manapi::net::http_request::get_propagation() {
     return is_propagation;
 }
 
-manapi::net::future<void> manapi::net::http_request::_read_body(const std::function<void(const char *, const size_t &)> &handler) {
+manapi::future<void> manapi::net::http_request::_read_body(const std::function<void(const char *, const size_t &)> &handler) {
     request_data->body_part = std::min (request_data->body_part, request_data->body_left);
 
     // TODO: speed up

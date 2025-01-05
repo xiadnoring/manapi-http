@@ -78,7 +78,7 @@ namespace manapi::net {
         std::string text();
         manapi::json json();
 
-        const std::map <std::string, std::string> &get_headers();
+        std::map <std::string, std::string> get_headers();
     private:
         size_t status_code = 200;
 

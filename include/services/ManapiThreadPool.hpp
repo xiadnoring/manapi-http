@@ -12,7 +12,7 @@
 #include <condition_variable>
 #include <functional>
 
-namespace manapi::net {
+namespace manapi {
     template <class T>
     class threadpool {
     public:

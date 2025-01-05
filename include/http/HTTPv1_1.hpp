@@ -12,8 +12,8 @@ namespace manapi::net::http {
         ~http_v1_1 () override;
         static std::shared_ptr<http_v1_1> create (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         void doit() override;
-        manapi::net::future<void> parse_request(ssize_t j, ssize_t size) override;
-        manapi::net::future<void> execute_handler () override;
+        manapi::future<void> parse_request(ssize_t j, ssize_t size) override;
+        manapi::future<void> execute_handler () override;
 
         [[nodiscard]] bool connection_was_upgraded () const;
     protected:

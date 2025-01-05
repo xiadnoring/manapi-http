@@ -51,6 +51,5 @@ namespace manapi::net {
         class site *site;
         // watchers
         std::shared_ptr <ev::io> watcher;
-        std::shared_ptr <ev::async> async_watcher;
     };
 }

@@ -11,7 +11,7 @@
 #include "async/ManapiAsyncConditionVariable.hpp"
 #include "async/ManapiAsyncMutex.hpp"
 
-namespace manapi::net::utils {
+namespace manapi {
     struct timer_task {
         std::chrono::milliseconds delay;
         std::shared_ptr<std::function <future<>()>> async_task;
@@ -20,9 +20,9 @@ namespace manapi::net::utils {
         bool interval;
         bool enabled;
     };
-    class timerpool : public net::task {
+    class timerpool : public task {
     public:
-        explicit timerpool(std::shared_ptr<net::threadpool<net::task>> threadpool, const size_t &delay = 50);
+        explicit timerpool(std::shared_ptr<threadpool<task>> threadpool, const size_t &delay = 50);
         ~timerpool();
         future<size_t> async_append_timer_sync (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         future<size_t> async_append_timer_async (const std::chrono::milliseconds &duration, const std::function<future<void>()> &task);
@@ -49,7 +49,7 @@ namespace manapi::net::utils {
         future<void> _update_interval_state (const size_t& id);
         future<size_t> _append (const std::chrono::milliseconds &duration, const std::function<future<>()> &async_task, const std::function<void()> &task, const bool &inteval);
         std::unordered_map <size_t, timer_task> tasks;
-        std::shared_ptr<net::threadpool<net::task>> taskpool;
+        std::shared_ptr<threadpool<task>> taskpool;
         async_mutex mx;
         size_t index = 1;
         std::atomic<bool> _stop = false;

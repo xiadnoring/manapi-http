@@ -35,18 +35,18 @@ manapi::net::worker::smart_w_buffer & manapi::net::worker::smart_w_buffer::opera
     return *this;
 }
 
-manapi::net::future<void> manapi::net::worker::smart_w_buffer::resize(size_t size) {
+manapi::future<void> manapi::net::worker::smart_w_buffer::resize(size_t size) {
     auto lk = co_await this->gmx.lock_guard();
     this->buffer.reserve(size);
     this->maxsize = size;
 }
 
-manapi::net::future<void> manapi::net::worker::smart_w_buffer::add_allow_to_sent(int size) {
+manapi::future<void> manapi::net::worker::smart_w_buffer::add_allow_to_sent(int size) {
     this->sent.fetch_add(size);
     co_await this->cv.notify_all();
 }
 
-manapi::net::future<size_t> manapi::net::worker::smart_w_buffer::add(const void *c, size_t len, bool flag) {
+manapi::future<size_t> manapi::net::worker::smart_w_buffer::add(const void *c, size_t len, bool flag) {
     auto lk = co_await this->gmx.lock_guard();
     size_t total_res = 0;
     size_t align = 0;
@@ -62,13 +62,13 @@ manapi::net::future<size_t> manapi::net::worker::smart_w_buffer::add(const void 
     co_return total_res;
 }
 
-manapi::net::future<void> manapi::net::worker::smart_w_buffer::disable() {
+manapi::future<void> manapi::net::worker::smart_w_buffer::disable() {
     disabled.store(true);
     co_await cv.notify_all();
 }
 
 
-manapi::net::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
+manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
     while (true) {
         co_await this->cv.wait([this] () -> bool {
             return this->sent > 0 || disabled;
@@ -116,7 +116,7 @@ manapi::net::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool fla
     }
 }
 
-manapi::net::worker::smart_r_buffer::smart_r_buffer(std::shared_ptr<threadpool<task>> taskpool, const std::function<manapi::net::future<void>(int)> &callback, int frame_size) : gmx(taskpool), cv(taskpool) {
+manapi::net::worker::smart_r_buffer::smart_r_buffer(std::shared_ptr<threadpool<task>> taskpool, const std::function<manapi::future<void>(int)> &callback, int frame_size) : gmx(taskpool), cv(taskpool) {
     this->frame_size = frame_size;
     this->callback = callback;
     this->buffer.reserve(this->frame_size);
@@ -141,13 +141,13 @@ manapi::net::worker::smart_r_buffer & manapi::net::worker::smart_r_buffer::opera
     return *this;
 }
 
-manapi::net::future<void> manapi::net::worker::smart_r_buffer::resize(int frame_size) {
+manapi::future<void> manapi::net::worker::smart_r_buffer::resize(int frame_size) {
     auto lk = co_await this->gmx.lock_guard();
     this->frame_size = frame_size;
     this->buffer.reserve(this->frame_size);
 }
 
-manapi::net::future<void> manapi::net::worker::smart_r_buffer::add(const void *c, size_t len, bool flag) {
+manapi::future<void> manapi::net::worker::smart_r_buffer::add(const void *c, size_t len, bool flag) {
     {
         auto lk = co_await this->gmx.lock_guard();
         if (i >= this->buffer.size()) {
@@ -161,7 +161,7 @@ manapi::net::future<void> manapi::net::worker::smart_r_buffer::add(const void *c
     //std::cout << "ура, мы получили данные " << len << "flag: " << flag << "\n";
 }
 
-manapi::net::future<ssize_t> manapi::net::worker::smart_r_buffer::read(void *c, size_t len) {
+manapi::future<ssize_t> manapi::net::worker::smart_r_buffer::read(void *c, size_t len) {
     co_await this->cv.wait([this] () -> bool {
         return this->buffer.size() > this->i || this->disabled;
     });
@@ -175,13 +175,15 @@ manapi::net::future<ssize_t> manapi::net::worker::smart_r_buffer::read(void *c, 
 
     if (this->buffer.size() == this->i) {
         lk.call();
-        co_await this->callback (this->frame_size);
+        if(this->callback) {
+            co_await this->callback (this->frame_size);
+        }
     }
 
     co_return static_cast<ssize_t>(size);
 }
 
-manapi::net::future<void> manapi::net::worker::smart_r_buffer::disable() {
+manapi::future<void> manapi::net::worker::smart_r_buffer::disable() {
     auto lk = co_await this->gmx.lock_guard();
     disabled.store(true);
     co_await cv.notify_all();

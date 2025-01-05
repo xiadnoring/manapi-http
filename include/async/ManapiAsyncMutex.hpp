@@ -7,7 +7,7 @@
 #include "../ManapiAsync.hpp"
 #include "../ManapiBeforeDelete.hpp"
 
-namespace manapi::net {
+namespace manapi {
     class async_mutex {
     public:
         struct promise {
@@ -33,7 +33,7 @@ namespace manapi::net {
 
         async_mutex (std::shared_ptr<threadpool<task>> taskpool) : taskpool(std::move(taskpool)) {}
 
-        manapi::net::future<void> lock () {
+        manapi::future<void> lock () {
             co_await async_mutex::promise {this->mx, this->stack, this->own};
             co_return;
         }
@@ -66,9 +66,9 @@ namespace manapi::net {
             return this->own.has_value();
         }
 
-        future<utils::before_delete> lock_guard () {
+        future<before_delete> lock_guard () {
             co_await this->lock();
-            co_return std::move(utils::before_delete([this] () -> void {
+            co_return std::move(before_delete([this] () -> void {
                 this->unlock();
             }));
         }

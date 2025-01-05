@@ -11,6 +11,7 @@ endif ()
 
 OPTION(MANAPIHTTP_JSON_DEBUG "JSON debug variables" OFF)
 OPTION(MANAPIHTTP_QUICHE_DEPENDENCY "The QUIC Implementation by Cloudflare" OFF)
+OPTION(MANAPIHTTP_TQUIC_DEPENDENCY "The QUIC Implementation by Tencent" OFF)
 OPTION(MANAPIHTTP_MSQUIC_DEPENDENCY "The QUIC Implementation by Microsoft" OFF)
 OPTION(MANAPIHTTP_OPENSSL_DEPENDENCY "TLS, QUIC and etc implementations by OpenSSL" OFF)
 OPTION(MANAPIHTTP_WOLFSSL_DEPENDENCY "TLS, QUIC and etc implementations by WolfSSL" OFF)
@@ -18,6 +19,7 @@ OPTION(MANAPIHTTP_WOLFSSL_DEPENDENCY "TLS, QUIC and etc implementations by WolfS
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 
 message(STATUS "The QUIC Implementation by Cloudflare: ${MANAPIHTTP_QUICHE_DEPENDENCY}")
+message(STATUS "The QUIC Implementation by Tencent: ${MANAPIHTTP_TQUIC_DEPENDENCY}")
 message(STATUS "The QUIC Implementation by Microsoft: ${MANAPIHTTP_MSQUIC_DEPENDENCY}")
 message(STATUS "TLS, QUIC and etc implementations by OpenSSL: ${MANAPIHTTP_OPENSSL_DEPENDENCY}")
 message(STATUS "TLS, QUIC and etc implementations by WolfSSL: ${MANAPIHTTP_WOLFSSL_DEPENDENCY}")
@@ -37,6 +39,10 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
 
     if (MANAPIHTTP_QUICHE_DEPENDENCY)
         find_package(quiche REQUIRED)
+    endif ()
+
+    if (MANAPIHTTP_TQUIC_DEPENDENCY)
+        find_package(tquic REQUIRED)
     endif ()
 
     if (MANAPIHTTP_WOLFSSL_DEPENDENCY)
@@ -67,6 +73,10 @@ else ()
         pkg_check_modules(OPENSSL REQUIRED openssl)
     endif ()
 
+    if (MANAPIHTTP_TQUIC_DEPENDENCY)
+        pkg_check_modules(QUIC REQUIRED tquic)
+    endif ()
+
     if (MANAPIHTTP_QUICHE_DEPENDENCY)
         pkg_check_modules(QUIC REQUIRED quiche)
     endif ()
@@ -89,7 +99,8 @@ string(REPLACE "{{ VAR_MANAPIHTTP_JSON_DEBUG }}" ${MANAPIHTTP_JSON_DEBUG} TEXT "
 file(GENERATE OUTPUT include/ManapiParams.hpp CONTENT "${TEXT}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS include/ManapiParams.hpp)
 
-add_compile_definitions(MANAPIHTTP_OPENSSL_DEPENDENCY=$<BOOL:${MANAPIHTTP_OPENSSL_DEPENDENCY}> MANAPIHTTP_WOLFSSL_DEPENDENCY=$<BOOL:${MANAPIHTTP_WOLFSSL_DEPENDENCY}>)
+add_compile_definitions(MANAPIHTTP_OPENSSL_DEPENDENCY=$<BOOL:${MANAPIHTTP_OPENSSL_DEPENDENCY}> MANAPIHTTP_WOLFSSL_DEPENDENCY=$<BOOL:${MANAPIHTTP_WOLFSSL_DEPENDENCY}>
+        MANAPIHTTP_QUICHE_DEPENDENCY=$<BOOL:${MANAPIHTTP_QUICHE_DEPENDENCY}> MANAPIHTTP_TQUIC_DEPENDENCY=$<BOOL:${MANAPIHTTP_TQUIC_DEPENDENCY}>)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -178,7 +189,26 @@ set(MANAPIHTTP_HTTP_FILES
         include/async/ManapiAsyncMutex.hpp
         include/async/ManapiAsyncConditionVariable.hpp
         include/components/ManapiChain.hpp
-        include/async/ManapiAsyncTimer.hpp)
+        include/async/ManapiAsyncTimer.hpp
+        include/crypto/ManapiAEAD.hpp
+        include/crypto/ManapiHKDF.hpp
+        include/crypto/ManapiCryptoUtils.hpp
+        include/crypto/ManapiAES.hpp
+        src/worker/QUIC_OpenSSL_TLS.cpp
+        include/worker/QUIC_OpenSSL_TLS.hpp
+        include/worker/QUIC_CB_Base.hpp
+        src/worker/QUIC_CB_Base.cpp
+        src/worker/QUIC_CB_Base.cpp
+        src/worker/OpenSSL_QUIC.cpp
+        include/worker/OpenSSL_QUIC.hpp
+        src/worker/UDP.cpp
+        include/worker/UDP.hpp
+        include/worker/tools/OpenSSLTools.hpp
+        include/worker/HTTPv3_clouflare_quiche.hpp
+        src/worker/HTTPv3_cloudflare_quiche.cpp
+        src/worker/HTTPv3_tquic.cpp
+        include/worker/HTTPv3_tquic.hpp
+)
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
     # EXE
@@ -215,6 +245,10 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     if (MANAPIHTTP_QUICHE_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} quiche::quiche)
     endif ()
+
+    if (MANAPIHTTP_TQUIC_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} tquic::tquic)
+    endif ()
 else ()
     target_link_libraries       (${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${LIBEV_LIBRARIES} ${LSQPACK_LIBRARIES} ${CURL_LIBRARIES})
     target_include_directories  (${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${LSQPACK_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
@@ -238,6 +272,11 @@ else ()
     if (MANAPIHTTP_MSQUIC_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${MSQUIC_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${MSQUIC_INCLUDE_DIRS})
+    endif ()
+
+    if (MANAPIHTTP_TQUIC_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${TQUIC_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${TQUIC_INCLUDE_DIRS})
     endif ()
 
 endif ()

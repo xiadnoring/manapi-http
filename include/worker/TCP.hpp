@@ -18,7 +18,7 @@ namespace manapi::net::worker {
             size_t time_ms = 0;
         };
         struct connection_interface {
-            manapi::net::async_mutex iomutex;
+            manapi::async_mutex iomutex;
             int id{};
             std::shared_ptr <ev::io> watcher;
             ev_timer timer;
@@ -72,7 +72,6 @@ namespace manapi::net::worker {
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
         future<void> connection_close(std::shared_ptr<connection> conn) override;
-        void onasync(ev::async &watcher, int revents) override;
     protected:
         virtual void _recv_setup_connection (manapi::net::worker::connection &storage);
         static future<void> io_wait (connection_interface &conn, const int &status);
@@ -104,7 +103,7 @@ namespace manapi::net::worker {
         std::stack<std::shared_ptr<async_stack_storage>> tmp;
         addrinfo *local;
         int socket_param_true = 1;
-        int socket_param_false = 1;
+        int socket_param_false = 0;
         timeval recv_timeout{}, send_timeout{};
         addrinfo hints{};
     };

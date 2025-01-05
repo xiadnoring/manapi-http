@@ -146,7 +146,7 @@ void manapi::net::http_task::udp_doit() {
 
                 size_t keep_alive = config->get_send_timeout() * 1000;
 
-                utils::before_delete bd_m_worker([this]() -> void { quic_m_write.unlock(); });
+                before_delete bd_m_worker([this]() -> void { quic_m_write.unlock(); });
                 if (!quic_m_write.try_lock_for(std::chrono::milliseconds(keep_alive))) {
                     MANAPIHTTP_LOG("quic write timeout({}s): {}", keep_alive, conn_io->key);
                     is_deleting = true;
@@ -299,7 +299,7 @@ void manapi::net::http_task::udp_doit() {
         return result;
     };
 
-    utils::before_delete bd_conn([this]() -> void {
+    before_delete bd_conn([this]() -> void {
         if (is_deleting) {
             if (stream_id != -1) {
                 quiche_h3_send_goaway(conn_io->http3, conn_io->conn, stream_id);
@@ -382,12 +382,12 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
         conn_io = quic_map_conns->at(scid).get();
     }
 
-    utils::before_delete increase_responsing([&]() -> void { conn_io->is_responsing = false; });
+    before_delete increase_responsing([&]() -> void { conn_io->is_responsing = false; });
 
     if (conn_io->is_deleting) { return; }
 
     // we want to unlock mutex and say that we working with connection yet.
-    //utils::before_delete unflag_responsing ([&conn_io] () -> void { conn_io->is_responsing --; });
+    //before_delete unflag_responsing ([&conn_io] () -> void { conn_io->is_responsing --; });
 
     const quiche_recv_info recv_info = {
         (sockaddr *) (&client),
@@ -436,7 +436,7 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
             // do next step
             {
                 quiche_stream_iter *stream = quiche_conn_writable(conn_io->conn);
-                utils::before_delete bd_stream([&stream]() -> void { quiche_stream_iter_free(stream); });
+                before_delete bd_stream([&stream]() -> void { quiche_stream_iter_free(stream); });
 
 
                 while (quiche_stream_iter_next(stream, reinterpret_cast<uint64_t *>(&stream_id))) {
@@ -462,7 +462,7 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
                                 auto fileData = &task->fti;
                                 std::ifstream f(fileData->filePath, std::ios::in | std::ios::binary);
                                 if (f.is_open()) {
-                                    manapi::net::utils::before_delete close_stream([&f]() -> void { f.close(); });
+                                    manapi::before_delete close_stream([&f]() -> void { f.close(); });
                                     const ssize_t capacity = std::min(
                                         quiche_conn_stream_capacity(conn_io->conn, stream_id), fileData->size);
                                     if (capacity < 0) {
@@ -506,7 +506,7 @@ void manapi::net::http_task::udp_loop_event(quic_map_conns_t *quic_map_conns, cl
                     break;
                 }
 
-                utils::before_delete unwrap_event([&ev]() -> void { quiche_h3_event_free(ev); });
+                before_delete unwrap_event([&ev]() -> void { quiche_h3_event_free(ev); });
 
                 switch (quiche_h3_event_type(ev)) {
                     case QUICHE_H3_EVENT_FINISHED: {
@@ -703,7 +703,7 @@ void manapi::net::http_task::quic_set_to_delete(http_task *task) {
 
 // tcp doit (pool connections)
 void manapi::net::http_task::tcp_doit() {
-    utils::before_delete bd_tcp_doit([this]() -> void {
+    before_delete bd_tcp_doit([this]() -> void {
         if (ssl != nullptr) {
             SSL_shutdown(ssl);
             SSL_free(ssl);
@@ -961,7 +961,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
             THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Could not open the file by the following path: {}", filepath);
         } else {
             // close ifstream before deleting
-            utils::before_delete unwrap_ifstream([&f]() -> void { f.close(); });
+            before_delete unwrap_ifstream([&f]() -> void { f.close(); });
 
             // set headers
             {
@@ -1073,7 +1073,7 @@ void manapi::net::http_task::send_response(manapi::net::http_response &res) {
         const std::string *plaintext = &body;
 
         // clean up
-        utils::before_delete unwrap_plaintext([&plaintext]() { delete plaintext; });
+        before_delete unwrap_plaintext([&plaintext]() { delete plaintext; });
 
         if (compressor != nullptr) {
             // encode content !
@@ -1668,7 +1668,7 @@ std::unique_ptr<manapi::net::http_quic_conn_io> &manapi::net::http_task::quic_cr
 
     std::unique_ptr<http_quic_conn_io> conn_io = std::make_unique<http_quic_conn_io>();
     conn_io->timer_id = 0; // initializate timer
-    utils::before_delete bd_free_conn_io([&conn_io, &site]() -> void {
+    before_delete bd_free_conn_io([&conn_io, &site]() -> void {
         // LOCK CONN
         conn_io->mutex.lock();
 
@@ -1872,7 +1872,7 @@ void manapi::net::http_task::quic_delete_conn_io(manapi::net::http_quic_conn_io 
 
             // UNLOCK
             //conn_io->mutex.unlock();
-            //utils::before_delete bd_mutex_lock ([&conn_io] () -> void { conn_io->mutex.lock(); });
+            //before_delete bd_mutex_lock ([&conn_io] () -> void { conn_io->mutex.lock(); });
 
             // LOCK & UNLOCK
             quic_set_to_delete(task);

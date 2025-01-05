@@ -33,7 +33,7 @@ namespace manapi::net::utils {
 
         void unlock ();
 
-        manapi::net::utils::before_delete lock_guard ();
+        manapi::before_delete lock_guard ();
 
         void reset ();
 
@@ -109,9 +109,9 @@ void manapi::net::utils::atomic_map<K, V, C>::unlock() {
 }
 
 template<typename K, typename V, class C>
-manapi::net::utils::before_delete manapi::net::utils::atomic_map<K, V, C>::lock_guard() {
+manapi::before_delete manapi::net::utils::atomic_map<K, V, C>::lock_guard() {
     lock();
-    manapi::net::utils::before_delete bd([this] () -> void { unlock(); });
+    manapi::before_delete bd([this] () -> void { unlock(); });
     return std::move(bd);
 }
 

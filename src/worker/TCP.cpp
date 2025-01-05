@@ -102,7 +102,7 @@ void manapi::net::worker::TCP::init() {
     };
 }
 
-manapi::net::future<bool> manapi::net::worker::TCP::configure_connection(std::shared_ptr<worker::connection> connection) {
+manapi::future<bool> manapi::net::worker::TCP::configure_connection(std::shared_ptr<worker::connection> connection) {
     auto &conn = connection->as<connection_interface>();
 
     if (conn.configured) { co_return true; }
@@ -111,7 +111,7 @@ manapi::net::future<bool> manapi::net::worker::TCP::configure_connection(std::sh
     co_return true;
 }
 
-manapi::net::future<ssize_t> manapi::net::worker::TCP::response(worker::connection &connection, http_response &resp, bool finish) {
+manapi::future<ssize_t> manapi::net::worker::TCP::response(worker::connection &connection, http_response &resp, bool finish) {
     static const std::string delimiter = "\r\n";
     const auto response = this->stringify_http_info(resp, connection.version, delimiter) + this->stringify_headers(resp, delimiter) + delimiter;
 
@@ -247,17 +247,15 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     }));
 }
 
-manapi::net::future<void> manapi::net::worker::TCP::connection_close(std::shared_ptr<connection> conn) {
+manapi::future<void> manapi::net::worker::TCP::connection_close(std::shared_ptr<connection> conn) {
     auto &connection = conn->as<connection_interface>();
     auto lk = co_await connection.iomutex.lock_guard();
     this->_connection_close(conn, connection);
 }
 
-void manapi::net::worker::TCP::onasync(ev::async &watcher, int revents) {}
-
 void manapi::net::worker::TCP::_recv_setup_connection(manapi::net::worker::connection &storage) {}
 
-manapi::net::future<> manapi::net::worker::TCP::io_wait(connection_interface &connection, const int &status) {
+manapi::future<> manapi::net::worker::TCP::io_wait(connection_interface &connection, const int &status) {
     co_await connection.iomutex.lock();
     co_await connection_io_await{connection.iohandle, connection.status, connection.iomutex, status};
 }
@@ -383,7 +381,7 @@ std::string manapi::net::worker::TCP::stringify_http_info(manapi::net::http_resp
 std::string manapi::net::worker::TCP::stringify_headers(manapi::net::http_response &res, const std::string &delimiter) const {
     std::string data;
     // add headers
-    for (const auto &header: res.get_headers()) {
+    for (const auto &header: res.ref_headers()) {
         data += header.first + ": " + header.second + delimiter;
     }
     return data;
@@ -397,7 +395,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
     delete connection;
 }
 
-manapi::net::future<ssize_t> manapi::net::worker::TCP::default_write(connection &conn, const void *buff, const size_t &size) const {
+manapi::future<ssize_t> manapi::net::worker::TCP::default_write(connection &conn, const void *buff, const size_t &size) const {
     auto &connection = conn.as<connection_interface>();
     while (true) {
         if (connection.status & CONN_CLOSED) {
@@ -422,7 +420,7 @@ manapi::net::future<ssize_t> manapi::net::worker::TCP::default_write(connection 
     co_return -1;
 }
 
-manapi::net::future<ssize_t> manapi::net::worker::TCP::default_read(connection &conn, void *buff, const size_t &size) const {
+manapi::future<ssize_t> manapi::net::worker::TCP::default_read(connection &conn, void *buff, const size_t &size) const {
     auto &connection = conn.as<connection_interface>();
     while (true) {
         if (connection.status & CONN_CLOSED) {

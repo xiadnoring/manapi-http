@@ -38,7 +38,8 @@ namespace manapi::net {
         const std::string &get_status_message ();
         const std::string &get_body ();
 
-        const std::map<std::string, std::string> &get_headers ();
+        const std::map<std::string, std::string> &ref_headers ();
+        std::map<std::string, std::string> get_headers ();
 
         void set_header      (const std::string &key, const std::string &value);
         void remove_header   (const std::string &key);

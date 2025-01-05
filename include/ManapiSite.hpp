@@ -92,7 +92,7 @@ namespace manapi::net {
         site ();
         ~site();
 
-        manapi::net::async_delay delay (const std::chrono::seconds &n);
+        manapi::async_delay delay (const std::chrono::seconds &n);
         size_t append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         size_t append_interval (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         void remove_timer (const size_t &id);
@@ -122,7 +122,7 @@ namespace manapi::net {
         void task_pool_init (const size_t &thread_num);
 
         std::string config_cache_dir;
-        std::unique_ptr<utils::timerpool> timerpool;
+        std::unique_ptr<class timerpool> timerpool;
         std::shared_ptr <threadpool<task>> taskpool = nullptr;
         async_mutex cache_config_mx;
     protected:

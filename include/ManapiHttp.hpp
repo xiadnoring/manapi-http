@@ -33,7 +33,7 @@ namespace manapi::net::http {
 
         void GET (const std::string &uri, const std::string &folder);
 
-        future<void> stop ();
+        std::future<void> stop ();
 
         static void stop_all_servers ();
     private:
@@ -46,7 +46,8 @@ namespace manapi::net::http {
         std::mutex mx;
         std::atomic <bool> stopping;
 
-        std::unique_ptr<std::promise <void>> pool_promise;
+        std::promise <void> pool_promise;
+        std::promise <void> stop_promise;
 
         std::unordered_map<size_t, std::unique_ptr<http_pool>> pools;
 

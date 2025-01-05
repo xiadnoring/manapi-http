@@ -26,7 +26,8 @@ namespace manapi::net {
         [[nodiscard]] const utils::manapi_socket_information &get_ip_data () const;
         [[nodiscard]] const std::string &get_method () const;
         [[nodiscard]] const std::string &get_http_version() const;
-        [[nodiscard]] const utils::MAP_STR_STR &get_headers () const;
+        [[nodiscard]] const std::map<std::string, std::string> &ref_headers () const;
+        [[nodiscard]] std::map<std::string, std::string> get_headers () const;
         [[nodiscard]] const std::string &get_param (const std::string &param) const;
         [[nodiscard]] std::string dump() const;
         future<std::string> text ();

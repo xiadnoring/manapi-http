@@ -18,6 +18,8 @@
 #include "async/ManapiAsyncConditionVariable.hpp"
 #include "async/ManapiAsyncMutex.hpp"
 #include "components/ManapiChain.hpp"
+#include "crypto/ManapiAEAD.hpp"
+#include "crypto/ManapiAES.hpp"
 
 using namespace manapi::net::utils;
 using namespace manapi::net;
@@ -30,7 +32,7 @@ using namespace std;
 // static auto taskpool = std::make_shared<threadpool<task>> (4);
 // static async_condition_variable cv (taskpool);
 //
-// manapi::net::future<void> print (async_mutex &mx2) {
+// manapi::future<void> print (async_mutex &mx2) {
 //     co_await mx2.lock();
 //
 //     co_await cv.notify_all();
@@ -44,7 +46,7 @@ using namespace std;
 //     taskpool->append_task([&] () -> void { timerpool.start(); });
 //     async_mutex mx2 (taskpool);
 //     for (int i = 0; i < 100000; i++) {
-//         async::task_run(taskpool, [mx2 = &mx2] () -> manapi::net::future<void> {
+//         async::task_run(taskpool, [mx2 = &mx2] () -> manapi::future<void> {
 //             co_await mx2->lock();
 //             std::cout << "1\n";
 //             mx2->unlock();
@@ -56,15 +58,7 @@ using namespace std;
 //     taskpool->stop();
 // }
 
-// int main () {
-//     manapi::chain<int> a;
-//     a.push(78);
-//     std::cout << a.size() << "\n";
-//
-//     return 0;
-// }
 
-//
 int main (int argc, char *argv[]) {
     debug_print_memory("start");
     {
@@ -72,14 +66,14 @@ int main (int argc, char *argv[]) {
 
         server.set_config("./config.json");
 
-        server.GET ("/", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_compress_enabled(true);
-            //resp.set_header(HTTP_HEADER.ALT_SVC, stringify_header_value({{"", {{"h3", "\":8888\""}}}}));
+            resp.set_header(HTTP_HEADER.ALT_SVC, stringify_header_value({{"", {{"h3", "\":8888\""}, {"ma", "86400"}}}}));
             resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
             co_return;
         });
 
-        server.GET ("/response", [&server] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/response", [&server] (REQ(req), RESP(resp)) -> manapi::future<void> {
             co_await server.delay(std::chrono::seconds(2));
             printf("2 sec later...\n");
             co_await server.delay(std::chrono::seconds(3));
@@ -88,24 +82,24 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET ("/lenar", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/lenar", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_compress_enabled(false);
             resp.file ("/opt/clion.zip");
             co_return;
         });
 
-        server.GET ("+layer", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("+layer", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_header("test", "test");
             co_return;
         });
 
-        server.OPTIONS("+error", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.OPTIONS("+error", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_header("allow", "OPTIONS, GET, POST");
             resp.set_status(204, HTTP_STATUS.NO_CONTENT_204);
             co_return;
         });
 
-        server.GET ("/test2", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/test2", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             fetch response ("https://localhost:8888/form");
             response.set_method("POST");
             response.set_body(json2form({
@@ -122,7 +116,7 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET ("/video", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/video", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_compress_enabled(false);
             resp.set_partial_status(true);
             resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.VIDEO_MP4);
@@ -138,7 +132,7 @@ int main (int argc, char *argv[]) {
         //     resp.file("/home/Timur/Downloads/Фотосессия Иглино.zip");
         // });
 
-        server.GET("/proxy", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET("/proxy", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             manapi::json jp = {
                     {"error", false},
                     {"message", "this is a list"},
@@ -160,7 +154,7 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET ("/text", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/text", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             MANAPIHTTP_LOG("{}", "REQ GET");
             resp.set_compress_enabled(false);
             resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.TEXT_PLAIN);
@@ -186,7 +180,7 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET ("/+error", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/+error", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_replacers({
                    {"status_code", std::to_string(resp.get_status_code())},
                    {"status_message", resp.get_status_message()},
@@ -197,7 +191,7 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.POST ("/+error", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.POST ("/+error", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.APPLICATION_JSON);
             resp.json({
                               {"error", true},
@@ -206,7 +200,7 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET ("/noooo", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/noooo", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.VIDEO_MP4);
             resp.set_partial_status(true);
             resp.set_compress_enabled(false);
@@ -215,7 +209,7 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET ("/nonoo", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/nonoo", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_partial_status(true);
             resp.set_compress_enabled(false);
             resp.set_header(HTTP_HEADER.CONTENT_TYPE, HTTP_MIME.VIDEO_MP4);
@@ -240,16 +234,16 @@ int main (int argc, char *argv[]) {
         //
         //     resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/error.html");
         // });
-        server.GET ("/bigfile", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/bigfile", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             std::cout << req.dump() << '\n';
             resp.set_partial_status(false);
             resp.set_compress_enabled(false);
 
-            resp.file("/home/Timur/a.out");
+            resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
             co_return;
         });
 
-        server.GET ("/мем4", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/мем4", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_partial_status(true);
             resp.file ("/home/Timur/Downloads/video3.mp4");
             co_return;
@@ -257,15 +251,16 @@ int main (int argc, char *argv[]) {
 
         server.GET("мемs", "/home/Timur/Downloads/VideoDownloader");
 
-        server.GET ("/favicon.ico", [](REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/favicon.ico", [](REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.file("/home/Timur/Documents/leon.ico");
             co_return;
         });
 
-        server.GET("/test", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
-            fetch fetch ("http://127.0.0.1:8887/response");
-            fetch.set_method("GET");
-            resp.text(fetch.text());
+        server.GET("/test", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
+            // fetch fetch ("http://127.0.0.1:8887/response");
+            // fetch.set_method("GET");1
+            // resp.text(fetch.text());
+                std::cout << req.get_header("test").size() << "\n";
             co_return;
         });
 
@@ -275,14 +270,14 @@ int main (int argc, char *argv[]) {
             {"last-name", "{string(>=5 <70)}"}
         };
 
-        server.GET("/stop", [&server] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET("/stop", [&server] (REQ(req), RESP(resp)) -> manapi::future<void> {
             server.stop();
 
             resp.text("OK");
             co_return;
         });
 
-        server.GET("/audio", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET("/audio", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_partial_status(true);
             resp.set_compress_enabled(true);
             resp.set_compress("gzip");
@@ -290,18 +285,18 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET("/freeze", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET("/freeze", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.text(std::to_string(1));
             co_return;
         });
 
-        server.GET ("/largeheader", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
-            resp.set_header("large", random_string(40000));
+        server.GET ("/largeheader", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
+            resp.set_header("set-cookie", random_string(8000));
             resp.text("hehehehe");
             co_return;
         });
 
-        server.POST ("/form", [] (REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.POST ("/form", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             auto formData = co_await req.form();
 
             resp.set_compress_enabled(false);
@@ -329,7 +324,7 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET ("/music", [](REQ(req), RESP(resp)) -> manapi::net::future<void> {
+        server.GET ("/music", [](REQ(req), RESP(resp)) -> manapi::future<void> {
             std::string response;
             for (const auto &file: std::filesystem::directory_iterator ("/home/Timur/Music")) {
                 response += std::format("<a href=\"/music/{}\">{}</a><br />", escape_string(file.path().filename()), file.path().filename().string());
@@ -344,21 +339,16 @@ int main (int argc, char *argv[]) {
 
         debug_print_memory("pool");
 
-        auto rhs = server.pool(20);
+        auto rhs = server.pool(5);
 
         rhs.get();
         debug_print_memory("preend");
-        this_thread::sleep_for(std::chrono::seconds(2));
+        //this_thread::sleep_for(std::chrono::seconds(2));
         // server.stop();
         //this_thread::sleep_for(std::chrono::seconds(100));
     }
 
     debug_print_memory("end");
 
-
-
-
-
     return 0;
 }
-

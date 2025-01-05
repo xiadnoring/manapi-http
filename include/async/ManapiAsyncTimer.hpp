@@ -3,10 +3,10 @@
 #include "../ManapiAsync.hpp"
 #include "services/ManapiTimerPool.hpp"
 
-namespace manapi::net {
+namespace manapi {
     class async_delay {
     public:
-        async_delay (utils::timerpool &timerpool, const std::chrono::seconds &time) : timerpool(timerpool) {
+        async_delay (timerpool &timerpool, const std::chrono::seconds &time) : _timerpool(timerpool) {
             this->time = time;
         }
         ~async_delay() = default;
@@ -17,7 +17,7 @@ namespace manapi::net {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         void await_suspend (std::coroutine_handle<T1> handle) {
-            async::task_run(this->timerpool.get_threadpool(), [&timerpool = this->timerpool, time = this->time, handle = std::exchange(handle, nullptr)] () -> future<void> {
+            async::task_run(this->_timerpool.get_threadpool(), [&timerpool = this->_timerpool, time = this->time, handle = std::exchange(handle, nullptr)] () -> future<void> {
                 co_await timerpool.async_append_timer_sync(time, [handle] () -> void {
                     future<>::resume_promise(handle);
                 });
@@ -25,7 +25,7 @@ namespace manapi::net {
         }
         void await_resume () const {}
     private:
-        utils::timerpool &timerpool;
+        timerpool &_timerpool;
         std::chrono::seconds time{};
     };
 

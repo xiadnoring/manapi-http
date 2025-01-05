@@ -58,7 +58,6 @@ namespace manapi::net::worker {
         virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
 
         virtual void onrecv (ev::io &watcher, int revents);
-        virtual void onasync (ev::async &watcher, int revents);
 
         base &operator= (base &&n) noexcept;
 
