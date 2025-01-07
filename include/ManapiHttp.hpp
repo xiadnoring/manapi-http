@@ -21,7 +21,7 @@ namespace manapi::net::http {
     class server : public site {
     public:
         server();
-        ~server();
+        ~server() final;
         std::future <void> pool (const size_t &thread_num = 20);
 
         void GET (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
@@ -36,6 +36,8 @@ namespace manapi::net::http {
         std::future<void> stop ();
 
         static void stop_all_servers ();
+    protected:
+        void custom_watcher_fd_async(ev::async &w, int revents) override;
     private:
         static std::atomic<bool> stopped_interrupt;
         static Atomic<std::set <server *>> running;

@@ -37,7 +37,7 @@ namespace manapi::net::worker {
         int openssl_async_callback (connection &storage);
         SSL_CTX* ssl_create_context (const size_t &version = http::versions::TLS_v1_3);
         void ssl_configure_context ();
-        std::string ssl_get_error (int initerr = 0);
+        void ssl_get_error ();
 
         future<ssize_t> ssl_write (connection &conn, const void *buff, const size_t &size);
         future<ssize_t> ssl_read (connection &conn, void *buff, const size_t &size);

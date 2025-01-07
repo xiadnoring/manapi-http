@@ -20,19 +20,19 @@ const std::map <std::string, manapi::net::http::versions::http> http_version_to_
 };
 
 manapi::net::http::config::config(const json &config) {
-    // =================[partial data min size  ]================= //
+    /* partial data min size */
     if (config.contains("partial_data_min_size"))
     {
         this->partial_data_min_size.store(config["partial_data_min_size"].get <size_t> ());
     }
 
-    // =================[socket block size      ]================= //
+    /* socket block size */
     if (config.contains("socket_block_size"))
     {
         this->socket_block_size.store(config["socket_block_size"].get <size_t> ());
     }
 
-    // =================[http version           ]================= //
+    /* http version */
     if (config.contains("http_version")) {
         this->http_version_str = config["http_version"].get <std::string> ();
 
@@ -49,19 +49,19 @@ manapi::net::http::config::config(const json &config) {
         }
     }
 
-    // =================[port                   ]================= //
+    /* port */
     if (config.contains("port"))
     {
         this->port = config["port"].get <std::string> ();
     }
 
-    // =================[address                ]================= //
+    /* address */
     if (config.contains("address"))
     {
         this->address = config["address"].get <std::string> ();
     }
 
-    // =================[ssl                    ]================= //
+    /* ssl */
     if (config.contains("ssl")) {
         this->ssl_config = {
             .enabled  = config["ssl"]["enabled"].get<bool>(),
@@ -70,43 +70,43 @@ manapi::net::http::config::config(const json &config) {
         };
     }
 
-    // =================[max_header_block_size  ]================= //
+    /* max_header_block_size */
     if (config.contains("max_header_block_size"))
     {
         this->max_header_block_size.store(config["max_header_block_size"].get<size_t>());
     }
 
-    // =================[keep_alive             ]================= //
+    /* keep_alive */
     if (config.contains("keep_alive"))
     {
         this->keep_alive.store(config["keep_alive"].get<size_t>());
     }
 
-    // =================[recv_timeout           ]================= //
+    /* recv_timeout */
     if (config.contains("recv_timeout"))
     {
         this->recv_timeout.store(config["recv_timeout"].get<ssize_t>());
     }
 
-    // =================[send_timeout           ]================= //
+    /* send_timeout */
     if (config.contains("send_timeout"))
     {
         this->send_timeout.store(config["send_timeout"].get<ssize_t>());
     }
 
-    // =================[implementation         ]================= //
+    /* implementation */
     if (config.contains("implementation"))
     {
         this->implementation = config["implementation"].get<std::string>();
     }
 
-    // =================[transport         ]================= //
+    /* transport */
     if (config.contains("transport"))
     {
         this->transport = config["transport"].get<std::string>();
     }
 
-    // =================[tls_version            ]================= //
+    /* tls version */
     if (config.contains("tls_version"))
     {
         const std::string &tls_version_string = config["tls_version"].get<std::string>();
@@ -131,7 +131,7 @@ manapi::net::http::config::config(const json &config) {
         }
     }
 
-    // =================[quic_cc_algo           ]================= //
+    /* quic cc algo */
     if (config.contains("quic_cc_algo"))
     {
         const std::string &quic_cc_algo_string = config["quic_cc_algo"].get<std::string>();
@@ -160,16 +160,20 @@ manapi::net::http::config::config(const json &config) {
         }
     }
 
-    // =================[quic_cc_algo           ]================= //
+    /* quic debug */
     if (config.contains("quic_debug"))
     {
         this->quic_debug.store(config["quic_debug"].get<bool>());
     }
 
-
-    // =================[tcp_no_delay           ]================= //
+    /* tcp no delay */
     if (config.contains("tcp_no_delay")) {
         this->tcp_no_delay.store(config["tcp_no_delay"].as_bool());
+    }
+
+    /* verify peer */
+    if (config.contains("verify_peer")) {
+        this->verify_peer.store(config["verify_peer"].as_bool());
     }
 }
 
@@ -331,4 +335,8 @@ manapi::net::http::versions::http manapi::net::http::config::parse_http_version(
 
 std::atomic<bool> & manapi::net::http::config::get_tcp_no_delay() {
     return this->tcp_no_delay;
+}
+
+std::atomic<bool> & manapi::net::http::config::get_verify_peer() {
+    return this->verify_peer;
 }

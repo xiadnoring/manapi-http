@@ -56,6 +56,9 @@ namespace manapi {
             }
             auto handle = this->stack.front();
             this->stack.pop();
+            if (this->stack.empty()) {
+                stack = {}; // free
+            }
             this->taskpool->append_task([handle = std::exchange(handle, nullptr)] () -> void {
                 future<>::resume_promise(handle);
             });

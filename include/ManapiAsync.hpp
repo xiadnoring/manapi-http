@@ -324,7 +324,6 @@ namespace manapi {
 
 namespace manapi {
     namespace async {
-        inline std::atomic <ssize_t> async_cnt = 0;
         inline std::mutex async_tasks_mx;
 
         struct async_task_t {
@@ -350,7 +349,10 @@ namespace manapi {
                     auto it = async_tasks.find(index);
                     if (it != async_tasks.end()) {
                         data = std::move(async_tasks.extract(it));
-                        async_cnt.fetch_sub(1);
+                        if (async_tasks.empty()) {
+                            // free
+                            async_tasks.clear();
+                        }
                     }
                 }
             }, taskpool);
@@ -369,7 +371,6 @@ namespace manapi {
                     printf("bug\n");
                 }
                 async_tasks.insert({index, {nullptr, std::move(task)}});
-                async_cnt.fetch_add(1);
             }
         }
 
@@ -383,7 +384,6 @@ namespace manapi {
                     printf("bug\n");
                 }
                 async_tasks.insert({index, async_task_t{std::make_unique<std::function<manapi::future<>()>>(std::move(callback)), std::move(task)}});
-                async_cnt.fetch_add(1);
             }
         }
     }

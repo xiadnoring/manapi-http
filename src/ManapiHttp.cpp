@@ -79,7 +79,16 @@ std::future<void> manapi::net::http::server::pool(const size_t &thread_num) {
             this->stop_watcher = std::make_shared<ev::async>(this->loop);
             this->stop_watcher->set<server, &server::_async_break_loop> (this);
             this->stop_watcher->start();
+
+            this->adding_watcher_async = std::make_unique<ev::async>(this->loop);
+            this->adding_watcher_async->set<server, &server::custom_watcher_fd_async>(this);
+            this->adding_watcher_async->start();
+
             this->loop.run(ev::AUTO);
+
+            this->adding_watcher_async->stop();
+            this->stop_watcher->stop();
+
             this->pool_promise.set_value();
         });
     }
@@ -132,6 +141,10 @@ void manapi::net::http::server::stop_all_servers() {
         auto it = *running.get()->begin();
         it->stop().get();
     }
+}
+
+void manapi::net::http::server::custom_watcher_fd_async(ev::async &w, int revents) {
+    site::custom_watcher_fd_async(w, revents);
 }
 
 void manapi::net::http::server::stop_pool() {

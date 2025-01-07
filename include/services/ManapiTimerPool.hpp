@@ -41,6 +41,7 @@ namespace manapi {
         void _call_cb (std::unordered_map<size_t, timer_task>::iterator task, std::shared_ptr<std::function<void()>> cb);
         void _async_call_cb (std::unordered_map<size_t, timer_task>::iterator task, std::shared_ptr<std::function<future<void>()>> cb);
         future<void> _start ();
+        void flush_stack_free ();
         std::function<void()> sleep ();
         // wait while deps being exists
         std::atomic <size_t> deps;

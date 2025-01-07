@@ -136,6 +136,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
 
             ev_async_init(&conn_data.write_watcher, http_v3_cloudflare_quiche::_write_watcher_cb);
             ev_init(&conn_data.quiche_timer, http_v3_cloudflare_quiche::_quiche_timeout);
+            conn_data.quiche_timer.priority = -2;
             //ev_timer_init(&conn_data.timer, http_v3_cloudflare_quiche::_connection_timer_check, 0.2, 0.0);
 
             //conn_data.timer.start();
@@ -207,6 +208,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                         }
 
                         quiche_h3_event_for_each_header(event, http_v3_cloudflare_quiche::_grab_headers, client.get());
+
+
+                        MANAPIHTTP_LOG ("new stream {}", client->request_data.headers[":path"]);
 
                         client->request_data.body_index = 0;
                         client->request_data.body_index = 0;
@@ -329,6 +333,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     quiche_config_set_initial_max_streams_uni (this->_quiche_config, 100);
     quiche_config_set_disable_active_migration (this->_quiche_config, true);
     quiche_config_enable_early_data (this->_quiche_config);
+    quiche_config_verify_peer(this->_quiche_config, this->config->get_verify_peer());
     // quiche_enable_debug_logging([] (const char *line, void *argp) -> void {
     //     MANAPIHTTP_LOG("quiche: {}", line);
     // }, nullptr);
@@ -558,7 +563,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read(connection_t &c
             if (stream_data.status & CONN_READ) {
                 size_t read_total = 0;
                 do {
-                    MANAPIHTTP_LOG("READ STREAM: {} {}", stream_data.rbuff_caret, stream_data.rbuff_pos);
+                    //MANAPIHTTP_LOG("READ STREAM: {} {}", stream_data.rbuff_caret, stream_data.rbuff_pos);
                     ssize_t rhs = quiche_h3_recv_body(conn_data.http3_conn, conn_data.conn, stream_id, stream_data.rbuff + stream_data.rbuff_caret, sizeof(stream_data.rbuff) - stream_data.rbuff_caret);
 
                     if (rhs <= 0) {
@@ -841,7 +846,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::default_
         stream_data.rbuff_pos = 0;
         stream_data.rbuff_caret = 0;
 
-        MANAPIHTTP_LOG("read req: {} {}", stream_data.rbuff_pos, stream_data.rbuff_caret);
+        //MANAPIHTTP_LOG("read req: {} {}", stream_data.rbuff_pos, stream_data.rbuff_caret);
         auto &conn_data = stream_data.connection->as<connection_t>();
         co_await connection_io_await{stream_data.handle_io, stream_data.status, CONN_READ, &conn_data.write_watcher, &conn_data.stream_read_cnt};
 

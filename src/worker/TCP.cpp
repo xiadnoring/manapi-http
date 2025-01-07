@@ -175,7 +175,7 @@ void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
         std::shared_ptr<async_stack_storage> row = std::make_shared<async_stack_storage>(stack, task);
 
         stack->_on_connection_finish([this, connection, fd, row] () -> void {
-            MANAPIHTTP_LOG("CB FINISHED {}", fd);
+            //MANAPIHTTP_LOG("CB FINISHED {}", fd);
             async::task_run(this->site.taskpool, this->connection_close(connection));
             row->stack.reset();
         }, this->site.taskpool);
@@ -232,8 +232,8 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     ev_timer_start(this->loop, &conn.timer);
 
     conn.watcher = std::make_shared<ev::io>(this->loop);
-    conn.watcher->set <TCP, &TCP::onevent> (this);
     conn.watcher->priority = 2;
+    conn.watcher->set <TCP, &TCP::onevent> (this);
     conn.watcher->start(fd, ev::READ|ev::WRITE);
 
     return std::move(connection);
@@ -270,16 +270,16 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage, con
     if (status & CONN_CLOSED) {
         flag = true;
     }
-    // else if (status & CONN_READ & mustly) {
-    //     if (conn.stats.total_read - conn.stats.last_total_read < 16 * 1024) {
-    //         flag = true;
-    //     }
-    // }
-    // else if (status & CONN_WRITE & mustly) {
-    //     if (conn.stats.total_write - conn.stats.last_total_write < 16 * 1024) {
-    //         flag = true;
-    //     }
-    // }
+    else if (status & CONN_READ & mustly) {
+        if (conn.stats.total_read - conn.stats.last_total_read < 16 * 1024) {
+            flag = true;
+        }
+    }
+    else if (status & CONN_WRITE & mustly) {
+        if (conn.stats.total_write - conn.stats.last_total_write < 16 * 1024) {
+            flag = true;
+        }
+    }
 
     conn.timer.repeat = 0.2; // 200ms
     ev_timer_again(this->loop, &conn.timer);
@@ -300,7 +300,7 @@ void manapi::net::worker::TCP::_ev_watcher_stop(connection_interface &conn) {
         ev_timer_stop(this->loop, &conn.timer);
         delete static_cast<std::shared_ptr<connection> *> (std::exchange(conn.timer.data, nullptr));
         conn.watcher->stop();
-        MANAPIHTTP_LOG("WATCHER STOP: {}", conn.id);
+        //MANAPIHTTP_LOG("WATCHER STOP: {}", conn.id);
         this->stacks.erase(conn.id);
     }
 }
@@ -315,16 +315,16 @@ void manapi::net::worker::TCP::_connection_close(std::shared_ptr<connection> con
         connection.status.fetch_or(CONN_CLOSED);
     }
 
-    MANAPIHTTP_LOG("connection_close(...) for {}", connection.id);
+    //MANAPIHTTP_LOG("connection_close(...) for {}", connection.id);
 
     if (connection.status.load() & CONN_READ) {
-    MANAPIHTTP_LOG("CONN_READ(...) for {}", connection.id);
+    //MANAPIHTTP_LOG("CONN_READ(...) for {}", connection.id);
         connection.status.fetch_xor(CONN_READ);
         site.taskpool->append_task([conn, &connection] () -> void { connection.iohandle (); });
     }
 
     if (connection.status.load() & CONN_WRITE) {
-    MANAPIHTTP_LOG("CONN_WRITE(...) for {}", connection.id);
+    //MANAPIHTTP_LOG("CONN_WRITE(...) for {}", connection.id);
         connection.status.fetch_xor(CONN_WRITE);
         site.taskpool->append_task([conn, &connection] () -> void { connection.iohandle (); });
     }

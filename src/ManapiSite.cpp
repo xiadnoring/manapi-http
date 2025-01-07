@@ -54,6 +54,69 @@ const std::map<std::string, std::function<std::shared_ptr<manapi::net::worker::b
     return this->transport_protocol_workers[type];
 }
 
+void manapi::net::site::custom_watcher_fd_async(ev::async &w, int revents) {
+    if (this->adding_watcher_data.flag) {
+        if (this->adding_watcher_data.w_io) {
+            this->adding_watcher_data.w_io->start();
+        }
+        else if (this->adding_watcher_data.w_async) {
+            this->adding_watcher_data.w_async->start();
+            this->adding_watcher_data.w_async->send();
+        }
+    }
+    else {
+        if (this->adding_watcher_data.w_io) {
+            this->stop_watcher_fd(*this->adding_watcher_data.w_io);
+        }
+        else if (this->adding_watcher_data.w_async) {
+            this->stop_watcher_async(*this->adding_watcher_data.w_async);
+        }
+    }
+
+    this->adding_watcher_mx.unlock();
+}
+
+manapi::future<std::shared_ptr<ev::io>> manapi::net::site::watch_fd(int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback) {
+    co_await this->adding_watcher_mx.lock();
+    auto w = this->create_watcher_fd(fd, flags, callback);
+    this->adding_watcher_data = adding_watcher_data_t {
+        .flag = true,
+        .fd = fd,
+        .flags = flags,
+        .w_io = w,
+    };
+    this->adding_watcher_async->send();
+    co_return std::move(w);
+}
+
+manapi::future<> manapi::net::site::unwatch_fd(std::shared_ptr<ev::io> w) {
+    co_await this->adding_watcher_mx.lock();
+    this->adding_watcher_data = adding_watcher_data_t {
+        .flag = false,
+        .w_io = std::move(w),
+    };
+    this->adding_watcher_async->send();
+}
+
+manapi::future<std::shared_ptr<ev::async>> manapi::net::site::watch_async(const std::function<void(ev::async &w, int revents)> &callback) {
+    co_await this->adding_watcher_mx.lock();
+    auto w = this->create_watcher_async(callback);
+    this->adding_watcher_data = adding_watcher_data_t {
+        .flag = true,
+        .w_async = w
+    };
+    this->adding_watcher_async->send();
+    co_return std::move(w);
+}
+
+manapi::future<> manapi::net::site::unwatch_async(std::shared_ptr<ev::async> w) {
+    co_await this->adding_watcher_mx.lock();
+    this->adding_watcher_data = adding_watcher_data_t {
+        .flag = false,
+        .w_async = std::move(w)
+    };
+}
+
 void manapi::net::site::setup() {
     // fast ios
     // std::ios_base::sync_with_stdio(false);
@@ -215,6 +278,30 @@ void manapi::net::site::task_pool_init(const size_t &thread_num) {
     taskpool->start();
 }
 
+std::shared_ptr<ev::io> manapi::net::site::create_watcher_fd(int fd, int flags,const std::function<void(ev::io &w, int revents)> &callback) {
+    auto w = std::make_shared<ev::io>(this->loop);
+    ev_io_init(w.get(), site::custom_watcher_fd, fd, flags);
+    w->data = new custom_watcher_data_t<ev::io> {.w = w, .cb = callback};
+    return std::move(w);
+}
+
+std::shared_ptr<ev::async> manapi::net::site::create_watcher_async(const std::function<void(ev::async &w, int revents)> &callback) {
+    auto w = std::make_shared<ev::async>(this->loop);
+    ev_async_init(w.get(), site::custom_watcher_async);
+    w->data = new custom_watcher_data_t<ev::async> {.w = w, .cb = callback};
+    return std::move(w);
+}
+
+void manapi::net::site::stop_watcher_fd(ev::io &w) {
+    delete static_cast<custom_watcher_data_t<ev::io> *>(std::exchange(w.data, nullptr));
+    w.stop();
+}
+
+void manapi::net::site::stop_watcher_async(ev::async &w) {
+    delete static_cast<custom_watcher_data_t<ev::async> *>(std::exchange(w.data, nullptr));
+    w.stop();
+}
+
 void manapi::net::site::save() {
     if (this->enabled_save_config)
     {
@@ -229,6 +316,16 @@ void manapi::net::site::save_config() {
     }
     // cache config
     manapi::net::filesystem::config::write(this->config_cache_dir + site::default_config_name, this->cache_config);
+}
+
+void manapi::net::site::custom_watcher_fd(struct ev_loop *loop, ev_io *w, int revents) {
+    auto &data = *static_cast<custom_watcher_data_t<ev::io> *> (w->data);
+    data.cb(*data.w, revents);
+}
+
+void manapi::net::site::custom_watcher_async(struct ev_loop *loop, ev_async *w, int revents) {
+    auto &data = *static_cast<custom_watcher_data_t<ev::async> *> (w->data);
+    data.cb(*data.w, revents);
 }
 
 void manapi::net::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {
@@ -345,7 +442,7 @@ manapi::net::http_handler_page manapi::net::site::get_handler(request_data_t &re
     }
 }
 
-manapi::net::site::site() : taskpool(std::make_unique<threadpool<task> >(0)), cache_config_mx(taskpool) {}
+manapi::net::site::site() : taskpool(std::make_unique<threadpool<task> >(0)), adding_watcher_mx(taskpool), cache_config_mx(taskpool) {}
 
 manapi::net::site::~site() = default;
 

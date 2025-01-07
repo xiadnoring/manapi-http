@@ -176,10 +176,10 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (const std
                 // get the next data
                 ssize_t rhs = co_await http_task->read (this->request_data->buffer.data(), this->request_data->buffer.size());
                 if (rhs == -1) {
-                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next(...) -> {}", rhs);
                 }
                 if (rhs > this->request_data->body_left) {
-                    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
+                    THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_BODY_TOO_LONG, "received data too long. {} > BODY_LEFT", rhs);
                 }
                 this->request_data->body_part = std::min(static_cast <size_t>(rhs), this->request_data->body_left);
 
@@ -310,7 +310,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (const std
                 {
                     if (header_value.empty())
                     {
-                        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_IMPORTANT_HEADER_MISSING, "{} can not be empty", HTTP_HEADER.CONTENT_TYPE);
+                        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_IMPORTANT_HEADER_MISSING, "{} can't be empty", HTTP_HEADER.CONTENT_TYPE);
                     }
 
                     if (DATA_FILE == type)
@@ -401,15 +401,20 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(const std
             this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left);
         }
 
+        if (!utils::uri_allowed_symbol(this->request_data->body_ptr[this->request_data->body_index])) {
+            THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "Symbol '{}' is not allowed in URLEncoded FormData",
+                static_cast<int>(this->request_data->body_ptr[this->request_data->body_index]));
+        }
+
         if (used_extra) {
             buff_extra[size_extra] = this->request_data->body_ptr[this->request_data->body_index];
             size_extra++;
 
             if (size_extra == 2) {
-                const char c = (char) (manapi::net::utils::hex2dec(buff_extra[0]) << 4 | manapi::net::utils::hex2dec(buff_extra[1]));
-
-                if (manapi::net::utils::valid_special_symbol(c))
+                if (((buff_extra[0] >= '0' && buff_extra[0] <= '9') || (buff_extra[0] >= 'a' && buff_extra[0] <= 'z') || (buff_extra[0] >= 'A' && buff_extra[0] <= 'Z')) &&
+                        ((buff_extra[1] >= '0' && buff_extra[1] <= '9') || (buff_extra[1] >= 'a' && buff_extra[1] <= 'z') || (buff_extra[1] >= 'A' && buff_extra[1] <= 'Z')))
                 {
+                    const char c = (char) (manapi::net::utils::hex2dec(buff_extra[0]) << 4 | manapi::net::utils::hex2dec(buff_extra[1]));
                     buffer += c;
                 }
                 else {

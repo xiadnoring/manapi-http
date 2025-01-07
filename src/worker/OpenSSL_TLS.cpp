@@ -29,7 +29,7 @@ manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::site &site) : TCP (site) {
 }
 
 manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
-    SSL_CTX_free(ctx);
+    SSL_CTX_free(this->ctx);
 }
 
 bool manapi::net::worker::OpenSSL_TLS::is_valid_connection(worker::connection &connection) {
@@ -82,6 +82,7 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
 
             int rhs = SSL_accept(conn.ssl);
             rhs = SSL_get_error(conn.ssl, rhs);
+            this->ssl_get_error();
             if (rhs != SSL_ERROR_NONE) {
                 switch (rhs) {
                     case SSL_ERROR_WANT_READ: {
@@ -119,7 +120,6 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
         conn.timer_accept.store(0);
         conn.mustly.fetch_or(CONN_READ | CONN_WRITE);
     }
-
 
     conn.status.fetch_xor(CONN_IDLE);
     conn.configured = true;
@@ -162,7 +162,7 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
     auto &connection = conn->as<connection_interface>();
     auto lk = co_await connection.iomutex.lock_guard();
 
-    if ((false == connection.status & CONN_CLOSED)) {
+    if (false && (false == connection.status & CONN_CLOSED)) {
         bool flag = true;
         do {
             auto rhs = SSL_shutdown(connection.ssl);
@@ -220,7 +220,7 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
         if (connection->ssl) {
             auto lkr = co_await connection->mx->lock_guard();
             auto ssl = std::exchange(connection->ssl, nullptr);
-            MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
+            //MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
             SSL_free(ssl);
             MANAPIHTTP_LOG("SSL CLOSED: {} ssl={:}", connection->id, static_cast<void*>(ssl));
         }
@@ -309,19 +309,27 @@ SSL_CTX * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &ver
 }
 
 void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
-    auto sslconfig = config->get_ssl_config();
-    if (SSL_CTX_use_certificate_file(ctx, sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
+    auto sslconfig = this->config->get_ssl_config();
+    if (SSL_CTX_use_certificate_file(this->ctx, sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use cert file openssl");
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ctx, sslconfig->key.data(), SSL_FILETYPE_PEM) <= 0)
+    if (SSL_CTX_use_PrivateKey_file(this->ctx, sslconfig->key.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use private key file openssl");
     }
+
+    if (!SSL_CTX_check_private_key(this->ctx)) {
+        MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
+    }
+
+    SSL_CTX_set_verify(this->ctx, this->config->get_verify_peer().load() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
+    SSL_CTX_set_verify_depth(this->ctx, 1);
 }
 
-std::string manapi::net::worker::OpenSSL_TLS::ssl_get_error(int initerr) {
+void manapi::net::worker::OpenSSL_TLS::ssl_get_error() {
+    size_t initerr = ERR_get_error();
     std::string result;
     while(initerr!=0)
     {
@@ -329,8 +337,9 @@ std::string manapi::net::worker::OpenSSL_TLS::ssl_get_error(int initerr) {
         result += '\n';
         initerr = ERR_get_error();
     }
-
-    return std::move(result);
+    if (!result.empty()) {
+        MANAPIHTTP_LOG("OpenSSL ERROR: {}", result);
+    }
 }
 
 manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &conn, const void *buff, const size_t &size) {
@@ -346,6 +355,7 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
         auto lk = co_await connection.mx->lock_guard();
         rhs = SSL_write(connection.ssl, buff, static_cast<int>(size));
         ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
+        this->ssl_get_error();
         lk.call();
 
         if (rhs < 0) {
@@ -394,6 +404,7 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &c
         auto lk = co_await connection.mx->lock_guard();
         rhs = SSL_read(connection.ssl, buff, static_cast<int>(size));
         ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
+        this->ssl_get_error();
         lk.call();
 
         if (rhs < 0) {

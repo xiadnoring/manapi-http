@@ -90,7 +90,7 @@ int manapi::net::http_pool::_pool() {
     }
 
     this->watcher->set <worker::base, &worker::base::onrecv> (this->worker.get());
-
+    this->watcher->priority = 2;
     this->watcher->start(config->get_socket_fd(), ev::READ);
 
     return 0;

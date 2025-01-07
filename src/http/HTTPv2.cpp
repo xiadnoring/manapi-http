@@ -45,9 +45,12 @@ void manapi::net::http::http_v2::_parse_uri(char &c) {
             char x = static_cast<char> (manapi::net::utils::hex2dec(parse_vars.hex_symbols[0]) << 4 | manapi::net::utils::hex2dec(
                                  parse_vars.hex_symbols[1]));
 
-            if (true || manapi::net::utils::valid_special_symbol(x)) {
+            if (((parse_vars.hex_symbols[0] >= 'a' && parse_vars.hex_symbols[0] <= 'z') || (parse_vars.hex_symbols[0] >= 'A' && parse_vars.hex_symbols[0] <= 'Z')
+                || (parse_vars.hex_symbols[0] >= '0' && parse_vars.hex_symbols[0] <= '9')) && ((parse_vars.hex_symbols[1] >= 'a' && parse_vars.hex_symbols[1] <= 'z') || (parse_vars.hex_symbols[1] >= 'A' && parse_vars.hex_symbols[1] <= 'Z')
+                || (parse_vars.hex_symbols[1] >= '0' && parse_vars.hex_symbols[1] <= '9'))) {
                 request_data.path.back() += x;
-            } else {
+            }
+            else {
                 request_data.path.back() += '%';
                 request_data.path.back() += parse_vars.hex_symbols;
             }

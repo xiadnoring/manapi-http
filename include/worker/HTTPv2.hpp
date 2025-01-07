@@ -183,6 +183,7 @@ namespace manapi::net::worker {
         future<ssize_t> default_write (worker::connection &connection, const void *buff, const size_t &size, bool flag);
 
         static std::string stringify_stream_id (int stream_id);
+        void setting_param_was_ack (const bool &self);
 
         void settings_update_initial_window_size (int value);
         void settings_update_max_concurrent_streams (int value);
@@ -216,7 +217,7 @@ namespace manapi::net::worker {
             int stream_id = 0;
             uint8_t flag = 0;
             bool initial_frame = true;
-            std::map <int, std::pair <std::atomic<int>, std::function <void(int value)>>> settings;
+            std::map <int, std::pair <std::atomic<int>, std::function <void(int value, bool self)>>> settings;
             size_t padding = 0;
             ssize_t timer_interval = 20;
             std::chrono::system_clock::time_point prev_ping_time_point = std::chrono::system_clock::now();
@@ -225,25 +226,28 @@ namespace manapi::net::worker {
             std::set <std::string> pings;
 
             struct protocol_http2_window_t {
-                std::shared_ptr<async_condition_variable> write_cv;
+                std::shared_ptr<async_condition_variable> write_cv{};
 
                 std::atomic<ssize_t> read = 0;
                 std::atomic<ssize_t> write = 0;
-            } window;
+            } window{};
 
             struct protocol_http2_error_t {
                 int errnum = 0;
                 int last_stream_id = 0;
-                std::string errmsg;
-            } error;
+                std::string errmsg{};
+            } error{};
 
             int value = -1;
             ssize_t timeout = 1000;
             std::atomic<ssize_t> current_timeout = timeout;
-            std::queue <size_t> setting_timeout;
+            std::queue <size_t> setting_timeout{};
             manapi::future<> parse_exception{nullptr};
-            manapi::net::utils::compress::hpack::decoder_t decoder;
-            manapi::net::utils::compress::hpack::encoder_t encoder;
+            manapi::net::utils::compress::hpack::decoder_t decoder{};
+            manapi::net::utils::compress::hpack::encoder_t encoder{};
+
+            std::shared_ptr<async_mutex> setting_param_acks_mx{nullptr};
+            std::atomic<size_t> setting_param_acks = 0;
          } protocol;
 
         std::map <int, http_v2_session_t> sessions;

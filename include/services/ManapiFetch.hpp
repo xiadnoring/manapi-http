@@ -50,7 +50,7 @@ namespace manapi::net {
 
     class fetch : public task {
     public:
-        explicit fetch(const std::string &url);
+        explicit fetch(const std::string &url, net::site &site);
         fetch(fetch &&n) noexcept;
         ~fetch() override;
 
@@ -73,14 +73,24 @@ namespace manapi::net {
 
         [[nodiscard]] size_t get_status_code () const;
 
-        void doit() override;
+        future<void> async_doit();
 
-        std::string text();
-        manapi::json json();
+        future<std::string> text();
+        future<manapi::json> json();
 
         std::map <std::string, std::string> get_headers();
     private:
+        static std::mutex _global_init_mx;
+        static size_t _global_init_value;
+
+        static void _global_init ();
+        static void _global_deinit ();
+
+        future<CURLcode> async_curl_perform ();
         size_t status_code = 200;
+
+        int attempts = 20;
+        std::chrono::milliseconds attempt_delay {100};
 
         std::map <std::string, std::string> headers_list;
         std::string url;
@@ -95,7 +105,10 @@ namespace manapi::net {
         std::string method{};
         curlformdata body_formdata;
 
-        CURL *curl = nullptr;
-        struct curl_slist* curl_headers = nullptr;
+        net::site &site;
+
+        CURL *curl {nullptr};
+        CURLM *curl_multi {nullptr};
+        struct curl_slist* curl_headers {nullptr};
     };
 }

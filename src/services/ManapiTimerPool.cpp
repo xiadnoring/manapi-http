@@ -38,7 +38,7 @@ manapi::future<> manapi::timerpool::async_remove_timer(size_t id) {
     auto lk = co_await this->mx.lock_guard();
     
     this->tasks.erase(id);
-    
+    this->flush_stack_free();
 }
 
 void manapi::timerpool::remove_timer(const size_t &id) {
@@ -112,6 +112,7 @@ manapi::future<> manapi::timerpool::_start() {
                     }
                     if (!task->second.interval) {
                         task = this->tasks.erase(task);
+                        this->flush_stack_free();
                         continue;
                     }
                 }
@@ -125,6 +126,12 @@ manapi::future<> manapi::timerpool::_start() {
 
     this->deps.fetch_sub(1);
     co_await this->cv.notify_all();
+}
+
+void manapi::timerpool::flush_stack_free() {
+    if (this->tasks.empty()) {
+        this->tasks = {};
+    }
 }
 
 manapi::future<void> manapi::timerpool::_update_interval_state(const size_t &id) {

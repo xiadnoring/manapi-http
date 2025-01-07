@@ -208,6 +208,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/HTTPv3_cloudflare_quiche.cpp
         src/worker/HTTPv3_tquic.cpp
         include/worker/HTTPv3_tquic.hpp
+        include/async/ManapiAsyncPromise.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

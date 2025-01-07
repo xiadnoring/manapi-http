@@ -3,6 +3,7 @@
 #include <fstream>
 #include <zlib.h>
 #include <coroutine>
+#include <fcntl.h>
 #include <thread>
 
 #include "ManapiHttp.hpp"
@@ -99,20 +100,20 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET ("/test2", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-            fetch response ("https://localhost:8888/form");
-            response.set_method("POST");
-            response.set_body(json2form({
-                {"first-name", "Timur"},
-                {"last-name", "Zajnullin"},
-                {"file", "lol OK ??&?45=ersdf--  \\"}
-            }));
+        server.GET ("/test2", [&server] (REQ(req), RESP(resp)) -> manapi::future<void> {
+            fetch response ("http://localhost:8889", server);
+            response.set_method("GET");
+            // response.set_body(json2form({
+            //     {"first-name", "Timur"},
+            //     {"last-name", "Zajnullin"},
+            //     {"file", "lol OK ??&?45=ersdf--  \\"}
+            // }));
             response.enable_ssl_verify(false);
-            response.set_custom_setup([] (CURL *curl) -> void {
-                curl_easy_setopt(curl, CURLOPT_HTTP_VERSION,
-                     (long)CURL_HTTP_VERSION_3);
-            });
-            resp.text(response.text());
+            // response.set_custom_setup([] (CURL *curl) -> void {
+            //     curl_easy_setopt(curl, CURLOPT_HTTP_VERSION,
+            //          (long)CURL_HTTP_VERSION_3);
+            // });
+            resp.text(co_await response.text());
             co_return;
         });
 
@@ -340,14 +341,19 @@ int main (int argc, char *argv[]) {
         debug_print_memory("pool");
 
         auto rhs = server.pool(5);
-
         rhs.get();
+
+        ERR_free_strings();
+        EVP_cleanup();
+        CRYPTO_cleanup_all_ex_data();
+
         debug_print_memory("preend");
-        //this_thread::sleep_for(std::chrono::seconds(2));
+        this_thread::sleep_for(std::chrono::seconds(20));
+        auto &b = manapi::async::async_tasks;
+        printf("ASYNC STACK: %zi\n", b.size());
         // server.stop();
         //this_thread::sleep_for(std::chrono::seconds(100));
     }
-
     debug_print_memory("end");
 
     return 0;

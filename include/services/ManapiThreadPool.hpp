@@ -12,6 +12,8 @@
 #include <condition_variable>
 #include <functional>
 
+#include "components/ManapiChain.hpp"
+
 namespace manapi {
     template <class T>
     class threadpool {
@@ -31,7 +33,7 @@ namespace manapi {
         // this vector contains all threads for this thread pool
         std::vector <std::thread> all_threads;
         // this vector of queue which contains tasks
-        std::vector <std::deque<std::unique_ptr<T> > > task_queues;
+        std::vector <chain <std::unique_ptr<T> > > task_queues;
         // queue mutex
         std::mutex queue_mutex;
         // the function that the thread runs. Execute run() function

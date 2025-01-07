@@ -77,7 +77,7 @@ namespace manapi {
         this->queue_mutex.lock();
 
         // add into the queue
-        this->task_queues[level].push_front (std::move(task));
+        this->task_queues[level].push (std::move(task));
 
         this->queue_mutex.unlock();
 
@@ -107,8 +107,8 @@ namespace manapi {
         {
             if (!task_queue->empty())
             {
-                task = std::move(task_queue->back());
-                task_queue->pop_back();
+                task = std::move(*task_queue->rbegin());
+                task_queue->pop ();
                 break;
             }
         }

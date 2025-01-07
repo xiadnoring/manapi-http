@@ -90,7 +90,7 @@ namespace manapi::net {
     class site {
     public:
         site ();
-        ~site();
+        virtual ~site();
 
         manapi::async_delay delay (const std::chrono::seconds &n);
         size_t append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
@@ -121,11 +121,24 @@ namespace manapi::net {
         void task_pool_stop ();
         void task_pool_init (const size_t &thread_num);
 
+        std::shared_ptr<ev::io> create_watcher_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
+        std::shared_ptr<ev::async> create_watcher_async (const std::function<void(ev::async &w, int revents)> &callback);
+
+        void stop_watcher_fd (ev::io &w);
+        void stop_watcher_async (ev::async &w);
+
+        future<std::shared_ptr<ev::io>> watch_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
+        future<void> unwatch_fd (std::shared_ptr<ev::io> w);
+
+        future<std::shared_ptr<ev::async>> watch_async (const std::function<void(ev::async &w, int revents)> &callback);
+        future<void> unwatch_async (std::shared_ptr<ev::async> w);
+
         std::string config_cache_dir;
         std::unique_ptr<class timerpool> timerpool;
         std::shared_ptr <threadpool<task>> taskpool = nullptr;
         async_mutex cache_config_mx;
     protected:
+        virtual void custom_watcher_fd_async (ev::async &w, int revents);
         void setup ();
         void timer_pool_setup (std::shared_ptr<threadpool<task>> task_pool);
         void timer_pool_stop ();
@@ -136,7 +149,26 @@ namespace manapi::net {
         manapi::json config;
         ev::dynamic_loop loop;
         std::mutex loopmx;
+
+
+        async_mutex adding_watcher_mx;
+        std::unique_ptr <ev::async> adding_watcher_async;
+        struct adding_watcher_data_t {
+            bool flag;
+            int fd{0};
+            int flags{0};
+            std::shared_ptr<ev::io> w_io{nullptr};
+            std::shared_ptr<ev::async> w_async{nullptr};
+        } adding_watcher_data;
+
+        template<class ev_>
+        struct custom_watcher_data_t {
+            std::shared_ptr<ev_> w;
+            std::function<void(ev_ &w, int revents)> cb;
+        };
     private:
+        static void custom_watcher_fd (EV_P_ ev_io *w, int revents);
+        static void custom_watcher_async (EV_P_ ev_async *w, int revents);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);
@@ -146,6 +178,7 @@ namespace manapi::net {
         bool enabled_save_config     = false;
 
         http_uri_part handlers;
+
 
         std::map <std::string, manapi::net::utils::compress::TEMPLATE_INTERFACE> compressors;
         std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers;
