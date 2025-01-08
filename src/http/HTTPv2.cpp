@@ -1,7 +1,11 @@
 #include "http/HTTPv2.hpp"
 
+#include "ManapiUnicode.hpp"
+#include "crypto/ManapiAEAD.hpp"
+#include "crypto/ManapiURL.hpp"
+
 manapi::net::http::http_v2::http_v2(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config,
-    manapi::net::site &site) : base(std::move(worker), std::move(config), site) {
+                                    manapi::net::site &site) : base(std::move(worker), std::move(config), site) {
 
 }
 
@@ -34,7 +38,7 @@ void manapi::net::http::http_v2::_parse_uri(char &c) {
         return;
     }
 
-    if (!utils::uri_allowed_symbol(c)) {
+    if (!crypto::url_allowed_symbol(c)) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
     }
 
@@ -42,7 +46,7 @@ void manapi::net::http::http_v2::_parse_uri(char &c) {
         parse_vars.hex_symbols[parse_vars.hex_index] = c;
 
         if (parse_vars.hex_index == 1) {
-            char x = static_cast<char> (manapi::net::utils::hex2dec(parse_vars.hex_symbols[0]) << 4 | manapi::net::utils::hex2dec(
+            char x = static_cast<char> (manapi::unicode::hex2dec(parse_vars.hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
                                  parse_vars.hex_symbols[1]));
 
             if (((parse_vars.hex_symbols[0] >= 'a' && parse_vars.hex_symbols[0] <= 'z') || (parse_vars.hex_symbols[0] >= 'A' && parse_vars.hex_symbols[0] <= 'Z')

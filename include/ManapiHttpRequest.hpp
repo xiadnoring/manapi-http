@@ -20,10 +20,10 @@ namespace manapi::net {
 
     class http_request {
     public:
-        http_request(const manapi::net::utils::manapi_socket_information &ip_data, manapi::net::request_data_t &request_data, class manapi::net::http::base *http_task, std::shared_ptr<http::config>, const void *handler);
+        http_request(const manapi::net::http::manapi_socket_information &ip_data, manapi::net::http::request_data_t &request_data, class manapi::net::http::base *http_task, std::shared_ptr<http::config>, const void *handler);
         ~http_request();
 
-        [[nodiscard]] const utils::manapi_socket_information &get_ip_data () const;
+        [[nodiscard]] const http::manapi_socket_information &get_ip_data () const;
         [[nodiscard]] const std::string &get_method () const;
         [[nodiscard]] const std::string &get_http_version() const;
         [[nodiscard]] const std::map<std::string, std::string> &ref_headers () const;
@@ -51,10 +51,10 @@ namespace manapi::net {
         future<void> _read_body (const std::function<void(const char *, const size_t &)> &handler);
         void parse_map_url_param ();
         // peer ip
-        const utils::manapi_socket_information *ip_data;
+        const http::manapi_socket_information *ip_data;
 
         // body, headers, url and etc
-        request_data_t *request_data;
+        http::request_data_t *request_data;
 
         // parent
         http::base *http_task;

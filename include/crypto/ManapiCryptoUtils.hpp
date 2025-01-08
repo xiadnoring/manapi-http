@@ -10,7 +10,7 @@
 #include <filesystem>
 #include <fstream>
 
-namespace manapi::net::crypto {
+namespace manapi::crypto {
     enum ciphers {
         AES_256_GCM,
         AES_128_GCM,

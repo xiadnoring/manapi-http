@@ -12,7 +12,6 @@
 #include "services/ManapiTask.hpp"
 #include "services/ManapiTimerPool.hpp"
 #include "compress/ManapiCompress.hpp"
-#include "components/ManapiThreadSafe.hpp"
 #include "async/ManapiAsyncTimer.hpp"
 
 #include "ManapiHttpRequest.hpp"
@@ -25,24 +24,6 @@ namespace manapi::net::worker {
 
 namespace manapi::net {
     typedef std::function <future<void>(manapi::net::http_request &req, manapi::net::http_response &res)> handler_template_t;
-
-    struct http_quic_conn_io {
-        int                     sock_fd;
-        sockaddr_storage        peer_addr;
-        socklen_t               peer_addr_len;
-        size_t                  timer_id;
-        std::string             key;
-        bool                    is_deleting = false;
-        bool                    is_responsing = false;
-        bool                    is_pooling = false;
-        std::list<std::string>  buffers;
-        std::mutex              buffers_mutex;
-        std::mutex              mutex;
-
-        std::unordered_map  <uint64_t, task *> tasks;
-    };
-
-    typedef manapi::net::utils::atomic_map <std::string, std::unique_ptr<http_quic_conn_io> > quic_map_conns_t;
 
     struct http_uri_part;
 
@@ -89,21 +70,18 @@ namespace manapi::net {
 
     class site {
     public:
-        site ();
+        site (std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool);
         virtual ~site();
 
         manapi::async_delay delay (const std::chrono::seconds &n);
-        size_t append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
-        size_t append_interval (const std::chrono::milliseconds &duration, const std::function<void()> &task);
-        void remove_timer (const size_t &id);
 
         http_uri_part *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
         http_uri_part *set_handler (const std::string &method, const std::string &uri, const std::string &folder);
 
-        http_handler_page get_handler (request_data_t &request_data) const;
+        http_handler_page get_handler (http::request_data_t &request_data) const;
 
-        void set_compressor (const std::string &name, manapi::net::utils::compress::TEMPLATE_INTERFACE handler);
-        manapi::net::utils::compress::TEMPLATE_INTERFACE get_compressor (const std::string &name);
+        void set_compressor (const std::string &name, manapi::compress::TEMPLATE_INTERFACE handler);
+        manapi::compress::TEMPLATE_INTERFACE get_compressor (const std::string &name);
 
         [[nodiscard]] bool contains_compressor (const std::string &name) const;
 
@@ -118,8 +96,6 @@ namespace manapi::net {
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
 
         [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
-        void task_pool_stop ();
-        void task_pool_init (const size_t &thread_num);
 
         std::shared_ptr<ev::io> create_watcher_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
         std::shared_ptr<ev::async> create_watcher_async (const std::function<void(ev::async &w, int revents)> &callback);
@@ -134,13 +110,12 @@ namespace manapi::net {
         future<void> unwatch_async (std::shared_ptr<ev::async> w);
 
         std::string config_cache_dir;
-        std::unique_ptr<class timerpool> timerpool;
+        std::shared_ptr <manapi::timerpool> timerpool;
         std::shared_ptr <threadpool<task>> taskpool = nullptr;
         async_mutex cache_config_mx;
     protected:
         virtual void custom_watcher_fd_async (ev::async &w, int revents);
         void setup ();
-        void timer_pool_setup (std::shared_ptr<threadpool<task>> task_pool);
         void timer_pool_stop ();
         void setup_config ();
         void save ();
@@ -180,7 +155,7 @@ namespace manapi::net {
         http_uri_part handlers;
 
 
-        std::map <std::string, manapi::net::utils::compress::TEMPLATE_INTERFACE> compressors;
+        std::map <std::string, manapi::compress::TEMPLATE_INTERFACE> compressors;
         std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers;
 
         static std::string default_cache_dir;

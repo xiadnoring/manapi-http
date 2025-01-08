@@ -12,7 +12,7 @@
 #include <string>
 #include <set>
 
-namespace manapi::net::utils::compress::hpack
+namespace manapi::compress::hpack
 {
 	typedef std::pair< std::string, std::string > header_t;
 	typedef std::vector< bool > bits_t;

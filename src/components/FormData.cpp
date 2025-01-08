@@ -2,12 +2,16 @@
 
 #include "components/FormData.hpp"
 
-#include "http/Base.hpp"
+#include "http/Utils.hpp"
 #include "ManapiHttpMime.hpp"
+#include "ManapiUnicode.hpp"
+#include "crypto/ManapiURL.hpp"
+#include "ManapiHttpTypes.hpp"
+#include "http/Base.hpp"
 
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 
-manapi::net::formdata_recv::formdata_recv(request_data_t &request_data, std::shared_ptr<http::config> config, http::base *task) : http_task(task), request_data(&request_data), config(std::move(config)) {
+manapi::net::formdata_recv::formdata_recv(http::request_data_t &request_data, std::shared_ptr<http::config> config, http::base *task) : http_task(task), request_data(&request_data), config(std::move(config)) {
 
 }
 
@@ -37,7 +41,7 @@ manapi::future<> manapi::net::formdata_recv::_init() {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
     }
 
-    const auto header = utils::parse_header_value(this->request_data->headers.at(HTTP_HEADER.CONTENT_TYPE));
+    const auto header = http::parse_header_value(this->request_data->headers.at(HTTP_HEADER.CONTENT_TYPE));
 
     if (header.empty())
     {
@@ -96,7 +100,7 @@ bool manapi::net::formdata_recv::next_param() const {
     return type == DATA_PLAIN;
 }
 
-void manapi::net::formdata_recv::buff_to_extra_buff(const request_data_t &req_data, const size_t &start, const size_t &end, std::string &dest, size_t &size) {
+void manapi::net::formdata_recv::buff_to_extra_buff(const http::request_data_t &req_data, const size_t &start, const size_t &end, std::string &dest, size_t &size) {
     const size_t size2copy = end - start;
     auto available = dest.size();
     if (size + size2copy > available) {
@@ -274,8 +278,8 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (const std
 
                 line.append(this->request_data->body_ptr + sizeof (char) * checkpoint, this->request_data->body_index - checkpoint + first + second - 2);
 
-                const auto parsed_header = utils::parse_header(line);
-                const auto header_value = utils::parse_header_value(parsed_header.second);
+                const auto parsed_header = http::parse_header(line);
+                const auto header_value = http::parse_header_value(parsed_header.second);
 
                 if (parsed_header.first == HTTP_HEADER.CONTENT_DISPOSITION)
                 {
@@ -401,7 +405,7 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(const std
             this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left);
         }
 
-        if (!utils::uri_allowed_symbol(this->request_data->body_ptr[this->request_data->body_index])) {
+        if (!manapi::crypto::url_allowed_symbol(this->request_data->body_ptr[this->request_data->body_index])) {
             THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "Symbol '{}' is not allowed in URLEncoded FormData",
                 static_cast<int>(this->request_data->body_ptr[this->request_data->body_index]));
         }
@@ -414,7 +418,7 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(const std
                 if (((buff_extra[0] >= '0' && buff_extra[0] <= '9') || (buff_extra[0] >= 'a' && buff_extra[0] <= 'z') || (buff_extra[0] >= 'A' && buff_extra[0] <= 'Z')) &&
                         ((buff_extra[1] >= '0' && buff_extra[1] <= '9') || (buff_extra[1] >= 'a' && buff_extra[1] <= 'z') || (buff_extra[1] >= 'A' && buff_extra[1] <= 'Z')))
                 {
-                    const char c = (char) (manapi::net::utils::hex2dec(buff_extra[0]) << 4 | manapi::net::utils::hex2dec(buff_extra[1]));
+                    const char c = (char) (manapi::unicode::hex2dec(buff_extra[0]) << 4 | manapi::unicode::hex2dec(buff_extra[1]));
                     buffer += c;
                 }
                 else {
@@ -536,6 +540,33 @@ manapi::future<std::pair<std::string, std::string>> manapi::net::formdata_recv::
         n.second.append(buffer, size);
     });
     co_return std::move(n);
+}
+
+std::string manapi::net::formdata_recv::json2form(const json &obj) {
+    if (!obj.is_object())
+    {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_UNSUPPORTED, "{}", "the arg must be json object in json2form(...)");
+    }
+
+    std::string data;
+    auto it = obj.begin<json::OBJECT>();
+    goto loop;
+
+    for (; it != obj.end<json::OBJECT>(); it ++)
+    {
+        data += '&';
+        loop:
+        if (it->second.is_string())
+        {
+            data += crypto::encode_url(it->first) + "=" + crypto::encode_url(it->second.get<std::string>());
+        }
+        else
+        {
+            data += crypto::encode_url(it->first) + "=" + crypto::encode_url(it->second.dump());
+        }
+
+    }
+    return std::move(data);
 }
 
 void manapi::net::formdata_recv::_move(formdata_recv &&n) noexcept {

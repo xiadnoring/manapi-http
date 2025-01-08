@@ -165,7 +165,7 @@ manapi::future<bool> manapi::net::http::http_v1_1::upgrade_connection() {
     bool toupgrade = false;
 
     if (request_data.headers.contains(HTTP_HEADER.CONNECTION)) {
-        const auto connection_header = utils::parse_header_value(request_data.headers[HTTP_HEADER.CONNECTION]);
+        const auto connection_header = http::parse_header_value(request_data.headers[HTTP_HEADER.CONNECTION]);
         for (const auto &param: connection_header) {
             if (param.value == "Upgrade") {
                 if (request_data.headers[HTTP_HEADER.UPGRADE] == "h2c") {

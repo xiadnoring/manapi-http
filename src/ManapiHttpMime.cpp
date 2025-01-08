@@ -1,5 +1,7 @@
 #include "ManapiHttpMime.hpp"
 
+#include "ManapiFilesystem.hpp"
+
 const std::map <std::string, std::string> manapi::net::mime_by_extension = {
     {"txt", HTTP_MIME.TEXT_PLAIN},
     {"mp4", HTTP_MIME.VIDEO_MP4},
@@ -50,4 +52,15 @@ bool manapi::net::mime_partitial_data(const std::string &mime) {
     // string_view cannot be used
     const auto type = std::string(type_mime(mime));
     return mime_types_media.contains(type) || mimes_binary.contains(mime);
+}
+
+const std::string & manapi::net::mime_by_file_path(const std::string &path) {
+    const std::string extension = manapi::filesystem::extension(path);
+
+    if (manapi::net::mime_by_extension.contains(extension))
+    {
+        return manapi::net::mime_by_extension.at(extension);
+    }
+
+    return manapi::net::mime_by_extension.at("bin");
 }

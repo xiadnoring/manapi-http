@@ -94,7 +94,7 @@ void manapi::json_builder::_check_type(const std::string_view &plain_text, size_
         const unsigned char &c = plain_text.at(j);
 
         // skip \t \n \s and etc
-        if (net::utils::is_space_symbol(c))
+        if (unicode::is_space_symbol(c))
         {
             continue;
         }
@@ -190,7 +190,7 @@ void manapi::json_builder::_build_string(const std::string_view &plain_text, siz
                         // U+0080 - U+07FF -> 110xxxyy10yyzzzz
                         // U+0800 - U+FFFF -> 1110wwww10xxxxyy10yyzzzz
                         // U+010000 - U+10FFFF -> 11110uvv10vvwwww10xxxxyy10yyzzzz
-                        utf_escaped[utf_escaped_status++] = net::utils::hex2dec(c);
+                        utf_escaped[utf_escaped_status++] = unicode::hex2dec(c);
 
                         if (utf_escaped_status == sizeof (utf_escaped)) {
 
@@ -260,7 +260,7 @@ void manapi::json_builder::_build_string(const std::string_view &plain_text, siz
             buffer.push_back(static_cast<char> (c));
         }
         else {
-            if (!net::utils::is_space_symbol(c))
+            if (!unicode::is_space_symbol(c))
             {
                 json::error_invalid_char(plain_text, j);
             }
@@ -329,7 +329,7 @@ void manapi::json_builder::_build_numeric(const std::string_view &plain_text, si
                 json::error_invalid_char(plain_text, j);
             }
 
-            if (net::utils::is_space_symbol(c)) {
+            if (unicode::is_space_symbol(c)) {
                 goto finish;
             }
 
@@ -417,7 +417,7 @@ void manapi::json_builder::_build_numeric_string(const std::string_view &plain_t
     {
         unsigned char c = plain_text[j];
 
-        if (net::utils::is_space_symbol(c) || c == '}' ||
+        if (unicode::is_space_symbol(c) || c == '}' ||
             c == ',' || c == ']') {
             goto finish;
         }
@@ -504,14 +504,14 @@ void manapi::json_builder::_build_object(const std::string_view &plain_text, siz
     {
         unsigned char c = plain_text[j];
 
-        if (net::utils::is_space_symbol(c))
+        if (unicode::is_space_symbol(c))
         {
             continue;
         }
 
         if (go_to_delimiter)
         {
-            if (net::utils::is_space_symbol(c))
+            if (unicode::is_space_symbol(c))
             {
                 continue;
             }
@@ -607,14 +607,14 @@ void manapi::json_builder::_build_array(const std::string_view &plain_text, size
     {
         unsigned char c = plain_text[j];
 
-        if (net::utils::is_space_symbol(c))
+        if (unicode::is_space_symbol(c))
         {
             continue;
         }
 
         if (go_to_delimiter)
         {
-            if (net::utils::is_space_symbol(c))
+            if (unicode::is_space_symbol(c))
             {
                 continue;
             }
@@ -696,7 +696,7 @@ void manapi::json_builder::_build_array(const std::string_view &plain_text, size
 void manapi::json_builder::_check_end(const std::string_view &plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
-        if (!net::utils::is_space_symbol(plain_text[j]))
+        if (!unicode::is_space_symbol(plain_text[j]))
         {
             json::error_invalid_char(plain_text, j);
         }
@@ -933,7 +933,7 @@ bool manapi::json_builder::_valid_utf_char(const std::string_view &plain_text, c
     if (left > 0 || c > 127) {
         if (left == 0)
         {
-            const size_t octet = manapi::net::unicode::count_of_octet(c);
+            const size_t octet = manapi::unicode::count_of_octet(c);
             if (octet == 1) {
                 // char cant be equal 10xxxxxx
                 json::error_invalid_char(plain_text, i);
@@ -944,7 +944,7 @@ bool manapi::json_builder::_valid_utf_char(const std::string_view &plain_text, c
         else
         {
             // if c != 10xxxxxx
-            if (manapi::net::unicode::count_of_octet(c) != 1)
+            if (manapi::unicode::count_of_octet(c) != 1)
             {
                 json::error_invalid_char(plain_text, i);
             }

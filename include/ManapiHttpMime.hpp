@@ -57,4 +57,5 @@ namespace manapi::net {
     const std::string_view type_mime (const std::string &mime);
     bool mime_media (const std::string &mime);
     bool mime_partitial_data (const std::string &mime);
+    const std::string &mime_by_file_path (const std::string &path);
 }

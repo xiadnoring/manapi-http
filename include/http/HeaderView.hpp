@@ -39,7 +39,7 @@ namespace manapi::net::http {
             bool finished = false;
         } parse_vars;
 
-        request_data_t request_data;
+        http::request_data_t request_data;
         std::shared_ptr<manapi::net::worker::base> worker;
         std::shared_ptr<manapi::net::http::config> config;
         manapi::net::site &site;

@@ -63,9 +63,14 @@ void manapi::timerpool::start() {
     if (!this->_stop) {
         return;
     }
+
     this->_stop.store(false);
-    manapi::async::task_run(this->taskpool, [this] () -> future<void> {
-        co_await this->_start();
+
+    this->deps.fetch_add(1);
+    this->taskpool->append_task([this] () -> void {
+        manapi::async::task_run(this->taskpool, [this] () -> future<void> {
+            co_await this->_start();
+        });
     });
 }
 
@@ -90,8 +95,6 @@ std::shared_ptr<manapi::threadpool<manapi::task>> manapi::timerpool::get_threadp
 }
 
 manapi::future<> manapi::timerpool::_start() {
-    this->deps.fetch_add(1);
-
     while (!this->_stop) {
         {
             auto lk = co_await this->mx.lock_guard();

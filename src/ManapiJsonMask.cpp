@@ -1,6 +1,7 @@
 #include "ManapiJsonMask.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiJsonBuilder.hpp"
+#include "ManapiUnicode.hpp"
 
 #define MANAPIHTTP_JSON_ANY (-1)
 #define MANAPIHTTP_JSON_NONE (-2)
@@ -240,7 +241,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
         }
         else
         {
-            THROW_MANAPIHTTP_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Could not resolve type for this expression: {}", net::utils::escape_string(str));
+            THROW_MANAPIHTTP_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Could not resolve type for this expression: {}", unicode::escape_string(str));
         }
 
         if (!special_type) {

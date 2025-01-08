@@ -16,13 +16,14 @@
 
 #include "ManapiHttpResponse.hpp"
 #include "ManapiHttpRequest.hpp"
+#include "async/ManapiAsyncPromise.hpp"
 
 namespace manapi::net::http {
     class server : public site {
     public:
-        server();
+        server(std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool);
         ~server() final;
-        std::future <void> pool (const size_t &thread_num = 20);
+        manapi::future <void> pool ();
 
         void GET (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
         void POST (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
@@ -33,27 +34,25 @@ namespace manapi::net::http {
 
         void GET (const std::string &uri, const std::string &folder);
 
-        std::future<void> stop ();
+        manapi::future<void> stop ();
 
         static void stop_all_servers ();
+        static void signal_init ();
     protected:
         void custom_watcher_fd_async(ev::async &w, int revents) override;
     private:
         static std::atomic<bool> stopped_interrupt;
         static Atomic<std::set <server *>> running;
-        void stop_pool ();
+        void stop_pool (async::promise<void>::resolve_t resolve);
         void _async_break_loop (ev::async &watcher, int revents);
-        class site current;
 
-        std::mutex mx;
+        async_mutex mx;
         std::atomic <bool> stopping;
 
-        std::promise <void> pool_promise;
-        std::promise <void> stop_promise;
-
-        std::unordered_map<size_t, std::unique_ptr<http_pool>> pools;
+        std::unordered_map<size_t, std::unique_ptr<http_pool>> pools{};
 
         size_t next_pool_id = 0;
-        std::shared_ptr<ev::async> stop_watcher;
+        std::shared_ptr<ev::async> stop_watcher{nullptr};
+        async::promise<void>::resolve_t resolve_stop{nullptr};
     };
 }

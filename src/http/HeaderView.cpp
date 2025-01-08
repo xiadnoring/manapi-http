@@ -2,7 +2,10 @@
 
 #include <http/HTTPv2.hpp>
 
+#include "ManapiUnicode.hpp"
 #include "ManapiUtils.hpp"
+#include "crypto/ManapiAEAD.hpp"
+#include "crypto/ManapiURL.hpp"
 #include "http/Base.hpp"
 #include "http/HTTPv1_1.hpp"
 
@@ -139,7 +142,7 @@ void manapi::net::http::HeaderView::_parse_uri(char &c) {
         return;
     }
 
-    if (!utils::uri_allowed_symbol(c)) {
+    if (!crypto::url_allowed_symbol(c)) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
     }
 
@@ -149,7 +152,7 @@ void manapi::net::http::HeaderView::_parse_uri(char &c) {
         parse_vars.hex_symbols[parse_vars.hex_index] = c;
 
         if (parse_vars.hex_index == 1) {
-            char x = static_cast<char> (manapi::net::utils::hex2dec(parse_vars.hex_symbols[0]) << 4 | manapi::net::utils::hex2dec(
+            char x = static_cast<char> (manapi::unicode::hex2dec(parse_vars.hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
                                  parse_vars.hex_symbols[1]));
 
             if (((parse_vars.hex_symbols[0] >= 'a' && parse_vars.hex_symbols[0] <= 'z') || (parse_vars.hex_symbols[0] >= 'A' && parse_vars.hex_symbols[0] <= 'Z')
@@ -207,7 +210,7 @@ void manapi::net::http::HeaderView::_cleanup_uri() {
 }
 
 void manapi::net::http::HeaderView::_parse_http(char &c) {
-    if (utils::is_space_symbol(c)) {
+    if (unicode::is_space_symbol(c)) {
         current = std::bind(&HeaderView::_next_line, this, std::placeholders::_1);
 
         current (c);

@@ -112,7 +112,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiHttpResponse.hpp
         include/ManapiHttpRequest.hpp
         include/ManapiBigint.hpp
-        include/components/ManapiThreadSafe.hpp
         include/ManapiHttpTypes.hpp
         include/ManapiFilesystem.hpp
         include/ManapiBase64.hpp
@@ -209,6 +208,17 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/HTTPv3_tquic.cpp
         include/worker/HTTPv3_tquic.hpp
         include/async/ManapiAsyncPromise.hpp
+        include/crypto/ManapiURL.hpp
+        include/ManapiErrors.hpp
+        src/ManapiErrors.cpp
+        include/ManapiDebug.hpp
+        include/ManapiTime.hpp
+        include/ManapiString.hpp
+        src/ManapiString.cpp
+        include/ManapiMath.hpp
+        src/ManapiMath.cpp
+        include/http/Utils.hpp
+        src/http/Utils.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

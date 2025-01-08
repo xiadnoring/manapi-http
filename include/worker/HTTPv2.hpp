@@ -243,8 +243,8 @@ namespace manapi::net::worker {
             std::atomic<ssize_t> current_timeout = timeout;
             std::queue <size_t> setting_timeout{};
             manapi::future<> parse_exception{nullptr};
-            manapi::net::utils::compress::hpack::decoder_t decoder{};
-            manapi::net::utils::compress::hpack::encoder_t encoder{};
+            manapi::compress::hpack::decoder_t decoder{};
+            manapi::compress::hpack::encoder_t encoder{};
 
             std::shared_ptr<async_mutex> setting_param_acks_mx{nullptr};
             std::atomic<size_t> setting_param_acks = 0;

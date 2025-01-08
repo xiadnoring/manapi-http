@@ -2,6 +2,8 @@
 #include <format>
 
 #include "ManapiJson.hpp"
+
+#include "ManapiBeforeDelete.hpp"
 #include "ManapiBigint.hpp"
 #include "ManapiUnicode.hpp"
 #include "ManapiUtils.hpp"
@@ -41,7 +43,7 @@ manapi::json::json(const UNICODE_STRING &str, const bool &parse) {
     }
     else
     {
-        _set_string(net::utils::str32to4(str));
+        _set_string(unicode::str32to4(str));
     }
 }
 
@@ -213,7 +215,7 @@ void manapi::json::_parse(const BOOLEAN &val) {
 }
 
 void manapi::json::_parse(const UNICODE_STRING &plain_text) {
-    this->_parse(net::utils::str32to4(plain_text));
+    this->_parse(unicode::str32to4(plain_text));
 }
 
 void manapi::json::_parse(const NULLPTR &n) {
@@ -241,7 +243,7 @@ std::string manapi::json::dump(const int &spaces, const int &first_spaces) const
 
     if (type == type_string)
     {
-        str = '"' + net::utils::escape_string(as_string()) + '"';
+        str = '"' + unicode::escape_string(as_string()) + '"';
     }
 
     else if (type == type_decimal)
@@ -286,7 +288,7 @@ std::string manapi::json::dump(const int &spaces, const int &first_spaces) const
                 JSON_DUMP_NEED_SPACES
 
                 str += '"';
-                str += net::utils::escape_string(it->first) + "\": " + it->second.dump(spaces, total_spaces);
+                str += unicode::escape_string(it->first) + "\": " + it->second.dump(spaces, total_spaces);
                 ++it;
             }
 
@@ -298,7 +300,7 @@ std::string manapi::json::dump(const int &spaces, const int &first_spaces) const
                 JSON_DUMP_NEED_SPACES
 
                 str += '"';
-                str += net::utils::escape_string(it->first) + "\": " + it->second.dump(spaces, total_spaces);
+                str += unicode::escape_string(it->first) + "\": " + it->second.dump(spaces, total_spaces);
             }
         }
 
@@ -355,7 +357,7 @@ std::string manapi::json::dump(const int &spaces, const int &first_spaces) const
 }
 
 void manapi::json::error_invalid_char(const UNICODE_STRING &plain_text, const size_t &i) {
-    THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_INVALID_CHAR, "Invalid char '{}' at {}", net::utils::str32to4(plain_text[i]), i + 1);
+    THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_INVALID_CHAR, "Invalid char '{}' at {}", unicode::str32to4(plain_text[i]), i + 1);
 }
 
 void manapi::json::error_invalid_char(const STRING_VIEW &plain_text, const size_t &i) {
@@ -499,7 +501,7 @@ const manapi::json & manapi::json::operator[](const int &index) const {
 }
 
 manapi::json &manapi::json::at(const UNICODE_STRING &key)  {
-    return this->at(net::utils::str32to4(key));
+    return this->at(unicode::str32to4(key));
 }
 
 manapi::json &manapi::json::at(const std::string &key)  {
@@ -512,7 +514,7 @@ manapi::json &manapi::json::at(const std::string &key)  {
 
     // if (!map.contains(key))
     // {
-    //     THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_NO_SUCH_KEY, "No such key. ({})", net::utils::escape_string(key));
+    //     THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_NO_SUCH_KEY, "No such key. ({})", unicode::escape_string(key));
     // }
 
     return map[key];
@@ -548,14 +550,14 @@ const manapi::json & manapi::json::at(const std::string &key) const {
 
     if (!map.contains(key))
     {
-        THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_NO_SUCH_KEY, "No such key. ({})", net::utils::escape_string(key));
+        THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_NO_SUCH_KEY, "No such key. ({})", unicode::escape_string(key));
     }
 
     return map.at(key);
 }
 
 const manapi::json & manapi::json::at(const UNICODE_STRING &key) const {
-    return this->at(net::utils::str32to4(key));
+    return this->at(unicode::str32to4(key));
 }
 
 const manapi::json & manapi::json::at(const size_t &index) const {
@@ -623,7 +625,7 @@ manapi::json &manapi::json::operator=(const long long &num) {
 }
 
 manapi::json &manapi::json::operator=(nullptr_t const &n) {
-    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
+    manapi::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
 
     _set_nullptr();
 
@@ -631,15 +633,18 @@ manapi::json &manapi::json::operator=(nullptr_t const &n) {
 }
 
 manapi::json &manapi::json::operator=(const UNICODE_STRING &str) {
-    return this->operator=(net::utils::str32to4(str));
+    this->operator=(unicode::str32to4(str));
+    return *this;
 }
 
 manapi::json &manapi::json::operator=(const char *str) {
-    return this->operator=(STRING(str));
+    this->operator=(STRING(str));
+    return *this;
 }
 
 manapi::json &manapi::json::operator=(const int &num) {
-    return this->operator=(static_cast<INTEGER> (num));
+    this->operator=(static_cast<INTEGER> (num));
+    return *this;
 }
 
 manapi::json &manapi::json::operator=(const manapi::bigint &num) {
@@ -711,7 +716,7 @@ manapi::json &manapi::json::operator=(const std::initializer_list <json> &data) 
 }
 
 void manapi::json::insert(const UNICODE_STRING &key, const manapi::json &obj) {
-    insert (net::utils::str32to4(key), obj);
+    insert (unicode::str32to4(key), obj);
 }
 
 void manapi::json::insert(const STRING &key, const manapi::json &obj) {
@@ -723,7 +728,7 @@ void manapi::json::insert(const STRING &key, const manapi::json &obj) {
 
     if (get<OBJECT>().contains(key))
     {
-        THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_DUPLICATE_KEY, "duplicate key: \"{}\"", net::utils::escape_string(key));
+        THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_DUPLICATE_KEY, "duplicate key: \"{}\"", unicode::escape_string(key));
     }
 
     json item = obj;
@@ -857,7 +862,7 @@ manapi::json::OBJECT & manapi::json::entries() {
 }
 
 bool manapi::json::contains(const UNICODE_STRING &key) const {
-    return contains(net::utils::str32to4(key));
+    return contains(unicode::str32to4(key));
 }
 
 bool manapi::json::contains(const std::string &key) const {
@@ -870,7 +875,7 @@ bool manapi::json::contains(const std::string &key) const {
 }
 
 void manapi::json::erase(const UNICODE_STRING &key) {
-    erase(net::utils::str32to4(key));
+    erase(unicode::str32to4(key));
 }
 
 void manapi::json::erase(const std::string &key) {

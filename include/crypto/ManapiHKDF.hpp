@@ -18,7 +18,7 @@
 
 #endif
 
-namespace manapi::net::crypto {
+namespace manapi::crypto {
     inline std::string hmac_digest (std::string_view key, std::string_view data, hashes hash_algorithm = hashes::SHA_256) {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
         std::array<unsigned char, EVP_MAX_MD_SIZE> hash{};
@@ -54,7 +54,7 @@ namespace manapi::net::crypto {
 
     inline std::string hkdf_extract (std::string_view salt, std::string_view ikm, hashes hash = hashes::SHA_256) {
         if (salt.empty()) {
-            std::string nsalt = manapi::net::crypto::random_string(8);
+            std::string nsalt = manapi::crypto::random_string(8);
             return std::move(hmac_digest(nsalt, ikm, hash));
         }
         return std::move(hmac_digest(salt, ikm, hash));

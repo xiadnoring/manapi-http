@@ -27,12 +27,6 @@ namespace manapi::net {
         void run ();
 
         class site &get_site () const;
-
-        // quic data
-        quic_map_conns_t quic_map_conns;
-
-        utils::atomic_map <utils::manapi_socket_information, task *> peer_by_ip;
-        std::mutex recv_m;
     private:
         int _pool ();
 

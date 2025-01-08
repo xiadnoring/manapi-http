@@ -53,7 +53,7 @@ namespace manapi {
         this->is_stop.store(false);
 
         if (this->thread_num <= 0) {
-            THROW_MANAPIHTTP_EXCEPTION(net::ERR_CONFIG_ERROR, "threadpool can't be init because thread_number = {}", 0);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "threadpool can't be init because thread_number = {}", 0);
         }
 
         for (size_t i = this->all_threads.size(); i < this->thread_num; i++) {
@@ -70,7 +70,7 @@ namespace manapi {
         }
 
         if (task == nullptr) {
-            THROW_MANAPIHTTP_EXCEPTION2(net::ERR_FATAL, "Task is NULL");
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Task is NULL");
         }
 
         // obtain a mutex
@@ -148,7 +148,7 @@ namespace manapi {
         {
             task->doit();
         }
-        catch (const manapi::net::utils::exception &e) {
+        catch (const manapi::exception &e) {
             MANAPIHTTP_LOG ("Task Manapi Exception: {}", e.what());
         }
         // catch (const std::exception &e) {

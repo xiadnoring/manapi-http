@@ -17,7 +17,7 @@
 
 #endif
 
-namespace manapi::net::crypto {
+namespace manapi::crypto {
     inline std::string aead_decrypt (std::string_view cipher_password, std::string_view aad, std::string_view key, std::string_view iv, std::string_view tag, ciphers algorithm = ciphers::AES_256_GCM) {
         std::string plaintext;
 #if MANAPIHTTP_OPENSSL_DEPENDENCY

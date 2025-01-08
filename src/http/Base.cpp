@@ -1,10 +1,13 @@
 #include <memory.h>
+#include <fstream>
+#include <arpa/inet.h>
 
 #include "http/Base.hpp"
 
 #include "services/ManapiFetch.hpp"
 #include "ManapiFilesystem.hpp"
 #include "ManapiHttpMime.hpp"
+#include "ManapiTime.hpp"
 
 #define FEATURE_EXISTS(x) x != nullptr
 
@@ -22,14 +25,14 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http_re
     std::string response;
     std::string compressed;
 
-    manapi::net::utils::compress::TEMPLATE_INTERFACE compressor = nullptr;
+    manapi::compress::TEMPLATE_INTERFACE compressor = nullptr;
 
     auto &compress = res.get_compress();
 
     if (!compress.empty()) {
         if (!res.is_file() ||
             !res.get_partial_enabled() ||
-            manapi::net::filesystem::get_size(res.get_file()) < config->get_partial_data_min_size()
+            manapi::filesystem::get_size(res.get_file()) < config->get_partial_data_min_size()
         ) {
             compressor = site.get_compressor(compress);
 
@@ -46,7 +49,7 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http_re
     };
 
     // set time
-    res.set_header(HTTP_HEADER.DATE, manapi::net::utils::time("%a, %d %b %Y %H:%M:%S GMT", false));
+    res.set_header(HTTP_HEADER.DATE, manapi::time::fmt_current("%a, %d %b %Y %H:%M:%S GMT", false));
     if (config->get_http_version() < versions::HTTP_v2) { res.set_header(HTTP_HEADER.CONNECTION, "close"); }
 
     if (res.is_file()) {
@@ -89,24 +92,24 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
 
         // set headers
         {
-            std::string mimetype = utils::mime_by_file_path(res.get_file());
+            std::string mimetype = mime_by_file_path(res.get_file());
             if (mimetype.size() > sizeof ("text")) {
                 if (strncmp("text", mimetype.data(), sizeof ("text") - 1) == 0) {
-                    mimetype = utils::stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
+                    mimetype = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
                 }
             }
 
             res.set_header(HTTP_HEADER.CONTENT_TYPE, mimetype);
         }
-        std::vector<utils::replace_founded_item> replacers;
+        std::vector<replace_founded_item> replacers;
 
         // get file size
-        const ssize_t fileSize = manapi::net::filesystem::get_size(f);
+        const ssize_t fileSize = manapi::filesystem::get_size(f);
         ssize_t dynamicFileSize = fileSize;
 
         // replacers
         if (FEATURE_EXISTS(features.replacers)) {
-            replacers = utils::found_replacers_in_file(filepath, 0, fileSize, *res.get_replacers());
+            replacers = found_replacers_in_file(filepath, 0, fileSize, *res.get_replacers());
 
             for (const auto &replacer: replacers) {
                 dynamicFileSize = static_cast<ssize_t> (
@@ -119,7 +122,7 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
             if (FEATURE_EXISTS(features.compressor)) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
                                        "the compress '{}' with the partial content is not supported.",
-                                       utils::escape_string(res.get_compress()));
+                                       res.get_compress());
             }
 
 
@@ -244,8 +247,8 @@ manapi::future<ssize_t> manapi::net::http::base::mask_response(manapi::net::http
     co_return rhs;
 }
 
-manapi::future<void> manapi::net::http::base::handle_request(const http_handler_page *data, request_data_t &request_data, const size_t &status, const std::string &message) {
-    utils::manapi_socket_information socket_information = {
+manapi::future<void> manapi::net::http::base::handle_request(const http_handler_page *data, http::request_data_t &request_data, const size_t &status, const std::string &message) {
+    manapi_socket_information socket_information = {
         .ip = inet_ntoa(reinterpret_cast<struct sockaddr_in *>(&connection->client)->sin_addr),
         .port = htons(reinterpret_cast<struct sockaddr_in *>(&connection->client)->sin_port)
     };
@@ -270,13 +273,13 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
                 std::string path;
 
                 for (size_t i = data->statics_parts_len; i < request_data.path.size(); i++) {
-                    path += manapi::net::filesystem::delimiter + request_data.path[i];
+                    path += manapi::filesystem::delimiter + request_data.path[i];
                 }
 
-                path = manapi::net::filesystem::join(*data->statics, path);
+                path = manapi::filesystem::join(*data->statics, path);
 
-                if (manapi::net::filesystem::exists(path) && manapi::net::filesystem::is_file(path)) {
-                    const auto ext = manapi::net::filesystem::extension(path);
+                if (manapi::filesystem::exists(path) && manapi::filesystem::is_file(path)) {
+                    const auto ext = manapi::filesystem::extension(path);
                     auto mime = mime_by_extension.find(ext);
                     bool binary = false;
                     if (mime != mime_by_extension.end()) {
@@ -306,7 +309,7 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
     finish:
         co_await send_response(res);
         co_return;
-    } catch (const manapi::net::utils::exception &e) {
+    } catch (const manapi::exception &e) {
         switch (e.get_err_num()) {
             case ERR_HTTP_CONNECTION_WAS_CLOSED:
                 co_return;
@@ -321,7 +324,7 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
     co_return;
 }
 
-manapi::future<void> manapi::net::http::base::send_error_response(const size_t &status, request_data_t &request_data, const std::string &message, const http_handler_page *error) {
+manapi::future<void> manapi::net::http::base::send_error_response(const size_t &status, http::request_data_t &request_data, const std::string &message, const http_handler_page *error) {
     if (error == nullptr) {
         // TODO: Default error page
         co_return;
@@ -363,7 +366,7 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
     }
 }
 
-manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, std::ifstream &f, ssize_t size, std::vector<utils::replace_founded_item> &replacers) const {
+manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, std::ifstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const {
     std::string block;
     auto block_size = static_cast<ssize_t>(config->get_socket_block_size());
 
@@ -576,7 +579,7 @@ manapi::future<void> manapi::net::http::base::expect_header() {
     }
 }
 
-manapi::future<std::string> manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, manapi::net::utils::compress::TEMPLATE_INTERFACE compressor) const {
+manapi::future<std::string> manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, manapi::compress::TEMPLATE_INTERFACE compressor) const {
     std::string filepath;
 
     // compressor
@@ -584,7 +587,7 @@ manapi::future<std::string> manapi::net::http::base::compress_file(const std::st
     auto cached = site.get_compressed_cache_file(file, compress);
 
     if (cached.empty()) {
-        net::filesystem::mkdir(folder, true);
+        filesystem::mkdir(folder, true);
         filepath = compressor(file, &folder);
 
         site.set_compressed_cache_file(file, filepath, compress);

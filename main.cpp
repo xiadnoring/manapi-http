@@ -16,13 +16,13 @@
 #include "ManapiHttpMime.hpp"
 #include "compress/ManapiHPack.hpp"
 #include "ManapiAsync.hpp"
+#include "ManapiString.hpp"
 #include "async/ManapiAsyncConditionVariable.hpp"
 #include "async/ManapiAsyncMutex.hpp"
 #include "components/ManapiChain.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "crypto/ManapiAES.hpp"
 
-using namespace manapi::net::utils;
 using namespace manapi::net;
 
 using namespace std;
@@ -61,15 +61,21 @@ using namespace std;
 
 
 int main (int argc, char *argv[]) {
-    debug_print_memory("start");
+    manapi::debug::debug_print_memory("start");
     {
-        http::server server;
+        auto _taskpool = std::make_shared<manapi::threadpool<manapi::task>>(20);
+        auto _timerpool = std::make_shared<manapi::timerpool>(_taskpool, 1);
+
+        _taskpool->start();
+        _timerpool->start();
+
+        http::server server (_taskpool, _timerpool);
 
         server.set_config("./config.json");
 
         server.GET ("/", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.set_compress_enabled(true);
-            resp.set_header(HTTP_HEADER.ALT_SVC, stringify_header_value({{"", {{"h3", "\":8888\""}, {"ma", "86400"}}}}));
+            resp.set_header(HTTP_HEADER.ALT_SVC, http::stringify_header_value({{"", {{"h3", "\":8888\""}, {"ma", "86400"}}}}));
             resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
             co_return;
         });
@@ -143,7 +149,7 @@ int main (int argc, char *argv[]) {
             try {
                 jp["hello"] = req.get_query_param("hello");
             }
-            catch (const manapi::net::utils::exception &e)
+            catch (const manapi::exception &e)
             {
                 std::cerr << e.what() << "\n";
             }
@@ -292,7 +298,7 @@ int main (int argc, char *argv[]) {
         });
 
         server.GET ("/largeheader", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-            resp.set_header("set-cookie", random_string(8000));
+            resp.set_header("set-cookie", manapi::string::random(8000));
             resp.text("hehehehe");
             co_return;
         });
@@ -328,7 +334,7 @@ int main (int argc, char *argv[]) {
         server.GET ("/music", [](REQ(req), RESP(resp)) -> manapi::future<void> {
             std::string response;
             for (const auto &file: std::filesystem::directory_iterator ("/home/Timur/Music")) {
-                response += std::format("<a href=\"/music/{}\">{}</a><br />", escape_string(file.path().filename()), file.path().filename().string());
+                response += std::format("<a href=\"/music/{}\">{}</a><br />", manapi::unicode::escape_string(file.path().filename()), file.path().filename().string());
             }
             resp.text(response);
             co_return;
@@ -338,23 +344,20 @@ int main (int argc, char *argv[]) {
 
         server.GET ("/", "/home/Timur/Desktop/WorkSpace/oneworld/");
 
-        debug_print_memory("pool");
+        manapi::debug::debug_print_memory("pool");
 
-        auto rhs = server.pool(5);
-        rhs.get();
+        server.pool()
+            .get(_taskpool);
 
-        ERR_free_strings();
-        EVP_cleanup();
-        CRYPTO_cleanup_all_ex_data();
-
-        debug_print_memory("preend");
-        this_thread::sleep_for(std::chrono::seconds(20));
+        manapi::debug::debug_print_memory("preend");
         auto &b = manapi::async::async_tasks;
         printf("ASYNC STACK: %zi\n", b.size());
-        // server.stop();
-        //this_thread::sleep_for(std::chrono::seconds(100));
+
+        _timerpool->stop();
+        _taskpool->stop();
+        _taskpool->wait_stop();
     }
-    debug_print_memory("end");
+    manapi::debug::debug_print_memory("end");
 
     return 0;
 }

@@ -1,9 +1,10 @@
 #ifndef MANAPIHTTP_FORMDATA_HPP
 #define MANAPIHTTP_FORMDATA_HPP
 
-#include "ManapiAsync.hpp"
+#include "../ManapiAsync.hpp"
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiUtils.hpp"
+#include "http/Utils.hpp"
 
 namespace manapi::net::http {
     class base;
@@ -18,7 +19,7 @@ namespace manapi::net {
 
     class formdata_recv {
     public:
-        formdata_recv (request_data_t &request_data, std::shared_ptr<http::config> config, http::base *http_task);
+        formdata_recv (http::request_data_t &request_data, std::shared_ptr<http::config> config, http::base *http_task);
         ~formdata_recv ();
 
         formdata_recv (formdata_recv &&n) noexcept;
@@ -36,6 +37,8 @@ namespace manapi::net {
 
         [[nodiscard]] const std::string &about_param () const;
         future<std::pair <std::string, std::string>> get_param ();
+
+        static std::string json2form (const json &obj);
     private:
         enum data_type {
             DATA_NONE = 0,
@@ -50,13 +53,13 @@ namespace manapi::net {
         };
 
         void _move (formdata_recv &&n) noexcept;
-        static void buff_to_extra_buff (const request_data_t &req_data, const size_t &start, const size_t &end, std::string &dest, size_t &size);
+        static void buff_to_extra_buff (const http::request_data_t &req_data, const size_t &start, const size_t &end, std::string &dest, size_t &size);
         future<void> multipart_read_param (const std::function<void(const char *, const size_t &)> &send_line = nullptr);
         future<void> urlencoded_read_param (const std::function<void(const char *, const size_t &)> &send_line = nullptr);
 
         std::function<future<void>(const std::function<void(const char *, const size_t &)> &)> current_read_param;
 
-        request_data_t *request_data;
+        http::request_data_t *request_data;
         // boundary --XXXXXxxxXXX for form data
         std::string body_boundary;
         std::shared_ptr<http::config> config;

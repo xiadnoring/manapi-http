@@ -11,7 +11,7 @@
 #include <openssl/crypto.h>
 #endif
 
-namespace manapi::net::crypto {
+namespace manapi::crypto {
     inline std::string aes_encrypt (std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm = ciphers::AES_128_CBC) {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
         const EVP_CIPHER *algorithm_cb;

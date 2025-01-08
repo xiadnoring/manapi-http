@@ -8,7 +8,7 @@
 #include "http/Base.hpp"
 
 
-manapi::net::http_request::http_request(const manapi::net::utils::manapi_socket_information &ip_data, manapi::net::request_data_t &request_data, http::base *http_task, std::shared_ptr<http::config> config, const void *handler) : config(std::move(config))
+manapi::net::http_request::http_request(const manapi::net::http::manapi_socket_information &ip_data, manapi::net::http::request_data_t &request_data, http::base *http_task, std::shared_ptr<http::config> config, const void *handler) : config(std::move(config))
 {
     this->ip_data = &ip_data;
     this->request_data = &request_data;
@@ -18,7 +18,7 @@ manapi::net::http_request::http_request(const manapi::net::utils::manapi_socket_
 
 manapi::net::http_request::~http_request() = default;
 
-const manapi::net::utils::manapi_socket_information &manapi::net::http_request::get_ip_data() const {
+const manapi::net::http::manapi_socket_information &manapi::net::http_request::get_ip_data() const {
     return *ip_data;
 }
 
@@ -55,7 +55,7 @@ std::string manapi::net::http_request::dump() const {
     result += "Headers: \n";
 
     for (const auto &header: ref_headers()) {
-        result += utils::stringify_header(header) + '\n';
+        result += http::stringify_header(header) + '\n';
     }
 
     result += '\n';

@@ -3,6 +3,7 @@
 #include <future>
 #include <http/HTTPv2.hpp>
 
+#include "ManapiString.hpp"
 #include "services/ManapiTaskFunction.hpp"
 #include "http/HTTPv1_1.hpp"
 #include "worker/OpenSSL_TLS.hpp"
@@ -283,7 +284,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
             }
         }
     }
-    catch (manapi::net::utils::exception const &e) {
+    catch (manapi::exception const &e) {
         MANAPIHTTP_LOG("[{}]: HTTP2 Exception: {}", static_cast<size_t>(e.get_err_num()), e.what());
     }
     catch (std::exception const &e) {
@@ -416,10 +417,10 @@ void manapi::net::worker::http_v2::set_callbacks(const http_v2_callbacks_t &call
 }
 
 manapi::future<ssize_t> manapi::net::worker::http_v2::response(worker::connection &connection, http_response &resp, bool finish) {
-    manapi::net::utils::compress::hpack::encoder_t  encoder;
-    encoder.add (utils::compress::hpack::header_t(":status", std::to_string(resp.get_status_code())));
+    manapi::compress::hpack::encoder_t  encoder;
+    encoder.add (compress::hpack::header_t(":status", std::to_string(resp.get_status_code())));
     for (const auto &header: resp.get_headers()) {
-        encoder.add (utils::compress::hpack::header_t(header.first, header.second));
+        encoder.add (compress::hpack::header_t(header.first, header.second));
     }
     uint8_t cflag = 0x0;
     const auto data = encoder.data();
@@ -916,7 +917,7 @@ manapi::future<void> manapi::net::worker::http_v2::send_ping_frame(std::string d
             }
 
             do {
-                data = utils::random_string(8);
+                data = string::random(8);
             } while (protocol.pings.contains(data));
 
             protocol.pings.insert(data);

@@ -4,8 +4,6 @@
 #include <manapihttp/ManapiTaskHttp.hpp>
 #include <manapihttp/ManapiFilesystem.hpp>
 
-using namespace manapi::net::utils;
-using namespace manapi::net;
 using namespace std;
 
 int main ()

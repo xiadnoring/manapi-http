@@ -30,7 +30,7 @@ size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *use
         str.pop_back();
     }
 
-    auto header = manapi::net::utils::parse_header(str);
+    auto header = manapi::net::http::parse_header(str);
     reinterpret_cast <curl_data_t *> (userdata)->headers->insert(header);
 
     return n_items * size;
@@ -307,7 +307,7 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
             fds.clear();
             curl_multi_remove_handle(this->curl_multi, this->curl);
             this->site.stop_watcher_async(*w);
-            _reject(std::make_exception_ptr(manapi::net::utils::exception{ERR_FATAL, "Failure when receiving data from the peer"}));
+            _reject(std::make_exception_ptr(manapi::exception{ERR_FATAL, "Failure when receiving data from the peer"}));
         };
 
         w = co_await this->site.watch_async([&attempts, reject_cb = std::move(reject_cb), &shared_w = w, reject, resolve, this, &fds] (ev::async &w, int revents)
@@ -459,7 +459,7 @@ void manapi::net::fetch::set_headers(const std::map<std::string, std::string> &h
     // headers
     for (const auto &header: headers)
     {
-        this->curl_headers = curl_slist_append(this->curl_headers, manapi::net::utils::stringify_header(header).data());
+        this->curl_headers = curl_slist_append(this->curl_headers, manapi::net::http::stringify_header(header).data());
     }
 }
 
