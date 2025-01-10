@@ -53,7 +53,7 @@ void manapi::net::worker::quic::onrecv(ev::io &watcher, int revents) {
         auto frame_data = this->_parse_frame(this->gbuffer, rhs, sockaddr_src, sockaddr_len);
 
         if (frame_data.has_value()) {
-            async::task_run(this->site.taskpool,
+            async::run(this->site.taskpool,
                 this->_work(watcher.fd, sockaddr_src, sockaddr_len, std::move(frame_data.value())));
         }
     }

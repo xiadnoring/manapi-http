@@ -211,7 +211,7 @@ namespace manapi::net::worker {
         } parse_vars;
 
         struct protocol_http2_t {
-            async_mutex mx; // multithread
+            async::mutex mx; // multithread
             ssize_t length = 9 + 8; // 9 must-have octets in the header + 8 metadata
             ssize_t type = 0;
             int stream_id = 0;
@@ -226,7 +226,7 @@ namespace manapi::net::worker {
             std::set <std::string> pings;
 
             struct protocol_http2_window_t {
-                std::shared_ptr<async_condition_variable> write_cv{};
+                std::shared_ptr<async::condition_variable> write_cv{};
 
                 std::atomic<ssize_t> read = 0;
                 std::atomic<ssize_t> write = 0;
@@ -246,7 +246,7 @@ namespace manapi::net::worker {
             manapi::compress::hpack::decoder_t decoder{};
             manapi::compress::hpack::encoder_t encoder{};
 
-            std::shared_ptr<async_mutex> setting_param_acks_mx{nullptr};
+            std::shared_ptr<async::mutex> setting_param_acks_mx{nullptr};
             std::atomic<size_t> setting_param_acks = 0;
          } protocol;
 
@@ -256,11 +256,11 @@ namespace manapi::net::worker {
         http_v2_callbacks_t callbacks{};
         std::shared_ptr<worker::base> worker;
 
-        async_mutex threads_mutex;
+        async::mutex threads_mutex;
         std::map <int, http_v2_thread_data_t> threads;
         std::atomic<size_t> thread_cnt;
 
-        async_condition_variable finishcv;
+        async::condition_variable finishcv;
         std::atomic<size_t> ping_interval = 0;
         std::atomic<size_t> deps = 0;
 

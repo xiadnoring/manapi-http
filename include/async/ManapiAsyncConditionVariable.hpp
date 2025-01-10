@@ -8,19 +8,19 @@
 #include "../ManapiAsync.hpp"
 #include "components/ManapiChain.hpp"
 
-namespace manapi {
-    class async_condition_variable {
+namespace manapi::async {
+    class condition_variable {
     private:
         struct notify_sub_t {
             std::coroutine_handle<future<>::promise> handle;
             std::function<bool()> cond;
-            async_mutex *mx;
+            async::mutex *mx;
         };
     public:
         struct promise {
             std::function<bool()> cond;
-            async_mutex *gmx;
-            async_mutex *mx;
+            async::mutex *gmx;
+            async::mutex *mx;
             std::shared_ptr<threadpool<task>> &taskpool;
             chain <notify_sub_t> *stack;
 
@@ -28,21 +28,21 @@ namespace manapi {
             void await_resume () noexcept {}
 
             void await_suspend (std::coroutine_handle<future<>::promise> handle) {
-                async::task_run(this->taskpool, this->gmx->lock(), [cond = std::move(this->cond), mx = this->mx, stack = this->stack, gmx = this->gmx, handle = std::exchange(handle, nullptr)] () -> void {
+                async::run(this->taskpool, this->gmx->lock(), [cond = std::move(this->cond), mx = this->mx, stack = this->stack, gmx = this->gmx, handle = std::exchange(handle, nullptr)] () -> void {
                     stack->push({handle, std::move(cond), mx});
                     gmx->unlock();
                 });
             }
         };
 
-        async_condition_variable (std::shared_ptr<threadpool<task>> taskpool) : mx(taskpool), taskpool(taskpool) {}
+        condition_variable (const std::shared_ptr<threadpool<task>> &taskpool) : mx(taskpool), taskpool(taskpool) {}
 
         future<void> wait (const std::function<bool()> &cond) {
             if (cond()) { co_return; }
             co_await promise{cond, &this->mx, nullptr, taskpool, &this->stack};
         }
 
-        future<void> wait (async_mutex &mx, const std::function<bool()> &cond) {
+        future<void> wait (async::mutex &mx, const std::function<bool()> &cond) {
             if (cond()) {
                 if (!mx.locked()) {
                     co_await mx.lock();
@@ -68,7 +68,7 @@ namespace manapi {
             }
         }
 
-        ~async_condition_variable () = default;
+        ~condition_variable () = default;
     private:
         future<void> _notify_item (chain<notify_sub_t>::iterator it) {
             auto &data = *it;
@@ -107,13 +107,13 @@ namespace manapi {
             if (this->stack.empty()) { co_return false; }
             auto &data = *this->stack.rbegin();
             if (data.mx) { co_await data.mx->lock(); }
-            async::task_run(this->taskpool, this->_notify_item(this->stack.rbegin()));
+            async::run(this->taskpool, this->_notify_item(this->stack.rbegin()));
             co_return true;
         }
         std::atomic<bool> stop = false;
         std::atomic<int> cnt = 0;
         std::shared_ptr<threadpool<task>> taskpool;
-        async_mutex mx;
+        async::mutex mx;
         chain <notify_sub_t> stack;
     };
 }

@@ -389,8 +389,8 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_headers(void *ctx
     client->request_data.body_left = client->request_data.body_size;
     client->request_data.method = client->request_data.headers[":method"];
 
-    worker->site.taskpool->append_task([client = std::move(client), taskpool = worker->site.taskpool] () mutable  -> void {
-        async::task_run(std::move(taskpool), [client = std::move(client)] () mutable -> future<> {
+    worker->site.taskpool->append_task([client, taskpool = worker->site.taskpool] () mutable  -> void {
+        async::run(std::move(taskpool), [client] () mutable -> future<> {
             co_await client->parse_request(0, 0);
             co_await client->execute_handler();
             std::cout << "FINISHED\n";

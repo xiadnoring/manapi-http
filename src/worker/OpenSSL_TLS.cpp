@@ -47,13 +47,11 @@ void manapi::net::worker::OpenSSL_TLS::init() {
         ssl_configure_context();
 
         this->write = [this](auto &PH1, auto PH2, auto &PH3, auto PH4) -> future<ssize_t> {
-            const auto rhs = co_await ssl_write(PH1, PH2, PH3);
-            co_return rhs;
+            return ssl_write(PH1, PH2, PH3);
         };
 
         this->read = [this](auto &PH1, auto PH2, auto &PH3) -> future<ssize_t> {
-            const auto rhs = co_await ssl_read(PH1, PH2, PH3);
-            co_return rhs;
+            return ssl_read(PH1, PH2, PH3);
         };
     }
 }
@@ -151,7 +149,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
             this->_io_event(std::forward<decltype(P1)>(P1), std::forward<decltype(P2)>(P2));
         };
         connection.ssl = this->config->get_ssl_config()->enabled ? SSL_new(this->ctx) : nullptr;
-        connection.mx = std::make_unique<async_mutex>(this->site.taskpool);
+        connection.mx = std::make_unique<async::mutex>(this->site.taskpool);
         return std::move(ms);
     });
 
@@ -159,10 +157,14 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
 }
 
 manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::shared_ptr<connection> conn) {
+    if (!conn) {
+        co_return;
+    }
+
     auto &connection = conn->as<connection_interface>();
     auto lk = co_await connection.iomutex.lock_guard();
 
-    if (false && (false == connection.status & CONN_CLOSED)) {
+    if ((false == connection.status & CONN_CLOSED)) {
         bool flag = true;
         do {
             auto rhs = SSL_shutdown(connection.ssl);
@@ -214,13 +216,16 @@ void manapi::net::worker::OpenSSL_TLS::_lookup_event(ev::io &watcher, std::share
 
 void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
     auto connection = static_cast<connection_interface *> (ptr);
-    async::task_run(connection->worker->site.taskpool, [connection] () -> future<void> {
+    async::run(connection->worker->site.taskpool, [connection] () mutable -> future<void> {
         TCP::_connection_interface_eraser (connection);
 
+            auto prev = connection;
         if (connection->ssl) {
             auto lkr = co_await connection->mx->lock_guard();
             auto ssl = std::exchange(connection->ssl, nullptr);
             //MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
+
+            SSL_clear(ssl);
             SSL_free(ssl);
             MANAPIHTTP_LOG("SSL CLOSED: {} ssl={:}", connection->id, static_cast<void*>(ssl));
         }

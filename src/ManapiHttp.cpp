@@ -35,16 +35,16 @@ manapi::net::http::server::~server() = default;
 
 manapi::net::http::server::server(std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool) : site(taskpool, std::move(timerpool)), mx(taskpool) {
     server::signal_init();
-    this->stopping.store(false);
+    this->stopping.store(true);
     setup ();
 }
 
 manapi::future<void> manapi::net::http::server::pool() {
-    if (server::stopping) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Application was stopped");
-    }
-
     auto lk = co_await this->mx.lock_guard();
+
+    if (!server::stopping.exchange(false)) {
+        co_return;
+    }
 
     server::running.update([this] (auto &v) {
         v.insert(this);
@@ -85,6 +85,7 @@ manapi::future<void> manapi::net::http::server::pool() {
 
             this->adding_watcher_async->stop();
             this->stop_watcher->stop();
+            this->stop_watcher_async(*init_watcher);
 
             resolve ();
         });

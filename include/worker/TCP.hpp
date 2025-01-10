@@ -18,7 +18,7 @@ namespace manapi::net::worker {
             size_t time_ms = 0;
         };
         struct connection_interface {
-            manapi::async_mutex iomutex;
+            manapi::async::mutex iomutex;
             int id{};
             std::shared_ptr <ev::io> watcher;
             ev_timer timer;
@@ -36,7 +36,7 @@ namespace manapi::net::worker {
         struct connection_io_await {
             std::function<void()> &iohandle;
             std::atomic<int> &iostatus;
-            async_mutex &mx;
+            async::mutex &mx;
             int status;
             void await_resume () noexcept {}
             bool await_ready () noexcept { return this->iostatus & CONN_CLOSED; }

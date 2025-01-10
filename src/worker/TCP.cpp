@@ -89,7 +89,7 @@ void manapi::net::worker::TCP::init() {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);
     }
 
-    if (listen(fd, 2000) < 0) {
+    if (listen(fd, 10) < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "LISTEN ERROR. sock_fd: {}", fd.load());
     }
 
@@ -174,15 +174,16 @@ void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
         this->_recv_setup_connection (*connection);
         std::shared_ptr<async_stack_storage> row = std::make_shared<async_stack_storage>(stack, task);
 
-        stack->_on_connection_finish([this, connection, fd, row] () -> void {
-            //MANAPIHTTP_LOG("CB FINISHED {}", fd);
-            async::task_run(this->site.taskpool, this->connection_close(connection));
+        stack->on_finish([this, connection, fd, row] () mutable -> void {
+            async::run(this->site.taskpool, [this, fd, connection] () mutable  -> future<void> {
+                co_await this->connection_close(connection);
+            });
             row->stack.reset();
         }, this->site.taskpool);
 
-        stacks[fd] = row;
+        this->stacks[fd] = row;
 
-        site.taskpool->append_task([this, connection, row] () -> void {
+        this->site.taskpool->append_task([this, connection, row] () -> void {
             row->stack->operator()();
         });
     }
@@ -286,7 +287,7 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage, con
 
     if (flag) {
         this->_ev_watcher_stop(conn);
-        async::task_run(this->site.taskpool, this->connection_close(storage));
+        async::run(this->site.taskpool, this->connection_close(storage));
         return;
     }
 
@@ -404,15 +405,11 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_write(connection &conn
 
         ssize_t rhs = ::send(connection.id, buff, size, MSG_NOSIGNAL|MSG_DONTWAIT);
         if (rhs < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                //std::cout << connection.id << " CB WRITE\n";
-                if (connection.status & CONN_CLOSED) {
-                    break;
-                }
-                co_await io_wait(connection, CONN_WRITE);
-                continue;
+            if (connection.status & CONN_CLOSED) {
+                break;
             }
-            break;
+            co_await io_wait(connection, CONN_WRITE);
+            continue;
         }
         connection.stats.total_write.fetch_add(rhs);
         co_return rhs;

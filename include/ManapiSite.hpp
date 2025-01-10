@@ -112,7 +112,7 @@ namespace manapi::net {
         std::string config_cache_dir;
         std::shared_ptr <manapi::timerpool> timerpool;
         std::shared_ptr <threadpool<task>> taskpool = nullptr;
-        async_mutex cache_config_mx;
+        async::mutex cache_config_mx;
     protected:
         virtual void custom_watcher_fd_async (ev::async &w, int revents);
         void setup ();
@@ -126,7 +126,7 @@ namespace manapi::net {
         std::mutex loopmx;
 
 
-        async_mutex adding_watcher_mx;
+        async::mutex adding_watcher_mx;
         std::unique_ptr <ev::async> adding_watcher_async;
         struct adding_watcher_data_t {
             bool flag;

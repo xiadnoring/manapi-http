@@ -49,7 +49,7 @@ namespace manapi::async {
                 });
             }
             else {
-                async::task_run(this->taskpool, this->async_cb ([this, handle = std::exchange(handle, nullptr)] (T v) mutable -> void {
+                async::run(this->taskpool, this->async_cb ([this, handle = std::exchange(handle, nullptr)] (T v) mutable -> void {
                     this->resolve(handle, v);
                 }, [this, handle] (std::exception_ptr e) {
                     this->reject(handle, e);
@@ -128,7 +128,7 @@ namespace manapi::async {
                 });
             }
             else {
-                async::task_run(this->taskpool, this->async_cb ([this, handle] () mutable -> void {
+                async::run(this->taskpool, this->async_cb ([this, handle] () mutable -> void {
                     this->resolve(handle);
                 }, [this, handle] (std::exception_ptr e) {
                     this->reject(handle, e);

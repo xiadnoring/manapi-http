@@ -237,7 +237,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                         client->request_data.method = client->request_data.headers[":method"];
 
                         this->site.taskpool->append_task([client = std::move(client), taskpool = this->site.taskpool] () mutable  -> void {
-                            async::task_run(std::move(taskpool), [client = std::move(client)] () mutable -> future<> {
+                            async::run(std::move(taskpool), [client = std::move(client)] () mutable -> future<> {
                                 co_await client->parse_request(0, 0);
                                 co_await client->execute_handler();
                                 std::cout << "FINISHED\n";

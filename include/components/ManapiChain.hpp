@@ -4,7 +4,7 @@
 namespace manapi {
     template<typename value_type>
     struct chain_item {
-        std::shared_ptr<value_type> src;
+        value_type src;
 
         std::shared_ptr<chain_item> next;
         std::shared_ptr<chain_item> prev;
@@ -34,11 +34,11 @@ namespace manapi {
             }
 
             value_type &operator*() {
-                return *(this->_src->src.get());
+                return this->_src->src;
             }
 
             pointer operator->() {
-                return this->_src->src.get();
+                return &this->_src->src;
             }
 
             bool operator==(const chain_iterator &_n) const {
@@ -68,7 +68,7 @@ namespace manapi {
         }
 
         void push (value_type &&n) {
-            auto _n = std::make_shared<chain_item<value_type>>( std::make_shared<value_type>(std::forward<decltype(n)>(n)), nullptr, nullptr);
+            auto _n = std::make_shared<chain_item<value_type>>( std::move(n), nullptr, nullptr);
             this->push(std::move(_n));
             ++this->_s;
         }
@@ -93,7 +93,7 @@ namespace manapi {
             }
 
             if (ss == 1) {
-                if (this->_src->src == _n->src) {
+                if (this->_src == _n) {
                     this->_src = nullptr;
                     this->_last = nullptr;
 

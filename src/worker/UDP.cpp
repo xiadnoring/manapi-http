@@ -7,7 +7,7 @@ manapi::net::worker::udp::udp(net::site &site) : worker::base(site) {
 }
 
 manapi::net::worker::udp::~udp() {
-
+    freeaddrinfo(this->local);
 }
 
 void manapi::net::worker::udp::init() {

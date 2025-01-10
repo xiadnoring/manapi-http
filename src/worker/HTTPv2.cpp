@@ -29,7 +29,7 @@ manapi::net::worker::http_v2::http_v2(const std::shared_ptr<manapi::net::worker:
     this->config = std::move(config);
     this->init_settings();
     this->init_callbacks();
-    this->protocol.setting_param_acks_mx = std::make_shared<async_mutex>(this->site.taskpool);
+    this->protocol.setting_param_acks_mx = std::make_shared<async::mutex>(this->site.taskpool);
     this->read = [this](net::worker::connection & PH1, void * && PH2, const size_t & PH3) -> future<ssize_t> {
         return this->default_read(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2), std::forward<decltype(PH3)>(PH3));
     };
@@ -52,7 +52,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
     this->parse_vars.j = j;
     this->parse_vars.size = size;
 
-    this->protocol.window.write_cv = std::make_shared<async_condition_variable>(this->site.taskpool);
+    this->protocol.window.write_cv = std::make_shared<async::condition_variable>(this->site.taskpool);
 
     ssize_t rhs=-1;
 
@@ -247,7 +247,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                         if (protocol.stream_id == 0) {
                             // global
                             protocol.window.write.fetch_add(protocol.value);
-                            protocol.window.write_cv->notify_all();
+                            co_await protocol.window.write_cv->notify_all();
                             protocol.value = 0;
                             break;
                         }
@@ -293,7 +293,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
 
 
     this->protocol.window.write.store(std::numeric_limits<int>::max());
-    this->protocol.window.write_cv->notify_all();
+    co_await this->protocol.window.write_cv->notify_all();
 
     if ((this->protocol.conn_type & (CONN_CLOSED|CONN_HALF_CLOSED)) == false) {
         // CONN_CLOSED...
@@ -344,7 +344,7 @@ void manapi::net::worker::http_v2::init_settings() {
 
         this->protocol.window.write.store(value);
 
-        async::task_run(this->site.taskpool, [self, dp = new_dependency()] () -> future<void> {
+        async::run(this->site.taskpool, [self, dp = new_dependency()] () -> future<void> {
             co_await dp->protocol.window.write_cv->notify_all();
             auto lk = co_await dp->threads_mutex.lock_guard();
             for (auto &thread : dp->threads) {
@@ -1017,7 +1017,7 @@ manapi::future<void> manapi::net::worker::http_v2::default_ev_headers(int id, st
         }});
     }
 
-    async::task_run(this->site.taskpool, worker::http_v2::session_worker(id, this->sessions[id].body, this->site, this->config, this->new_dependency()));
+    async::run(this->site.taskpool, worker::http_v2::session_worker(id, this->sessions[id].body, this->site, this->config, this->new_dependency()));
 
     co_return;
 }
@@ -1178,7 +1178,7 @@ void manapi::net::worker::http_v2::setting_param_was_ack(const bool &self) {
         return;
     }
 
-    async::task_run(this->site.taskpool, [worker = this->new_dependency()] () mutable -> future<> {
+    async::run(this->site.taskpool, [worker = this->new_dependency()] () mutable -> future<> {
         auto lk = co_await worker->protocol.setting_param_acks_mx->lock_guard();
         if (worker->protocol.setting_param_acks == 0) {
             co_return;

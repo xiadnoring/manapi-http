@@ -10,23 +10,31 @@
 
 namespace manapi {
     template<class T>
-    threadpool<T>::threadpool(size_t thread_num, size_t queues_count): thread_num(thread_num),is_stop(true),stopped(0) {
+    threadpool<T>::threadpool(size_t thread_num, size_t queues_count): is_stop(true) {
         sigemptyset(&this->blockedSignal);
         sigaddset(&this->blockedSignal, SIGPIPE);
         pthread_sigmask(SIG_BLOCK, &this->blockedSignal, nullptr);
 
         this->task_queues.resize(queues_count);
+
+        for (size_t i = this->threads.size(); i < thread_num; ++i) {
+            this->threads.emplace_back(worker, this);
+        }
     }
 
     template<class T>
     threadpool<T>::~threadpool() {
-        stop();
+        this->stop();
+        this->wait_stop();
     }
 
     template<class T>
     void threadpool<T>::resize(size_t thread_num) {
         if (this->is_stop) {
-            this->thread_num = thread_num;
+            for (size_t i = this->threads.size(); i < thread_num; ++i) {
+                this->threads.emplace_back(worker, this);
+            }
+            this->threads.resize(thread_num);
         }
     }
 
@@ -41,8 +49,11 @@ namespace manapi {
 
     template<class T>
     void threadpool<T>::wait_stop() {
-        std::unique_lock<std::mutex> lk (this->m);
-        this->cv.wait (lk, [this] () -> bool { return this->stopped.load() >= this->thread_num; });
+        for (auto &thread: this->threads) {
+            thread.join();
+        }
+
+        this->threads.clear();
     }
 
     template<class T>
@@ -51,15 +62,6 @@ namespace manapi {
             return;
         }
         this->is_stop.store(false);
-
-        if (this->thread_num <= 0) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "threadpool can't be init because thread_number = {}", 0);
-        }
-
-        for (size_t i = this->all_threads.size(); i < this->thread_num; i++) {
-            this->all_threads.emplace_back(worker, this);
-            this->all_threads[i].detach();
-        }
     }
 
     template<class T>
@@ -137,9 +139,6 @@ namespace manapi {
                 task_doit(std::move(task));
             }
         }
-
-        this->stopped.fetch_add(1);
-        this->cv.notify_all();
     }
 
     template<class T>

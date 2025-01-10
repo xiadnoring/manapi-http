@@ -28,10 +28,8 @@ namespace manapi {
         void stop();
         void wait_stop();
     private:
-        // this number means count of the all threads
-        size_t thread_num;
         // this vector contains all threads for this thread pool
-        std::vector <std::thread> all_threads;
+        std::vector <std::thread> threads;
         // this vector of queue which contains tasks
         std::vector <chain <std::unique_ptr<T> > > task_queues;
         // queue mutex
@@ -47,7 +45,5 @@ namespace manapi {
         sigset_t blockedSignal{};
         std::mutex m;
         std::condition_variable cv;
-
-        std::atomic <size_t> stopped;
     };
 }

@@ -19,40 +19,39 @@ manapi::net::http::HeaderView::HeaderView(std::shared_ptr<worker::connection> co
     this->connection = std::move(connection);
 }
 
-manapi::net::http::HeaderView::~HeaderView() {
-}
+manapi::net::http::HeaderView::~HeaderView() = default;
 
 
 manapi::future<void> manapi::net::http::HeaderView::doit() {
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-    if (co_await worker->configure_connection(connection)) {
+    if (co_await this->worker->configure_connection(this->connection)) {
         while (true) {
 
-            request_data.path = {};
-            request_data.divided = -1;
+            this->request_data.path = {};
+            this->request_data.divided = -1;
 
             ssize_t size = 0, j = 0;
-            buffer.resize(16384);
-            current = std::bind(&HeaderView::_parse_method, this, std::placeholders::_1);
-            while (!parse_vars.finished) {
-                size = co_await worker->read (*connection, buffer.data(), buffer.size());
+            this->buffer.resize(16384);
+            this->current = [this](char & PH1) { this->_parse_method(std::forward<decltype(PH1)>(PH1)); };
+            while (!this->parse_vars.finished) {
+                size = co_await this->worker->read (*this->connection, this->buffer.data(), this->buffer.size());
                 if (size <= 0) { break; }
-                for (j = 0; j < size && !parse_vars.finished; j++) {
-                    current (buffer.at(j));
+                for (j = 0; j < size && !this->parse_vars.finished; j++) {
+                    this->current (this->buffer.at(j));
                 }
             }
 
             // ghost
-            if (!parse_vars.finished) { co_return; }
+            if (!this->parse_vars.finished) { co_return; }
 
-            const auto version = http::config::parse_http_version(request_data.http.substr(5));
-            connection->version = version;
-            switch (connection->version) {
+            const auto version = http::config::parse_http_version(this->request_data.http.substr(5));
+            this->connection->version = version;
+            switch (this->connection->version) {
                 case versions::HTTP_v1_1: {
-                    auto client = http::http_v1_1::create (worker, config, site);
-                    client->request_data = std::move(request_data);
-                    client->connection = connection;
-                    client->buffer = std::move(buffer);
+                    auto client = http::http_v1_1::create (this->worker, this->config, this->site);
+                    client->request_data = std::move(this->request_data);
+                    client->connection = this->connection;
+                    client->buffer = std::move(this->buffer);
                     client->prepare();
                     co_await client->parse_request(j, size);
                     co_await client->execute_handler();
@@ -66,10 +65,10 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
                 }
                 break;
                 case versions::HTTP_v2: {
-                    auto client = http::http_v2::create(worker, config, site);
-                    client->connection = connection;
+                    auto client = http::http_v2::create(this->worker, this->config, this->site);
+                    client->connection = this->connection;
                     client->start = start;
-                    client->buffer = std::move(buffer);
+                    client->buffer = std::move(this->buffer);
                     co_await client->parse_request(j, size);
                     long cnt = client.use_count();
                     if (cnt != 1) {
@@ -85,7 +84,6 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
         }
     }
 
-    this->worker->connection_close(this->connection);
     co_return;
 }
 
@@ -95,37 +93,37 @@ void manapi::net::http::HeaderView::_parse_method(char &c) {
         //     THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Invalid method: {}", parse_vars.buffer);
         // }
 
-        request_data.method = std::move(parse_vars.buffer);
+        this->request_data.method = std::move(this->parse_vars.buffer);
 
-        current = std::bind(&HeaderView::_skip_white_space, this, std::placeholders::_1);
-        next = std::bind(&HeaderView::_parse_uri, this, std::placeholders::_1);
-        current(c);
+        this->current = [this](char & PH1) { this->_skip_white_space(std::forward<decltype(PH1)>(PH1)); };
+        this->next = [this](char & PH1) { this->_parse_uri(std::forward<decltype(PH1)>(PH1)); };
+        this->current(c);
         return;
     }
 
-    parse_vars.buffer += c;
+    this->parse_vars.buffer += c;
 }
 
 void manapi::net::http::HeaderView::_skip_white_space(char &c) {
     if (c == ' ') {
-        current = next;
+        this->current = this->next;
         return;
     }
     THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
 }
 
 void manapi::net::http::HeaderView::_next_line(char &c) {
-    if (parse_vars.next_line_state) {
-        parse_vars.next_line_state = false;
+    if (this->parse_vars.next_line_state) {
+        this->parse_vars.next_line_state = false;
         if (c == '\n') {
             //current = next;
-            parse_vars.finished = true;
+            this->parse_vars.finished = true;
             return;
         }
     }
     else {
         if (c == '\r') {
-            parse_vars.next_line_state = true;
+            this->parse_vars.next_line_state = true;
             return;
         }
     }
@@ -136,9 +134,9 @@ void manapi::net::http::HeaderView::_next_line(char &c) {
 void manapi::net::http::HeaderView::_parse_uri(char &c) {
     if (c == ' ') {
         this->_cleanup_uri();
-        current = std::bind(&HeaderView::_skip_white_space, this, std::placeholders::_1);
-        next = std::bind(&HeaderView::_parse_http, this, std::placeholders::_1);
-        current(c);
+        this->current = [this](char & PH1) { this->_skip_white_space(std::forward<decltype(PH1)>(PH1)); };
+        this->next = [this](char & PH1) { this->_parse_http(std::forward<decltype(PH1)>(PH1)); };
+        this->current(c);
         return;
     }
 
@@ -146,76 +144,76 @@ void manapi::net::http::HeaderView::_parse_uri(char &c) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
     }
 
-    request_data.uri += c;
+    this->request_data.uri += c;
 
-    if (parse_vars.hex_index >= 0) {
-        parse_vars.hex_symbols[parse_vars.hex_index] = c;
+    if (this->parse_vars.hex_index >= 0) {
+        this->parse_vars.hex_symbols[parse_vars.hex_index] = c;
 
-        if (parse_vars.hex_index == 1) {
-            char x = static_cast<char> (manapi::unicode::hex2dec(parse_vars.hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
-                                 parse_vars.hex_symbols[1]));
+        if (this->parse_vars.hex_index == 1) {
+            char x = static_cast<char> (manapi::unicode::hex2dec(this->parse_vars.hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
+                                 this->parse_vars.hex_symbols[1]));
 
-            if (((parse_vars.hex_symbols[0] >= 'a' && parse_vars.hex_symbols[0] <= 'z') || (parse_vars.hex_symbols[0] >= 'A' && parse_vars.hex_symbols[0] <= 'Z')
-                || (parse_vars.hex_symbols[0] >= '0' && parse_vars.hex_symbols[0] <= '9')) && ((parse_vars.hex_symbols[1] >= 'a' && parse_vars.hex_symbols[1] <= 'z') || (parse_vars.hex_symbols[1] >= 'A' && parse_vars.hex_symbols[1] <= 'Z')
-                || (parse_vars.hex_symbols[1] >= '0' && parse_vars.hex_symbols[1] <= '9'))) {
-                request_data.path.back() += x;
+            if (((this->parse_vars.hex_symbols[0] >= 'a' && this->parse_vars.hex_symbols[0] <= 'z') || (this->parse_vars.hex_symbols[0] >= 'A' && this->parse_vars.hex_symbols[0] <= 'Z')
+                || (this->parse_vars.hex_symbols[0] >= '0' && this->parse_vars.hex_symbols[0] <= '9')) && ((this->parse_vars.hex_symbols[1] >= 'a' && this->parse_vars.hex_symbols[1] <= 'z') || (this->parse_vars.hex_symbols[1] >= 'A' && this->parse_vars.hex_symbols[1] <= 'Z')
+                || (this->parse_vars.hex_symbols[1] >= '0' && this->parse_vars.hex_symbols[1] <= '9'))) {
+                this->request_data.path.back() += x;
             } else {
-                request_data.path.back() += '%';
-                request_data.path.back() += parse_vars.hex_symbols;
+                this->request_data.path.back() += '%';
+                this->request_data.path.back() += this->parse_vars.hex_symbols;
             }
 
-            parse_vars.hex_index = -1;
+            this->parse_vars.hex_index = -1;
 
             return;
         }
 
-        parse_vars.hex_index++;
+        this->parse_vars.hex_index++;
 
         return;
     }
 
-    if (c == '%' && !request_data.path.empty()) {
-        parse_vars.hex_index = 0;
+    if (c == '%' && !this->request_data.path.empty()) {
+        this->parse_vars.hex_index = 0;
 
         return;
     }
 
-    if (request_data.divided == -1) {
+    if (this->request_data.divided == -1) {
         if (c == '/') {
-            if (request_data.path.empty() || !request_data.path.back().empty()) {
-                request_data.path.emplace_back("");
+            if (this->request_data.path.empty() || !this->request_data.path.back().empty()) {
+                this->request_data.path.emplace_back("");
             }
             return;
         }
 
         if (c == '?') {
             this->_cleanup_uri ();
-            request_data.divided = static_cast<ssize_t>(request_data.path.size());
-            request_data.path.emplace_back("");
+            this->request_data.divided = static_cast<ssize_t>(this->request_data.path.size());
+            this->request_data.path.emplace_back("");
             return;
         }
     }
 
-    if (!request_data.path.empty()) {
-        request_data.path.back() += c;
+    if (!this->request_data.path.empty()) {
+        this->request_data.path.back() += c;
     }
 }
 
 void manapi::net::http::HeaderView::_cleanup_uri() {
-    if (request_data.divided!=-1) { return; }
-    for (ssize_t i = request_data.path.size() - 1; i >= 0; i--) {
-        if (request_data.path[i].empty()) { request_data.path.pop_back(); }
+    if (this->request_data.divided!=-1) { return; }
+    for (auto i = static_cast<ssize_t>(this->request_data.path.size() - 1); i >= 0; i--) {
+        if (this->request_data.path[i].empty()) { this->request_data.path.pop_back(); }
         else { break; }
     }
 }
 
 void manapi::net::http::HeaderView::_parse_http(char &c) {
     if (unicode::is_space_symbol(c)) {
-        current = std::bind(&HeaderView::_next_line, this, std::placeholders::_1);
+        this->current = [this](char & PH1) { this->_next_line(std::forward<decltype(PH1)>(PH1)); };
 
-        current (c);
+        this->current (c);
         return;
     }
 
-    request_data.http += c;
+    this->request_data.http += c;
 }

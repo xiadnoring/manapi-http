@@ -408,7 +408,7 @@ namespace manapi {
                     _debug_pair_src = &get<PAIR> ();
                 break;
                 case type_string:
-                    _debug_string_src = &get<STRING> ();
+                    _debug_string_src = get<STRING> ().data();
                 break;
                 default:
                 break;
@@ -426,7 +426,7 @@ namespace manapi {
         const ARRAY   *_debug_array_src   = nullptr;
         const BIGINT  *_debug_bigint_src  = nullptr;
         const OBJECT  *_debug_object_src  = nullptr;
-        const STRING  *_debug_string_src  = nullptr;
+        const char  *_debug_string_src  = nullptr;
         const INTEGER *_debug_integer_src  = nullptr;
         const DECIMAL *_debug_decimal_src = nullptr;
         const PAIR    *_debug_pair_src = nullptr;

@@ -22,6 +22,7 @@
 #include "components/ManapiChain.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "crypto/ManapiAES.hpp"
+#include "worker/tools/OpenSSLTools.hpp"
 
 using namespace manapi::net;
 
@@ -30,29 +31,42 @@ using namespace std;
 // int a = 0;
 //
 //
-// static auto taskpool = std::make_shared<threadpool<task>> (4);
-// static async_condition_variable cv (taskpool);
+// auto taskpool = std::make_shared<manapi::threadpool<manapi::task>> (3);
+// manapi::timerpool timerpool (taskpool, 1000);
 //
-// manapi::future<void> print (async_mutex &mx2) {
-//     co_await mx2.lock();
+// manapi::future<void> print (int i) {
+//     std::function<manapi::future<void>(int)> test78 = [](int i) -> manapi::future<void> {
+//         co_await manapi::async_delay{timerpool, 1s};
+//         std::cout << "test78 "<<i << "\n";
+//     };
+//     co_await test78(i);
+//     co_return;
+// }
 //
-//     co_await cv.notify_all();
-//     std::cout << "-\n";
-//     mx2.unlock();
+//
+// std::atomic<int> b {0};
+//
+// manapi::future<> test () {
+//     co_await print(0);
+//     {
+//         for (int i = 0; i < 1000; ++i) {
+//             manapi::async::run (taskpool, [i] () -> manapi::future<void> {
+//                 co_await manapi::async_delay{timerpool, 1s};
+//                 co_await print(i);
+//             });
+//
+//         }
+//     }
+//
+//     printf("finished\n");
+//     co_return;
 // }
 //
 // int main () {
 //     taskpool->start();
-//     timerpool timerpool (*taskpool, 1);
-//     taskpool->append_task([&] () -> void { timerpool.start(); });
-//     async_mutex mx2 (taskpool);
-//     for (int i = 0; i < 100000; i++) {
-//         async::task_run(taskpool, [mx2 = &mx2] () -> manapi::future<void> {
-//             co_await mx2->lock();
-//             std::cout << "1\n";
-//             mx2->unlock();
-//         }());
-//     }
+//     timerpool.start();
+//
+//     test().get(taskpool);
 //
 //     getchar();
 //     timerpool.stop();
@@ -61,6 +75,8 @@ using namespace std;
 
 
 int main (int argc, char *argv[]) {
+    worker::tools::ssl_library_init();
+
     manapi::debug::debug_print_memory("start");
     {
         auto _taskpool = std::make_shared<manapi::threadpool<manapi::task>>(20);
@@ -346,8 +362,17 @@ int main (int argc, char *argv[]) {
 
         manapi::debug::debug_print_memory("pool");
 
-        server.pool()
-            .get(_taskpool);
+        manapi::async::run(_taskpool, server.pool());
+
+        manapi::async::run (_taskpool, [_timerpool] () -> manapi::future<> {
+            co_await _timerpool->async_append_timer_sync(10s, [] () -> void {
+                printf("timer\n");
+            });
+        });
+
+        getchar();
+
+        server.stop().get(_taskpool);
 
         manapi::debug::debug_print_memory("preend");
         auto &b = manapi::async::async_tasks;
@@ -356,6 +381,8 @@ int main (int argc, char *argv[]) {
         _timerpool->stop();
         _taskpool->stop();
         _taskpool->wait_stop();
+
+        manapi::async::async_tasks.clear();
     }
     manapi::debug::debug_print_memory("end");
 

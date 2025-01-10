@@ -46,7 +46,7 @@ namespace manapi::net::http {
         void stop_pool (async::promise<void>::resolve_t resolve);
         void _async_break_loop (ev::async &watcher, int revents);
 
-        async_mutex mx;
+        async::mutex mx;
         std::atomic <bool> stopping;
 
         std::unordered_map<size_t, std::unique_ptr<http_pool>> pools{};

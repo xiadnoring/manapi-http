@@ -7,7 +7,7 @@
 
 std::mutex manapi::net::worker::quic_openssl_tls::ctx_init_mx{};
 SSL_CTX *manapi::net::worker::quic_openssl_tls::ctx{nullptr};
-std::unique_ptr<manapi::async_mutex> manapi::net::worker::quic_openssl_tls::ctx_mx{nullptr};
+std::unique_ptr<manapi::async::mutex> manapi::net::worker::quic_openssl_tls::ctx_mx{nullptr};
 
 manapi::net::worker::quic_openssl_tls::quic_openssl_tls(net::site &site) : quic_cb_base(site) {
 
@@ -21,7 +21,7 @@ void manapi::net::worker::quic_openssl_tls::global_init(net::site &site) {
     std::lock_guard<std::mutex> lk (quic_openssl_tls::ctx_init_mx);
 
     if (!quic_openssl_tls::ctx_mx) {
-        quic_openssl_tls::ctx_mx = std::make_unique<async_mutex>(site.taskpool);
+        quic_openssl_tls::ctx_mx = std::make_unique<async::mutex>(site.taskpool);
     }
     if (!quic_openssl_tls::ctx) {
         SSL_load_error_strings();

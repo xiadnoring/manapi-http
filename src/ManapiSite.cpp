@@ -277,12 +277,16 @@ std::shared_ptr<ev::async> manapi::net::site::create_watcher_async(const std::fu
 }
 
 void manapi::net::site::stop_watcher_fd(ev::io &w) {
-    delete static_cast<custom_watcher_data_t<ev::io> *>(std::exchange(w.data, nullptr));
+    auto data = static_cast<custom_watcher_data_t<ev::io> *>(std::exchange(w.data, nullptr));
+    data->w.reset();
+    delete data;
     w.stop();
 }
 
 void manapi::net::site::stop_watcher_async(ev::async &w) {
-    delete static_cast<custom_watcher_data_t<ev::async> *>(std::exchange(w.data, nullptr));
+    auto data = static_cast<custom_watcher_data_t<ev::async> *>(std::exchange(w.data, nullptr));
+    data->w.reset();
+    delete data;
     w.stop();
 }
 

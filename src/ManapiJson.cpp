@@ -3,6 +3,8 @@
 
 #include "ManapiJson.hpp"
 
+#include <utility>
+
 #include "ManapiBeforeDelete.hpp"
 #include "ManapiBigint.hpp"
 #include "ManapiUnicode.hpp"
@@ -60,12 +62,14 @@ manapi::json::json(const manapi::json &other) {
 }
 
 manapi::json::json(json &&other) noexcept {
-    src = other.src;
-    type = other.type;
+    if (&other != this) {
+        this->delete_value();
 
-    _debug_symb_reinit();
+        this->src = std::exchange(other.src, nullptr);
+        this->type = std::exchange(other.type, types::type_null);
 
-    other._set_nullptr();
+        _debug_symb_reinit();
+    }
 }
 
 manapi::json::json(const char *plain_text, const bool &parse)
@@ -219,8 +223,7 @@ void manapi::json::_parse(const UNICODE_STRING &plain_text) {
 }
 
 void manapi::json::_parse(const NULLPTR &n) {
-    type    = type_null;
-    src     = nullptr;
+    _set_nullptr();
 }
 
 void manapi::json::_parse(const STRING_VIEW &plain_text, const bool &use_bigint, const size_t &bigint_precision) {
@@ -369,60 +372,61 @@ void manapi::json::error_unexpected_end(const size_t &i) {
 }
 
 void manapi::json::delete_value() {
-    delete_value_static(type, src);
+    delete_value_static(
+        std::exchange(this->type, types::type_null), std::exchange(this->src, nullptr));
 }
 
 void manapi::json::_set_object() {
+    delete_value_static(this->type, std::exchange(this->src, new OBJECT ()));
     this->type = types::type_object;
-    this->src = new OBJECT ();
     _debug_symb_reinit();
 }
 
 void manapi::json::_set_bool() {
+    delete_value_static(this->type, std::exchange(this->src, new BOOLEAN ()));
     this->type = types::type_boolean;
-    this->src = new BOOLEAN ();
     _debug_symb_reinit();
 }
 
 void manapi::json::_set_array() {
+    delete_value_static(this->type, std::exchange(this->src, new ARRAY ()));
     this->type = types::type_array;
-    this->src = new ARRAY ();
     _debug_symb_reinit();
 }
 
 void manapi::json::_set_string() {
+    delete_value_static(this->type, std::exchange(this->src, new STRING ()));
     this->type = types::type_string;
-    this->src = new STRING ();
     _debug_symb_reinit();
 }
 
 void manapi::json::_set_integer() {
+    delete_value_static(this->type, std::exchange(this->src, new INTEGER ()));
     this->type = types::type_integer;
-    this->src = new INTEGER ();
     _debug_symb_reinit();
 }
 
 void manapi::json::_set_decimal() {
+    delete_value_static(this->type, std::exchange(this->src, new DECIMAL ()));
     this->type = types::type_decimal;
-    this->src = new DECIMAL ();
     _debug_symb_reinit();
 }
 
 void manapi::json::_set_bigint() {
+    delete_value_static(this->type, std::exchange(this->src, new BIGINT ()));
     this->type = types::type_bigint;
-    this->src = new BIGINT ();
     _debug_symb_reinit();
 }
 
 void manapi::json::_set_nullptr() {
+    delete_value_static(this->type, std::exchange(this->src, nullptr));
     this->type = types::type_null;
-    this->src = nullptr;
     _debug_symb_reinit();
 }
 
 void manapi::json::_set_pair() {
+    delete_value_static(this->type, std::exchange(this->src, new PAIR ()));
     this->type = types::type_pair;
-    this->src = new PAIR();
     _debug_symb_reinit();
 }
 
@@ -581,40 +585,30 @@ const manapi::json & manapi::json::at(const int &index) const {
 }
 
 manapi::json& manapi::json::operator=(const std::string &str) {
-    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
-
     _set_string(str);
 
     return *this;
 }
 
 manapi::json &manapi::json::operator=(const bool &b) {
-    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
-
     _set_bool(b);
 
     return *this;
 }
 
 manapi::json &manapi::json::operator=(const ssize_t &num) {
-    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
-
     _set_integer(num);
 
     return *this;
 }
 
 manapi::json &manapi::json::operator=(const double &num) {
-    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
-
     _set_decimal(num);
 
     return *this;
 }
 
 manapi::json &manapi::json::operator=(const json::DECIMAL &num) {
-    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
-
     _set_decimal(num);
 
     return *this;
@@ -625,8 +619,6 @@ manapi::json &manapi::json::operator=(const long long &num) {
 }
 
 manapi::json &manapi::json::operator=(nullptr_t const &n) {
-    manapi::before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
-
     _set_nullptr();
 
     return *this;
@@ -648,8 +640,6 @@ manapi::json &manapi::json::operator=(const int &num) {
 }
 
 manapi::json &manapi::json::operator=(const manapi::bigint &num) {
-    before_delete clean ([type = this->type, src = this->src] () -> void { delete_value_static(type, src); });
-
     _set_bigint(num);
 
     return *this;
@@ -658,10 +648,6 @@ manapi::json &manapi::json::operator=(const manapi::bigint &num) {
 manapi::json &manapi::json::operator=(const manapi::json &obj) {
     if (&obj != this)
     {
-        // temp values
-        short   temp_type = this->type;
-        void    *temp_src = this->src;
-
         this->root                  = true;
 
         switch (obj.type) {
@@ -694,19 +680,20 @@ manapi::json &manapi::json::operator=(const manapi::json &obj) {
                 _set_nullptr();
                 break;
         }
-
-        delete_value_static (temp_type, temp_src);
     }
     return *this;
 }
 
 manapi::json & manapi::json::operator=(json &&obj) {
-    src = obj.src;
-    type = obj.type;
+    if (&obj != this) {
+        this->delete_value();
 
-    obj._set_nullptr();
-    obj._debug_symb_reinit();
-    _debug_symb_reinit();
+        this->src = std::exchange(obj.src, nullptr);
+        this->type = std::exchange(obj.type, types::type_null);
+
+        obj._debug_symb_reinit();
+        _debug_symb_reinit();
+    }
 
     return *this;
 }
@@ -1336,6 +1323,9 @@ manapi::json manapi::json::operator-(const BIGINT &num) {
 void manapi::json::delete_value_static(const short &type, void *src) {
     switch (type) {
         case type_null:
+            break;
+        case type_number:
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "type_number is a complex type");
             break;
         case type_array:
             delete static_cast<ARRAY  *> (src);

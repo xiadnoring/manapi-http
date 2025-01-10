@@ -342,7 +342,7 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
                 if (maxfd == -1) {
                     /* socket is unavailable */
                     if (--attempts) {
-                        async::task_run(this->site.taskpool,
+                        async::run(this->site.taskpool,
                             [this, shared_w] () mutable -> future<> {
                             auto id = co_await this->site.timerpool->async_append_timer_sync(this->attempt_delay,
                             [shared_w = std::move(shared_w)] () mutable -> void {

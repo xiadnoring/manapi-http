@@ -25,8 +25,8 @@ namespace manapi::net::worker {
         std::atomic<bool> disabled = false;
         std::function<future<ssize_t> (void *, ssize_t size, bool flag)> callback;
         future<ssize_t> _work (bool flag);
-        async_mutex gmx;
-        async_condition_variable cv;
+        async::mutex gmx;
+        async::condition_variable cv;
         std::string buffer{};
         size_t buffer_cursor = 0;
         size_t buffer_pos = 0;
@@ -53,9 +53,9 @@ namespace manapi::net::worker {
         size_t buffer_pos = 0;
         std::atomic<bool> disabled = false;
         std::function<future<void>(int)> callback;
-        async_condition_variable cv;
+        async::condition_variable cv;
         std::shared_ptr<threadpool<task>> taskpool;
-        async_mutex gmx;
+        async::mutex gmx;
     };
 }
 

@@ -7,8 +7,8 @@
 #include "../ManapiAsync.hpp"
 #include "../ManapiBeforeDelete.hpp"
 
-namespace manapi {
-    class async_mutex {
+namespace manapi::async {
+    class mutex {
     public:
         struct promise {
             std::mutex &mx;
@@ -31,10 +31,10 @@ namespace manapi {
             }
         };
 
-        async_mutex (std::shared_ptr<threadpool<task>> taskpool) : taskpool(std::move(taskpool)) {}
+        mutex (std::shared_ptr<threadpool<task>> taskpool) : taskpool(std::move(taskpool)) {}
 
         manapi::future<void> lock () {
-            co_await async_mutex::promise {this->mx, this->stack, this->own};
+            co_await async::mutex::promise {this->mx, this->stack, this->own};
             co_return;
         }
 
@@ -71,15 +71,15 @@ namespace manapi {
 
         future<before_delete> lock_guard () {
             co_await this->lock();
-            co_return std::move(before_delete([this] () -> void {
+            co_return before_delete([this] () -> void {
                 this->unlock();
-            }));
+            });
         }
 
-        ~async_mutex () {
+        ~mutex () {
             std::lock_guard<std::mutex> lk (this->mx);
             if (!stack.empty()) {
-                std::cerr << "~async_mutex(): i can't work anymore, i'm sorrryyy :(. stack.empty() != true\n";
+                std::cerr << "~async::mutex(): i can't work anymore, i'm sorrryyy :(. stack.empty() != true\n";
             }
         }
     private:

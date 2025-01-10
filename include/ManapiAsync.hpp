@@ -16,12 +16,13 @@
 #include "services/ManapiTask.hpp"
 
 namespace manapi {
-    constexpr int max_stack_depth = 500;
-
+    namespace async {
+        extern size_t max_stack_depth;
+    }
     struct promise_stack_data {
         std::function<void()> cb;
-        std::atomic<bool> finished;
-        std::atomic<bool> already;
+        bool finished;
+        bool already;
         void *owner;
         std::shared_ptr<threadpool<task>> taskpool;
     };
@@ -38,13 +39,11 @@ namespace manapi {
         }
 
         promise_base &operator= (promise_base &&n) noexcept {
-            this->connection_finish_data = std::move(n.connection_finish_data);
+            this->finish_data = std::move(n.finish_data);
             this->exception = std::move(n.exception);
-            this->finished = n.finished;
-            this->waiting = n.waiting;
+            this->finished = std::exchange(n.finished, false);
+            this->waiting = std::exchange(n.waiting, {});
 
-            n.waiting = {};
-            n.finished = false;
             return *this;
         }
 
@@ -53,8 +52,8 @@ namespace manapi {
         }
 
         void _check_it_owner () {
-            if (connection_finish_data != nullptr && connection_finish_data->owner == this) {
-                this->connection_finish_data->finished.store(true);
+            if (finish_data != nullptr && finish_data->owner == this) {
+                this->finish_data->finished = true;
             }
         }
 
@@ -62,7 +61,8 @@ namespace manapi {
         int stack_deepth = 0;
         std::coroutine_handle<> waiting;
         std::exception_ptr exception;
-        std::shared_ptr<promise_stack_data> connection_finish_data;
+        std::shared_ptr<promise_stack_data> finish_data{nullptr};
+        std::vector<std::shared_ptr<std::function<void()>>> resume_data{};
     };
 
     template <typename T = void>
@@ -73,20 +73,21 @@ namespace manapi {
         struct final_awaiter {
             bool await_ready () noexcept { return false; }
             auto await_suspend (std::coroutine_handle<P> handle) noexcept {
-                std::shared_ptr<promise_stack_data> &data = handle.promise().connection_finish_data;
-                auto waiting = handle.promise().waiting;
+                std::shared_ptr<promise_stack_data> &data = handle.promise().finish_data;
+                auto waiting = std::exchange(handle.promise().waiting, nullptr);
                 if (data && (&handle.promise()) == data->owner && data->finished && !data->already) {
                     if (waiting != nullptr) {
                         printf("no\n");
                     }
                     else {
                         auto tmp = data;
-                        tmp->already.store(true);
+                        tmp->already = true;
                         tmp->cb();
                     }
                 }
-                return  waiting ? waiting : std::noop_coroutine();
+                return waiting ? waiting : std::noop_coroutine();
             }
+
             void await_resume () noexcept {}
         };
 
@@ -105,11 +106,11 @@ namespace manapi {
             std::suspend_always initial_suspend() { return {}; }
 
             void return_value (T &&t) {
-                value = std::move(t);
+                this->value = std::move(t);
             }
 
             void return_value (const T &t) {
-                value = t;
+                this->value = t;
             }
 
             future get_return_object()
@@ -118,10 +119,10 @@ namespace manapi {
             }
 
             T get_value() {
-                if (!value.has_value()) {
+                if (!this->value.has_value()) {
                     throw std::runtime_error("Pointer is null");
                 }
-                return std::move(value.value());
+                return std::move(this->value.value());
             }
 
             final_awaiter<promise> final_suspend() noexcept {
@@ -171,7 +172,7 @@ namespace manapi {
                 bool stop = false;
                 {
                     mx->lock();
-                    this->_on_connection_finish([&stop, &mx] () -> void {
+                    this->on_finish([&stop, &mx] () -> void {
                         stop = true;
                         mx->unlock();
                     }, std::move(taskpool));
@@ -189,7 +190,7 @@ namespace manapi {
                 bool stop = false;
                 {
                     mx->lock();
-                    this->_on_connection_finish([&stop, &mx] () -> void {
+                    this->on_finish([&stop, &mx] () -> void {
                         stop = true;
                         mx->unlock();
                     }, std::move(taskpool));
@@ -214,12 +215,14 @@ namespace manapi {
             template <typename T1>
             void await_suspend (std::coroutine_handle<T1> handle) {
                 auto &promise = this->handle.promise();
-                promise.stack_deepth = ++handle.promise().stack_deepth;
-                promise.connection_finish_data = handle.promise().connection_finish_data;
+                auto &npromise = handle.promise();
+                promise.stack_deepth = npromise.stack_deepth + 1;
+                promise.finish_data = npromise.finish_data;
                 promise.waiting = handle;
-                if (promise.connection_finish_data != nullptr && promise.stack_deepth > max_stack_depth) {
+                promise.resume_data.insert(promise.resume_data.end(), npromise.resume_data.begin(), npromise.resume_data.end());
+                if (promise.finish_data != nullptr && promise.stack_deepth >= async::max_stack_depth) {
                     promise.stack_deepth = 0;
-                    promise.connection_finish_data->taskpool->append_task([handle = this->handle] () -> void {
+                    promise.finish_data->taskpool->append_task([handle = this->handle] () -> void {
                          handle.resume();
                     });
                     return;
@@ -229,7 +232,7 @@ namespace manapi {
             }
 
             bool await_ready () {
-                return !handle || handle.done();
+                return !this->handle || this->handle.done();
             }
             template <typename T1 = T>
             requires(std::is_same_v<T1, void>)
@@ -256,16 +259,20 @@ namespace manapi {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void resume_promise (const std::coroutine_handle<T1> &handle) {
-            assert((handle.address() != nullptr));
-            auto cnd = handle.promise().connection_finish_data;
-            handle.resume();
-            if (cnd != nullptr && cnd->finished.load()) {
-                if (!cnd->already) {
-                    cnd->already.store(true);
-                    cnd->cb();
-                }
+            auto &_promise = handle.promise();
+            auto cnd = _promise.finish_data;
+            auto &rsm = _promise.resume_data;
+
+            for (const auto &cb: rsm) {
+                cb->operator()();
             }
-            cnd.reset();
+
+            handle.resume();
+
+            if (cnd && cnd->finished && !cnd->already) {
+                cnd->already = true;
+                cnd->cb();
+            }
         }
 
         // auto await_suspend (std::coroutine_handle<> handle) {
@@ -273,16 +280,26 @@ namespace manapi {
         //     promise.waiting = handle;
         //     return this->handle;
         // }
-        void _on_connection_finish (const std::function<void()> &cb, std::shared_ptr<threadpool<task>> taskpool) {
+        void on_finish (const std::function<void()> &cb, std::shared_ptr<threadpool<task>> taskpool) {
             if (this->handle) {
                 auto &promise = this->handle.promise();
-                promise.connection_finish_data = std::make_shared<promise_stack_data>(
+                promise.finish_data = std::shared_ptr<promise_stack_data> (new promise_stack_data {
                     cb,
                     false,
                     false,
                     &this->handle.promise(),
                     taskpool
-                );
+                }, [] (promise_stack_data *ptr) -> void {
+                    delete ptr;
+                });
+            }
+        }
+
+        void on_resume (const std::function<void()> &cb) {
+            if (this->handle) {
+                promise &_promise = this->handle.promise();
+                _promise.resume_data.push_back(
+                    std::make_shared<std::function<void()>>(cb));
             }
         }
 
@@ -291,10 +308,10 @@ namespace manapi {
         }
 
         [[nodiscard]] const std::coroutine_handle<promise> &get_handle () {
-            return handle;
+            return this->handle;
         }
 
-        auto operator co_await () noexcept { return Awaiter{handle}; }
+        auto operator co_await () noexcept { return Awaiter{this->handle}; }
     private:
         std::coroutine_handle<promise> handle;
     };
@@ -327,24 +344,26 @@ namespace manapi {
         inline std::mutex async_tasks_mx;
 
         struct async_task_t {
-            std::unique_ptr<std::function <manapi::future<>()>> cb;
+            std::function <manapi::future<>()> cb;
             manapi::future<void> task;
         };
 
-        inline std::unordered_map <size_t, async_task_t> async_tasks;
+        inline std::unordered_map <size_t, std::shared_ptr<async_task_t>> async_tasks;
 
-        inline size_t _task_run_prepare (std::shared_ptr<threadpool<task>> taskpool, manapi::future<> &task, std::function<void()> onfinish) {
+        inline size_t _run_prepare (std::shared_ptr<threadpool<task>> taskpool, manapi::future<> &task, std::function<void()> onfinish) {
             if (task.get_handle() == nullptr) {
                 std::cerr << "Null pointer in the net::future<> task\n";
             }
 
             auto index = reinterpret_cast <size_t> (task.get_handle().address());
 
-            task._on_connection_finish([index, taskpool, onfinish = std::move(onfinish)] () -> void {
-                if (onfinish) taskpool->append_task(onfinish);
+            task.on_finish([index, taskpool, onfinish = std::move(onfinish)] () -> void {
+                if (onfinish) {
+                    taskpool->append_task(onfinish);
+                }
+
                 decltype(async_tasks)::node_type data;
                 {
-                    // can be self-locked
                     std::lock_guard<std::mutex> lk (async_tasks_mx);
                     auto it = async_tasks.find(index);
                     if (it != async_tasks.end()) {
@@ -362,29 +381,25 @@ namespace manapi {
             return index;
         }
 
-        inline void task_run(std::shared_ptr<threadpool<task>> taskpool, manapi::future<> task, const std::function<void()> &onfinish = nullptr) {
-            const size_t index = _task_run_prepare(std::move(taskpool), task, onfinish);
+        inline manapi::future<> invoke (auto && executer) {
+            std::function<manapi::future<void>()> cb (std::forward<decltype(executer)>(executer));
+            co_await cb();
+        };
+
+        inline void run(std::shared_ptr<threadpool<task>> taskpool, manapi::future<> task, const std::function<void()> &onfinish = nullptr) {
+            const size_t index = _run_prepare(std::move(taskpool), task, onfinish);
 
             if (!task.finished()) {
                 std::lock_guard<std::mutex> lk (async_tasks_mx);
                 if (async_tasks.contains(index)) {
                     printf("bug\n");
                 }
-                async_tasks.insert({index, {nullptr, std::move(task)}});
+                async_tasks.insert({index, std::make_shared<async_task_t>(nullptr, std::move(task))});
             }
         }
 
-        inline void task_run (std::shared_ptr<threadpool<task>> taskpool, std::function<manapi::future<>()> callback,  const std::function<void()> &onfinish = nullptr) {
-            auto task = callback();
-            const size_t index = _task_run_prepare(std::move(taskpool), task, onfinish);
-
-            if (!task.finished()) {
-                std::lock_guard<std::mutex> lk (async_tasks_mx);
-                if (async_tasks.contains(index)) {
-                    printf("bug\n");
-                }
-                async_tasks.insert({index, async_task_t{std::make_unique<std::function<manapi::future<>()>>(std::move(callback)), std::move(task)}});
-            }
+        inline void run (std::shared_ptr<threadpool<task>> taskpool, auto && executor,  const std::function<void()> &onfinish = nullptr) {
+            async::run (std::move(taskpool), invoke(std::forward<decltype(executor)>(executor)), onfinish);
         }
     }
 }

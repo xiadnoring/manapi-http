@@ -24,7 +24,7 @@ namespace manapi::net::worker {
 
     private:
         static std::mutex ctx_init_mx;
-        static std::unique_ptr <async_mutex> ctx_mx;
+        static std::unique_ptr <async::mutex> ctx_mx;
         static SSL_CTX *ctx;
 
         void quic_write_data (std::string_view data);
