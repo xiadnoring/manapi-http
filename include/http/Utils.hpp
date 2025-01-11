@@ -67,6 +67,7 @@ namespace manapi::net::http {
 
     typedef std::map <std::string, std::vector <header_value_t> > headsers_t;
 
+    void request_data_clear (request_data_t &data);
     std::vector <header_value_t> parse_header_value (const std::string &header_value);
     std::pair<std::string, std::string> parse_header (const std::string &header);
     std::string stringify_header (const std::pair<std::string, std::string> &header);

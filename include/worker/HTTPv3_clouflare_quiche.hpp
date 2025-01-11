@@ -21,7 +21,7 @@ namespace manapi::net::worker {
             int rbuff_caret;
             int wbuff_caret;
 
-            std::shared_ptr<http::http_v2> client;
+            std::weak_ptr<http::http_v2> client;
             bool finished;
             quiche_h3_header *headers;
             size_t headers_size;
@@ -92,6 +92,7 @@ namespace manapi::net::worker {
         static void _quiche_set_header (quiche_h3_header &header, std::string_view key, std::string_view value);
         static void _write_watcher_cb (EV_P_ ev_async *w, int revents);
         static void _flush_connection_closed (connection_t &conn_data);
+        static void _clean_connection (connection_t *conn_data);
         void _stream_close (connection_stream_t &stream);
         void _reset_all_streams (connection_t &conn_data);
         static void _connection_timer_check (EV_P_ ev_timer *w, int revents);

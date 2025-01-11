@@ -1,6 +1,7 @@
 from conan import ConanFile
 from conan.tools.cmake import CMake, CMakeDeps, cmake_layout, CMakeToolchain
 from conan.tools.apple import fix_apple_shared_install_name
+from conan.errors import ConanInvalidConfiguration
 
 class ManapiHttpConan(ConanFile):
     name = "manapihttp"
@@ -12,15 +13,15 @@ class ManapiHttpConan(ConanFile):
     options = {
         "shared": [True, False],
         "fPIC": [True, False],
-        "json-debug": [True, False],
-        "openssl-dependency": [True, False],
-        "wolfssl-dependency": [True, False],
-        "quiche-dependency": [True, False],
-        "tquic-dependency": [True, False]
+        "json_debug": [True, False],
+        "openssl_dependency": [True, False],
+        "wolfssl_dependency": [True, False],
+        "quiche_dependency": [True, False],
+        "tquic_dependency": [True, False]
     }
 
-    default_options = {"shared": False, "fPIC": True, "json-debug": True, "wolfssl-dependency": True, "openssl-dependency": True, "quiche-dependency": True,
-                       "tquic-dependency": True}
+    default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": False, "openssl_dependency": True, "quiche_dependency": True,
+                       "tquic_dependency": True}
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
 
@@ -32,11 +33,19 @@ class ManapiHttpConan(ConanFile):
         if self.options.shared:
             self.options.rm_safe("fPIC")
 
+        if self.options.get_safe('wolfssl_dependency', False):
+            self.options["wolfssl/*"].alpn = True
+            self.options["wolfssl/*"].sslv3 = True
+            self.options["wolfssl/*"].tls13 = True
+
+            if self.options.get_safe("openssl_dependency", False):
+                raise ConanInvalidConfiguration("OpenSSL has conflicts with WolfSSL")
+
         if self.options.shared:
-            if self.options.get_safe('openssl-dependency', False):
+            if self.options.get_safe('openssl_dependency', False):
                 self.options["openssl/*"].shared = True
 
-            if self.options.get_safe('wolfssl-dependency', False):
+            if self.options.get_safe('wolfssl_dependency', False):
                 self.options["wolfssl/*"].shared = True
 
     def layout(self):
@@ -48,11 +57,11 @@ class ManapiHttpConan(ConanFile):
 
         tc = CMakeToolchain(self)
 
-        tc.variables['MANAPIHTTP_JSON_DEBUG'] = self.options.get_safe('json-debug', False)
-        tc.variables['MANAPIHTTP_WOLFSSL_DEPENDENCY'] = self.options.get_safe('wolfssl-dependency', False)
-        tc.variables['MANAPIHTTP_OPENSSL_DEPENDENCY'] = self.options.get_safe('openssl-dependency', False)
-        tc.variables['MANAPIHTTP_QUICHE_DEPENDENCY'] = self.options.get_safe('quiche-dependency', False)
-        tc.variables['MANAPIHTTP_TQUIC_DEPENDENCY'] = self.options.get_safe('tquic-dependency', False)
+        tc.variables['MANAPIHTTP_JSON_DEBUG'] = self.options.get_safe('json_debug', False)
+        tc.variables['MANAPIHTTP_WOLFSSL_DEPENDENCY'] = self.options.get_safe('wolfssl_dependency', False)
+        tc.variables['MANAPIHTTP_OPENSSL_DEPENDENCY'] = self.options.get_safe('openssl_dependency', False)
+        tc.variables['MANAPIHTTP_QUICHE_DEPENDENCY'] = self.options.get_safe('quiche_dependency', False)
+        tc.variables['MANAPIHTTP_TQUIC_DEPENDENCY'] = self.options.get_safe('tquic_dependency', False)
 
         tc.generate()
 
@@ -73,16 +82,16 @@ class ManapiHttpConan(ConanFile):
         self.requires("gmp/6.3.0")
         self.requires("libcurl/8.6.0")
 
-        if self.options.get_safe('openssl-dependency', False):
+        if self.options.get_safe('openssl_dependency', False):
             self.requires("openssl/3.3.2")
 
-        if self.options.get_safe('wolfssl-dependency', False):
+        if self.options.get_safe('wolfssl_dependency', False):
             self.requires("wolfssl/5.7.2")
 
-        if self.options.get_safe('quiche-dependency', False):
+        if self.options.get_safe('quiche_dependency', False):
             self.requires("quiche/0.22.0")
 
-        if self.options.get_safe('tquic-dependency', False):
+        if self.options.get_safe('tquic_dependency', False):
             self.requires("tquic/1.5.0")
 
     def package_info(self):

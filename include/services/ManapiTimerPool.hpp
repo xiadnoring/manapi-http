@@ -46,6 +46,7 @@ namespace manapi {
         future<> async_stop ();
         void stop ();
         void doit ();
+        void clear();
         std::shared_ptr<threadpool<task>> get_threadpool ();
     protected:
         void _erase_task (const size_t &id);

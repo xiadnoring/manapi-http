@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <utility>
 
 namespace manapi {
     template<typename value_type>
@@ -164,12 +165,14 @@ namespace manapi {
         }
 
         void clear () {
-            _chain_item _c = this->_src;
+            _chain_item &_c = this->_src;
             while (_c != nullptr) {
-                _chain_item next = _c->next;
-                _c = next;
+                _chain_item next = std::move(_c->next);
+                _c->prev = nullptr;
+                _c = std::move(next);
             }
             this->_src = nullptr;
+            this->_last = nullptr;
             this->_s = 0;
         }
 

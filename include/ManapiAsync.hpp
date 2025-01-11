@@ -19,14 +19,6 @@ namespace manapi {
     namespace async {
         extern size_t max_stack_depth;
     }
-    struct promise_stack_data {
-        std::function<void()> cb;
-        bool finished;
-        bool already;
-        void *owner;
-        std::shared_ptr<threadpool<task>> taskpool;
-    };
-
 
     class promise_base {
     public:
@@ -39,9 +31,8 @@ namespace manapi {
         }
 
         promise_base &operator= (promise_base &&n) noexcept {
-            this->finish_data = std::move(n.finish_data);
+            this->finish_cb = std::move(n.finish_cb);
             this->exception = std::move(n.exception);
-            this->finished = std::exchange(n.finished, false);
             this->waiting = std::exchange(n.waiting, {});
 
             return *this;
@@ -51,18 +42,11 @@ namespace manapi {
             exception = std::current_exception();
         }
 
-        void _check_it_owner () {
-            if (finish_data != nullptr && finish_data->owner == this) {
-                this->finish_data->finished = true;
-            }
-        }
-
-        bool finished = false;
         int stack_deepth = 0;
         std::coroutine_handle<> waiting;
         std::exception_ptr exception;
-        std::shared_ptr<promise_stack_data> finish_data{nullptr};
-        std::vector<std::shared_ptr<std::function<void()>>> resume_data{};
+        std::function<void()> finish_cb{nullptr};
+        std::shared_ptr<threadpool<task>> taskpool{nullptr};
     };
 
     template <typename T = void>
@@ -73,18 +57,13 @@ namespace manapi {
         struct final_awaiter {
             bool await_ready () noexcept { return false; }
             auto await_suspend (std::coroutine_handle<P> handle) noexcept {
-                std::shared_ptr<promise_stack_data> &data = handle.promise().finish_data;
-                auto waiting = std::exchange(handle.promise().waiting, nullptr);
-                if (data && (&handle.promise()) == data->owner && data->finished && !data->already) {
-                    if (waiting != nullptr) {
-                        printf("no\n");
-                    }
-                    else {
-                        auto tmp = data;
-                        tmp->already = true;
-                        tmp->cb();
-                    }
+                auto &_promise = handle.promise();
+                auto waiting = std::exchange(_promise.waiting, nullptr);
+
+                if (_promise.finish_cb) {
+                    _promise.finish_cb();
                 }
+
                 return waiting ? waiting : std::noop_coroutine();
             }
 
@@ -126,8 +105,6 @@ namespace manapi {
             }
 
             final_awaiter<promise> final_suspend() noexcept {
-                this->finished = true;
-                this->_check_it_owner();
                 return {};
             }
         private:
@@ -216,15 +193,18 @@ namespace manapi {
             void await_suspend (std::coroutine_handle<T1> handle) {
                 auto &promise = this->handle.promise();
                 auto &npromise = handle.promise();
-                promise.stack_deepth = npromise.stack_deepth + 1;
-                promise.finish_data = npromise.finish_data;
+
+                promise.stack_deepth = ++npromise.stack_deepth;
+                promise.taskpool = npromise.taskpool;
                 promise.waiting = handle;
-                promise.resume_data.insert(promise.resume_data.end(), npromise.resume_data.begin(), npromise.resume_data.end());
-                if (promise.finish_data != nullptr && promise.stack_deepth >= async::max_stack_depth) {
+                
+                if (promise.taskpool && promise.stack_deepth >= async::max_stack_depth) {
+
                     promise.stack_deepth = 0;
-                    promise.finish_data->taskpool->append_task([handle = this->handle] () -> void {
+                    promise.taskpool->append_task([handle = this->handle] () -> void {
                          handle.resume();
                     });
+
                     return;
                 }
 
@@ -259,52 +239,19 @@ namespace manapi {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void resume_promise (const std::coroutine_handle<T1> &handle) {
-            auto &_promise = handle.promise();
-            auto cnd = _promise.finish_data;
-            auto &rsm = _promise.resume_data;
-
-            for (const auto &cb: rsm) {
-                cb->operator()();
-            }
-
             handle.resume();
-
-            if (cnd && cnd->finished && !cnd->already) {
-                cnd->already = true;
-                cnd->cb();
-            }
         }
 
-        // auto await_suspend (std::coroutine_handle<> handle) {
-        //     auto &promise = this->handle.promise();
-        //     promise.waiting = handle;
-        //     return this->handle;
-        // }
         void on_finish (const std::function<void()> &cb, std::shared_ptr<threadpool<task>> taskpool) {
             if (this->handle) {
                 auto &promise = this->handle.promise();
-                promise.finish_data = std::shared_ptr<promise_stack_data> (new promise_stack_data {
-                    cb,
-                    false,
-                    false,
-                    &this->handle.promise(),
-                    taskpool
-                }, [] (promise_stack_data *ptr) -> void {
-                    delete ptr;
-                });
-            }
-        }
-
-        void on_resume (const std::function<void()> &cb) {
-            if (this->handle) {
-                promise &_promise = this->handle.promise();
-                _promise.resume_data.push_back(
-                    std::make_shared<std::function<void()>>(cb));
+                promise.finish_cb = cb;
+                promise.taskpool = taskpool;
             }
         }
 
         [[nodiscard]] bool finished () const {
-            return !this->handle || this->handle.promise().finished;
+            return !this->handle || this->handle.done();
         }
 
         [[nodiscard]] const std::coroutine_handle<promise> &get_handle () {
@@ -325,8 +272,6 @@ namespace manapi {
         void return_void () const {}
 
         final_awaiter<promise> final_suspend() noexcept {
-            this->finished = true;
-            this->_check_it_owner();
             return {};
         }
 

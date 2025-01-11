@@ -89,7 +89,7 @@ void manapi::net::worker::TCP::init() {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);
     }
 
-    if (listen(fd, 10) < 0) {
+    if (listen(fd, 2000) < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "LISTEN ERROR. sock_fd: {}", fd.load());
     }
 
@@ -176,7 +176,7 @@ void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
 
         stack->on_finish([this, connection, fd, row] () mutable -> void {
             async::run(this->site.taskpool, [this, fd, connection] () mutable  -> future<void> {
-                co_await this->connection_close(connection);
+                co_await this->connection_close(connection, true);
             });
             row->stack.reset();
         }, this->site.taskpool);
@@ -248,7 +248,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     }));
 }
 
-manapi::future<void> manapi::net::worker::TCP::connection_close(std::shared_ptr<connection> conn) {
+manapi::future<void> manapi::net::worker::TCP::connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) {
     auto &connection = conn->as<connection_interface>();
     auto lk = co_await connection.iomutex.lock_guard();
     this->_connection_close(conn, connection);
@@ -287,7 +287,7 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage, con
 
     if (flag) {
         this->_ev_watcher_stop(conn);
-        async::run(this->site.taskpool, this->connection_close(storage));
+        async::run(this->site.taskpool, this->connection_close(storage, false));
         return;
     }
 

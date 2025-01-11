@@ -65,8 +65,7 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
         conn.mustly.fetch_xor(CONN_READ | CONN_WRITE);
         conn.timer_accept.store(co_await this->site.timerpool->async_append_timer_async(std::chrono::milliseconds(2000), [this, conn = &conn, connection] () -> future<void> {
             conn->timer_accept.store(0);
-            MANAPIHTTP_LOG("TIMEOUT SSL_ACCEPT: {}", conn->id);
-            co_await this->connection_close(connection);
+            co_await this->connection_close(connection, false);
         }));
 
         while (true) {
@@ -75,8 +74,6 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
                 conn.timer_accept.store(0);
                 co_return false;
             }
-
-            MANAPIHTTP_LOG("SSL ACCEPT: {}", conn.id);
 
             int rhs = SSL_accept(conn.ssl);
             rhs = SSL_get_error(conn.ssl, rhs);
@@ -91,19 +88,16 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
                         co_await manapi::net::worker::OpenSSL_TLS::io_wait(conn, CONN_WRITE);
                         continue;
                     }
-                    case SSL_ERROR_WANT_ASYNC:
-                        MANAPIHTTP_LOG2("WANT ASYNC");
-                    continue;
+                    case SSL_ERROR_ZERO_RETURN:
+                        co_await this->connection_close(connection, true);
+                    break;
                     case SSL_ERROR_SSL:
-                        MANAPIHTTP_LOG("SSL_ERROR_SSL: fd: {}", conn.id);
-                    goto error;
+                        goto error;
                     case SSL_ERROR_SYSCALL:
-                        MANAPIHTTP_LOG("SSL_ERROR_SYSCALL: {}, fd: {}", errno, conn.id);
-                    goto error;
+                        goto error;
                     default:
-                        MANAPIHTTP_LOG("SSL_accept(...), rhs = {}", rhs);
                     error:
-                        co_await this->connection_close(connection);
+                        co_await this->connection_close(connection, false);
                     co_return false;
 
                 }
@@ -156,7 +150,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     return std::move(connection);
 }
 
-manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::shared_ptr<connection> conn) {
+manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) {
     if (!conn) {
         co_return;
     }
@@ -165,31 +159,36 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
     auto lk = co_await connection.iomutex.lock_guard();
 
     if ((false == connection.status & CONN_CLOSED)) {
-        bool flag = true;
-        do {
-            auto rhs = SSL_shutdown(connection.ssl);
-            int ssl_errno = SSL_get_error(connection.ssl, rhs);
-            if (ssl_errno == SSL_ERROR_NONE) {
-                break;
-            }
-            switch (ssl_errno) {
-                case SSL_ERROR_WANT_READ:
-                    co_await io_wait(connection, CONN_READ);
-                break;
-                case SSL_ERROR_WANT_WRITE:
-                    co_await io_wait(connection, CONN_WRITE);
-                break;
-                case SSL_ERROR_SYSCALL: {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        co_await io_wait(connection, CONN_READ);
-                        break;
-                    }
-                }
-                default:
-                    flag = false;
+        if (clean_disconnect) {
+            bool flag = true;
+            do {
+                auto rhs = SSL_shutdown(connection.ssl);
+                int ssl_errno = SSL_get_error(connection.ssl, rhs);
+                if (ssl_errno == SSL_ERROR_NONE) {
                     break;
-            }
-        } while (flag);
+                }
+                switch (ssl_errno) {
+                    case SSL_ERROR_WANT_READ:
+                        co_await io_wait(connection, CONN_READ);
+                    break;
+                    case SSL_ERROR_WANT_WRITE:
+                        co_await io_wait(connection, CONN_WRITE);
+                    break;
+                    case SSL_ERROR_SYSCALL: {
+                        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                            co_await io_wait(connection, CONN_READ);
+                            break;
+                        }
+                    }
+                    default:
+                        flag = false;
+                    break;
+                }
+            } while (flag);
+        }
+        else {
+            SSL_set_shutdown(connection.ssl, SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN);
+        }
     }
 
     this->_connection_close(conn, connection);
@@ -218,14 +217,11 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
     auto connection = static_cast<connection_interface *> (ptr);
     async::run(connection->worker->site.taskpool, [connection] () mutable -> future<void> {
         TCP::_connection_interface_eraser (connection);
-
-            auto prev = connection;
+        auto prev = connection;
         if (connection->ssl) {
             auto lkr = co_await connection->mx->lock_guard();
             auto ssl = std::exchange(connection->ssl, nullptr);
             //MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
-
-            SSL_clear(ssl);
             SSL_free(ssl);
             MANAPIHTTP_LOG("SSL CLOSED: {} ssl={:}", connection->id, static_cast<void*>(ssl));
         }
@@ -276,6 +272,9 @@ SSL_CTX * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &ver
     }
 
     //SSL_CTX_set_mode(ctx, SSL_MODE_ASYNC);
+
+    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
+    SSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
 
     SSL_CTX_set_cipher_list(ctx,"TLS_AES_256_GCM_SHA384");
     SSL_CTX_set_alpn_select_cb(ctx, [] (SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,

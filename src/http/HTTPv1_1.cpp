@@ -82,13 +82,21 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
 }
 
 manapi::future<void> manapi::net::http::http_v1_1::execute_handler() {
-    if (co_await upgrade_connection()) { this->upgraded = true; co_return; }
+    this->upgraded = co_await upgrade_connection();
+    if (this->connection_was_upgraded()) {
+        co_return;
+    }
+
     const auto handler = site.get_handler(request_data);
     co_await handle_request(&handler, request_data);
     co_return;
 }
 
 bool manapi::net::http::http_v1_1::connection_was_upgraded() const {
+    return this->upgraded != versions::HTTP_v1_1;
+}
+
+manapi::net::http::versions::http manapi::net::http::http_v1_1::get_upgraded_version() const {
     return this->upgraded;
 }
 
@@ -161,15 +169,15 @@ void manapi::net::http::http_v1_1::_parse_headers(char &c) {
     }
 }
 
-manapi::future<bool> manapi::net::http::http_v1_1::upgrade_connection() {
-    bool toupgrade = false;
+manapi::future<manapi::net::http::versions::http> manapi::net::http::http_v1_1::upgrade_connection() {
+    http::versions::http toupgrade = versions::HTTP_v1_1;
 
     if (request_data.headers.contains(HTTP_HEADER.CONNECTION)) {
         const auto connection_header = http::parse_header_value(request_data.headers[HTTP_HEADER.CONNECTION]);
         for (const auto &param: connection_header) {
             if (param.value == "Upgrade") {
                 if (request_data.headers[HTTP_HEADER.UPGRADE] == "h2c") {
-                    toupgrade = true;
+                    toupgrade = versions::HTTP_v2;
                 }
                 continue;
             }
@@ -180,14 +188,18 @@ manapi::future<bool> manapi::net::http::http_v1_1::upgrade_connection() {
         }
     }
 
-    if (toupgrade) {
+    if (toupgrade != versions::HTTP_v1_1) {
         http_response resp (request_data, 101, HTTP_STATUS.SWITCHING_PROTOCOLS_101, *config);
         resp.set_header(HTTP_HEADER.CONNECTION, "upgrade");
-        resp.set_header(HTTP_HEADER.UPGRADE, "h2c");
-        co_await send_response(resp);
+        switch (toupgrade) {
+            case versions::HTTP_v2:
+                resp.set_header(HTTP_HEADER.UPGRADE, "h2c");
+            break;
+            default:
+                break;
+        }
 
-        //std::unique_ptr<HeaderView> hw = std::make_unique<HeaderView>(connection, worker, config, site);
-        // TODO: thereis nothing we can do
+        co_await send_response(resp);
     }
 
     co_return toupgrade;

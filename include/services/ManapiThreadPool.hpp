@@ -26,6 +26,7 @@ namespace manapi {
         void append_task (const std::function<void()> &cb);
         void start();
         void stop();
+        void clear();
         void wait_stop();
     private:
         // this vector contains all threads for this thread pool
@@ -36,11 +37,13 @@ namespace manapi {
         std::mutex queue_mutex;
         // the function that the thread runs. Execute run() function
         static void *worker(void *arg);
+
         void run();
         // execute the task
         void task_doit (std::unique_ptr<T> task);
         std::unique_ptr<T> get_task();
         std::atomic<bool> is_stop;
+        size_t threadnum;
 
         sigset_t blockedSignal{};
         std::mutex m;

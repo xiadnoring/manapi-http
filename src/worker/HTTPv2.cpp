@@ -912,7 +912,7 @@ manapi::future<void> manapi::net::worker::http_v2::send_ping_frame(std::string d
                 // timeout
                 lk.call();
                 MANAPIHTTP_LOG2("PING IGNORE -> close connection");
-                co_await this->worker->connection_close(this->connection);
+                co_await this->worker->connection_close(this->connection, false);
                 co_return;
             }
 
@@ -937,7 +937,7 @@ manapi::future<void> manapi::net::worker::http_v2::close_connection(int errnum, 
     std::string data;
     data += stringify_number<int> (last_stream_id) + stringify_number<int>(errnum) + additional_data;
     co_await this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, data);
-    co_await this->worker->connection_close(this->connection);
+    co_await this->worker->connection_close(this->connection, true);
 }
 
 manapi::future<void> manapi::net::worker::http_v2::send_settings(const std::vector<std::pair<short, int>> &options) {

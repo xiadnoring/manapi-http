@@ -157,6 +157,14 @@ void manapi::timerpool::flush_stack_free() {
     }
 }
 
+void manapi::timerpool::clear() {
+    if (this->_stop && this->deps == 0) {
+        this->sorted_tasks.clear();
+        this->tasks.clear();
+        this->index = 1;
+    }
+}
+
 manapi::future<void> manapi::timerpool::_update_interval_state(const size_t &id) {
     auto lk = co_await this->mx.lock_guard();
     

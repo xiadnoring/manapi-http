@@ -71,7 +71,7 @@ namespace manapi::net::worker {
         static std::shared_ptr<worker::TCP> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
-        future<void> connection_close(std::shared_ptr<connection> conn) override;
+        future<void> connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
     protected:
         virtual void _recv_setup_connection (manapi::net::worker::connection &storage);
         static future<void> io_wait (connection_interface &conn, const int &status);

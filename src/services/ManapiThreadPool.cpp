@@ -16,10 +16,7 @@ namespace manapi {
         pthread_sigmask(SIG_BLOCK, &this->blockedSignal, nullptr);
 
         this->task_queues.resize(queues_count);
-
-        for (size_t i = this->threads.size(); i < thread_num; ++i) {
-            this->threads.emplace_back(worker, this);
-        }
+        this->threadnum = thread_num;
     }
 
     template<class T>
@@ -31,10 +28,12 @@ namespace manapi {
     template<class T>
     void threadpool<T>::resize(size_t thread_num) {
         if (this->is_stop) {
-            for (size_t i = this->threads.size(); i < thread_num; ++i) {
-                this->threads.emplace_back(worker, this);
-            }
-            this->threads.resize(thread_num);
+            this->threadnum = thread_num;
+        }
+        else {
+            this->stop();
+            this->wait_stop();
+            this->start();
         }
     }
 
@@ -45,6 +44,15 @@ namespace manapi {
         }
         this->is_stop.store(true);
         this->cv.notify_all();
+    }
+
+    template<class T>
+    void threadpool<T>::clear() {
+        if (this->is_stop) {
+            for (auto &queue: this->task_queues) {
+                queue.clear();
+            }
+        }
     }
 
     template<class T>
@@ -61,7 +69,12 @@ namespace manapi {
         if (!this->is_stop) {
             return;
         }
+
         this->is_stop.store(false);
+
+        for (size_t i = 0; i < this->threadnum; ++i) {
+            this->threads.push_back(std::thread(threadpool::worker, this));
+        }
     }
 
     template<class T>

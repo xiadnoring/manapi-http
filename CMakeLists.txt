@@ -9,12 +9,14 @@ else ()
     message(STATUS "This project is a top-level one")
 endif ()
 
+OPTION(BUILD_SHARED_LIBS "Build shared libs" OFF)
 OPTION(MANAPIHTTP_JSON_DEBUG "JSON debug variables" OFF)
 OPTION(MANAPIHTTP_QUICHE_DEPENDENCY "The QUIC Implementation by Cloudflare" OFF)
 OPTION(MANAPIHTTP_TQUIC_DEPENDENCY "The QUIC Implementation by Tencent" OFF)
 OPTION(MANAPIHTTP_MSQUIC_DEPENDENCY "The QUIC Implementation by Microsoft" OFF)
 OPTION(MANAPIHTTP_OPENSSL_DEPENDENCY "TLS, QUIC and etc implementations by OpenSSL" OFF)
 OPTION(MANAPIHTTP_WOLFSSL_DEPENDENCY "TLS, QUIC and etc implementations by WolfSSL" OFF)
+OPTION(MANAPIHTTP_BUILD_METHOD "Build method" "default")
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 
@@ -219,6 +221,9 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiMath.cpp
         include/http/Utils.hpp
         src/http/Utils.cpp
+        include/async/ManapiAsyncTools.hpp
+        include/worker/WolfSSL_TLS.hpp
+        src/worker/WolfSSL_TLS.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
@@ -242,6 +247,11 @@ else ()
 endif ()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
+
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     target_link_libraries       (${PROJECT_NAME} PRIVATE ${QUIC_LIBRARIES} gmp::gmp ZLIB::ZLIB libev::libev CURL::libcurl)
@@ -290,6 +300,13 @@ else ()
         target_include_directories(${PROJECT_NAME} PRIVATE ${TQUIC_INCLUDE_DIRS})
     endif ()
 
+endif ()
+
+if(BUILD_SHARED_LIBS)
+    message(STATUS "shared build")
+else ()
+    message(STATUS "static build")
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
 endif ()
 
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14)

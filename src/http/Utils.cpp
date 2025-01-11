@@ -35,6 +35,25 @@ std::string manapi::net::http::stringify_header (const std::pair<std::string, st
     return std::move(header.first + ": " + header.second);
 }
 
+void manapi::net::http::request_data_clear(request_data_t &data) {
+    data.buffer = {};
+    data.headers = {};
+    data.http = {};
+    data.method = {};
+    data.params = {};
+    data.uri = {};
+    data.path = {};
+    data.body_ptr = nullptr;
+    data.body_index = 0;
+    data.body_left = 0;
+    data.body_part = 0;
+    data.body_size = 0;
+    data.has_body = false;
+    data.headers_part = 0;
+    data.headers_size = 0;
+    data.divided = -1;
+}
+
 std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_value (const std::string &header_value) {
     std::vector <header_value_t> data;
 

@@ -13,6 +13,7 @@
 #include "worker/HTTPv3_clouflare_quiche.hpp"
 #include "worker/HTTPv3_tquic.hpp"
 #include "worker/OpenSSL_QUIC.hpp"
+#include "worker/WolfSSL_TLS.hpp"
 
 namespace manapi::net {
     // default, +error, +layout in url
@@ -30,6 +31,7 @@ std::string manapi::net::site::default_config_name      = "config.json";
 
 void manapi::net::site::set_compressor(const std::string &name, manapi::compress::TEMPLATE_INTERFACE handler) {
     this->compressors[name] = handler;
+
 }
 
 manapi::compress::TEMPLATE_INTERFACE manapi::net::site::get_compressor(const std::string &name) {
@@ -132,13 +134,13 @@ void manapi::net::site::setup() {
     this->set_transport_protocol_worker("tcp", "default", worker::TCP::create);
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
     this->set_transport_protocol_worker("tls", "openssl", worker::OpenSSL_TLS::create);
-# if MANAPI_OPENSSL_QUIC_REALIZATION
+# ifdef MANAPI_OPENSSL_QUIC_REALIZATION
     this->set_transport_protocol_worker("quic", "openssl", worker::openssl_quic::create);
 # endif
 #endif
 
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
-
+    this->set_transport_protocol_worker("tls", "wolfssl", worker::WolfSSL_TLS::create);
 #endif
 
 #if MANAPIHTTP_QUICHE_DEPENDENCY

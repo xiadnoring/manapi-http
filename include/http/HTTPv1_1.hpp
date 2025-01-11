@@ -16,12 +16,13 @@ namespace manapi::net::http {
         manapi::future<void> execute_handler () override;
 
         [[nodiscard]] bool connection_was_upgraded () const;
+        [[nodiscard]] versions::http get_upgraded_version () const;
     protected:
         void _skip_white_space (char &c);
         void _next_line (char &c);
         void _parse_headers (char &c);
 
-        future<bool> upgrade_connection ();
+        future<versions::http> upgrade_connection ();
 
         struct parse_vars_t {
             // states
@@ -41,7 +42,7 @@ namespace manapi::net::http {
             bool finished = false;
         } parse_vars;
 
-        bool upgraded = false;
+        versions::http upgraded = versions::HTTP_v1_1;
     };
 }
 
