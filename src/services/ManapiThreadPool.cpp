@@ -22,7 +22,7 @@ namespace manapi {
     template<class T>
     threadpool<T>::~threadpool() {
         this->stop();
-        this->wait_stop();
+        this->join();
     }
 
     template<class T>
@@ -32,7 +32,7 @@ namespace manapi {
         }
         else {
             this->stop();
-            this->wait_stop();
+            this->join();
             this->start();
         }
     }
@@ -56,7 +56,7 @@ namespace manapi {
     }
 
     template<class T>
-    void threadpool<T>::wait_stop() {
+    void threadpool<T>::join() {
         for (auto &thread: this->threads) {
             thread.join();
         }

@@ -378,7 +378,7 @@ int main (int argc, char *argv[]) {
         manapi::debug::debug_print_memory("preend 3");
         _taskpool->stop();
         manapi::debug::debug_print_memory("preend 4");
-        _taskpool->wait_stop();
+        _taskpool->join();
         manapi::debug::debug_print_memory("preend 5");
 
         _timerpool->clear();

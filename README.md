@@ -143,6 +143,10 @@ int main ()
     
     f.get();
     
+    _timerpool.stop();
+    _taskpool.stop();
+    _taskpool.join();
+    
     return 0;
 }
 

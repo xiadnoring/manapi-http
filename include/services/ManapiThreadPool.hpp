@@ -27,7 +27,7 @@ namespace manapi {
         void start();
         void stop();
         void clear();
-        void wait_stop();
+        void join();
     private:
         // this vector contains all threads for this thread pool
         std::vector <std::thread> threads;
