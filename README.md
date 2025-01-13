@@ -66,7 +66,13 @@ int main ()
 {
     std::atomic<bool> flag = false;
     
-    http server;
+    auto _taskpool = std::make_shared<manapi::threadpool<manapi::task>>(std::thread::hardware_concurrency(), 1);
+    auto _timerpool = std::make_shared<manapi::timerpool>(_taskpool, 1);
+
+    _taskpool->start();
+    _timerpool->start();
+    
+    http server (_taskpool, _timerpool);
     
     server.set_config ("config.json");
     

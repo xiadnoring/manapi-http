@@ -365,17 +365,7 @@ int main (int argc, char *argv[]) {
 
             manapi::debug::debug_print_memory("pool");
 
-            manapi::async::run(_taskpool, server.pool());
-
-            manapi::async::run (_taskpool, [_timerpool] () -> manapi::future<> {
-                co_await _timerpool->async_append_timer_sync(10s, [] () -> void {
-                    printf("timer\n");
-                });
-            });
-
-            getchar();
-
-            server.stop().get(_taskpool);
+            server.pool_sync();
 
             manapi::debug::debug_print_memory("preend");
         }

@@ -224,6 +224,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/async/ManapiAsyncTools.hpp
         include/worker/WolfSSL_TLS.hpp
         src/worker/WolfSSL_TLS.cpp
+        include/components/AtomicAsync.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

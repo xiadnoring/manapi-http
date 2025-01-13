@@ -1,17 +1,16 @@
-#ifndef MANAPIHTTP_ATOMIC_HPP
-#define MANAPIHTTP_ATOMIC_HPP
+#pragma once
 
 #include <condition_variable>
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiBeforeDelete.hpp"
 
-namespace manapi::net {
+namespace manapi {
     template <typename T>
     class AtomicReference {
     public:
         AtomicReference ();
-        AtomicReference (const T &, size_t &deps, std::mutex &mdeps, std::condition_variable &cv);
+        AtomicReference (const T &, std::shared_ptr<size_t> deps, std::shared_ptr<std::mutex> mdeps, std::shared_ptr<std::condition_variable> cv);
         AtomicReference (AtomicReference &&n) noexcept;
         ~AtomicReference ();
         AtomicReference &operator=(AtomicReference &&n) noexcept;
@@ -20,9 +19,9 @@ namespace manapi::net {
     private:
         void _expect_nullptr ();
         const T* ref;
-        size_t *deps;
-        std::mutex *mdeps;
-        std::condition_variable *cv;
+        std::shared_ptr<size_t> deps;
+        std::shared_ptr<std::mutex> mdeps;
+        std::shared_ptr<std::condition_variable> cv;
     };
     template <typename T>
     class Atomic {
@@ -101,9 +100,9 @@ namespace manapi::net {
         before_delete readwrite_lock ();
         std::mutex gmx;             // global mutex
         std::mutex mx;              // default mutex
-        std::mutex mdeps;           // deps mutex
-        std::condition_variable cv; // deps cv
-        size_t deps;                // deps count
+        std::shared_ptr<std::mutex> mdeps;           // deps mutex
+        std::shared_ptr<std::condition_variable> cv; // deps cv
+        std::shared_ptr<size_t> deps;                // deps count
         T value;                    // value
     };
 
@@ -116,17 +115,15 @@ namespace manapi::net {
     }
 
     template<typename T>
-    AtomicReference<T>::AtomicReference(const T &n, size_t &deps, std::mutex &mdeps, std::condition_variable &cv) {
+    AtomicReference<T>::AtomicReference(const T &n, std::shared_ptr<size_t> deps, std::shared_ptr<std::mutex> mdeps, std::shared_ptr<std::condition_variable> cv) {
         this->ref = &n;
-        this->deps = &deps;
-        this->mdeps = &mdeps;
-        this->cv = &cv;
+        this->deps = std::move(deps);
+        this->mdeps = std::move(mdeps);
+        this->cv = std::move(cv);
 
-        {
-            std::lock_guard<std::mutex> lk (*this->mdeps);
-            ++(*this->deps);
-        }
-        cv.notify_all();
+        std::lock_guard<std::mutex> lk (*this->mdeps);
+        ++(*this->deps);
+        this->cv->notify_all();
     }
 
     template<typename T>
@@ -141,12 +138,10 @@ namespace manapi::net {
 
     template<typename T>
     AtomicReference<T>::~AtomicReference() {
-        if (this->mdeps != nullptr && this->deps != nullptr && this->cv != nullptr) {
-            {
-                std::lock_guard<std::mutex> lk (*this->mdeps);
-                --(*this->deps);
-            }
-            cv->notify_all();
+        if (this->mdeps && this->deps && this->cv) {
+            std::lock_guard<std::mutex> lk (*this->mdeps);
+            --(*this->deps);
+            this->cv->notify_all();
         }
     }
 
@@ -183,30 +178,30 @@ namespace manapi::net {
 
     template<typename T>
     Atomic<T>::Atomic() {
-        {
-            std::lock_guard<std::mutex> lk (mdeps);
-            deps = 0;
-        }
+        this->mdeps = std::make_shared<std::mutex>();
+        this->deps = std::make_shared<size_t>(0);
+        this->cv = std::make_shared<std::condition_variable>();
     }
 
     template<typename T>
     template<typename T1>
     Atomic<T>::Atomic(T1 v) {
-        {
-            std::lock_guard<std::mutex> lk (mdeps);
-            deps = 0;
-        }
-        value = v;
+        this->mdeps = std::make_shared<std::mutex>();
+        this->deps = std::make_shared<size_t>(0);
+        this->cv = std::make_shared<std::condition_variable>();
+
+        std::lock_guard<std::mutex> lk (*this->mdeps);
+        this->value = v;
     }
 
     template<typename T>
     template<typename T1>
     requires(std::is_same_v<T1, std::string>)
     Atomic<T>::Atomic(const char *n) {
-        {
-            std::lock_guard<std::mutex> lk (mdeps);
-            deps = 0;
-        }
+        this->mdeps = std::make_shared<std::mutex>();
+        this->deps = std::make_shared<size_t>(0);
+        this->cv = std::make_shared<std::condition_variable>();
+
         operator=(n);
     }
 
@@ -217,7 +212,7 @@ namespace manapi::net {
 
     template<typename T>
     AtomicReference <T> Atomic<T>::get() {
-        std::lock_guard<std::mutex> lk (this->gmx);
+        auto lk = this->read_lock();
 
         return std::move(AtomicReference<T> (this->value, this->deps, this->mdeps, this->cv));
     }
@@ -348,17 +343,15 @@ namespace manapi::net {
     template<typename T>
     before_delete Atomic<T>::readwrite_lock() {
         auto lk = this->read_lock();
-        auto lkdeps = std::make_shared <std::unique_lock<std::mutex>> (this->mdeps, std::try_to_lock);
+        auto lkdeps = std::make_shared <std::unique_lock<std::mutex>> (*this->mdeps, std::try_to_lock);
         if (!lkdeps->owns_lock()) {
             lkdeps->lock();
         }
 
-        this->cv.wait(*lkdeps, [this] () -> bool {
-            return this->deps == 0;
+        this->cv->wait(*lkdeps, [this] () -> bool {
+            return *this->deps == 0;
         });
 
         return std::move(before_delete{[lk = std::move(lk), lkdeps = std::move(lkdeps)] () -> void {}});
     }
 }
-
-#endif //MANAPIHTTP_ATOMIC_HPP

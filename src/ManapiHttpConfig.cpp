@@ -213,7 +213,7 @@ void manapi::net::http::config::set_http_version_str(const std::string &new_http
     this->http_version_str = new_http_version;
 }
 
-manapi::net::AtomicReference<std::string> manapi::net::http::config::get_http_version_str() {
+manapi::AtomicReference<std::string> manapi::net::http::config::get_http_version_str() {
     return *this->http_version_str;
 }
 
@@ -241,20 +241,20 @@ void manapi::net::http::config::set_port(const std::string &_port) {
     this->port = _port;
 }
 
-manapi::net::AtomicReference<std::string> manapi::net::http::config::get_port() {
+manapi::AtomicReference<std::string> manapi::net::http::config::get_port() {
     return *this->port;
 }
 
-manapi::net::AtomicReference<std::string> manapi::net::http::config::get_implementation() {
+manapi::AtomicReference<std::string> manapi::net::http::config::get_implementation() {
     return *this->implementation;
 }
 
-manapi::net::AtomicReference<std::string> manapi::net::http::config::get_transport() {
+manapi::AtomicReference<std::string> manapi::net::http::config::get_transport() {
     return *this->transport;
 }
 
 
-manapi::net::AtomicReference<std::string> manapi::net::http::config::get_address() {
+manapi::AtomicReference<std::string> manapi::net::http::config::get_address() {
     return *this->address;
 }
 
@@ -270,7 +270,7 @@ std::atomic <size_t> &manapi::net::http::config::get_quic_cc_algo() {
     return this->quic_cc_algo;
 }
 
-manapi::net::AtomicReference<manapi::net::http::ssl_config_t> manapi::net::http::config::get_ssl_config() {
+manapi::AtomicReference<manapi::net::http::ssl_config_t> manapi::net::http::config::get_ssl_config() {
     return *this->ssl_config;
 }
 
@@ -278,7 +278,7 @@ void manapi::net::http::config::set_server_address(const sockaddr &addr) {
     this->server_addr = addr;
 }
 
-manapi::net::AtomicReference<sockaddr> manapi::net::http::config::get_server_address() {
+manapi::AtomicReference<sockaddr> manapi::net::http::config::get_server_address() {
     return *this->server_addr;
 }
 

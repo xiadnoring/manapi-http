@@ -24,6 +24,7 @@ namespace manapi::net::http {
         server(std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool);
         ~server() final;
         manapi::future <void> pool ();
+        void pool_sync();
 
         void GET (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
         void POST (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
@@ -41,6 +42,8 @@ namespace manapi::net::http {
     protected:
         void custom_watcher_fd_async(ev::async &w, int revents) override;
     private:
+        void _init_pool ();
+        void _pool (const std::function<void()> &cb);
         static std::atomic<bool> stopped_interrupt;
         static Atomic<std::set <server *>> running;
         void stop_pool (async::promise<void>::resolve_t resolve);
@@ -51,6 +54,7 @@ namespace manapi::net::http {
 
         std::unordered_map<size_t, std::unique_ptr<http_pool>> pools{};
 
+        std::thread::id loop_thread_id{0};
         size_t next_pool_id = 0;
         std::shared_ptr<ev::async> stop_watcher{nullptr};
         async::promise<void>::resolve_t resolve_stop{nullptr};
