@@ -368,12 +368,6 @@ int main (int argc, char *argv[]) {
 
             manapi::async::run (_taskpool, server.start());
 
-            manapi::async::run(_taskpool, [&] () -> manapi::future<void> {
-                co_await _timerpool->async_append_timer_sync(std::chrono::milliseconds(2000), [] () -> void {
-                    MANAPIHTTP_LOG2(" -- Timer is working");
-                });
-            });
-
             _event_loop->sync_start(_event_loop);
 
             manapi::debug::debug_print_memory("preend");
@@ -399,7 +393,7 @@ int main (int argc, char *argv[]) {
         manapi::async::async_tasks = {};
         manapi::debug::debug_print_memory("preend 8");
     }
-    this_thread::sleep_for(2s);
+
     manapi::debug::debug_print_memory("end");
 
     return 0;
