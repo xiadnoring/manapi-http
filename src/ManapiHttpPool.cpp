@@ -18,7 +18,8 @@
 
 #include "http/HeaderView.hpp"
 
-manapi::net::http_pool::http_pool(const json &config, class site *site, const size_t &id, ev::loop_ref loop) : loop(std::exchange(loop, nullptr)) {
+manapi::net::http_pool::http_pool(const json &config, class site *site, const size_t &id, std::shared_ptr<loop_events> events) {
+    this->events = std::move(events);
     this->config = std::make_shared <http::config> (config);
     this->id = id;
     this->site = site;
@@ -29,10 +30,6 @@ manapi::net::http_pool::http_pool(const json &config, class site *site, const si
 }
 
 manapi::net::http_pool::~http_pool() = default;
-
-ev::loop_ref manapi::net::http_pool::get_loop() {
-    return this->loop;
-}
 
 void manapi::net::http_pool::stop() {
     std::lock_guard<std::mutex> lk (this->mx);
@@ -45,11 +42,11 @@ void manapi::net::http_pool::stop() {
     this->watcher->stop();
 }
 
-void manapi::net::http_pool::run() {
-    this->_pool();
+manapi::future<void> manapi::net::http_pool::run() {
+    return this->_pool();
 }
 
-int manapi::net::http_pool::_pool() {
+manapi::future<void> manapi::net::http_pool::_pool() {
     MANAPIHTTP_LOG("pool init #{}", id);
 
     std::unique_lock <std::mutex> lock (mx);
@@ -57,7 +54,7 @@ int manapi::net::http_pool::_pool() {
     MANAPIHTTP_LOG("pool start #{}", id);
 
 
-    this->watcher = std::make_shared <ev::io> (this->loop);
+    this->watcher = std::make_shared <ev::io> (this->events->get_loop());
 
     {
         auto implementation = config->get_implementation();
@@ -68,8 +65,8 @@ int manapi::net::http_pool::_pool() {
         {
             auto generate = implementations[*implementation];
             this->worker = generate (this->config);
-            this->worker->loop = this->loop;
             this->worker->watcher = this->watcher;
+            this->worker->le = this->events;
             this->worker->worker = std::weak_ptr<worker::base> (this->worker);
             this->worker->init();
         }
@@ -91,9 +88,9 @@ int manapi::net::http_pool::_pool() {
 
     this->watcher->set <worker::base, &worker::base::onrecv> (this->worker.get());
     this->watcher->priority = 2;
-    this->watcher->start(config->get_socket_fd(), ev::READ);
+    this->watcher->set(config->get_socket_fd(), ev::READ);
 
-    return 0;
+    co_await this->events->watch_fd(this->watcher);
 }
 
 manapi::net::site & manapi::net::http_pool::get_site() const {

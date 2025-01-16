@@ -39,7 +39,9 @@ namespace manapi {
         ERR_ALGORITHM_NO_SUPPORT = 32,
         ERR_ALGORITHM_INIT_FAIL = 33,
         ERR_QUIC_PROTOCOL_ERROR = 34,
-        ERR_BUG = 35
+        ERR_BUG = 35,
+        ERR_SUBSCRIBE_FAILURE = 36,
+        ERR_INTERRUPTED = 37
     };
 
     const std::map <err_num, std::string> err_msg {
@@ -50,7 +52,9 @@ namespace manapi {
         {ERR_ALGORITHM_NO_SUPPORT, "Algotihtm not supported"},
         {ERR_ALGORITHM_INIT_FAIL, "Failed to init an algorithm"},
         {ERR_QUIC_PROTOCOL_ERROR, "QUIC Protocol Error"},
-        {ERR_BUG, "BUG"}
+        {ERR_BUG, "BUG"},
+        {ERR_SUBSCRIBE_FAILURE, "Failed to subscribe"},
+        {ERR_INTERRUPTED, "App was interrupted"}
     };
 
     const inline std::string & get_msg_by_err_num(const err_num &errnum) {

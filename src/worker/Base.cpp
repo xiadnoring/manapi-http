@@ -29,9 +29,7 @@ manapi::net::worker::base::base(base &&n) noexcept : site(n.site) {
     this->config = std::move(n.config);
     this->read = std::move(n.read);
     this->write = std::move(n.write);
-    this->loop = n.loop;
-
-    n.loop = nullptr;
+    this->le = std::move(n.le);
 }
 
 manapi::net::worker::base::~base() = default;

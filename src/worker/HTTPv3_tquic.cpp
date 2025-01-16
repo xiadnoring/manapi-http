@@ -158,7 +158,7 @@ void manapi::net::worker::http_v3_tquic::init() {
     this->_quic_server = quic_endpoint_new(this->_quic_config, true,
         &this->handler_methods, this, &this->sender_methods, this);
 
-    this->timeout = std::make_shared<ev::timer> (this->loop);
+    this->timeout = std::make_shared<ev::timer> (this->le->get_loop());
     this->timeout->repeat = 0.2;
     this->timeout->set<http_v3_tquic, &http_v3_tquic::_quic_timeout>(this);
     this->timeout->start();
@@ -607,7 +607,7 @@ void manapi::net::worker::http_v3_tquic::_quic_try_new_connection(quic_conn_t *c
     }
     else {
         conn_shared = std::make_shared<worker::connection>(worker::connection{new connection_t{
-            .conn = {nullptr}, .timer = this->loop, .write_watcher = this->loop, .http3_conn = {nullptr},
+            .conn = {nullptr}, .timer = this->le->get_loop(), .write_watcher = this->le->get_loop(), .http3_conn = {nullptr},
             .streams = {}, .worker = this, .status = 0, .write_total = 0, .read_total = 0, .write_total_prev = 0, .read_total_prev = 0,
             .stream_read_cnt = 0, .stream_write_cnt = 0}, [] (void *ptr) -> void {
                 MANAPIHTTP_LOG2("CONNECTION CLOSED");

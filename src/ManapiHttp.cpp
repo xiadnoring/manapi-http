@@ -17,67 +17,36 @@
 #include "ManapiUtils.hpp"
 #include "async/ManapiAsyncPromise.hpp"
 
-std::atomic<bool> manapi::net::http::server::stopped_interrupt = false;
-
-manapi::Atomic<std::set <manapi::net::http::server *>> manapi::net::http::server::running;
-
-void handler_interrupt (int sig)
-{
-    manapi::net::http::server::stop_all_servers();
-
-    if (sig == SIGFPE)
-    {
-        exit (sig);
-    }
-}
-
 manapi::net::http::server::~server() = default;
 
-manapi::net::http::server::server(std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool) : site(taskpool, std::move(timerpool)), mx(taskpool) {
-    server::signal_init();
+manapi::net::http::server::server(const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::loop_events> loop_events)
+        : site(taskpool, std::move(timerpool), std::move(loop_events)), mx(taskpool) {
     this->stopping.store(true);
+
     setup ();
 }
 
-manapi::future<void> manapi::net::http::server::pool() {
+manapi::future<void> manapi::net::http::server::start() {
     auto lk = co_await this->mx.lock_guard();
 
     if (!server::stopping.exchange(false)) {
         co_return;
     }
 
-    server::running.update([this] (auto &v) {
-        v.insert(this);
+    co_await this->_init_pool();
+
+    this->event_id = co_await this->events->subscribe_finish([this] () -> void {
+        this->stop_pool();
     });
 
-    this->_init_pool();
 
     co_await async::promise<void> (this->taskpool, [this, &lk] (async::promise<void>::resolve_ref_t resolve, async::promise<void>::reject_ref_t reject) -> void {
-        this->taskpool->append_task([this, &lk, resolve] () -> void {
-            this->_pool([&lk] () -> void {
+        async::run(this->taskpool, [this, &lk, resolve] () mutable -> future<> {
+            co_await this->_pool([&lk, resolve = std::move(resolve)] () mutable -> void {
                 lk.call();
+                resolve ();
             });
-
-            resolve ();
         });
-    });
-}
-
-void manapi::net::http::server::pool_sync() {
-    auto lk = this->mx.lock_guard()
-        .get(this->taskpool);
-
-    if (!server::stopping.exchange(false)) {
-        return;
-    }
-
-    server::running.update([this] (auto &v) {
-        v.insert(this);
-    });
-
-    this->_init_pool();
-    this->_pool([&lk] () -> void {
-        lk.call();
     });
 }
 
@@ -111,91 +80,34 @@ void manapi::net::http::server::GET(const std::string &uri, const std::string &f
 
 manapi::future<void> manapi::net::http::server::stop() {
     auto lk = co_await this->mx.lock_guard();
-
-    if (!this->stopping.exchange(true)) {
-        if (this->loop_thread_id == std::this_thread::get_id()) {
-            /* in the libev */
-            auto promise = async::promise<void> (this->taskpool,
-                [this] (async::promise<void>::resolve_ref_t resolve, async::promise<void>::reject_ref_t reject) -> void {
-                    this->stop_pool(resolve);
-                });
-            co_await promise;
-            this->stop_watcher->send();
-        }
-        else {
-            auto promise = async::promise<void> (this->taskpool,
-                [this] (async::promise<void>::resolve_ref_t resolve, async::promise<void>::reject_ref_t reject) -> void {
-                this->resolve_stop = resolve;
-                this->stop_watcher->send();
-            });
-            co_await promise;
-        }
+    if (this->event_id) {
+        co_await this->events->unsubscribe_finish(std::exchange(this->event_id, 0));
     }
 }
 
-void manapi::net::http::server::stop_all_servers() {
-    manapi::net::http::server::stopped_interrupt.store(true);
-
-    while (!server::running.get()->empty())
-    {
-        auto it = *server::running.get()->begin();
-        it->stop().get(it->taskpool);
-    }
-}
-
-void manapi::net::http::server::signal_init() {
-    signal (SIGPIPE, SIG_IGN);
-    signal (SIGABRT, handler_interrupt);
-    signal (SIGKILL, handler_interrupt);
-    signal (SIGTERM, handler_interrupt);
-    signal (SIGSTOP, handler_interrupt);
-}
-
-void manapi::net::http::server::custom_watcher_fd_async(ev::async &w, int revents) {
-    site::custom_watcher_fd_async(w, revents);
-}
-
-void manapi::net::http::server::_init_pool() {
+manapi::future<> manapi::net::http::server::_init_pool() {
     // init all pools
     if (this->config.contains("pools"))
     {
         for (auto it = this->config["pools"].begin<json::ARRAY>(); it != this->config["pools"].end<json::ARRAY>(); ++it, this->next_pool_id++)
         {
-            auto p = std::make_unique<http_pool> (*it, this, this->next_pool_id, this->loop);
-            p->run();
+            auto p = std::make_unique<http_pool> (*it, this, this->next_pool_id, this->get_loop_events());
+            co_await p->run();
             this->pools.insert({this->next_pool_id, std::move(p)});
         }
     }
 }
 
-void manapi::net::http::server::_pool(const std::function<void()> &cb) {
-    this->loop_thread_id = std::this_thread::get_id();
-
-    auto init_watcher = this->create_watcher_async([cb] (ev::async &w, int revents) -> void {
+manapi::future<void> manapi::net::http::server::_pool(const std::function<void()> &cb) {
+    this->init_watcher = co_await this->events->watch_async([cb] (ev::async &w, int revents) -> void {
         w.stop();
         cb();
     });
 
-    init_watcher->start();
-    init_watcher->send();
-
-    this->stop_watcher = std::make_shared<ev::async>(this->loop);
-    this->stop_watcher->set<server, &server::_async_break_loop> (this);
-    this->stop_watcher->start();
-
-    this->adding_watcher_async = std::make_unique<ev::async>(this->loop);
-    this->adding_watcher_async->set<server, &server::custom_watcher_fd_async>(this);
-    this->adding_watcher_async->start();
-
-    this->loop.run(ev::AUTO);
-
-    this->stop_watcher_async(*init_watcher);
-    this->adding_watcher_async->stop();
-    this->stop_watcher->stop();
-
+    this->init_watcher->send();
 }
 
-void manapi::net::http::server::stop_pool(async::promise<void>::resolve_t resolve) {
+void manapi::net::http::server::stop_pool() {
     MANAPIHTTP_LOG2("cv_stopping -> pass");
 
     // stop all pools
@@ -210,23 +122,11 @@ void manapi::net::http::server::stop_pool(async::promise<void>::resolve_t resolv
 
     this->save();
 
-    server::running.update([this] (auto &v) -> void {
-         v.erase(this);
-    });
-
-    MANAPIHTTP_LOG2("all tasks are closed");
-
     // reset
     this->next_pool_id = 0;
 
-    resolve();
-}
-
-void manapi::net::http::server::_async_break_loop(ev::async &watcher, int revents) {
-    this->loop.break_loop(ev::ALL);
-
-    if (this->resolve_stop) {
-        /* if resolve caballback exists, break the loop otherwise */
-        this->stop_pool(std::exchange(this->resolve_stop, nullptr));
+    if (this->init_watcher) {
+        this->events->stop_watcher_async(this->init_watcher);
+        this->init_watcher.reset();
     }
 }

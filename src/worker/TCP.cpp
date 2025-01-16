@@ -204,7 +204,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     socklen_t len = sizeof (client);
     memset(&client, '\0', sizeof (sockaddr_storage));
 
-    int fd = ::accept(config->get_socket_fd(), reinterpret_cast<struct sockaddr *>(&client), &len);
+    int fd = ::accept(this->config->get_socket_fd(), reinterpret_cast<struct sockaddr *>(&client), &len);
     if (fd < 0) {
         return {};
     }
@@ -230,9 +230,9 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     conn.timer.data = new decltype(connection) (connection);
 
     ev_timer_init(&conn.timer, _ev_timeout, 0.2, 0.);
-    ev_timer_start(this->loop, &conn.timer);
+    ev_timer_start(this->le->get_loop(), &conn.timer);
 
-    conn.watcher = std::make_shared<ev::io>(this->loop);
+    conn.watcher = std::make_shared<ev::io>(this->le->get_loop());
     conn.watcher->priority = 2;
     conn.watcher->set <TCP, &TCP::onevent> (this);
     conn.watcher->start(fd, ev::READ|ev::WRITE);
@@ -283,7 +283,7 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage, con
     }
 
     conn.timer.repeat = 0.2; // 200ms
-    ev_timer_again(this->loop, &conn.timer);
+    ev_timer_again(this->le->get_loop(), &conn.timer);
 
     if (flag) {
         this->_ev_watcher_stop(conn);
@@ -298,7 +298,7 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage, con
 
 void manapi::net::worker::TCP::_ev_watcher_stop(connection_interface &conn) {
     if (ev_is_active(&conn.timer)) {
-        ev_timer_stop(this->loop, &conn.timer);
+        ev_timer_stop(this->le->get_loop(), &conn.timer);
         delete static_cast<std::shared_ptr<connection> *> (std::exchange(conn.timer.data, nullptr));
         conn.watcher->stop();
         //MANAPIHTTP_LOG("WATCHER STOP: {}", conn.id);

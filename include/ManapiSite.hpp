@@ -17,6 +17,7 @@
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpResponse.hpp"
 #include "async/ManapiAsyncMutex.hpp"
+#include "services/ManapiLoopEvents.hpp"
 
 namespace manapi::net::worker {
     class base;
@@ -70,7 +71,7 @@ namespace manapi::net {
 
     class site {
     public:
-        site (std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool);
+        site (const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::loop_events> loop_events);
         virtual ~site();
 
         manapi::async_delay delay (const std::chrono::seconds &n);
@@ -96,25 +97,13 @@ namespace manapi::net {
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
 
         [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
-
-        std::shared_ptr<ev::io> create_watcher_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
-        std::shared_ptr<ev::async> create_watcher_async (const std::function<void(ev::async &w, int revents)> &callback);
-
-        void stop_watcher_fd (ev::io &w);
-        void stop_watcher_async (ev::async &w);
-
-        future<std::shared_ptr<ev::io>> watch_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
-        future<void> unwatch_fd (std::shared_ptr<ev::io> w);
-
-        future<std::shared_ptr<ev::async>> watch_async (const std::function<void(ev::async &w, int revents)> &callback);
-        future<void> unwatch_async (std::shared_ptr<ev::async> w);
+        [[nodiscard]] const std::shared_ptr<loop_events> &get_loop_events ();
 
         std::string config_cache_dir;
         std::shared_ptr <manapi::timerpool> timerpool;
         std::shared_ptr <threadpool<task>> taskpool = nullptr;
         async::mutex cache_config_mx;
     protected:
-        virtual void custom_watcher_fd_async (ev::async &w, int revents);
         void setup ();
         void timer_pool_stop ();
         void setup_config ();
@@ -122,28 +111,9 @@ namespace manapi::net {
         void save_config ();
 
         manapi::json config;
-        ev::dynamic_loop loop;
         std::mutex loopmx;
-
-
-        async::mutex adding_watcher_mx;
-        std::unique_ptr <ev::async> adding_watcher_async;
-        struct adding_watcher_data_t {
-            bool flag;
-            int fd{0};
-            int flags{0};
-            std::shared_ptr<ev::io> w_io{nullptr};
-            std::shared_ptr<ev::async> w_async{nullptr};
-        } adding_watcher_data;
-
-        template<class ev_>
-        struct custom_watcher_data_t {
-            std::shared_ptr<ev_> w;
-            std::function<void(ev_ &w, int revents)> cb;
-        };
+        std::shared_ptr<loop_events> events;
     private:
-        static void custom_watcher_fd (EV_P_ ev_io *w, int revents);
-        static void custom_watcher_async (EV_P_ ev_async *w, int revents);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);

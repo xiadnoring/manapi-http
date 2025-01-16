@@ -22,6 +22,7 @@
 #include "components/ManapiChain.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "crypto/ManapiAES.hpp"
+#include "services/ManapiLoopEvents.hpp"
 #include "worker/tools/OpenSSLTools.hpp"
 
 using namespace manapi::net;
@@ -81,15 +82,15 @@ int main (int argc, char *argv[]) {
     {
         auto _taskpool = std::make_shared<manapi::threadpool<manapi::task>>(std::thread::hardware_concurrency(), 1);
         auto _timerpool = std::make_shared<manapi::timerpool>(_taskpool, 1);
+        auto _loop_events = std::make_shared<manapi::loop_events>(_taskpool);
 
         _taskpool->start();
         _timerpool->start();
 
-
-
+        _loop_events->setup_handle_interrupt();
 
         {
-        http::server server (_taskpool, _timerpool);
+        http::server server (_taskpool, _timerpool, _loop_events);
             server.set_config("./config.json");
 
             server.GET ("/", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
@@ -365,7 +366,9 @@ int main (int argc, char *argv[]) {
 
             manapi::debug::debug_print_memory("pool");
 
-            server.pool_sync();
+            manapi::async::run (_taskpool, server.start());
+
+            _loop_events->sync_start(_loop_events);
 
             manapi::debug::debug_print_memory("preend");
         }

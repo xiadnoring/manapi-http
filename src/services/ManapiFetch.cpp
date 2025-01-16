@@ -302,15 +302,15 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
             auto _reject = std::move(reject);
             /* error */
             for (auto &w_it: fds) {
-                this->site.stop_watcher_fd(*w_it.second);
+                this->site.get_loop_events()->stop_watcher_fd(w_it.second);
             }
             fds.clear();
             curl_multi_remove_handle(this->curl_multi, this->curl);
-            this->site.stop_watcher_async(*w);
+            this->site.get_loop_events()->stop_watcher_async(*w);
             _reject(std::make_exception_ptr(manapi::exception{ERR_FATAL, "Failure when receiving data from the peer"}));
         };
 
-        w = co_await this->site.watch_async([&attempts, reject_cb = std::move(reject_cb), &shared_w = w, reject, resolve, this, &fds] (ev::async &w, int revents)
+        w = co_await this->site.get_loop_events()->watch_async([&attempts, reject_cb = std::move(reject_cb), &shared_w = w, reject, resolve, this, &fds] (ev::async &w, int revents)
                 mutable  -> void {
             int running_handles = 0;
             CURLMcode mc;
@@ -360,11 +360,11 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
                     if (FD_ISSET(i, &fd_read)) {
                         auto p = (i << 1) | 0x01;
                         if (!fds.contains(p)) {
-                            auto wr = this->site.create_watcher_fd(i, ev::READ, [this, &shared_w, &fds, p] (ev::io &wr, int revents) -> void {
+                            auto wr = this->site.get_loop_events()->create_watcher_fd(i, ev::READ, [this, &shared_w, &fds, p] (ev::io &wr, int revents) -> void {
                                 shared_w->send();
 
                                 fds.erase(p);
-                                this->site.stop_watcher_fd(wr);
+                                this->site.get_loop_events()->stop_watcher_fd(wr);
                             });
                             wr->start();
                             fds.insert({p, std::move(wr)});
@@ -374,11 +374,11 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
                     if (FD_ISSET(i, &fd_write)) {
                         auto p = (i << 1);
                         if (!fds.contains(p)) {
-                            auto ww = this->site.create_watcher_fd(i, ev::WRITE, [this, &shared_w, &fds, p] (ev::io &ww, int revents) -> void {
+                            auto ww = this->site.get_loop_events()->create_watcher_fd(i, ev::WRITE, [this, &shared_w, &fds, p] (ev::io &ww, int revents) -> void {
                                 shared_w->send();
 
                                 fds.erase(p);
-                                this->site.stop_watcher_fd(ww);
+                                this->site.get_loop_events()->stop_watcher_fd(ww);
                             });
                             ww->start();
                             fds.insert({p, std::move(ww)});
@@ -396,12 +396,12 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
                 }
                 if (msg->msg == CURLMSG_DONE) {
                     for (auto &w_it: fds) {
-                        this->site.stop_watcher_fd(*w_it.second);
+                        this->site.get_loop_events()->stop_watcher_fd(w_it.second);
                     }
                     fds.clear();
                     curl_multi_remove_handle(this->curl_multi, this->curl);
                     auto _resolve = std::move(resolve);
-                    this->site.stop_watcher_async(w);
+                    this->site.get_loop_events()->stop_watcher_async(w);
                     _resolve(msg->data.result);
                     return;
                 }

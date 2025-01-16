@@ -118,7 +118,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
             }
 
             connection = std::make_shared<worker::connection>(new connection_t{
-                .cid = dcid, .conn = _quiche_conn, .quiche_timer = this->loop, .write_watcher = this->loop, .http3_conn = {nullptr},
+                .cid = dcid, .conn = _quiche_conn, .quiche_timer = this->le->get_loop(), .write_watcher = this->le->get_loop(), .http3_conn = {nullptr},
                 .streams = {}, .worker = this, .status = 0, .write_total = 0, .read_total = 0, .write_total_prev = 0, .read_total_prev = 0,
                 .stream_read_cnt = 0, .stream_write_cnt = 0}, [] (void *ptr) -> void {
                     http_v3_cloudflare_quiche::_clean_connection (static_cast<connection_t *>(ptr));
@@ -177,8 +177,6 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
             http_v3_cloudflare_quiche::_flush_write(conn_data);
 
             quiche_h3_event *event{nullptr};
-            auto event_clean = before_delete {
-                [&event] () -> void { if (event) { quiche_h3_event_free(event); } }};
 
             while (true) {
                 int64_t stream_id = quiche_h3_conn_poll(conn_data.http3_conn, conn_data.conn, &event);
@@ -286,6 +284,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                         break;
                     }
                 }
+
+                quiche_h3_event_free(event);
             }
         }
 
