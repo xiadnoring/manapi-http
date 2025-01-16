@@ -18,7 +18,7 @@
 namespace manapi::net {
     class http_pool {
     public:
-        explicit http_pool(const json &config, class site *site, const size_t &id, std::shared_ptr<loop_events> events);
+        explicit http_pool(const json &config, class site *site, const size_t &id, std::shared_ptr<event_loop> events);
         ~http_pool();
 
         void stop ();
@@ -37,7 +37,7 @@ namespace manapi::net {
 
         std::mutex mx;
 
-        std::shared_ptr<loop_events> events;
+        std::shared_ptr<event_loop> events;
         std::unique_ptr<std::promise <int> > pool_promise;
 
         class site *site;

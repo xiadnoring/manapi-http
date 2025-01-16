@@ -17,12 +17,12 @@
 #include "ManapiHttpResponse.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "async/ManapiAsyncPromise.hpp"
-#include "services/ManapiLoopEvents.hpp"
+#include "services/ManapiEventLoop.hpp"
 
 namespace manapi::net::http {
     class server : public site {
     public:
-        server(const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::loop_events> loop_events);
+        server(const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::event_loop> event_loop);
         ~server() final;
         manapi::future <void> start ();
 
@@ -39,7 +39,7 @@ namespace manapi::net::http {
     private:
         manapi::future<> _init_pool ();
         manapi::future<void> _pool (const std::function<void()> &cb);
-        void stop_pool ();
+        manapi::future<void> stop_pool ();
 
         async::mutex mx;
         std::atomic <bool> stopping;

@@ -8,6 +8,7 @@
 #include <map>
 
 #include "ManapiAsync.hpp"
+#include "ManapiEventLoop.hpp"
 #include "ManapiThreadPool.hpp"
 #include "ManapiTask.hpp"
 #include "async/ManapiAsyncConditionVariable.hpp"
@@ -32,7 +33,7 @@ namespace manapi {
 
         typedef std::unordered_map<size_t, timer_task> storage;
         typedef std::set <std::pair <std::chrono::steady_clock::time_point, size_t>, sorted_tasks_compare_t> sorted_storage;
-        explicit timerpool(std::shared_ptr<threadpool<task>> threadpool, const size_t &delay = 50);
+        explicit timerpool(std::shared_ptr<event_loop> events, const double &delay = 0.01);
         ~timerpool();
         future<size_t> async_append_timer_sync (const std::chrono::milliseconds &duration, std::function<void()> task);
         future<size_t> async_append_timer_async (const std::chrono::milliseconds &duration, std::function<future<void>()> task);
@@ -42,12 +43,11 @@ namespace manapi {
         future<size_t> async_append_interval_sync (const std::chrono::milliseconds &duration, std::function<void()> task);
         future<size_t> async_append_interval_async (const std::chrono::milliseconds &duration, std::function<future<>()> task);
         size_t append_interval (const std::chrono::milliseconds &duration, const std::function<void()> &task);
-        void start ();
-        future<> async_stop ();
-        void stop ();
+        future<void> start (std::shared_ptr<timerpool> tp);
+        future<void> stop ();
         void doit ();
         void clear();
-        std::shared_ptr<threadpool<task>> get_threadpool ();
+        [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
     protected:
         void _erase_task (const size_t &id);
         storage::iterator _erase_task (storage::iterator task);
@@ -65,11 +65,15 @@ namespace manapi {
         future<size_t> _append (const std::chrono::milliseconds &duration, const std::function<future<>()> &async_task, const std::function<void()> &task, const bool &inteval);
         sorted_storage sorted_tasks;
         storage tasks{};
+        std::shared_ptr<event_loop> events{nullptr};
         std::shared_ptr<threadpool<task>> taskpool{nullptr};
         async::mutex mx;
+        async::mutex smx;
         size_t index = 1;
         std::atomic<bool> _stop = false;
-        size_t delay{};
+        double delay{};
+        std::shared_ptr<ev::timer> timer;
+        size_t finish_event{0};
     private:
     };
 }

@@ -276,7 +276,7 @@ SSL_CTX * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &ver
     SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
     SSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
 
-    SSL_CTX_set_cipher_list(ctx,"TLS_AES_256_GCM_SHA384");
+    //SSL_CTX_set_cipher_list(ctx,"TLS_AES_256_GCM_SHA384");
     SSL_CTX_set_alpn_select_cb(ctx, [] (SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,
         unsigned int inlen, void *arg) -> int {
         auto worker = static_cast<OpenSSL_TLS *> (arg);

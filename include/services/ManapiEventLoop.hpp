@@ -11,64 +11,72 @@
 #include "components/Atomic.hpp"
 
 namespace manapi {
-    class loop_events {
+    class event_loop {
     public:
-        explicit loop_events(std::shared_ptr<threadpool<task>> taskpool);
-        ~loop_events();
-        manapi::future<> start (std::shared_ptr<loop_events> le);
-        void sync_start (std::shared_ptr<loop_events> le);
-        void setup_handle_interrupt ();
-
-        manapi::future<> stop ();
-
-        manapi::future<size_t> subscribe_finish (std::function<void()> cb);
-        manapi::future<> unsubscribe_finish (const size_t &id);
-
-        ev::loop_ref get_loop();
-
-        std::shared_ptr<ev::io> create_watcher_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
-        std::shared_ptr<ev::async> create_watcher_async (const std::function<void(ev::async &w, int revents)> &callback);
-
-        void stop_watcher_fd (ev::io &w);
-        void stop_watcher_async (ev::async &w);
-
-        void stop_watcher_fd (std::shared_ptr<ev::io> w);
-        void stop_watcher_async (std::shared_ptr<ev::async> w);
-
-        future<std::shared_ptr<ev::io>> watch_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
-        future<void> unwatch_fd (std::shared_ptr<ev::io> w);
-
-        future<std::shared_ptr<ev::async>> watch_async (const std::function<void(ev::async &w, int revents)> &callback);
-        future<void> unwatch_async (std::shared_ptr<ev::async> w);
-
-        future<void> watch_fd (std::shared_ptr<ev::io> w);
-        future<void> watch_async (std::shared_ptr<ev::async> w);
-
-        static void interrupt ();
-    protected:
-        virtual void custom_watcher_fd_async (ev::async &w, int revents);
-    private:
         template<class ev_>
         struct custom_watcher_data_t {
             std::shared_ptr<ev_> w;
             std::function<void(ev_ &w, int revents)> cb;
         };
 
+        explicit event_loop(std::shared_ptr<threadpool<task>> taskpool);
+        ~event_loop();
+        manapi::future<> start (std::shared_ptr<event_loop> le);
+        void sync_start (std::shared_ptr<event_loop> le);
+        void setup_handle_interrupt ();
+
+        manapi::future<> stop ();
+
+        manapi::future<size_t> subscribe_finish (std::function<manapi::future<void>()> cb);
+        manapi::future<> unsubscribe_finish (const size_t &id);
+
+        ev::loop_ref get_loop();
+
+        std::shared_ptr<ev::io> create_watcher_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
+        std::shared_ptr<ev::async> create_watcher_async (const std::function<void(ev::async &w, int revents)> &callback);
+        std::shared_ptr<ev::timer> create_watcher_timer (const float &after, const int &repeat, const std::function<void(ev::timer &w, int revents)> &callback);
+
+        template<typename T>
+        void stop_watcher (T &w);
+
+        template<typename T>
+        void stop_watcher (std::shared_ptr<T> w);
+
+        future<std::shared_ptr<ev::io>> watch_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
+        future<void> unwatch_fd (std::shared_ptr<ev::io> w);
+
+        future<std::shared_ptr<ev::async>> watch_async (const std::function<void(ev::async &w, int revents)> &callback);
+        future<void> unwatch_async (std::shared_ptr<ev::async> w);
+        future<void> unwatch_timer (std::shared_ptr<ev::timer> w);
+
+        future<void> watch_fd (std::shared_ptr<ev::io> w);
+        future<void> watch_async (std::shared_ptr<ev::async> w);
+        future<void> watch_timer (std::shared_ptr<ev::timer> w);
+
+        future<void> again_timer (std::shared_ptr<ev::timer> w);
+
+        [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
+
+        static void interrupt ();
+    protected:
+        virtual void custom_watcher_fd_async (ev::async &w, int revents);
+    private:
         static std::atomic<bool> interrupted;
-        static std::map <size_t, std::shared_ptr<loop_events>> events;
-        static void custom_watcher_fd (EV_P_ ev_io *w, int revents);
-        static void custom_watcher_async (EV_P_ ev_async *w, int revents);
+        static std::map <size_t, std::shared_ptr<event_loop>> events;
         static std::mutex stop_mx;
 
-        void _pool(manapi::before_delete lk2, std::shared_ptr<loop_events> le);
-        void _call_and_free_on_finish_cb ();
+        future<> _fix_event_pool_interrupt();
+        void _pool(manapi::before_delete lk2, std::shared_ptr<event_loop> le);
+        manapi::future<> _call_and_free_on_finish_cb ();
         void stop_pool (async::promise<void>::resolve_t resolve);
         void _async_break_loop (ev::async &watcher, int revents);
 
         struct adding_watcher_data_t {
-            bool flag;
+            int flag{0};
+            int type{EV_IO};
             std::shared_ptr<ev::io> w_io{nullptr};
             std::shared_ptr<ev::async> w_async{nullptr};
+            std::shared_ptr<ev::timer> w_timer{nullptr};
         } adding_watcher_data{};
         async::mutex adding_watcher_mx;
         std::shared_ptr <ev::async> adding_watcher_async;
@@ -77,8 +85,10 @@ namespace manapi {
         ev::dynamic_loop loop;
         std::thread::id loop_thread_id{0};
         std::shared_ptr<threadpool<task>> taskpool;
-        std::map <size_t, std::function<void()>> map_finish_cb;
-        std::shared_ptr<ev::async> stop_watcher{nullptr};
+        std::map <size_t, std::function<manapi::future<void>()>> map_finish_cb;
+        std::shared_ptr<ev::async> _stop_watcher{nullptr};
         async::promise<void>::resolve_t resolve_stop{nullptr};
+        std::function<void()> adding_watcher_async_cb{nullptr};
+        std::atomic<bool> loop_interrupted;
     };
 }

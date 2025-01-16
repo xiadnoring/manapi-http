@@ -330,12 +330,12 @@ manapi::net::http_handler_page manapi::net::site::get_handler(http::request_data
     }
 }
 
-manapi::net::site::site(const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<loop_events> loop_events)
-    : taskpool(taskpool), timerpool(std::move(timerpool)), cache_config_mx(taskpool), events(std::move(loop_events)) {}
+manapi::net::site::site(const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<event_loop> event_loop)
+    : taskpool(taskpool), timerpool(std::move(timerpool)), cache_config_mx(taskpool), events(std::move(event_loop)) {}
 
 manapi::net::site::~site() = default;
 
-const std::shared_ptr<manapi::loop_events> & manapi::net::site::get_loop_events() {
+const std::shared_ptr<manapi::event_loop> & manapi::net::site::get_event_loop() {
     return this->events;
 }
 

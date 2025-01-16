@@ -17,7 +17,7 @@
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpResponse.hpp"
 #include "async/ManapiAsyncMutex.hpp"
-#include "services/ManapiLoopEvents.hpp"
+#include "services/ManapiEventLoop.hpp"
 
 namespace manapi::net::worker {
     class base;
@@ -71,7 +71,7 @@ namespace manapi::net {
 
     class site {
     public:
-        site (const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::loop_events> loop_events);
+        site (const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::event_loop> event_loop);
         virtual ~site();
 
         manapi::async_delay delay (const std::chrono::seconds &n);
@@ -97,7 +97,7 @@ namespace manapi::net {
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
 
         [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
-        [[nodiscard]] const std::shared_ptr<loop_events> &get_loop_events ();
+        [[nodiscard]] const std::shared_ptr<event_loop> &get_event_loop ();
 
         std::string config_cache_dir;
         std::shared_ptr <manapi::timerpool> timerpool;
@@ -112,7 +112,7 @@ namespace manapi::net {
 
         manapi::json config;
         std::mutex loopmx;
-        std::shared_ptr<loop_events> events;
+        std::shared_ptr<event_loop> events;
     private:
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);

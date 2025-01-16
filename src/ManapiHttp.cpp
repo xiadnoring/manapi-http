@@ -19,8 +19,8 @@
 
 manapi::net::http::server::~server() = default;
 
-manapi::net::http::server::server(const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::loop_events> loop_events)
-        : site(taskpool, std::move(timerpool), std::move(loop_events)), mx(taskpool) {
+manapi::net::http::server::server(const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::event_loop> event_loop)
+        : site(taskpool, std::move(timerpool), std::move(event_loop)), mx(taskpool) {
     this->stopping.store(true);
 
     setup ();
@@ -35,8 +35,8 @@ manapi::future<void> manapi::net::http::server::start() {
 
     co_await this->_init_pool();
 
-    this->event_id = co_await this->events->subscribe_finish([this] () -> void {
-        this->stop_pool();
+    this->event_id = co_await this->events->subscribe_finish([this] () -> future<> {
+        return this->stop();
     });
 
 
@@ -80,9 +80,13 @@ void manapi::net::http::server::GET(const std::string &uri, const std::string &f
 
 manapi::future<void> manapi::net::http::server::stop() {
     auto lk = co_await this->mx.lock_guard();
-    if (this->event_id) {
-        co_await this->events->unsubscribe_finish(std::exchange(this->event_id, 0));
+
+    if (server::stopping.exchange(true)) {
+        co_return;
     }
+
+    co_await this->events->unsubscribe_finish(std::exchange(this->event_id, 0));
+    co_await this->stop_pool();
 }
 
 manapi::future<> manapi::net::http::server::_init_pool() {
@@ -91,7 +95,7 @@ manapi::future<> manapi::net::http::server::_init_pool() {
     {
         for (auto it = this->config["pools"].begin<json::ARRAY>(); it != this->config["pools"].end<json::ARRAY>(); ++it, this->next_pool_id++)
         {
-            auto p = std::make_unique<http_pool> (*it, this, this->next_pool_id, this->get_loop_events());
+            auto p = std::make_unique<http_pool> (*it, this, this->next_pool_id, this->get_event_loop());
             co_await p->run();
             this->pools.insert({this->next_pool_id, std::move(p)});
         }
@@ -107,7 +111,7 @@ manapi::future<void> manapi::net::http::server::_pool(const std::function<void()
     this->init_watcher->send();
 }
 
-void manapi::net::http::server::stop_pool() {
+manapi::future<> manapi::net::http::server::stop_pool() {
     MANAPIHTTP_LOG2("cv_stopping -> pass");
 
     // stop all pools
@@ -126,7 +130,7 @@ void manapi::net::http::server::stop_pool() {
     this->next_pool_id = 0;
 
     if (this->init_watcher) {
-        this->events->stop_watcher_async(this->init_watcher);
+        co_await this->events->unwatch_async(this->init_watcher);
         this->init_watcher.reset();
     }
 }

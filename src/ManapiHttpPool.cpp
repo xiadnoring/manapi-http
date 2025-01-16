@@ -18,7 +18,7 @@
 
 #include "http/HeaderView.hpp"
 
-manapi::net::http_pool::http_pool(const json &config, class site *site, const size_t &id, std::shared_ptr<loop_events> events) {
+manapi::net::http_pool::http_pool(const json &config, class site *site, const size_t &id, std::shared_ptr<event_loop> events) {
     this->events = std::move(events);
     this->config = std::make_shared <http::config> (config);
     this->id = id;

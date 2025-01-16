@@ -70,7 +70,7 @@ namespace manapi::net::worker {
         std::function<future<ssize_t>(connection &conn, const void *buff, const size_t &size, bool finish)> write;
         std::function<future<ssize_t>(connection &conn, void *buff, const size_t &size)> read;
 
-        std::shared_ptr<loop_events> le{nullptr};
+        std::shared_ptr<event_loop> le{nullptr};
         std::shared_ptr<ev::io> watcher;
         std::shared_ptr<ev::async> async_watcher;
         std::weak_ptr<worker::base> worker;

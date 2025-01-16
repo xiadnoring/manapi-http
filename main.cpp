@@ -22,7 +22,7 @@
 #include "components/ManapiChain.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "crypto/ManapiAES.hpp"
-#include "services/ManapiLoopEvents.hpp"
+#include "services/ManapiEventLoop.hpp"
 #include "worker/tools/OpenSSLTools.hpp"
 
 using namespace manapi::net;
@@ -81,16 +81,16 @@ int main (int argc, char *argv[]) {
     manapi::debug::debug_print_memory("start");
     {
         auto _taskpool = std::make_shared<manapi::threadpool<manapi::task>>(std::thread::hardware_concurrency(), 1);
-        auto _timerpool = std::make_shared<manapi::timerpool>(_taskpool, 1);
-        auto _loop_events = std::make_shared<manapi::loop_events>(_taskpool);
+        auto _event_loop = std::make_shared<manapi::event_loop>(_taskpool);
+        auto _timerpool = std::make_shared<manapi::timerpool>(_event_loop, 0.2);
 
         _taskpool->start();
-        _timerpool->start();
+        manapi::async::run(_taskpool, _timerpool->start(_timerpool));
 
-        _loop_events->setup_handle_interrupt();
+        _event_loop->setup_handle_interrupt();
 
         {
-        http::server server (_taskpool, _timerpool, _loop_events);
+        http::server server (_taskpool, _timerpool, _event_loop);
             server.set_config("./config.json");
 
             server.GET ("/", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
@@ -368,7 +368,13 @@ int main (int argc, char *argv[]) {
 
             manapi::async::run (_taskpool, server.start());
 
-            _loop_events->sync_start(_loop_events);
+            manapi::async::run(_taskpool, [&] () -> manapi::future<void> {
+                co_await _timerpool->async_append_timer_sync(std::chrono::milliseconds(2000), [] () -> void {
+                    MANAPIHTTP_LOG2(" -- Timer is working");
+                });
+            });
+
+            _event_loop->sync_start(_event_loop);
 
             manapi::debug::debug_print_memory("preend");
         }
@@ -377,7 +383,8 @@ int main (int argc, char *argv[]) {
         auto &b = manapi::async::async_tasks;
         printf("ASYNC STACK: %zi\n", b.size());
 
-        _timerpool->stop();
+        _timerpool->stop()
+            .get(_taskpool);
         manapi::debug::debug_print_memory("preend 3");
         _taskpool->stop();
         manapi::debug::debug_print_memory("preend 4");
@@ -392,6 +399,7 @@ int main (int argc, char *argv[]) {
         manapi::async::async_tasks = {};
         manapi::debug::debug_print_memory("preend 8");
     }
+    this_thread::sleep_for(2s);
     manapi::debug::debug_print_memory("end");
 
     return 0;
