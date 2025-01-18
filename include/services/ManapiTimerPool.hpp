@@ -11,8 +11,8 @@
 #include "ManapiEventLoop.hpp"
 #include "ManapiThreadPool.hpp"
 #include "ManapiTask.hpp"
-#include "async/ManapiAsyncConditionVariable.hpp"
 #include "async/ManapiAsyncMutex.hpp"
+#include "async/ManapiAsyncConditionVariable.hpp"
 
 namespace manapi {
     struct timer_task {
@@ -59,7 +59,7 @@ namespace manapi {
         std::function<void()> sleep ();
         // wait while deps being exists
         std::atomic <size_t> deps;
-        async::condition_variable cv;
+        std::shared_ptr<async::condition_variable> cv;
 
         future<void> _update_interval_state (const size_t& id);
         future<size_t> _append (const std::chrono::milliseconds &duration, const std::function<future<>()> &async_task, const std::function<void()> &task, const bool &inteval);
@@ -67,8 +67,8 @@ namespace manapi {
         storage tasks{};
         std::shared_ptr<event_loop> events{nullptr};
         std::shared_ptr<threadpool<task>> taskpool{nullptr};
-        async::mutex mx;
-        async::mutex smx;
+        std::shared_ptr<async::mutex> mx;
+        std::shared_ptr<async::mutex> smx;
         size_t index = 1;
         std::atomic<bool> _stop = false;
         double delay{};

@@ -340,7 +340,7 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_data(void *ctx, u
         }
         while (stream.rbuff_caret != sizeof (stream.rbuff));
 
-        conn_data.worker->site.taskpool->append_task([handle = std::move(stream.handle_io)] () mutable
+        conn_data.worker->site.async_context()->taskpool()->append_task([handle = std::move(stream.handle_io)] () mutable
             -> void { handle(); });
     }
 }
@@ -389,7 +389,7 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_headers(void *ctx
     client->request_data.body_left = client->request_data.body_size;
     client->request_data.method = client->request_data.headers[":method"];
 
-    worker->site.taskpool->append_task([client, taskpool = worker->site.taskpool] () mutable  -> void {
+    worker->site.async_context()->taskpool()->append_task([client, taskpool = worker->site.async_context()->taskpool()] () mutable  -> void {
         async::run(std::move(taskpool), [client] () mutable -> future<> {
             co_await client->parse_request(0, 0);
             co_await client->execute_handler();
@@ -450,7 +450,7 @@ bool manapi::net::worker::http_v3_tquic::_flush_write_stream(connection_t &conn_
         if (s.wbuff_caret == s.wbuff_pos) {
             s.status.fetch_xor(CONN_WRITE);
             conn_data.write_total += written_total;
-            conn_data.worker->site.taskpool->append_task(
+            conn_data.worker->site.async_context()->taskpool()->append_task(
                 [handle = std::move(s.handle_io)] () -> void { handle(); });
         }
     }
@@ -466,7 +466,7 @@ bool manapi::net::worker::http_v3_tquic::_flush_write_stream(connection_t &conn_
                 rlt = true;
             }
 
-            conn_data.worker->site.taskpool->append_task(
+            conn_data.worker->site.async_context()->taskpool()->append_task(
                 [handle = std::move(s.handle_io)] () mutable -> void { handle(); });
         }
         else {
@@ -506,7 +506,7 @@ void manapi::net::worker::http_v3_tquic::_stream_close(connection_stream_t &stre
     }
 
     if (flag) {
-        this->site.taskpool->append_task(
+        this->site.async_context()->taskpool()->append_task(
             [handle = std::move(stream.handle_io)] () mutable -> void { handle(); });
     }
 }

@@ -71,10 +71,8 @@ namespace manapi::net {
 
     class site {
     public:
-        site (const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::event_loop> event_loop);
+        site (const std::shared_ptr<async::context> &ctx);
         virtual ~site();
-
-        manapi::async_delay delay (const std::chrono::seconds &n);
 
         http_uri_part *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
         http_uri_part *set_handler (const std::string &method, const std::string &uri, const std::string &folder);
@@ -96,23 +94,19 @@ namespace manapi::net {
         std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm);
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
 
-        [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
-        [[nodiscard]] const std::shared_ptr<event_loop> &get_event_loop ();
+        [[nodiscard]] const std::shared_ptr<async::context>& async_context ();
 
         std::string config_cache_dir;
-        std::shared_ptr <manapi::timerpool> timerpool;
-        std::shared_ptr <threadpool<task>> taskpool = nullptr;
+        std::shared_ptr<async::context> ctx;
         async::mutex cache_config_mx;
     protected:
         void setup ();
-        void timer_pool_stop ();
         void setup_config ();
         void save ();
         void save_config ();
 
         manapi::json config;
         std::mutex loopmx;
-        std::shared_ptr<event_loop> events;
     private:
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);

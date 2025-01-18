@@ -27,14 +27,14 @@ namespace manapi {
     template <typename T>
     class AtomicAsync {
     public:
-        AtomicAsync (const std::shared_ptr<threadpool<task>> &taskpool);
+        AtomicAsync (const std::shared_ptr<async::context> &ctx);
 
         template<typename T1 = T>
-        AtomicAsync (T1 v, const std::shared_ptr<threadpool<task>> &taskpool);
+        AtomicAsync (const std::shared_ptr<async::context> &ctx, T1 v);
 
         template<typename T1>
         requires(std::is_same_v<T1, std::string>)
-        AtomicAsync (const char *n, const std::shared_ptr<threadpool<task>> &taskpool);
+        AtomicAsync (const std::shared_ptr<async::context> &ctx, const char *n);
 
         ~AtomicAsync ();
 
@@ -122,18 +122,18 @@ namespace manapi {
     }
 
     template<typename T>
-    AtomicAsync<T>::AtomicAsync(const std::shared_ptr<threadpool<task>> &taskpool) {
-        this->mdeps = std::make_shared<async::mutex>(taskpool);
+    AtomicAsync<T>::AtomicAsync(const std::shared_ptr<async::context> &ctx) : gmx(ctx), mx(ctx) {
+        this->mdeps = std::make_shared<async::mutex>(ctx);
         this->deps = std::make_shared<size_t>(0);
-        this->cv = std::make_shared<async::condition_variable>(taskpool);
+        this->cv = std::make_shared<async::condition_variable>(ctx);
     }
 
     template<typename T>
     template<typename T1>
-    AtomicAsync<T>::AtomicAsync(T1 v, const std::shared_ptr<threadpool<task>> &taskpool) {
-        this->mdeps = std::make_shared<async::mutex>(taskpool);
+    AtomicAsync<T>::AtomicAsync(const std::shared_ptr<async::context> &ctx, T1 v) : gmx(ctx), mx(ctx) {
+        this->mdeps = std::make_shared<async::mutex>(ctx);
         this->deps = std::make_shared<size_t>(0);
-        this->cv = std::make_shared<async::condition_variable>(taskpool);
+        this->cv = std::make_shared<async::condition_variable>(ctx);
 
         this->value = v;
     }
@@ -141,10 +141,10 @@ namespace manapi {
     template<typename T>
     template<typename T1>
     requires(std::is_same_v<T1, std::string>)
-    AtomicAsync<T>::AtomicAsync(const char *n, const std::shared_ptr<threadpool<task>> &taskpool) {
-        this->mdeps = std::make_shared<async::mutex>(taskpool);
+    AtomicAsync<T>::AtomicAsync(const std::shared_ptr<async::context> &ctx, const char *n) : gmx(ctx), mx(ctx) {
+        this->mdeps = std::make_shared<async::mutex>(ctx);
         this->deps = std::make_shared<size_t>(0);
-        this->cv = std::make_shared<async::condition_variable>(taskpool);
+        this->cv = std::make_shared<async::condition_variable>(ctx);
 
         this->set(std::string{n});
     }

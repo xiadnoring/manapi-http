@@ -3,6 +3,7 @@
 #include <functional>
 
 #include "ManapiAsync.hpp"
+#include "ManapiAsyncContext.hpp"
 
 namespace manapi::async {
     template<typename T>
@@ -14,14 +15,14 @@ namespace manapi::async {
         typedef const resolve_t& resolve_ref_t;
         typedef const reject_t& reject_ref_t;
 
-        explicit promise(std::shared_ptr<threadpool<task>> taskpool, const std::function<void(resolve_ref_t, reject_ref_t)> &cb) {
-            this->cb = cb;
-            this->taskpool = std::move(taskpool);
+        explicit promise(const std::shared_ptr<context> &ctx, const std::function<future<>(resolve_ref_t, reject_ref_t)> &cb) {
+            this->async_cb = cb;
+            this->taskpool = as_threadpool(ctx);
         }
 
-        explicit promise(std::shared_ptr<threadpool<task>> taskpool, const std::function<future<T>(resolve_ref_t, reject_ref_t)> &cb) {
+        explicit promise(const std::shared_ptr<threadpool<task>> &taskpool, const std::function<future<>(resolve_ref_t, reject_ref_t)> &cb) {
             this->async_cb = cb;
-            this->taskpool = std::move(taskpool);
+            this->taskpool = taskpool;
         }
 
         ~promise() = default;
@@ -79,7 +80,7 @@ namespace manapi::async {
         }
 
         std::exception_ptr exception{nullptr};
-        std::shared_ptr<manapi::threadpool<manapi::task>> taskpool{nullptr};
+        std::shared_ptr<threadpool<task>> taskpool{nullptr};
         std::function<void(resolve_ref_t, reject_ref_t)> cb{nullptr};
         std::function<future<>(resolve_ref_t, reject_ref_t)> async_cb{nullptr};
         std::optional<T> value;
@@ -95,14 +96,14 @@ namespace manapi::async {
         typedef const resolve_t& resolve_ref_t;
         typedef const reject_t& reject_ref_t;
 
-        explicit promise(std::shared_ptr<threadpool<task>> taskpool, const std::function<void(resolve_ref_t, reject_ref_t)> &cb) {
-            this->cb = cb;
-            this->taskpool = std::move(taskpool);
+        explicit promise(const std::shared_ptr<context> &ctx, const std::function<future<>(resolve_ref_t, reject_ref_t)> &cb) {
+            this->async_cb = cb;
+            this->taskpool = as_threadpool(ctx);
         }
 
-        explicit promise(std::shared_ptr<threadpool<task>> taskpool, const std::function<future<>(resolve_ref_t, reject_ref_t)> &cb) {
+        explicit promise(const std::shared_ptr<threadpool<task>> &taskpool, const std::function<future<>(resolve_ref_t, reject_ref_t)> &cb) {
             this->async_cb = cb;
-            this->taskpool = std::move(taskpool);
+            this->taskpool = taskpool;
         }
 
         ~promise() = default;
@@ -157,7 +158,7 @@ namespace manapi::async {
         }
 
         std::exception_ptr exception{nullptr};
-        std::shared_ptr<manapi::threadpool<manapi::task>> taskpool{nullptr};
+        std::shared_ptr<threadpool<task>> taskpool{nullptr};
         std::function<void(resolve_ref_t, reject_ref_t)> cb{nullptr};
         std::function<future<>(resolve_ref_t, reject_ref_t)> async_cb{nullptr};
     };

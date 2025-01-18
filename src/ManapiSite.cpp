@@ -91,10 +91,6 @@ void manapi::net::site::setup() {
     this->set_transport_protocol_worker("quic", "default", worker::quic::create);
 }
 
-void manapi::net::site::timer_pool_stop() {
-    this->timerpool->stop();
-}
-
 void manapi::net::site::set_config(const std::string &path) {
     this->config_path = path;
 
@@ -196,8 +192,8 @@ void manapi::net::site::set_compressed_cache_file(const std::string &file, const
     this->cache_config[algorithm].insert(file, file_info);
 }
 
-std::shared_ptr<manapi::threadpool<manapi::task>> manapi::net::site::get_task_pool() const {
-    return this->taskpool;
+const std::shared_ptr<manapi::async::context> & manapi::net::site::async_context() {
+    return this->ctx;
 }
 
 void manapi::net::site::save() {
@@ -330,18 +326,10 @@ manapi::net::http_handler_page manapi::net::site::get_handler(http::request_data
     }
 }
 
-manapi::net::site::site(const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<event_loop> event_loop)
-    : taskpool(taskpool), timerpool(std::move(timerpool)), cache_config_mx(taskpool), events(std::move(event_loop)) {}
+manapi::net::site::site(const std::shared_ptr<async::context> &ctx)
+    : ctx(ctx), cache_config_mx(ctx) {}
 
 manapi::net::site::~site() = default;
-
-const std::shared_ptr<manapi::event_loop> & manapi::net::site::get_event_loop() {
-    return this->events;
-}
-
-manapi::async_delay manapi::net::site::delay(const std::chrono::seconds &n) {
-    return manapi::async_delay{*this->timerpool, n};
-}
 
 
 manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {

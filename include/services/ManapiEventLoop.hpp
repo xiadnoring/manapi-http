@@ -78,10 +78,10 @@ namespace manapi {
             std::shared_ptr<ev::async> w_async{nullptr};
             std::shared_ptr<ev::timer> w_timer{nullptr};
         } adding_watcher_data{};
-        async::mutex adding_watcher_mx;
+        std::shared_ptr<async::mutex> adding_watcher_mx;
         std::shared_ptr <ev::async> adding_watcher_async;
         bool status;
-        async::mutex mx;
+        std::shared_ptr<async::mutex> mx;
         ev::dynamic_loop loop;
         std::thread::id loop_thread_id{0};
         std::shared_ptr<threadpool<task>> taskpool;

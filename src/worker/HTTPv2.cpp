@@ -25,11 +25,11 @@ std::map <int, manapi::json_mask> manapi::net::worker::http_v2::allow_settings =
 };
 
 manapi::net::worker::http_v2::http_v2(const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
-    : base(site), protocol{worker->site.taskpool}, finishcv(worker->site.taskpool), worker(worker), threads_mutex(worker->site.taskpool) {
+    : base(site), protocol{worker->site.async_context()}, finishcv(worker->site.async_context()), worker(worker), threads_mutex(worker->site.async_context()) {
     this->config = std::move(config);
     this->init_settings();
     this->init_callbacks();
-    this->protocol.setting_param_acks_mx = std::make_shared<async::mutex>(this->site.taskpool);
+    this->protocol.setting_param_acks_mx = std::make_shared<async::mutex>(this->site.async_context());
     this->read = [this](net::worker::connection & PH1, void * && PH2, const size_t & PH3) -> future<ssize_t> {
         return this->default_read(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2), std::forward<decltype(PH3)>(PH3));
     };
@@ -52,14 +52,14 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
     this->parse_vars.j = j;
     this->parse_vars.size = size;
 
-    this->protocol.window.write_cv = std::make_shared<async::condition_variable>(this->site.taskpool);
+    this->protocol.window.write_cv = std::make_shared<async::condition_variable>(this->site.async_context());
 
     ssize_t rhs=-1;
 
     try {
         this->protocol.conn_type.fetch_or(CONN_IDLE);
 
-        this->ping_interval.store(co_await this->site.timerpool->async_append_interval_async(std::chrono::milliseconds (this->protocol.timer_interval), [this, dep = new_dependency()] () -> future<void> {
+        this->ping_interval.store(co_await this->site.async_context()->timerpool()->async_append_interval_async(std::chrono::milliseconds (this->protocol.timer_interval), [this, dep = new_dependency()] () -> future<void> {
             co_await this->timer_watcher();
         }));
 
@@ -141,7 +141,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                             if (this->protocol.setting_timeout.empty()) {
                                 co_await this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "unexpected frame");
                             }
-                            co_await this->site.timerpool->async_remove_timer(this->protocol.setting_timeout.front());
+                            co_await this->site.async_context()->timerpool()->async_remove_timer(this->protocol.setting_timeout.front());
                             this->protocol.setting_timeout.pop();
                             if (this->protocol.conn_type & CONN_IDLE) {
                                 this->protocol.conn_type.fetch_xor(CONN_IDLE);
@@ -307,7 +307,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         std::cout << "BEEN NOTIFY " << this->threads.empty() << " " << this->deps << "\n";
         return this->threads.empty() && this->deps == 0;
     });
-    co_await this->site.timerpool->async_remove_timer(this->ping_interval.exchange(0));
+    co_await this->site.async_context()->timerpool()->async_remove_timer(this->ping_interval.exchange(0));
     if ((this->protocol.conn_type & CONN_CLOSED) == false ) {
         lk.call();
         co_await this->close_connection (HTTP2_ERROR_NO_ERROR, "shutdown", 0);
@@ -344,7 +344,7 @@ void manapi::net::worker::http_v2::init_settings() {
 
         this->protocol.window.write.store(value);
 
-        async::run(this->site.taskpool, [self, dp = new_dependency()] () -> future<void> {
+        async::run(this->site.async_context(), [self, dp = new_dependency()] () -> future<void> {
             co_await dp->protocol.window.write_cv->notify_all();
             auto lk = co_await dp->threads_mutex.lock_guard();
             for (auto &thread : dp->threads) {
@@ -454,7 +454,7 @@ manapi::future<void> manapi::net::worker::http_v2::empty_setting_timeouts() {
     while (!this->protocol.setting_timeout.empty()) {
         auto id = this->protocol.setting_timeout.back();
         this->protocol.setting_timeout.pop();
-        co_await this->site.timerpool->async_remove_timer(id);
+        co_await this->site.async_context()->timerpool()->async_remove_timer(id);
     }
     co_return;
 }
@@ -892,7 +892,7 @@ manapi::future<> manapi::net::worker::http_v2::timer_watcher() {
     protocol.current_timeout.fetch_sub(protocol.timer_interval);
     if (protocol.current_timeout <= 0) {
         MANAPIHTTP_LOG2("TIMEOUT HTTP2");
-        co_await this->site.timerpool->async_remove_timer(this->ping_interval.exchange(0));
+        co_await this->site.async_context()->timerpool()->async_remove_timer(this->ping_interval.exchange(0));
         MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
         co_await this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout", 0);
         MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
@@ -947,7 +947,7 @@ manapi::future<void> manapi::net::worker::http_v2::send_settings(const std::vect
         co_await generate_error(HTTP2_ERROR_SETTINGS_TIMEOUT, "recv settings timeout", 0);
     };
 
-    this->protocol.setting_timeout.push(co_await this->site.timerpool->async_append_timer_async(std::chrono::milliseconds(1000), [handle = std::move(handle), worker = std::move(this->new_dependency ())] () mutable -> future<void> {
+    this->protocol.setting_timeout.push(co_await this->site.async_context()->timerpool()->async_append_timer_async(std::chrono::milliseconds(1000), [handle = std::move(handle), worker = std::move(this->new_dependency ())] () mutable -> future<void> {
         co_await handle(std::move(worker));
     }));
     std::string data;
@@ -1000,11 +1000,11 @@ manapi::future<void> manapi::net::worker::http_v2::default_ev_headers(int id, st
             .id = id,
             .headers = std::move(headers),
             .rst = false,
-            .write = std::make_shared<smart_w_buffer>(this->site.taskpool, [this, id](const void * buff, ssize_t size, bool finish) -> future<ssize_t> {
+            .write = std::make_shared<smart_w_buffer>(this->site.async_context()->taskpool(), [this, id](const void * buff, ssize_t size, bool finish) -> future<ssize_t> {
                 const auto rhs = co_await this->send_data(id, buff, size, finish);
                 co_return rhs;
             }, static_cast<size_t>(this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first),
-            .read = std::make_shared<smart_r_buffer>(this->site.taskpool, [this, id](int size) -> future<void> {
+            .read = std::make_shared<smart_r_buffer>(this->site.async_context()->taskpool(), [this, id](int size) -> future<void> {
 
                 try {
                     co_await this->send_window_frame(id, size);
@@ -1017,7 +1017,7 @@ manapi::future<void> manapi::net::worker::http_v2::default_ev_headers(int id, st
         }});
     }
 
-    async::run(this->site.taskpool, worker::http_v2::session_worker(id, this->sessions[id].body, this->site, this->config, this->new_dependency()));
+    async::run(this->site.async_context(), worker::http_v2::session_worker(id, this->sessions[id].body, this->site, this->config, this->new_dependency()));
 
     co_return;
 }
@@ -1178,7 +1178,7 @@ void manapi::net::worker::http_v2::setting_param_was_ack(const bool &self) {
         return;
     }
 
-    async::run(this->site.taskpool, [worker = this->new_dependency()] () mutable -> future<> {
+    async::run(this->site.async_context(), [worker = this->new_dependency()] () mutable -> future<> {
         auto lk = co_await worker->protocol.setting_param_acks_mx->lock_guard();
         if (worker->protocol.setting_param_acks == 0) {
             co_return;

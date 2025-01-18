@@ -19,10 +19,10 @@
 
 manapi::net::http::server::~server() = default;
 
-manapi::net::http::server::server(const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::event_loop> event_loop)
-        : site(taskpool, std::move(timerpool), std::move(event_loop)), mx(taskpool) {
-    this->stopping.store(true);
+manapi::net::http::server::server(const std::shared_ptr<manapi::async::context> &ctx)
+        : site(ctx), mx(ctx) {
 
+    this->stopping.store(true);
     setup ();
 }
 
@@ -35,17 +35,15 @@ manapi::future<void> manapi::net::http::server::start() {
 
     co_await this->_init_pool();
 
-    this->event_id = co_await this->events->subscribe_finish([this] () -> future<> {
-        return this->stop();
+    this->event_id = co_await this->ctx->eventloop()->subscribe_finish([this] () -> future<> {
+        co_return co_await this->stop();
     });
 
 
-    co_await async::promise<void> (this->taskpool, [this, &lk] (async::promise<void>::resolve_ref_t resolve, async::promise<void>::reject_ref_t reject) -> void {
-        async::run(this->taskpool, [this, &lk, resolve] () mutable -> future<> {
-            co_await this->_pool([&lk, resolve = std::move(resolve)] () mutable -> void {
-                lk.call();
-                resolve ();
-            });
+    co_await async::promise<void> (this->ctx, [this, &lk] (async::promise<void>::resolve_ref_t resolve, async::promise<void>::reject_ref_t reject) -> future<> {
+        co_await this->_pool([&lk, resolve] () mutable -> void {
+            lk.call();
+            resolve ();
         });
     });
 }
@@ -85,7 +83,7 @@ manapi::future<void> manapi::net::http::server::stop() {
         co_return;
     }
 
-    co_await this->events->unsubscribe_finish(std::exchange(this->event_id, 0));
+    co_await this->ctx->eventloop()->unsubscribe_finish(std::exchange(this->event_id, 0));
     co_await this->stop_pool();
 }
 
@@ -95,7 +93,7 @@ manapi::future<> manapi::net::http::server::_init_pool() {
     {
         for (auto it = this->config["pools"].begin<json::ARRAY>(); it != this->config["pools"].end<json::ARRAY>(); ++it, this->next_pool_id++)
         {
-            auto p = std::make_unique<http_pool> (*it, this, this->next_pool_id, this->get_event_loop());
+            auto p = std::make_unique<http_pool> (*it, this, this->next_pool_id, this->ctx->eventloop());
             co_await p->run();
             this->pools.insert({this->next_pool_id, std::move(p)});
         }
@@ -103,7 +101,7 @@ manapi::future<> manapi::net::http::server::_init_pool() {
 }
 
 manapi::future<void> manapi::net::http::server::_pool(const std::function<void()> &cb) {
-    this->init_watcher = co_await this->events->watch_async([cb] (ev::async &w, int revents) -> void {
+    this->init_watcher = co_await this->ctx->eventloop()->watch_async([cb] (ev::async &w, int revents) -> void {
         w.stop();
         cb();
     });
@@ -130,7 +128,7 @@ manapi::future<> manapi::net::http::server::stop_pool() {
     this->next_pool_id = 0;
 
     if (this->init_watcher) {
-        co_await this->events->unwatch_async(this->init_watcher);
+        co_await this->ctx->eventloop()->unwatch_async(this->init_watcher);
         this->init_watcher.reset();
     }
 }

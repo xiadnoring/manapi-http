@@ -17,7 +17,9 @@
 #include "compress/ManapiHPack.hpp"
 #include "ManapiAsync.hpp"
 #include "ManapiString.hpp"
+#include "async/ManapiAsyncContext.hpp"
 #include "async/ManapiAsyncConditionVariable.hpp"
+#include "async/ManapiAsyncContext.hpp"
 #include "async/ManapiAsyncMutex.hpp"
 #include "components/ManapiChain.hpp"
 #include "crypto/ManapiAEAD.hpp"
@@ -80,17 +82,11 @@ int main (int argc, char *argv[]) {
 
     manapi::debug::debug_print_memory("start");
     {
-        auto _taskpool = std::make_shared<manapi::threadpool<manapi::task>>(std::thread::hardware_concurrency(), 1);
-        auto _event_loop = std::make_shared<manapi::event_loop>(_taskpool);
-        auto _timerpool = std::make_shared<manapi::timerpool>(_event_loop, 0.2);
-
-        _taskpool->start();
-        manapi::async::run(_taskpool, _timerpool->start(_timerpool));
-
-        _event_loop->setup_handle_interrupt();
+        auto ctx = manapi::async::context::create();
+        ctx->eventloop()->setup_handle_interrupt();
 
         {
-        http::server server (_taskpool, _timerpool, _event_loop);
+            http::server server (ctx);
             server.set_config("./config.json");
 
             server.GET ("/", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
@@ -101,9 +97,6 @@ int main (int argc, char *argv[]) {
             });
 
             server.GET ("/response", [&server] (REQ(req), RESP(resp)) -> manapi::future<void> {
-                co_await server.delay(std::chrono::seconds(2));
-                printf("2 sec later...\n");
-                co_await server.delay(std::chrono::seconds(3));
                 printf("3 sec later...\n");
                 resp.text("5 sec later...");
                 co_return;
@@ -366,9 +359,9 @@ int main (int argc, char *argv[]) {
 
             manapi::debug::debug_print_memory("pool");
 
-            manapi::async::run (_taskpool, server.start());
+            manapi::async::run (ctx, server.start());
 
-            _event_loop->sync_start(_event_loop);
+            ctx->sync_start();
 
             manapi::debug::debug_print_memory("preend");
         }
@@ -376,19 +369,6 @@ int main (int argc, char *argv[]) {
 
         auto &b = manapi::async::async_tasks;
         printf("ASYNC STACK: %zi\n", b.size());
-
-        _timerpool->stop()
-            .get(_taskpool);
-        manapi::debug::debug_print_memory("preend 3");
-        _taskpool->stop();
-        manapi::debug::debug_print_memory("preend 4");
-        _taskpool->join();
-        manapi::debug::debug_print_memory("preend 5");
-
-        _timerpool->clear();
-        manapi::debug::debug_print_memory("preend 6");
-        _taskpool->clear();
-        manapi::debug::debug_print_memory("preend 7");
 
         manapi::async::async_tasks = {};
         manapi::debug::debug_print_memory("preend 8");

@@ -227,6 +227,10 @@ set(MANAPIHTTP_HTTP_FILES
         include/components/AtomicAsync.hpp
         include/services/ManapiEventLoop.hpp
         src/services/ManapiEventLoop.cpp
+        include/async/ManapiAsyncContext.hpp
+        src/async/ManapiAsyncContext.cpp
+        src/async/ManapiAsyncMutex.cpp
+        src/async/ManapiAsyncConditionVariable.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

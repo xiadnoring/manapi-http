@@ -1,0 +1,124 @@
+#pragma once
+
+#include <memory>
+
+#include "../ManapiAsync.hpp"
+
+namespace manapi::async {
+    class context;
+    class mutex;
+    class condition_variable;
+
+    inline void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, const std::function<void()> &onfinish = nullptr);
+    inline void run (const std::shared_ptr<context> &ctx, manapi::future<> &&task,  const std::function<void()> &onfinish = nullptr);
+    inline void run (const std::shared_ptr<context> &ctx, auto && executor,  const std::function<void()> &onfinish = nullptr);
+    inline void run (const std::shared_ptr<threadpool<task>> &taskpool, auto && executor,  const std::function<void()> &onfinish = nullptr);
+    inline const std::shared_ptr<threadpool<task>> &as_threadpool(const std::shared_ptr<context> &ctx);
+}
+
+namespace manapi {
+    class event_loop;
+    class timerpool;
+}
+
+#include "services/ManapiEventLoop.hpp"
+#include "services/ManapiTimerPool.hpp"
+
+namespace manapi::async {
+    class context {
+    public:
+        context (std::shared_ptr<event_loop> watcher, std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool);
+
+        static std::shared_ptr<context> create (const unsigned int &threadnum = std::thread::hardware_concurrency(), const double &timer_delay = 0.2);
+
+        manapi::future<void> start ();
+        void sync_start();
+        manapi::future<void> stop ();
+
+        void join ();
+
+        [[nodiscard]] const std::shared_ptr<event_loop>& eventloop();
+        [[nodiscard]] const std::shared_ptr<threadpool<task>> &taskpool();
+        [[nodiscard]] const std::shared_ptr<manapi::timerpool> &timerpool();
+
+        ~context();
+    private:
+        std::weak_ptr<context> weak;
+        std::shared_ptr<event_loop> watcher_;
+        std::shared_ptr<threadpool<task>> taskpool_;
+        std::shared_ptr<manapi::timerpool> timerpool_;
+    };
+
+    inline std::mutex async_tasks_mx;
+
+    struct async_task_t {
+        std::function <manapi::future<>()> cb;
+        manapi::future<void> task;
+    };
+
+    inline std::unordered_map <size_t, std::shared_ptr<async_task_t>> async_tasks;
+
+    inline size_t _run_prepare (const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::function<void()> onfinish) {
+        if (task.get_handle() == nullptr) {
+            std::cerr << "Null pointer in the net::future<> task\n";
+        }
+
+        auto index = reinterpret_cast <size_t> (task.get_handle().address());
+
+        task.on_finish([index, taskpool, onfinish = std::move(onfinish)] () -> void {
+            if (onfinish) {
+                taskpool->append_task(onfinish);
+            }
+
+            decltype(async_tasks)::node_type data;
+            {
+                std::lock_guard<std::mutex> lk (async_tasks_mx);
+                auto it = async_tasks.find(index);
+                if (it != async_tasks.end()) {
+                    data = std::move(async_tasks.extract(it));
+                    if (async_tasks.empty()) {
+                        // free
+                        async_tasks.clear();
+                    }
+                }
+            }
+        }, taskpool);
+
+        task();
+
+        return index;
+    }
+
+    inline manapi::future<> invoke (auto && executer) {
+        std::function<manapi::future<void>()> cb (std::forward<decltype(executer)>(executer));
+        co_await cb();
+    };
+
+    inline void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, const std::function<void()> &onfinish) {
+        const size_t index = async::_run_prepare(taskpool, task, onfinish);
+
+        if (!task.finished()) {
+            std::lock_guard<std::mutex> lk (async_tasks_mx);
+            if (async_tasks.contains(index)) {
+                printf("bug\n");
+            }
+            async_tasks.insert({index, std::make_shared<async_task_t>(nullptr, std::move(task))});
+        }
+    }
+
+    inline void run (const std::shared_ptr<context> &ctx, manapi::future<> &&task,  const std::function<void()> &onfinish ) {
+        async::run (ctx->taskpool(), std::forward<decltype(task)>(task), onfinish);
+    }
+
+    inline const std::shared_ptr<threadpool<task>> & as_threadpool(const std::shared_ptr<context> &ctx) {
+        return ctx->taskpool();
+    }
+
+    inline void run (const std::shared_ptr<context> &ctx, auto && executor,  const std::function<void()> &onfinish ) {
+        async::run (ctx->taskpool(), invoke(std::forward<decltype(executor)>(executor)), onfinish);
+    }
+
+    inline void run (const std::shared_ptr<threadpool<task>> &taskpool, auto && executor,  const std::function<void()> &onfinish ) {
+        async::run (taskpool, invoke(std::forward<decltype(executor)>(executor)), onfinish);
+    }
+}

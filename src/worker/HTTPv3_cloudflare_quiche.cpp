@@ -232,7 +232,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                         client->request_data.body_left = client->request_data.body_size;
                         client->request_data.method = client->request_data.headers[":method"];
 
-                        this->site.taskpool->append_task([client = std::move(client), taskpool = this->site.taskpool] () mutable  -> void {
+                        this->site.async_context()->taskpool()->append_task([client = std::move(client), taskpool = this->site.async_context()->taskpool()] () mutable  -> void {
                             async::run(std::move(taskpool), [client = std::move(client)] () mutable -> future<> {
                                 co_await client->parse_request(0, 0);
                                 co_await client->execute_handler();
@@ -462,7 +462,7 @@ bool manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
         if (s.wbuff_caret == s.wbuff_pos) {
             s.status.fetch_xor(CONN_WRITE);
             conn_data.write_total += written_total;
-            conn_data.worker->site.taskpool->append_task(
+            conn_data.worker->site.async_context()->taskpool()->append_task(
                 [handle = std::move(s.handle_io)] () -> void { handle(); });
         }
     }
@@ -504,7 +504,7 @@ bool manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
 
                 stream_it = conn_data.streams.erase(stream_it);
 
-                conn_data.worker->site.taskpool->append_task(
+                conn_data.worker->site.async_context()->taskpool()->append_task(
                     [handle = std::move(s.handle_io)] () mutable -> void { handle(); });
                 return true;
             }
@@ -526,7 +526,7 @@ bool manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
             }
 
 
-            conn_data.worker->site.taskpool->append_task(
+            conn_data.worker->site.async_context()->taskpool()->append_task(
                 [handle = std::move(s.handle_io)] () mutable -> void { handle(); });
         }
     }
@@ -577,7 +577,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read(connection_t &c
 
                 if (read_total > 0) {
                     stream_data.status.fetch_xor(CONN_READ);
-                    conn_data.worker->site.taskpool->append_task([handle = std::move(stream_data.handle_io)] () mutable
+                    conn_data.worker->site.async_context()->taskpool()->append_task([handle = std::move(stream_data.handle_io)] () mutable
                         -> void { handle(); });
                 }
             }
@@ -615,7 +615,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_stream_close(connection_st
     }
 
     if (flag) {
-        this->site.taskpool->append_task(
+        this->site.async_context()->taskpool()->append_task(
             [handle = std::move(stream.handle_io)] () mutable -> void { handle(); });
     }
 }

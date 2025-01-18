@@ -5,6 +5,8 @@
 #include <cstdarg>
 #include "ManapiFilesystem.hpp"
 
+#include <sys/stat.h>
+
 #include "ManapiBeforeDelete.hpp"
 
 static const std::string folder_configs;
@@ -36,6 +38,9 @@ bool manapi::filesystem::exists(const std::string& path) {
     std::filesystem::path f(path);
 
     return std::filesystem::exists(f);
+}
+
+manapi::future<bool> manapi::filesystem::exists_async(const std::string &path) {
 }
 
 void manapi::filesystem::config::write(const std::string &name, manapi::json &data) {

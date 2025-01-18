@@ -175,15 +175,15 @@ void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
         std::shared_ptr<async_stack_storage> row = std::make_shared<async_stack_storage>(stack, task);
 
         stack->on_finish([this, connection, fd, row] () mutable -> void {
-            async::run(this->site.taskpool, [this, fd, connection] () mutable  -> future<void> {
+            async::run(this->site.async_context(), [this, fd, connection] () mutable  -> future<void> {
                 co_await this->connection_close(connection, true);
             });
             row->stack.reset();
-        }, this->site.taskpool);
+        }, this->site.async_context()->taskpool());
 
         this->stacks[fd] = row;
 
-        this->site.taskpool->append_task([this, connection, row] () -> void {
+        this->site.async_context()->taskpool()->append_task([this, connection, row] () -> void {
             row->stack->operator()();
         });
     }
@@ -242,7 +242,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
 
 std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::TCP::accept() {
     return std::move(this->accept([this] () {
-        auto ms = std::make_shared<worker::connection> (new connection_interface (this->site.taskpool), connection_interface_eraser);
+        auto ms = std::make_shared<worker::connection> (new connection_interface (this->site.async_context()), connection_interface_eraser);
         ms->as<connection_interface>().handle = [this] (auto &&P1, auto &&P2) -> void { this->_io_event (std::forward<decltype(P1)>(P1), std::forward<decltype(P2)>(P2)); };
         return std::move(ms);
     }));
@@ -287,7 +287,7 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage, con
 
     if (flag) {
         this->_ev_watcher_stop(conn);
-        async::run(this->site.taskpool, this->connection_close(storage, false));
+        async::run(this->site.async_context(), this->connection_close(storage, false));
         return;
     }
 
@@ -321,13 +321,13 @@ void manapi::net::worker::TCP::_connection_close(std::shared_ptr<connection> con
     if (connection.status.load() & CONN_READ) {
     //MANAPIHTTP_LOG("CONN_READ(...) for {}", connection.id);
         connection.status.fetch_xor(CONN_READ);
-        site.taskpool->append_task([conn, &connection] () -> void { connection.iohandle (); });
+        site.async_context()->taskpool()->append_task([conn, &connection] () -> void { connection.iohandle (); });
     }
 
     if (connection.status.load() & CONN_WRITE) {
     //MANAPIHTTP_LOG("CONN_WRITE(...) for {}", connection.id);
         connection.status.fetch_xor(CONN_WRITE);
-        site.taskpool->append_task([conn, &connection] () -> void { connection.iohandle (); });
+        site.async_context()->taskpool()->append_task([conn, &connection] () -> void { connection.iohandle (); });
     }
 }
 
@@ -349,7 +349,7 @@ void manapi::net::worker::TCP::_io_event(std::shared_ptr<connection> storage, in
     if ((revents & ev::READ) && (status & CONN_READ)) {
         //std::cout << connection.id << " EVENT READ\n";
         connection.status.fetch_xor(CONN_READ);
-        site.taskpool->append_task([storage] () -> void {
+        site.async_context()->taskpool()->append_task([storage] () -> void {
             auto &connection = storage->as<connection_interface>();
             connection.iohandle ();
         });
@@ -358,7 +358,7 @@ void manapi::net::worker::TCP::_io_event(std::shared_ptr<connection> storage, in
 
     if ((revents & ev::WRITE) && (status & CONN_WRITE)) {
         connection.status.fetch_xor(CONN_WRITE);
-        site.taskpool->append_task([storage] () -> void {
+        site.async_context()->taskpool()->append_task([storage] () -> void {
             auto &connection = storage->as<connection_interface>();
             connection.iohandle ();
         });

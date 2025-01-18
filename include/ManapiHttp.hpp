@@ -22,7 +22,7 @@
 namespace manapi::net::http {
     class server : public site {
     public:
-        server(const std::shared_ptr<threadpool<task>> &taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::event_loop> event_loop);
+        server(const std::shared_ptr<async::context> &ctx);
         ~server() final;
         manapi::future <void> start ();
 

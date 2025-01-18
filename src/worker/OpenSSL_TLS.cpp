@@ -63,14 +63,14 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
 
     if (!SSL_is_init_finished(conn.ssl)) {
         conn.mustly.fetch_xor(CONN_READ | CONN_WRITE);
-        conn.timer_accept.store(co_await this->site.timerpool->async_append_timer_async(std::chrono::milliseconds(2000), [this, conn = &conn, connection] () -> future<void> {
+        conn.timer_accept.store(co_await this->site.async_context()->timerpool()->async_append_timer_async(std::chrono::milliseconds(2000), [this, conn = &conn, connection] () -> future<void> {
             conn->timer_accept.store(0);
             co_await this->connection_close(connection, false);
         }));
 
         while (true) {
             if (conn.status & CONN_CLOSED) {
-                co_await this->site.timerpool->async_remove_timer(conn.timer_accept);
+                co_await this->site.async_context()->timerpool()->async_remove_timer(conn.timer_accept);
                 conn.timer_accept.store(0);
                 co_return false;
             }
@@ -108,7 +108,7 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
             }
         }
 
-        co_await conn.site->timerpool->async_remove_timer(conn.timer_accept);
+        co_await conn.site->async_context()->timerpool()->async_remove_timer(conn.timer_accept);
         conn.timer_accept.store(0);
         conn.mustly.fetch_or(CONN_READ | CONN_WRITE);
     }
@@ -137,13 +137,13 @@ std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_T
 
 std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::OpenSSL_TLS::accept() {
     auto connection = TCP::accept([this] () {
-        auto ms = std::make_shared<worker::connection> (new connection_interface {this->site.taskpool}, connection_interface_eraser);
+        auto ms = std::make_shared<worker::connection> (new connection_interface {this->site.async_context()}, connection_interface_eraser);
         auto &connection = ms->as<connection_interface>();
         connection.handle = [this] (auto &&P1, auto &&P2) -> void {
             this->_io_event(std::forward<decltype(P1)>(P1), std::forward<decltype(P2)>(P2));
         };
         connection.ssl = this->config->get_ssl_config()->enabled ? SSL_new(this->ctx) : nullptr;
-        connection.mx = std::make_unique<async::mutex>(this->site.taskpool);
+        connection.mx = std::make_unique<async::mutex>(this->site.async_context());
         return std::move(ms);
     });
 
@@ -215,7 +215,7 @@ void manapi::net::worker::OpenSSL_TLS::_lookup_event(ev::io &watcher, std::share
 
 void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
     auto connection = static_cast<connection_interface *> (ptr);
-    async::run(connection->worker->site.taskpool, [connection] () mutable -> future<void> {
+    async::run(connection->worker->site.async_context(), [connection] () mutable -> future<void> {
         TCP::_connection_interface_eraser (connection);
         auto prev = connection;
         if (connection->ssl) {

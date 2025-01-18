@@ -5,8 +5,10 @@
 #include "ManapiUtils.hpp"
 #include "services/ManapiTaskFunction.hpp"
 
-manapi::timerpool::timerpool(std::shared_ptr<event_loop> events, const double &delay)
-                : cv(events->get_task_pool()), smx(events->get_task_pool()), mx(events->get_task_pool()) {
+manapi::timerpool::timerpool(std::shared_ptr<event_loop> events, const double &delay) {
+    this->cv = std::make_shared<async::condition_variable>(events->get_task_pool());
+    this->mx = std::make_shared<async::mutex>(events->get_task_pool());
+    this->smx = std::make_shared<async::mutex>(events->get_task_pool());
     this->taskpool = events->get_task_pool();
     this->events = std::move(events);
     this->delay = delay;
@@ -37,7 +39,7 @@ manapi::future<> manapi::timerpool::async_remove_timer(size_t id) {
     if (id == 0) {
         co_return;
     }
-    auto lk = co_await this->mx.lock_guard();
+    auto lk = co_await this->mx->lock_guard();
     this->_erase_task(id);
 }
 
@@ -60,7 +62,7 @@ size_t manapi::timerpool::append_interval(const std::chrono::milliseconds &durat
 }
 
 manapi::future<void> manapi::timerpool::start(std::shared_ptr<timerpool> tp) {
-    auto lk = co_await this->smx.lock_guard();
+    auto lk = co_await this->smx->lock_guard();
 
     if (!this->_stop) {
         co_return;
@@ -86,7 +88,7 @@ manapi::future<void> manapi::timerpool::start(std::shared_ptr<timerpool> tp) {
             }
             else {
                 async::run(tp->taskpool,
-                    tp->cv.notify_all());
+                    tp->cv->notify_all());
             }
         });
     });
@@ -95,7 +97,7 @@ manapi::future<void> manapi::timerpool::start(std::shared_ptr<timerpool> tp) {
 }
 
 manapi::future<void> manapi::timerpool::stop() {
-    auto lk = co_await this->smx.lock_guard();
+    auto lk = co_await this->smx->lock_guard();
 
     if (this->_stop) {
         co_return;
@@ -106,7 +108,7 @@ manapi::future<void> manapi::timerpool::stop() {
     co_await this->events->unsubscribe_finish(std::exchange(this->finish_event, 0));
     co_await this->events->unwatch_timer(std::move(this->timer));
 
-    co_await this->cv.wait([this] ()
+    co_await this->cv->wait([this] ()
         -> bool { return this->deps == 0; });
 }
 
@@ -136,7 +138,7 @@ manapi::timerpool::sorted_storage::iterator manapi::timerpool::_erase_task(sorte
 }
 
 manapi::future<> manapi::timerpool::_start() {
-    auto lk = co_await this->mx.lock_guard();
+    auto lk = co_await this->mx->lock_guard();
 
     auto now = std::chrono::steady_clock::now();
 
@@ -185,7 +187,7 @@ std::shared_ptr<manapi::threadpool<manapi::task>> manapi::timerpool::get_task_po
 }
 
 manapi::future<void> manapi::timerpool::_update_interval_state(const size_t &id) {
-    auto lk = co_await this->mx.lock_guard();
+    auto lk = co_await this->mx->lock_guard();
     
     auto task = this->tasks.find(id);
     if (task == this->tasks.end()) {
@@ -201,7 +203,7 @@ manapi::future<void> manapi::timerpool::_update_interval_state(const size_t &id)
 }
 
 manapi::future<size_t> manapi::timerpool::_append(const std::chrono::milliseconds &duration, const std::function<future<>()> &async_task, const std::function<void()> &task, const bool &inteval) {
-    auto lk = co_await this->mx.lock_guard();
+    auto lk = co_await this->mx->lock_guard();
     
     while (this->tasks.contains(this->index)) {
         this->index++;
@@ -242,7 +244,7 @@ void manapi::timerpool::_call_cb(storage::iterator task,
                     (*cb)();
                     co_await this->_update_interval_state(id);
                     this->deps.fetch_sub(1);
-                    co_await this->cv.notify_all();
+                    co_await this->cv->notify_all();
                 }
                 catch (std::exception const &e) {
                     MANAPIHTTP_LOG("Timer Task Exception: {}", e.what());
@@ -272,7 +274,7 @@ void manapi::timerpool::_async_call_cb(std::unordered_map<size_t, timer_task>::i
                     co_await (*cb)();
                     co_await this->_update_interval_state(id);
                     this->deps.fetch_sub(1);
-                    co_await this->cv.notify_all();
+                    co_await this->cv->notify_all();
                 }
                 catch (std::exception const &e) {
                     MANAPIHTTP_LOG("Timer Task Exception: {}", e.what());

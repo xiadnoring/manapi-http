@@ -21,7 +21,7 @@ void manapi::net::worker::quic_openssl_tls::global_init(net::site &site) {
     std::lock_guard<std::mutex> lk (quic_openssl_tls::ctx_init_mx);
 
     if (!quic_openssl_tls::ctx_mx) {
-        quic_openssl_tls::ctx_mx = std::make_unique<async::mutex>(site.taskpool);
+        quic_openssl_tls::ctx_mx = std::make_unique<async::mutex>(site.async_context());
     }
     if (!quic_openssl_tls::ctx) {
         SSL_load_error_strings();
