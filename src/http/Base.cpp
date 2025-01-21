@@ -7,7 +7,9 @@
 #include "services/ManapiFetch.hpp"
 #include "ManapiFilesystem.hpp"
 #include "ManapiHttpMime.hpp"
+#include "ManapiString.hpp"
 #include "ManapiTime.hpp"
+#include "async/ManapiAsyncFileStream.hpp"
 
 #define FEATURE_EXISTS(x) x != nullptr
 
@@ -25,7 +27,7 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http_re
     std::string response;
     std::string compressed;
 
-    manapi::compress::TEMPLATE_INTERFACE compressor = nullptr;
+    std::function<future<bool>(const std::string &src, const std::string &dest)> compressor = nullptr;
 
     auto &compress = res.get_compress();
 
@@ -36,7 +38,7 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http_re
         ) {
             compressor = site.get_compressor(compress);
 
-            if (compressor != nullptr) {
+            if (compressor) {
                 res.set_header(HTTP_HEADER.CONTENT_ENCODING, compress);
             }
         }
@@ -65,7 +67,9 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http_re
     co_return;
 }
 
-manapi::future<void> manapi::net::http::base::execute_handler() { co_return; }
+manapi::future<void> manapi::net::http::base::execute_handler() {
+    co_return;
+}
 
 manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::http_response &res, response_features_t &features) {
     std::string filepath;
@@ -75,21 +79,22 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
             THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
         }
 
-        filepath = co_await compress_file(res.get_file(), site.config_cache_dir, features.compress, features.compressor);
-    } else {
+        filepath = co_await this->compress_file(res.get_file(), site.config_cache_dir, features.compress, features.compressor);
+    }
+    else {
         filepath = res.get_file();
     }
 
-    std::ifstream f;
-
-    f.open(filepath, std::ios::binary | std::ios::in);
+    filesystem::async::fstream f (this->site.async_context(), filepath);
+    co_await f.open(filesystem::async::fstream::FILE_READ);
 
     if (!f.is_open()) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Could not open the file by the following path: {}", filepath);
-    } else {
-        // close ifstream before deleting
-        before_delete unwrap_ifstream([&f]() -> void { f.close(); });
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to open the file: {}", filepath);
+    }
 
+    std::exception_ptr err{nullptr};
+
+    try {
         // set headers
         {
             std::string mimetype = mime_by_file_path(res.get_file());
@@ -104,12 +109,12 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
         std::vector<replace_founded_item> replacers;
 
         // get file size
-        const ssize_t fileSize = manapi::filesystem::get_size(f);
+        ssize_t fileSize = manapi::filesystem::get_size(filepath);
         ssize_t dynamicFileSize = fileSize;
 
         // replacers
         if (FEATURE_EXISTS(features.replacers)) {
-            replacers = found_replacers_in_file(filepath, 0, fileSize, *res.get_replacers());
+            replacers = co_await found_replacers_in_file(this->site.async_context(), filepath, 0, fileSize, *res.get_replacers());
 
             for (const auto &replacer: replacers) {
                 dynamicFileSize = static_cast<ssize_t> (
@@ -143,26 +148,26 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
                         start = res.ranges[0].first;
                     }
 
-                    if (res.ranges[0].second != -1) {
-                        back = res.ranges[0].second;
-                    } else {
-                        back = fileSize - 1;
-                    }
+                if (res.ranges[0].second != -1) {
+                    back = res.ranges[0].second;
+                } else {
+                    back = fileSize - 1;
+                }
                 case 0:
                     size = back - start + 1;
 
-                    res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(size));
-                    res.set_header(HTTP_HEADER.CONTENT_RANGE, "bytes " + std::to_string(start) + '-' + std::to_string(back) + '/' + std::to_string(fileSize));
+                res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(size));
+                res.set_header(HTTP_HEADER.CONTENT_RANGE, "bytes " + std::to_string(start) + '-' + std::to_string(back) + '/' + std::to_string(fileSize));
 
-                    if (co_await mask_response(res, false) >= 0) {
-                            // set start position
-                            f.seekg(start);
-                            // set size and send
-                            co_await send_file(res, f, size);
-                    }
+                if (co_await mask_response(res, false) >= 0) {
+                    // set start position
+                    f.seekg(start);
+                    // set size and send
+                    co_await send_file(res, f, size);
+                }
 
 
-                    break;
+                break;
 
                 default:
                     THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_UNSUPPORTED, "multi bytes unsupported");
@@ -181,32 +186,34 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
             }
         }
     }
-    co_return;
+    catch (...) {
+        err = std::current_exception();
+    }
+
+    co_await f.close();
+
+    if (err) {
+        std::rethrow_exception(err);
+    }
 }
 
 manapi::future<void> manapi::net::http::base::send_response_text(manapi::net::http_response &res, response_features_t &features) {
     // may contains decoded / encoded body
-    const std::string *plaintext = &res.get_body();
+    std::string plaintext = std::move(res.get_body());
 
-    // clean up
-    before_delete unwrap_plaintext([&plaintext]() { delete plaintext; });
-
-    if (FEATURE_EXISTS(features.compressor)) {
+    if (false || FEATURE_EXISTS(features.compressor)) {
         // encode content !
-        plaintext = new std::string(features.compressor(res.get_body(), nullptr));
-    } else {
-        // no need to clean up
-        unwrap_plaintext.disable();
+        //plaintext = co_await features.compressor(res.get_body(), {});
     }
 
-    res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(plaintext->size()));
+    res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(plaintext.size()));
 
     if (!res.ref_headers().contains(HTTP_HEADER.CONTENT_TYPE)) {
         res.set_header(HTTP_HEADER.CONTENT_TYPE, "text/html; charset=UTF-8");
     }
 
     if (co_await mask_response(res, false) >= 0) {
-        co_await send_text(*plaintext, plaintext->size());
+        co_await send_text(plaintext, plaintext.size());
     } else {
         MANAPIHTTP_LOG("{}", "mask_response(...) < 0");
     }
@@ -333,7 +340,7 @@ manapi::future<void> manapi::net::http::base::send_error_response(const size_t &
     co_await handle_request(error, request_data, status, message);
 }
 
-manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, std::ifstream &f, ssize_t size) const {
+manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, filesystem::async::fstream &f, ssize_t size) const {
     auto block_size = static_cast<ssize_t>(config->get_socket_block_size());
     std::string block;
     block.resize(block_size);
@@ -349,9 +356,9 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
             block_size = left;
         }
 
-        f.read(block.data(), block_size);
+        auto rhs = co_await f.read(block.data(), static_cast<ssize_t> (block_size));
 
-        const ssize_t sent = co_await worker->write (*connection, block.data(), block_size, (current + block_size) >= size);
+        const ssize_t sent = co_await this->worker->write (*this->connection, block.data(), rhs, (current + rhs) >= size);
 
         if (sent <= 0) {
             // cannot to send
@@ -361,12 +368,10 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
         current += sent;
 
         //printf("%s STEP: %zi LEFT: %zi NEED: %zi CURRENT: %zi\n", res.get_file().data(), sent, left, size, current);
-
-        f.seekg(current);
     }
 }
 
-manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, std::ifstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const {
+manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, filesystem::async::fstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const {
     std::string block;
     auto block_size = static_cast<ssize_t>(config->get_socket_block_size());
 
@@ -387,7 +392,12 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
             block_size = left;
         }
 
-        f.read(block.data(), block_size);
+        auto rhs = co_await f.read(block.data(), block_size);
+
+        if (rhs != block_size) {
+            // TODO: rhs maybe not equal block_size. And that's bad
+            MANAPIHTTP_LOG2("FIXME: TODO: rhs maybe not equal block_size. And that's bad");
+        }
 
         index = f.tellg();
 
@@ -431,7 +441,7 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
                         current = (index - block_size) + i;
 
                         f.seekg(current);
-                        f.read(block.data() + index_in_block * sizeof(char), needed);
+                        co_await f.read(block.data() + index_in_block, needed);
                     } else {
                         // no data left
                         //shift -= key_left_size;
@@ -508,7 +518,7 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
 
                     // we want to read chars by size can_read
                     f.seekg(current + index_in_block - shift);
-                    ssize_t read = f.readsome(block.data() + i * sizeof(char), can_read);
+                    ssize_t read = co_await f.read (block.data() + i, can_read);
 
                     block_size += read - free_space;
 
@@ -530,7 +540,7 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
         }
 
 
-        ssize_t sent = co_await worker->write(*connection, block.data(), block_size, (current + block_size) >= size);
+        ssize_t sent = co_await this->worker->write(*this->connection, block.data(), block_size, (current + block_size) >= size);
 
         if (sent < 0) {
             // cannot to send
@@ -562,7 +572,7 @@ manapi::future<void> manapi::net::http::base::send_text(const std::string &text,
 
         sent -= result;
 
-        current = current + result * sizeof(char);
+        current = current + result;
     }
 }
 
@@ -579,19 +589,34 @@ manapi::future<void> manapi::net::http::base::expect_header() {
     }
 }
 
-manapi::future<std::string> manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, manapi::compress::TEMPLATE_INTERFACE compressor) const {
+std::string generate_cache_name(const std::string &file, const std::string &ext) {
+    std::string name = manapi::filesystem::basename(std::forward<const std::string&> (file));
+
+    name += manapi::time::fmt_current ("-%Y_%m_%d_%H_%M_%S-", true) + manapi::string::random(25);
+    name += '.';
+    name += ext;
+
+    return std::move(name);
+}
+
+manapi::future<std::string> manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, const std::function<future<bool>(const std::string &src, const std::string &dest)> & compressor) const {
     std::string filepath;
 
     // compressor
-    auto lk = co_await site.cache_config_mx.lock_guard();
-    auto cached = site.get_compressed_cache_file(file, compress);
+    auto lk = co_await this->site.cache_config_mx.lock_guard();
+    auto cached = this->site.get_compressed_cache_file(file, compress);
 
     if (cached.empty()) {
         filesystem::mkdir(folder, true);
-        filepath = compressor(file, &folder);
+        filepath = folder + generate_cache_name(file, "deflate");
 
-        site.set_compressed_cache_file(file, filepath, compress);
-    } else {
+        if (!co_await compressor(file, filepath)) {
+            co_return file;
+        }
+
+        this->site.set_compressed_cache_file(file, filepath, compress);
+    }
+    else {
         filepath = std::move(cached);
     }
 
@@ -599,6 +624,6 @@ manapi::future<std::string> manapi::net::http::base::compress_file(const std::st
 }
 
 manapi::future<ssize_t> manapi::net::http::base::read(void *buf, size_t size) {
-    auto rhs = co_await worker->read (*connection, buf, size);
+    auto rhs = co_await this->worker->read (*this->connection, buf, size);
     co_return rhs;
 }

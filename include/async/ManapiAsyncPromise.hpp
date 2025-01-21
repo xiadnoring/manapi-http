@@ -61,8 +61,7 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         void call (std::coroutine_handle<T1> handle) {
-            this->taskpool->append_task([handle = std::exchange(handle, nullptr)]()
-                mutable -> void { handle(); } );
+            handle();
         }
 
         template <typename T1>
@@ -140,8 +139,7 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         void call (std::coroutine_handle<T1> handle) {
-            this->taskpool->append_task([handle]()
-                mutable -> void { handle(); } );
+            handle();
         }
 
         template <typename T1>

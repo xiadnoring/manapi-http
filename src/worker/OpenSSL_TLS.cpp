@@ -77,7 +77,7 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
 
             int rhs = SSL_accept(conn.ssl);
             rhs = SSL_get_error(conn.ssl, rhs);
-            this->ssl_get_error();
+
             if (rhs != SSL_ERROR_NONE) {
                 switch (rhs) {
                     case SSL_ERROR_WANT_READ: {
@@ -359,7 +359,7 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
         auto lk = co_await connection.mx->lock_guard();
         rhs = SSL_write(connection.ssl, buff, static_cast<int>(size));
         ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
-        this->ssl_get_error();
+
         lk.call();
 
         if (rhs < 0) {
@@ -408,7 +408,7 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &c
         auto lk = co_await connection.mx->lock_guard();
         rhs = SSL_read(connection.ssl, buff, static_cast<int>(size));
         ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
-        this->ssl_get_error();
+
         lk.call();
 
         if (rhs < 0) {

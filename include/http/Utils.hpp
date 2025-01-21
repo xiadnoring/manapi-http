@@ -3,12 +3,14 @@
 #include <string>
 #include <map>
 
+#include "ManapiAsync.hpp"
+#include "async/ManapiAsyncContext.hpp"
 #include "../compress/ManapiCompress.hpp"
 
 namespace manapi::net::http {
     struct response_features_t {
         const std::string &compress;
-        manapi::compress::TEMPLATE_INTERFACE compressor = nullptr;
+        std::function<future<bool>(const std::string &src, const std::string &dest)> compressor = nullptr;
         const std::map <std::string, std::string> *replacers = nullptr;
     };
 
@@ -72,6 +74,6 @@ namespace manapi::net::http {
     std::pair<std::string, std::string> parse_header (const std::string &header);
     std::string stringify_header (const std::pair<std::string, std::string> &header);
     std::string stringify_header_value (const std::vector <header_value_t> &header_value);
-    std::vector <replace_founded_item> found_replacers_in_file (const std::string &path, const size_t &start, const size_t &size, const std::map<std::string, std::string> &replacers);
+    future<std::vector <replace_founded_item>> found_replacers_in_file (const std::shared_ptr<async::context> &ctx, const std::string &path, const ssize_t &start, const size_t &size, const std::map<std::string, std::string> &replacers);
 
 }

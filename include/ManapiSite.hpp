@@ -79,8 +79,8 @@ namespace manapi::net {
 
         http_handler_page get_handler (http::request_data_t &request_data) const;
 
-        void set_compressor (const std::string &name, manapi::compress::TEMPLATE_INTERFACE handler);
-        manapi::compress::TEMPLATE_INTERFACE get_compressor (const std::string &name);
+        void set_compressor (const std::string &name, const std::function<future<bool>(const std::string &src, const std::string &dest)> &handler);
+        const std::function<future<bool>(const std::string &src, const std::string &dest)> &get_compressor (const std::string &name);
 
         [[nodiscard]] bool contains_compressor (const std::string &name) const;
 
@@ -119,7 +119,7 @@ namespace manapi::net {
         http_uri_part handlers;
 
 
-        std::map <std::string, manapi::compress::TEMPLATE_INTERFACE> compressors;
+        std::map <std::string, std::function<future<bool>(const std::string &src, const std::string &dest)>> compressors;
         std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers;
 
         static std::string default_cache_dir;

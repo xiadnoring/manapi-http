@@ -163,7 +163,7 @@ void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
         return;
     }
 
-    auto &connection = connection_optional.value();
+    auto connection = std::move(connection_optional.value());
     auto worker = std::shared_ptr<worker::base>(this->worker);
     std::shared_ptr <http::HeaderView> task = std::make_shared<http::HeaderView>(connection, worker, config, site);
 
@@ -215,7 +215,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
         return {};
     }
 
-    MANAPIHTTP_LOG("NEW FD: {}", fd);
+    //MANAPIHTTP_LOG("NEW FD: {}", fd);
 
     cnt_conns.fetch_add(1);
     this->set_fd_non_blocking(fd);
@@ -233,7 +233,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     ev_timer_start(this->le->get_loop(), &conn.timer);
 
     conn.watcher = std::make_shared<ev::io>(this->le->get_loop());
-    conn.watcher->priority = 2;
+    conn.watcher->priority = 1;
     conn.watcher->set <TCP, &TCP::onevent> (this);
     conn.watcher->start(fd, ev::READ|ev::WRITE);
 
@@ -392,7 +392,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
     auto connection = static_cast<connection_interface *> (ptr);
     _connection_interface_eraser(connection);
     ::close(connection->id);
-    MANAPIHTTP_LOG("CLOSE(...) {}", connection->id);
+    //MANAPIHTTP_LOG("CLOSE(...) {}", connection->id);
     delete connection;
 }
 

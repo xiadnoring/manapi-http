@@ -2,6 +2,7 @@
 
 #include <ev++.h>
 #include <set>
+#include <stack>
 
 #include "ManapiAsync.hpp"
 #include "ManapiTask.hpp"
@@ -32,7 +33,7 @@ namespace manapi {
 
         ev::loop_ref get_loop();
 
-        std::shared_ptr<ev::io> create_watcher_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
+        std::shared_ptr<ev::io> create_watcher_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback, int priority = 0);
         std::shared_ptr<ev::async> create_watcher_async (const std::function<void(ev::async &w, int revents)> &callback);
         std::shared_ptr<ev::timer> create_watcher_timer (const float &after, const int &repeat, const std::function<void(ev::timer &w, int revents)> &callback);
 
@@ -42,7 +43,7 @@ namespace manapi {
         template<typename T>
         void stop_watcher (std::shared_ptr<T> w);
 
-        future<std::shared_ptr<ev::io>> watch_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback);
+        future<std::shared_ptr<ev::io>> watch_fd (int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback, int priority = 0);
         future<void> unwatch_fd (std::shared_ptr<ev::io> w);
 
         future<std::shared_ptr<ev::async>> watch_async (const std::function<void(ev::async &w, int revents)> &callback);
@@ -77,7 +78,9 @@ namespace manapi {
             std::shared_ptr<ev::io> w_io{nullptr};
             std::shared_ptr<ev::async> w_async{nullptr};
             std::shared_ptr<ev::timer> w_timer{nullptr};
-        } adding_watcher_data{};
+            async::promise<void>::resolve_t resolve{nullptr};
+        };
+        std::deque<adding_watcher_data_t> adding_watcher_data;
         std::shared_ptr<async::mutex> adding_watcher_mx;
         std::shared_ptr <ev::async> adding_watcher_async;
         bool status;

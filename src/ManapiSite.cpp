@@ -29,15 +29,14 @@ std::string manapi::net::site::default_config_name      = "config.json";
 
 // ======================[ configs funcs]==========================
 
-void manapi::net::site::set_compressor(const std::string &name, manapi::compress::TEMPLATE_INTERFACE handler) {
+void manapi::net::site::set_compressor(const std::string &name, const std::function<future<bool>(const std::string &src, const std::string &dest)> &handler) {
     this->compressors[name] = handler;
-
 }
 
-manapi::compress::TEMPLATE_INTERFACE manapi::net::site::get_compressor(const std::string &name) {
+const std::function<manapi::future<bool>(const std::string &src, const std::string &dest)> & manapi::net::site::get_compressor(const std::string &name) {
     if (!contains_compressor(name))
     {
-        return nullptr;
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FUNCTION_IS_NULL, "That compress doesn't exists: {}", name);
     }
 
     return this->compressors.at(name);
@@ -65,8 +64,10 @@ void manapi::net::site::setup() {
     this->config = manapi::json::object();
     this->cache_config = manapi::json::object();
 
-    this->set_compressor("deflate", manapi::compress::deflate);
-    this->set_compressor("gzip", manapi::compress::gzip);
+    this->set_compressor("deflate", [this] (const std::string &src, const std::string &dest)
+        -> future<bool> { return manapi::compress::deflate_compress_file(this->ctx, src, dest); });
+    this->set_compressor("gzip", [this] (const std::string &src, const std::string &dest)
+        -> future<bool> { return manapi::compress::gzip_compress_file(this->ctx, src, dest); });
 
     this->set_transport_protocol_worker("tcp", "default", worker::TCP::create);
 #if MANAPIHTTP_OPENSSL_DEPENDENCY

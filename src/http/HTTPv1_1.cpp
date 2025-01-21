@@ -165,6 +165,9 @@ void manapi::net::http::http_v1_1::_parse_headers(char &c) {
         if (c == ' ' && parse_vars.value->empty()) {
             return;
         }
+        if (!parse_vars.value) {
+            THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "error in the headers section");
+        }
         *parse_vars.value += c;
     }
 }

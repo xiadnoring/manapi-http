@@ -974,7 +974,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::send_data(int stream_id, c
     co_await this->send_frame(HTTP2_FRAME_DATA, cflag, stream_id, std::string_view(static_cast<const char *> (buf), sent));
     if (finish && sent == size) {
         auto end = std::chrono::steady_clock::now();
-        printf("\nOperation took %ld milliseconds\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+        //printf("\nOperation took %ld milliseconds\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
     }
     co_return sent;
 }

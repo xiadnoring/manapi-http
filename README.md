@@ -64,21 +64,12 @@ cmake ... -DMANAPIHTTP_BUILD_METHOD=conan
 ```c++
 int main ()
 {
-    worker::tools::ssl_library_init();
-    
     std::atomic<bool> flag = false;
     
-    auto _taskpool = std::make_shared<manapi::threadpool<manapi::task>>(std::thread::hardware_concurrency(), 1);
-    auto _event_loop = std::make_shared<manapi::event_loop>(_taskpool);
-    auto _timerpool = std::make_shared<manapi::timerpool>(_event_loop, 0.2);
-
-    _taskpool->start();
+    auto ctx = manapi::async::context::create();
+    ctx->eventloop()->setup_handle_interrupt();
     
-    manapi::async::run(_taskpool, _timerpool->start(_timerpool));
-
-    _event_loop->setup_handle_interrupt();
-    
-    http server (_taskpool, _timerpool, _event_loop);
+    http server (ctx);
     
     server.set_config ("config.json");
     
@@ -145,14 +136,8 @@ int main ()
         co_return;
     });
 
-    manapi::async::run (_taskpool, server.start());
-
-    /* the timerpool and the server will be stopped 
-     * after the interruption throw the sync_start(...) */
-    _event_loop->sync_start(_event_loop);
-
-    _taskpool.stop();
-    _taskpool.join();
+    manapi::async::run (ctx, server.start());
+    ctx->sync_start();
     
     return 0;
 }

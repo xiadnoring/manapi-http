@@ -87,7 +87,7 @@ manapi::future<void> manapi::net::http_pool::_pool() {
     }
 
     this->watcher->set <worker::base, &worker::base::onrecv> (this->worker.get());
-    this->watcher->priority = 2;
+    this->watcher->priority = 1;
     this->watcher->set(config->get_socket_fd(), ev::READ);
 
     co_await this->events->watch_fd(this->watcher);

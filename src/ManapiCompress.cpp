@@ -7,18 +7,9 @@
 #include "compress/ManapiCompress.hpp"
 #include "ManapiBeforeDelete.hpp"
 #include "ManapiString.hpp"
+#include "async/ManapiAsyncFileStream.hpp"
 
 #define CHUNK_SIZE 4096
-
-std::string generate_cache_name(const std::string &file, const std::string &ext) {
-    std::string name = manapi::filesystem::basename(std::forward<const std::string&> (file));
-
-    name += manapi::time::fmt_current ("-%Y_%m_%d_%H_%M_%S-", true) + manapi::string::random(25);
-    name += '.';
-    name += ext;
-
-    return std::move(name);
-}
 
 void manapi::compress::throw_could_not_compress_file (const std::string &name, const std::string &src, const std::string &dest)
 {
@@ -35,41 +26,23 @@ void manapi::compress::throw_file_exists (const std::string &name, const std::st
 }
 
 
-std::string manapi::compress::deflate(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
-    if (folder != nullptr) {
-        std::string dest = *folder + generate_cache_name(str, "deflate");
-
-        if (!deflate_compress_file(str, dest, level, strategy))
-        {
-            // throw
-            throw_could_not_compress_file("deflate", str, dest);
-        }
-
-        return std::move(dest);
-    }
-
-    return std::move (deflate_compress_string (str, level, strategy));
-}
-
-std::string manapi::compress::deflate (const std::string &str, const std::string *folder) {
-    return std::move(manapi::compress::deflate(str, Z_BEST_COMPRESSION, Z_BINARY, folder));
-}
-
-bool manapi::compress::deflate_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
+manapi::future<bool> manapi::compress::deflate_compress_file(const std::shared_ptr<async::context> &ctx, const std::string &src, const std::string &dest, const int &level, const int &strategy)
 {
     if (filesystem::exists (dest))
     {
         throw_file_exists ("deflate", dest);
     }
 
-    std::ifstream input (src, std::ios::binary | std::ios::in);
-    std::ofstream output (dest, std::ios::binary | std::ios::out);
+    filesystem::async::fstream input (ctx, src);
+    filesystem::async::fstream output (ctx, dest);
 
+    co_await input.open(manapi::filesystem::async::fstream::FILE_READ);
     if (!input.is_open())
     {
         throw_could_not_open_file("deflate", src);
     }
 
+    co_await output.open(manapi::filesystem::async::fstream::FILE_WRITE|manapi::filesystem::async::fstream::FILE_CREATE);
     if (!output.is_open())
     {
         throw_could_not_open_file("deflate", dest);
@@ -83,14 +56,20 @@ bool manapi::compress::deflate_compress_file(const std::string &src, const std::
     {
         MANAPIHTTP_LOG("defalte: {}", "deflateInit(...) failed!");
 
-        return false;
+        co_return false;
     }
 
     int flush;
     do {
-        input.read(in_buff, CHUNK_SIZE);
+        auto rhs = co_await input.read(in_buff, CHUNK_SIZE);
+        if (rhs < 0) {
+            co_return false;
+        }
+        if (rhs == 0) {
+            break;
+        }
 
-        stream.avail_in = input.gcount();
+        stream.avail_in = rhs;
 
         flush           = input.eof() ? Z_FINISH : Z_NO_FLUSH;
         stream.next_in  = reinterpret_cast<Byte*>(in_buff);
@@ -102,34 +81,33 @@ bool manapi::compress::deflate_compress_file(const std::string &src, const std::
             deflate(&stream, flush);
             ssize_t bytes = CHUNK_SIZE - stream.avail_out;
 
-            output.write(out_buff, bytes);
+            co_await output.fwrite(out_buff, bytes);
         } while (stream.avail_out == 0);
     } while (flush != Z_FINISH);
 
-    input.close();
-    output.close();
-
     deflateEnd(&stream);
 
-    return true;
+    co_return true;
 }
 
 /* decompress */
-bool manapi::compress::deflate_decompress_file(const std::string &src, const std::string &dest)
+manapi::future<bool> manapi::compress::deflate_decompress_file(const std::shared_ptr<async::context> &ctx, const std::string &src, const std::string &dest)
 {
     if (filesystem::exists (dest))
     {
         throw_file_exists ("deflate", dest);
     }
 
-    std::ifstream input (src, std::ios::binary | std::ios::in);
-    std::ofstream output (dest, std::ios::binary | std::ios::out);
+    filesystem::async::fstream input (ctx, src);
+    filesystem::async::fstream output (ctx, dest);
 
+    co_await input.open(manapi::filesystem::async::fstream::FILE_READ);
     if (!input.is_open())
     {
         throw_could_not_open_file("deflate", src);
     }
 
+    co_await output.open(manapi::filesystem::async::fstream::FILE_WRITE|manapi::filesystem::async::fstream::FILE_CREATE);
     if (!output.is_open())
     {
         throw_could_not_open_file("deflate", src);
@@ -145,16 +123,19 @@ bool manapi::compress::deflate_decompress_file(const std::string &src, const std
     {
         MANAPIHTTP_LOG("defalte: {}", "inflateInit(...) failed!");
 
-        return false;
+        co_return false;
     }
 
     do {
-        input.read(inbuff, CHUNK_SIZE);
-
-        stream.avail_in = input.gcount();
-
-        if(stream.avail_in == 0)
+        auto rhs = co_await input.read(inbuff, CHUNK_SIZE);
+        if (rhs < 0) {
+            co_return false;
+        }
+        if (rhs == 0) {
             break;
+        }
+
+        stream.avail_in = rhs;
 
         stream.next_in = reinterpret_cast<Byte*>(inbuff);
 
@@ -167,21 +148,18 @@ bool manapi::compress::deflate_decompress_file(const std::string &src, const std
             {
                 MANAPIHTTP_LOG("defalte: {}", "inflate(...) failed! inflate() = {}", result);
                 inflateEnd(&stream);
-                return false;
+                co_return false;
             }
 
             uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
 
-            output.write(outbuff, nbytes);
+            co_await output.fwrite(outbuff, nbytes);
         } while (stream.avail_out == 0);
     } while (result != Z_STREAM_END);
 
-    input.close();
-    output.close();
-
     inflateEnd(&stream);
 
-    return result == Z_STREAM_END;
+    co_return result == Z_STREAM_END;
 }
 
 std::string manapi::compress::deflate_compress_string(const std::string &original, const int &level, const int &strategy) {
@@ -245,24 +223,6 @@ std::string manapi::compress::deflate_decompress_string(const std::string &compr
     if (result != Z_STREAM_END) { THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "defalte: {}", "result != Z_STREAM_END"); }
 
     return std::move(buff);
-}
-
-std::string manapi::compress::gzip(const std::string &str, const int &level, const int &strategy, const std::string *folder) {
-    if (folder != nullptr) {
-        std::string dest = *folder + generate_cache_name(str, "gzip");
-
-        if (!gzip_compress_file(str, dest, level, strategy))
-        {
-            throw_could_not_compress_file("gzip", str, dest);
-        }
-
-        return dest;
-    }
-    return std::move(gzip_compress_string (str, level, strategy));
-}
-
-std::string manapi::compress::gzip (const std::string &str, const std::string *folder) {
-    return std::move(gzip(str, Z_BEST_COMPRESSION, Z_BINARY, folder));
 }
 
 std::string manapi::compress::gzip_compress_string(const std::string &original, const int &level, const int &strategy) {
@@ -353,24 +313,26 @@ std::string manapi::compress::gzip_decompress_string(const std::string &compress
     return std::move(buff);
 }
 
-bool manapi::compress::gzip_compress_file(const std::string &src, const std::string &dest, const int &level, const int &strategy)
+manapi::future<bool> manapi::compress::gzip_compress_file(const std::shared_ptr<async::context> &ctx, const std::string &src, const std::string &dest, const int &level, const int &strategy)
 {
     if (filesystem::exists (dest))
     {
         throw_file_exists ("gzip", dest);
     }
 
-    std::ifstream input (src, std::ios::binary | std::ios::in);
-    std::ofstream output (dest, std::ios::binary | std::ios::out);
+    filesystem::async::fstream input (ctx, src);
+    filesystem::async::fstream output (ctx, dest);
 
+    co_await input.open(manapi::filesystem::async::fstream::FILE_READ);
     if (!input.is_open())
     {
         throw_could_not_open_file("gzip", src);
     }
 
+    co_await output.open(manapi::filesystem::async::fstream::FILE_WRITE|manapi::filesystem::async::fstream::FILE_CREATE);
     if (!output.is_open())
     {
-        throw_could_not_open_file("gzip", src);
+        throw_could_not_open_file("gzip", dest);
     }
 
     char in_buff [CHUNK_SIZE];
@@ -380,14 +342,20 @@ bool manapi::compress::gzip_compress_file(const std::string &src, const std::str
     if(deflateInit2(&stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK)
     {
         MANAPIHTTP_LOG("gzip: {}", "deflateInit(...) failed!");
-        return false;
+        co_return false;
     }
 
     int flush;
     do {
-        input.read(in_buff, CHUNK_SIZE);
+        auto rhs = co_await input.read(in_buff, CHUNK_SIZE);
+        if (rhs < 0) {
+            co_return false;
+        }
+        if (rhs == 0) {
+            break;
+        }
 
-        stream.avail_in = input.gcount();
+        stream.avail_in = rhs;
 
         flush           = input.eof() ? Z_FINISH : Z_NO_FLUSH;
         stream.next_in  = reinterpret_cast<Byte*>(in_buff);
@@ -399,33 +367,32 @@ bool manapi::compress::gzip_compress_file(const std::string &src, const std::str
             deflate(&stream, flush);
             ssize_t bytes = CHUNK_SIZE - stream.avail_out;
 
-            output.write(out_buff, bytes);
+            co_await output.fwrite(out_buff, bytes);
         } while (stream.avail_out == 0);
     } while (flush != Z_FINISH);
-
-    input.close();
-    output.close();
 
     deflateEnd(&stream);
 
 
-    return true;
+    co_return true;
 }
 
-bool manapi::compress::gzip_decompress_file(const std::string &src, const std::string &dest) {
+manapi::future<bool> manapi::compress::gzip_decompress_file(const std::shared_ptr<async::context> &ctx, const std::string &src, const std::string &dest) {
     if (filesystem::exists (dest))
     {
         throw_file_exists ("gzip", dest);
     }
 
-    std::ifstream input (src, std::ios::binary | std::ios::in);
-    std::ofstream output (dest, std::ios::binary | std::ios::out);
+    filesystem::async::fstream input (ctx, src);
+    filesystem::async::fstream output (ctx, dest);
 
+    co_await input.open(manapi::filesystem::async::fstream::FILE_READ);
     if (!input.is_open())
     {
         throw_could_not_open_file("gzip", src);
     }
 
+    co_await output.open(manapi::filesystem::async::fstream::FILE_WRITE|manapi::filesystem::async::fstream::FILE_CREATE);
     if (!output.is_open())
     {
         throw_could_not_open_file("gzip", src);
@@ -441,17 +408,19 @@ bool manapi::compress::gzip_decompress_file(const std::string &src, const std::s
     {
         MANAPIHTTP_LOG("gzip: {}", "inflateInit2(...) failed!");
 
-        return false;
+        co_return false;
     }
 
     do {
-        input.read(inbuff, CHUNK_SIZE);
-
-        stream.avail_in = input.gcount();
-
-        if(stream.avail_in == 0) {
+        auto rhs = co_await input.read(inbuff, CHUNK_SIZE);
+        if (rhs < 0) {
+            co_return false;
+        }
+        if (rhs == 0) {
             break;
         }
+
+        stream.avail_in = rhs;
 
         stream.next_in = reinterpret_cast<Byte*>(inbuff);
 
@@ -468,16 +437,13 @@ bool manapi::compress::gzip_decompress_file(const std::string &src, const std::s
 
             uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
 
-            output.write(outbuff, nbytes);
+            co_await output.fwrite(outbuff, nbytes);
         } while (stream.avail_out == 0);
     } while (result != Z_STREAM_END);
 
-    input.close();
-    output.close();
-
     inflateEnd(&stream);
 
-    if (result != Z_STREAM_END) { return false; }
+    if (result != Z_STREAM_END) { co_return false; }
 
-    return true;
+    co_return true;
 }

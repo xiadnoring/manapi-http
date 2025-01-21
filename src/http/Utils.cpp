@@ -1,5 +1,8 @@
 #include "http/Utils.hpp"
 
+#include "ManapiFilesystem.hpp"
+#include "async/ManapiAsyncFileStream.hpp"
+
 std::pair<std::string, std::string> manapi::net::http::parse_header(const std::string &header) {
     std::pair <std::string, std::string> parsed;
 
@@ -173,111 +176,102 @@ std::string manapi::net::http::stringify_header_value (const std::vector <header
     return std::move(result);
 }
 
-std::vector<manapi::net::http::replace_founded_item> manapi::net::http::found_replacers_in_file(const std::string &path, const size_t &start, const size_t &size, const std::map<std::string, std::string> &replacers) {
+manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net::http::found_replacers_in_file(const std::shared_ptr<async::context> &ctx, const std::string &path, const ssize_t &start, const size_t &size, const std::map<std::string, std::string> &replacers) {
     // SPECIAL
     std::string special_key;
     bool opened = false;
     bool special = false;
-    bool first_time = true;
 
     std::pair <ssize_t, ssize_t> pos;
 
     std::vector <replace_founded_item> founded;
 
     // find replacers
-    std::ifstream f (path);
-
+    filesystem::async::fstream f (ctx, path);
+    co_await f.open(filesystem::async::fstream::FILE_READ);
     if (!f.is_open())
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Could not open the following file for finding replacers ({})", path);
     }
 
-    // while i < block_size or opened, bcz replacer can be on some blocks
-    // i - index of the char of the packet block
-    // j - index of the char of the file
-    for (size_t j = start; j < size || special || opened; j++) {
-        if (f.eof()) {
-            special = false;
-            opened = false;
-            special_key = "";
-            pos = {};
+    f.seekg(start);
 
-            break;
+    ssize_t fsize = f.total_size();
+
+    std::string buffer;
+    buffer.resize(BUFSIZ);
+
+    while (fsize > 0) {
+        auto rhs = co_await f.read (buffer.data(), static_cast<ssize_t>(buffer.size()));
+        if (rhs <= 0) {
+            co_await f.close();
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read the file: {}", path);
         }
+        fsize -= rhs;
+        for (size_t j = 0; j < rhs; j++) {
+            char &c = buffer[j];
 
-        if (j == size && first_time)
-            first_time = false;
+            if (opened) {
+                if (special) {
+                    if (c == '}') {
+                        // the end of the special string
+                        special = false;
+                        opened = false;
 
-        char c;
+                        pos.second = j;
 
-        f.read (&c, 1);
+                        if (!special_key.empty() && replacers.contains(special_key)) {
+                            auto value = &replacers.at(special_key);
+                            founded.push_back({
+                              .key = std::move(special_key),
+                              .value = value,
+                              .pos = pos
+                            });
+                        }
 
-        if (opened) {
-            if (special) {
-                if (c == '}') {
-                    // the end of the special string
-                    special = false;
-                    opened = false;
+                        special_key = "";
+                        pos = {};
 
-                    pos.second = j;
-
-                    if (!special_key.empty() && replacers.contains(special_key)) {
-                        founded.push_back({
-                                                  .key = special_key,
-                                                  .value = &replacers.at(special_key),
-                                                  .pos = pos
-                                          });
+                        continue;
                     }
 
-                    special_key = "";
-                    pos = {};
+                    special_key += '}';
+                }
 
-                    // it is not first_time
-                    if (!first_time)
-                        break;
+                else if (c == '}') {
+                    special = true;
 
                     continue;
                 }
 
-                special_key += '}';
+                special_key += c;
+
+                continue;
             }
 
-            else if (c == '}') {
+            if (special) {
+                if (c != '{') {
+                    special = false;
+                    pos = {};
+
+                    continue;
+                }
+
+                opened = true;
+                special = false;
+
+                continue;
+            }
+
+            if (c == '{') {
                 special = true;
 
-                continue;
+                pos.first = j;
             }
-
-            special_key += c;
-
-            continue;
-        }
-
-        if (special) {
-            if (c != '{') {
-                special = false;
-                pos = {};
-                // it is not first_time
-                if (!first_time)
-                    break;
-
-                continue;
-            }
-
-            opened = true;
-            special = false;
-
-            continue;
-        }
-
-        if (c == '{') {
-            special = true;
-
-            pos.first = j;
         }
     }
 
-    f.close();
+    co_await f.close();
 
-    return std::move(founded);
+    co_return std::move(founded);
 }

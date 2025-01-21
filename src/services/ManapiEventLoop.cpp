@@ -25,7 +25,7 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) {
     this->adding_watcher_async = this->create_watcher_async([this] (ev::async &w, int revents) -> void {
         this->custom_watcher_fd_async(w, revents);
     });
-
+    this->adding_watcher_async->priority = 2;
     this->adding_watcher_async_cb = [this] ()
         -> void { this->adding_watcher_async->send(); };
 
@@ -144,146 +144,214 @@ void manapi::event_loop::_async_break_loop(ev::async &watcher, int revents) {
 }
 
 void manapi::event_loop::custom_watcher_fd_async(ev::async &w, int revents) {
-    if (this->adding_watcher_data.flag == 1) {
-        switch (this->adding_watcher_data.type) {
-            case EV_IO:
-                this->adding_watcher_data.w_io->start();
-                this->adding_watcher_data.w_io.reset();
-                break;
-            case EV_ASYNC:
-                this->adding_watcher_data.w_async->start();
-                this->adding_watcher_data.w_async->send();
-                this->adding_watcher_data.w_async.reset();
-                break;
-            case EV_TIMER:
-                this->adding_watcher_data.w_timer->start();
-                this->adding_watcher_data.w_timer.reset();
-                break;
-            default:
-                break;
+    if (this->adding_watcher_mx->try_to_lock()) {
+        while (!this->adding_watcher_data.empty()) {
+            auto data = std::move(this->adding_watcher_data.front());
+            this->adding_watcher_data.pop_front();
+
+            if (data.flag == 1) {
+                switch (data.type) {
+                    case EV_IO:
+                        data.w_io->start();
+                    break;
+                    case EV_ASYNC:
+                        data.w_async->start();
+                        data.w_async->send();
+                    break;
+                    case EV_TIMER:
+                        data.w_timer->start();
+                    break;
+                    default:
+                        break;
+                }
+            }
+            else if (data.flag == 2) {
+                switch (data.type) {
+                    case EV_TIMER:
+                        data.w_timer->again();
+                    break;
+                    default:
+                        break;
+                }
+            }
+            else {
+                switch (data.type) {
+                    case EV_IO:
+                        this->stop_watcher(std::move(data.w_io));
+                    break;
+                    case EV_ASYNC:
+                        this->stop_watcher(std::move(data.w_async));
+                    break;
+                    case EV_TIMER:
+                        this->stop_watcher(std::move(data.w_timer));
+                    break;
+                    default:
+                        break;
+                }
+            }
+
+            if (data.resolve) {
+                data.resolve();
+            }
         }
-    }
-    else if (this->adding_watcher_data.flag == 2) {
-        switch (this->adding_watcher_data.type) {
-            case EV_TIMER:
-                this->adding_watcher_data.w_timer->again();
-                this->adding_watcher_data.w_timer.reset();
-            break;
-            default:
-                break;
-        }
+
+        this->adding_watcher_mx->unlock();
     }
     else {
-        switch (this->adding_watcher_data.type) {
-            case EV_IO:
-                this->stop_watcher(std::move(this->adding_watcher_data.w_io));
-                break;
-            case EV_ASYNC:
-                this->stop_watcher(std::move(this->adding_watcher_data.w_async));
-                break;
-            case EV_TIMER:
-                this->stop_watcher(std::move(this->adding_watcher_data.w_timer));
-                break;
-            default:
-                break;
-        }
+        this->adding_watcher_async->send();
     }
-
-    this->adding_watcher_mx->unlock();
 }
 
-manapi::future<std::shared_ptr<ev::io>> manapi::event_loop::watch_fd(int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback) {
-    co_await this->adding_watcher_mx->lock();
-    auto w = this->create_watcher_fd(fd, flags, callback);
-    this->adding_watcher_data = adding_watcher_data_t {
-        .flag = 1,
-        .type = EV_IO,
-        .w_io = w
-    };
-    this->adding_watcher_async_cb();
+manapi::future<std::shared_ptr<ev::io>> manapi::event_loop::watch_fd(int fd, int flags, const std::function<void(ev::io &w, int revents)> &callback, int priority) {
+    auto lk = co_await this->adding_watcher_mx->lock_guard();
+    auto w = this->create_watcher_fd(fd, flags, callback, priority);
+
+    co_await async::promise<void> (this->taskpool, [&lk, this, &w] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
+        this->adding_watcher_data.push_back(adding_watcher_data_t {
+            .flag = 1,
+            .type = EV_IO,
+            .w_io = w,
+            .resolve = std::move(resolve)
+        });
+
+        lk.call();
+
+        this->adding_watcher_async_cb();
+        co_return;
+    });
+
     co_return std::move(w);
 }
 
 manapi::future<> manapi::event_loop::unwatch_fd(std::shared_ptr<ev::io> w) {
-    co_await this->adding_watcher_mx->lock();
-    this->adding_watcher_data = adding_watcher_data_t {
-        .flag = 0,
-        .type = EV_IO,
-        .w_io = std::move(w)
-    };
-    this->adding_watcher_async_cb();
+    auto lk = co_await this->adding_watcher_mx->lock_guard();
+    co_await async::promise<void> (this->taskpool, [&lk, this, &w] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
+
+        this->adding_watcher_data.push_back(adding_watcher_data_t {
+            .flag = 0,
+            .type = EV_IO,
+            .w_io = std::move(w),
+            .resolve = std::move(resolve)
+        });
+
+        lk.call();
+
+        this->adding_watcher_async_cb();
+        co_return;
+    });
 }
 
 manapi::future<std::shared_ptr<ev::async>> manapi::event_loop::watch_async(const std::function<void(ev::async &w, int revents)> &callback) {
-    co_await this->adding_watcher_mx->lock();
+    auto lk = co_await this->adding_watcher_mx->lock_guard();
     auto w = this->create_watcher_async(callback);
-    this->adding_watcher_data = adding_watcher_data_t {
-        .flag = 1,
-        .type = EV_ASYNC,
-        .w_async = w
-    };
-    this->adding_watcher_async_cb();
+    co_await async::promise<void> (this->taskpool, [&lk, this, &w] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
+        this->adding_watcher_data.push_back(adding_watcher_data_t {
+            .flag = 1,
+            .type = EV_ASYNC,
+            .w_async = w,
+            .resolve = std::move(resolve)
+        });
+        lk.call();
+        this->adding_watcher_async_cb();
+        co_return;
+    });
     co_return std::move(w);
 }
 
 manapi::future<> manapi::event_loop::unwatch_async(std::shared_ptr<ev::async> w) {
-    co_await this->adding_watcher_mx->lock();
-    this->adding_watcher_data = adding_watcher_data_t {
-        .flag = 0,
-        .type = EV_ASYNC,
-        .w_async = std::move(w)
-    };
-    this->adding_watcher_async_cb();
+    auto lk = co_await this->adding_watcher_mx->lock_guard();
+    co_await async::promise<void> (this->taskpool, [&lk, this, &w] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
+
+        this->adding_watcher_data.push_back(adding_watcher_data_t {
+            .flag = 0,
+            .type = EV_ASYNC,
+            .w_async = std::move(w),
+            .resolve = std::move(resolve)
+        });
+        lk.call();
+        this->adding_watcher_async_cb();
+        co_return;
+    });
 }
 
 manapi::future<> manapi::event_loop::unwatch_timer(std::shared_ptr<ev::timer> w) {
-    co_await this->adding_watcher_mx->lock();
-    this->adding_watcher_data = adding_watcher_data_t {
-        .flag = 0,
-        .type = EV_TIMER,
-        .w_timer = std::move(w)
-    };
-    this->adding_watcher_async_cb();
+    auto lk = co_await this->adding_watcher_mx->lock_guard();
+    co_await async::promise<void> (this->taskpool, [&lk, this, &w] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
+
+        this->adding_watcher_data.push_back(adding_watcher_data_t {
+            .flag = 0,
+            .type = EV_TIMER,
+            .w_timer = std::move(w),
+            .resolve = std::move(resolve)
+        });
+        lk.call();
+        this->adding_watcher_async_cb();
+        co_return;
+    });
 }
 
 manapi::future<> manapi::event_loop::watch_fd(std::shared_ptr<ev::io> w) {
-    co_await this->adding_watcher_mx->lock();
-    this->adding_watcher_data = adding_watcher_data_t {
-        .flag = 1,
-        .type = EV_IO,
-        .w_io = std::move(w)
-    };
-    this->adding_watcher_async_cb();
+    auto lk = co_await this->adding_watcher_mx->lock_guard();
+    co_await async::promise<void> (this->taskpool, [&lk, this, &w] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
+
+        this->adding_watcher_data.push_back(adding_watcher_data_t {
+            .flag = 1,
+            .type = EV_IO,
+            .w_io = std::move(w),
+            .resolve = std::move(resolve)
+        });
+        lk.call();
+        this->adding_watcher_async_cb();
+        co_return;
+    });
 }
 
 manapi::future<> manapi::event_loop::watch_async(std::shared_ptr<ev::async> w) {
-    co_await this->adding_watcher_mx->lock();
-    this->adding_watcher_data = adding_watcher_data_t {
-        .flag = 1,
-        .type = EV_ASYNC,
-        .w_async = std::move(w)
-    };
-    this->adding_watcher_async_cb();
+    auto lk = co_await this->adding_watcher_mx->lock_guard();
+    co_await async::promise<void> (this->taskpool, [&lk, this, &w] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
+
+        this->adding_watcher_data.push_back(adding_watcher_data_t {
+            .flag = 1,
+            .type = EV_ASYNC,
+            .w_async = std::move(w),
+            .resolve = std::move(resolve)
+        });
+        lk.call();
+        this->adding_watcher_async_cb();
+        co_return;
+    });
 }
 
 manapi::future<> manapi::event_loop::watch_timer(std::shared_ptr<ev::timer> w) {
-    co_await this->adding_watcher_mx->lock();
-    this->adding_watcher_data = adding_watcher_data_t {
-        .flag = 1,
-        .type = EV_TIMER,
-        .w_timer = std::move(w)
-    };
-    this->adding_watcher_async_cb();
+    auto lk = co_await this->adding_watcher_mx->lock_guard();
+    co_await async::promise<void> (this->taskpool, [&lk, this, &w] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
+
+        this->adding_watcher_data.push_back(adding_watcher_data_t {
+            .flag = 1,
+            .type = EV_TIMER,
+            .w_timer = std::move(w),
+            .resolve = std::move(resolve)
+        });
+        lk.call();
+        this->adding_watcher_async_cb();
+        co_return;
+    });
 }
 
 manapi::future<> manapi::event_loop::again_timer(std::shared_ptr<ev::timer> w) {
-    co_await this->adding_watcher_mx->lock();
-    this->adding_watcher_data = adding_watcher_data_t {
-        .flag = 2,
-        .type = EV_TIMER,
-        .w_timer = std::move(w)
-    };
-    this->adding_watcher_async_cb();
+    auto lk = co_await this->adding_watcher_mx->lock_guard();
+    co_await async::promise<void> (this->taskpool, [&lk, this, &w] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
+
+        this->adding_watcher_data.push_back(adding_watcher_data_t {
+            .flag = 2,
+            .type = EV_TIMER,
+            .w_timer = std::move(w),
+            .resolve = std::move(resolve)
+        });
+        lk.call();
+        this->adding_watcher_async_cb();
+        co_return;
+    });
 }
 
 std::shared_ptr<manapi::threadpool<manapi::task>> manapi::event_loop::get_task_pool() const {
@@ -304,9 +372,10 @@ void manapi::event_loop::interrupt() {
     }
 }
 
-std::shared_ptr<ev::io> manapi::event_loop::create_watcher_fd(int fd, int flags,const std::function<void(ev::io &w, int revents)> &callback) {
+std::shared_ptr<ev::io> manapi::event_loop::create_watcher_fd(int fd, int flags,const std::function<void(ev::io &w, int revents)> &callback, int priority) {
     auto w = std::make_shared<ev::io>(this->loop);
     ev_io_init(w.get(), (manapi_ev_custom_watcher <ev_io, ev::io>), fd, flags);
+    w->priority = priority;
     w->data = new custom_watcher_data_t<ev::io> {.w = w, .cb = callback};
     return std::move(w);
 }
@@ -328,8 +397,12 @@ std::shared_ptr<ev::timer> manapi::event_loop::create_watcher_timer(const float 
 template<typename T>
 void manapi::event_loop::event_loop::stop_watcher(T &w) {
     auto data = static_cast<custom_watcher_data_t<T> *>(std::exchange(w.data, nullptr));
-    data->w.reset();
-    delete data;
+
+    if (data) {
+        data->w.reset();
+        delete data;
+    }
+
     w.stop();
 }
 

@@ -231,6 +231,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/async/ManapiAsyncContext.cpp
         src/async/ManapiAsyncMutex.cpp
         src/async/ManapiAsyncConditionVariable.cpp
+        include/async/ManapiAsyncFileStream.hpp
+        src/async/ManapiAsyncFileStream.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

@@ -38,7 +38,7 @@ namespace manapi::net {
         const std::string &get_http_version ();
         [[nodiscard]] const size_t &get_status_code () const;
         const std::string &get_status_message ();
-        const std::string &get_body ();
+        std::string &get_body ();
 
         const std::map<std::string, std::string> &ref_headers ();
         std::map<std::string, std::string> get_headers ();

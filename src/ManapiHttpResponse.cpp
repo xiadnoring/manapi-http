@@ -116,7 +116,7 @@ std::map<std::string, std::string> manapi::net::http_response::get_headers() {
     return std::move(this->headers);
 }
 
-const std::string &manapi::net::http_response::get_body() {
+std::string &manapi::net::http_response::get_body() {
     return this->data;
 }
 

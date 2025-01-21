@@ -81,9 +81,15 @@ int main (int argc, char *argv[]) {
     worker::tools::ssl_library_init();
 
     manapi::debug::debug_print_memory("start");
+    std::string data = "hello world test 2";
     {
         auto ctx = manapi::async::context::create();
         ctx->eventloop()->setup_handle_interrupt();
+        manapi::async::run(ctx, [ctx] () -> manapi::future<> {
+                    auto data = co_await manapi::filesystem::read_async(ctx, "/home/Timur/Desktop/WorkSpace/test/msg.txt");
+                    std::cout << "recv: " << data << "\n";
+                });
+       // manapi::async::run(ctx, manapi::filesystem::write_async(ctx, "/home/Timur/Desktop/WorkSpace/test/msg.txt", "hello world! Helicopter 32", 0777));
 
         {
             http::server server (ctx);
@@ -98,6 +104,7 @@ int main (int argc, char *argv[]) {
 
             server.GET ("/response", [&server] (REQ(req), RESP(resp)) -> manapi::future<void> {
                 printf("3 sec later...\n");
+                co_await manapi::async::delay{server.async_context(), 5s};
                 resp.text("5 sec later...");
                 co_return;
             });
