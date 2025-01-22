@@ -119,6 +119,23 @@ manapi::future<> manapi::filesystem::async::fstream::fwrite(const void *buff, ss
     }
 }
 
+manapi::future<ssize_t> manapi::filesystem::async::fstream::fread(void *buff, ssize_t buff_size) {
+    ssize_t total = 0;
+
+    while (total < buff_size) {
+        auto rhs = co_await this->read(static_cast<uint8_t *>(buff) + total, buff_size - total);
+        if (rhs < 0) {
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read from the file. rhs: {}", rhs);
+        }
+        if (rhs == 0 && this->eof()) {
+            break;
+        }
+        total += rhs;
+    }
+
+    co_return total;
+}
+
 manapi::future<> manapi::filesystem::async::fstream::close() {
     return fstream::_close(this->eventloop, std::move(this->watcher), std::exchange(this->fd, -1));
 }

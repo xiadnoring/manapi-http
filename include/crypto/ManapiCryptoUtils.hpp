@@ -10,6 +10,8 @@
 #include <filesystem>
 #include <fstream>
 
+#include "async/ManapiAsyncFileStream.hpp"
+
 namespace manapi::crypto {
     enum ciphers {
         AES_256_GCM,
@@ -24,9 +26,7 @@ namespace manapi::crypto {
         SHA_128,
         SHA_512
     };
-    inline std::string random_string (const size_t &len) {
-        std::string rnd;
-        rnd.resize(len);
+    inline std::string _random_string (std::string &rnd, const size_t &len) {
 #ifdef _WIN32
         HCRYPTPROV h_crypt_prov;
         if (CryptAcquireContext(&h_crypt_prov, nullptr, "Microsoft Base Cryptographic Provider v1.0",
@@ -36,44 +36,62 @@ namespace manapi::crypto {
             {
                 if (!CryptReleaseContext(h_crypt_prov, 0))
                 {
-                    throw bcrypt::exception::gensalt ("{}(): Error during CryptReleaseContext.", __FUNCTION__);
+                    THROW_MANAPIHTTP_EXCEPTION2 (ERR_ALGORITHM_INIT_FAIL, "Error during CryptReleaseContext.");
                 }
             }
             else
             {
                 if (CryptReleaseContext(h_crypt_prov, 0))
                 {
-                    throw bcrypt::exception::gensalt ("{}(): Error during CryptGenRandom.", __FUNCTION__);
+                    THROW_MANAPIHTTP_EXCEPTION2 (ERR_ALGORITHM_INIT_FAIL, "Error during CryptGenRandom.");
                 }
                 else
                 {
-                    throw bcrypt::exception::gensalt ("{}(): Error during CryptReleaseContext.", __FUNCTION__);
+                    THROW_MANAPIHTTP_EXCEPTION2 (ERR_ALGORITHM_INIT_FAIL, "Error during CryptReleaseContext.");
                 }
             }
         }
 #else
-        if (std::filesystem::exists("/dev/urandom"))
-        {
-            std::ifstream input ("/dev/urandom", std::ios::binary | std::ios::in);
-            if (!input.is_open()) {
-                throw std::runtime_error (std::format("{}(): failed to get random string from /dev/urandom", __FUNCTION__));
-            }
-            input.read(rnd.data(), static_cast<std::streamsize> (rnd.size()));
-            input.close();
-        }
-        else
-        {
-            std::random_device dev;
-            std::mt19937 rng(dev());
-            std::uniform_int_distribution<std::mt19937::result_type> dist256(0,255);
+        std::random_device dev;
+        std::mt19937 rng(dev());
+        std::uniform_int_distribution<std::mt19937::result_type> dist256(0,255);
 
-            for (size_t i = 0; i < len; i++)
-            {
-                rnd[i] = static_cast <char> (dist256(rng));
-            }
+        for (size_t i = 0; i < len; i++)
+        {
+            rnd[i] = static_cast <char> (dist256(rng));
         }
 #endif
         return std::move(rnd);
+    }
+    inline manapi::future<std::string> random_string_async (const std::shared_ptr<async::context> &ctx, const size_t &len) {
+        std::string rnd;
+        rnd.resize(len);
+#if _WIN32
+
+#else
+        if (std::filesystem::exists("/dev/urandom")) {
+            filesystem::async::fstream input (ctx, "/dev/urandom");
+            co_await input.open(manapi::filesystem::async::fstream::FILE_READ);
+
+            if (!input.is_open()) {
+                THROW_MANAPIHTTP_EXCEPTION2 (ERR_FILE_IO, "failed to get the random string from the /dev/urandom");
+            }
+
+            co_await input.fread(rnd.data(), static_cast<std::streamsize> (rnd.size()));
+            co_await input.close();
+
+            co_return std::move(rnd);
+        }
+
+        co_return manapi::crypto::_random_string(rnd, len);
+#endif
+    }
+
+    inline std::string random_string (const size_t &len) {
+        std::string rnd;
+        rnd.resize(len);
+
+        return manapi::crypto::_random_string(rnd, len);
     }
 
     inline std::string strdec2strhex(std::string_view input)

@@ -119,7 +119,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
 
             connection = std::make_shared<worker::connection>(new connection_t{
                 .cid = dcid, .conn = _quiche_conn, .quiche_timer = this->le->get_loop(), .write_watcher = this->le->get_loop(), .http3_conn = {nullptr},
-                .streams = {}, .worker = this, .status = 0, .write_total = 0, .read_total = 0, .write_total_prev = 0, .read_total_prev = 0,
+                .streams = {}, .worker = std::shared_ptr (this->worker), .status = 0, .write_total = 0, .read_total = 0, .write_total_prev = 0, .read_total_prev = 0,
                 .stream_read_cnt = 0, .stream_write_cnt = 0}, [] (void *ptr) -> void {
                     http_v3_cloudflare_quiche::_clean_connection (static_cast<connection_t *>(ptr));
             });
@@ -430,6 +430,11 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response
     co_return static_cast<ssize_t>(1);
 }
 
+manapi::net::worker::http_v3_cloudflare_quiche * manapi::net::worker::http_v3_cloudflare_quiche::_get_dynamic_worker(
+    const std::shared_ptr<worker::base> &w) {
+    return dynamic_cast<http_v3_cloudflare_quiche *> (w.get());
+}
+
 bool manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connection_t &conn_data, std::map<int64_t, std::shared_ptr<worker::connection>>::iterator &stream_it) {
     auto &s = stream_it->second->as<connection_stream_t>();
     bool rlt = false;
@@ -447,7 +452,7 @@ bool manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
             }
             s.wbuff_pos += static_cast<int>(written);
             written_total += written;
-            conn_data.worker->_quiche_flush_egress(conn_data);
+            http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_quiche_flush_egress(conn_data);
         }
 
         if (finish && body_len == written_total) {
@@ -489,7 +494,7 @@ bool manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
                 rhs = quiche_h3_send_response(conn_data.http3_conn, conn_data.conn, s.stream_id, headers, i - s.header_cursor, s.finished && i == s.headers_size);
             }
 
-            conn_data.worker->_quiche_flush_egress(conn_data);
+            http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_quiche_flush_egress(conn_data);
 
             if (rhs == 0) {
                 conn_data.write_total += std::exchange(current_headers_size, 0);
@@ -571,7 +576,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read(connection_t &c
                     read_total += rhs;
                     stream_data.rbuff_caret += static_cast<int>(rhs);
                     conn_data.read_total += rhs;
-                    conn_data.worker->_quiche_flush_egress(conn_data);
+                    http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_quiche_flush_egress(conn_data);
                 }
                 while (stream_data.rbuff_caret != sizeof (stream_data.rbuff));
 
@@ -633,7 +638,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_write_watcher_cb(struct ev
 
     /* flush I/O */
 
-    conn_data.worker->_quiche_flush_egress(conn_data);
+    http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_quiche_flush_egress(conn_data);
     http_v3_cloudflare_quiche::_quiche_timeout_again(conn_data);
     http_v3_cloudflare_quiche::_flush_connection_closed(conn_data);
 }
@@ -654,11 +659,11 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_connection_closed(co
         fprintf(stderr, "connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu\n",
                 stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
-        conn_data.worker->connections.erase(conn_data.cid);
+        http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->connections.erase(conn_data.cid);
         conn_data.quiche_timer.stop();
         //conn_data.timer.stop();
         conn_data.write_watcher.stop();
-        conn_data.worker->_reset_all_streams(conn_data);
+        http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_reset_all_streams(conn_data);
 
         delete static_cast<std::shared_ptr<worker::connection> *> (std::exchange(conn_data.quiche_timer.data, nullptr));
 
@@ -704,7 +709,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_connection_timer_check(str
     }
 
 
-    conn_data.worker->_quiche_flush_egress(conn_data);
+    http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_quiche_flush_egress(conn_data);
     http_v3_cloudflare_quiche::_quiche_timeout_again(conn_data);
     http_v3_cloudflare_quiche::_flush_connection_closed(conn_data);
 }
@@ -747,7 +752,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_quiche_timeout(struct ev_l
     conn_data.read_total_prev = conn_data.read_total;
     conn_data.write_total_prev = conn_data.write_total;
 
-    conn_data.worker->_quiche_flush_egress(conn_data);
+    http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_quiche_flush_egress(conn_data);
     http_v3_cloudflare_quiche::_quiche_timeout_again(conn_data);
     http_v3_cloudflare_quiche::_flush_connection_closed(conn_data);
 }

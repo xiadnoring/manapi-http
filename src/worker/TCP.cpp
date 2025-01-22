@@ -226,7 +226,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     auto &conn = connection->as<connection_interface>();
     conn.id = fd;
     conn.site = &this->site;
-    conn.worker = this;
+    conn.worker = std::shared_ptr (this->worker);
     conn.timer.data = new decltype(connection) (connection);
 
     ev_timer_init(&conn.timer, _ev_timeout, 0.2, 0.);

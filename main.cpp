@@ -298,7 +298,7 @@ int main (int argc, char *argv[]) {
             };
 
             server.GET("/stop", [&server] (REQ(req), RESP(resp)) -> manapi::future<void> {
-                server.stop();
+                co_await server.stop();
 
                 resp.text("OK");
                 co_return;
@@ -351,8 +351,9 @@ int main (int argc, char *argv[]) {
                 co_return;
             });
 
-            server.GET ("/music", [](REQ(req), RESP(resp)) -> manapi::future<void> {
+            server.GET ("/music", [ctx](REQ(req), RESP(resp)) -> manapi::future<void> {
                 std::string response;
+                response += manapi::crypto::strdec2strhex(co_await manapi::crypto::random_string_async(ctx, 100)) + "<hr />";
                 for (const auto &file: std::filesystem::directory_iterator ("/home/Timur/Music")) {
                     response += std::format("<a href=\"/music/{}\">{}</a><br />", manapi::unicode::escape_string(file.path().filename()), file.path().filename().string());
                 }

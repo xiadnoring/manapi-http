@@ -29,6 +29,7 @@ namespace manapi::filesystem::async {
         future<ssize_t> read (void *buff, ssize_t buff_size);
         future<ssize_t> write (const void *buff, ssize_t buff_size);
         future<> fwrite (const void *buff, ssize_t buff_size);
+        future<ssize_t> fread (void *buff, ssize_t buff_size);
         future<> close ();
         void seekg (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START);
         [[nodiscard]] ssize_t tellg () const;

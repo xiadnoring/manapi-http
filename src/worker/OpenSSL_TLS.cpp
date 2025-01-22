@@ -234,7 +234,7 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
 int manapi::net::worker::OpenSSL_TLS::_gl_openssl_async_callback(SSL *ssl, void *argp) {
     auto &storage = *static_cast<connection *> (argp);
     auto &conn_data = storage.as<connection_interface>();
-    return dynamic_cast<OpenSSL_TLS *> (conn_data.worker)->openssl_async_callback(storage);
+    return dynamic_cast<OpenSSL_TLS*> (conn_data.worker.get())->openssl_async_callback(storage);
 }
 
 int manapi::net::worker::OpenSSL_TLS::openssl_async_callback(connection &storage) {

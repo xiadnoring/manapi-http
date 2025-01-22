@@ -23,7 +23,7 @@ namespace manapi::net::worker {
             std::shared_ptr <ev::io> watcher;
             ev_timer timer;
             net::site *site;
-            worker::base *worker;
+            std::shared_ptr<worker::base> worker;
             connection_stat_interface stats;
             bool configured = false;
             std::atomic<int> status = 0x0;

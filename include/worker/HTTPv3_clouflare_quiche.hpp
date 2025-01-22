@@ -39,7 +39,7 @@ namespace manapi::net::worker {
             ev::async write_watcher;
             quiche_h3_conn *http3_conn;
             std::map <int64_t, std::shared_ptr<worker::connection>> streams;
-            http_v3_cloudflare_quiche *worker;
+            std::shared_ptr<worker::base> worker;
             std::atomic<int> status;
             size_t write_total;
             size_t read_total;
@@ -86,6 +86,7 @@ namespace manapi::net::worker {
         static std::shared_ptr<http_v3_cloudflare_quiche> create(net::site &site, std::shared_ptr<manapi::net::http::config> config);
         future<ssize_t> response(worker::connection &connection, http_response &resp, bool finish) override;
     private:
+        static http_v3_cloudflare_quiche *_get_dynamic_worker (const std::shared_ptr<worker::base> &w);
         static bool _flush_write_stream (connection_t &conn_data, std::map<int64_t, std::shared_ptr<worker::connection>>::iterator &stream_it);
         static void _flush_write (connection_t &conn_data);
         static void _flush_read (connection_t &conn_data);
