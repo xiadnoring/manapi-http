@@ -306,6 +306,15 @@ std::atomic<socklen_t>  &manapi::net::http::config::get_server_len() {
 //     return quic_config;
 // }
 
+#ifdef _WIN32
+void manapi::net::http::config::set_socket_fd(const SOCKET &fd) {
+    this->sock_fd.store(fd);
+}
+
+std::atomic<SOCKET> &manapi::net::http::config::get_socket_fd() {
+    return this->sock_fd;
+}
+#else
 void manapi::net::http::config::set_socket_fd(const int &fd) {
     this->sock_fd.store(fd);
 }
@@ -313,7 +322,7 @@ void manapi::net::http::config::set_socket_fd(const int &fd) {
 std::atomic<int> &manapi::net::http::config::get_socket_fd() {
     return this->sock_fd;
 }
-
+#endif
 bool manapi::net::http::config::contains_compressor(const std::string &name) {
     if (this->function_contains_compressor == nullptr) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "function_contains_compressor = {}. We need to set function before call", "nullptr");

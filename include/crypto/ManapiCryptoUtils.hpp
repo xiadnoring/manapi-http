@@ -1,6 +1,8 @@
 #pragma once
 
-#if _WIN32
+#ifdef _WIN32
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
 #   include <windows.h>
 #   include <wincrypt.h>
 #endif
@@ -66,7 +68,7 @@ namespace manapi::crypto {
     inline manapi::future<std::string> random_string_async (const std::shared_ptr<async::context> &ctx, const size_t &len) {
         std::string rnd;
         rnd.resize(len);
-#if _WIN32
+#ifdef _WIN32
 
 #else
         if (std::filesystem::exists("/dev/urandom")) {

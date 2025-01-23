@@ -1,7 +1,11 @@
 #pragma once
 
-#include <ev++.h>
-#include <netdb.h>
+#include "extensions/ev++.h"
+
+#if defined(__unix__)||defined(__APPLE__)
+#   include <netdb.h>
+#endif
+
 #include <list>
 #include <future>
 #include <functional>
@@ -12,8 +16,8 @@
 #include "ManapiSite.hpp"
 
 #include "services/ManapiTask.hpp"
-#include "worker/Base.hpp"
-#include "http/Base.hpp"
+#include "worker/base_worker.hpp"
+#include "http/base_http.hpp"
 
 namespace manapi::net {
     class http_pool {

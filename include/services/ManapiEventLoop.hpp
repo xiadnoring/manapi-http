@@ -1,8 +1,9 @@
 #pragma once
 
-#include <ev++.h>
+#include "extensions/ev++.h"
 #include <set>
 #include <stack>
+#include "ManapiInt.hpp"
 
 #include "ManapiAsync.hpp"
 #include "ManapiTask.hpp"
@@ -86,7 +87,11 @@ namespace manapi {
         bool status;
         std::shared_ptr<async::mutex> mx;
         ev::dynamic_loop loop;
+#ifdef _WIN32
+        uint32_t loop_thread_id{0};
+#else
         std::thread::id loop_thread_id{0};
+#endif
         std::shared_ptr<threadpool<task>> taskpool;
         std::map <size_t, std::function<manapi::future<void>()>> map_finish_cb;
         std::shared_ptr<ev::async> _stop_watcher{nullptr};

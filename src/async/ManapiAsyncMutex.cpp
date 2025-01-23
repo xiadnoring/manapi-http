@@ -10,7 +10,11 @@ void manapi::async::mutex::promise::await_suspend(std::coroutine_handle<future<>
         this->stack.push(std::exchange(handle, nullptr));
     }
     else {
+#ifdef _WIN32
+        this->own = ::GetCurrentThreadId();
+#else
         this->own = std::this_thread::get_id();
+#endif
         lk.unlock();
         future<>::resume_promise(handle);
     }
@@ -28,7 +32,11 @@ manapi::future<void> manapi::async::mutex::lock(){
 bool manapi::async::mutex::try_to_lock() {
     std::lock_guard<std::mutex> lk (this->mx);
     if (this->own.has_value()) { return false; }
+#ifdef _WIN32
+    this->own = ::GetCurrentThreadId();
+#else
     this->own = std::this_thread::get_id();
+#endif
     return true;
 }
 

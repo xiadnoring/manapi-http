@@ -1,7 +1,7 @@
 #ifndef MANAPIHTTP_HTTP_HTTPV1_1_HPP
 #define MANAPIHTTP_HTTP_HTTPV1_1_HPP
 
-#include "./Base.hpp"
+#include "./base_http.hpp"
 #include "../ManapiHttpConfig.hpp"
 
 namespace manapi::net::http {

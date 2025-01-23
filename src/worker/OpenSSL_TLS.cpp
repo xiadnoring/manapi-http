@@ -9,13 +9,11 @@
 #include <utility>
 #include <vector>
 #include <memory.h>
-#include <arpa/inet.h>
 #include <filesystem>
 #include <chrono>
 #include <thread>
 #include <unordered_map>
 #include <fcntl.h>
-#include <netdb.h>
 #include <set>
 
 #include <openssl/ssl.h>
@@ -225,7 +223,11 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
             SSL_free(ssl);
             MANAPIHTTP_LOG("SSL CLOSED: {} ssl={:}", connection->id, static_cast<void*>(ssl));
         }
-        close(connection->id);
+#ifdef _WIN32
+        ::closesocket(connection->id);
+#else
+        ::close(connection->id);
+#endif
         delete connection;
         co_return;
     });
@@ -301,7 +303,7 @@ SSL_CTX * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &ver
         for (const auto &wish: wishs) {
             auto it = exists.find(wish);
             if (it != exists.end()) {
-                *out = reinterpret_cast<const unsigned char *> (it->first.begin());
+                *out = reinterpret_cast<const unsigned char *> (it->first.data());
                 *outlen = it->first.size();
                 return 0;
             }

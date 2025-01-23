@@ -1,6 +1,9 @@
 #pragma once
 
-#include <netinet/in.h>
+#if defined(__unix__) || defined(__APPLE__)
+#   include <netinet/in.h>
+#endif
+
 #include <map>
 #include <string>
 #include <functional>

@@ -2,7 +2,16 @@
 
 #include <string>
 #include <functional>
-#include <sys/socket.h>
+#if defined(_WIN32)
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
+#   include <windows.h>
+#   include <winsock2.h>
+#   include <ws2tcpip.h>
+#endif
+#if defined(__unix__)||defined(__APPLE__)
+#   include <sys/socket.h>
+#endif
 
 #include "ManapiJson.hpp"
 #include "components/Atomic.hpp"
@@ -93,9 +102,13 @@ namespace manapi::net::http {
         //
         // void set_quic_config (quiche_config *config);
         // quiche_config *get_quic_config ();
-
+#if defined(_WIN32)
+        void set_socket_fd (const SOCKET &fd);
+        std::atomic <SOCKET> &get_socket_fd ();
+#else
         void set_socket_fd (const int &fd);
         std::atomic <int> &get_socket_fd ();
+#endif
 
         [[nodiscard]] bool contains_compressor (const std::string &name);
         void set_function_contains_compressor (const std::function<bool(const std::string &name)> &func);
@@ -108,30 +121,33 @@ namespace manapi::net::http {
         std::atomic<bool> &get_verify_peer ();
     private:
         // settings
-        std::atomic<bool>           quic_debug              = false;
-        std::atomic<size_t>         quic_cc_algo            = versions::QUIC_CC_RENO;
-        std::atomic<size_t>         tls_version             = versions::TLS_v1_3;
-        std::atomic<size_t>         max_header_block_size   = 4096UL;
-        std::atomic<size_t>         socket_block_size       = 1350UL;
-        std::atomic<size_t>         partial_data_min_size   = 0UL;
-        std::atomic<size_t>         http_version            = versions::HTTP_v1_1;
-        Atomic<std::string>         http_version_str        = "1.1";
-        Atomic<std::string>         address                 = "0.0.0.0";
-        Atomic<std::string>         port                    = "8888";// settings
-        Atomic<std::string>         implementation          = "default";
-        Atomic<std::string>         transport               = "tcp";
-        std::atomic<size_t>         keep_alive              = 2UL;
-        Atomic<sockaddr>            server_addr;
-        std::atomic<socklen_t>      server_len;
-        std::atomic<size_t>         max_plain_param_length  = 16000UL;
-        std::atomic<size_t>         max_file_param_length   = 2147483648UL;
-
-        std::atomic<int>            sock_fd                 = 0;
-        std::atomic<ssize_t>        recv_timeout            = 1000;
-        std::atomic<ssize_t>        send_timeout            = 1000;
-        Atomic<ssl_config_t>        ssl_config;
-        std::atomic<bool>           tcp_no_delay            = false;
-        std::atomic<bool>           verify_peer             = true;
+        std::atomic<bool> quic_debug = false;
+        std::atomic<size_t> quic_cc_algo = versions::QUIC_CC_RENO;
+        std::atomic<size_t> tls_version = versions::TLS_v1_3;
+        std::atomic<size_t> max_header_block_size = 4096UL;
+        std::atomic<size_t> socket_block_size = 1350UL;
+        std::atomic<size_t> partial_data_min_size = 0UL;
+        std::atomic<size_t> http_version = versions::HTTP_v1_1;
+        Atomic<std::string> http_version_str = "1.1";
+        Atomic<std::string> address = "0.0.0.0";
+        Atomic<std::string> port = "8888";// settings
+        Atomic<std::string> implementation = "default";
+        Atomic<std::string> transport = "tcp";
+        std::atomic<size_t> keep_alive = 2UL;
+        Atomic<sockaddr> server_addr;
+        std::atomic<socklen_t> server_len;
+        std::atomic<size_t> max_plain_param_length  = 16000UL;
+        std::atomic<size_t> max_file_param_length   = 2147483648UL;
+#ifdef _WIN32
+        std::atomic<SOCKET> sock_fd{0};
+#else
+        std::atomic<int> sock_fd{0};
+#endif
+        std::atomic<ssize_t> recv_timeout = 1000;
+        std::atomic<ssize_t> send_timeout = 1000;
+        Atomic<ssl_config_t> ssl_config;
+        std::atomic<bool> tcp_no_delay = false;
+        std::atomic<bool> verify_peer = true;
         std::function<bool(const std::string &name)> function_contains_compressor = nullptr;
     };
 }

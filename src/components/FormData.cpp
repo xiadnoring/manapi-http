@@ -7,7 +7,7 @@
 #include "ManapiUnicode.hpp"
 #include "crypto/ManapiURL.hpp"
 #include "ManapiHttpTypes.hpp"
-#include "http/Base.hpp"
+#include "http/base_http.hpp"
 
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 
@@ -60,7 +60,7 @@ manapi::future<> manapi::net::formdata_recv::_init() {
         this->body_boundary = SPECIAL_SYMBOLS_BOUNDARY + header[0].params.at("boundary");
 
         // the pointer to value of the param in a map params
-        this->buff_extra.resize(std::max(4096UL, this->request_data->buffer.size()));
+        this->buff_extra.resize(std::max(static_cast<size_t>(4096), static_cast<size_t>(this->request_data->buffer.size())));
         this->content_type_form = CONTENT_TYPE_MULTIPART_FORM_DATA;
         // get the first metadata (name, type and etc)
         this->current_read_param = [this] (auto &param1) -> future<void> { co_await this->multipart_read_param (param1); co_return; };

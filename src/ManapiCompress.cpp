@@ -166,7 +166,7 @@ std::string manapi::compress::deflate_compress_string(const std::string &origina
 
     std::string buff;
     buff.resize(original.size() * 2);
-    size_t  s;
+    uLongf s;
 
     compress2(reinterpret_cast<Bytef*>(buff.data()), &s, reinterpret_cast<const Bytef*> (original.data()), original.size(), level);
 

@@ -3,9 +3,11 @@
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 #include <openssl/ssl.h>
 
-#include <netdb.h>
+#if defined(__unix__)||defined(__APPLE__)
+#   include <netdb.h>
+#endif
 
-#include "./Base.hpp"
+#include "./base_worker.hpp"
 #include "./TCP.hpp"
 
 namespace manapi::net::worker {

@@ -2,7 +2,7 @@
 #include "ManapiSite.hpp"
 
 #include "ManapiUnicode.hpp"
-#include "worker/Base.hpp"
+#include "worker/base_worker.hpp"
 #include "worker/TCP.hpp"
 #include "worker/OpenSSL_TLS.hpp"
 #include "worker/QUIC.hpp"

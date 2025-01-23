@@ -4,13 +4,15 @@
 #include <utility>
 #include <vector>
 #include <memory.h>
-#include <arpa/inet.h>
+#if defined(__unix__) || defined(__APPLE__)
+#   include <netinet/in.h>
+#   include <netdb.h>
+#endif
 #include <filesystem>
 #include <chrono>
 #include <thread>
 #include <unordered_map>
 #include <fcntl.h>
-#include <netdb.h>
 
 #include "services/ManapiTaskFunction.hpp"
 #include "ManapiHttp.hpp"
@@ -68,9 +70,9 @@ void manapi::net::http::server::PATCH(const std::string &uri, const handler_temp
     this->set_handler("PATCH", uri, handler, get_mask, post_mask);
 }
 
-void manapi::net::http::server::DELETE(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
-    this->set_handler("DELETE", uri, handler, get_mask, post_mask);
-}
+// void manapi::net::http::server::DELETE(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
+//     this->set_handler("DELETE", uri, handler, get_mask, post_mask);
+// }
 
 void manapi::net::http::server::GET(const std::string &uri, const std::string &folder) {
     set_handler ("GET", uri, folder);

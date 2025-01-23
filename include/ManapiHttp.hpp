@@ -1,12 +1,14 @@
 #pragma once
 
-#include <netinet/in.h>
+#if defined(__unix__) || defined(__APPLE__)
+#   include <netinet/in.h>
+#endif
 #include <functional>
 #include <map>
 #include <regex>
 #include <thread>
 #include <future>
-#include <ev++.h>
+#include "extensions/ev++.h"
 
 #include "ManapiSite.hpp"
 #include "services/ManapiThreadPool.hpp"
@@ -30,7 +32,7 @@ namespace manapi::net::http {
         void POST (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
         void OPTIONS(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
         void PUT (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
-        void DELETE (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
+        // void DELETE (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
         void PATCH (const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
 
         void GET (const std::string &uri, const std::string &folder);

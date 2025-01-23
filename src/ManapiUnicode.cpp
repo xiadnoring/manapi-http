@@ -1,9 +1,13 @@
 #include "ManapiUnicode.hpp"
 
 #include <utility>
-#include <unicode/utf32.h>
-#include <unicode/utf16.h>
-#include <unicode/utf8.h>
+#if _WIN32
+#   include <codecvt>
+#else
+#   include <unicode/utf32.h>
+#   include <unicode/utf16.h>
+#   include <unicode/utf8.h>
+#endif
 #include <codecvt>
 #include <locale>
 

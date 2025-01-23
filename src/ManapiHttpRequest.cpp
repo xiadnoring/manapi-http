@@ -5,7 +5,7 @@
 #include "ManapiHttpRequest.hpp"
 #include "ManapiJsonBuilder.hpp"
 #include "ManapiHttpMime.hpp"
-#include "http/Base.hpp"
+#include "http/base_http.hpp"
 
 
 manapi::net::http_request::http_request(const manapi::net::http::manapi_socket_information &ip_data, manapi::net::http::request_data_t &request_data, http::base *http_task, std::shared_ptr<http::config> config, const void *handler) : config(std::move(config))

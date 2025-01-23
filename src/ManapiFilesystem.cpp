@@ -3,10 +3,21 @@
 #include <fstream>
 #include <chrono>
 #include <cstdarg>
+
 #include "ManapiFilesystem.hpp"
 
+#ifdef _WIN32
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
+#   include <windows.h>
+#   include <fileapi.h>
+#   include <winsock2.h>
+#   include <io.h>
+#else
+#   include <sys/stat.h>
+#endif
+
 #include <fcntl.h>
-#include <sys/stat.h>
 
 #include "ManapiBeforeDelete.hpp"
 
@@ -101,8 +112,17 @@ void manapi::filesystem::write (const std::string &path, const std::string &data
 }
 
 manapi::future<> manapi::filesystem::write_async(const std::shared_ptr<async::context> &ctx, std::string_view path, std::function<ssize_t(void *buff, ssize_t buff_size)> cb, const unsigned int &mode, std::function<future<void>()> *cancellation) {
+#ifdef _WIN32
+    HANDLE h = ::CreateFile(path.data(), GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    if (h == INVALID_HANDLE_VALUE) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_FILE_IO, "Failed to open file: handle = INVALID_HANDLE_VALUE");
+    }
+    auto fd = _open_osfhandle((intptr_t)h, _O_CREAT|_O_RDWR|_O_TRUNC);
+    u_long arg = 1;
+    ioctlsocket(fd, FIONBIO, &arg);
+#else
     auto fd = ::open(path.data(), O_NONBLOCK|O_CREAT|O_RDWR|O_TRUNC, mode);
-
+#endif
     if (fd < 0) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_FILE_IO, "Failed to open file: fd < 0");
     }
@@ -156,11 +176,18 @@ manapi::future<> manapi::filesystem::write_async(const std::shared_ptr<async::co
                 }
             });
         }
-
+#ifdef _WIN32
+        ::closesocket(fd);
+#else
         ::close(fd);
+#endif
     }
     catch (...) {
+#ifdef _WIN32
+        ::closesocket(fd);
+#else
         ::close(fd);
+#endif
 
         std::rethrow_exception(std::current_exception());
     }
@@ -205,8 +232,17 @@ std::string manapi::filesystem::read (const std::string &path) {
 }
 
 manapi::future<> manapi::filesystem::read_async(const std::shared_ptr<async::context> &ctx, std::string_view path, std::function<ssize_t(const void *buff, ssize_t buff_size)> cb, std::function<future<void>()> *cancellation) {
+#ifdef _WIN32
+    HANDLE h = ::CreateFile(path.data(), GENERIC_READ, 0, 0, 0, FILE_ATTRIBUTE_NORMAL, 0);
+    if (h == INVALID_HANDLE_VALUE) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_FILE_IO, "Failed to open file: handle = INVALID_HANDLE_VALUE");
+    }
+    auto fd = _open_osfhandle((intptr_t)h, _O_CREAT|_O_RDWR|_O_TRUNC);
+    u_long arg = 1;
+    ioctlsocket(fd, FIONBIO, &arg);
+#else
     auto fd = ::open(path.data(), O_RDWR|O_NONBLOCK);
-
+#endif
     if (fd < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read: fd = {}", fd);
     }

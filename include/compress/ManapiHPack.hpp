@@ -418,18 +418,16 @@ namespace manapi::compress::hpack
 	{
 		private:
 		protected:
-			uint64_t				m_max;
-			std::deque< header_t >	m_queue;
+			uint64_t m_max;
+			std::deque< header_t > m_queue;
 
 		public:
 			// 4096 is the default table size per the HTTPv2 RFC
-			ringtable_t(void) : m_max(4096) { }
+			ringtable_t() : m_max(4096) { }
 			ringtable_t(uint64_t m) : m_max(m) { }
-			virtual ~ringtable_t(void) { }
+			virtual ~ringtable_t() { }
 
-			void
-			max(uint64_t m)
-			{
+			void max(uint64_t m) {
 				m_max = m;
 
 				// the RFC dictates that we do this here,
@@ -676,9 +674,9 @@ namespace manapi::compress::hpack
 	{
 		private:
 		protected:
-			std::map< std::string, std::string >	m_headers;
-			ringtable_t								m_dynamic;
-			huffman_tree_t							m_huffman;
+			std::map< std::string, std::string > m_headers;
+			manapi::compress::hpack::ringtable_t m_dynamic;
+			huffman_tree_t m_huffman;
 
 			typedef std::string_view::iterator dec_vec_itr_t;
 
@@ -915,9 +913,9 @@ namespace manapi::compress::hpack
 	{
 		private:
 		protected:
-			std::string				m_buf;
-			ringtable_t				m_dynamic;
-			huffman_encoder_t		m_huffman;
+			std::string m_buf;
+			manapi::compress::hpack::ringtable_t m_dynamic;
+			manapi::compress::hpack::huffman_encoder_t m_huffman;
 
 			void
 			huff_encode(const std::string& str)

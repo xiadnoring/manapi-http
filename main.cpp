@@ -85,10 +85,10 @@ int main (int argc, char *argv[]) {
     {
         auto ctx = manapi::async::context::create();
         ctx->eventloop()->setup_handle_interrupt();
-        manapi::async::run(ctx, [ctx] () -> manapi::future<> {
-                    auto data = co_await manapi::filesystem::read_async(ctx, "/home/Timur/Desktop/WorkSpace/test/msg.txt");
-                    std::cout << "recv: " << data << "\n";
-                });
+        // manapi::async::run(ctx, [ctx] () -> manapi::future<> {
+        //             auto data = co_await manapi::filesystem::read_async(ctx, "/home/Timur/Desktop/WorkSpace/test/msg.txt");
+        //             std::cout << "recv: " << data << "\n";
+        //         });
        // manapi::async::run(ctx, manapi::filesystem::write_async(ctx, "/home/Timur/Desktop/WorkSpace/test/msg.txt", "hello world! Helicopter 32", 0777));
 
         {
@@ -355,7 +355,8 @@ int main (int argc, char *argv[]) {
                 std::string response;
                 response += manapi::crypto::strdec2strhex(co_await manapi::crypto::random_string_async(ctx, 100)) + "<hr />";
                 for (const auto &file: std::filesystem::directory_iterator ("/home/Timur/Music")) {
-                    response += std::format("<a href=\"/music/{}\">{}</a><br />", manapi::unicode::escape_string(file.path().filename()), file.path().filename().string());
+                    std::string filename = file.path().filename().string();
+                    response += std::format("<a href=\"/music/{}\">{}</a><br />", manapi::unicode::escape_string(filename), file.path().filename().string());
                 }
                 resp.text(response);
                 co_return;

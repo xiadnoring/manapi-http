@@ -4,9 +4,8 @@
 #include <thread>
 
 #include "../ManapiSite.hpp"
-#include "../components/ConnectionsStorage.hpp"
 #include "../components/SmartBuffer.hpp"
-#include "./Base.hpp"
+#include "./base_worker.hpp"
 #include "../compress/ManapiHPack.hpp"
 
 namespace manapi::net::worker {

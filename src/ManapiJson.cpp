@@ -15,8 +15,8 @@ const static std::string JSON_TRUE   = "true";
 const static std::string JSON_FALSE  = "false";
 const static std::string JSON_NULL   = "null";
 
-#define THROW_MANAPIHTTP_JSON_MISSING_FUNCTION throw this->throw_could_not_use_func(__FUNCTION__)
 #define RETHROW_MANAPIHTTP_JSON_ERROR(errnum, msg, ...) manapi::json_parse_exception (errnum, std::format(msg, __VA_ARGS__));
+#define THROW_MANAPIHTTP_JSON_MISSING_FUNCTION throw RETHROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_UNSUPPORTED_TYPE, "json object with type {} could not use func: {}", static_cast <int> (this->type), __FUNCTION__)
 #define THROW_MANAPIHTTP_JSON_ERROR(errnum, msg, ...) throw RETHROW_MANAPIHTTP_JSON_ERROR(errnum, msg, __VA_ARGS__)
 
 manapi::json::json() = default;
@@ -614,9 +614,9 @@ manapi::json &manapi::json::operator=(const json::DECIMAL &num) {
     return *this;
 }
 
-manapi::json &manapi::json::operator=(const long long &num) {
-    return this->operator=(static_cast<INTEGER> (num));
-}
+// manapi::json &manapi::json::operator=(const long long &num) {
+//     return this->operator=(static_cast<INTEGER> (num));
+// }
 
 manapi::json &manapi::json::operator=(nullptr_t const &n) {
     _set_nullptr();
@@ -1356,25 +1356,12 @@ void manapi::json::delete_value_static(const short &type, void *src) {
     }
 }
 
-manapi::json_parse_exception manapi::json::throw_could_not_use_func(const std::string &func) const
-{
-    auto b = RETHROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_UNSUPPORTED_TYPE, "json object with type {} could not use func: {}", static_cast <int> (type), func);
-    return std::move(b);
-}
-
 
 // Exceptions
 
 manapi::json_parse_exception::json_parse_exception(const json_err_num &errnum, const std::string &msg) {
     this->message = std::format ("{}. json errnum = {}", msg, static_cast<int>(errnum));
     this->errnum = errnum;
-}
-
-manapi::json_parse_exception::json_parse_exception(json_parse_exception &&n) noexcept {
-    this->message = std::move(n.message);
-    this->errnum = n.errnum;
-
-    n.errnum = json_err_num::ERR_JSON_BUG;
 }
 
 const manapi::json_err_num &manapi::json_parse_exception::get_err_num () const {

@@ -3,13 +3,15 @@
 #include <utility>
 #include <vector>
 #include <memory.h>
-#include <arpa/inet.h>
+#if defined(__unix__)||defined(__APPLE__)
+#   include <arpa/inet.h>
+#   include <netdb.h>
+#endif
 #include <filesystem>
 #include <chrono>
 #include <thread>
 #include <unordered_map>
 #include <fcntl.h>
-#include <netdb.h>
 
 #include "ManapiHttpPool.hpp"
 #include "services/ManapiTaskFunction.hpp"
@@ -36,7 +38,11 @@ void manapi::net::http_pool::stop() {
     MANAPIHTTP_LOG("{}", "shutdown socket");
 
     // close socket
+#ifdef _WIN32
+    shutdown(this->config->get_socket_fd(), SD_BOTH);
+#else
     shutdown(this->config->get_socket_fd(), SHUT_RDWR);
+#endif
 
     // stop watcher
     this->watcher->stop();

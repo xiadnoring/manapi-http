@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cassert>
-#include <generator>
 #include <memory>
 #include <functional>
 #include <iostream>
@@ -271,15 +270,15 @@ namespace manapi {
 
         void return_void () const {}
 
-        final_awaiter<promise> final_suspend() noexcept {
+        future<void>::final_awaiter<promise> final_suspend() noexcept {
             return {};
         }
 
         std::suspend_always initial_suspend() { return {}; }
 
-        future get_return_object()
+        future<void> get_return_object()
         {
-            return future{ std::coroutine_handle<promise>::from_promise(*this) };
+            return future<void>{ std::coroutine_handle<promise>::from_promise(*this) };
         }
     };
 }

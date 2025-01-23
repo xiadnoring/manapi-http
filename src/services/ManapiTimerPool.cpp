@@ -21,12 +21,12 @@ manapi::timerpool::~timerpool() {
     this->stop();
 }
 
-manapi::future<unsigned long> manapi::timerpool::async_append_timer_sync(
+manapi::future<size_t> manapi::timerpool::async_append_timer_sync(
     const std::chrono::milliseconds &duration, std::function<void()> task) {
     co_return co_await this->_append(duration, nullptr, task, false);
 }
 
-manapi::future<unsigned long> manapi::timerpool::async_append_timer_async(
+manapi::future<size_t> manapi::timerpool::async_append_timer_async(
     const std::chrono::milliseconds &duration, std::function<future<void>()> task) {
     co_return co_await this->_append(duration, task, nullptr, false);
 }

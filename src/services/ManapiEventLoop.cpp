@@ -1,4 +1,13 @@
+#include <csignal>
+
 #include "services/ManapiEventLoop.hpp"
+
+#ifdef _WIN32
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
+#   include <windows.h>
+#   include <processthreadsapi.h>
+#endif
 
 std::map<size_t, std::shared_ptr<manapi::event_loop>> manapi::event_loop::events = {};
 std::atomic<bool> manapi::event_loop::interrupted = false;
@@ -58,11 +67,14 @@ void manapi::event_loop::sync_start(std::shared_ptr<event_loop> le) {
 }
 
 void manapi::event_loop::setup_handle_interrupt() {
+#ifdef _WIN32
+#else
     signal (SIGPIPE, SIG_IGN);
-    signal (SIGABRT, handler_interrupt);
     signal (SIGKILL, handler_interrupt);
-    signal (SIGTERM, handler_interrupt);
     signal (SIGSTOP, handler_interrupt);
+#endif
+    signal (SIGABRT, handler_interrupt);
+    signal (SIGTERM, handler_interrupt);
 }
 
 manapi::future<> manapi::event_loop::stop() {
@@ -365,7 +377,11 @@ void manapi::event_loop::interrupt() {
     while(!manapi::event_loop::events.empty()) {
         auto it = *manapi::event_loop::events.begin();
         lk.unlock();
+#ifdef _WIN32
+        it.second->loop_interrupted = it.second->loop_thread_id == ::GetCurrentThreadId();
+#else
         it.second->loop_interrupted = it.second->loop_thread_id == std::this_thread::get_id();
+#endif
         it.second->stop()
             .get(it.second->taskpool);
         lk.lock();
@@ -430,8 +446,11 @@ void manapi::event_loop::_pool(manapi::before_delete lk2, std::shared_ptr<event_
 
         event_loop::events.insert({reinterpret_cast<size_t> (this), std::move(le)});
     }
-
+#ifdef _WIN32
+    this->loop_thread_id = ::GetCurrentThreadId();
+#else
     this->loop_thread_id = std::this_thread::get_id();
+#endif
 
     this->_stop_watcher = std::make_shared<ev::async>(this->loop);
     this->_stop_watcher->set<event_loop, &event_loop::_async_break_loop> (this);
@@ -459,7 +478,7 @@ template void manapi::event_loop::event_loop::stop_watcher<ev::io>(ev::io &w);
 template void manapi::event_loop::event_loop::stop_watcher<ev::async>(ev::async &w);
 template void manapi::event_loop::event_loop::stop_watcher<ev::timer>(ev::timer &w);
 template void manapi::event_loop::event_loop::stop_watcher<ev::check>(ev::check &w);
-template void manapi::event_loop::event_loop::stop_watcher<ev::child>(ev::child &w);
+
 template void manapi::event_loop::event_loop::stop_watcher<ev::embed>(ev::embed &w);
 template void manapi::event_loop::event_loop::stop_watcher<ev::fork>(ev::fork &w);
 template void manapi::event_loop::event_loop::stop_watcher<ev::idle>(ev::idle &w);
@@ -468,7 +487,12 @@ template void manapi::event_loop::event_loop::stop_watcher<ev::io>(std::shared_p
 template void manapi::event_loop::event_loop::stop_watcher<ev::async>(std::shared_ptr<ev::async> w);
 template void manapi::event_loop::event_loop::stop_watcher<ev::timer>(std::shared_ptr<ev::timer> w);
 template void manapi::event_loop::event_loop::stop_watcher<ev::check>(std::shared_ptr<ev::check> w);
-template void manapi::event_loop::event_loop::stop_watcher<ev::child>(std::shared_ptr<ev::child> w);
 template void manapi::event_loop::event_loop::stop_watcher<ev::embed>(std::shared_ptr<ev::embed> w);
 template void manapi::event_loop::event_loop::stop_watcher<ev::fork>(std::shared_ptr<ev::fork> w);
 template void manapi::event_loop::event_loop::stop_watcher<ev::idle>(std::shared_ptr<ev::idle> w);
+
+#ifdef _WIN32
+#else
+template void manapi::event_loop::event_loop::stop_watcher<ev::child>(ev::child &w);
+template void manapi::event_loop::event_loop::stop_watcher<ev::child>(std::shared_ptr<ev::child> w);
+#endif

@@ -45,7 +45,7 @@ void manapi::net::worker::quic::onrecv(ev::io &watcher, int revents) {
     while (true) {
         sockaddr_storage sockaddr_src{};
         socklen_t sockaddr_len = sizeof (sockaddr_src);
-        auto rhs = ::recvfrom(watcher.fd, this->gbuffer.data(), this->gbuffer.size(), 0, reinterpret_cast <sockaddr *>(&sockaddr_src), &sockaddr_len);
+        ssize_t rhs = ::recvfrom(watcher.fd, this->gbuffer.data(), this->gbuffer.size(), 0, reinterpret_cast <sockaddr *>(&sockaddr_src), &sockaddr_len);
         if (rhs < 0) {
             return;
         }
@@ -397,7 +397,11 @@ manapi::future<> manapi::net::worker::quic::send_frame(const std::shared_ptr<con
     std::cout << "dcid: " << crypto::strdec2strhex(conn_data.dcid) << "\n";
     std::cout << "send: " << crypto::strdec2strhex(packet) << "\n";
 
-    ::sendto(this->fd, packet.data(), packet.size(), MSG_DONTWAIT, reinterpret_cast <sockaddr *> (&conn_data.sockaddr_src), conn_data.sockaddr_len);
+    int flg = 0;
+    #if defined(__unix__)||defined(__APPLE__)
+        flg |= MSG_DONTWAIT;
+    #endif
+    ::sendto(this->fd, packet.data(), packet.size(), flg, reinterpret_cast <sockaddr *> (&conn_data.sockaddr_src), conn_data.sockaddr_len);
 
     co_return;
 }

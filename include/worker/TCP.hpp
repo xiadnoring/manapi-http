@@ -1,9 +1,12 @@
 #pragma once
 
-#include <ev++.h>
-#include <netdb.h>
+#include "extensions/ev++.h"
 
-#include "./Base.hpp"
+#if defined(__unix__)||defined(__APPLE__)
+#   include <netdb.h>
+#endif
+
+#include "./base_worker.hpp"
 #include "ManapiAsync.hpp"
 #include "http/HeaderView.hpp"
 
@@ -17,6 +20,23 @@ namespace manapi::net::worker {
             size_t last_total_read = 0;
             size_t time_ms = 0;
         };
+#ifdef _WIN32
+        struct connection_interface {
+            manapi::async::mutex iomutex;
+            SOCKET id{};
+            std::shared_ptr <ev::io> watcher;
+            ev_timer timer;
+            net::site *site;
+            std::shared_ptr<worker::base> worker;
+            connection_stat_interface stats;
+            bool configured = false;
+            std::atomic<int> status = 0x0;
+            std::atomic<int> mustly = 0b11111111;
+            std::function<void()> iohandle;
+
+            std::function<void(std::shared_ptr<connection> connection, int revents)> handle;
+        };
+#else
         struct connection_interface {
             manapi::async::mutex iomutex;
             int id{};
@@ -32,6 +52,7 @@ namespace manapi::net::worker {
 
             std::function<void(std::shared_ptr<connection> connection, int revents)> handle;
         };
+#endif
 
         struct connection_io_await {
             std::function<void()> &iohandle;
@@ -102,8 +123,13 @@ namespace manapi::net::worker {
 
         std::stack<std::shared_ptr<async_stack_storage>> tmp;
         addrinfo *local;
+#ifdef _WIN32
+        char socket_param_true = 1;
+        char socket_param_false = 0;
+#else
         int socket_param_true = 1;
         int socket_param_false = 0;
+#endif
         timeval recv_timeout{}, send_timeout{};
         addrinfo hints{};
     };

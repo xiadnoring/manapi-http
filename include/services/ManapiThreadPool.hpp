@@ -5,12 +5,15 @@
 #include <cstdio>
 #include <exception>
 #include <cerrno>
-#include <pthread.h>
 #include <iostream>
 #include <mutex>
 #include <coroutine>
 #include <condition_variable>
 #include <functional>
+
+#if defined (__unix__) || defined(__APPLE__)
+#include <pthread.h>
+#endif
 
 #include "components/ManapiChain.hpp"
 
@@ -45,7 +48,9 @@ namespace manapi {
         std::atomic<bool> is_stop;
         size_t threadnum;
 
+#if defined(__unix__)||defined(__APPLE__)
         sigset_t blockedSignal{};
+#endif
         std::mutex m;
         std::condition_variable cv;
     };

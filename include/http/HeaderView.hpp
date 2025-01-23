@@ -7,7 +7,7 @@
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiSite.hpp"
 #include "../ManapiUtils.hpp"
-#include "../worker/Base.hpp"
+#include "../worker/base_worker.hpp"
 
 namespace manapi::net::http {
     class HeaderView {

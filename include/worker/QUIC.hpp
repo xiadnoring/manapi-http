@@ -1,8 +1,10 @@
 #pragma once
 
-#include <netdb.h>
+#if defined(__unix__)||defined(__APPLE__)
+#   include <netdb.h>
+#endif
 
-#include "./Base.hpp"
+#include "./base_worker.hpp"
 #include "QUIC_CB_Base.hpp"
 #include "UDP.hpp"
 

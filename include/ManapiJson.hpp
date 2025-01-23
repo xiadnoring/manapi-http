@@ -5,6 +5,7 @@
 #include <functional>
 #include <vector>
 #include "ManapiBigint.hpp"
+#include "ManapiInt.hpp"
 #include "ManapiParams.hpp"
 
 namespace manapi {
@@ -24,7 +25,8 @@ namespace manapi {
     class json_parse_exception : public std::exception {
     public:
         explicit json_parse_exception(const json_err_num &errnum, const std::string &msg);
-        json_parse_exception (json_parse_exception &&n) noexcept ;
+        // json_parse_exception (json_parse_exception &&n) noexcept ;
+        // json_parse_exception &operator=(json_parse_exception &&n) noexcept;
         [[nodiscard]] const char *what () const noexcept override;
         [[nodiscard]] const json_err_num &get_err_num () const;
     private:
@@ -118,42 +120,42 @@ namespace manapi {
 
 
         // TRASH (no with const json &obj)
-        json &operator=     (const UNICODE_STRING   &str);
-        json &operator=     (const STRING           &str);
-        json &operator=     (const char             *str);
-        json &operator=     (const BOOLEAN          &b);
-        json &operator=     (const INTEGER           &num);
-        json &operator=     (const int              &num);
-        json &operator=     (const double           &num);
-        json &operator=     (const DECIMAL          &num);
-        json &operator=     (const long long        &num);
-        json &operator=     (const NULLPTR          &n);
-        json &operator=     (const BIGINT           &num);
-        json &operator=     (const json             &obj);
-        json &operator=     (json                   &&obj);
+        json &operator=     (const UNICODE_STRING &str);
+        json &operator=     (const STRING &str);
+        json &operator=     (const char *str);
+        json &operator=     (const BOOLEAN &b);
+        json &operator=     (const INTEGER &num);
+        json &operator=     (const int &num);
+        json &operator=     (const double &num);
+        json &operator=     (const DECIMAL &num);
+        //json &operator=     (const long long &num);
+        json &operator=     (const NULLPTR &n);
+        json &operator=     (const BIGINT &num);
+        json &operator=     (const json &obj);
+        json &operator=     (json &&obj);
         json &operator=     (const std::initializer_list <json> &data);
-        json operator-      (const INTEGER           &num);
-        json operator-      (const int              &num);
-        json operator-      (const DECIMAL          &num);
-        json operator-      (const double           &num);
-        json operator-      (const BIGINT           &num);
-        json operator+      (const INTEGER           &num);
-        json operator+      (const int              &num);
-        json operator+      (const DECIMAL          &num);
-        json operator+      (const double           &num);
-        json operator+      (const BIGINT           &num);
-        json operator+      (const STRING           &str);
-        void operator+=     (const STRING           &str);
-        void operator-=     (const INTEGER           &num);
-        void operator-=     (const int              &num);
-        void operator-=     (const DECIMAL          &num);
-        void operator-=     (const double           &num);
-        void operator-=     (const BIGINT           &num);
-        void operator+=     (const INTEGER           &num);
-        void operator+=     (const int              &num);
-        void operator+=     (const DECIMAL          &num);
-        void operator+=     (const double           &num);
-        void operator+=     (const BIGINT           &num);
+        json operator-      (const INTEGER &num);
+        json operator-      (const int &num);
+        json operator-      (const DECIMAL &num);
+        json operator-      (const double &num);
+        json operator-      (const BIGINT &num);
+        json operator+      (const INTEGER &num);
+        json operator+      (const int &num);
+        json operator+      (const DECIMAL &num);
+        json operator+      (const double &num);
+        json operator+      (const BIGINT &num);
+        json operator+      (const STRING &str);
+        void operator+=     (const STRING &str);
+        void operator-=     (const INTEGER &num);
+        void operator-=     (const int &num);
+        void operator-=     (const DECIMAL &num);
+        void operator-=     (const double &num);
+        void operator-=     (const BIGINT &num);
+        void operator+=     (const INTEGER &num);
+        void operator+=     (const int &num);
+        void operator+=     (const DECIMAL &num);
+        void operator+=     (const double &num);
+        void operator+=     (const BIGINT &num);
 
         bool operator==     (const json &n) const;
         bool operator==     (const bool &n) const;
@@ -353,7 +355,6 @@ namespace manapi {
         void _parse (const nullptr_t &n);
         
         static void delete_value_static (const short &type, void *src);
-        [[nodiscard]] manapi::json_parse_exception throw_could_not_use_func (const std::string &func) const;
 
         void delete_value ();
         void _set_object ();

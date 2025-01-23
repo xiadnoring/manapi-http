@@ -11,10 +11,11 @@
 namespace manapi {
     template<class T>
     threadpool<T>::threadpool(size_t thread_num, size_t queues_count): is_stop(true) {
+#if defined(__unix__)||defined(__APPLE__)
         sigemptyset(&this->blockedSignal);
         sigaddset(&this->blockedSignal, SIGPIPE);
         pthread_sigmask(SIG_BLOCK, &this->blockedSignal, nullptr);
-
+#endif
         this->task_queues.resize(queues_count);
         this->threadnum = thread_num;
     }

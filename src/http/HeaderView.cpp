@@ -6,7 +6,7 @@
 #include "ManapiUtils.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "crypto/ManapiURL.hpp"
-#include "http/Base.hpp"
+#include "http/base_http.hpp"
 #include "http/HTTPv1_1.hpp"
 
 manapi::net::http::HeaderView::HeaderView(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)

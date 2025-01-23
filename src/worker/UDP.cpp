@@ -37,11 +37,9 @@ void manapi::net::worker::udp::init() {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "SOCKET ERROR");
     }
 
-    setsockopt((fd), SOL_SOCKET, SO_REUSEADDR, &this->socket_param_true, sizeof(int));
+    setsockopt((fd), SOL_SOCKET, SO_REUSEADDR, &this->socket_param_true, sizeof(this->socket_param_true));
 
-    if (fcntl(fd, F_SETFL, O_NONBLOCK) != 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "Failed to make socket {} non-blocking", fd.load());
-    }
+    set_fd_non_blocking(fd);
 
     if (bind(fd.load(), this->local->ai_addr, this->local->ai_addrlen) < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);

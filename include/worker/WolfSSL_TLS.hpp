@@ -4,7 +4,7 @@
 
 #include <netdb.h>
 
-#include "./Base.hpp"
+#include "./base_worker.hpp"
 #include "./TCP.hpp"
 
 namespace manapi::net::worker {

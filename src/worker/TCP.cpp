@@ -5,21 +5,34 @@
 #include <utility>
 #include <vector>
 #include <memory.h>
-#include <arpa/inet.h>
-#include <netinet/tcp.h>
+#if defined(__unix__)||defined(__APPLE__)
+#   include <arpa/inet.h>
+#   include <netinet/tcp.h>
+#   include <netdb.h>
+#   include <error.h>
+#endif
+#if defined(_WIN32)
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
+#   include <windows.h>
+#   include <winsock2.h>
+#   include <ws2tcpip.h>
+#endif
 #include <filesystem>
 #include <chrono>
 #include <thread>
 #include <unordered_map>
 #include <fcntl.h>
 #include <memory>
-#include <netdb.h>
 #include <set>
-#include <error.h>
 #include <future>
 
 #include "ManapiUtils.hpp"
 #include "http/HeaderView.hpp"
+
+#if defined(_WIN32)
+#   pragma comment(lib, "Ws2_32.lib")
+#endif
 
 manapi::net::worker::TCP::TCP(net::site &site) : base (site) {
     local = nullptr;
@@ -31,7 +44,11 @@ manapi::net::worker::TCP::TCP(TCP &&n) noexcept : base (std::forward<worker::bas
 }
 
 manapi::net::worker::TCP::~TCP() {
-    close (config->get_socket_fd());
+#if defined(_WIN32)
+    ::closesocket(config->get_socket_fd());
+#else
+    ::close (config->get_socket_fd());
+#endif
     if (local != nullptr) { freeaddrinfo(local); }
 }
 
@@ -65,22 +82,30 @@ void manapi::net::worker::TCP::init() {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "SOCKET ERROR");
     }
     // REUSE PARAM
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &socket_param_true, sizeof(int));
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &socket_param_true, sizeof(this->socket_param_true));
 
     // TIMEOUT RECV PARAM
     auto tv = static_cast<ssize_t> (config->get_recv_timeout());
     this->recv_timeout.tv_sec = tv / 1000;
     this->recv_timeout.tv_usec = tv - recv_timeout.tv_sec * 1000;;
+#if _WIN32
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&recv_timeout), sizeof (timeval));
+#else
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof (timeval));
+#endif
 
     // TIMEOUT RECV PARAM
     tv = static_cast<ssize_t> (config->get_send_timeout());
     this->send_timeout.tv_sec = tv / 1000;
     this->send_timeout.tv_usec = tv - send_timeout.tv_sec * 1000;
+#ifdef _WIN32
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char *>(&send_timeout), sizeof (timeval));
+#else
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof (timeval));
+#endif
 
     if (this->config->get_tcp_no_delay()) {
-        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &socket_param_true, sizeof (int));
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &socket_param_true, sizeof (this->socket_param_true));
     }
 
     this->set_fd_non_blocking(fd);
@@ -391,7 +416,11 @@ std::string manapi::net::worker::TCP::stringify_headers(manapi::net::http_respon
 void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
     auto connection = static_cast<connection_interface *> (ptr);
     _connection_interface_eraser(connection);
+#if defined(_WIN32)
+    ::closesocket(connection->id);
+#else
     ::close(connection->id);
+#endif
     //MANAPIHTTP_LOG("CLOSE(...) {}", connection->id);
     delete connection;
 }
@@ -403,7 +432,15 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_write(connection &conn
             break;
         }
 
-        ssize_t rhs = ::send(connection.id, buff, size, MSG_NOSIGNAL|MSG_DONTWAIT);
+        int flg = 0;
+        #if defined(__unix__)||defined(__APPLE__)
+            flg |= MSG_DONTWAIT|MSG_NOSIGNAL;
+        #endif
+#ifdef _WIN32
+        ssize_t rhs = ::send(connection.id, static_cast<const char *>(buff), size, flg);
+#else
+        ssize_t rhs = ::send(connection.id, buff, size, flg);
+#endif
         if (rhs < 0) {
             if (connection.status & CONN_CLOSED) {
                 break;
@@ -424,7 +461,15 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_read(connection &conn,
             break;
         }
 
-        ssize_t rhs = ::recv(connection.id, buff, size, MSG_DONTWAIT);
+        int flg = 0;
+        #if defined(__unix__)||defined(__APPLE__)
+            flg |= MSG_DONTWAIT;
+        #endif
+#ifdef _WIN32
+        ssize_t rhs = ::recv(connection.id, static_cast<char*>(buff), size, flg);
+#else
+        ssize_t rhs = ::recv(connection.id, buff, size, flg);
+#endif
         if (rhs < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 //std::cout << connection.id << " CB READ\n";

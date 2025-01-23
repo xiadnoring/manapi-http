@@ -1,6 +1,16 @@
 #include "async/ManapiAsyncFileStream.hpp"
 
 #include <fcntl.h>
+#ifdef _WIN32
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
+#   include <windows.h>
+#   include <io.h>
+#   include <fcntl.h>
+#   include <stdlib.h>
+#   include <stdio.h>
+#   include <share.h>
+#endif
 
 manapi::filesystem::async::fstream::fstream(const std::shared_ptr<manapi::async::context> &ctx, std::string_view path) : taskpool(ctx->taskpool()), eventloop(ctx->eventloop()) {
     this->path = path;
@@ -13,8 +23,11 @@ manapi::filesystem::async::fstream::fstream(const std::shared_ptr<event_loop> &e
 }
 
 manapi::future<> manapi::filesystem::async::fstream::open(int flags, unsigned int mode) {
-    int o_flags = O_NONBLOCK|O_RDWR;
-
+    int o_flags = O_RDWR;
+#ifdef _WIN32
+#else
+    o_flags |= O_NONBLOCK;
+#endif
     if (flags&FILE_TRUNC) {
         o_flags |= O_TRUNC;
     }
@@ -145,7 +158,11 @@ void manapi::filesystem::async::fstream::seekg(const ssize_t &pos, const seek_fl
 }
 
 ssize_t manapi::filesystem::async::fstream::tellg() const {
+#ifdef _WIN32
+    return _lseeki64(this->fd, 0, FILE_SEEK_CURRENT);
+#else
     return lseek64(this->fd, 0, FILE_SEEK_CURRENT);
+#endif
 }
 
 ssize_t manapi::filesystem::async::fstream::total_size() const {
@@ -165,7 +182,11 @@ bool manapi::filesystem::async::fstream::eof() const {
 }
 
 void manapi::filesystem::async::fstream::_seekg(const ssize_t &pos, const seek_flag_t &flag) const {
+#ifdef _WIN32
+    _lseeki64(this->fd, pos, static_cast<int>(flag));
+#else
     lseek64(this->fd, pos, static_cast<int>(flag));
+#endif
 }
 
 void manapi::filesystem::async::fstream::_event(ev::io &w, int revents) {
@@ -179,7 +200,17 @@ void manapi::filesystem::async::fstream::_event(ev::io &w, int revents) {
         this->w_resolve ();
     }
 }
+#ifdef _WIN32
+manapi::future<> manapi::filesystem::async::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, SOCKET fd) {
+    if (w) {
+        co_await ev->unwatch_fd(std::move(w));
+    }
 
+    if (fd >= 0) {
+        ::closesocket(fd);
+    }
+}
+#else
 manapi::future<> manapi::filesystem::async::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, int fd) {
     if (w) {
         co_await ev->unwatch_fd(std::move(w));
@@ -189,4 +220,5 @@ manapi::future<> manapi::filesystem::async::fstream::_close(std::shared_ptr<even
         ::close(fd);
     }
 }
+#endif
 

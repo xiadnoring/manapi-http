@@ -5,18 +5,30 @@
 #include <iostream>
 #include <fstream>
 
-#if !(defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__))
-# include <unistd.h>
+#ifdef _WIN32
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
+#   include <windows.h>
+#   include <unistd.h>
+#else
+#   include <unistd.h>
 #endif
 
 #include "ManapiErrors.hpp"
 #include "ManapiTime.hpp"
 
-#define MANAPIHTTP_LOG(msg, ...) manapi::debug::_log (__LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
-#define MANAPIHTTP_LOG2(msg) manapi::debug::_log (__LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg);
+#if _MSC_VER
+#   define MANAPIHTTP_LOG(msg, ...) manapi::debug::_log (__LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
+#   define MANAPIHTTP_LOG2(msg) manapi::debug::_log (__LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg);
+#   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, msg, __VA_ARGS__)
+#   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, msg)
+#else
+#   define MANAPIHTTP_LOG(msg, ...) manapi::debug::_log (__LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
+#   define MANAPIHTTP_LOG2(msg) manapi::debug::_log (__LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg);
+#   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg, __VA_ARGS__)
+#   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg)
+#endif
 
-#define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg, __VA_ARGS__)
-#define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg)
 #define THROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) throw RETHROW_MANAPIHTTP_EXCEPTION (errnum, msg, __VA_ARGS__)
 #define THROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) throw RETHROW_MANAPIHTTP_EXCEPTION2 (errnum, msg)
 
@@ -43,8 +55,8 @@ namespace manapi::debug {
 
     inline size_t debug_print_memory (const std::string &title = "common")
     {
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
-        return {};
+#ifdef _WIN32
+        return 0;
 #else
         pid_t pid = getpid(); // Get the process ID
         std::ifstream status_file("/proc/" + std::to_string(pid) + "/status", std::ios::binary | std::ios::in);

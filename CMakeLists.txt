@@ -20,6 +20,7 @@ OPTION(MANAPIHTTP_BUILD_METHOD "Build method" "default")
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 
+message(STATUS "MANAPIHTTP_BUILD_METHOD: ${MANAPIHTTP_BUILD_METHOD}")
 message(STATUS "The QUIC Implementation by Cloudflare: ${MANAPIHTTP_QUICHE_DEPENDENCY}")
 message(STATUS "The QUIC Implementation by Tencent: ${MANAPIHTTP_TQUIC_DEPENDENCY}")
 message(STATUS "The QUIC Implementation by Microsoft: ${MANAPIHTTP_MSQUIC_DEPENDENCY}")
@@ -132,8 +133,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiUnicode.hpp
         include/ManapiJsonBuilder.hpp
         include/ManapiBeforeDelete.hpp
-        include/worker/Base.hpp
-        include/http/Base.hpp
+        include/worker/base_worker.hpp
+        include/http/base_http.hpp
         include/worker/OpenSSL_TLS.hpp
         include/http/HTTPv1_1.hpp
         include/http/HTTPv1_1.hpp
@@ -141,7 +142,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/compress/ManapiHPack.hpp
         include/worker/HTTPv2.hpp
         include/components/SmartBuffer.hpp
-        include/components/ConnectionsStorage.hpp
         include/ManapiHttpMime.hpp
         include/components/Atomic.hpp
         include/worker/QUIC.hpp
@@ -170,8 +170,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiUnicode.cpp
         src/ManapiJsonBuilder.cpp
         src/ManapiBeforeDelete.cpp
-        src/worker/Base.cpp
-        src/http/Base.cpp
+        src/worker/base_worker.cpp
+        src/http/base_http.cpp
         src/worker/OpenSSL_TLS.cpp
         src/http/HTTPv1_1.cpp
         src/http/HTTPv2.cpp
@@ -319,7 +319,11 @@ else ()
 endif ()
 
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
-    target_link_libraries(${PROJECT_NAME} PRIVATE stdc++exp)
+    if (WIN32)
+
+    else ()
+        target_link_libraries(${PROJECT_NAME} PRIVATE stdc++exp)
+    endif()
 else()
     target_link_libraries(${PROJECT_NAME} PRIVATE stdc++_libbacktrace)
 endif()
@@ -327,6 +331,10 @@ endif()
 # Include public headers from the folder
 target_include_directories  (${PROJECT_NAME} PRIVATE include)
 target_include_directories  (${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/include)
+
+if (WIN32)
+    # set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} "/FS")
+endif ()
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
     # nothing

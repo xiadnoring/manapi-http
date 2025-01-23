@@ -3,6 +3,13 @@
 #include "services/ManapiTask.hpp"
 #include "services/ManapiThreadPool.hpp"
 
+#if defined(_WIN32)
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
+#   include <windows.h>
+#   include <winsock2.h>
+#endif
+
 namespace manapi::filesystem::async {
     class fstream {
     public:
@@ -38,11 +45,18 @@ namespace manapi::filesystem::async {
     private:
         void _seekg (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START) const;
         void _event (ev::io &w, int revents);
+#ifdef _WIN32
+        static future<> _close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, SOCKET fd);
+#else
         static future<> _close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, int fd);
+#endif
 
         std::shared_ptr<ev::io> watcher{nullptr};
-
+#ifdef _WIN32
+        SOCKET fd;
+#else
         int fd;
+#endif
         std::string path;
         std::shared_ptr<threadpool<task>> taskpool;
         std::shared_ptr<event_loop> eventloop;
