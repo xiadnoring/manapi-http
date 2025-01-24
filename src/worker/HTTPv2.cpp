@@ -739,8 +739,8 @@ void manapi::net::worker::http_v2::_parse_body_data(char &c) {
 void manapi::net::worker::http_v2::_parse_skip_n_bytes(char &c, size_t &n) {
     if (n <= 1) {
         n = 0;
-        current = next;
-        current (c);
+        this->current = this->next;
+        this->current (c);
         return;
     }
     n--;
@@ -761,7 +761,7 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
                 return;
             }
 
-            if ((!this->sessions.empty() && this->sessions.rbegin()->first >= this->protocol.stream_id)) {
+            if ((!this->sessions.empty() && this->sessions.rbegin()->first >= this->protocol.stream_id) || (this->protocol.stream_id % 2 == 0)) {
                 this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "unexpected stream id");
                 return;
             }

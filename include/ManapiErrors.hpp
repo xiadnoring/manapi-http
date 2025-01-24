@@ -42,7 +42,9 @@ namespace manapi {
         ERR_BUG = 35,
         ERR_SUBSCRIBE_FAILURE = 36,
         ERR_INTERRUPTED = 37,
-        ERR_THREAD_SAFE = 38
+        ERR_THREAD_SAFE = 38,
+        ERR_POSTGRE_ERROR = 39,
+        ERR_POSTGRE_RESULT = 40
     };
 
     const std::map <err_num, std::string> err_msg {
@@ -56,7 +58,8 @@ namespace manapi {
         {ERR_BUG, "BUG"},
         {ERR_SUBSCRIBE_FAILURE, "Failed to subscribe"},
         {ERR_INTERRUPTED, "App was interrupted"},
-        {ERR_THREAD_SAFE, "That method isn't thread safe"}
+        {ERR_THREAD_SAFE, "That method isn't thread safe"},
+        {ERR_POSTGRE_ERROR, "PostgreSQL error"}
     };
 
     const inline std::string & get_msg_by_err_num(const err_num &errnum) {
@@ -70,10 +73,13 @@ namespace manapi {
     class exception : public std::exception {
     public:
         explicit exception (const err_num &errnum, std::string message_);
+        explicit exception (const err_num &errnum, int addititonal_num_data, std::string message_);
         [[nodiscard]] const char * what() const noexcept override;
         [[nodiscard]] const err_num &get_err_num () const;
+        [[nodiscard]] const int &get_additional_num_data () const;
     private:
         err_num errnum;
+        int addititonal_num_data = -1;
         std::string message;
     };
 }

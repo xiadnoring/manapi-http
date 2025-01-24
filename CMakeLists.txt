@@ -55,6 +55,8 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     if (MANAPIHTTP_OPENSSL_DEPENDENCY)
         find_package(OpenSSL REQUIRED)
     endif ()
+
+    find_package(PostgreSQL REQUIRED)
 else ()
     message(STATUS "Build method: default")
 
@@ -233,6 +235,14 @@ set(MANAPIHTTP_HTTP_FILES
         src/async/ManapiAsyncConditionVariable.cpp
         include/async/ManapiAsyncFileStream.hpp
         src/async/ManapiAsyncFileStream.cpp
+        include/extensions/pq/AsyncPostgreClient.hpp
+        include/async/ManapiAsyncSocket.hpp
+        include/extensions/pq/AsyncPostgreResult.hpp
+        include/extensions/pq/AsyncPostgreRow.hpp
+        include/extensions/pq/AsyncPostgreField.hpp
+        include/extensions/pq/AsyncPostgreValue.hpp
+        src/extensions/pq/AsyncPostgreValueTypes.cpp
+        include/extensions/pq/AsyncPostgreValueTypes.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
@@ -263,7 +273,7 @@ find_package(Threads)
 target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
-    target_link_libraries       (${PROJECT_NAME} PRIVATE ${QUIC_LIBRARIES} gmp::gmp ZLIB::ZLIB libev::libev CURL::libcurl)
+    target_link_libraries       (${PROJECT_NAME} PRIVATE ${QUIC_LIBRARIES} gmp::gmp ZLIB::ZLIB libev::libev CURL::libcurl PostgreSQL::PostgreSQL)
     if (MANAPIHTTP_OPENSSL_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PRIVATE openssl::openssl)
     endif ()

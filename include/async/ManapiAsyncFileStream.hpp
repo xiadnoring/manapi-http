@@ -3,7 +3,7 @@
 #include "services/ManapiTask.hpp"
 #include "services/ManapiThreadPool.hpp"
 
-#if defined(_WIN32)
+#ifdef _WIN32
 #   define NOMINMAX
 #   define WIN32_LEAN_AND_MEAN
 #   include <windows.h>
@@ -11,6 +11,22 @@
 #endif
 
 namespace manapi::filesystem::async {
+    struct fstream_data_t_ {
+#ifdef _WIN32
+        SOCKET fd;
+#else
+        int fd;
+#endif
+        std::string path;
+        std::shared_ptr<threadpool<task>> taskpool;
+        std::shared_ptr<event_loop> eventloop;
+        std::shared_ptr<ev::io> watcher{nullptr};
+        manapi::async::promise<void>::resolve_t w_resolve{nullptr};
+        manapi::async::promise<void>::resolve_t r_resolve{nullptr};
+
+        std::atomic<int> status{0};
+    };
+
     class fstream {
     public:
         enum flags_t {
@@ -44,27 +60,13 @@ namespace manapi::filesystem::async {
         [[nodiscard]] bool eof () const;
     private:
         void _seekg (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START) const;
-        void _event (ev::io &w, int revents);
+        static void _event (ev::io &w, int revents, const std::shared_ptr<fstream_data_t_> &data);
 #ifdef _WIN32
         static future<> _close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, SOCKET fd);
 #else
         static future<> _close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, int fd);
 #endif
 
-        std::shared_ptr<ev::io> watcher{nullptr};
-#ifdef _WIN32
-        SOCKET fd;
-#else
-        int fd;
-#endif
-        std::string path;
-        std::shared_ptr<threadpool<task>> taskpool;
-        std::shared_ptr<event_loop> eventloop;
-
-        manapi::async::promise<void>::resolve_t w_resolve{nullptr};
-
-        manapi::async::promise<void>::resolve_t r_resolve{nullptr};
-
-        std::atomic<int> status{0};
+        std::shared_ptr<fstream_data_t_> data;
     };
 }
