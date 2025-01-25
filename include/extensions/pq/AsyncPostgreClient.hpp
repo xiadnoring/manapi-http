@@ -5,6 +5,7 @@
 #include "../../async/ManapiAsyncSocket.hpp"
 
 #include "./AsyncPostgreResult.hpp"
+#include "./AsyncPostgreNotification.hpp"
 
 namespace manapi::ext::pq {
     #include "libpq-events.h"
@@ -24,6 +25,23 @@ namespace manapi::ext::pq {
         RESULT_STATUS_PIPELINE_ABORTED
     };
 
+    class sqlexception : public std::exception {
+    public:
+        explicit sqlexception (const int &errcode, std::string errmsg) {
+            this->errcode = errcode;
+            this->errmsg = std::move(errmsg);
+        }
+        [[nodiscard]] const char * what() const noexcept override {
+            return this->errmsg.data();
+        }
+        [[nodiscard]] int sqlstate () const {
+            return this->errcode;
+        }
+    private:
+        int errcode;
+        std::string errmsg;
+    };
+
     class connection {
     public:
         struct pgconn_deleter {
@@ -39,10 +57,10 @@ namespace manapi::ext::pq {
 
         ~connection () = default;
 
-        manapi::future<> connect (std::string_view host, std::string_view port, std::string_view username, std::string_view password, std::string_view database) {
-            auto uri = std::format("postgresql://{}:{}@{}:{}/{}", username, password, host, port, database);
-            this->conn.reset(PQconnectStart(uri.data()));
+        manapi::future<> connect (std::string_view uri) {
             if (std::exchange(this->init_, false)) {
+                this->conn.reset(PQconnectStart(uri.data()));
+
                 if (PQstatus(this->conn.get()) == CONNECTION_BAD) {
                     THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "Connection bad");
                 }
@@ -55,30 +73,38 @@ namespace manapi::ext::pq {
                     this->conn.get(), +[](void *, const char *) -> void{}, nullptr);
 
                 this->fd_ = PQsocket(this->conn.get());
-            }
 
-            while (true) {
-                auto ret = PQconnectPoll(this->conn.get());
+                while (true) {
+                    auto ret = PQconnectPoll(this->conn.get());
 
-                switch (ret) {
-                    case PGRES_POLLING_READING:
-                        co_await async::read_ready(this->ctx, this->fd_);
-                    continue;
-                    case PGRES_POLLING_WRITING:
-                        co_await async::write_ready(this->ctx, this->fd_);
-                    continue;
-                    case PGRES_POLLING_FAILED:
-                        THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "Polling failed");
-                    break;
-                    default:
+                    switch (ret) {
+                        case PGRES_POLLING_READING:
+                            this->fd_ = PQsocket(this->conn.get());
+                            co_await async::read_ready(this->ctx, this->fd_);
+                        continue;
+                        case PGRES_POLLING_WRITING:
+                            this->fd_ = PQsocket(this->conn.get());
+                            co_await async::write_ready(this->ctx, this->fd_);
+                        continue;
+                        case PGRES_POLLING_FAILED:
+                            THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "Polling failed");
                         break;
-                }
+                        default:
+                            break;
+                    }
 
-                break;
+                    break;
+                }
             }
         }
 
+        manapi::future<> connect (std::string_view host, std::string_view port, std::string_view username, std::string_view password, std::string_view database) {
+            auto uri = std::format("postgresql://{}:{}@{}:{}/{}", username, password, host, port, database);
+            co_return co_await this->connect(uri);
+        }
+
         manapi::future<pq::result> exec (std::string_view sql) {
+            this->_check_conn();
             if (!PQsendQueryParams(this->conn.get(), sql.data(), 0, nullptr, nullptr, nullptr, nullptr, 1)) {
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "send the query failed");
             }
@@ -88,6 +114,7 @@ namespace manapi::ext::pq {
 
         template<typename ...Args>
         manapi::future<pq::result> exec (std::string_view sql, Args &&...args) {
+            this->_check_conn();
             std::string buffer;
             auto [t, v, l, f] = pq::serialize(buffer, std::make_tuple(args...));
             if (!PQsendQueryParams(this->conn.get(), sql.data(), t.size(), t.data(), v.data(), l.data(), f.data(), 1)) {
@@ -98,6 +125,7 @@ namespace manapi::ext::pq {
         }
 
         std::string esc (std::string_view text) {
+            this->_check_conn();
             std::string buff;
             buff.resize(text.size() * 2 + 1);
             const auto copied = this->esc_to_buff(text, buff.data());
@@ -105,7 +133,22 @@ namespace manapi::ext::pq {
             return std::move(buff);
         }
 
+        void close () {
+            this->conn.reset();
+            this->init_ = false;
+        }
+
+        void set_notify_cb (std::function<manapi::future<>(notification notify)> cb) {
+            this->notify_cb = std::move(cb);
+        }
     private:
+        void _check_conn () const {
+            if (this->conn) {
+                return;
+            }
+
+            THROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_ERROR, "connection doesn't exists");
+        }
         size_t esc_to_buff (std::string_view text, char *buff) {
             int err{0};
             auto const copied{
@@ -159,21 +202,29 @@ namespace manapi::ext::pq {
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "unexpected non-null result");
             }
             auto err = connection::result_status_to_error_code(result);
+
+            auto rows = result.affected_rows();
+            auto sqlstate = result.sqlstate();
+
             if (err != error_code::RESULT_STATUS_OK) {
-                THROW_MANAPIHTTP_EXCEPTION_WITH_CODE (ERR_POSTGRE_ERROR, err, "Failed to get result: {}", PQerrorMessage(this->conn.get()));
+                throw pq::sqlexception (sqlstate, PQerrorMessage(this->conn.get()));
             }
 
             co_return std::move(result);
         }
         future<pq::result> receive_result () {
             while (PQisBusy(this->conn.get())) {
+                this->fd_ = PQsocket(this->conn.get());
                 co_await async::read_ready(this->ctx, this->fd_);
                 if (!PQconsumeInput(this->conn.get())) {
                     THROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_ERROR, "Consume input failed");
                 }
             }
 
-            co_return pq::result {PQgetResult(this->conn.get())};
+            auto res = pq::result {PQgetResult(this->conn.get())};
+            co_await this->receive_notifications();
+
+            co_return std::move(res);
         }
 
         static error_code result_status_to_error_code (result &result) {
@@ -195,6 +246,31 @@ namespace manapi::ext::pq {
             }
         }
 
+        [[nodiscard]] PGconn * native_handle () const {
+            this->_check_conn();
+            return this->conn.get();
+        }
+
+        [[nodiscard]] bool connected () const {
+            return this->conn && PQstatus(this->conn.get()) == ConnStatusType::CONNECTION_OK;
+        }
+
+        manapi::future<> receive_notifications () {
+
+            while (true) {
+                notification notify {PQnotifies(this->conn.get())};
+                if (!notify) {
+                    break;
+                }
+
+                if (this->notify_cb) {
+                    co_await this->notify_cb(std::move(notify));
+                }
+            }
+            co_return;
+        }
+
+        std::function<manapi::future<>(notification notify)> notify_cb{nullptr};
         bool init_{true};
         int fd_{-1};
         std::unique_ptr<PGconn, pgconn_deleter> conn{nullptr};

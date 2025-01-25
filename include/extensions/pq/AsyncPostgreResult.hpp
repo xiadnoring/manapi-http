@@ -55,6 +55,24 @@ namespace manapi::ext::pq {
             return this->res_.get();
         }
 
+        [[nodiscard]] int sqlstate() const noexcept {
+            if (this->sqlstate_.has_value()) {
+                return this->sqlstate_.value();
+            }
+
+            int n = 0;
+            const char *ptr = PQresultErrorField(this->res_.get(), PG_DIAG_SQLSTATE);
+
+            while (ptr) {
+                n *= 10;
+                n += (*ptr++)-'0';
+            }
+
+            this->sqlstate_ = n;
+
+            return n;
+        }
+
         row at (const int &index) {
             if (index < this->size()) {
                 return row{this->res_.get(), index};
@@ -67,17 +85,18 @@ namespace manapi::ext::pq {
             return this->at(index);
         }
 
-        [[nodiscard]] size_t affected_rows () {
+        [[nodiscard]] size_t affected_rows () const {
             if (this->affected_rows_.has_value()) {
                 return this->affected_rows_.value();
             }
 
             char *s = PQcmdTuples(this->res_.get());
             size_t cnt = 0;
-            while (*s!='\0') {
+            while (s && *s!='\0') {
                 cnt *= 10;
                 cnt += *(s++)-'0';
             }
+            this->affected_rows_ = cnt;
             return cnt;
         }
 
@@ -85,7 +104,8 @@ namespace manapi::ext::pq {
         [[nodiscard]] const_iterator end () const noexcept;
     private:
         std::unique_ptr<PGresult, pgresult_deleter> res_;
-        std::optional<size_t> affected_rows_;
+        std::optional<int> mutable sqlstate_;
+        std::optional<size_t> mutable affected_rows_;
     };
 
     class result::const_iterator

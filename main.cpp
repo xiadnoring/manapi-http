@@ -39,15 +39,28 @@ std::shared_ptr<manapi::async::context> ctx;
 
 manapi::future<> co_main () {
     manapi::ext::pq::connection db (ctx);
+    db.set_notify_cb([] (manapi::ext::pq::notification notify) -> manapi::future<> {
+        std::cout << notify.pid() << " " << notify.payload() << "\n";
+        co_return;
+    });
     co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
+
+    auto res_listen = co_await db.exec("LISTEN virtual;");
+
     std::string data = "hello world \007\010";
     manapi::ext::pq::blob blob {data};
     std::string textdata = "hello world";
     manapi::ext::pq::text text {textdata};
-
+    co_await manapi::async::delay{ctx, 5s};
     manapi::ext::pq::result res;
-    if (true) {
-        res = co_await db.exec("INSERT INTO for_test (id, float_col, blob_col, str_col, bool_col, text_col) VALUES ($1, $2, $3, $4, $5, $6);", 6, 78.56, blob, "hello world #2", true, text);
+    if (false) {
+        try {
+            res = co_await db.exec("INSERT INTO for_test (id, float_col, blob_col, str_col, bool_col, text_col) VALUES ($1, $2, $3, $4, $5, $6);", 6, 78.56, blob, "hello world #2", true, text);
+        }
+        catch (manapi::ext::pq::sqlexception const &e) {
+            std::cout << e.sqlstate() << " " << e.what() << "\n";
+            co_return;
+        }
     }
     else {
         res = co_await db.exec("SELECT * FROM for_test");
@@ -58,6 +71,7 @@ manapi::future<> co_main () {
         }
     }
     std::cout << res.affected_rows() << "\n";
+    db.close();
     co_return;
 }
 
