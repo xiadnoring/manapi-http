@@ -22,6 +22,8 @@ namespace manapi::ext::pq {
             }
         };
 
+        result () {}
+
         result (PGresult *res) {
             this->res_.reset(res);
         }
@@ -65,11 +67,25 @@ namespace manapi::ext::pq {
             return this->at(index);
         }
 
+        [[nodiscard]] size_t affected_rows () {
+            if (this->affected_rows_.has_value()) {
+                return this->affected_rows_.value();
+            }
+
+            char *s = PQcmdTuples(this->res_.get());
+            size_t cnt = 0;
+            while (*s!='\0') {
+                cnt *= 10;
+                cnt += *(s++)-'0';
+            }
+            return cnt;
+        }
+
         [[nodiscard]] const_iterator begin () const noexcept;
         [[nodiscard]] const_iterator end () const noexcept;
     private:
         std::unique_ptr<PGresult, pgresult_deleter> res_;
-
+        std::optional<size_t> affected_rows_;
     };
 
     class result::const_iterator

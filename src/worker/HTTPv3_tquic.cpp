@@ -36,6 +36,7 @@ manapi::net::worker::http_v3_tquic::~http_v3_tquic() {
 void manapi::net::worker::http_v3_tquic::onrecv(ev::io &watcher, int revents) {
     sockaddr_storage sockaddr_src{};
     socklen_t sockaddr_len = sizeof (sockaddr_src);
+    memset(&sockaddr_src, '\0', sockaddr_len);
     uint8_t out[MANAPI_MAX_DATAGRAM_SIZE];
 
     std::shared_ptr<worker::connection> connection;

@@ -4,28 +4,43 @@
 #include <string_view>
 #include <array>
 #include <typeindex>
+#include <memory.h>
 
 #include "ManapiDebug.hpp"
 
 namespace manapi::ext::pq {
-    struct oid_pair
-    {
-        uint32_t single = {};
-        uint32_t array  = {};
+    class text : public std::string_view {
+    public:
+        text (const char *a, const size_t &s) : std::string_view(a, s) {}
+        text (const char *a) : std::string_view(a) {}
+        text (const std::string &a) : std::string_view(a) {}
+        text (const std::string_view &a) : std::string_view(a) {}
+        text (std::string::iterator first, std::string::iterator last): std::string_view(first, last) {}
+        text (std::string::const_iterator first, std::string::const_iterator last): std::string_view(first, last) {}
     };
 
-    using oid_map = std::map<std::type_index, oid_pair>;
+    class blob : public std::string_view {
+    public:
+        blob (const char *a, const size_t &s) : std::string_view(a, s) {}
+        blob (const char *a) : std::string_view(a) {}
+        blob (const std::string &a) : std::string_view(a) {}
+        blob (const std::string_view &a) : std::string_view(a) {}
+        blob (std::string::iterator first, std::string::iterator last): std::string_view(first, last) {}
+        blob (std::string::const_iterator first, std::string::const_iterator last): std::string_view(first, last) {}
+    };
 
     template<typename T>
     struct string_traits {
-        static inline T from_string (std::string_view text) { THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_RESULT, "string_traits not exists"); }
-        static inline void to_string (std::string_view text, T const &value) { }
-        [[nodiscard]] static inline size_t size (T const &value) { return 0; }
+        static inline T from_string (std::string_view text_) { return std::string{text_}; }
+        static inline void to_string (std::string_view text_, T const &value) {
+            assert(text_.size() >= value.size()); memcpy((void*)text_.data(), value.data(), value.size());
+        }
+        [[nodiscard]] static inline size_t size (T const &value) { return value.size(); }
     };
 
     template<typename T>
-    [[nodiscard]] T from_string (std::string_view text) {
-        return string_traits<T>::from_string(text);
+    [[nodiscard]] T from_string (std::string_view text_) {
+        return string_traits<T>::from_string(text_);
     }
 
     template<typename T>
@@ -39,13 +54,13 @@ namespace manapi::ext::pq {
     }
 
     template<typename T>
-    inline void to_string (std::string_view text, const T &v) {
-        return string_traits<T>::to_string(text, v);
+    inline void to_string (std::string_view text_, const T &v) {
+        return string_traits<T>::to_string(text_, v);
     }
 
     template<typename T>
-    inline void to_string (std::string_view text, const T *v) {
-        return string_traits<T>::to_string(text, v);
+    inline void to_string (std::string_view text_, const T *v) {
+        return string_traits<T>::to_string(text_, v);
     }
 }
 
@@ -69,6 +84,18 @@ namespace manapi::ext::pq {
 
     inline uint32_t oid_of (const int &v) {
         return INT4OID;
+    }
+
+    inline uint32_t oid_of (const std::string_view &v) {
+        return VARCHAROID;
+    }
+
+    inline uint32_t oid_of (const pq::text &v) {
+        return TEXTOID;
+    }
+
+    inline uint32_t oid_of (const pq::blob &v) {
+        return BYTEAOID;
     }
 
     inline uint32_t oid_of (const short &v) {
@@ -97,6 +124,14 @@ namespace manapi::ext::pq {
 
     inline uint32_t oid_of (const unsigned char &v) {
         return CHAROID;
+    }
+
+    inline uint32_t oid_of (const float &v) {
+        return FLOAT4OID;
+    }
+
+    inline uint32_t oid_of (const double &v) {
+        return FLOAT8OID;
     }
 
     template<typename T>

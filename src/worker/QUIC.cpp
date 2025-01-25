@@ -45,6 +45,7 @@ void manapi::net::worker::quic::onrecv(ev::io &watcher, int revents) {
     while (true) {
         sockaddr_storage sockaddr_src{};
         socklen_t sockaddr_len = sizeof (sockaddr_src);
+        memset(&sockaddr_src, '\0', sockaddr_len);
         ssize_t rhs = ::recvfrom(watcher.fd, this->gbuffer.data(), this->gbuffer.size(), 0, reinterpret_cast <sockaddr *>(&sockaddr_src), &sockaddr_len);
         if (rhs < 0) {
             return;

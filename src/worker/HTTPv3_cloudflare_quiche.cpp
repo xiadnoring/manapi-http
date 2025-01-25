@@ -22,6 +22,8 @@ manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() {
 void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int revents) {
     sockaddr_storage sockaddr_src{};
     socklen_t sockaddr_len = sizeof (sockaddr_src);
+    memset(&sockaddr_src, '\0', sockaddr_len);
+
     uint8_t out[MANAPI_MAX_DATAGRAM_SIZE];
 
     while (true) {

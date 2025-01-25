@@ -63,10 +63,10 @@ namespace manapi::ext::pq {
                 switch (ret) {
                     case PGRES_POLLING_READING:
                         co_await async::read_ready(this->ctx, this->fd_);
-                        continue;
+                    continue;
                     case PGRES_POLLING_WRITING:
                         co_await async::write_ready(this->ctx, this->fd_);
-                        continue;
+                    continue;
                     case PGRES_POLLING_FAILED:
                         THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "Polling failed");
                     break;
@@ -79,7 +79,7 @@ namespace manapi::ext::pq {
         }
 
         manapi::future<pq::result> exec (std::string_view sql) {
-            if (!PQsendQuery(this->conn.get(), sql.data())) {
+            if (!PQsendQueryParams(this->conn.get(), sql.data(), 0, nullptr, nullptr, nullptr, nullptr, 1)) {
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "send the query failed");
             }
 

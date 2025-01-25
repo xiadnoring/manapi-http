@@ -38,14 +38,26 @@ std::shared_ptr<manapi::async::context> ctx;
 
 
 manapi::future<> co_main () {
-
     manapi::ext::pq::connection db (ctx);
     co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
-    auto res = co_await db.exec("select * from zones WHERE user_id = $1 AND user_zone = $2;", 42, "PANDA");
-    std::cout << res.size() << "\n";
-    for (const auto &row: res) {
-        cout << row["user_id"].as<size_t>() << " " << row["user_zone"].as<std::string>() <<  " " << row["service"].as<std::string>() << "\n";
+    std::string data = "hello world \007\010";
+    manapi::ext::pq::blob blob {data};
+    std::string textdata = "hello world";
+    manapi::ext::pq::text text {textdata};
+
+    manapi::ext::pq::result res;
+    if (true) {
+        res = co_await db.exec("INSERT INTO for_test (id, float_col, blob_col, str_col, bool_col, text_col) VALUES ($1, $2, $3, $4, $5, $6);", 6, 78.56, blob, "hello world #2", true, text);
     }
+    else {
+        res = co_await db.exec("SELECT * FROM for_test");
+        std::cout << res.size() << "\n";
+        for (const auto &row: res) {
+            cout << "id: " << row["id"].as<int>() << "\nfloat_col: " << row["float_col"].as<long double>() << "\nblob_col: " << row["blob_col"].as<std::string>();
+            cout << "\ntext_col: " << row["text_col"].as<std::string>() << "\nbool_col: " << row["bool_col"].as<bool>() << "\nstr_col: " << row["str_col"].as<std::string>() << "\n";
+        }
+    }
+    std::cout << res.affected_rows() << "\n";
     co_return;
 }
 
