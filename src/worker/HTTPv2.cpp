@@ -10,18 +10,18 @@
 
 #define HEADER_DEFAULT_SIZE 9
 
-std::map <int, manapi::json_mask> manapi::net::worker::http_v2::allow_settings = {
-    {HTTP2_SETTING_RESERVED, {"{null}"}},
-    {HTTP2_SETTING_ENABLE_PUSH, {"{integer(>=0 <=1)}"}},
-    {HTTP2_SETTING_MAX_FRAME_SIZE, {"{integer(>=16000 <=20000)}"}},
-    {HTTP2_SETTING_HEADER_TABLE_SIZE, {"{integer(>=2048 <=65536)}"}},
-    {HTTP2_SETTING_INITIAL_WINDOW_SIZE, {"{integer(>=1024)}"}},
-    {HTTP2_SETTING_MAX_HEADER_LIST_SIZE, {"{integer(>=1024 <=1048576)}"}},
-    {HTTP2_SETTING_TLS_RENEG_PERMITTED, {"{integer(0)}"}},
-    {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, {"{integer(>=1 <=5)}"}},
-    {HTTP2_SETTING_SETTINGS_ENABLE_METADATA, {"{integer(>=0 <=1)}"}},
-    {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, {"{integer(>=0 <=1)}"}},
-    {HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL, {"{integer(>=0 <=1)}"}}
+std::map <int, manapi::json_mask> manapi::net::worker::http_v2::allow_settings {
+    {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
+    {HTTP2_SETTING_ENABLE_PUSH, manapi::json{"{integer(>=0 <=1)}"}},
+    {HTTP2_SETTING_MAX_FRAME_SIZE, manapi::json{"{integer(>=16000 <=20000)}"}},
+    {HTTP2_SETTING_HEADER_TABLE_SIZE, manapi::json{"{integer(>=2048 <=65536)}"}},
+    {HTTP2_SETTING_INITIAL_WINDOW_SIZE, manapi::json{"{integer(>=1024)}"}},
+    {HTTP2_SETTING_MAX_HEADER_LIST_SIZE, manapi::json{"{integer(>=1024 <=1048576)}"}},
+    {HTTP2_SETTING_TLS_RENEG_PERMITTED, manapi::json{"{integer(0)}"}},
+    {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, manapi::json{"{integer(>=1 <=5)}"}},
+    {HTTP2_SETTING_SETTINGS_ENABLE_METADATA, manapi::json{"{integer(>=0 <=1)}"}},
+    {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, manapi::json{"{integer(>=0 <=1)}"}},
+    {HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL, manapi::json{"{integer(>=0 <=1)}"}}
 };
 
 manapi::net::worker::http_v2::http_v2(const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
@@ -927,13 +927,12 @@ manapi::future<void> manapi::net::worker::http_v2::send_ping_frame(std::string d
 }
 
 manapi::future<void> manapi::net::worker::http_v2::close_connection(int errnum, std::string additional_data, int last_stream_id ) {
-    if (this->protocol.conn_type & CONN_CLOSED) {
+    if (this->protocol.conn_type.fetch_or(CONN_CLOSED) & CONN_CLOSED) {
         co_return;
     }
-
-    this->protocol.conn_type.fetch_or(CONN_CLOSED);
     co_await reset_all_streams();
     co_await this->empty_setting_timeouts();
+
     std::string data;
     data += stringify_number<int> (last_stream_id) + stringify_number<int>(errnum) + additional_data;
     co_await this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, data);

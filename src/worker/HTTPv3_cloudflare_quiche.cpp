@@ -71,6 +71,10 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
 
         auto it = this->connections.find(dcid);
         if (it == this->connections.end()) {
+            if (this->connections.size() >= this->config->max_connections()) {
+                return;
+            }
+
             if (!quiche_version_is_supported(version)) {
                 const int64_t written = quiche_negotiate_version(reinterpret_cast<uint8_t *> (scid.data()),
                     scid.size(), reinterpret_cast<uint8_t *> (dcid.data()), dcid.size(), out, sizeof (out));
@@ -136,7 +140,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
 
             ev_async_init(&conn_data.write_watcher, http_v3_cloudflare_quiche::_write_watcher_cb);
             ev_init(&conn_data.quiche_timer, http_v3_cloudflare_quiche::_quiche_timeout);
-            conn_data.quiche_timer.priority = -2;
+            conn_data.quiche_timer.priority = priority::timeout_timer;
             //ev_timer_init(&conn_data.timer, http_v3_cloudflare_quiche::_connection_timer_check, 0.2, 0.0);
 
             //conn_data.timer.start();

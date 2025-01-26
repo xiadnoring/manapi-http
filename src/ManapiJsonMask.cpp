@@ -1,4 +1,7 @@
 #include "ManapiJsonMask.hpp"
+
+#include <utility>
+
 #include "ManapiUtils.hpp"
 #include "ManapiJsonBuilder.hpp"
 #include "ManapiUnicode.hpp"
@@ -16,24 +19,36 @@
 #define THROW_MANAPIHTTP_JSON_ERROR(errnum, msg, ...) throw manapi::json_parse_exception(errnum, std::format(msg, __VA_ARGS__));
 #define THROW_MANAPIHTTP_JSON_ERROR2(errnum, msg) throw manapi::json_parse_exception(errnum, std::format(msg));
 
-manapi::json_mask::json_mask(const std::initializer_list<json> &data)
-{
-    information = data;
-    initial_resolve_information (information);
 
-    enabled = true;
-}
-
-manapi::json_mask::json_mask(const json &data) {
-    information = data;
+manapi::json_mask::json_mask(json data) {
+    information = std::move(data);
     initial_resolve_information(information);
 
     enabled = true;
 }
 
+// manapi::json_mask &manapi::json_mask::operator=(manapi::json_mask &&n) noexcept {
+//     this->information = std::move(n.information);
+//     this->enabled = std::exchange(n.enabled, false);
+//     this->complete = std::exchange(n.complete, false);
+//     return *this;
+// }
+
+manapi::json_mask::json_mask(json_mask &&n) noexcept {
+    this->information = std::move(n.information);
+    this->enabled = std::exchange(n.enabled, false);
+    this->complete = std::exchange(n.complete, false);
+}
+
 manapi::json_mask::json_mask(const nullptr_t &n)
 {
     enabled = false;
+}
+
+manapi::json_mask::json_mask(const json_mask &n) {
+    this->information = n.information;
+    this->enabled = n.enabled;
+    this->complete = n.complete;
 }
 
 manapi::json_mask::~json_mask() = default;

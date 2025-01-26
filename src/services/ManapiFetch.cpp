@@ -7,9 +7,6 @@
 
 // Utils
 
-std::mutex manapi::net::fetch::_global_init_mx;
-size_t manapi::net::fetch::_global_init_value = 0;
-
 struct curl_data_t {
     std::function <size_t(char *, const size_t&)> handler_body;
     std::function <void(const std::map <std::string, std::string>&)> handler_headers;
@@ -31,7 +28,7 @@ size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *use
     }
 
     auto header = manapi::net::http::parse_header(str);
-    reinterpret_cast <curl_data_t *> (userdata)->headers->insert(header);
+    static_cast <curl_data_t *> (userdata)->headers->insert(std::move(header));
 
     return n_items * size;
 }
@@ -39,17 +36,15 @@ size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *use
 size_t curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p)
 {
     // check if it is the first chunk
-    if (reinterpret_cast <curl_data_t *> (user_p)->first_chunk_body)
-    {
-        // we want to warn user about body
-        reinterpret_cast <curl_data_t *> (user_p)->first_chunk_body = false;
-        if (reinterpret_cast <curl_data_t *> (user_p)->handler_headers != nullptr)
+    if (static_cast <curl_data_t *> (user_p)->first_chunk_body) {
+        static_cast <curl_data_t *> (user_p)->first_chunk_body = false;
+        if (static_cast <curl_data_t *> (user_p)->handler_headers)
         {
-            reinterpret_cast <curl_data_t *> (user_p)->handler_headers (* reinterpret_cast <curl_data_t *> (user_p)->headers);
+            static_cast <curl_data_t *> (user_p)->handler_headers (*static_cast <curl_data_t *> (user_p)->headers);
         }
     }
     // call user handler
-    return reinterpret_cast <curl_data_t *> (user_p)->handler_body (buffer, size * n_mem_b);
+    return static_cast <curl_data_t *> (user_p)->handler_body (buffer, size * n_mem_b);
 }
 
 size_t curl_send_formdata_cb_read (char *buffer, size_t size, size_t nitems, void *userp) {
@@ -107,37 +102,21 @@ manapi::net::curlformdata::tdata::iterator manapi::net::curlformdata::end() {
 }
 
 
-manapi::net::fetch::fetch(const std::string &url, net::site &site) : site(site) {
-    fetch::_global_init();
-
+manapi::net::fetch::fetch(const std::shared_ptr<async::context> &ctx, const std::string &url) : event(ctx->eventloop()), timerpool(ctx->timerpool()) {
     this->url = url;
     this->method = "GET";
-    this->curl = curl_easy_init();
-    this->curl_multi = curl_multi_init();
+    this->curl.reset(curl_easy_init());
 }
 
-manapi::net::fetch::fetch(fetch &&n) noexcept : site(n.site) {
+manapi::net::fetch::fetch(fetch &&n) noexcept {
     this->operator=(std::forward<decltype(n)>(n));
 }
 
-manapi::net::fetch::~fetch() {
-    if (this->curl)
-    {
-        curl_easy_cleanup(std::exchange(this->curl, nullptr));
-    }
-
-    if (this->curl_multi) {
-        curl_multi_cleanup(std::exchange(this->curl_multi, nullptr));
-    }
-
-    //fetch::_global_deinit();
-}
+manapi::net::fetch::~fetch() = default;
 
 manapi::net::fetch & manapi::net::fetch::operator=(fetch &&n) noexcept {
-    curl_multi_cleanup(this->curl_multi);
-    curl_free(this->curl);
-    curl_slist_free_all(this->curl_headers);
-
+    this->event = std::move(n.event);
+    this->timerpool = std::move(n.timerpool);
     this->status_code = std::exchange(n.status_code, 200);
     this->headers_list = std::move(n.headers_list);
     this->url = std::move(n.url);
@@ -148,31 +127,19 @@ manapi::net::fetch & manapi::net::fetch::operator=(fetch &&n) noexcept {
     this->body_default = std::move(n.body_default);
     this->method = std::move(n.method);
     this->body_formdata = std::move(n.body_formdata);
-    this->curl = n.curl;
-    this->curl_headers = std::exchange(n.curl_headers, nullptr);
-    this->curl_multi = std::exchange(n.curl_multi, nullptr);
+    this->curl = std::move(n.curl);
+    this->curl_headers = std::move(n.curl_headers);
 
     return *this;
 }
 
 manapi::future<void> manapi::net::fetch::async_doit() {
-    curl_mime *form = nullptr;
+    std::unique_ptr<curl_mime, curl_mime_deleter> form {nullptr};
 
-    if (this->curl == nullptr)
+    if (!this->curl)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl can not be init: {}", url);
     }
-
-    before_delete clean_up ([&] () {
-        if (form != nullptr) {
-            curl_mime_free(form);
-        }
-
-        if (this->curl_headers != nullptr)
-        {
-            curl_slist_free_all(this->curl_headers);
-        }
-    });
 
     curl_data_t data {
         .handler_body = handler_body,
@@ -183,48 +150,41 @@ manapi::future<void> manapi::net::fetch::async_doit() {
 
     CURLcode resp;
 
-    curl_easy_setopt(this->curl, CURLOPT_URL, url.data());
-    curl_easy_setopt(this->curl, CURLOPT_HEADERFUNCTION, curl_header_handler);
-    curl_easy_setopt(this->curl, CURLOPT_HEADERDATA, &data);
+    curl_easy_setopt(this->curl.get(), CURLOPT_URL, url.data());
+    curl_easy_setopt(this->curl.get(), CURLOPT_HEADERFUNCTION, curl_header_handler);
+    curl_easy_setopt(this->curl.get(), CURLOPT_HEADERDATA, &data);
 
     // if handler has been set
-    if (this->handler_body != nullptr)
+    if (this->handler_body)
     {
-        curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, curl_write_handler);
-        curl_easy_setopt(this->curl, CURLOPT_WRITEDATA, &data);
+        curl_easy_setopt(this->curl.get(), CURLOPT_WRITEFUNCTION, curl_write_handler);
+        curl_easy_setopt(this->curl.get(), CURLOPT_WRITEDATA, &data);
     }
 
-    if (this->curl_headers != nullptr)
+    if (this->curl_headers)
     {
-        curl_easy_setopt(this->curl, CURLOPT_HTTPHEADER, this->curl_headers);
+        curl_easy_setopt(this->curl.get(), CURLOPT_HTTPHEADER, this->curl_headers.get());
     }
 
-    curl_easy_setopt(this->curl, CURLOPT_CUSTOMREQUEST, this->method.data());
+    curl_easy_setopt(this->curl.get(), CURLOPT_CUSTOMREQUEST, this->method.data());
 
-    if (data.first_chunk_body && data.handler_headers != nullptr)
+    if (this->handle_custom_setup)
     {
-        data.first_chunk_body = false;
-
-        data.handler_headers (headers_list);
-    }
-
-    if (this->handle_custom_setup != nullptr)
-    {
-        this->handle_custom_setup (this->curl);
+        this->handle_custom_setup (this->curl.get());
     }
 
     // body of the request
     switch (body) {
         case BODY_PLAIN: {
-            curl_easy_setopt(this->curl, CURLOPT_POSTFIELDS, this->body_default.data());
-            curl_easy_setopt(this->curl, CURLOPT_POSTFIELDSIZE_LARGE, this->body_default.size());
+            curl_easy_setopt(this->curl.get(), CURLOPT_POSTFIELDS, this->body_default.data());
+            curl_easy_setopt(this->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, this->body_default.size());
             break;
         }
         case BODY_MULTIPART: {
-            form = curl_mime_init(this->curl);
+            form.reset(curl_mime_init(this->curl.get()));
             curl_mimepart *field = nullptr;
             for (auto &param : this->body_formdata) {
-                field = curl_mime_addpart(form);
+                field = curl_mime_addpart(form.get());
                 curl_mime_name(field, param.first.data());
                 switch (param.second.type) {
                     case curlformdata::PARAM_DEFAULT: {
@@ -244,7 +204,7 @@ manapi::future<void> manapi::net::fetch::async_doit() {
                     }
                 }
             }
-            curl_easy_setopt(this->curl, CURLOPT_MIMEPOST, form);
+            curl_easy_setopt(this->curl.get(), CURLOPT_MIMEPOST, form.get());
             break;
         }
         default:
@@ -264,153 +224,44 @@ manapi::future<void> manapi::net::fetch::async_doit() {
         THROW_MANAPIHTTP_EXCEPTION (ERR_FATAL, "Connection failed: {}. Error code: {}. Error msg: {}", this->url, static_cast<int> (resp), curl_easy_strerror(resp));
     }
 
-    curl_easy_getinfo(this->curl, CURLINFO_HTTP_CODE, &this->status_code);
+    if (std::exchange(data.first_chunk_body, false) && data.handler_headers) {
+        data.handler_headers (this->headers_list);
+    }
+
+    curl_easy_getinfo(this->curl.get(), CURLINFO_HTTP_CODE, &this->status_code);
 }
 
 std::map <std::string, std::string> manapi::net::fetch::get_headers() {
     return std::move(this->headers_list);
 }
 
-void manapi::net::fetch::_global_init() {
-    std::lock_guard<std::mutex> lk (fetch::_global_init_mx);
-    if (0 == fetch::_global_init_value++) {
-        curl_global_init(CURL_GLOBAL_DEFAULT);
-    }
-}
-
-void manapi::net::fetch::_global_deinit() {
-    std::lock_guard<std::mutex> lk (fetch::_global_init_mx);
-    if (0 == (--fetch::_global_init_value)) {
-        curl_global_cleanup();
-    }
-}
-
 manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
-    std::map <int, std::shared_ptr<ev::io> > fds {};
-    std::shared_ptr<ev::async> w;
-    int attempts = this->attempts;
+    this->timeout_token = std::make_shared<size_t>(0);
 
-    co_return co_await async::promise<CURLcode> (this->site.async_context(), [&attempts, &w, this, &fds] (const std::function<void(CURLcode v)> &resolve, const std::function<void(std::exception_ptr)> &reject) -> future<> {
-        /* in the libev loop */
-        CURLMcode mc = curl_multi_add_handle(this->curl_multi, this->curl);
-        if (mc != CURLM_OK) {
-            resolve(CURLE_AGAIN);
-            co_return;
-        }
+    *this->timeout_token = co_await this->timerpool->async_append_timer_async(std::chrono::milliseconds(500), [this] () -> manapi::future<> {
+        return this->event->unwatch_curl(this->curl.get());
+    }, this->timeout_token);
 
-        auto reject_cb = [this, &fds, &w, reject] () mutable -> void {
-            auto _reject = std::move(reject);
-            /* error */
-            for (auto &w_it: fds) {
-                this->site.async_context()->eventloop()->stop_watcher (w_it.second);
+    CURLcode res;
+
+    try {
+        res = co_await async::promise<CURLcode> (this->event->get_task_pool(), [this] (async::promise<CURLcode>::resolve_t resolve, async::promise<CURLcode>::reject_t reject) -> future<> {
+            try {
+                co_await this->event->watch_curl(this->curl.get(), [resolve = std::move(resolve)] (CURLcode result)
+                    -> void { resolve (result); });
             }
-            fds.clear();
-            curl_multi_remove_handle(this->curl_multi, this->curl);
-            this->site.async_context()->eventloop()->stop_watcher (w);
-            _reject(std::make_exception_ptr(manapi::exception{ERR_FATAL, "Failure when receiving data from the peer"}));
-        };
-
-        w = co_await this->site.async_context()->eventloop()->watch_async([&attempts, reject_cb = std::move(reject_cb), &shared_w = w, reject, resolve, this, &fds] (ev::async &w, int revents)
-                mutable  -> void {
-            int running_handles = 0;
-            CURLMcode mc;
-
-            mc = curl_multi_perform(this->curl_multi, &running_handles);
-
-            if (mc != CURLM_OK) {
-                reject_cb();
-                return;
-            }
-
-            if (running_handles) {
-                fd_set fd_read;
-                fd_set fd_write;
-                fd_set fd_exc;
-
-                FD_ZERO(&fd_read);
-                FD_ZERO(&fd_write);
-                FD_ZERO(&fd_exc);
-
-                int maxfd = -1;
-                mc = curl_multi_fdset(this->curl_multi, &fd_read, &fd_write, &fd_exc, &maxfd);
-
-                if ((mc != CURLM_OK)) {
-                    reject_cb();
-                    return;
-                }
-
-                if (maxfd == -1) {
-                    /* socket is unavailable */
-                    if (--attempts) {
-                        async::run(this->site.async_context(),
-                            [this, shared_w] () mutable -> future<> {
-                            auto id = co_await this->site.async_context()->timerpool()->async_append_timer_sync(this->attempt_delay,
-                            [shared_w = std::move(shared_w)] () mutable -> void {
-                                shared_w->send();
-                            });
-                        });
-                    }
-                    else {
-                        reject_cb();
-                        return;
-                    }
-                }
-
-                for (int i = 0; i <= maxfd; ++i) {
-                    if (FD_ISSET(i, &fd_read)) {
-                        auto p = (i << 1) | 0x01;
-                        if (!fds.contains(p)) {
-                            auto wr = this->site.async_context()->eventloop()->create_watcher_fd(i, ev::READ, [this, &shared_w, &fds, p] (ev::io &wr, int revents) -> void {
-                                shared_w->send();
-
-                                fds.erase(p);
-                                this->site.async_context()->eventloop()->stop_watcher(wr);
-                            });
-                            wr->start();
-                            fds.insert({p, std::move(wr)});
-                        }
-                    }
-
-                    if (FD_ISSET(i, &fd_write)) {
-                        auto p = (i << 1);
-                        if (!fds.contains(p)) {
-                            auto ww = this->site.async_context()->eventloop()->create_watcher_fd(i, ev::WRITE, [this, &shared_w, &fds, p] (ev::io &ww, int revents) -> void {
-                                shared_w->send();
-
-                                fds.erase(p);
-                                this->site.async_context()->eventloop()->stop_watcher(ww);
-                            });
-                            ww->start();
-                            fds.insert({p, std::move(ww)});
-                        }
-                    }
-                }
-            }
-
-            int msgs_left;
-            CURLMsg* msg;
-            while (true) {
-                msg = curl_multi_info_read(this->curl_multi, &msgs_left);
-                if (!msg) {
-                    break;
-                }
-                if (msg->msg == CURLMSG_DONE) {
-                    for (auto &w_it: fds) {
-                        this->site.async_context()->eventloop()->stop_watcher(w_it.second);
-                    }
-                    fds.clear();
-                    curl_multi_remove_handle(this->curl_multi, this->curl);
-                    auto _resolve = std::move(resolve);
-                    this->site.async_context()->eventloop()->stop_watcher(w);
-                    _resolve(msg->data.result);
-                    return;
-                }
-
-                reject_cb();
-                return;
+            catch (...) {
+                reject (std::current_exception());
             }
         });
-    });
+    }
+    catch (...) {
+        res = CURLE_AGAIN;
+    }
+
+    co_await this->timerpool->async_remove_timer(*this->timeout_token);
+
+    co_return res;
 }
 
 void manapi::net::fetch::handle_body(const std::function<size_t(char *, const size_t&)> &_handler) {
@@ -459,7 +310,7 @@ void manapi::net::fetch::set_headers(const std::map<std::string, std::string> &h
     // headers
     for (const auto &header: headers)
     {
-        this->curl_headers = curl_slist_append(this->curl_headers, manapi::net::http::stringify_header(header).data());
+        this->curl_headers.reset(curl_slist_append(this->curl_headers.release(), manapi::net::http::stringify_header(header).data()));
     }
 }
 
@@ -468,7 +319,22 @@ void manapi::net::fetch::set_custom_setup(const std::function<void(CURL *curl)> 
 }
 
 void manapi::net::fetch::enable_ssl_verify(const bool &status) {
-    curl_easy_setopt(this->curl, CURLOPT_SSL_VERIFYPEER, static_cast<ssize_t> (status));
+    auto lstatus = static_cast<long> (status);
+    curl_easy_setopt(this->curl.get(), CURLOPT_SSL_VERIFYPEER, lstatus);
+    curl_easy_setopt(this->curl.get(), CURLOPT_SSL_VERIFYHOST, lstatus);
+    curl_easy_setopt(this->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
+}
+
+void manapi::net::fetch::set_verbose(bool status) {
+    curl_easy_setopt(this->curl.get(), CURLOPT_VERBOSE, static_cast<long>(status));
+}
+
+void manapi::net::fetch::break_write_loop() {
+    curl_easy_pause(this->curl.get(), CURLPAUSE_RECV);
+}
+
+void manapi::net::fetch::continue_write_loop() {
+    curl_easy_pause(this->curl.get(), CURLPAUSE_CONT);
 }
 
 size_t manapi::net::fetch::get_status_code() const {

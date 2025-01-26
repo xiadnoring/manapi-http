@@ -50,32 +50,32 @@ manapi::future<void> manapi::net::http::server::start() {
     });
 }
 
-void manapi::net::http::server::GET(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
-    this->set_handler("GET", uri, handler, get_mask, post_mask);
+void manapi::net::http::server::GET(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
+    this->set_handler("GET", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
-void manapi::net::http::server::POST(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
-    this->set_handler("POST", uri, handler, get_mask, post_mask);
+void manapi::net::http::server::POST(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
+    this->set_handler("POST", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
-void manapi::net::http::server::OPTIONS(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
-    this->set_handler("OPTIONS", uri, handler, get_mask, post_mask);
+void manapi::net::http::server::OPTIONS(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
+    this->set_handler("OPTIONS", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
-void manapi::net::http::server::PUT(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
-    this->set_handler("PUT", uri, handler, get_mask, post_mask);
+void manapi::net::http::server::PUT(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
+    this->set_handler("PUT", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
-void manapi::net::http::server::PATCH(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
-    this->set_handler("PATCH", uri, handler, get_mask, post_mask);
+void manapi::net::http::server::PATCH(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
+    this->set_handler("PATCH", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
-// void manapi::net::http::server::DELETE(const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
-//     this->set_handler("DELETE", uri, handler, get_mask, post_mask);
+// void manapi::net::http::server::DELETE(const std::string &uri, handler_template_t handler, const json_mask &get_mask, const json_mask &post_mask) {
+//     this->set_handler("DELETE", uri, std::move(handler), get_mask, post_mask);
 // }
 
-void manapi::net::http::server::GET(const std::string &uri, const std::string &folder) {
-    set_handler ("GET", uri, folder);
+void manapi::net::http::server::GET(std::string uri, std::string folder) {
+    set_handler ("GET", std::move(uri), std::move(folder));
 }
 
 manapi::future<void> manapi::net::http::server::stop() {

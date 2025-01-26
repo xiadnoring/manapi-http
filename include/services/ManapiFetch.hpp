@@ -49,8 +49,22 @@ namespace manapi::net {
     };
 
     class fetch : public task {
+        struct curl_deleter {
+            void operator() (CURL *curl)
+                { curl_free(curl); }
+        };
+        struct curl_slist_deleter {
+            void operator() (curl_slist *list)
+                { curl_slist_free_all(list); }
+        };
+
+        struct curl_mime_deleter {
+            void operator() (curl_mime *mime)
+                { curl_mime_free(mime); }
+        };
     public:
-        explicit fetch(const std::string &url, net::site &site);
+
+        explicit fetch(const std::shared_ptr<async::context> &ctx, const std::string &url);
         fetch(fetch &&n) noexcept;
         ~fetch() override;
 
@@ -70,6 +84,10 @@ namespace manapi::net {
         void set_headers (const std::map <std::string, std::string> &headers);
         void set_custom_setup (const std::function<void(CURL *curl)> &func);
         void enable_ssl_verify (const bool &status);
+        void set_verbose (bool status);
+
+        void break_write_loop ();
+        void continue_write_loop ();
 
         [[nodiscard]] size_t get_status_code () const;
 
@@ -80,12 +98,6 @@ namespace manapi::net {
 
         std::map <std::string, std::string> get_headers();
     private:
-        static std::mutex _global_init_mx;
-        static size_t _global_init_value;
-
-        static void _global_init ();
-        static void _global_deinit ();
-
         future<CURLcode> async_curl_perform ();
         size_t status_code = 200;
 
@@ -105,10 +117,12 @@ namespace manapi::net {
         std::string method{};
         curlformdata body_formdata;
 
-        net::site &site;
+        std::shared_ptr<event_loop> event;
+        std::shared_ptr<manapi::timerpool> timerpool;
 
-        CURL *curl {nullptr};
-        CURLM *curl_multi {nullptr};
-        struct curl_slist* curl_headers {nullptr};
+        std::shared_ptr<size_t> timeout_token{nullptr};
+
+        std::unique_ptr<CURL, curl_deleter> curl {nullptr};
+        std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
     };
 }

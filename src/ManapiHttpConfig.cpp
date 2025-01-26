@@ -76,6 +76,11 @@ manapi::net::http::config::config(const json &config) {
         this->max_header_block_size.store(config["max_header_block_size"].get<size_t>());
     }
 
+    /* max_backlog */
+    if (config.contains("max_backlog")) {
+        this->max_backlog_.store(config["max_backlog"].as_integer());
+    }
+
     /* keep_alive */
     if (config.contains("keep_alive"))
     {
@@ -160,6 +165,11 @@ manapi::net::http::config::config(const json &config) {
         }
     }
 
+    /* max connections */
+    if (config.contains("max_connections")) {
+        this->max_connections_.store(config["max_connections"].as_integer());
+    }
+
     /* quic debug */
     if (config.contains("quic_debug"))
     {
@@ -235,6 +245,14 @@ std::atomic<ssize_t> &manapi::net::http::config::get_recv_timeout() {
 
 std::atomic<ssize_t> &manapi::net::http::config::get_send_timeout() {
     return this->send_timeout;
+}
+
+std::atomic<size_t> & manapi::net::http::config::max_connections() {
+    return this->max_connections_;
+}
+
+std::atomic<int> & manapi::net::http::config::max_backlog() {
+    return this->max_backlog_;
 }
 
 void manapi::net::http::config::set_port(const std::string &_port) {

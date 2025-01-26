@@ -74,8 +74,8 @@ namespace manapi::net {
         site (const std::shared_ptr<async::context> &ctx);
         virtual ~site();
 
-        http_uri_part *set_handler (const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask = nullptr, const json_mask &post_mask = nullptr);
-        http_uri_part *set_handler (const std::string &method, const std::string &uri, const std::string &folder);
+        http_uri_part *set_handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+        http_uri_part *set_handler (std::string method, std::string uri, std::string folder);
 
         http_handler_page get_handler (http::request_data_t &request_data) const;
 

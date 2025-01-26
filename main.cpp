@@ -1,87 +1,144 @@
 #include <iostream>
-#include <csignal>
-#include <fstream>
-#include <zlib.h>
-#include <coroutine>
-#include <fcntl.h>
-#include <features.h>
-#include <thread>
+#include <memory>
 
-#include "ManapiHttp.hpp"
-#include "ManapiFilesystem.hpp"
-#include "include/services/ManapiTaskFunction.hpp"
-#include "include/services/ManapiFetch.hpp"
-#include "ManapiJsonBuilder.hpp"
-#include "ManapiJsonMask.hpp"
-#include "ManapiUnicode.hpp"
-#include "ManapiHttpMime.hpp"
-#include "compress/ManapiHPack.hpp"
-#include "ManapiAsync.hpp"
-#include "ManapiString.hpp"
-#include "async/ManapiAsyncContext.hpp"
-#include "async/ManapiAsyncConditionVariable.hpp"
-#include "async/ManapiAsyncContext.hpp"
-#include "async/ManapiAsyncMutex.hpp"
-#include "components/ManapiChain.hpp"
-#include "crypto/ManapiAEAD.hpp"
-#include "crypto/ManapiAES.hpp"
-#include "extensions/pq/AsyncPostgreClient.hpp"
-#include "extensions/pq/AsyncPostgreValue.hpp"
-#include "services/ManapiEventLoop.hpp"
-#include "worker/tools/OpenSSLTools.hpp"
+#include <ManapiHttp.hpp>
+#include <memory>
+#include <async/ManapiAsyncContext.hpp>
+#include <extensions/pq/AsyncPostgreClient.hpp>
 
-using namespace manapi::net;
-
-using namespace std;
-
-std::shared_ptr<manapi::async::context> ctx;
-
-
-manapi::future<> co_main () {
-    manapi::ext::pq::connection db (ctx);
-    db.set_notify_cb([] (manapi::ext::pq::notification notify) -> manapi::future<> {
-        std::cout << notify.pid() << " " << notify.payload() << "\n";
-        co_return;
-    });
-    co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
-
-    auto res_listen = co_await db.exec("LISTEN virtual;");
-
-    std::string data = "hello world \007\010";
-    manapi::ext::pq::blob blob {data};
-    std::string textdata = "hello world";
-    manapi::ext::pq::text text {textdata};
-    co_await manapi::async::delay{ctx, 5s};
-    manapi::ext::pq::result res;
-    if (false) {
-        try {
-            res = co_await db.exec("INSERT INTO for_test (id, float_col, blob_col, str_col, bool_col, text_col) VALUES ($1, $2, $3, $4, $5, $6);", 6, 78.56, blob, "hello world #2", true, text);
-        }
-        catch (manapi::ext::pq::sqlexception const &e) {
-            std::cout << e.sqlstate() << " " << e.what() << "\n";
-            co_return;
-        }
-    }
-    else {
-        res = co_await db.exec("SELECT * FROM for_test");
-        std::cout << res.size() << "\n";
-        for (const auto &row: res) {
-            cout << "id: " << row["id"].as<int>() << "\nfloat_col: " << row["float_col"].as<long double>() << "\nblob_col: " << row["blob_col"].as<std::string>();
-            cout << "\ntext_col: " << row["text_col"].as<std::string>() << "\nbool_col: " << row["bool_col"].as<bool>() << "\nstr_col: " << row["str_col"].as<std::string>() << "\n";
-        }
-    }
-    std::cout << res.affected_rows() << "\n";
-    db.close();
-    co_return;
-}
+#include "services/ManapiFetch.hpp"
 
 int main () {
-    ctx = manapi::async::context::create();
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    auto ctx = manapi::async::context::create();
+    auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
+    auto router = std::make_shared<manapi::net::http::server> (ctx);
+
     ctx->eventloop()->setup_handle_interrupt();
-    manapi::async::run(ctx, co_main());
+
+    router->set_config("./config.json");
+
+    router->GET ("/", [cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
+        co_return resp.text(std::format("Hello World! Count: {}", cnt->fetch_add(1)));
+    });
+
+    router->GET("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        resp.set_replacers({
+            {"status_code", std::to_string(resp.get_status_code())},
+            {"status_message", resp.get_status_message()}
+        });
+
+        co_return resp.file ("../examples/error.html");
+    });
+
+    router->POST("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        co_return resp.json({{"error", resp.get_status_code()},
+                {"msg", resp.get_status_message()}});
+    });
+
+    router->GET("/cat", [&ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        manapi::net::fetch fetch (ctx, "https://localhost:8887/");
+        fetch.enable_ssl_verify(false);
+        fetch.set_method("GET");
+        //fetch.set_verbose(true);
+        auto data = co_await fetch.text();
+
+        co_return resp.text(std::move(data));
+    });
+
+    router->GET("/pq", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        auto lk = co_await mx->lock_guard();
+        /* The pool of database connections here / This example is so slow */
+        auto res = co_await db->exec("SELECT * FROM for_test WHERE id > $1", 0);
+
+        lk.call();
+
+        std::string content;
+        for (const auto &row: res) {
+            content += row["id"].as<int>() + " - " + row["str_col"].as<std::string>() + "<hr/>";
+        }
+
+        co_return resp.text(std::move(content));
+    });
+
+    router->GET("/proxy", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        co_return resp.proxy("https://www.wikipedia.org/");
+    });
+
+    router->GET("/stop", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        /* stop the app */
+        co_await ctx->stop();
+        co_return resp.text("stopped");
+    });
+
+    router->GET("/timeout", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        /* stop the app */
+        co_await manapi::async::delay{ctx, std::chrono::seconds(10)};
+        co_return resp.text("10sec");
+    });
+
+    manapi::async::run(ctx, [router, db] () -> manapi::future<> {
+        co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
+        co_await router->start();
+    });
+
     ctx->sync_start();
+
     return 0;
 }
+
+
+
+
+
+
+// #include <iostream>
+// #include <csignal>
+// #include <fstream>
+// #include <zlib.h>
+// #include <coroutine>
+// #include <fcntl.h>
+// #include <features.h>
+// #include <thread>
+//
+// #include "ManapiHttp.hpp"
+// #include "ManapiFilesystem.hpp"
+// #include "include/services/ManapiTaskFunction.hpp"
+// #include "include/services/ManapiFetch.hpp"
+// #include "ManapiJsonBuilder.hpp"
+// #include "ManapiJsonMask.hpp"
+// #include "ManapiUnicode.hpp"
+// #include "ManapiHttpMime.hpp"
+// #include "compress/ManapiHPack.hpp"
+// #include "ManapiAsync.hpp"
+// #include "ManapiString.hpp"
+// #include "async/ManapiAsyncContext.hpp"
+// #include "async/ManapiAsyncConditionVariable.hpp"
+// #include "async/ManapiAsyncContext.hpp"
+// #include "async/ManapiAsyncMutex.hpp"
+// #include "components/ManapiChain.hpp"
+// #include "crypto/ManapiAEAD.hpp"
+// #include "crypto/ManapiAES.hpp"
+// #include "extensions/pq/AsyncPostgreClient.hpp"
+// #include "extensions/pq/AsyncPostgreValue.hpp"
+// #include "services/ManapiEventLoop.hpp"
+// #include "worker/tools/OpenSSLTools.hpp"
+//
+// using namespace manapi::net;
+//
+// using namespace std;
+//
+//
+// int main () {
+//     std::shared_ptr<manapi::async::context> ctx;
+//
+//     ctx = manapi::async::context::create();
+//     ctx->eventloop()->setup_handle_interrupt();
+//     manapi::async::run(ctx, co_main());
+//     ctx->sync_start();
+//     return 0;
+// }
 
 
 // int main (int argc, char *argv[]) {

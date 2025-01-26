@@ -1,6 +1,5 @@
 #pragma once
 
-#include <future>
 #include <thread>
 
 #include "../ManapiSite.hpp"

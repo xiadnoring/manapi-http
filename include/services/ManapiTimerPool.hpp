@@ -22,6 +22,7 @@ namespace manapi {
         std::chrono::steady_clock::time_point point;
         bool interval;
         bool enabled;
+        std::shared_ptr<size_t> token;
     };
     class timerpool : public task {
     public:
@@ -35,13 +36,13 @@ namespace manapi {
         typedef std::set <std::pair <std::chrono::steady_clock::time_point, size_t>, sorted_tasks_compare_t> sorted_storage;
         explicit timerpool(std::shared_ptr<event_loop> events, const double &delay = 0.01);
         ~timerpool();
-        future<size_t> async_append_timer_sync (const std::chrono::milliseconds &duration, std::function<void()> task);
-        future<size_t> async_append_timer_async (const std::chrono::milliseconds &duration, std::function<future<void>()> task);
+        future<size_t> async_append_timer_sync (const std::chrono::milliseconds &duration, std::function<void()> task, std::shared_ptr<size_t> id = nullptr);
+        future<size_t> async_append_timer_async (const std::chrono::milliseconds &duration, std::function<future<void>()> task, std::shared_ptr<size_t> id = nullptr);
         size_t append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
-        future<void> async_remove_timer (size_t id);
+        future<void> async_remove_timer (const size_t &id);
         void remove_timer (const size_t &id);
-        future<size_t> async_append_interval_sync (const std::chrono::milliseconds &duration, std::function<void()> task);
-        future<size_t> async_append_interval_async (const std::chrono::milliseconds &duration, std::function<future<>()> task);
+        future<size_t> async_append_interval_sync (const std::chrono::milliseconds &duration, std::function<void()> task, std::shared_ptr<size_t> id = nullptr);
+        future<size_t> async_append_interval_async (const std::chrono::milliseconds &duration, std::function<future<>()> task, std::shared_ptr<size_t> id = nullptr);
         size_t append_interval (const std::chrono::milliseconds &duration, const std::function<void()> &task);
         future<void> start (std::shared_ptr<timerpool> tp);
         future<void> stop ();
@@ -62,7 +63,7 @@ namespace manapi {
         std::shared_ptr<async::condition_variable> cv;
 
         future<void> _update_interval_state (const size_t& id);
-        future<size_t> _append (const std::chrono::milliseconds &duration, const std::function<future<>()> &async_task, const std::function<void()> &task, const bool &inteval);
+        future<size_t> _append (const std::chrono::milliseconds &duration, const std::function<future<>()> &async_task, const std::function<void()> &task, const bool &inteval, std::shared_ptr<size_t> token);
         sorted_storage sorted_tasks;
         storage tasks{};
         std::shared_ptr<event_loop> events{nullptr};

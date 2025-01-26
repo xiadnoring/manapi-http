@@ -76,6 +76,9 @@ namespace manapi::net::http {
         [[nodiscard]] std::atomic<ssize_t> &get_recv_timeout ();
         [[nodiscard]] std::atomic<ssize_t> &get_send_timeout ();
 
+        std::atomic<size_t> &max_connections ();
+        std::atomic<int> &max_backlog();
+
         void set_port (const std::string &_port);
         [[nodiscard]] AtomicReference<std::string> get_port ();
 
@@ -138,6 +141,8 @@ namespace manapi::net::http {
         std::atomic<socklen_t> server_len;
         std::atomic<size_t> max_plain_param_length  = 16000UL;
         std::atomic<size_t> max_file_param_length   = 2147483648UL;
+        std::atomic<size_t> max_connections_{1000};
+        std::atomic<int> max_backlog_{200};
 #ifdef _WIN32
         std::atomic<SOCKET> sock_fd{0};
 #else

@@ -1,16 +1,14 @@
 {
   "pools": [
     {
-      "address": "localhost",
+      "address": "::1",
       "http_version": "3",
-      "http_implement": "quic",
-      "partial_data_min_size": 4194304,
+      "transport": "quic",
+      "implementation": "quiche",
+      "partial_data_min_size": 0,
       "port": "8888",
       "socket_block_size": 4096,
-      "keep_alive": 1,
-      "quic_cc_algo": "RENO",
-      "quic_debug": false,
-      "quic_implement": "quiche",
+      "quic_cc_algo": "CUBIC",
       "ssl": {
         "cert": "self-signed-ssl/cert.crt",
         "enabled": true,

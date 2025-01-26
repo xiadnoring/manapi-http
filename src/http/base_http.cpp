@@ -225,31 +225,30 @@ manapi::future<void> manapi::net::http::base::send_response_text(manapi::net::ht
 }
 
 manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::http_response &res, response_features_t &features) {
-    //auto proxy = std::make_unique<fetch>(res.get_data());
+    auto proxy = std::make_unique<fetch>(this->site.async_context(), res.get_data());
+    size_t rhs = 0;
+    proxy->handle_headers([this, &proxy, &res](const std::map<std::string, std::string> &headers) -> void {
+        res.set_status_code(200);
+        res.set_status_message(HTTP_STATUS.OK_200);
 
-    // proxy->handle_headers([this, &res](const std::map<std::string, std::string> &headers) -> void {
-    //     res.set_status_code(200);
-    //     res.set_status_message(HTTP_STATUS.OK_200);
-    //
-    //     if (headers.contains(HTTP_HEADER.CONTENT_LENGTH)) {
-    //         res.set_header(HTTP_HEADER.CONTENT_LENGTH, headers.at(HTTP_HEADER.CONTENT_LENGTH));
-    //     }
-    //
-    //     co_await mask_response(res, false);
-    // });
-    //
-    // proxy->handle_body([this](char *buffer, const size_t &size) -> size_t {
-    //     const ssize_t sw = worker->write(*connection, buffer, size, false);
-    //
-    //     if (sw < 0) {
-    //         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not write pocket: {}", "mask_write() < 0");
-    //     }
-    //
-    //     return sw;
-    // });
-    // // TODO: resolve
-    // worker->write (*connection, nullptr, 0, true);
-    // site.taskpool->append_task(std::move(proxy));
+        if (headers.contains(HTTP_HEADER.CONTENT_LENGTH)) {
+            res.set_header(HTTP_HEADER.CONTENT_LENGTH, headers.at(HTTP_HEADER.CONTENT_LENGTH));
+        }
+    });
+
+    proxy->handle_body([this, &rhs, &proxy](char *buffer, const size_t &size) -> size_t {
+        if (rhs) {
+            return std::exchange(rhs, 0);
+        }
+
+        return CURL_WRITEFUNC_PAUSE;
+    });
+
+    while (true) {
+
+        co_await proxy->async_doit();
+    }
+
     co_return;
 }
 

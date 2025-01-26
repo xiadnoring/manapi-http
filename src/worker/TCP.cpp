@@ -34,6 +34,9 @@
 #   pragma comment(lib, "Ws2_32.lib")
 #endif
 
+#define IPV6_REGEX R"((([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])))"
+#define IPV4_REGEX R"(((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"
+
 manapi::net::worker::TCP::TCP(net::site &site) : base (site) {
     local = nullptr;
 }
@@ -56,6 +59,20 @@ bool manapi::net::worker::TCP::is_valid_connection(worker::connection &connectio
     return connection.as<connection_interface>().id >= 0;
 }
 
+int get_ip_version (std::string_view ip) {
+    std::regex ipv4 {IPV4_REGEX};
+    std::regex ipv6 {IPV6_REGEX};
+
+    if (std::regex_match(ip.data(), ipv4)) {
+        return 4;
+    }
+    if (std::regex_match(ip.data(), ipv6)) {
+        return 6;
+    }
+
+    return 0;
+}
+
 void manapi::net::worker::TCP::init() {
     this->hints = {
         .ai_family      = PF_UNSPEC,
@@ -63,19 +80,24 @@ void manapi::net::worker::TCP::init() {
         .ai_protocol    = IPPROTO_TCP
     };
 
-    auto address = config->get_address();
-    auto port = config->get_port();
+    auto address = *this->config->get_address();
+    auto port = *this->config->get_port();
+    const int version = get_ip_version(address);
 
-    if (getaddrinfo(address->data(), port->data(), &hints, &local) != 0) {
+    if (!version) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "Invalid IP address: {}", address);
+    }
+
+    if (getaddrinfo(address.data(), port.data(), &hints, &local) != 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
     }
 
-    this->config->set_server_address(*local->ai_addr);
-    this->config->set_server_len(local->ai_addrlen);
+    this->config->set_server_address(*this->local->ai_addr);
+    this->config->set_server_len(this->local->ai_addrlen);
 
-    MANAPIHTTP_LOG("HTTP TCP PORT USED: {}. {}:{}", *port, *address, *port);
+    MANAPIHTTP_LOG("HTTP TCP PORT USED: {}. {}:{}", port, address, port);
 
-    this->config->set_socket_fd(socket(AF_INET, SOCK_STREAM, 0));
+    this->config->set_socket_fd(socket(this->local->ai_family, SOCK_STREAM, 0));
 
     auto &fd = config->get_socket_fd();
     if (fd < 0) {
@@ -111,10 +133,10 @@ void manapi::net::worker::TCP::init() {
     this->set_fd_non_blocking(fd);
 
     if (bind(fd.load(), local->ai_addr, local->ai_addrlen) < 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", port);
     }
 
-    if (listen(fd, 2000) < 0) {
+    if (listen(fd, this->config->max_backlog()) < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "LISTEN ERROR. sock_fd: {}", fd.load());
     }
 
@@ -183,6 +205,15 @@ void manapi::net::worker::TCP::onevent(ev::io &watcher, int revents) {
 }
 
 void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
+    if (this->config->max_connections() <= this->stacks.size()) {
+        watcher.priority = priority::lowcapacity;
+        return;
+    }
+
+    if (watcher.priority != priority::onaccept) {
+        watcher.priority = priority::onaccept;
+    }
+
     auto connection_optional = this->accept();
     if (!connection_optional.has_value()) {
         return;
@@ -221,10 +252,6 @@ std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::
 }
 
 std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::TCP::accept(const std::function<std::shared_ptr<connection>()> &init) {
-    // if (cnt_conns.load() > 2000) {
-    //     return {};
-    // }
-
     sockaddr_storage client{};
     socklen_t len = sizeof (client);
     memset(&client, '\0', sizeof (sockaddr_storage));
@@ -258,7 +285,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     ev_timer_start(this->le->get_loop(), &conn.timer);
 
     conn.watcher = std::make_shared<ev::io>(this->le->get_loop());
-    conn.watcher->priority = 1;
+    conn.watcher->priority = priority::onaccept;
     conn.watcher->set <TCP, &TCP::onevent> (this);
     conn.watcher->start(fd, ev::READ|ev::WRITE);
 

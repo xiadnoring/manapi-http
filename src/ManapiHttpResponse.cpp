@@ -207,11 +207,11 @@ const manapi::net::custom_data_t & manapi::net::http_response::get_custom_data()
     return this->custom_data;
 }
 
-void manapi::net::http_response::set_replacers(const std::map<std::string, std::string> &_replacers) {
+void manapi::net::http_response::set_replacers(std::map<std::string, std::string> _replacers) {
     set_compress_enabled(false);
     set_partial_status  (false);
 
-    this->replacers = std::make_unique<std::map<std::string, std::string>> (_replacers);
+    this->replacers = std::make_unique<std::map<std::string, std::string>> (std::move(_replacers));
 }
 
 void manapi::net::http_response::set_partial_status(const bool &auto_partial_status) {

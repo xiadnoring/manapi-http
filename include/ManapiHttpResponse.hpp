@@ -29,7 +29,7 @@ namespace manapi::net {
         void set_status (const size_t &_status_code, const std::string &_status_message);
         void set_status_code (const size_t &_status_code);
         void set_status_message (const std::string &_status_message);
-        void set_replacers (const std::map<std::string, std::string> &_replacers);
+        void set_replacers (std::map<std::string, std::string> _replacers);
         void set_partial_status (const bool &auto_partial_status);
         void file (std::string path);
         void proxy (std::string url);

@@ -126,10 +126,6 @@ const std::string &manapi::net::http_request::get_header(const std::string &name
     return request_data->headers.at(name);
 }
 
-bool manapi::net::http_request::has_header(const std::string &name) {
-    return request_data->headers.contains(name);
-}
-
 void manapi::net::http_request::parse_map_url_param() {
     if (map_url_params == nullptr)
     {

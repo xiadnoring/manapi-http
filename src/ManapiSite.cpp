@@ -333,7 +333,7 @@ manapi::net::site::site(const std::shared_ptr<async::context> &ctx)
 manapi::net::site::~site() = default;
 
 
-manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &method, const std::string &uri, const handler_template_t &handler, const json_mask &get_mask, const json_mask &post_mask) {
+manapi::net::http_uri_part *manapi::net::site::set_handler(std::string method, std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
     size_t  type            = URI_PAGE_DEFAULT;
 
     http_uri_part *cur      = build_uri_part(uri, type);
@@ -342,15 +342,15 @@ manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &me
 
     if (get_mask.is_enabled())
     {
-        functions.get_mask = std::make_unique<json_mask> (get_mask);
+        functions.get_mask = std::make_unique<json_mask> (std::move(get_mask));
     }
 
     if (post_mask.is_enabled())
     {
-        functions.post_mask = std::make_unique<json_mask> (post_mask);
+        functions.post_mask = std::make_unique<json_mask> (std::move(post_mask));
     }
 
-    functions.handler = handler;
+    functions.handler = std::move(handler);
 
     switch (type) {
         case URI_PAGE_DEFAULT:
@@ -359,7 +359,7 @@ manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &me
                 cur->handlers = std::make_unique<handlers_types_t> ();
             }
             check_exists_method_on_url(uri, cur->handlers, method);
-            cur->handlers->insert({method, std::move(functions)});
+            cur->handlers->insert({std::move(method), std::move(functions)});
 
             break;
         case URI_PAGE_ERROR:
@@ -367,7 +367,7 @@ manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &me
                 cur->errors = std::make_unique<handlers_types_t>();
             }
             check_exists_method_on_url(uri, cur->errors, method);
-            cur->errors->insert({method, std::move(functions)});
+            cur->errors->insert({std::move(method), std::move(functions)});
 
             break;
         case URI_PAGE_LAYER:
@@ -375,7 +375,7 @@ manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &me
                 cur->layers = std::make_unique<handlers_types_t> ();
             }
             check_exists_method_on_url(uri, cur->layers, method);
-            cur->layers->insert({method, std::move(functions)});
+            cur->layers->insert({std::move(method), std::move(functions)});
 
             break;
         default:
@@ -386,7 +386,7 @@ manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &me
     return cur;
 }
 
-manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &method, const std::string &uri, const std::string &folder) {
+manapi::net::http_uri_part *manapi::net::site::set_handler(std::string method, std::string uri, std::string folder) {
     size_t  type            = URI_PAGE_DEFAULT;
 
     http_uri_part *cur      = build_uri_part(uri, type);
@@ -398,7 +398,7 @@ manapi::net::http_uri_part *manapi::net::site::set_handler(const std::string &me
             }
 
             check_exists_method_on_url(uri, cur->statics, method);
-            cur->statics->insert({method, folder});
+            cur->statics->insert({std::move(method), std::move(folder)});
 
             break;
         default:
