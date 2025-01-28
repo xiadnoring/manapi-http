@@ -44,11 +44,11 @@ void manapi::net::worker::OpenSSL_TLS::init() {
         // setup ctx (load certs)
         ssl_configure_context();
 
-        this->write = [this](auto &PH1, auto PH2, auto &PH3, auto PH4) -> future<ssize_t> {
+        this->write = [this](auto &PH1, auto PH2, auto PH3, auto PH4) -> future<ssize_t> {
             return ssl_write(PH1, PH2, PH3);
         };
 
-        this->read = [this](auto &PH1, auto PH2, auto &PH3) -> future<ssize_t> {
+        this->read = [this](auto &PH1, auto PH2, auto PH3) -> future<ssize_t> {
             return ssl_read(PH1, PH2, PH3);
         };
     }
@@ -137,8 +137,8 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     auto connection = TCP::accept([this] () {
         auto ms = std::make_shared<worker::connection> (new connection_interface {this->site.async_context()}, connection_interface_eraser);
         auto &connection = ms->as<connection_interface>();
-        connection.handle = [this] (auto &&P1, auto &&P2) -> void {
-            this->_io_event(std::forward<decltype(P1)>(P1), std::forward<decltype(P2)>(P2));
+        connection.handle = [this] (auto &&P0, auto &&P1, auto &&P2) -> void {
+            this->_io_event(std::forward<decltype(P0)>(P0), std::forward<decltype(P1)>(P1), std::forward<decltype(P2)>(P2));
         };
         connection.ssl = this->config->get_ssl_config()->enabled ? SSL_new(this->ctx) : nullptr;
         connection.mx = std::make_unique<async::mutex>(this->site.async_context());
@@ -208,7 +208,7 @@ void manapi::net::worker::OpenSSL_TLS::_lookup_event(ev::io &watcher, std::share
         this->_ev_watcher_stop (connection);
         return;
     }
-    connection.handle(storage, revents);
+    connection.handle(watcher, storage, revents);
 }
 
 void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
@@ -348,7 +348,7 @@ void manapi::net::worker::OpenSSL_TLS::ssl_get_error() {
     }
 }
 
-manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &conn, const void *buff, const size_t &size) {
+manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &conn, const void *buff, ssize_t size) {
     auto &connection = conn.as<connection_interface>();
     while (true) {
         int rhs;
@@ -394,7 +394,7 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
     co_return -1;
 }
 
-manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &conn, void *buff, const size_t &size) {
+manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &conn, void *buff, ssize_t size) {
     auto &connection = conn.as<connection_interface>();
 
 

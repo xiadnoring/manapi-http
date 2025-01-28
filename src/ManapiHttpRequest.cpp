@@ -83,7 +83,7 @@ manapi::future<std::string> manapi::net::http_request::text() {
     size_t j                    = 0;
     //size_t socket_block_size    = http_server->get_socket_block_size();
 
-    co_await _read_body([&body, &j] (const char *data, const size_t &size) -> void {
+    co_await _read_body([&body, &j] (const char *data, ssize_t size) -> void {
         memcpy (body.data() + j, data, size);
         j += size;
     });
@@ -96,7 +96,7 @@ manapi::future<manapi::json> manapi::net::http_request::json()
     // TODO: check with json_mask during processing read_mask()
     const auto &post_mask = get_post_mask();
     json_builder builder (*post_mask);
-    co_await _read_body([&builder] (const char *data, const size_t &size) -> void {
+    co_await _read_body([&builder] (const char *data, ssize_t size) -> void {
         builder << std::string_view (data, size);
     });
 
@@ -171,7 +171,7 @@ const bool & manapi::net::http_request::get_propagation() {
     return is_propagation;
 }
 
-manapi::future<void> manapi::net::http_request::_read_body(const std::function<void(const char *, const size_t &)> &handler) {
+manapi::future<void> manapi::net::http_request::_read_body(const std::function<void(const char *, ssize_t)> &handler) {
     request_data->body_part = std::min (request_data->body_part, request_data->body_left);
 
     // TODO: speed up
@@ -198,7 +198,7 @@ manapi::future<void> manapi::net::http_request::_read_body(const std::function<v
 
 
         ///body[j] = request_data->body_ptr[request_data->body_index];
-        handler (request_data->body_ptr, request_data->body_part - request_data->body_index);
+        handler (request_data->body_ptr, static_cast<ssize_t>(request_data->body_part - request_data->body_index));
         request_data->body_index = request_data->body_part;
     }
 }

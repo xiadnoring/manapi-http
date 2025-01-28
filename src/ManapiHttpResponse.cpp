@@ -22,8 +22,8 @@ manapi::net::http_response::~http_response() {
 }
 
 
-void manapi::net::http_response::set_header(const std::string &key, const std::string &value) {
-    this->headers[key] = value;
+void manapi::net::http_response::set_header(const std::string &key, std::string value) {
+    this->headers[key] = std::move(value);
 }
 
 void manapi::net::http_response::remove_header(const std::string &key) {

@@ -50,7 +50,7 @@ namespace manapi::net::worker {
             std::atomic<int> mustly = 0b11111111;
             std::function<void()> iohandle;
 
-            std::function<void(std::shared_ptr<connection> connection, int revents)> handle;
+            std::function<void(ev::io &w, std::shared_ptr<connection> connection, int revents)> handle;
         };
 #endif
 
@@ -87,7 +87,7 @@ namespace manapi::net::worker {
         future<ssize_t> response(worker::connection &connection, http_response &resp, bool finish) override;
         TCP &operator=(TCP &&n) noexcept;
         void disable_watcher_for_status(connection &conn, const connection_status &status) override;
-        void onevent(ev::io &watcher, int revents);
+        void onevent(ev::io &watcher, int revents, std::shared_ptr<connection> conn);
         void onrecv(ev::io &watcher, int revents) override;
         static std::shared_ptr<worker::TCP> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
@@ -107,13 +107,13 @@ namespace manapi::net::worker {
 
 
         virtual void _lookup_event (ev::io &watcher, std::shared_ptr<connection> storage, const int &revents);
-        void _io_event (std::shared_ptr<connection> storage, int revents);
+        void _io_event (ev::io &w, std::shared_ptr<connection> storage, int revents);
         static void _connection_interface_eraser (connection_interface *connection);
 
         std::map <int, std::shared_ptr<async_stack_storage>> stacks;
 
-        future<ssize_t> default_write (connection &conn, const void *buff, const size_t &size) const;
-        future<ssize_t> default_read (connection &conn, void *buff, const size_t &size) const;
+        future<ssize_t> default_write (connection &conn, const void *buff, ssize_t size) const;
+        future<ssize_t> default_read (connection &conn, void *buff, ssize_t size) const;
     private:
         std::string stringify_http_info (manapi::net::http_response &res, const http::versions::http &version, const std::string &delimiter) const;
         std::string stringify_headers (manapi::net::http_response &res, const std::string &delimiter) const;

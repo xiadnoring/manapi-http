@@ -165,6 +165,7 @@ namespace manapi::net::worker {
         future<void> send_settings (const std::vector <std::pair <short, int>> &options);
         future<ssize_t> send_data (int stream_id, const void *buf, ssize_t size, bool finish);
         future<void> send_window_frame (int stream_id, int size);
+        void resolve_timeout_timer ();
 
         future<void> default_ev_headers (int id, std::map <std::string, std::string> headers);
         void default_ev_data (int id);
@@ -175,10 +176,10 @@ namespace manapi::net::worker {
         future<void> reset_all_streams ();
         future<void> delete_stream_id (const int &id);
         future<void> reset_stream (int id, int errnum);
-        static future<void> session_worker (int id, bool body, net::site &site, std::shared_ptr<http::config> config, std::shared_ptr<worker::http_v2> worker);
+        future<void> session_worker (int id, bool body, std::shared_ptr<smart_w_buffer> write, std::shared_ptr<smart_r_buffer> read);
 
-        future<ssize_t> default_read (worker::connection &connection, void *buff, const size_t &size);
-        future<ssize_t> default_write (worker::connection &connection, const void *buff, const size_t &size, bool flag);
+        future<ssize_t> default_read (worker::connection &connection, void *buff, ssize_t size);
+        future<ssize_t> default_write (worker::connection &connection, const void *buff, ssize_t size, bool flag);
 
         static std::string stringify_stream_id (int stream_id);
         void setting_param_was_ack (const bool &self);

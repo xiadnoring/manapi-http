@@ -43,7 +43,7 @@ namespace manapi::net {
         const std::map<std::string, std::string> &ref_headers ();
         std::map<std::string, std::string> get_headers ();
 
-        void set_header (const std::string &key, const std::string &value);
+        void set_header (const std::string &key, std::string value);
         void remove_header (const std::string &key);
         bool has_header (const std::string &key);
         const std::string &get_header (const std::string &key);

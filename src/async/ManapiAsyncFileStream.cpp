@@ -72,10 +72,6 @@ manapi::filesystem::async::fstream::~fstream() {
 }
 
 manapi::future<ssize_t> manapi::filesystem::async::fstream::read(void *buff, ssize_t buff_size) {
-    if (this->data->status & FILE_READ) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_THREAD_SAFE, "that function isn't thread safe");
-    }
-
     while (true) {
         auto rhs = static_cast<ssize_t> (::read(this->data->fd, buff, buff_size));
 

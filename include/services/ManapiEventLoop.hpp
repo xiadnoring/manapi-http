@@ -114,12 +114,16 @@ namespace manapi {
 
         future<void> watch_curl (CURL *curl, std::function<void(CURLcode result)> cb);
         future<void> unwatch_curl (CURL *curl);
+        future<void> unpause_watch_curl (CURL *curl);
+        future<void> pause_watch_curl (CURL *curl);
+        future<void> custom_cb_curl (CURL *curl, std::function<void(CURLcode result)> cb);
 
         static void interrupt ();
     protected:
         void custom_watcher_fd_async (ev::async &w, int revents);
         void custom_watcher_curl_async (ev::async &w, int revents);
     private:
+        future<void> _template_cmd_curl (int flag, CURL *curl, std::function<void(CURLcode result)> cb = nullptr);
         static std::atomic<bool> interrupted;
         static std::map <size_t, std::shared_ptr<event_loop>> events;
         static std::mutex stop_mx;

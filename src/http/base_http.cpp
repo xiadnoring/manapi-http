@@ -14,6 +14,7 @@
 #include "ManapiString.hpp"
 #include "ManapiTime.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
+#include "async/ManapiAsyncParallelRun.hpp"
 
 #define FEATURE_EXISTS(x) x != nullptr
 
@@ -176,14 +177,16 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
                 default:
                     THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_UNSUPPORTED, "multi bytes unsupported");
             }
-        } else {
+        }
+        else {
             res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(dynamicFileSize));
 
             if (co_await mask_response(res, false) >= 0) {
                 if (replacers.empty()) {
                     // without replacers
                     co_await send_file(res, f, fileSize);
-                } else {
+                }
+                else {
                     // with replacers
                     co_await send_file(res, f, fileSize, replacers);
                 }
@@ -226,34 +229,51 @@ manapi::future<void> manapi::net::http::base::send_response_text(manapi::net::ht
 
 manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::http_response &res, response_features_t &features) {
     auto proxy = std::make_unique<fetch>(this->site.async_context(), res.get_data());
-    size_t rhs = 0;
-    proxy->handle_headers([this, &proxy, &res](const std::map<std::string, std::string> &headers) -> void {
+    proxy->set_headers({{"ranges", "0-"}});
+    size_t content_length = 0;
+    proxy->handle_headers([this, &content_length, &proxy, &res](const std::map<std::string, std::string> &headers) -> void {
         res.set_status_code(200);
         res.set_status_message(HTTP_STATUS.OK_200);
 
         if (headers.contains(HTTP_HEADER.CONTENT_LENGTH)) {
-            res.set_header(HTTP_HEADER.CONTENT_LENGTH, headers.at(HTTP_HEADER.CONTENT_LENGTH));
+            std::string value = headers.at(HTTP_HEADER.CONTENT_LENGTH);
+            content_length = std::stoull(value);
+            res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::move(value));
         }
     });
+    auto chunk_cb = [&] (char *buffer, ssize_t size) -> manapi::future<ssize_t> {
+        auto rhs = co_await this->worker->fwrite (*this->connection, buffer,
+            size, content_length <= size);
 
-    proxy->handle_body([this, &rhs, &proxy](char *buffer, const size_t &size) -> size_t {
-        if (rhs) {
-            return std::exchange(rhs, 0);
+        if (rhs < 0) {
+            co_return -1;
         }
 
-        return CURL_WRITEFUNC_PAUSE;
+        content_length -= rhs;
+        co_return rhs;
+    };
+
+    std::function<manapi::future<ssize_t>(char *buffer, ssize_t size)> current_chunk_cb = [&] (char *buffer, ssize_t size) -> manapi::future<ssize_t> {
+        const auto rhs1 = co_await this->mask_response(res, content_length == 0);
+        if (rhs1 < 0) {
+            co_return -1;
+        }
+
+        current_chunk_cb = chunk_cb;
+        co_return co_await chunk_cb (buffer, size);
+    };
+
+    proxy->handle_async_body([&](char *buffer, ssize_t size) -> manapi::future<ssize_t> {
+        return current_chunk_cb (buffer, size);
     });
 
-    while (true) {
-
-        co_await proxy->async_doit();
-    }
+    co_await proxy->async_doit();
 
     co_return;
 }
 
 manapi::future<ssize_t> manapi::net::http::base::mask_response(manapi::net::http_response &resp, bool finish) {
-    const auto rhs = co_await worker->response(*connection, resp, finish);
+    const auto rhs = co_await this->worker->response(*connection, resp, finish);
     co_return rhs;
 }
 
@@ -344,31 +364,46 @@ manapi::future<void> manapi::net::http::base::send_error_response(const size_t &
 }
 
 manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, filesystem::async::fstream &f, ssize_t size) const {
-    auto block_size = static_cast<ssize_t>(config->get_socket_block_size());
-    std::string block;
-    block.resize(block_size);
+    auto block_size = static_cast<ssize_t>(65536);
+
+    std::string write_block, read_block;
+
+    write_block.resize(block_size);
+    read_block.resize(block_size);
 
     ssize_t current = f.tellg();
 
     size += current;
 
-    while (size > current) {
-        const ssize_t left = size - current;
+    async::parallel_run<ssize_t> parallel (this->site.async_context());
 
-        if (left < block_size) {
-            block_size = left;
+    ssize_t rhs;
+
+    if ((rhs = co_await f.read(write_block.data(), std::min(block_size, size - current))) <= 0) {
+        co_return;
+    }
+
+    while (size > current) {
+        /* add count of the chars which will be sent at this iterration */
+        current += rhs;
+
+        if (size > current) {
+            parallel.run(f.read(read_block.data(), std::min(block_size, size - current)));
         }
 
-        auto rhs = co_await f.read(block.data(), static_cast<ssize_t> (block_size));
-
-        const ssize_t sent = co_await this->worker->write (*this->connection, block.data(), rhs, (current + rhs) >= size);
-
-        if (sent <= 0) {
-            // cannot to send
+        if ((rhs = co_await this->worker->fwrite (*this->connection, write_block.data(), rhs, current >= size)) <= 0) {
+            /* failed to send */
+            rhs = co_await parallel.get_or(0);
             break;
         }
 
-        current += sent;
+        rhs = co_await parallel.get_or(0);
+
+        if (rhs <= 0) {
+            break;
+        }
+
+        std::swap(write_block, read_block);
 
         //printf("%s STEP: %zi LEFT: %zi NEED: %zi CURRENT: %zi\n", res.get_file().data(), sent, left, size, current);
     }
@@ -391,16 +426,14 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
     while (size > current) {
         const ssize_t left = size - current;
 
+        block_size = static_cast<ssize_t>(block.size());
+
         if (left < block_size) {
             block_size = left;
         }
 
         auto rhs = co_await f.read(block.data(), block_size);
-
-        if (rhs != block_size) {
-            // TODO: rhs maybe not equal block_size. And that's bad
-            MANAPIHTTP_LOG2("FIXME: TODO: rhs maybe not equal block_size. And that's bad");
-        }
+        block_size = rhs;
 
         index = f.tellg();
 
@@ -445,7 +478,8 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
 
                         f.seekg(current);
                         co_await f.read(block.data() + index_in_block, needed);
-                    } else {
+                    }
+                    else {
                         // no data left
                         //shift -= key_left_size;
                         // decrease block_size
@@ -496,7 +530,7 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
                 }
 
                 if (repeat) {
-                    ssize_t sent = co_await worker->write(*connection, block.data(), block_size, (current + block_size) >= size);
+                    ssize_t sent = co_await this->worker->fwrite(*this->connection, block.data(), block_size, (current + block_size) >= size);
 
                     if (sent < 0) {
                         // cannot to send
@@ -515,7 +549,8 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
 
                 if (i > block_size) {
                     // -printf("OK\n");
-                } else {
+                }
+                else {
                     free_space = block_size - i;
                     ssize_t can_read = static_cast<ssize_t> (config->get_socket_block_size()) - i;
 
@@ -543,7 +578,7 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
         }
 
 
-        ssize_t sent = co_await this->worker->write(*this->connection, block.data(), block_size, (current + block_size) >= size);
+        ssize_t sent = co_await this->worker->fwrite(*this->connection, block.data(), block_size, (current + block_size) >= size);
 
         if (sent < 0) {
             // cannot to send
@@ -556,12 +591,12 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
     }
 }
 
-manapi::future<void> manapi::net::http::base::send_text(const std::string &text, const size_t &size) const {
+manapi::future<void> manapi::net::http::base::send_text(std::string_view text, ssize_t size) const {
     const char *current = text.data();
-    size_t sent = size;
+    ssize_t sent = size;
 
     while (sent != 0) {
-        const ssize_t result = co_await worker->write(*connection, current, sent, true);
+        const ssize_t result = co_await this->worker->write(*connection, current, sent, true);
 
         if (result <= 0) {
             THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not send the text: mask_write(...) = {}. Size: {}",

@@ -63,7 +63,13 @@ int main () {
     });
 
     router->GET("/proxy", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        co_return resp.proxy("https://www.wikipedia.org/");
+        co_return resp.proxy("http://127.0.0.1:8889/video");
+    });
+
+    router->GET("/video", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        resp.set_partial_status(true);
+        resp.set_compress_enabled(false);
+        co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
     });
 
     router->GET("/stop", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {

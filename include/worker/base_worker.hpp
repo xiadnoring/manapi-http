@@ -63,12 +63,15 @@ namespace manapi::net::worker {
 
         void set_fd_non_blocking (int fd);
 
+        manapi::future<ssize_t> fwrite (connection &conn, const void *buff, ssize_t size, bool finish);
+        manapi::future<ssize_t> fread (connection &conn, void *buff, ssize_t size);
+
         virtual future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish);
         static std::shared_ptr<base> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         virtual void _timeout (std::shared_ptr<connection> storage, const int &revents);
 
-        std::function<future<ssize_t>(connection &conn, const void *buff, const size_t &size, bool finish)> write;
-        std::function<future<ssize_t>(connection &conn, void *buff, const size_t &size)> read;
+        std::function<future<ssize_t>(connection &conn, const void *buff, ssize_t size, bool finish)> write;
+        std::function<future<ssize_t>(connection &conn, void *buff, ssize_t size)> read;
 
         std::shared_ptr<event_loop> le{nullptr};
         std::shared_ptr<ev::io> watcher;

@@ -39,7 +39,8 @@ namespace manapi {
         future<size_t> async_append_timer_sync (const std::chrono::milliseconds &duration, std::function<void()> task, std::shared_ptr<size_t> id = nullptr);
         future<size_t> async_append_timer_async (const std::chrono::milliseconds &duration, std::function<future<void>()> task, std::shared_ptr<size_t> id = nullptr);
         size_t append_timer (const std::chrono::milliseconds &duration, const std::function<void()> &task);
-        future<void> async_remove_timer (const size_t &id);
+        future<void> async_remove_timer (size_t id);
+        future<void> async_remove_timer (std::shared_ptr<size_t> id);
         void remove_timer (const size_t &id);
         future<size_t> async_append_interval_sync (const std::chrono::milliseconds &duration, std::function<void()> task, std::shared_ptr<size_t> id = nullptr);
         future<size_t> async_append_interval_async (const std::chrono::milliseconds &duration, std::function<future<>()> task, std::shared_ptr<size_t> id = nullptr);

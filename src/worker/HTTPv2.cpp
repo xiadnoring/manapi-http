@@ -10,6 +10,12 @@
 
 #define HEADER_DEFAULT_SIZE 9
 
+struct manapi_http_2_connection_t {
+    int id;
+    std::shared_ptr<manapi::net::worker::smart_r_buffer> read;
+    std::shared_ptr<manapi::net::worker::smart_w_buffer> write;
+};
+
 std::map <int, manapi::json_mask> manapi::net::worker::http_v2::allow_settings {
     {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
     {HTTP2_SETTING_ENABLE_PUSH, manapi::json{"{integer(>=0 <=1)}"}},
@@ -25,23 +31,20 @@ std::map <int, manapi::json_mask> manapi::net::worker::http_v2::allow_settings {
 };
 
 manapi::net::worker::http_v2::http_v2(const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
-    : base(site), protocol{worker->site.async_context()}, finishcv(worker->site.async_context()), worker(worker), threads_mutex(worker->site.async_context()) {
+    : base(site), protocol{worker->site.async_context()}, threads_mutex(worker->site.async_context()), finishcv(worker->site.async_context()), worker(worker) {
     this->config = std::move(config);
     this->init_settings();
     this->init_callbacks();
     this->protocol.setting_param_acks_mx = std::make_shared<async::mutex>(this->site.async_context());
-    this->read = [this](net::worker::connection & PH1, void * && PH2, const size_t & PH3) -> future<ssize_t> {
+    this->read = [this](net::worker::connection & PH1, void * && PH2, ssize_t PH3) -> future<ssize_t> {
         return this->default_read(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2), std::forward<decltype(PH3)>(PH3));
     };
-    this->write = [this](net::worker::connection & PH1, const void * && PH2, const size_t & PH3, bool && PH4) -> future<ssize_t> {
+    this->write = [this](net::worker::connection & PH1, const void * && PH2, ssize_t PH3, bool && PH4) -> future<ssize_t> {
         return this->default_write(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2), std::forward<decltype(PH3)>(PH3), std::forward<decltype(PH4)>(PH4));
     };
 }
 
-manapi::net::worker::http_v2::~http_v2() {
-
-    std::cout << "Unmounted\n";
-}
+manapi::net::worker::http_v2::~http_v2() = default;
 
 manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
     this->worker->disable_watcher_for_status(*this->connection, CONN_READ);
@@ -72,7 +75,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
 
         goto skip;
         while ((this->protocol.conn_type & (CONN_CLOSED | CONN_HALF_CLOSED)) == false) {
-            rhs = co_await this->worker->read (*this->connection, this->buffer.data(), this->buffer.size());
+            rhs = co_await this->worker->read (*this->connection, this->buffer.data(), static_cast<ssize_t>(this->buffer.size()));
 
             if (rhs <= 0) {
                 std::cout << "HALF CLOSED BY READ\n";
@@ -214,6 +217,9 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                         this->callbacks.goaway(this->protocol.error.last_stream_id, this->protocol.error.errnum, std::move(this->protocol.error.errmsg));
                         if (this->protocol.error.errnum >= HTTP2_ERROR_NO_ERROR && this->protocol.error.errnum <= HTTP2_ERROR_HTTP_1_1_REQUIRED) {
                             this->protocol.error.last_stream_id = 0;
+                            this->protocol.conn_type.fetch_or(CONN_CLOSED);
+                            co_await reset_all_streams();
+                            co_await this->empty_setting_timeouts();
                             co_await this->generate_error(HTTP2_ERROR_NO_ERROR, {}, this->protocol.error.last_stream_id);
                         }
                         else {
@@ -865,17 +871,13 @@ void manapi::net::worker::http_v2::_parse_number(char &c, size_t &num, size_t &l
 }
 
 manapi::future<void> manapi::net::worker::http_v2::send_frame(http2_frame_type frame, uint8_t flag, int stream_id, std::string_view data) {
-    //MANAPIHTTP_LOG("SEND FRAME: {}", (int)frame);
-    if (frame != HTTP2_FRAME_PING) { this->protocol.current_timeout.store(this->protocol.timeout); }
+    //MANAPIHTTP_LOG("frame: {}, {}", (int)frame, (int)flag);
     const std::string id = stringify_stream_id(stream_id);
     const std::string len = stringify_number <int> (static_cast<int>(data.size()));
     std::string response ({len[1], len[2], len[3], static_cast<char>(frame), static_cast<char> (flag), id[0], id[1], id[2], id[3]});
     response += data;
-    if (frame == HTTP2_FRAME_GOAWAY) {
-        std::cout << data.substr(8) << "\n";
-    }
-    if (co_await this->worker->write(*this->connection, response.data(), response.size(), false) <= 0) {
-        co_await this->generate_error(HTTP2_ERROR_STREAM_CLOSED, "stream closed", static_cast<int>(stream_id));
+    if (co_await this->worker->fwrite(*this->connection, response.data(), static_cast<ssize_t>(response.size()), false) <= 0) {
+        co_await this->generate_error(HTTP2_ERROR_STREAM_CLOSED, "stream {} closed", static_cast<int>(stream_id));
     }
 }
 
@@ -922,6 +924,7 @@ manapi::future<void> manapi::net::worker::http_v2::send_ping_frame(std::string d
 
             protocol.pings.insert(data);
         }
+
         co_await send_frame(HTTP2_FRAME_PING, flag, 0, data);
     }
 }
@@ -935,6 +938,7 @@ manapi::future<void> manapi::net::worker::http_v2::close_connection(int errnum, 
 
     std::string data;
     data += stringify_number<int> (last_stream_id) + stringify_number<int>(errnum) + additional_data;
+    this->resolve_timeout_timer();
     co_await this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, data);
     co_await this->worker->connection_close(this->connection, true);
 }
@@ -955,6 +959,7 @@ manapi::future<void> manapi::net::worker::http_v2::send_settings(const std::vect
         if (update != nullptr) { update(option.second, true); }
         data+=stringify_number<short>(option.first)+stringify_number<int>(option.second);
     }
+    this->resolve_timeout_timer();
     co_await send_frame (HTTP2_FRAME_SETTINGS, 0x0, 0, data);
 }
 
@@ -970,15 +975,14 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::send_data(int stream_id, c
     if (finish && sent == size) {
         cflag |= HTTP2_FLAG_DATA_END_STREAM;
     }
+    this->resolve_timeout_timer();
     co_await this->send_frame(HTTP2_FRAME_DATA, cflag, stream_id, std::string_view(static_cast<const char *> (buf), sent));
-    if (finish && sent == size) {
-        auto end = std::chrono::steady_clock::now();
-        //printf("\nOperation took %ld milliseconds\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
-    }
+
     co_return sent;
 }
 
 manapi::future<void> manapi::net::worker::http_v2::send_window_frame(int stream_id, int size) {
+    this->resolve_timeout_timer();
     if (this->protocol.window.read < size) {
         this->protocol.window.read.fetch_add(1e4);
         auto nsize = stringify_number <int> (size);
@@ -990,35 +994,31 @@ manapi::future<void> manapi::net::worker::http_v2::send_window_frame(int stream_
     co_return;
 }
 
+void manapi::net::worker::http_v2::resolve_timeout_timer() {
+    this->protocol.current_timeout.store(this->protocol.timeout);
+}
+
 manapi::future<void> manapi::net::worker::http_v2::default_ev_headers(int id, std::map<std::string, std::string> headers) {
     // think about it
-    {
-        auto lk = co_await this->threads_mutex.lock_guard();
-        this->thread_cnt.fetch_add(1);
-        this->threads.insert({id, {
-            .id = id,
-            .headers = std::move(headers),
-            .rst = false,
-            .write = std::make_shared<smart_w_buffer>(this->site.async_context()->taskpool(), [this, id](const void * buff, ssize_t size, bool finish) -> future<ssize_t> {
-                const auto rhs = co_await this->send_data(id, buff, size, finish);
-                co_return rhs;
-            }, static_cast<size_t>(this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first),
-            .read = std::make_shared<smart_r_buffer>(this->site.async_context()->taskpool(), [this, id](int size) -> future<void> {
+    auto lk = co_await threads_mutex.lock_guard();
+    this->thread_cnt.fetch_add(1);
 
-                try {
-                    co_await this->send_window_frame(id, size);
-                }
-                catch (std::exception const &e) {
-                    MANAPIHTTP_LOG2(e.what());
-                }
-                co_return;
-            }, this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first)
-        }});
-    }
+    auto write_cb = std::make_shared<smart_w_buffer>(this->site.async_context()->taskpool(), [this, id](const void * buff, ssize_t size, bool finish)
+        -> future<ssize_t> { return this->send_data(id, buff, size, finish); }, static_cast<size_t>(this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first);
 
-    async::run(this->site.async_context(), worker::http_v2::session_worker(id, this->sessions[id].body, this->site, this->config, this->new_dependency()));
+    auto read_cb = std::make_shared<smart_r_buffer>(this->site.async_context()->taskpool(), [this, id](int size) -> future<void> {
+        try { co_await this->send_window_frame(id, size); } catch (std::exception const &e) { MANAPIHTTP_LOG2(e.what()); }
+    }, this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first);
 
-    co_return;
+    this->threads.insert({id, {
+        .id = id,
+        .headers = std::move(headers),
+        .rst = false,
+        .write = write_cb,
+        .read = read_cb
+    }});
+
+    co_await worker::http_v2::session_worker(id, this->sessions[id].body, std::move(write_cb), std::move(read_cb));
 }
 
 void manapi::net::worker::http_v2::default_ev_data(int id) {
@@ -1072,94 +1072,75 @@ manapi::future<> manapi::net::worker::http_v2::delete_stream_id(const int &id) {
 }
 
 manapi::future<> manapi::net::worker::http_v2::reset_stream(int id, int errnum) {
+    this->resolve_timeout_timer();
     co_await this->send_frame(HTTP2_FRAME_RST_STREAM, 0x0, id, stringify_number<int> (errnum));
 }
 
-manapi::future<void> manapi::net::worker::http_v2::session_worker(int id, bool body, net::site &site, std::shared_ptr<http::config> config, std::shared_ptr<worker::http_v2> worker) {
+manapi::future<void> manapi::net::worker::http_v2::session_worker(int id, bool body, std::shared_ptr<smart_w_buffer> write, std::shared_ptr<smart_r_buffer> read) {
+    auto worker = this->new_dependency();
+    auto client = std::make_shared<http::http_v2> (worker, this->config, this->site);
+    client->connection = std::make_shared<worker::connection>(new manapi_http_2_connection_t (id, std::move(read), std::move(write)),
+        [] (void *ptr) -> void { delete static_cast<manapi_http_2_connection_t *> (ptr); });
+    client->connection->version = manapi::net::http::versions::HTTP_v2;
 
-    int stream_errnum = HTTP2_ERROR_NO_ERROR;
+    auto it = worker->threads.find(id);
+    if (it == worker->threads.end()) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Failed to find session thread data by id"); }
+    client->request_data.headers = std::move(it->second.headers);
+    co_await it->second.write->resize (65535);
 
-    try {
-        http::http_v2 client (worker, config, site);
-        client.connection = std::make_shared<worker::connection>(new int (id),
-            [] (void *ptr) -> void { delete static_cast<int *> (ptr); });
-        client.connection->version = manapi::net::http::versions::HTTP_v2;
-
-        {
-            auto lk = co_await worker->threads_mutex.lock_guard();
-            auto it = worker->threads.find(id);
-            if (it == worker->threads.end()) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Failed to find session thread data by id"); }
-            client.request_data.headers = std::move(it->second.headers);
-            co_await it->second.write->resize (65535);
-        }
-        client.request_data.body_index = 0;
-        client.request_data.uri = client.request_data.headers[":path"];
-        client.request_data.headers_size = 0;
-        client.request_data.divided = -1;
-        client.request_data.http = "HTTP/2";
-        client.request_data.has_body = body;
-        client.request_data.body_left = 0;
-        client.request_data.buffer.resize(config->get_socket_block_size());
-        if (body) {
-            auto contentlength = client.request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
-            client.request_data.headers_part = 0;
-            client.request_data.body_part = 0;
-            client.request_data.body_size = contentlength != client.request_data.headers.end() ? std::stoll(contentlength->second) : 0;
-            client.request_data.body_ptr = client.request_data.buffer.data();
-        }
-        else {
-            client.request_data.body_size = 0;
-            client.request_data.body_part = 0;
-            client.request_data.body_ptr = nullptr;
-        }
-        client.request_data.body_left = client.request_data.body_size;
-        client.request_data.method = client.request_data.headers[":method"];
-
-        co_await client.parse_request(0,0);
-        co_await client.execute_handler();
-
+    client->request_data.body_index = 0;
+    client->request_data.uri = client->request_data.headers[":path"];
+    client->request_data.headers_size = 0;
+    client->request_data.divided = -1;
+    client->request_data.http = "HTTP/2";
+    client->request_data.has_body = body;
+    client->request_data.body_left = 0;
+    client->request_data.buffer.resize(config->get_socket_block_size());
+    if (body) {
+        auto contentlength = client->request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
+        client->request_data.headers_part = 0;
+        client->request_data.body_part = 0;
+        client->request_data.body_size = contentlength != client->request_data.headers.end() ? std::stoll(contentlength->second) : 0;
+        client->request_data.body_ptr = client->request_data.buffer.data();
     }
-    catch (std::exception const &e) {
-        MANAPIHTTP_LOG("session_worker(...): {}", e.what());
-        stream_errnum = HTTP2_ERROR_INTERNAL_ERROR;
+    else {
+        client->request_data.body_size = 0;
+        client->request_data.body_part = 0;
+        client->request_data.body_ptr = nullptr;
     }
+    client->request_data.body_left = client->request_data.body_size;
+    client->request_data.method = client->request_data.headers[":method"];
 
-    if (stream_errnum != HTTP2_ERROR_NO_ERROR) {
-        // an error occurred
-        co_await worker->reset_stream (id, stream_errnum);
-    }
+    async::run(this->site.async_context(), [id, client = std::move(client), worker = std::move(worker)] () mutable -> manapi::future<> {
+        int stream_errnum = HTTP2_ERROR_NO_ERROR;
 
-    co_await worker->delete_stream_id (id);
+        try {
+            co_await client->parse_request(0,0);
+            co_await client->execute_handler();
 
-    worker.reset();
+        }
+        catch (std::exception const &e) {
+            MANAPIHTTP_LOG("session_worker(...): {}", e.what());
+            stream_errnum = HTTP2_ERROR_INTERNAL_ERROR;
+        }
+
+        if (stream_errnum != HTTP2_ERROR_NO_ERROR) {
+            // an error occurreds
+            co_await worker->reset_stream (id, stream_errnum);
+        }
+
+        co_await worker->delete_stream_id (id);
+    });
 }
 
-manapi::future<ssize_t> manapi::net::worker::http_v2::default_read(worker::connection &connection, void *buff, const size_t &size) {
-    std::shared_ptr<smart_r_buffer> worker;
-
-    {
-        auto lk = co_await threads_mutex.lock_guard();
-        auto session = threads.find(connection.as<int>());
-        if (session == threads.end()) { co_return -1; }
-        if (session->second.rst || (this->protocol.conn_type & CONN_CLOSED)) { co_return -1; }
-
-        worker = session->second.read;
-    }
-
+manapi::future<ssize_t> manapi::net::worker::http_v2::default_read(worker::connection &connection, void *buff, ssize_t size) {
+    auto worker = connection.as<manapi_http_2_connection_t>().read;
     const auto rhs = co_await worker->read(buff, size);
     co_return rhs;
 }
 
-manapi::future<ssize_t> manapi::net::worker::http_v2::default_write(worker::connection &connection, const void *buff, const size_t &size, bool flag) {
-    std::shared_ptr<smart_w_buffer> worker;
-    {
-        auto lk = co_await threads_mutex.lock_guard();
-        auto session = threads.find(connection.as<int>());
-        if (session == threads.end()) { co_return -1; }
-        if (session->second.rst || (this->protocol.conn_type & CONN_CLOSED)) { co_return -1; }
-        worker = session->second.write;
-    }
-
+manapi::future<ssize_t> manapi::net::worker::http_v2::default_write(worker::connection &connection, const void *buff, ssize_t size, bool flag) {
+    auto worker = connection.as<manapi_http_2_connection_t>().write;
     co_return static_cast<ssize_t>(co_await worker->add(buff, size, flag));
 }
 

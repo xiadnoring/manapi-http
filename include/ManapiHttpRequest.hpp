@@ -51,7 +51,7 @@ namespace manapi::net {
         void stop_propagation (const bool &stop_propagation = true);
         [[nodiscard]] const bool& get_propagation ();
     private:
-        future<void> _read_body (const std::function<void(const char *, const size_t &)> &handler);
+        future<void> _read_body (const std::function<void(const char *, ssize_t )> &handler);
         void parse_map_url_param ();
         // peer ip
         const http::manapi_socket_information *ip_data;

@@ -277,7 +277,7 @@ void manapi::net::worker::WolfSSL_TLS::ssl_get_error() {
 
 }
 
-manapi::future<ssize_t> manapi::net::worker::WolfSSL_TLS::ssl_write(connection &conn, const void *buff, const size_t &size) {
+manapi::future<ssize_t> manapi::net::worker::WolfSSL_TLS::ssl_write(connection &conn, const void *buff, ssize_t size) {
     auto &connection = conn.as<connection_interface>();
     while (true) {
         int rhs;
@@ -323,7 +323,7 @@ manapi::future<ssize_t> manapi::net::worker::WolfSSL_TLS::ssl_write(connection &
     co_return -1;
 }
 
-manapi::future<ssize_t> manapi::net::worker::WolfSSL_TLS::ssl_read(connection &conn, void *buff, const size_t &size) {
+manapi::future<ssize_t> manapi::net::worker::WolfSSL_TLS::ssl_read(connection &conn, void *buff, ssize_t size) {
     auto &connection = conn.as<connection_interface>();
 
 

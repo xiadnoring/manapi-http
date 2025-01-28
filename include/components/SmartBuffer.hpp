@@ -19,7 +19,7 @@ namespace manapi::net::worker {
         smart_w_buffer &operator= (smart_w_buffer &&n) noexcept;
         future<void> resize (size_t size);
         future<void> add_allow_to_sent (int size);
-        future<size_t> add (const void *c, size_t len, bool flag = false);
+        future<size_t> add (const void *c, ssize_t len, bool flag = false);
         future<void> disable ();
     private:
         std::atomic<bool> disabled = false;
@@ -44,7 +44,7 @@ namespace manapi::net::worker {
         smart_r_buffer &operator= (smart_r_buffer &&n) noexcept;
         future<void> resize (int buffer_size);
         future<ssize_t> add (const void *c, ssize_t len, bool flag = false);
-        future<ssize_t> read (void *c, size_t len);
+        future<ssize_t> read (void *c, ssize_t len);
         future<void> disable ();
     private:
         int read_window = 0;

@@ -35,12 +35,20 @@ size_t manapi::timerpool::append_timer(const std::chrono::milliseconds &duration
     return this->async_append_timer_sync(duration, task).get(this->taskpool);
 }
 
-manapi::future<> manapi::timerpool::async_remove_timer(const size_t &id) {
+manapi::future<> manapi::timerpool::async_remove_timer(size_t id) {
     auto lk = co_await this->mx->lock_guard();
     if (id == 0) {
         co_return;
     }
     this->_erase_task(id);
+}
+
+manapi::future<> manapi::timerpool::async_remove_timer(std::shared_ptr<size_t> id) {
+    auto lk = co_await this->mx->lock_guard();
+    if (*id == 0) {
+        co_return;
+    }
+    this->_erase_task(*id);
 }
 
 void manapi::timerpool::remove_timer(const size_t &id) {

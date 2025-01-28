@@ -38,8 +38,8 @@ namespace manapi::net::worker {
         void ssl_configure_context ();
         void ssl_get_error ();
 
-        future<ssize_t> ssl_write (connection &conn, const void *buff, const size_t &size);
-        future<ssize_t> ssl_read (connection &conn, void *buff, const size_t &size);
+        future<ssize_t> ssl_write (connection &conn, const void *buff, ssize_t size);
+        future<ssize_t> ssl_read (connection &conn, void *buff, ssize_t size);
 
         WOLFSSL_CTX *ctx = nullptr;
     };

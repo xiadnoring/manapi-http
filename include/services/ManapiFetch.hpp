@@ -42,6 +42,8 @@ namespace manapi::net {
         void setfile (const std::string &filename, std::string filepath);
         void setcallback (const std::string &name, const long long &size, const std::function<size_t (void *buff, size_t buff_size)> &cb);
 
+        void clear ();
+
         tdata::iterator begin();
         tdata::iterator end();
     private:
@@ -75,13 +77,14 @@ namespace manapi::net {
         };
 
         fetch &operator=(fetch &&n) noexcept;
-        void handle_body(const std::function<size_t(char *, const size_t&)> &handler);
+        void handle_body(std::function<ssize_t(char *, ssize_t)> handler);
+        void handle_async_body(std::function<manapi::future<ssize_t>(char *, ssize_t )> handler);
         void handle_headers (const std::function<void(const std::map <std::string, std::string> &)> &handler);
 
         void set_body (curlformdata params);
         void set_method (std::string method);
         void set_body (std::string data);
-        void set_headers (const std::map <std::string, std::string> &headers);
+        void set_headers (std::map <std::string, std::string> headers);
         void set_custom_setup (const std::function<void(CURL *curl)> &func);
         void enable_ssl_verify (const bool &status);
         void set_verbose (bool status);
@@ -97,6 +100,8 @@ namespace manapi::net {
         future<manapi::json> json();
 
         std::map <std::string, std::string> get_headers();
+
+        void clear ();
     private:
         future<CURLcode> async_curl_perform ();
         size_t status_code = 200;
@@ -108,7 +113,8 @@ namespace manapi::net {
         std::string url;
 
         std::function <void(CURL *)> handle_custom_setup;
-        std::function <size_t(char *, size_t)> handler_body;
+        std::function <ssize_t(char *, ssize_t)> handler_body{nullptr};
+        std::function <manapi::future<>(bool finish)> async_handler_body{nullptr};
         std::function <void(const std::map <std::string, std::string> &)> handler_headers;
 
         body_type body = BODY_NONE;
@@ -120,9 +126,14 @@ namespace manapi::net {
         std::shared_ptr<event_loop> event;
         std::shared_ptr<manapi::timerpool> timerpool;
 
-        std::shared_ptr<size_t> timeout_token{nullptr};
-
         std::unique_ptr<CURL, curl_deleter> curl {nullptr};
         std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
+        std::map<std::string, std::string> headers{};
+
+        std::atomic<ssize_t> total_read{0};
+        std::atomic<ssize_t> total_write{0};
+
+        ssize_t async_buffer_cursor{0};
+        std::string async_buffer{};
     };
 }
