@@ -81,10 +81,7 @@ namespace manapi {
         json(const STRING_VIEW &str, const bool &parse = false);
         json(const UNICODE_STRING &str, const bool &parse = false);
         json(const INTEGER &num);
-        json(const size_t &num);
         json(const char *plain_text, const bool &parse = false);
-        json(const int &num);
-        json(const double &num);
         json(const STRING &str);
         json(const DECIMAL &num);
         json(const BIGINT &num);
@@ -93,84 +90,226 @@ namespace manapi {
         json(const OBJECT &obj);
         json(const ARRAY &arr);
 
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        json(const T &n) {
+            this->_parse (static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        json (const T &n) {
+            this->_parse (static_cast<DECIMAL>(n));
+        }
+
         ~json();
 
         [[nodiscard]] bool contains (const std::string &key) const;
 
-
         const json &operator[] (const STRING &key) const;
         const json &operator[] (const UNICODE_STRING &key) const;
         const json &operator[] (const size_t &index) const;
-        const json &operator[] (const int &index) const;
 
         json &operator[] (const STRING &key);
         json &operator[] (const UNICODE_STRING &key);
         json &operator[] (const size_t &index);
-        json &operator[] (const int &index);
 
         [[nodiscard]] const json &at (const STRING &key) const;
         [[nodiscard]] const json &at (const UNICODE_STRING &key) const;
         [[nodiscard]] const json &at (const size_t &index) const;
-        [[nodiscard]] const json &at (const int &index) const;
 
         json &at (const std::string &key);
         json &at (const UNICODE_STRING &key);
         json &at (const size_t &index);
-        json &at (const int &index);
-
 
         // TRASH (no with const json &obj)
-        json &operator=     (const UNICODE_STRING &str);
-        json &operator=     (const STRING &str);
-        json &operator=     (const char *str);
-        json &operator=     (const BOOLEAN &b);
-        json &operator=     (const INTEGER &num);
-        json &operator=     (const int &num);
-        json &operator=     (const double &num);
-        json &operator=     (const DECIMAL &num);
-        //json &operator=     (const long long &num);
-        json &operator=     (const NULLPTR &n);
-        json &operator=     (const BIGINT &num);
-        json &operator=     (const json &obj);
-        json &operator=     (json &&obj);
-        json &operator=     (const std::initializer_list <json> &data);
-        json operator-      (const INTEGER &num);
-        json operator-      (const int &num);
-        json operator-      (const DECIMAL &num);
-        json operator-      (const double &num);
-        json operator-      (const BIGINT &num);
-        json operator+      (const INTEGER &num);
-        json operator+      (const int &num);
-        json operator+      (const DECIMAL &num);
-        json operator+      (const double &num);
-        json operator+      (const BIGINT &num);
-        json operator+      (const STRING &str);
-        void operator+=     (const STRING &str);
-        void operator-=     (const INTEGER &num);
-        void operator-=     (const int &num);
-        void operator-=     (const DECIMAL &num);
-        void operator-=     (const double &num);
-        void operator-=     (const BIGINT &num);
-        void operator+=     (const INTEGER &num);
-        void operator+=     (const int &num);
-        void operator+=     (const DECIMAL &num);
-        void operator+=     (const double &num);
-        void operator+=     (const BIGINT &num);
+        json &operator= (const UNICODE_STRING &str);
+        json &operator= (const STRING &str);
+        json &operator= (const char *str);
+        json &operator= (const BOOLEAN &b);
+        json &operator= (const INTEGER &num);
+        json &operator= (const DECIMAL &num);
+        json &operator= (const NULLPTR &n);
+        json &operator= (const BIGINT &num);
+        json &operator= (const json &obj);
+        json &operator= (json &&obj) noexcept ;
+        json &operator= (const std::initializer_list <json> &data);
 
-        bool operator==     (const json &n) const;
-        bool operator==     (const bool &n) const;
-        bool operator==     (const char *n) const;
-        bool operator==     (const std::string_view &n) const;
-        bool operator==     (const std::string &n) const;
-        bool operator==     (const ssize_t &n) const;
-        bool operator==     (const int &n) const;
-        bool operator==     (const nullptr_t &n) const;
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        json &operator= (const T &n) {
+            this->operator=(static_cast<INTEGER>(n));
+            return *this;
+        }
 
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        json &operator= (const T &n) {
+            this->operator=(static_cast<DECIMAL>(n));
+            return *this;
+        }
 
-        void insert (const STRING &key, const json &obj);
-        void insert (const UNICODE_STRING &key, const json &obj);
+        json operator* (const INTEGER &num) const;
+        json operator* (const DECIMAL &num) const;
+        json operator* (const BIGINT &num) const;
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        json operator* (const T &n) const {
+            return this->operator*(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        json operator* (const T &n) const {
+            return this->operator* (static_cast<DECIMAL>(n));
+        }
+
+        json &operator*= (const INTEGER &num);
+        json &operator*= (const DECIMAL &num);
+        json &operator*= (const BIGINT &num);
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        json operator*= (const T &n) {
+            return this->operator*(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        json operator*= (const T &n) {
+            return this->operator* (static_cast<DECIMAL>(n));
+        }
+
+        json operator- (const INTEGER &num) const;
+        json operator- (const DECIMAL &num) const;
+        json operator- (const BIGINT &num) const;
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        json operator- (const T &n) const {
+            return this->operator-(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        json operator- (const T &n) const {
+            return this->operator-(static_cast<DECIMAL>(n));
+        }
+
+        json operator+ (const INTEGER &num) const;
+        json operator+ (const DECIMAL &num) const;
+        json operator+ (const BIGINT &num) const;
+        json operator+ (const STRING &str) const;
+        json operator+ (const char *str) const;
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        json operator+ (const T &n) const {
+            return this->operator+(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        json operator+ (const T &n) const {
+            return this->operator+(static_cast<DECIMAL>(n));
+        }
+
+        json & operator-= (const INTEGER &num);
+        json & operator-= (const int &num);
+        json & operator-= (const DECIMAL &num);
+        json & operator-= (const BIGINT &num);
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        json &operator-= (const T &n) {
+            return this->operator-=(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        json &operator-= (const T &n) {
+            return this->operator-=(static_cast<DECIMAL>(n));
+        }
+
+        json &operator+= (const STRING &str);
+        json &operator+= (const char *str);
+        json &operator+= (const INTEGER &num);
+        json &operator+= (const DECIMAL &num);
+        json &operator+= (const BIGINT &num);
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        json &operator+= (const T &n) {
+            return this->operator+=(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        json &operator+= (const T &n) {
+            return this->operator+=(static_cast<DECIMAL>(n));
+        }
+
+        bool operator== (const json &n) const;
+        bool operator== (const BOOLEAN &n) const;
+        bool operator== (const char *n) const;
+        bool operator== (const STRING_VIEW &n) const;
+        bool operator== (const STRING &n) const;
+        bool operator== (const INTEGER &n) const;
+        bool operator== (const DECIMAL &n) const;
+        bool operator== (const NULLPTR &n) const;
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        bool operator==(const T &n) const {
+            return this->operator==(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        bool operator==(const T &n) const {
+            return this->operator==(static_cast<DECIMAL>(n));
+        }
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        bool operator!=(const T &n) const {
+            return !this->operator==(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        bool operator!=(const T &n) {
+            return !this->operator==(static_cast<DECIMAL>(n));
+        }
+
+        bool operator!=(const STRING &str) const {
+            return !this->operator==(str);
+        }
+
+        bool operator!=(const char * &str) const {
+            return !this->operator==(str);
+        }
+
+        bool operator!=(const NULLPTR &n) const {
+            return !this->operator==(n);
+        }
+
+        bool operator!=(const BOOLEAN &n) const {
+            return !this->operator==(n);
+        }
+
+        bool operator!=(const STRING_VIEW &n) const {
+            return !this->operator==(n);
+        }
+
+        void insert (const STRING &key, json obj);
+        void insert (const UNICODE_STRING &key, json obj);
+
         void erase (const STRING &key);
         void erase (const UNICODE_STRING &key);
+        ARRAY::const_iterator erase (ARRAY::const_iterator it);
+        OBJECT::const_iterator erase (OBJECT::const_iterator it);
 
         void push_back (json obj);
         void push_back (ARRAY::const_iterator begin, ARRAY::const_iterator end);
@@ -209,21 +348,25 @@ namespace manapi {
          * @return
          */
         [[nodiscard]] const OBJECT &as_object () const;
+        [[nodiscard]] OBJECT &as_object ();
         /**
          * strict array retrieval
          * @return
          */
         [[nodiscard]] const ARRAY &as_array () const;
+        [[nodiscard]] ARRAY &as_array ();
         /**
          * strict string retrieval
          * @return
          */
         [[nodiscard]] const STRING &as_string () const;
+        [[nodiscard]] STRING &as_string ();
         /**
          * strict integer retrieval
          * @return
          */
         [[nodiscard]] const INTEGER &as_integer () const;
+        [[nodiscard]] INTEGER &as_integer ();
         /**
          * strict null retrieval
          * @return
@@ -234,16 +377,19 @@ namespace manapi {
          * @return
          */
         [[nodiscard]] const DECIMAL &as_decimal () const;
+        [[nodiscard]] DECIMAL &as_decimal ();
         /**
          * strict bigint retrieval
          * @return
          */
         [[nodiscard]] const BIGINT &as_bigint () const;
+        [[nodiscard]] BIGINT &as_bigint ();
         /**
          * strict boolean retrieval
          * @return
          */
         [[nodiscard]] const BOOLEAN &as_bool () const;
+        [[nodiscard]] BOOLEAN &as_bool ();
 
         /**
          * non-strict object retrieval
@@ -336,6 +482,13 @@ namespace manapi {
     protected:
         bool root = true;
     private:
+        [[nodiscard]] OBJECT &_as_object () const;
+        [[nodiscard]] ARRAY &_as_array () const;
+        [[nodiscard]] STRING &_as_string () const;
+        [[nodiscard]] INTEGER &_as_integer () const;
+        [[nodiscard]] DECIMAL &_as_decimal () const;
+        [[nodiscard]] BOOLEAN &_as_bool () const;
+        [[nodiscard]] BIGINT &_as_bigint () const;
 
         // string
         void _parse (const UNICODE_STRING &plain_text);

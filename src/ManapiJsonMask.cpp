@@ -129,10 +129,11 @@ manapi::json manapi::json_mask::OR(json data, bool none) {
 manapi::json manapi::json_mask::ARRAY(json data, bool none) {
     initial_resolve_information(data);
 
+
     json prepared = {
         {"obj", {
             {"default", std::move(data["obj"])},
-            {"type", json::type_array}
+            {"type", static_cast<int>(json::type_array)}
         }},
         {"none", none}
     };
@@ -182,7 +183,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                 {
                     "obj",
                     {
-                        {"type", json::type_string},
+                        {"type", static_cast<int>(json::type_string)},
                         {"value", str}
                     }
                 },
@@ -509,7 +510,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
         obj = {
             {
                 "obj", {
-                    {"type", json::type_object},
+                    {"type", static_cast<int>(json::type_object)},
                     {"value", std::move(obj)}
                 },
             },
@@ -526,7 +527,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
         obj = {
             {
                 "obj", {
-                        {"type", json::type_array},
+                        {"type", static_cast<int>(json::type_array)},
                         {"value", std::move(obj)}
                 },
             },

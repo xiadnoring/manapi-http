@@ -140,9 +140,16 @@ int main (int argc, char *argv[]) {
     worker::tools::ssl_library_init();
     manapi::debug::debug_print_memory("start");
     std::string data = "hello world test 2";
+    manapi::json b = manapi::json::object();
+    b.insert("hello", "world");
+    std::cout << b.dump() << "\n";
     {
-        auto ctx = manapi::async::context::create(1, 0.001);
+        auto ctx = manapi::async::context::create(std::thread::hardware_concurrency(), 0.001);
         ctx->eventloop()->setup_handle_interrupt();
+
+        int a = 0;
+
+        a += 5;
 
         // manapi::async::run(ctx, [ctx] () -> manapi::future<> {
         //             auto data = co_await manapi::filesystem::read_async(ctx, "/home/Timur/Desktop/WorkSpace/test/msg.txt");
