@@ -61,7 +61,7 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
 
     if (!SSL_is_init_finished(conn.ssl)) {
         conn.mustly.fetch_xor(CONN_READ | CONN_WRITE);
-        conn.timer_accept.store(co_await this->site.async_context()->timerpool()->async_append_timer_async(std::chrono::milliseconds(2000), [this, conn = &conn, connection] () -> future<void> {
+        conn.timer_accept.store(co_await this->site.async_context()->timerpool()->async_append_timer_async(2000, [this, conn = &conn, connection] () -> future<void> {
             conn->timer_accept.store(0);
             co_await this->connection_close(connection, false);
         }));

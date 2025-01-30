@@ -5,18 +5,21 @@
 
 
 namespace manapi::time {
-    inline std::string fmt_current (const std::string &fmt, bool local) {
-        std::time_t now = std::time(0);
-        std::tm *ltm;
+    template<typename T>
+    auto change_time_zone (const std::chrono::time_point<T> &utc, const std::chrono::time_zone *tz) {
+        return std::chrono::zoned_time{tz, utc};
+    }
 
-        if (local)
-            ltm = std::localtime(&now);
-        else
-            ltm = std::gmtime(&now);
+    template<typename T>
+    auto make_current (const std::chrono::time_point<T> &utc) {
+        return change_time_zone<T>(utc, std::chrono::current_zone());
+    }
 
-        std::ostringstream oss;
-        oss << std::put_time(ltm, fmt.data());
-
-        return oss.str();
+    inline auto current_time (bool local = true) {
+        auto t = std::chrono::system_clock::now();
+        if (local) {
+            return make_current(t);
+        }
+        return change_time_zone(t, std::chrono::locate_zone("UTC"));
     }
 }

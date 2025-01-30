@@ -19,12 +19,17 @@
 #define THROW_MANAPIHTTP_JSON_ERROR(errnum, msg, ...) throw manapi::json_parse_exception(errnum, std::format(msg, __VA_ARGS__));
 #define THROW_MANAPIHTTP_JSON_ERROR2(errnum, msg) throw manapi::json_parse_exception(errnum, std::format(msg));
 
+manapi::json_mask::json_mask(const std::initializer_list<json> &data)
+{
+    this->information = data;
+    initial_resolve_information (this->information);
+    this->enabled = true;
+}
 
 manapi::json_mask::json_mask(json data) {
-    information = std::move(data);
-    initial_resolve_information(information);
-
-    enabled = true;
+    this->information = std::move(data);
+    initial_resolve_information(this->information);
+    this->enabled = true;
 }
 
 // manapi::json_mask &manapi::json_mask::operator=(manapi::json_mask &&n) noexcept {

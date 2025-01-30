@@ -13,11 +13,11 @@
 namespace manapi::net::worker {
     class smart_w_buffer {
     public:
-        smart_w_buffer (std::shared_ptr<threadpool<task>> taskpool, const std::function<future<ssize_t> (void *, ssize_t size, bool flag)> &callback, size_t sent = 0, ssize_t buffer_size = 16384);
+        smart_w_buffer (std::shared_ptr<threadpool<task>> taskpool, const std::function<future<ssize_t> (void *, ssize_t size, bool flag)> &callback, size_t sent = 0, ssize_t buffer_size = 16384, ssize_t frame_size = 16384);
         ~smart_w_buffer();
         smart_w_buffer (smart_w_buffer &&n) noexcept;
         smart_w_buffer &operator= (smart_w_buffer &&n) noexcept;
-        future<void> resize (size_t size);
+        future<void> resize (ssize_t size);
         future<void> add_allow_to_sent (int size);
         future<size_t> add (const void *c, ssize_t len, bool flag = false);
         future<void> disable ();
@@ -31,7 +31,7 @@ namespace manapi::net::worker {
         size_t buffer_cursor = 0;
         size_t buffer_pos = 0;
         std::atomic<ssize_t> sent = 0;
-        ssize_t buffer_size = 0;
+        ssize_t frame_size;
         std::shared_ptr<threadpool<task>> taskpool;
         bool flag;
     };
@@ -42,7 +42,7 @@ namespace manapi::net::worker {
         ~smart_r_buffer();
         smart_r_buffer (smart_r_buffer &&n) noexcept;
         smart_r_buffer &operator= (smart_r_buffer &&n) noexcept;
-        future<void> resize (int buffer_size);
+        future<void> resize (ssize_t buffer_size);
         future<ssize_t> add (const void *c, ssize_t len, bool flag = false);
         future<ssize_t> read (void *c, ssize_t len);
         future<void> disable ();

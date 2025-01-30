@@ -41,18 +41,18 @@
 
 namespace manapi::debug {
     template <class... Args>
-    void _log (const size_t &line, const std::string &file_name, const std::string &func, const err_num &errnum, const std::string &format, Args&& ...args)
+    void _log (size_t line, std::string file_name, std::string func, err_num errnum, std::string format, Args&& ...args)
     {
-        const auto head = std::format ("[{}][{}]: {}() ({}:{}): ", time::fmt_current("%H:%M:%S", true), static_cast<size_t>(errnum), func, file_name, line);
+        const auto head = std::format ("[{:%H:%M:%S}][{}]: {}() ({}:{}): ", time::current_time(true), static_cast<size_t>(errnum), func, file_name, line);
         const auto information = std::vformat(format, std::make_format_args(args...));
 
         std::cout << head << information << "\n";
     }
 
     template <class... Args>
-    manapi::exception _error (const size_t &line, const std::string &file_name, const std::string &func, const err_num &errnum, const int &additional_num_data, const std::string &format, Args&& ...args)
+    manapi::exception _error (size_t line, std::string file_name, std::string func, err_num errnum, int additional_num_data, std::string format, Args&& ...args)
     {
-        const auto head = std::format ("[{}][{}]: {}() ({}:{}): ", time::fmt_current("%H:%M:%S", true), static_cast<size_t>(errnum), func, file_name, line);
+        const auto head = std::format ("[{:%H:%M:%S}][{}]: {}() ({}:{}): ", time::current_time(true), static_cast<size_t>(errnum), func, file_name, line);
         const auto information = std::vformat(format, std::make_format_args(args...));
 
         std::cerr << head << information << "\n";
@@ -60,7 +60,7 @@ namespace manapi::debug {
         return std::move(manapi::exception (errnum, additional_num_data, information));
     }
 
-    inline size_t debug_print_memory (const std::string &title = "common")
+    inline size_t debug_print_memory (std::string title = "common")
     {
 #ifdef _WIN32
         return 0;

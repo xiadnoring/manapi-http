@@ -248,7 +248,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
         return {};
     }
 
-    //MANAPIHTTP_LOG("NEW FD: {}", fd);
+    MANAPIHTTP_LOG("NEW FD: {}", fd);
 
     cnt_conns.fetch_add(1);
     this->set_fd_non_blocking(fd);
@@ -262,7 +262,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     conn.worker = std::shared_ptr (this->worker);
     conn.timer.data = new decltype(connection) (connection);
 
-    ev_timer_init(&conn.timer, _ev_timeout, 0.2, 0.);
+    ev_timer_init(&conn.timer, _ev_timeout, static_cast<double>(this->config->speed_check_delay()) / 1000, 0.);
     ev_timer_start(this->le->get_loop(), &conn.timer);
 
     conn.watcher = this->site.async_context()->eventloop()->create_watcher_fd(fd, ev::READ|ev::WRITE, [this, connection = std::weak_ptr (connection)] (ev::io &w, int revents)
@@ -305,17 +305,18 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage, con
         flag = true;
     }
     else if (status & CONN_READ & mustly) {
-        if (conn.stats.total_read - conn.stats.last_total_read < 16 * 1024) {
+        if (conn.stats.total_read - conn.stats.last_total_read < this->config->speed_check_bytes()) {
             flag = true;
         }
     }
     else if (status & CONN_WRITE & mustly) {
-        if (conn.stats.total_write - conn.stats.last_total_write < 16 * 1024) {
+        if (conn.stats.total_write - conn.stats.last_total_write < this->config->speed_check_bytes()) {
             flag = true;
         }
     }
 
-    conn.timer.repeat = 0.2; // 200ms
+    /* divided by 1 second */
+    conn.timer.repeat = static_cast<double>(this->config->speed_check_delay()) / 1000;
     ev_timer_again(this->le->get_loop(), &conn.timer);
 
     if (flag) {
@@ -383,19 +384,15 @@ void manapi::net::worker::TCP::_io_event(ev::io &w, std::shared_ptr<connection> 
 
         //std::cout << connection.id << " EVENT READ\n";
         connection.status.fetch_xor(CONN_READ);
-        this->site.async_context()->taskpool()->append_task([storage] () -> void {
-            auto &connection = storage->as<connection_interface>();
-            connection.iohandle ();
-        });
+        this->site.async_context()->taskpool()->append_task([handle = std::move(connection.iohandle)] ()
+            -> void { handle(); });
         return;
     }
 
     if ((revents & ev::WRITE) && (status & CONN_WRITE)) {
         connection.status.fetch_xor(CONN_WRITE);
-        this->site.async_context()->taskpool()->append_task([storage] () -> void {
-            auto &connection = storage->as<connection_interface>();
-            connection.iohandle ();
-        });
+        this->site.async_context()->taskpool()->append_task([handle = std::move(connection.iohandle)] ()
+            -> void { handle(); });
         return;
     }
 }

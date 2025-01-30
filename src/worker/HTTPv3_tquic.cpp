@@ -374,7 +374,7 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_headers(void *ctx
     client->request_data.http = "HTTP/3";
     client->request_data.has_body = !fin;
     client->request_data.body_left = 0;
-    client->request_data.buffer.resize(worker->config->get_socket_block_size());
+    client->request_data.buffer.resize(worker->config->buffer_size());
     if (client->request_data.has_body) {
         auto contentlength = client->request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
         client->request_data.headers_part = 0;

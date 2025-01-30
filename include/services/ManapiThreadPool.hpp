@@ -26,7 +26,7 @@ namespace manapi {
         void resize (size_t thread_num);
         bool append_task (std::unique_ptr<T> task, int level = 0);
         void append_task (T task);
-        void append_task (const std::function<void()> &cb);
+        void append_task (std::function<void()> cb);
         void start();
         void stop();
         void clear();

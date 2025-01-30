@@ -2,18 +2,18 @@
 
 #include "ManapiUtils.hpp"
 
-manapi::net::worker::smart_w_buffer::smart_w_buffer(std::shared_ptr<threadpool<task>> taskpool, const std::function<future<ssize_t> (void *, ssize_t size, bool flag)> &callback, size_t sent, ssize_t buffer_size) : gmx(taskpool), cv(taskpool) {
+manapi::net::worker::smart_w_buffer::smart_w_buffer(std::shared_ptr<threadpool<task>> taskpool, const std::function<future<ssize_t> (void *, ssize_t size, bool flag)> &callback, size_t sent, ssize_t buffer_size, ssize_t frame_size) : gmx(taskpool), cv(taskpool) {
     this->flag = false;
     this->sent.store(static_cast<ssize_t>(sent));
     this->callback = callback;
-    this->buffer_size = buffer_size;
     this->taskpool = std::move(taskpool);
+    this->buffer.resize(buffer_size);
+    this->frame_size = frame_size;
 }
 
 manapi::net::worker::smart_w_buffer::~smart_w_buffer() = default;
 
 manapi::net::worker::smart_w_buffer::smart_w_buffer(smart_w_buffer &&n) noexcept : gmx(n.taskpool), cv(n.taskpool) {
-    this->flag = false;
     this->operator=(std::forward<decltype(n)>(n));
 }
 
@@ -22,7 +22,7 @@ manapi::net::worker::smart_w_buffer & manapi::net::worker::smart_w_buffer::opera
     this->flag = std::exchange(n.flag, false);
     this->sent.store(n.sent.exchange(0));
     this->callback = std::move(n.callback);
-    this->buffer_size = std::exchange(n.buffer_size, 0);
+    this->frame_size = std::exchange(n.frame_size, 0);
     this->disabled.store(n.disabled.exchange(false));
     this->taskpool = std::move(n.taskpool);
     this->buffer_cursor = std::exchange(n.buffer_cursor, 0);
@@ -31,7 +31,7 @@ manapi::net::worker::smart_w_buffer & manapi::net::worker::smart_w_buffer::opera
     return *this;
 }
 
-manapi::future<void> manapi::net::worker::smart_w_buffer::resize(size_t size) {
+manapi::future<void> manapi::net::worker::smart_w_buffer::resize(ssize_t size) {
     auto lk = co_await this->gmx.lock_guard();
     this->buffer.resize(size);
 }
@@ -77,37 +77,38 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
         }
         if (this->callback == nullptr) { THROW_MANAPIHTTP_EXCEPTION2(ERR_FUNCTION_IS_NULL, "class smart_w_buffer(...): Function was not set"); }
 
-        auto _available_sent = static_cast<ssize_t>(this->sent);
         auto prev_buffer_pos = this->buffer_pos;
-        ssize_t buff_size = std::min(static_cast<ssize_t>(this->buffer_cursor - this->buffer_pos), _available_sent);
-        if (this->buffer_size == 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_DIVIDED_BY_ZERO, "Why buffer_size equals 0?"); }
+        ssize_t buff_size = std::min(static_cast<ssize_t>(this->buffer_cursor - this->buffer_pos), this->sent.load());
         // buffer_size only
-        auto limit = this->buffer_pos + (buff_size / this->buffer_size) * this->buffer_size;
+        auto limit = this->buffer_pos + (buff_size / this->frame_size) * this->frame_size;
         while (limit > this->buffer_pos) {
-            const bool last = this->buffer_cursor <= this->buffer_pos + this->buffer_size;
-            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, this->buffer_size, (flag && last));
+            const bool last = this->buffer_cursor == this->buffer_pos + this->frame_size;
+            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, this->frame_size, (flag && last));
             if (rhs <= 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "эм"); }
-            this->buffer_pos += rhs;
-            _available_sent -= rhs;
-        }
-
-        if (_available_sent > 0 && (this->buffer_pos < this->buffer_cursor)) {
-            // less than buffer_size
-            auto pred = static_cast<ssize_t>(this->buffer_cursor - this->buffer_pos);
-            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, std::min(_available_sent, pred), flag && pred <= _available_sent);
             this->buffer_pos += rhs;
         }
 
         auto difference = static_cast<ssize_t>(this->buffer_pos - prev_buffer_pos);
         this->sent.fetch_sub(difference);
+
+        if (this->sent > 0 && (this->buffer_pos < this->buffer_cursor)) {
+            // less than frame_size
+            auto pred = static_cast<ssize_t>(this->buffer_cursor - this->buffer_pos);
+            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, std::min(this->sent.load(), pred), flag && pred <= this->sent.load());
+            this->buffer_pos += rhs;
+            this->sent.fetch_sub(rhs);
+        }
+
         total += difference;
 
         if (flag && this->buffer_pos < this->buffer_cursor) {
             continue;
         }
 
-        this->buffer_pos = 0;
-        this->buffer_cursor = 0;
+        if (this->buffer_pos==this->buffer_cursor) {
+            this->buffer_pos=0;
+            this->buffer_cursor=0;
+        }
 
         co_return total;
     }
@@ -138,7 +139,7 @@ manapi::net::worker::smart_r_buffer & manapi::net::worker::smart_r_buffer::opera
     return *this;
 }
 
-manapi::future<void> manapi::net::worker::smart_r_buffer::resize(int buffer_size) {
+manapi::future<void> manapi::net::worker::smart_r_buffer::resize(ssize_t buffer_size) {
     auto lk = co_await this->gmx.lock_guard();
     this->buffer.resize(buffer_size);
 }

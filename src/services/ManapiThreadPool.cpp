@@ -110,8 +110,8 @@ namespace manapi {
     }
 
     template<class T>
-    void threadpool<T>::append_task(const std::function<void()> &cb) {
-        this->append_task(std::make_unique<net::function_task>(cb));
+    void threadpool<T>::append_task(std::function<void()> cb) {
+        this->append_task(std::make_unique<net::function_task>(std::move(cb)));
     }
 
     template<class T>

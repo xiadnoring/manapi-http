@@ -16,7 +16,7 @@ namespace manapi::net::worker {
         struct connection_interface : TCP::connection_interface {
             SSL *ssl{};
             std::unique_ptr<async::mutex> mx;
-            std::atomic<int> timer_accept = 0;
+            std::atomic<size_t> timer_accept = 0;
         };
 
         OpenSSL_TLS (net::site &site);

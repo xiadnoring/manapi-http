@@ -105,6 +105,57 @@ namespace manapi::net::worker {
     };
 
     class http_v2 : public worker::base {
+        struct parse_vars_t {
+            bool next_line_state = false;
+            std::string buffer;
+            size_t i = 0;
+            size_t buffint = 0;
+            size_t nkey;
+            std::string key;
+            size_t size;
+            size_t j = 0;
+        };
+
+        struct protocol_http2_t {
+            async::mutex mx; // multithread
+            ssize_t length = 9 + 8; // 9 must-have octets in the header + 8 metadata
+            ssize_t type = 0;
+            int stream_id = 0;
+            uint8_t flag = 0;
+            bool initial_frame = true;
+            std::map <int, std::pair <std::atomic<int>, std::function <void(int value, bool self)>>> settings;
+            size_t padding = 0;
+            ssize_t timer_interval = 20;
+            std::chrono::system_clock::time_point prev_ping_time_point = std::chrono::system_clock::now();
+            std::chrono::milliseconds ping_delay {200};
+            std::atomic<int> conn_type = 0;
+            std::set <std::string> pings;
+
+            struct protocol_http2_window_t {
+                std::shared_ptr<async::condition_variable> write_cv{};
+
+                std::atomic<ssize_t> read = 0;
+                std::atomic<ssize_t> write = 0;
+            } window{};
+
+            struct protocol_http2_error_t {
+                int errnum = 0;
+                int last_stream_id = 0;
+                std::string errmsg{};
+            } error{};
+
+            int value = -1;
+            std::atomic<int> rst_cnt = 0;
+            ssize_t timeout = 1000;
+            std::atomic<ssize_t> current_timeout = timeout;
+            std::queue <size_t> setting_timeout{};
+            manapi::future<> parse_exception{nullptr};
+            manapi::compress::hpack::decoder_t decoder{};
+            manapi::compress::hpack::encoder_t encoder{};
+
+            std::shared_ptr<async::mutex> setting_param_acks_mx{nullptr};
+            std::atomic<size_t> setting_param_acks = 0;
+        };
     public:
         http_v2 (const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~http_v2() override;
@@ -173,10 +224,11 @@ namespace manapi::net::worker {
         void default_ev_finished (int id);
         void default_ev_priopity_update (int id, int prioritized_id, std::string prioritized_value);
         void default_ev_rst_stream (int id, int errnum);
+        future<void> unlimit_all_streams ();
         future<void> reset_all_streams ();
         future<void> delete_stream_id (const int &id);
         future<void> reset_stream (int id, int errnum);
-        future<void> session_worker (int id, bool body, std::shared_ptr<smart_w_buffer> write, std::shared_ptr<smart_r_buffer> read);
+        void session_worker (int id, bool body, std::shared_ptr<smart_w_buffer> write, std::shared_ptr<smart_r_buffer> read);
 
         future<ssize_t> default_read (worker::connection &connection, void *buff, ssize_t size);
         future<ssize_t> default_write (worker::connection &connection, const void *buff, ssize_t size, bool flag);
@@ -198,56 +250,9 @@ namespace manapi::net::worker {
             return std::move(result);
         }
 
-        struct parse_vars_t {
-            bool next_line_state = false;
-            std::string buffer;
-            size_t i = 0;
-            size_t buffint = 0;
-            size_t nkey;
-            std::string key;
-            size_t size;
-            size_t j = 0;
-        } parse_vars;
+        parse_vars_t parse_vars;
 
-        struct protocol_http2_t {
-            async::mutex mx; // multithread
-            ssize_t length = 9 + 8; // 9 must-have octets in the header + 8 metadata
-            ssize_t type = 0;
-            int stream_id = 0;
-            uint8_t flag = 0;
-            bool initial_frame = true;
-            std::map <int, std::pair <std::atomic<int>, std::function <void(int value, bool self)>>> settings;
-            size_t padding = 0;
-            ssize_t timer_interval = 20;
-            std::chrono::system_clock::time_point prev_ping_time_point = std::chrono::system_clock::now();
-            std::chrono::milliseconds ping_delay {200};
-            std::atomic<int> conn_type = 0;
-            std::set <std::string> pings;
-
-            struct protocol_http2_window_t {
-                std::shared_ptr<async::condition_variable> write_cv{};
-
-                std::atomic<ssize_t> read = 0;
-                std::atomic<ssize_t> write = 0;
-            } window{};
-
-            struct protocol_http2_error_t {
-                int errnum = 0;
-                int last_stream_id = 0;
-                std::string errmsg{};
-            } error{};
-
-            int value = -1;
-            ssize_t timeout = 1000;
-            std::atomic<ssize_t> current_timeout = timeout;
-            std::queue <size_t> setting_timeout{};
-            manapi::future<> parse_exception{nullptr};
-            manapi::compress::hpack::decoder_t decoder{};
-            manapi::compress::hpack::encoder_t encoder{};
-
-            std::shared_ptr<async::mutex> setting_param_acks_mx{nullptr};
-            std::atomic<size_t> setting_param_acks = 0;
-         } protocol;
+        protocol_http2_t protocol;
 
         std::map <int, http_v2_session_t> sessions;
 

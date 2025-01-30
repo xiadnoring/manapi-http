@@ -76,6 +76,11 @@ manapi::net::http::config::config(const json &config) {
         this->max_header_block_size.store(config["max_header_block_size"].get<size_t>());
     }
 
+    /* buffer_size */
+    if (config.contains("buffer_size")) {
+        this->buffer_size_.store(config["buffer_size"].as_integer());
+    }
+
     /* max_backlog */
     if (config.contains("max_backlog")) {
         this->max_backlog_.store(config["max_backlog"].as_integer());
@@ -170,6 +175,11 @@ manapi::net::http::config::config(const json &config) {
         this->max_connections_.store(config["max_connections"].as_integer());
     }
 
+    /* max_rst_cnt */
+    if (config.contains("max_rst_cnt")) {
+        this->max_rst_cnt_.store(config["max_rst_cnt"].as_integer());
+    }
+
     /* quic debug */
     if (config.contains("quic_debug"))
     {
@@ -184,6 +194,16 @@ manapi::net::http::config::config(const json &config) {
     /* verify peer */
     if (config.contains("verify_peer")) {
         this->verify_peer.store(config["verify_peer"].as_bool());
+    }
+
+    /* speed_check_delay */
+    if (config.contains("speed_check_delay")) {
+        this->speed_check_delay_.store(config["speed_check_delay"].as_integer());
+    }
+
+    /* speed_check_bytes */
+    if (config.contains("speed_check_bytes")) {
+        this->speed_check_delay_.store(config["speed_check_bytes"].as_integer());
     }
 }
 
@@ -288,6 +308,18 @@ std::atomic <size_t> &manapi::net::http::config::get_quic_cc_algo() {
     return this->quic_cc_algo;
 }
 
+std::atomic<ssize_t> & manapi::net::http::config::max_rst_cnt() {
+    return this->max_rst_cnt_;
+}
+
+std::atomic<ssize_t> & manapi::net::http::config::speed_check_delay() {
+    return this->speed_check_delay_;
+}
+
+std::atomic<ssize_t> & manapi::net::http::config::speed_check_bytes() {
+    return this->speed_check_bytes_;
+}
+
 manapi::AtomicReference<manapi::net::http::ssl_config_t> manapi::net::http::config::get_ssl_config() {
     return *this->ssl_config;
 }
@@ -366,4 +398,8 @@ std::atomic<bool> & manapi::net::http::config::get_tcp_no_delay() {
 
 std::atomic<bool> & manapi::net::http::config::get_verify_peer() {
     return this->verify_peer;
+}
+
+std::atomic<ssize_t> & manapi::net::http::config::buffer_size() {
+    return this->buffer_size_;
 }

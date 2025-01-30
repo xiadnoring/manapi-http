@@ -85,6 +85,9 @@ namespace manapi::async {
     requires(!std::is_same_v<T1, void>)
     manapi::future<T1> parallel_run<T>::get_or(T1 &&v) const {
         auto lk = co_await this->mx->lock_guard();
-        co_return this->value->get_or(std::forward<decltype(v)>(v));
+        if (this->value) {
+            co_return this->value->get_or(std::forward<decltype(v)>(v));
+        }
+        co_return std::forward<decltype(v)>(v);
     }
 }

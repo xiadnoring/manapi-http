@@ -92,11 +92,12 @@ namespace manapi::net::worker {
         static void _flush_read (connection_t &conn_data);
         static void _quiche_set_header (quiche_h3_header &header, std::string_view key, std::string_view value);
         static void _write_watcher_cb (EV_P_ ev_async *w, int revents);
+        static void _force_close (connection_t &conn_data);
         static void _flush_connection_closed (connection_t &conn_data);
         static void _clean_connection (connection_t *conn_data);
         void _stream_close (connection_stream_t &stream);
         void _reset_all_streams (connection_t &conn_data);
-        static void _connection_timer_check (EV_P_ ev_timer *w, int revents);
+        void _io_timeout (connection_t &conn_data);
         static void _quiche_timeout (EV_P_ ev_timer *w, int revents);
         static int _grab_headers (uint8_t *name, size_t name_len, uint8_t *value, size_t value_len, void *argp);
         static bool _validate_token (std::string_view token, std::string &odcid, const sockaddr_storage &sockaddr_src, const socklen_t &sockaddr_len);

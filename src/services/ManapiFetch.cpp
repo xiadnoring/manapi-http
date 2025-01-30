@@ -276,7 +276,7 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
     ssize_t total_write_prev = 0;
     ssize_t again = 10;
 
-    size_t timeout_token = co_await this->timerpool->async_append_interval_async(std::chrono::milliseconds(200), [&] () -> manapi::future<> {
+    size_t timeout_token = co_await this->timerpool->async_append_interval_async(200, [&] () -> manapi::future<> {
         if (this->total_read - total_read_prev + this->total_write - total_write_prev < 8 * 1024) {
             if (!(again--)) {
                 co_return co_await this->event->unwatch_curl(this->curl.get());

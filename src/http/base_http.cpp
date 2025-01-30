@@ -56,7 +56,7 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http_re
     };
 
     // set time
-    res.set_header(HTTP_HEADER.DATE, manapi::time::fmt_current("%a, %d %b %Y %H:%M:%S GMT", false));
+    res.set_header(HTTP_HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", manapi::time::current_time(false)));
     if (config->get_http_version() < versions::HTTP_v2) { res.set_header(HTTP_HEADER.CONNECTION, "close"); }
 
     if (res.is_file()) {
@@ -364,7 +364,7 @@ manapi::future<void> manapi::net::http::base::send_error_response(const size_t &
 }
 
 manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, filesystem::async::fstream &f, ssize_t size) const {
-    auto block_size = static_cast<ssize_t>(65536);
+    auto block_size = static_cast<ssize_t>(this->config->buffer_size().load());
 
     std::string write_block, read_block;
 
@@ -386,20 +386,18 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
     while (size > current) {
         /* add count of the chars which will be sent at this iterration */
         current += rhs;
-
-        if (size > current) {
+        bool readsome = size > current;
+        if (readsome) {
             parallel.run(f.read(read_block.data(), std::min(block_size, size - current)));
         }
 
-        if ((rhs = co_await this->worker->fwrite (*this->connection, write_block.data(), rhs, current >= size)) <= 0) {
+        if ((rhs = co_await this->worker->fwrite (*this->connection, write_block.data(), rhs, !readsome)) <= 0) {
             /* failed to send */
             rhs = co_await parallel.get_or(0);
             break;
         }
 
-        rhs = co_await parallel.get_or(0);
-
-        if (rhs <= 0) {
+        if ((rhs = co_await parallel.get_or(0)) <= 0) {
             break;
         }
 
@@ -407,11 +405,13 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
 
         //printf("%s STEP: %zi LEFT: %zi NEED: %zi CURRENT: %zi\n", res.get_file().data(), sent, left, size, current);
     }
+
+    MANAPIHTTP_LOG("file size: {}", size);
 }
 
 manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, filesystem::async::fstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const {
     std::string block;
-    auto block_size = static_cast<ssize_t>(config->get_socket_block_size());
+    auto block_size = static_cast<ssize_t>(this->config->buffer_size());
 
     block.resize(block_size);
 
@@ -517,8 +517,8 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
                 if (free_space < value_left_size) {
                     block_size += value_left_size - free_space;
 
-                    if (block_size >= config->get_socket_block_size()) {
-                        block_size = static_cast<ssize_t>(config->get_socket_block_size());
+                    if (block_size >= block.size()) {
+                        block_size = static_cast<ssize_t>(block.size());
                         repeat = true;
                     }
                 }
@@ -552,11 +552,11 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
                 }
                 else {
                     free_space = block_size - i;
-                    ssize_t can_read = static_cast<ssize_t> (config->get_socket_block_size()) - i;
+                    const ssize_t can_read = static_cast<ssize_t> (block.size()) - i;
 
                     // we want to read chars by size can_read
                     f.seekg(current + index_in_block - shift);
-                    ssize_t read = co_await f.read (block.data() + i, can_read);
+                    const ssize_t read = co_await f.read (block.data() + i, can_read);
 
                     block_size += read - free_space;
 
@@ -628,11 +628,8 @@ manapi::future<void> manapi::net::http::base::expect_header() {
 }
 
 std::string generate_cache_name(const std::string &file, const std::string &ext) {
-    std::string name = manapi::filesystem::basename(std::forward<const std::string&> (file));
-
-    name += manapi::time::fmt_current ("-%Y_%m_%d_%H_%M_%S-", true) + manapi::string::random(25);
-    name += '.';
-    name += ext;
+    std::string name = std::format("{}-{:%Y_%m_%d_%H_%M_%S}-{}.{}", manapi::filesystem::basename(std::forward<const std::string&> (file)),
+        manapi::time::current_time (true), manapi::string::random(25), ext);
 
     return std::move(name);
 }

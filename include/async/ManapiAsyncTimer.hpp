@@ -6,8 +6,8 @@
 namespace manapi::async {
     class delay {
     public:
-        delay (const std::shared_ptr<context> &ctx, const std::chrono::seconds &time) : ctx(ctx) {
-            this->time = time;
+        delay (const std::shared_ptr<context> &ctx, size_t ms) : ctx(ctx) {
+            this->time = ms;
         }
         ~delay() = default;
         [[nodiscard]] bool await_ready () const {
@@ -26,6 +26,6 @@ namespace manapi::async {
         void await_resume () const {}
     private:
         std::shared_ptr<context> ctx;
-        std::chrono::seconds time{};
+        size_t time{};
     };
 }

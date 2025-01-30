@@ -93,6 +93,10 @@ namespace manapi::net::http {
 
         [[nodiscard]] std::atomic<size_t> &get_quic_cc_algo ();
 
+        std::atomic<ssize_t> &max_rst_cnt ();
+        std::atomic<ssize_t> &speed_check_delay ();
+        std::atomic<ssize_t> &speed_check_bytes ();
+
         AtomicReference<ssl_config_t> get_ssl_config ();
 
         void set_server_address (const sockaddr &addr);
@@ -122,6 +126,8 @@ namespace manapi::net::http {
         std::atomic<bool> &get_tcp_no_delay ();
 
         std::atomic<bool> &get_verify_peer ();
+
+        std::atomic<ssize_t> &buffer_size ();
     private:
         // settings
         std::atomic<bool> quic_debug = false;
@@ -143,6 +149,10 @@ namespace manapi::net::http {
         std::atomic<size_t> max_file_param_length   = 2147483648UL;
         std::atomic<size_t> max_connections_{1000};
         std::atomic<int> max_backlog_{200};
+        std::atomic<ssize_t> buffer_size_{65536};
+        std::atomic<ssize_t> max_rst_cnt_{5};
+        std::atomic<ssize_t> speed_check_delay_ {200};
+        std::atomic<ssize_t> speed_check_bytes_ {8388608};
 #ifdef _WIN32
         std::atomic<SOCKET> sock_fd{0};
 #else

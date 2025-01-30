@@ -7,7 +7,6 @@
 
 manapi::timerpool::timerpool(std::shared_ptr<event_loop> events, const double &delay) {
     this->cv = std::make_shared<async::condition_variable>(events->get_task_pool());
-    this->mx = std::make_shared<async::mutex>(events->get_task_pool());
     this->smx = std::make_shared<async::mutex>(events->get_task_pool());
     this->taskpool = events->get_task_pool();
     this->events = std::move(events);
@@ -22,51 +21,45 @@ manapi::timerpool::~timerpool() {
 }
 
 manapi::future<size_t> manapi::timerpool::async_append_timer_sync(
-    const std::chrono::milliseconds &duration, std::function<void()> task, std::shared_ptr<size_t> id) {
-    co_return co_await this->_append(duration, nullptr, task, false, std::move(id));
+    size_t ms, std::function<void()> task) {
+    return this->events->append_sync_timer(ms, std::move(task));
 }
 
 manapi::future<size_t> manapi::timerpool::async_append_timer_async(
-    const std::chrono::milliseconds &duration, std::function<future<void>()> task, std::shared_ptr<size_t> id) {
-    co_return co_await this->_append(duration, task, nullptr, false, std::move(id));
+    size_t ms, std::function<future<void>()> task) {
+    return this->events->append_async_timer(ms, std::move(task));
 }
 
-size_t manapi::timerpool::append_timer(const std::chrono::milliseconds &duration, const std::function<void()> &task) {
-    return this->async_append_timer_sync(duration, task).get(this->taskpool);
+size_t manapi::timerpool::append_timer_sync(size_t ms, std::function<void()> task) {
+    return this->_append(std::chrono::milliseconds(ms), nullptr, std::move(task), false);
+}
+
+size_t manapi::timerpool::append_timer_async(size_t ms, std::function<manapi::future<>()> task) {
+    return this->_append(std::chrono::milliseconds(ms), std::move(task), nullptr, false);
 }
 
 manapi::future<> manapi::timerpool::async_remove_timer(size_t id) {
-    auto lk = co_await this->mx->lock_guard();
-    if (id == 0) {
-        co_return;
-    }
+    return this->events->remove_timer(id);
+}
+
+void manapi::timerpool::remove_timer(size_t id) {
     this->_erase_task(id);
 }
 
-manapi::future<> manapi::timerpool::async_remove_timer(std::shared_ptr<size_t> id) {
-    auto lk = co_await this->mx->lock_guard();
-    if (*id == 0) {
-        co_return;
-    }
-    this->_erase_task(*id);
+manapi::future<size_t> manapi::timerpool::async_append_interval_sync( size_t ms, std::function<void()> task) {
+    return this->events->append_sync_interval(ms, std::move(task));
 }
 
-void manapi::timerpool::remove_timer(const size_t &id) {
-    this->async_remove_timer(id).get(this->taskpool);
+manapi::future<size_t> manapi::timerpool::async_append_interval_async( size_t ms, std::function<future<>()> task) {
+    return this->events->append_async_interval(ms, std::move(task));
 }
 
-manapi::future<size_t> manapi::timerpool::async_append_interval_sync(
-    const std::chrono::milliseconds &duration, std::function<void()> task, std::shared_ptr<size_t> id) {
-    co_return co_await this->_append(duration, nullptr, task, true, std::move(id));
+size_t manapi::timerpool::append_interval_async(size_t ms, std::function<manapi::future<>()> task) {
+    return this->_append(std::chrono::milliseconds(ms), std::move(task), nullptr, true);
 }
 
-manapi::future<size_t> manapi::timerpool::async_append_interval_async(
-    const std::chrono::milliseconds &duration, std::function<future<>()> task, std::shared_ptr<size_t> id) {
-    co_return co_await this->_append(duration, task, nullptr, true, std::move(id));
-}
-
-size_t manapi::timerpool::append_interval(const std::chrono::milliseconds &duration, const std::function<void()> &task) {
-    return this->async_append_interval_sync(duration, task).get(this->taskpool);
+size_t manapi::timerpool::append_interval_sync(size_t ms, std::function<void()> task) {
+    return this->_append(std::chrono::milliseconds(ms), nullptr, std::move(task), true);
 }
 
 manapi::future<void> manapi::timerpool::start(std::shared_ptr<timerpool> tp) {
@@ -76,30 +69,19 @@ manapi::future<void> manapi::timerpool::start(std::shared_ptr<timerpool> tp) {
         co_return;
     }
 
+    this->events->set_timer_callback([this] (adding_timer_data_t &&data)
+        -> size_t { return this->_cb_event(std::forward<decltype(data)>(data)); });
+
     this->_stop.store(false);
 
     this->finish_event = co_await this->events->subscribe_finish([tp] () -> future<> {
         co_await tp->stop();
     });
 
-    this->timer = this->events->create_watcher_timer(0, 0, [this, tp] (ev::timer &w, int revents) -> void {
-        this->deps.fetch_add(1);
+    this->timer = this->events->create_watcher_timer(0, 0, [this, tp] (ev::timer &w, int revents)
+        -> void { this->_start(); w.repeat = this->delay; w.again(); });
 
-        async::run(this->taskpool, this->_start(), [tp, &w] () -> void {
-            w.repeat = tp->delay;
-
-            tp->deps.fetch_sub(1);
-
-            if (!tp->_stop) {
-                async::run(tp->taskpool,
-                    tp->events->again_timer(tp->timer));
-            }
-            else {
-                async::run(tp->taskpool,
-                    tp->cv->notify_all());
-            }
-        });
-    });
+    this->deps.fetch_add(1);
 
     co_await this->events->watch_timer(this->timer);
 }
@@ -113,8 +95,11 @@ manapi::future<void> manapi::timerpool::stop() {
 
     this->_stop.store(true);
 
+
     co_await this->events->unsubscribe_finish(std::exchange(this->finish_event, 0));
     co_await this->events->unwatch_timer(std::move(this->timer));
+
+    this->deps.fetch_sub(1);
 
     co_await this->cv->wait([this] ()
         -> bool { return this->deps == 0; });
@@ -154,9 +139,7 @@ manapi::timerpool::sorted_storage::iterator manapi::timerpool::_erase_task(sorte
     return sorted_task;
 }
 
-manapi::future<> manapi::timerpool::_start() {
-    auto lk = co_await this->mx->lock_guard();
-
+void manapi::timerpool::_start() {
     auto now = std::chrono::steady_clock::now();
 
     for (auto sorted_task = this->sorted_tasks.begin(); sorted_task != this->sorted_tasks.end(); ) {
@@ -203,12 +186,45 @@ std::shared_ptr<manapi::threadpool<manapi::task>> manapi::timerpool::get_task_po
     return this->taskpool;
 }
 
-manapi::future<void> manapi::timerpool::_update_interval_state(const size_t &id) {
-    auto lk = co_await this->mx->lock_guard();
-    
+size_t manapi::timerpool::_cb_event(adding_timer_data_t data) {
+    switch (data.flag) {
+        case 0: {
+            if (data.async_cb) {
+                return this->append_timer_async(data.data, std::move(data.async_cb));
+            }
+            if (data.sync_cb) {
+                return this->append_timer_sync(data.data, std::move(data.sync_cb));
+            }
+            break;
+        }
+        case 1: {
+            if (data.async_cb) {
+                return this->append_interval_async(data.data, std::move(data.async_cb));
+            }
+            if (data.sync_cb) {
+                return this->append_interval_sync(data.data, std::move(data.sync_cb));
+            }
+            break;
+        }
+        case 2: {
+            this->remove_timer(data.data);
+            break;
+        }
+        case 3: {
+            this->_update_interval_state(data.data);
+            break;
+        }
+        default:
+            break;
+    }
+
+    return 0;
+}
+
+void manapi::timerpool::_update_interval_state(const size_t &id) {
     auto task = this->tasks.find(id);
     if (task == this->tasks.end()) {
-        co_return;
+        return;
     }
 
     this->sorted_tasks.erase({task->second.point, id});
@@ -219,9 +235,7 @@ manapi::future<void> manapi::timerpool::_update_interval_state(const size_t &id)
     this->sorted_tasks.insert({task->second.point, id});
 }
 
-manapi::future<size_t> manapi::timerpool::_append(const std::chrono::milliseconds &duration, const std::function<future<>()> &async_task, const std::function<void()> &task, const bool &inteval, std::shared_ptr<size_t> token) {
-    auto lk = co_await this->mx->lock_guard();
-    
+size_t manapi::timerpool::_append(std::chrono::milliseconds duration, std::function<future<>()> async_task, std::function<void()> task, bool interval) {
     while (this->tasks.contains(this->index)) {
         this->index++;
         if (this->index == std::numeric_limits<size_t>::max()) {
@@ -231,16 +245,15 @@ manapi::future<size_t> manapi::timerpool::_append(const std::chrono::millisecond
     const size_t id = this->index++;
     auto _task = this->tasks.insert({id, timer_task{
         duration,
-        async_task ? std::make_shared<std::function<future<>()>>(async_task) : nullptr,
-        task ? std::make_shared<std::function<void()>>(task) : nullptr,
+        async_task ? std::make_shared<std::function<future<>()>>(std::move(async_task)) : nullptr,
+        task ? std::make_shared<std::function<void()>>(std::move(task)) : nullptr,
         std::chrono::steady_clock::now() + duration,
-        inteval,
-        true,
-        std::move(token)
+        interval,
+        true
     }});
 
     if (!_task.second) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_BUG, "timerpool: the index was used: {}", id);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_BUG, "timerpool: the following index exists: {}", id);
     }
 
     this->sorted_tasks.insert({_task.first->second.point, id});
@@ -249,36 +262,28 @@ manapi::future<size_t> manapi::timerpool::_append(const std::chrono::millisecond
         this->index = 1;
     }
     
-    co_return id;
+    return id;
 }
 
 void manapi::timerpool::_call_cb(storage::iterator task,
     std::shared_ptr<std::function<void()>> cb) {
     if (task->second.interval) {
-        this->deps.fetch_add(1);
-        this->taskpool->append_task ([this, id = task->first, cb] () mutable -> void {
-            async::run(this->taskpool, [cb, id, this] () -> future<void> {
-                try {
-                    (*cb)();
-                    co_await this->_update_interval_state(id);
-                    this->deps.fetch_sub(1);
-                    co_await this->cv->notify_all();
-                }
-                catch (std::exception const &e) {
-                    MANAPIHTTP_LOG("Timer Task Exception: {}", e.what());
-                }
-            });
-        });
+
+        try {
+            (*cb)();
+            this->_update_interval_state(task->first);
+        }
+        catch (std::exception const &e) {
+            MANAPIHTTP_LOG("Timer Task Exception: {}", e.what());
+        }
     }
     else {
-        this->taskpool->append_task(std::make_unique<net::function_task>([cb = std::move(cb)] () -> void {
-            try {
-                (*cb)();
-            }
-            catch (std::exception const &e) {
-                MANAPIHTTP_LOG("Unexpected error: {}", e.what());
-            }
-        }));
+        try {
+            (*cb)();
+        }
+        catch (std::exception const &e) {
+            MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+        }
     }
 }
 
@@ -290,7 +295,7 @@ void manapi::timerpool::_async_call_cb(std::unordered_map<size_t, timer_task>::i
             async::run(this->taskpool, [cb = std::move(cb), id, this] () -> future<void> {
                 try {
                     co_await (*cb)();
-                    co_await this->_update_interval_state(id);
+                    co_await this->events->update_state_interval(id);
                     this->deps.fetch_sub(1);
                     co_await this->cv->notify_all();
                 }
