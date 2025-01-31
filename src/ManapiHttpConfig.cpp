@@ -23,18 +23,18 @@ manapi::net::http::config::config(const json &config) {
     /* partial data min size */
     if (config.contains("partial_data_min_size"))
     {
-        this->partial_data_min_size.store(config["partial_data_min_size"].get <size_t> ());
+        this->partial_data_min_size.store(config["partial_data_min_size"].as_integer());
     }
 
     /* socket block size */
     if (config.contains("socket_block_size"))
     {
-        this->socket_block_size.store(config["socket_block_size"].get <size_t> ());
+        this->socket_block_size.store(config["socket_block_size"].as_integer());
     }
 
     /* http version */
     if (config.contains("http_version")) {
-        this->http_version_str = config["http_version"].get <std::string> ();
+        this->http_version_str = config["http_version"].as_string();
 
         if (this->http_version_str       == "0.9")    this->http_version.store(versions::HTTP_v0_9);
         else if (this->http_version_str  == "1.0")    this->http_version.store(versions::HTTP_v1_0);
@@ -52,28 +52,28 @@ manapi::net::http::config::config(const json &config) {
     /* port */
     if (config.contains("port"))
     {
-        this->port = config["port"].get <std::string> ();
+        this->port = config["port"].as_string();
     }
 
     /* address */
     if (config.contains("address"))
     {
-        this->address = config["address"].get <std::string> ();
+        this->address = config["address"].as_string();
     }
 
     /* ssl */
     if (config.contains("ssl")) {
         this->ssl_config = {
-            .enabled  = config["ssl"]["enabled"].get<bool>(),
-            .key      = config["ssl"]["key"].get<std::string>(),
-            .cert     = config["ssl"]["cert"].get<std::string>()
+            .enabled  = config["ssl"]["enabled"].as_bool(),
+            .key      = config["ssl"]["key"].as_string(),
+            .cert     = config["ssl"]["cert"].as_string()
         };
     }
 
     /* max_header_block_size */
     if (config.contains("max_header_block_size"))
     {
-        this->max_header_block_size.store(config["max_header_block_size"].get<size_t>());
+        this->max_header_block_size.store(config["max_header_block_size"].as_integer());
     }
 
     /* buffer_size */
@@ -89,37 +89,37 @@ manapi::net::http::config::config(const json &config) {
     /* keep_alive */
     if (config.contains("keep_alive"))
     {
-        this->keep_alive.store(config["keep_alive"].get<size_t>());
+        this->keep_alive.store(config["keep_alive"].as_integer());
     }
 
     /* recv_timeout */
     if (config.contains("recv_timeout"))
     {
-        this->recv_timeout.store(config["recv_timeout"].get<ssize_t>());
+        this->recv_timeout.store(config["recv_timeout"].as_integer());
     }
 
     /* send_timeout */
     if (config.contains("send_timeout"))
     {
-        this->send_timeout.store(config["send_timeout"].get<ssize_t>());
+        this->send_timeout.store(config["send_timeout"].as_integer());
     }
 
     /* implementation */
     if (config.contains("implementation"))
     {
-        this->implementation = config["implementation"].get<std::string>();
+        this->implementation = config["implementation"].as_string();
     }
 
     /* transport */
     if (config.contains("transport"))
     {
-        this->transport = config["transport"].get<std::string>();
+        this->transport = config["transport"].as_string();
     }
 
     /* tls version */
     if (config.contains("tls_version"))
     {
-        const std::string &tls_version_string = config["tls_version"].get<std::string>();
+        const std::string &tls_version_string = config["tls_version"].as_string();
         if (tls_version_string == "1" || tls_version_string == "1.0")
         {
             this->tls_version.store(versions::TLS_v1);
@@ -144,7 +144,7 @@ manapi::net::http::config::config(const json &config) {
     /* quic cc algo */
     if (config.contains("quic_cc_algo"))
     {
-        const std::string &quic_cc_algo_string = config["quic_cc_algo"].get<std::string>();
+        const std::string &quic_cc_algo_string = config["quic_cc_algo"].as_string();
         if (quic_cc_algo_string == "CUBIC")
         {
             this->quic_cc_algo.store(versions::QUIC_CC_CUBIC);
@@ -183,7 +183,7 @@ manapi::net::http::config::config(const json &config) {
     /* quic debug */
     if (config.contains("quic_debug"))
     {
-        this->quic_debug.store(config["quic_debug"].get<bool>());
+        this->quic_debug.store(config["quic_debug"].as_bool());
     }
 
     /* tcp no delay */

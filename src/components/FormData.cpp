@@ -558,7 +558,7 @@ std::string manapi::net::formdata_recv::json2form(const json &obj) {
         loop:
         if (it->second.is_string())
         {
-            data += crypto::encode_url(it->first) + "=" + crypto::encode_url(it->second.get<std::string>());
+            data += crypto::encode_url(it->first) + "=" + crypto::encode_url(it->second.as_string());
         }
         else
         {

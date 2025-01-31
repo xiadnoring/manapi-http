@@ -171,8 +171,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
     }
     if (obj.is_string())
     {
-        auto &str = obj.get<std::string>();
-        auto *str2 = &obj.get<std::string>();
+        auto &str = obj.as_string();
 
         // if {x}
         if (str.size() <= 2

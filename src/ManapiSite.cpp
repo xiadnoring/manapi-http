@@ -143,7 +143,7 @@ void manapi::net::site::setup_config() {
     if (this->config.contains("save_config")) {
         if (this->config["save_config"].is_bool())
         {
-            this->enabled_save_config = this->config["save_config"].get<bool>();
+            this->enabled_save_config = this->config["save_config"].as_bool();
         }
     }
 }
@@ -163,8 +163,8 @@ std::string manapi::net::site::get_compressed_cache_file(const std::string &file
     }
 
     auto &file_info = files[file];
-    if (file_info.at("last-write").get<std::string>() == manapi::filesystem::last_time_write(file, true)) {
-        auto &compressed = file_info.at("compressed").get<std::string>();
+    if (file_info.at("last-write").as_string() == manapi::filesystem::last_time_write(file, true)) {
+        auto &compressed = file_info.at("compressed").as_string();
 
         if (manapi::filesystem::exists(compressed))
         {

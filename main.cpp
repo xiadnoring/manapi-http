@@ -141,10 +141,11 @@ int main (int argc, char *argv[]) {
     manapi::debug::debug_print_memory("start");
     std::string data = "hello world test 2";
     manapi::json b = manapi::json::object();
-    b.insert("hello", "world");
-    std::cout << b.dump() << "\n";
+    b.insert("hello", 78.12341234);
+    b.insert("text", std::move(data));
+    std::cout << b.dump() << " " << b["hello"].as_decimal()<< "\n";
     {
-        auto ctx = manapi::async::context::create(std::thread::hardware_concurrency(), 0.001);
+        auto ctx = manapi::async::context::create(std::thread::hardware_concurrency(), 0.01);
         ctx->eventloop()->setup_handle_interrupt();
 
         int a = 0;

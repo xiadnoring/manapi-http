@@ -124,7 +124,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
             }
 
             connection = std::make_shared<worker::connection>(new connection_t{
-                .cid = dcid, .conn = _quiche_conn, .quiche_timer = this->le->get_loop(), .write_watcher = this->le->get_loop(), .http3_conn = {nullptr},
+                .cid = dcid, .conn = _quiche_conn, .quiche_timer = this->le->get_loop(), .io_timer = 0, .write_watcher = this->le->get_loop(), .http3_conn = {nullptr},
                 .streams = {}, .worker = std::shared_ptr (this->worker), .status = 0, .write_total = 0, .read_total = 0, .write_total_prev = 0, .read_total_prev = 0,
                 .stream_read_cnt = 0, .stream_write_cnt = 0}, [] (void *ptr) -> void {
                     http_v3_cloudflare_quiche::_clean_connection (static_cast<connection_t *>(ptr));
@@ -141,6 +141,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
             ev_async_init(&conn_data.write_watcher, http_v3_cloudflare_quiche::_write_watcher_cb);
             ev_init(&conn_data.quiche_timer, http_v3_cloudflare_quiche::_quiche_timeout);
             conn_data.quiche_timer.priority = priority::timeout_timer;
+            conn_data.io_timer = this->site.async_context()->timerpool()->append_interval_sync(this->config->speed_check_delay(),
+                [this, ev_conn_ptr] () -> void { this->_io_timeout(ev_conn_ptr->get()->as<connection_t>()); });
 
             //conn_data.timer.start();
             conn_data.write_watcher.start();
@@ -667,6 +669,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_force_close(connection_t &
     conn_data.quiche_timer.stop();
     //conn_data.timer.stop();
     conn_data.write_watcher.stop();
+    conn_data.worker->site.async_context()->timerpool()->remove_timer(std::exchange(conn_data.io_timer, 0));
     http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_reset_all_streams(conn_data);
 
     delete static_cast<std::shared_ptr<worker::connection> *> (std::exchange(conn_data.quiche_timer.data, nullptr));

@@ -29,7 +29,7 @@ json_builder(const json &mask, const bool &use_bigint, const size_t &bigint_prec
 
 manapi::json_builder::~json_builder() = default;
 
-manapi::json_builder & manapi::json_builder::operator<<(const std::string_view &str) {
+manapi::json_builder & manapi::json_builder::operator<<(std::string_view str) {
     if (getting) { getting = false; }
     size_t j = 0;
     _parse(str, j);
@@ -68,7 +68,7 @@ void manapi::json_builder::clear() {
     _reset();
 }
 
-void manapi::json_builder::_parse(const std::string_view &plain_text, size_t &j, bool root) {
+void manapi::json_builder::_parse(std::string_view plain_text, size_t &j, bool root) {
 
     this->use_bigint = use_bigint;
     this->bigint_precision = bigint_precision;
@@ -88,7 +88,7 @@ void manapi::json_builder::_parse(const std::string_view &plain_text, size_t &j,
     }
 }
 
-void manapi::json_builder::_check_type(const std::string_view &plain_text, size_t &j) {
+void manapi::json_builder::_check_type(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); i++, j++)
     {
         const unsigned char &c = plain_text.at(j);
@@ -133,7 +133,7 @@ void manapi::json_builder::_check_type(const std::string_view &plain_text, size_
     }
 }
 
-void manapi::json_builder::_build_string(const std::string_view &plain_text, size_t &j) {
+void manapi::json_builder::_build_string(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
         _check_max_mean(true);
@@ -290,7 +290,7 @@ void manapi::json_builder::_build_string(const std::string_view &plain_text, siz
     }
 }
 
-void manapi::json_builder::_build_numeric(const std::string_view &plain_text, size_t &j) {
+void manapi::json_builder::_build_numeric(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
         unsigned char c = plain_text[j];
@@ -412,7 +412,7 @@ void manapi::json_builder::_build_numeric(const std::string_view &plain_text, si
     }
 }
 
-void manapi::json_builder::_build_numeric_string(const std::string_view &plain_text, size_t &j) {
+void manapi::json_builder::_build_numeric_string(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); i++, j++)
     {
         unsigned char c = plain_text[j];
@@ -467,7 +467,7 @@ void manapi::json_builder::_build_numeric_string(const std::string_view &plain_t
     }
 }
 
-void manapi::json_builder::_build_object(const std::string_view &plain_text, size_t &j) {
+void manapi::json_builder::_build_object(std::string_view plain_text, size_t &j) {
     const auto next_parent_for_child = [this] () -> const json& {
         _next_type();
         _check_part_object();
@@ -584,7 +584,7 @@ void manapi::json_builder::_build_object(const std::string_view &plain_text, siz
     }
 }
 
-void manapi::json_builder::_build_array(const std::string_view &plain_text, size_t &j) {
+void manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) {
     doit:
     if (item != nullptr)
     {
@@ -693,7 +693,7 @@ void manapi::json_builder::_build_array(const std::string_view &plain_text, size
     }
 }
 
-void manapi::json_builder::_check_end(const std::string_view &plain_text, size_t &j) {
+void manapi::json_builder::_check_end(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
         if (!unicode::is_space_symbol(plain_text[j]))
@@ -928,7 +928,7 @@ const manapi::json & manapi::json_builder::get_current_type() {
     return *current_types;
 }
 
-bool manapi::json_builder::_valid_utf_char(const std::string_view &plain_text, const size_t &i, size_t &left) {
+bool manapi::json_builder::_valid_utf_char(std::string_view plain_text, const size_t &i, size_t &left) {
     const unsigned char &c = plain_text[i];
     if (left > 0 || c > 127) {
         if (left == 0)
@@ -955,7 +955,7 @@ bool manapi::json_builder::_valid_utf_char(const std::string_view &plain_text, c
     return false;
 }
 
-void manapi::json_builder::_valid_utf_string(const std::string_view &str) {
+void manapi::json_builder::_valid_utf_string(std::string_view str) {
     size_t wchar_left = 0;
     for (size_t i = 0; i < str.size(); i++)
     {

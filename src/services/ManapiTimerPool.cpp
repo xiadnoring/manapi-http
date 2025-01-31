@@ -153,7 +153,19 @@ void manapi::timerpool::_start() {
             task->second.enabled = false;
 
             if (task->second.task) {
-                this->_call_cb(task, task->second.task);
+                auto next_sorted_task = std::next(sorted_task);
+                auto cb = task->second.task;
+                this->_call_cb(task, cb);
+
+                if (cb.use_count()==1) {
+                    /* task was destroyed */
+                    sorted_task = next_sorted_task;
+                    continue;
+                }
+
+                if (task->second.interval) {
+                    this->_update_interval_state(task->first);
+                }
             }
             if (task->second.async_task) {
                 this->_async_call_cb(task, task->second.async_task);
@@ -271,7 +283,6 @@ void manapi::timerpool::_call_cb(storage::iterator task,
 
         try {
             (*cb)();
-            this->_update_interval_state(task->first);
         }
         catch (std::exception const &e) {
             MANAPIHTTP_LOG("Timer Task Exception: {}", e.what());

@@ -78,17 +78,17 @@ namespace manapi {
 
         // Do not use explicit
 
-        json(const STRING_VIEW &str, const bool &parse = false);
+        json(STRING_VIEW str, const bool &parse = false);
         json(const UNICODE_STRING &str, const bool &parse = false);
         json(const INTEGER &num);
         json(const char *plain_text, const bool &parse = false);
-        json(const STRING &str);
+        json(STRING str);
         json(const DECIMAL &num);
-        json(const BIGINT &num);
+        json(BIGINT num);
         json(const NULLPTR &n);
         json(const BOOLEAN &value);
-        json(const OBJECT &obj);
-        json(const ARRAY &arr);
+        json(OBJECT obj);
+        json(ARRAY arr);
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -124,13 +124,13 @@ namespace manapi {
 
         // TRASH (no with const json &obj)
         json &operator= (const UNICODE_STRING &str);
-        json &operator= (const STRING &str);
+        json &operator= (STRING str);
         json &operator= (const char *str);
         json &operator= (const BOOLEAN &b);
         json &operator= (const INTEGER &num);
         json &operator= (const DECIMAL &num);
         json &operator= (const NULLPTR &n);
-        json &operator= (const BIGINT &num);
+        json &operator= (BIGINT num);
         json &operator= (const json &obj);
         json &operator= (json &&obj) noexcept ;
         json &operator= (const std::initializer_list <json> &data);
@@ -315,17 +315,47 @@ namespace manapi {
         void push_back (ARRAY::const_iterator begin, ARRAY::const_iterator end);
         void pop_back ();
 
-        template<class T> constexpr auto begin () const
-        { return get_ptr<T>()->begin(); }
 
-        template<class T> constexpr auto end () const
-        { return get_ptr<T>()->end(); }
+        template<class T>
+        requires(std::is_same_v<T, OBJECT>)
+        constexpr auto begin () const
+        { return this->as_object().begin(); }
 
-        template<class T> auto begin ()
-        { return get_ptr<T>()->begin(); }
+        template<class T>
+        requires(std::is_same_v<T, OBJECT>)
+        constexpr auto end () const
+        { return this->as_object().end(); }
 
-        template<class T> auto end ()
-        { return get_ptr<T>()->end(); }
+        template<class T>
+        requires(std::is_same_v<T, ARRAY>)
+        constexpr auto begin () const
+        { return this->as_array().begin(); }
+
+        template<class T>
+        requires(std::is_same_v<T, ARRAY>)
+        constexpr auto end () const
+        { return this->as_array().end(); }
+
+
+        template<class T>
+        requires(std::is_same_v<T, OBJECT>)
+        constexpr auto begin ()
+        { return this->as_object().begin(); }
+
+        template<class T>
+        requires(std::is_same_v<T, OBJECT>)
+        constexpr auto end ()
+        { return this->as_object().end(); }
+
+        template<class T>
+        requires(std::is_same_v<T, ARRAY>)
+        constexpr auto begin ()
+        { return this->as_array().begin(); }
+
+        template<class T>
+        requires(std::is_same_v<T, ARRAY>)
+        constexpr auto end ()
+        { return this->as_array().end(); }
 
         [[nodiscard]] const ARRAY &each() const;
         [[nodiscard]] const OBJECT &entries() const;
@@ -458,19 +488,6 @@ namespace manapi {
          */
         [[nodiscard]] BOOLEAN as_bool_cast () const;
 
-        template <typename T>
-        [[nodiscard]] T &get () { return *static_cast <T *> (src); }
-
-        template <typename T>
-        T* get_ptr () { return static_cast <T *> (src); }
-
-        template <typename T>
-        [[nodiscard]] const T &get () const { return *static_cast <T *> (src); }
-
-        template <typename T>
-        const T* get_ptr () const { return static_cast <T *> (src); }
-
-
         [[nodiscard]] std::string dump (const int &spaces = 0, const int &first_spaces = 0) const;
 
         [[nodiscard]] size_t size () const;
@@ -489,6 +506,7 @@ namespace manapi {
         [[nodiscard]] DECIMAL &_as_decimal () const;
         [[nodiscard]] BOOLEAN &_as_bool () const;
         [[nodiscard]] BIGINT &_as_bigint () const;
+        [[nodiscard]] PAIR &_as_pair () const;
 
         // string
         void _parse (const UNICODE_STRING &plain_text);
@@ -500,9 +518,9 @@ namespace manapi {
         void _parse (const int &num);
         void _parse (const double &num);
         void _parse (const DECIMAL &num);
-        void _parse (const BIGINT &num);
-        void _parse (const OBJECT &obj);
-        void _parse (const ARRAY &arr);
+        void _parse (BIGINT num);
+        void _parse (OBJECT obj);
+        void _parse (ARRAY arr);
         void _parse (const BOOLEAN &val);
         // other
         void _parse (const nullptr_t &n);
@@ -519,13 +537,14 @@ namespace manapi {
         void _set_bigint ();
         void _set_nullptr ();
         void _set_pair ();
-        void _set_object (const OBJECT &val);
+        void _set_object (OBJECT val);
         void _set_bool (const BOOLEAN &val);
-        void _set_array (const ARRAY &val);
-        void _set_string (const STRING_VIEW &val);
+        void _set_array (ARRAY val);
+        void _set_string (STRING val);
+        void _set_string (STRING_VIEW val);
         void _set_integer (const INTEGER &val);
         void _set_decimal (const DECIMAL &val);
-        void _set_bigint (const BIGINT &val);
+        void _set_bigint (BIGINT val);
         void _set_pair (json first, json second);
 #if MANAPIHTTP_JSON_DEBUG
         void _debug_symb_reinit () {
@@ -541,28 +560,28 @@ namespace manapi {
             switch (type)
             {
                 case type_array:
-                    _debug_array_src = &get<ARRAY> ();
+                    _debug_array_src = &this->as_array();
                 break;
                 case type_object:
-                    _debug_object_src = &get<OBJECT> ();
+                    _debug_object_src = &this->as_object();
                 break;
                 case type_integer:
-                    _debug_integer_src = &get<INTEGER> ();
+                    _debug_integer_src = &this->as_integer();
                 break;
                 case type_bigint:
-                    _debug_bigint_src = &get<BIGINT> ();
+                    _debug_bigint_src = &this->as_bigint();
                 break;
                 case type_boolean:
-                    _debug_bool_src = &get<BOOLEAN> ();
+                    _debug_bool_src = &this->as_bool();
                 break;
                 case type_decimal:
-                    _debug_decimal_src = &get<DECIMAL> ();
+                    _debug_decimal_src = &this->as_decimal();
                 break;
                 case type_pair:
-                    _debug_pair_src = &get<PAIR> ();
+                    _debug_pair_src = &this->_as_pair();
                 break;
                 case type_string:
-                    _debug_string_src = get<STRING> ().data();
+                    _debug_string_src = this->as_string().data();
                 break;
                 default:
                 break;

@@ -12,7 +12,7 @@ namespace manapi {
         explicit json_builder (const json_mask &mask = nullptr, const bool &use_bigint = false, const size_t &bigint_precision = 128);
         explicit json_builder (const json &mask, const bool &use_bigint = false, const size_t &bigint_precision = 128);
         ~json_builder();
-        json_builder &operator<< (const std::string_view &str);
+        json_builder &operator<< (std::string_view str);
         json_builder &operator<< (const char &c);
         json get ();
         [[nodiscard]] const bool &is_ready () const;
@@ -25,18 +25,18 @@ namespace manapi {
          * @param left
          * @return true if wchar are contained the following char
          */
-        static bool                        _valid_utf_char (const std::string_view &plain_text, const size_t &i, size_t &left);
-        static void                        _valid_utf_string (const std::string_view &str);
+        static bool _valid_utf_char (std::string_view plain_text, const size_t &i, size_t &left);
+        static void _valid_utf_string (std::string_view str);
     private:
         void _reset ();
-        void _parse (const std::string_view &plain_text, size_t &j, bool root = true);
-        void _check_type (const std::string_view &plain_text, size_t &j);
-        void _build_string (const std::string_view &plain_text, size_t &j);
-        void _build_numeric (const std::string_view &plain_text, size_t &j);
-        void _build_numeric_string (const std::string_view &plain_text, size_t &j);
-        void _build_object (const std::string_view &plain_text, size_t &j);
-        void _build_array (const std::string_view &plain_text, size_t &j);
-        void _check_end (const std::string_view &plain_text, size_t &j);
+        void _parse (std::string_view plain_text, size_t &j, bool root = true);
+        void _check_type (std::string_view plain_text, size_t &j);
+        void _build_string (std::string_view plain_text, size_t &j);
+        void _build_numeric (std::string_view plain_text, size_t &j);
+        void _build_numeric_string (std::string_view plain_text, size_t &j);
+        void _build_object (std::string_view plain_text, size_t &j);
+        void _build_array (std::string_view plain_text, size_t &j);
+        void _check_end (std::string_view plain_text, size_t &j);
 
         void _reset_type ();
         void _next_type ();
@@ -61,7 +61,7 @@ namespace manapi {
         json object;
         //json_mask mask;
         size_t i = 0;
-        std::function<void(const std::string_view &, size_t &j)> action;
+        std::function<void(std::string_view , size_t &j)> action;
 
         const json *current_types;
         size_t current_type;
