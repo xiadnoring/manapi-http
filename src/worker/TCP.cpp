@@ -290,8 +290,7 @@ manapi::future<void> manapi::net::worker::TCP::connection_close(std::shared_ptr<
 void manapi::net::worker::TCP::_recv_setup_connection(manapi::net::worker::connection &storage) {}
 
 manapi::future<> manapi::net::worker::TCP::io_wait(connection_interface &connection, const int &status) {
-    co_await connection.iomutex.lock();
-    co_await connection_io_await{connection.iohandle, connection.status, connection.iomutex, status};
+    co_await connection_io_await{connection.iohandle, connection.status, status};
 }
 
 void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage, const int &revents) {

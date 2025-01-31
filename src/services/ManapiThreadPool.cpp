@@ -80,13 +80,8 @@ namespace manapi {
 
     template<class T>
     bool threadpool<T>::append_task(std::unique_ptr<T> task, int level) {
-        if (this->is_stop)
-        {
+        if (!task) {
             return false;
-        }
-
-        if (task == nullptr) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Task is NULL");
         }
 
         // obtain a mutex

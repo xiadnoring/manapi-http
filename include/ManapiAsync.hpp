@@ -117,9 +117,7 @@ namespace manapi {
         }
 
         ~future() {
-            if (this->handle) {
-                this->handle.destroy();
-            }
+            this->reset();
         }
 
         future (future &&n) noexcept {
@@ -130,6 +128,12 @@ namespace manapi {
             this->handle = std::exchange(n.handle, nullptr);
 
             return *this;
+        }
+
+        void reset () {
+            if (this->handle) {
+                std::exchange(this->handle, nullptr).destroy();
+            }
         }
 
         operator future<void> () noexcept {
@@ -241,10 +245,10 @@ namespace manapi {
             handle.resume();
         }
 
-        void on_finish (const std::function<void()> &cb, std::shared_ptr<threadpool<task>> taskpool) {
+        void on_finish (std::function<void()> cb, std::shared_ptr<threadpool<task>> taskpool) {
             if (this->handle) {
                 auto &promise = this->handle.promise();
-                promise.finish_cb = cb;
+                promise.finish_cb = std::move(cb);
                 promise.taskpool = taskpool;
             }
         }

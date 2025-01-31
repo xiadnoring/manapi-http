@@ -378,35 +378,47 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_respon
     async::parallel_run<ssize_t> parallel (this->site.async_context());
 
     ssize_t rhs;
+    std::exception_ptr error{nullptr};
 
     if ((rhs = co_await f.read(write_block.data(), std::min(block_size, size - current))) <= 0) {
         co_return;
     }
 
-    while (size > current) {
-        /* add count of the chars which will be sent at this iterration */
-        current += rhs;
-        bool readsome = size > current;
-        if (readsome) {
-            parallel.run(f.read(read_block.data(), std::min(block_size, size - current)));
+    try {
+        while (size > current) {
+            /* add count of the chars which will be sent at this iterration */
+            current += rhs;
+            bool readsome = size > current;
+            if (readsome) {
+                parallel.run(f.read(read_block.data(), std::min(block_size, size - current)));
+            }
+
+            if ((rhs = co_await this->worker->fwrite (*this->connection, write_block.data(), rhs, !readsome)) <= 0) {
+                /* failed to send */
+                rhs = co_await parallel.get_or(0);
+                break;
+            }
+
+            if ((rhs = co_await parallel.get_or(0)) <= 0) {
+                break;
+            }
+
+            std::swap(write_block, read_block);
+
+            //printf("%s STEP: %zi LEFT: %zi NEED: %zi CURRENT: %zi\n", res.get_file().data(), sent, left, size, current);
         }
 
-        if ((rhs = co_await this->worker->fwrite (*this->connection, write_block.data(), rhs, !readsome)) <= 0) {
-            /* failed to send */
-            rhs = co_await parallel.get_or(0);
-            break;
-        }
-
-        if ((rhs = co_await parallel.get_or(0)) <= 0) {
-            break;
-        }
-
-        std::swap(write_block, read_block);
-
-        //printf("%s STEP: %zi LEFT: %zi NEED: %zi CURRENT: %zi\n", res.get_file().data(), sent, left, size, current);
+        co_return;
+    }
+    catch (...) {
+        error = std::current_exception();
     }
 
-    MANAPIHTTP_LOG("file size: {}", size);
+    co_await parallel.get_or(0);
+
+    if (error) {
+        std::rethrow_exception(error);
+    }
 }
 
 manapi::future<void> manapi::net::http::base::send_file(manapi::net::http_response &res, filesystem::async::fstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const {

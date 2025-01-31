@@ -14,6 +14,9 @@ manapi::timerpool::timerpool(std::shared_ptr<event_loop> events, const double &d
     this->deps.store(0);
     this->_stop.store(true);
     this->timer = nullptr;
+
+    this->events->set_timer_callback([this] (adding_timer_data_t &&data)
+        -> size_t { return this->_cb_event(std::forward<decltype(data)>(data)); });
 }
 
 manapi::timerpool::~timerpool() {
@@ -68,9 +71,6 @@ manapi::future<void> manapi::timerpool::start(std::shared_ptr<timerpool> tp) {
     if (!this->_stop) {
         co_return;
     }
-
-    this->events->set_timer_callback([this] (adding_timer_data_t &&data)
-        -> size_t { return this->_cb_event(std::forward<decltype(data)>(data)); });
 
     this->_stop.store(false);
 
@@ -164,7 +164,9 @@ void manapi::timerpool::_start() {
                 }
 
                 if (task->second.interval) {
+                    sorted_task = next_sorted_task;
                     this->_update_interval_state(task->first);
+                    continue;
                 }
             }
             if (task->second.async_task) {

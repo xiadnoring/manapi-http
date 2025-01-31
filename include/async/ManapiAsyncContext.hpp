@@ -10,7 +10,7 @@ namespace manapi::async {
     class condition_variable;
 
     inline void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::function<void()> onfinish = nullptr);
-    inline void run (const std::shared_ptr<context> &ctx, manapi::future<> &&task,  std::function<void()> onfinish = nullptr);
+    inline void run (const std::shared_ptr<context> &ctx, manapi::future<> task,  std::function<void()> onfinish = nullptr);
     inline void run (const std::shared_ptr<context> &ctx, auto && executor,  std::function<void()> onfinish = nullptr);
     inline void run (const std::shared_ptr<threadpool<task>> &taskpool, auto && executor,  std::function<void()> onfinish = nullptr);
     inline const std::shared_ptr<threadpool<task>> &as_threadpool(const std::shared_ptr<context> &ctx);
@@ -89,9 +89,10 @@ namespace manapi::async {
         return index;
     }
 
-    inline manapi::future<> invoke (auto && executer) {
-        std::function<manapi::future<void>()> cb (std::forward<decltype(executer)>(executer));
-        co_await cb();
+    template<typename T>
+    inline std::invoke_result_t <T> invoke (T executer) {
+        auto cb (std::forward<decltype(executer)>(executer));
+        co_return co_await cb();
     };
 
     inline void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::function<void()> onfinish) {
@@ -106,8 +107,8 @@ namespace manapi::async {
         }
     }
 
-    inline void run (const std::shared_ptr<context> &ctx, manapi::future<> &&task,  std::function<void()> onfinish ) {
-        async::run (ctx->taskpool(), std::forward<decltype(task)>(task), std::move(onfinish));
+    inline void run (const std::shared_ptr<context> &ctx, manapi::future<> task,  std::function<void()> onfinish ) {
+        async::run (ctx->taskpool(), std::move(task), std::move(onfinish));
     }
 
     inline const std::shared_ptr<threadpool<task>> & as_threadpool(const std::shared_ptr<context> &ctx) {

@@ -57,7 +57,6 @@ namespace manapi::net::worker {
         struct connection_io_await {
             std::function<void()> &iohandle;
             std::atomic<int> &iostatus;
-            async::mutex &mx;
             int status;
             void await_resume () noexcept {}
             bool await_ready () noexcept { return this->iostatus & CONN_CLOSED; }
@@ -65,14 +64,12 @@ namespace manapi::net::worker {
             requires(std::is_base_of_v<promise_base, T>)
             void await_suspend (std::coroutine_handle<T> handle) {
                 if (this->iostatus & CONN_CLOSED) {
-                    this->mx.unlock();
                     future<>::resume_promise(handle);
                 }
                 else {
                     this->iohandle = [handle = std::exchange(handle, nullptr)]() -> void {
                         future<>::resume_promise(handle);
                     };
-                    this->mx.unlock();
                     this->iostatus.fetch_or(this->status);
                 }
             }

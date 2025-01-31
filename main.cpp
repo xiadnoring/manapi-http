@@ -123,6 +123,7 @@
 #include "async/ManapiAsyncConditionVariable.hpp"
 #include "async/ManapiAsyncContext.hpp"
 #include "async/ManapiAsyncMutex.hpp"
+#include "async/ManapiAsyncParallelRun.hpp"
 #include "components/ManapiChain.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "crypto/ManapiAES.hpp"
@@ -134,7 +135,6 @@
 using namespace manapi::net;
 
 using namespace std;
-
 
 int main (int argc, char *argv[]) {
     worker::tools::ssl_library_init();

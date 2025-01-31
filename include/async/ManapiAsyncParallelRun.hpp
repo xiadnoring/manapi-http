@@ -10,6 +10,7 @@ namespace manapi::async {
         public:
             manapi::future<> run (manapi::future<T> task) {
                 this->value = co_await task;
+                task.reset();
             }
 
             T get () {
@@ -68,7 +69,7 @@ namespace manapi::async {
     void parallel_run<T>::run(manapi::future<T> task) {
         if (this->mx->try_to_lock()) {
             this->value = std::make_shared<value_t>();
-            async::run(this->ctx, this->value->run(std::move(task)),
+            async::run(this->ctx->taskpool(), std::move(this->value->run(std::move(task))),
             [mx = this->mx] ()
                 -> void { mx->unlock(); });
         }
