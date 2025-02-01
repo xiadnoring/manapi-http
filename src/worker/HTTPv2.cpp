@@ -195,7 +195,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                             }
                             if (read && len != co_await read->add(this->parse_vars.buffer.data(), len, this->protocol.flag & HTTP2_FLAG_DATA_END_STREAM)) {
                                 this->parse_vars.buffer.clear();
-                                co_await this->generate_error(HTTP2_ERROR_FLOW_CONTROL_ERROR, std::format("read buffer overflow"), this->protocol.stream_id);
+                                co_await this->generate_error(HTTP2_ERROR_FLOW_CONTROL_ERROR, "read buffer overflow", this->protocol.stream_id);
                             }
                             this->parse_vars.buffer.clear();
                         }
@@ -249,6 +249,9 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                             }
 
                             this->callbacks.rst_stream (thread->first, err_code);
+                            co_await thread->second.write->disable();
+                            co_await thread->second.read->disable();
+                            co_await this->protocol.window.write_cv->notify_all();
                         }
 
                         this->protocol.value = 0;
@@ -273,7 +276,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                         if (thread == this->threads.end()) {
                             break;
                         }
-                        co_await thread->second.write->add_allow_to_sent(this->protocol.value);
+                        co_await thread->second.write->add_allow_to_send(this->protocol.value);
                         this->protocol.value = 0;
                         break;
                     }
@@ -308,16 +311,17 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         co_await reset_all_streams();
     }
     else {
-        co_await unlimit_all_streams();
-        this->protocol.window.write.store(std::numeric_limits<int>::max());
+        this->protocol.window.write.store(std::numeric_limits<ssize_t>::max());
         co_await this->protocol.window.write_cv->notify_all();
+
+        co_await unlimit_all_streams();
     }
 
     std::cout << "Preparing for close\n";
     auto lk = co_await this->threads_mutex.lock_guard();
     co_await this->finishcv.wait(this->threads_mutex,
         [this] () -> bool {
-        std::cout << "BEEN NOTIFY " << this->threads.empty() << " " << this->deps << "\n";
+        std::cout << "BEEN NOTIFY " << this->threads.size() << " " << this->deps << "\n";
         return this->threads.empty() && this->deps == 0;
     });
     co_await this->site.async_context()->timerpool()->async_remove_timer(this->ping_interval.exchange(0));
@@ -473,10 +477,11 @@ manapi::future<void> manapi::net::worker::http_v2::empty_setting_timeouts() {
 }
 
 manapi::future<void> manapi::net::worker::http_v2::generate_error(http2_error_type errnum, std::string errmsg, int last_stream_id) noexcept(false) {
-    auto lk = co_await this->protocol.mx.lock_guard();
     if (false == (this->protocol.conn_type & CONN_CLOSED)) {
+        auto lk = co_await this->protocol.mx.lock_guard();
         co_await this->close_connection(errnum, errmsg, last_stream_id);
     }
+
     THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, errmsg);
 }
 
@@ -883,7 +888,7 @@ manapi::future<void> manapi::net::worker::http_v2::send_frame(http2_frame_type f
     std::string response ({len[1], len[2], len[3], static_cast<char>(frame), static_cast<char> (flag), id[0], id[1], id[2], id[3]});
     response += data;
     if (co_await this->worker->fwrite(*this->connection, response.data(), static_cast<ssize_t>(response.size()), false) <= 0) {
-        co_await this->generate_error(HTTP2_ERROR_STREAM_CLOSED, "stream {} closed", static_cast<int>(stream_id));
+        co_await this->generate_error(HTTP2_ERROR_STREAM_CLOSED, std::format("stream {} closed", stream_id), static_cast<int>(stream_id));
     }
 }
 
@@ -940,14 +945,23 @@ manapi::future<void> manapi::net::worker::http_v2::close_connection(int errnum, 
     if (this->protocol.conn_type.fetch_or(CONN_CLOSED) & CONN_CLOSED) {
         co_return;
     }
+
     co_await reset_all_streams();
     co_await this->empty_setting_timeouts();
+    bool clean_disconnect = true;
 
-    std::string data;
-    data += stringify_number<int> (last_stream_id) + stringify_number<int>(errnum) + additional_data;
-    this->resolve_timeout_timer();
-    co_await this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, data);
-    co_await this->worker->connection_close(this->connection, true);
+    try {
+        std::string data;
+        data += stringify_number<int> (last_stream_id) + stringify_number<int>(errnum) + additional_data;
+        this->resolve_timeout_timer();
+        co_await this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, data);
+    }
+    catch (...) {
+        /* skip error messages */
+        clean_disconnect = false;
+    }
+
+    co_await this->worker->connection_close(this->connection, clean_disconnect);
 }
 
 manapi::future<void> manapi::net::worker::http_v2::send_settings(const std::vector<std::pair<short, int>> &options) {
@@ -970,12 +984,13 @@ manapi::future<void> manapi::net::worker::http_v2::send_settings(const std::vect
     co_await send_frame (HTTP2_FRAME_SETTINGS, 0x0, 0, data);
 }
 
-manapi::future<ssize_t> manapi::net::worker::http_v2::send_data(int stream_id, const void *buf, ssize_t size, bool finish) {
+manapi::future<ssize_t> manapi::net::worker::http_v2::send_data(int stream_id, const void *buf, ssize_t size, bool finish, std::atomic<bool> &disabled) {
     if (size == 0) {
         co_return size;
     }
 
-    co_await this->protocol.window.write_cv->wait([this] () -> bool { return this->protocol.window.write.load() > 0 || this->protocol.conn_type & CONN_CLOSED; });
+    co_await this->protocol.window.write_cv->wait([this, &disabled] ()
+        -> bool { return this->protocol.window.write.load() > 0 || this->protocol.conn_type & CONN_CLOSED || disabled.load(); });
     auto sent = std::min(size, this->protocol.window.write.load());
     this->protocol.window.write.fetch_sub(sent);
     char cflag = 0x00;
@@ -1010,8 +1025,11 @@ manapi::future<void> manapi::net::worker::http_v2::default_ev_headers(int id, st
     auto lk = co_await threads_mutex.lock_guard();
     this->thread_cnt.fetch_add(1);
 
-    auto write_cb = std::make_shared<smart_w_buffer>(this->site.async_context()->taskpool(), [this, id](const void * buff, ssize_t size, bool finish)
-        -> future<ssize_t> { return this->send_data(id, buff, size, finish); }, static_cast<size_t>(this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), this->config->buffer_size(), this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first);
+    auto write_cb = std::make_shared<smart_w_buffer>(this->site.async_context()->taskpool(),
+        [this, id](const void * buff, ssize_t size, bool finish, std::atomic<bool> &disabled)
+            -> future<ssize_t> { return this->send_data(id, buff, size, finish, disabled); },
+        static_cast<size_t>(this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), this->config->buffer_size(),
+        this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first);
 
     auto read_cb = std::make_shared<smart_r_buffer>(this->site.async_context()->taskpool(), [this, id](int size) -> future<void> {
         try { co_await this->send_window_frame(id, size); } catch (std::exception const &e) { MANAPIHTTP_LOG2(e.what()); }
@@ -1058,7 +1076,7 @@ void manapi::net::worker::http_v2::default_ev_rst_stream(int id, int errnum) {
 manapi::future<> manapi::net::worker::http_v2::unlimit_all_streams() {
     auto lk = co_await this->threads_mutex.lock_guard();
     for (auto & thread : this->threads) {
-        co_await thread.second.write->add_allow_to_sent(std::numeric_limits<int>::max());
+        co_await thread.second.write->add_allow_to_send(-1);
     }
 
 }
@@ -1070,6 +1088,8 @@ manapi::future<void> manapi::net::worker::http_v2::reset_all_streams() {
         co_await thread.second.write->disable();
         co_await thread.second.read->disable();
     }
+
+    co_await this->protocol.window.write_cv->notify_all();
 }
 
 manapi::future<> manapi::net::worker::http_v2::delete_stream_id(const int &id) {

@@ -146,7 +146,7 @@ manapi::future<bool> manapi::compress::deflate_decompress_file(const std::shared
             if(result == Z_NEED_DICT || result == Z_DATA_ERROR ||
                result == Z_MEM_ERROR)
             {
-                MANAPIHTTP_LOG("defalte: {}", "inflate(...) failed! inflate() = {}", result);
+                MANAPIHTTP_LOG("deflate(...) failed! deflate() = {}", result);
                 inflateEnd(&stream);
                 co_return false;
             }

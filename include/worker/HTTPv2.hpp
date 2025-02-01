@@ -214,7 +214,7 @@ namespace manapi::net::worker {
         future<void> close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "", int last_stream_id = 0);
 
         future<void> send_settings (const std::vector <std::pair <short, int>> &options);
-        future<ssize_t> send_data (int stream_id, const void *buf, ssize_t size, bool finish);
+        future<ssize_t> send_data (int stream_id, const void *buf, ssize_t size, bool finish, std::atomic<bool> &disabled);
         future<void> send_window_frame (int stream_id, int size);
         void resolve_timeout_timer ();
 

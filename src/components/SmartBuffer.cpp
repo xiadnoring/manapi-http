@@ -2,10 +2,10 @@
 
 #include "ManapiUtils.hpp"
 
-manapi::net::worker::smart_w_buffer::smart_w_buffer(std::shared_ptr<threadpool<task>> taskpool, const std::function<future<ssize_t> (void *, ssize_t size, bool flag)> &callback, size_t sent, ssize_t buffer_size, ssize_t frame_size) : gmx(taskpool), cv(taskpool) {
+manapi::net::worker::smart_w_buffer::smart_w_buffer(std::shared_ptr<threadpool<task>> taskpool, write_cb callback, size_t sent, ssize_t buffer_size, ssize_t frame_size) : gmx(taskpool), cv(taskpool) {
     this->flag = false;
     this->sent.store(static_cast<ssize_t>(sent));
-    this->callback = callback;
+    this->callback = std::move(callback);
     this->taskpool = std::move(taskpool);
     this->buffer.resize(buffer_size);
     this->frame_size = frame_size;
@@ -36,8 +36,13 @@ manapi::future<void> manapi::net::worker::smart_w_buffer::resize(ssize_t size) {
     this->buffer.resize(size);
 }
 
-manapi::future<void> manapi::net::worker::smart_w_buffer::add_allow_to_sent(int size) {
-    this->sent.fetch_add(size);
+manapi::future<void> manapi::net::worker::smart_w_buffer::add_allow_to_send(ssize_t size) {
+    if (size < 0) {
+        this->sent.store(std::numeric_limits<ssize_t>::max());
+    }
+    else {
+        this->sent.fetch_add(size);
+    }
     co_await this->cv.notify_all();
 }
 
@@ -60,8 +65,8 @@ manapi::future<size_t> manapi::net::worker::smart_w_buffer::add(const void *c, s
 }
 
 manapi::future<void> manapi::net::worker::smart_w_buffer::disable() {
-    disabled.store(true);
-    co_await cv.notify_all();
+    this->disabled.store(true);
+    co_await this->cv.notify_all();
 }
 
 
@@ -83,7 +88,7 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
         auto limit = this->buffer_pos + (buff_size / this->frame_size) * this->frame_size;
         while (limit > this->buffer_pos) {
             const bool last = this->buffer_cursor == this->buffer_pos + this->frame_size;
-            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, this->frame_size, (flag && last));
+            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, this->frame_size, (flag && last), this->disabled);
             if (rhs <= 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "эм"); }
             this->buffer_pos += rhs;
         }
@@ -94,7 +99,7 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
         if (this->sent > 0 && (this->buffer_pos < this->buffer_cursor)) {
             // less than frame_size
             auto pred = static_cast<ssize_t>(this->buffer_cursor - this->buffer_pos);
-            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, std::min(this->sent.load(), pred), flag && pred <= this->sent.load());
+            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, std::min(this->sent.load(), pred), flag && pred <= this->sent.load(), this->disabled);
             this->buffer_pos += rhs;
             this->sent.fetch_sub(rhs);
         }
@@ -114,8 +119,8 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
     }
 }
 
-manapi::net::worker::smart_r_buffer::smart_r_buffer(std::shared_ptr<threadpool<task>> taskpool, const std::function<manapi::future<void>(int)> &callback, int buffer_size) : gmx(taskpool), cv(taskpool) {
-    this->callback = callback;
+manapi::net::worker::smart_r_buffer::smart_r_buffer(std::shared_ptr<threadpool<task>> taskpool, read_cb callback, int buffer_size) : gmx(taskpool), cv(taskpool) {
+    this->callback = std::move(callback);
     this->buffer.resize(buffer_size);
     this->taskpool = std::move(taskpool);
     this->read_window = buffer_size;

@@ -13,17 +13,26 @@
 namespace manapi::net::worker {
     class smart_w_buffer {
     public:
-        smart_w_buffer (std::shared_ptr<threadpool<task>> taskpool, const std::function<future<ssize_t> (void *, ssize_t size, bool flag)> &callback, size_t sent = 0, ssize_t buffer_size = 16384, ssize_t frame_size = 16384);
+        typedef std::function<future<ssize_t> (void *, ssize_t size, bool flag, std::atomic<bool> &disabled)> write_cb;
+
+        smart_w_buffer (std::shared_ptr<threadpool<task>> taskpool, write_cb callback, size_t sent = 0, ssize_t buffer_size = 16384, ssize_t frame_size = 16384);
         ~smart_w_buffer();
         smart_w_buffer (smart_w_buffer &&n) noexcept;
         smart_w_buffer &operator= (smart_w_buffer &&n) noexcept;
         future<void> resize (ssize_t size);
-        future<void> add_allow_to_sent (int size);
+
+        /**
+         * add size of the bytes allow to send
+         *
+         * @param size of the bytes allow to send. set -1 for unlimited size
+         * @return
+         */
+        future<void> add_allow_to_send (ssize_t size);
         future<size_t> add (const void *c, ssize_t len, bool flag = false);
         future<void> disable ();
     private:
         std::atomic<bool> disabled = false;
-        std::function<future<ssize_t> (void *, ssize_t size, bool flag)> callback;
+        write_cb callback;
         future<ssize_t> _work (bool flag);
         async::mutex gmx;
         async::condition_variable cv;
@@ -38,7 +47,8 @@ namespace manapi::net::worker {
 
     class smart_r_buffer {
     public:
-        smart_r_buffer (std::shared_ptr<threadpool<task>> taskpool, const std::function<future<void>(int)> &callback, int buffer_size = 16384);
+        typedef std::function<future<void>(int)> read_cb;
+        smart_r_buffer (std::shared_ptr<threadpool<task>> taskpool, read_cb callback, int buffer_size = 16384);
         ~smart_r_buffer();
         smart_r_buffer (smart_r_buffer &&n) noexcept;
         smart_r_buffer &operator= (smart_r_buffer &&n) noexcept;
@@ -52,7 +62,7 @@ namespace manapi::net::worker {
         size_t buffer_cursor = 0;
         size_t buffer_pos = 0;
         std::atomic<bool> disabled = false;
-        std::function<future<void>(int)> callback;
+        read_cb callback;
         async::condition_variable cv;
         std::shared_ptr<threadpool<task>> taskpool;
         async::mutex gmx;

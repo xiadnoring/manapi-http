@@ -382,7 +382,7 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
                         continue;
                     }
                     default:
-                        co_return 1;
+                        co_return -1;
                 }
 
                 break;
