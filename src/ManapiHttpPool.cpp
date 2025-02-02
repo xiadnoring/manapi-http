@@ -45,6 +45,7 @@ void manapi::net::http_pool::stop() {
 #endif
 
     // stop watcher
+    this->worker->stop();
     this->watcher->stop();
 }
 

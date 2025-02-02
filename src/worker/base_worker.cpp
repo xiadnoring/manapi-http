@@ -115,5 +115,11 @@ std::shared_ptr<manapi::net::worker::base> manapi::net::worker::base::create(net
 
 void manapi::net::worker::base::_timeout(std::shared_ptr<connection> storage, const int &revents) {}
 
+void manapi::net::worker::base::stop() {}
+
+int manapi::net::worker::base::status(connection &conn) {
+    return 0;
+}
+
 
 void manapi::net::worker::base::init() {}

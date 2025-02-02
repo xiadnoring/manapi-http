@@ -96,6 +96,7 @@ namespace manapi::net::http {
         std::atomic<ssize_t> &max_rst_cnt ();
         std::atomic<ssize_t> &speed_check_delay ();
         std::atomic<ssize_t> &speed_check_bytes ();
+        std::atomic<ssize_t> &speed_limit_rate ();
 
         AtomicReference<ssl_config_t> get_ssl_config ();
 
@@ -152,7 +153,10 @@ namespace manapi::net::http {
         std::atomic<ssize_t> buffer_size_{65536};
         std::atomic<ssize_t> max_rst_cnt_{5};
         std::atomic<ssize_t> speed_check_delay_ {200};
-        std::atomic<ssize_t> speed_check_bytes_ {8388608};
+        /* 80KB */
+        std::atomic<ssize_t> speed_check_bytes_ {81920};
+        /* 2000 MB */
+        std::atomic<ssize_t> speed_limit_rate_ {2097152000};
 #ifdef _WIN32
         std::atomic<SOCKET> sock_fd{0};
 #else

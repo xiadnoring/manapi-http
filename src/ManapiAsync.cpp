@@ -1,3 +1,3 @@
 #include "ManapiAsync.hpp"
 
-size_t manapi::async::max_stack_depth = 200;
+size_t manapi::async::max_stack_depth = 300;

@@ -15,12 +15,12 @@ manapi::async::condition_variable::condition_variable(const std::shared_ptr<thre
     this->mx = std::make_shared<async::mutex>(taskpool);
 }
 
-manapi::future<> manapi::async::condition_variable::wait(const std::function<bool()> &cond) {
+manapi::future<> manapi::async::condition_variable::wait(std::function<bool()> cond) {
     if (cond()) { co_return; }
-    co_await promise{cond, this->mx, nullptr, this->taskpool, &this->stack};
+    co_await promise{std::move(cond), this->mx, nullptr, this->taskpool, &this->stack};
 }
 
-manapi::future<> manapi::async::condition_variable::wait(async::mutex &mx, const std::function<bool()> &cond) {
+manapi::future<> manapi::async::condition_variable::wait(async::mutex &mx, std::function<bool()> cond) {
     if (cond()) {
         if (!mx.locked()) {
             co_await mx.lock();
@@ -28,7 +28,7 @@ manapi::future<> manapi::async::condition_variable::wait(async::mutex &mx, const
         co_return;
     }
     mx.unlock();
-    co_await promise{cond, this->mx, &mx, this->taskpool, &this->stack};
+    co_await promise{std::move(cond), this->mx, &mx, this->taskpool, &this->stack};
 }
 
 manapi::future<> manapi::async::condition_variable::notify_one() {
@@ -47,43 +47,39 @@ manapi::future<> manapi::async::condition_variable::notify_all() {
 }
 
 manapi::future<> manapi::async::condition_variable::_notify_item(chain<notify_sub_t>::iterator it) {
-    auto &data = *it;
-    // if (data.mx) {
-    //     //MANAPIHTTP_LOG2("--WANT 2 BLOCK");
-    //     co_await data.mx->lock();
-    //     //MANAPIHTTP_LOG2("--BLOCKED");
-    // }
+    auto extracted = std::move(*it);
+    this->stack.erase(it);
 
-    bool rhs = false;
-    try { rhs = data.cond (); }
-    catch (std::exception const &e) { std::cerr << e.what() << "\n"; }
-
-    if (rhs) {
-        auto handle = std::exchange(data.handle, nullptr);
-        {
-            auto lk = co_await this->mx->lock_guard();
-            this->stack.erase(it);
-        }
-        //MANAPIHTTP_LOG2("--pop_front");
-        this->taskpool->append_task([handle = std::exchange(handle, nullptr)] () -> void {
-            future<>::resume_promise(handle);
-        });
-    }
-    else {
-        //MANAPIHTTP_LOG2("--UNBLOCKED");
-        if (data.mx) { data.mx->unlock(); }
-
-        if (this->stop) {
-            auto lk = co_await this->mx->lock_guard();
-            this->stack.erase(it);
-        }
-    }
+    //MANAPIHTTP_LOG2("--pop_front");
+    this->taskpool->append_task([handle = std::exchange(extracted.handle, nullptr)] ()
+        -> void { future<>::resume_promise(handle); });
 }
 
 manapi::future<bool> manapi::async::condition_variable::_notify_first() {
     if (this->stack.empty()) { co_return false; }
     auto &data = *this->stack.rbegin();
     if (data.mx) { co_await data.mx->lock(); }
-    async::run(this->taskpool, this->_notify_item(this->stack.rbegin()));
+    auto it = this->stack.rbegin();
+    bool rhs = false;
+    try { rhs = it->cond(); }
+    catch (std::exception const &e) { MANAPIHTTP_LOG("async condition variable: {}", e.what()); }
+
+    if (rhs) {
+        auto extracted = std::move(*it);
+        this->stack.erase(it);
+
+        //MANAPIHTTP_LOG2("--pop_front");
+        this->taskpool->append_task([handle = std::exchange(extracted.handle, nullptr)] ()
+            -> void { future<>::resume_promise(handle); });
+    }
+    else {
+        if (data.mx) {
+            data.mx->unlock();
+        }
+
+        if (this->stop) {
+            this->stack.erase(it);
+        }
+    }
     co_return true;
 }

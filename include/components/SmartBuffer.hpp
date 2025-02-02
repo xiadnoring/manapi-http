@@ -28,7 +28,7 @@ namespace manapi::net::worker {
          * @return
          */
         future<void> add_allow_to_send (ssize_t size);
-        future<size_t> add (const void *c, ssize_t len, bool flag = false);
+        future<ssize_t> add (const void *c, ssize_t len, bool flag = false);
         future<void> disable ();
     private:
         std::atomic<bool> disabled = false;

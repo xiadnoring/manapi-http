@@ -33,9 +33,9 @@ namespace manapi::async {
         explicit condition_variable (const std::shared_ptr<async::context> &ctx);
         explicit condition_variable (const std::shared_ptr<threadpool<task>> &taskpool);
 
-        future<void> wait (const std::function<bool()> &cond);
+        future<void> wait (std::function<bool()> cond);
 
-        future<void> wait (async::mutex &mx, const std::function<bool()> &cond);
+        future<void> wait (async::mutex &mx, std::function<bool()> cond);
 
         future<void> notify_one ();
 

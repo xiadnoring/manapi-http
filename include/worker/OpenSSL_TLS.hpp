@@ -29,8 +29,10 @@ namespace manapi::net::worker {
         static std::shared_ptr<worker::OpenSSL_TLS> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept () override;
         future<void> connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
+        int status (connection &conn) override;
     protected:
         void _recv_setup_connection(manapi::net::worker::connection &storage) override;
+        void update_limit_rate_connection(connection &conn) override;
     private:
         void _lookup_event(ev::io &watcher, std::shared_ptr<connection> storage, const int &revents) override;
 

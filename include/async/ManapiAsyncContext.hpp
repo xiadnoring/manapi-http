@@ -52,22 +52,17 @@ namespace manapi::async {
     inline std::mutex async_tasks_mx;
 
     struct async_task_t {
-        std::function <manapi::future<>()> cb;
         manapi::future<void> task;
     };
 
     inline std::unordered_map <size_t, std::shared_ptr<async_task_t>> async_tasks;
 
     inline size_t _run_prepare (const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::function<void()> onfinish) {
-        if (task.get_handle() == nullptr) {
-            std::cerr << "Null pointer in the net::future<> task\n";
-        }
-
         auto index = reinterpret_cast <size_t> (task.get_handle().address());
 
-        task.on_finish([index, taskpool, onfinish = std::move(onfinish)] () -> void {
+        task.on_finish([index, taskpool, onfinish = std::move(onfinish)] () mutable -> void {
             if (onfinish) {
-                taskpool->append_task(onfinish);
+                taskpool->append_task(std::move(onfinish));
             }
 
             decltype(async_tasks)::node_type data;
@@ -76,10 +71,6 @@ namespace manapi::async {
                 auto it = async_tasks.find(index);
                 if (it != async_tasks.end()) {
                     data = std::move(async_tasks.extract(it));
-                    if (async_tasks.empty()) {
-                        // free
-                        async_tasks.clear();
-                    }
                 }
             }
         }, taskpool);
@@ -100,10 +91,7 @@ namespace manapi::async {
 
         if (!task.finished()) {
             std::lock_guard<std::mutex> lk (async_tasks_mx);
-            if (async_tasks.contains(index)) {
-                printf("bug\n");
-            }
-            async_tasks.insert({index, std::make_shared<async_task_t>(nullptr, std::move(task))});
+            async_tasks.insert({index, std::make_shared<async_task_t>(std::move(task))});
         }
     }
 

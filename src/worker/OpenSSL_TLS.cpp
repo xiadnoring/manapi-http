@@ -190,6 +190,7 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
     }
 
     this->_connection_close(conn, connection);
+    co_await connection.stats.limit_rate_cv->notify_all();
 }
 
 void manapi::net::worker::OpenSSL_TLS::_recv_setup_connection(manapi::net::worker::connection &storage) {
@@ -200,6 +201,12 @@ void manapi::net::worker::OpenSSL_TLS::_recv_setup_connection(manapi::net::worke
     SSL_set_blocking_mode(conn_data.ssl, 0);
     SSL_set_accept_state(conn_data.ssl);
 
+}
+
+void manapi::net::worker::OpenSSL_TLS::update_limit_rate_connection(connection &conn) {
+    auto &conn_data = conn.as<connection_interface>();
+    conn_data.stats.transfared_last_second.store(0);
+    async::run(this->site.async_context(), conn_data.stats.limit_rate_cv->notify_all());
 }
 
 void manapi::net::worker::OpenSSL_TLS::_lookup_event(ev::io &watcher, std::shared_ptr<connection> storage, const int &revents) {
@@ -216,8 +223,7 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
     async::run(connection->worker->site.async_context(), [connection] () mutable -> future<void> {
         TCP::_connection_interface_eraser (connection);
         auto prev = connection;
-        if (connection->ssl) {
-            auto lkr = co_await connection->mx->lock_guard();
+        if (connection->ssl) {\
             auto ssl = std::exchange(connection->ssl, nullptr);
             //MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
             SSL_free(ssl);
@@ -348,8 +354,23 @@ void manapi::net::worker::OpenSSL_TLS::ssl_get_error() {
     }
 }
 
+int manapi::net::worker::OpenSSL_TLS::status(connection &conn) {
+    return conn.as<connection_interface>().status;
+}
+
 manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &conn, const void *buff, ssize_t size) {
     auto &connection = conn.as<connection_interface>();
+
+
+    auto lk = co_await connection.mx->lock_guard();
+
+
+    if (!connection.iomutex.try_to_lock()) {
+        co_return -1;
+    }
+    auto unlock = before_delete ([&] ()
+        -> void { connection.iomutex.unlock(); });
+
     while (true) {
         int rhs;
         int ssl_errno = SSL_ERROR_NONE;
@@ -358,16 +379,37 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
             break;
         }
 
-        auto lk = co_await connection.mx->lock_guard();
+        const auto limit_rate = this->config->speed_limit_rate().load();
+        if (connection.stats.transfared_last_second >= limit_rate) {
+            unlock.disable();
+            connection.iomutex.unlock();
+            lk.call();
+            connection.status.fetch_or(CONN_LIMIT_RATE);
+            co_await connection.stats.limit_rate_cv->wait([&] ()
+                -> bool { return connection.status & CONN_CLOSED || connection.stats.transfared_last_second < limit_rate; });
+            lk = co_await connection.mx->lock_guard();
+            connection.status.fetch_xor(CONN_LIMIT_RATE);
+            if (!connection.iomutex.try_to_lock()) {
+                co_return -1;
+            }
+
+            unlock.enable();
+        }
+
+        size = std::min(limit_rate - connection.stats.transfared_last_second.load(), size);
+        connection.stats.transfared_last_second.fetch_add(size);
+
         rhs = SSL_write(connection.ssl, buff, static_cast<int>(size));
         ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
-
-        lk.call();
 
         if (rhs < 0) {
             // if((err = SSL_get_error(SSL*,err)) == SSL_ERROR_ZERO_RETURN)
 
+
             if (ssl_errno != SSL_ERROR_NONE) {
+                connection.iomutex.unlock();
+                lk.call();
+                unlock.disable();
                 switch (ssl_errno) {
                     case SSL_ERROR_SYSCALL: {
                         int err = errno;
@@ -375,17 +417,25 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
                     }
                     case SSL_ERROR_WANT_READ: {
                         co_await manapi::net::worker::OpenSSL_TLS::io_wait(connection, CONN_READ);
-                        continue;
+                        goto cont;
                     }
                     case SSL_ERROR_WANT_WRITE: {
                         co_await manapi::net::worker::OpenSSL_TLS::io_wait(connection, CONN_WRITE);
-                        continue;
+                        goto cont;
                     }
                     default:
                         co_return -1;
                 }
 
                 break;
+cont:
+                lk = co_await connection.mx->lock_guard();
+                if (!connection.iomutex.try_to_lock()) {
+                    co_return -1;
+                }
+
+                unlock.enable();
+                continue;
             }
         }
         connection.stats.total_write.fetch_add(rhs);
@@ -397,6 +447,13 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
 manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &conn, void *buff, ssize_t size) {
     auto &connection = conn.as<connection_interface>();
 
+    auto lk = co_await connection.mx->lock_guard();
+
+    if (!connection.iomutex.try_to_lock()) {
+        co_return -1;
+    }
+    auto unlock = before_delete ([&] ()
+        -> void { connection.iomutex.unlock(); });
 
     while (true) {
         int rhs;
@@ -406,36 +463,71 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &c
             break;
         }
 
+        const auto limit_rate = this->config->speed_limit_rate().load();
+        if (connection.stats.transfared_last_second >= limit_rate) {
+            unlock.disable();
+            connection.iomutex.unlock();
+
+            lk.call();
+
+            connection.status.fetch_or(CONN_LIMIT_RATE);
+            co_await connection.stats.limit_rate_cv->wait([&] ()
+                -> bool { return connection.status & CONN_CLOSED || connection.stats.transfared_last_second < limit_rate; });
+
+            lk = co_await connection.mx->lock_guard();
+            connection.status.fetch_xor(CONN_LIMIT_RATE);
+
+            if (!connection.iomutex.try_to_lock()) {
+                co_return -1;
+            }
+
+            unlock.enable();
+        }
+
+        size = std::min(limit_rate - connection.stats.transfared_last_second.load(), size);
+        connection.stats.transfared_last_second.fetch_add(size);
+
         // if(SSL_get_shutdown(SSL*) & SSL_RECEIVED_SHUTDOWN)
-        auto lk = co_await connection.mx->lock_guard();
         rhs = SSL_read(connection.ssl, buff, static_cast<int>(size));
         ssl_errno = SSL_get_error(connection.ssl, static_cast<int>(rhs));
-
-        lk.call();
 
         if (rhs < 0) {
 
             if (ssl_errno != SSL_ERROR_NONE) {
+                unlock.disable();
+                connection.iomutex.unlock();
+
+                lk.call();
+
                 switch (ssl_errno) {
                     case SSL_ERROR_SYSCALL: {
                         if (errno == EAGAIN || errno == EWOULDBLOCK) {
                             co_await manapi::net::worker::OpenSSL_TLS::io_wait(connection, CONN_READ);
                         }
-                        continue;
+                        goto cont;
                     }
                     case SSL_ERROR_WANT_READ: {
                         co_await manapi::net::worker::OpenSSL_TLS::io_wait(connection, CONN_READ);
-                        continue;
+                        goto cont;
                     }
                     case SSL_ERROR_WANT_WRITE: {
                         co_await manapi::net::worker::OpenSSL_TLS::io_wait(connection, CONN_WRITE);
-                        continue;
+                        goto cont;
                     }
                     default:
                         co_return -1;
                 }
 
                 break;
+cont:
+                lk = co_await connection.mx->lock_guard();
+
+                if (!connection.iomutex.try_to_lock()) {
+                    co_return -1;
+                }
+
+                unlock.enable();
+                continue;
             }
         }
 

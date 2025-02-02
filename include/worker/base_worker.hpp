@@ -39,7 +39,8 @@ namespace manapi::net::worker {
             CONN_WRITE          = 0b00000010,
             CONN_READ           = 0b00000100,
             CONN_CLOSED         = 0b00001000,
-            CONN_HALF_CLOSED    = 0b00010000
+            CONN_HALF_CLOSED    = 0b00010000,
+            CONN_LIMIT_RATE     = 0b00100000
         };
 
         base (net::site &site);
@@ -69,6 +70,8 @@ namespace manapi::net::worker {
         virtual future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish);
         static std::shared_ptr<base> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         virtual void _timeout (std::shared_ptr<connection> storage, const int &revents);
+        virtual void stop ();
+        virtual int status (connection &conn);
 
         std::function<future<ssize_t>(connection &conn, const void *buff, ssize_t size, bool finish)> write;
         std::function<future<ssize_t>(connection &conn, void *buff, ssize_t size)> read;

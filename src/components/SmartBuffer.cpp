@@ -46,10 +46,10 @@ manapi::future<void> manapi::net::worker::smart_w_buffer::add_allow_to_send(ssiz
     co_await this->cv.notify_all();
 }
 
-manapi::future<size_t> manapi::net::worker::smart_w_buffer::add(const void *c, ssize_t len, bool flag) {
+manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::add(const void *c, ssize_t len, bool flag) {
     auto lk = co_await this->gmx.lock_guard();
-    size_t total_res = 0;
-    size_t align = 0;
+    ssize_t total_res = 0;
+    ssize_t align = 0;
     do {
         auto res = std::min (static_cast<ssize_t>(this->buffer.size() - this->buffer_cursor), len);
         memcpy(this->buffer.data() + this->buffer_cursor, static_cast<const char *>(c) + align, res);

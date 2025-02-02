@@ -108,12 +108,12 @@ namespace manapi::net::worker {
         struct parse_vars_t {
             bool next_line_state = false;
             std::string buffer;
-            size_t i = 0;
-            size_t buffint = 0;
-            size_t nkey;
+            ssize_t i = 0;
+            ssize_t buffint = 0;
+            ssize_t nkey;
             std::string key;
-            size_t size;
-            size_t j = 0;
+            ssize_t size;
+            ssize_t j = 0;
         };
 
         struct protocol_http2_t {
@@ -124,7 +124,7 @@ namespace manapi::net::worker {
             uint8_t flag = 0;
             bool initial_frame = true;
             std::map <int, std::pair <std::atomic<int>, std::function <void(int value, bool self)>>> settings;
-            size_t padding = 0;
+            ssize_t padding = 0;
             ssize_t timer_interval = 20;
             std::chrono::system_clock::time_point prev_ping_time_point = std::chrono::system_clock::now();
             std::chrono::milliseconds ping_delay {200};
@@ -201,11 +201,11 @@ namespace manapi::net::worker {
 
         void _parse_body_data (char &c);
 
-        void _parse_skip_n_bytes (char &c, size_t &n);
+        void _parse_skip_n_bytes (char &c, ssize_t &n);
 
         void _parse_field_block (char &c);
 
-        void _parse_number (char &c, size_t &num, size_t &length);
+        void _parse_number (char &c, ssize_t &num, ssize_t &length);
 
         future<void> send_frame (http2_frame_type frame, uint8_t flag, int stream_id, std::string_view data);
         future<void> send_empty_frame (http2_frame_type frame, char flag, int stream_id);

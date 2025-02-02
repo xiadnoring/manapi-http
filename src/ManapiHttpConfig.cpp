@@ -50,15 +50,18 @@ manapi::net::http::config::config(const json &config) {
     }
 
     /* port */
-    if (config.contains("port"))
-    {
+    if (config.contains("port")){
         this->port = config["port"].as_string();
     }
 
     /* address */
-    if (config.contains("address"))
-    {
+    if (config.contains("address")){
         this->address = config["address"].as_string();
+    }
+
+    /* speed limit rate */
+    if (config.contains("speed_limit_rate")) {
+        this->speed_limit_rate_ = config["speed_limit_rate"].as_integer();
     }
 
     /* ssl */
@@ -318,6 +321,10 @@ std::atomic<ssize_t> & manapi::net::http::config::speed_check_delay() {
 
 std::atomic<ssize_t> & manapi::net::http::config::speed_check_bytes() {
     return this->speed_check_bytes_;
+}
+
+std::atomic<ssize_t> & manapi::net::http::config::speed_limit_rate() {
+    return this->speed_limit_rate_;
 }
 
 manapi::AtomicReference<manapi::net::http::ssl_config_t> manapi::net::http::config::get_ssl_config() {
