@@ -2,7 +2,7 @@
 
 void manapi::async::condition_variable::promise::await_suspend(std::coroutine_handle<future<>::promise> handle) {
     async::run(this->taskpool, this->gmx->lock(), [cond = std::move(this->cond), mx = this->mx, stack = this->stack, gmx = this->gmx, handle = std::exchange(handle, nullptr)] () -> void {
-        stack->push({handle, std::move(cond), mx});
+        stack->push_back({handle, std::move(cond), mx});
         gmx->unlock();
     });
 }
@@ -47,12 +47,13 @@ manapi::future<> manapi::async::condition_variable::notify_all() {
 }
 
 manapi::future<> manapi::async::condition_variable::_notify_item(chain<notify_sub_t>::iterator it) {
-    auto extracted = std::move(*it);
-    this->stack.erase(it);
-
-    //MANAPIHTTP_LOG2("--pop_front");
-    this->taskpool->append_task([handle = std::exchange(extracted.handle, nullptr)] ()
-        -> void { future<>::resume_promise(handle); });
+    // auto extracted = std::move(*it);
+    // this->stack.erase(it);
+    //
+    // //MANAPIHTTP_LOG2("--pop_front");
+    // this->taskpool->append_task([handle = std::exchange(extracted.handle, nullptr)] ()
+    //     -> void { future<>::resume_promise(handle); });
+    co_return;
 }
 
 manapi::future<bool> manapi::async::condition_variable::_notify_first() {

@@ -1,7 +1,9 @@
 #include "ManapiBeforeDelete.hpp"
 
-manapi::before_delete::before_delete(const std::function<void()> &f) {
-    this->f = f;
+#include <utility>
+
+manapi::before_delete::before_delete(std::move_only_function<void()> f) {
+    this->f = std::move(f);
 }
 
 manapi::before_delete::before_delete(before_delete &&n) noexcept {
@@ -10,9 +12,9 @@ manapi::before_delete::before_delete(before_delete &&n) noexcept {
 }
 
 manapi::before_delete::~before_delete() {
-    if (f != nullptr && autostart)
+    if (this->f && this->autostart)
     {
-        f();
+        this->f();
     }
 }
 
@@ -23,18 +25,17 @@ manapi::before_delete & manapi::before_delete::operator=(before_delete &&n) noex
 }
 
 void manapi::before_delete::call () {
-    if (f != nullptr)
-    {
-        f();
-    }
+    this->disable();
 
-    disable();
+    if (this->f) {
+        std::exchange(this->f, nullptr)();
+    }
 }
 
 void manapi::before_delete::disable() {
-    autostart = false;
+    this->autostart = false;
 }
 
 void manapi::before_delete::enable() {
-    autostart = true;
+    this->autostart = true;
 }

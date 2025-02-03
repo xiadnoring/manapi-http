@@ -68,13 +68,19 @@ namespace manapi {
             this->clear();
         }
 
-        void push (value_type &&n) {
+        void push_back (value_type &&n) {
             auto _n = std::make_shared<chain_item<value_type>>( std::move(n), nullptr, nullptr);
-            this->push(std::move(_n));
+            this->push_back(std::move(_n));
             ++this->_s;
         }
 
-        void push (_chain_item _n) {
+        void push_front (value_type &&n) {
+            auto _n = std::make_shared<chain_item<value_type>>( std::move(n), nullptr, nullptr);
+            this->push_front(std::move(_n));
+            ++this->_s;
+        }
+
+        void push_back (_chain_item _n) {
             if (this->_last == nullptr) {
                 this->_src = _n;
                 this->_last = this->_src;
@@ -84,6 +90,18 @@ namespace manapi {
             this->_last->next = _n;
             _n->prev = this->_last;
             this->_last = _n;
+        }
+
+        void push_front (_chain_item _n) {
+            if (this->_src == nullptr) {
+                this->_last = _n;
+                this->_src = this->_last;
+                return;
+            }
+
+            this->_src->prev = _n;
+            _n->next = this->_src;
+            this->_src = _n;
         }
 
         void erase (_chain_item _n) {
@@ -138,12 +156,7 @@ namespace manapi {
             return iterator{next};
         }
 
-        void push (const value_type &n) {
-            auto _n = std::make_shared<chain_item<value_type>>( std::make_shared<value_type>(n), nullptr, nullptr );
-            this->push(std::move(_n));
-        }
-
-        void pop () {
+        void pop_back () {
             if (!this->_last) {
                 return;
             }
@@ -155,6 +168,23 @@ namespace manapi {
             }
             else {
                 this->_src = nullptr;
+            }
+
+            --this->_s;
+        }
+
+        void pop_front () {
+            if (!this->_src) {
+                return;
+            }
+
+            this->_src = std::move(this->_src->next);
+
+            if (this->_src) {
+                this->_src->prev = nullptr;
+            }
+            else {
+                this->_last = nullptr;
             }
 
             --this->_s;
@@ -194,6 +224,14 @@ namespace manapi {
 
         [[nodiscard]] size_t size () const {
             return _s;
+        }
+
+        value_type &back () {
+            return *this->rbegin();
+        }
+
+        value_type &front () {
+            return *this->begin();
         }
     private:
         size_t _s = 0;

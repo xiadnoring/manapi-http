@@ -1,5 +1,6 @@
 #include "worker/OpenSSL_TLS.hpp"
 
+#include "async/ManapiAsyncSocket.hpp"
 #include "worker/tools/OpenSSLTools.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
@@ -21,6 +22,15 @@
 
 #include "ManapiUtils.hpp"
 #include "http/HeaderView.hpp"
+
+#define WANT_READ(x_) x_.status.fetch_or(CONN_READ); \
+co_await async::read_ready (this->site.async_context(), x_.id, &x_.rcancel, [&] () \
+-> void { x_.iomutex.unlock(); unlock.disable(); lk.call(); }); \
+x_.status.fetch_xor(CONN_READ);
+#define WANT_WRITE(x_) x_.status.fetch_or(CONN_WRITE); \
+co_await async::write_ready (this->site.async_context(), x_.id, &x_.wcancel, [&] () \
+-> void { x_.iomutex.unlock(); unlock.disable(); lk.call();  }); \
+x_.status.fetch_xor(CONN_WRITE);
 
 manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::site &site) : TCP (site) {
     tools::ssl_library_init();
@@ -44,32 +54,36 @@ void manapi::net::worker::OpenSSL_TLS::init() {
         // setup ctx (load certs)
         ssl_configure_context();
 
-        this->write = [this](auto &PH1, auto PH2, auto PH3, auto PH4) -> future<ssize_t> {
-            return ssl_write(PH1, PH2, PH3);
-        };
+        this->write = [this](auto &PH1, auto PH2, auto PH3, auto PH4)
+            -> future<ssize_t> { return ssl_write(PH1, PH2, PH3); };
 
-        this->read = [this](auto &PH1, auto PH2, auto PH3) -> future<ssize_t> {
-            return ssl_read(PH1, PH2, PH3);
-        };
+        this->read = [this](auto &PH1, auto PH2, auto PH3)
+            -> future<ssize_t> { return ssl_read(PH1, PH2, PH3); };
     }
 }
 
 manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std::shared_ptr<connection> connection) {
     auto &conn = connection->as<connection_interface>();
 
-    if (conn.configured) { co_return true; }
+    if (conn.configured) {
+        co_return true;
+    }
 
     if (!SSL_is_init_finished(conn.ssl)) {
         conn.mustly.fetch_xor(CONN_READ | CONN_WRITE);
-        conn.timer_accept.store(co_await this->site.async_context()->timerpool()->async_append_timer_async(2000, [this, conn = &conn, connection] () -> future<void> {
-            conn->timer_accept.store(0);
-            co_await this->connection_close(connection, false);
-        }));
+
+        auto lk = co_await conn.mx->lock_guard();
+
+        if (!conn.iomutex.try_to_lock()) {
+            co_return -1;
+        }
+
+        auto unlock = before_delete ([&] ()
+            -> void { conn.iomutex.unlock(); });
 
         while (true) {
             if (conn.status & CONN_CLOSED) {
-                co_await this->site.async_context()->timerpool()->async_remove_timer(conn.timer_accept);
-                conn.timer_accept.store(0);
+                co_await this->site.async_context()->timerpool()->async_remove_timer(std::exchange(conn.accept_timer, 0));
                 co_return false;
             }
 
@@ -79,12 +93,12 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
             if (rhs != SSL_ERROR_NONE) {
                 switch (rhs) {
                     case SSL_ERROR_WANT_READ: {
-                        co_await manapi::net::worker::OpenSSL_TLS::io_wait(conn, CONN_READ);
-                        continue;
+                        WANT_READ(conn);
+                        goto cont;
                     }
                     case SSL_ERROR_WANT_WRITE: {
-                        co_await manapi::net::worker::OpenSSL_TLS::io_wait(conn, CONN_WRITE);
-                        continue;
+                        WANT_WRITE(conn);
+                        goto cont;
                     }
                     case SSL_ERROR_ZERO_RETURN:
                         co_await this->connection_close(connection, true);
@@ -97,8 +111,14 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
                     error:
                         co_await this->connection_close(connection, false);
                     co_return false;
-
                 }
+cont:
+                lk = co_await conn.mx->lock_guard();
+                if (!conn.iomutex.try_to_lock()) {
+                    co_return false;
+                }
+
+                unlock.enable();
             }
 
             if (SSL_is_init_finished(conn.ssl)) {
@@ -106,8 +126,8 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
             }
         }
 
-        co_await conn.site->async_context()->timerpool()->async_remove_timer(conn.timer_accept);
-        conn.timer_accept.store(0);
+        co_await conn.site->async_context()->timerpool()->async_remove_timer(conn.accept_timer);
+
         conn.mustly.fetch_or(CONN_READ | CONN_WRITE);
     }
 
@@ -142,6 +162,8 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
         };
         connection.ssl = this->config->get_ssl_config()->enabled ? SSL_new(this->ctx) : nullptr;
         connection.mx = std::make_unique<async::mutex>(this->site.async_context());
+        connection.accept_timer = this->site.async_context()->timerpool()->append_timer_sync(2000, [this, &timer = connection.accept_timer, ms] ()
+            -> void { timer = 0; async::run(this->site.async_context(), this->connection_close(ms, false)); });
         return std::move(ms);
     });
 
@@ -156,9 +178,34 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
     auto &connection = conn->as<connection_interface>();
     auto lk = co_await connection.iomutex.lock_guard();
 
+    if (connection.wcancel) {
+        co_await connection.wcancel();
+        connection.wcancel=nullptr;
+    }
+
+    if (connection.rcancel) {
+        co_await connection.rcancel();
+        connection.rcancel=nullptr;
+    }
+
     if ((false == connection.status & CONN_CLOSED)) {
         if (clean_disconnect) {
             bool flag = true;
+
+            size_t timer = co_await this->site.async_context()->timerpool()->async_append_timer_sync(500, [&] ()
+                -> void {
+                /* libev loop */
+                timer = 0;
+
+                if (connection.rcancel) {
+                    async::run(this->site.async_context(), async::invoke(std::move(connection.rcancel)));
+                }
+
+                if (connection.wcancel) {
+                    async::run(this->site.async_context(), async::invoke(std::move(connection.wcancel)));
+                }
+            });
+
             do {
                 auto rhs = SSL_shutdown(connection.ssl);
                 int ssl_errno = SSL_get_error(connection.ssl, rhs);
@@ -167,22 +214,27 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
                 }
                 switch (ssl_errno) {
                     case SSL_ERROR_WANT_READ:
-                        co_await io_wait(connection, CONN_READ);
+                        co_await async::read_ready(this->site.async_context(), connection.id, &connection.rcancel, [] () -> void {  });
                     break;
                     case SSL_ERROR_WANT_WRITE:
-                        co_await io_wait(connection, CONN_WRITE);
+                        co_await async::write_ready(this->site.async_context(), connection.id, &connection.wcancel, [] () -> void {  });
                     break;
                     case SSL_ERROR_SYSCALL: {
                         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                            co_await io_wait(connection, CONN_READ);
+                            co_await async::read_ready(this->site.async_context(), connection.id, &connection.rcancel, [] () -> void {  });
                             break;
                         }
+                        flag=false;
+                        break;
                     }
                     default:
                         flag = false;
                     break;
                 }
-            } while (flag);
+            }
+            while (flag);
+
+            co_await this->site.async_context()->timerpool()->async_remove_timer(timer);
         }
         else {
             SSL_set_shutdown(connection.ssl, SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN);
@@ -190,7 +242,7 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
     }
 
     this->_connection_close(conn, connection);
-    co_await connection.stats.limit_rate_cv->notify_all();
+    co_await this->limit_rate_cv->notify_all();
 }
 
 void manapi::net::worker::OpenSSL_TLS::_recv_setup_connection(manapi::net::worker::connection &storage) {
@@ -206,7 +258,7 @@ void manapi::net::worker::OpenSSL_TLS::_recv_setup_connection(manapi::net::worke
 void manapi::net::worker::OpenSSL_TLS::update_limit_rate_connection(connection &conn) {
     auto &conn_data = conn.as<connection_interface>();
     conn_data.stats.transfared_last_second.store(0);
-    async::run(this->site.async_context(), conn_data.stats.limit_rate_cv->notify_all());
+    async::run(this->site.async_context(), this->limit_rate_cv->notify_all());
 }
 
 void manapi::net::worker::OpenSSL_TLS::_lookup_event(ev::io &watcher, std::shared_ptr<connection> storage, const int &revents) {
@@ -364,12 +416,13 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
 
     auto lk = co_await connection.mx->lock_guard();
 
-
     if (!connection.iomutex.try_to_lock()) {
         co_return -1;
     }
     auto unlock = before_delete ([&] ()
         -> void { connection.iomutex.unlock(); });
+
+    const auto limit_rate = this->config->speed_limit_rate().load();
 
     while (true) {
         int rhs;
@@ -379,13 +432,12 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
             break;
         }
 
-        const auto limit_rate = this->config->speed_limit_rate().load();
         if (connection.stats.transfared_last_second >= limit_rate) {
             unlock.disable();
             connection.iomutex.unlock();
             lk.call();
             connection.status.fetch_or(CONN_LIMIT_RATE);
-            co_await connection.stats.limit_rate_cv->wait([&] ()
+            co_await this->limit_rate_cv->wait([&] ()
                 -> bool { return connection.status & CONN_CLOSED || connection.stats.transfared_last_second < limit_rate; });
             lk = co_await connection.mx->lock_guard();
             connection.status.fetch_xor(CONN_LIMIT_RATE);
@@ -407,20 +459,17 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
 
 
             if (ssl_errno != SSL_ERROR_NONE) {
-                connection.iomutex.unlock();
-                lk.call();
-                unlock.disable();
                 switch (ssl_errno) {
                     case SSL_ERROR_SYSCALL: {
                         int err = errno;
                         co_return -1;
                     }
                     case SSL_ERROR_WANT_READ: {
-                        co_await manapi::net::worker::OpenSSL_TLS::io_wait(connection, CONN_READ);
+                        WANT_READ(connection);
                         goto cont;
                     }
                     case SSL_ERROR_WANT_WRITE: {
-                        co_await manapi::net::worker::OpenSSL_TLS::io_wait(connection, CONN_WRITE);
+                        WANT_WRITE(connection);
                         goto cont;
                     }
                     default:
@@ -455,6 +504,8 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &c
     auto unlock = before_delete ([&] ()
         -> void { connection.iomutex.unlock(); });
 
+    const auto limit_rate = this->config->speed_limit_rate().load();
+
     while (true) {
         int rhs;
         int ssl_errno = SSL_ERROR_NONE;
@@ -463,15 +514,13 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &c
             break;
         }
 
-        const auto limit_rate = this->config->speed_limit_rate().load();
         if (connection.stats.transfared_last_second >= limit_rate) {
             unlock.disable();
             connection.iomutex.unlock();
-
             lk.call();
 
             connection.status.fetch_or(CONN_LIMIT_RATE);
-            co_await connection.stats.limit_rate_cv->wait([&] ()
+            co_await this->limit_rate_cv->wait([&] ()
                 -> bool { return connection.status & CONN_CLOSED || connection.stats.transfared_last_second < limit_rate; });
 
             lk = co_await connection.mx->lock_guard();
@@ -494,24 +543,20 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &c
         if (rhs < 0) {
 
             if (ssl_errno != SSL_ERROR_NONE) {
-                unlock.disable();
-                connection.iomutex.unlock();
-
-                lk.call();
-
                 switch (ssl_errno) {
                     case SSL_ERROR_SYSCALL: {
                         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                            co_await manapi::net::worker::OpenSSL_TLS::io_wait(connection, CONN_READ);
+                            WANT_READ(connection);
+                            goto cont;
                         }
-                        goto cont;
+                        co_return -1;
                     }
                     case SSL_ERROR_WANT_READ: {
-                        co_await manapi::net::worker::OpenSSL_TLS::io_wait(connection, CONN_READ);
+                        WANT_READ(connection);
                         goto cont;
                     }
                     case SSL_ERROR_WANT_WRITE: {
-                        co_await manapi::net::worker::OpenSSL_TLS::io_wait(connection, CONN_WRITE);
+                        WANT_WRITE(connection);
                         goto cont;
                     }
                     default:

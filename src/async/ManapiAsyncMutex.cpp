@@ -7,7 +7,7 @@ void manapi::async::mutex::promise::await_resume() noexcept {}
 void manapi::async::mutex::promise::await_suspend(std::coroutine_handle<future<>::promise> handle) {
     std::unique_lock <std::mutex> lk (this->mx);
     if (this->own.has_value()) {
-        this->stack.push(std::exchange(handle, nullptr));
+        this->stack.push_back(std::exchange(handle, nullptr));
     }
     else {
 #ifdef _WIN32
@@ -49,8 +49,8 @@ void manapi::async::mutex::unlock()  {
         this->own.reset();
         return;
     }
-    auto handle = this->stack.front();
-    this->stack.pop();
+    auto handle = this->stack.back();
+    this->stack.pop_back();
     if (this->stack.empty()) {
         stack = {}; // free
     }

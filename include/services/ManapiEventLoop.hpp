@@ -122,7 +122,7 @@ namespace manapi {
     protected:
 
         struct async_watcher_t {
-            std::deque<adding_watcher_data_t> adding_watcher_data{};
+            manapi::chain<adding_watcher_data_t> adding_watcher_data{};
             std::shared_ptr<async::mutex> adding_watcher_mx;
             std::shared_ptr <ev::async> adding_watcher_async;
             std::function<void()> adding_watcher_async_cb{nullptr};
@@ -131,7 +131,7 @@ namespace manapi {
             std::unique_ptr<CURLM, curl_multi_deleter> curl_multi{nullptr};
             std::shared_ptr<async::mutex> curl_multi_mx{nullptr};
             std::shared_ptr<ev::async> adding_curl_multi_async{nullptr};
-            std::deque<adding_curl_data_t> adding_curl_data{};
+            manapi::chain<adding_curl_data_t> adding_curl_data{};
 
             std::function<void()> adding_curl_async_cb{nullptr};
             std::queue<std::shared_ptr<ev::io>> curl_fds{};
@@ -139,7 +139,7 @@ namespace manapi {
             std::shared_ptr<ev::timer> timeout_watcher{nullptr};
         };
         struct timer_watcher_t {
-            std::deque<adding_timer_data_t> adding_timer_data{};
+            manapi::chain<adding_timer_data_t> adding_timer_data{};
             std::shared_ptr<async::mutex> adding_timer_mx;
             std::shared_ptr <ev::async> adding_timer_async;
             std::function<void()> adding_timer_async_cb{nullptr};

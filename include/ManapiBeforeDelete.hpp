@@ -5,7 +5,7 @@
 namespace manapi {
     class before_delete {
     public:
-        explicit before_delete (const std::function <void()> &f);
+        explicit before_delete (std::move_only_function <void()> f);
         before_delete (before_delete &&n) noexcept;
         ~before_delete();
         before_delete &operator=(before_delete &&n) noexcept;
@@ -14,6 +14,6 @@ namespace manapi {
         void enable ();
     private:
         bool autostart = true;
-        std::function <void()> f;
+        std::move_only_function <void()> f;
     };
 }

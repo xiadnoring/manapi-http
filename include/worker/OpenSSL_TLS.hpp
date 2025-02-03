@@ -16,13 +16,13 @@ namespace manapi::net::worker {
         struct connection_interface : TCP::connection_interface {
             SSL *ssl{};
             std::unique_ptr<async::mutex> mx;
-            std::atomic<size_t> timer_accept = 0;
+            size_t accept_timer{0};
         };
 
         OpenSSL_TLS (net::site &site);
         ~OpenSSL_TLS ();
         bool is_valid_connection(worker::connection &connection) override;
-        void init ();
+        void init () override;
         future<bool> configure_connection(std::shared_ptr<connection> conn) override;
         OpenSSL_TLS &operator=(OpenSSL_TLS &&n) noexcept;
         void disable_watcher_for_status(connection &conn, const connection_status &status) override;

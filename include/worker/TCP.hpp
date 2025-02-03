@@ -20,8 +20,6 @@ namespace manapi::net::worker {
             size_t last_total_write = 0;
             size_t last_total_read = 0;
 
-            std::shared_ptr<async::condition_variable> limit_rate_cv;
-
             size_t time_ms = 0;
         };
 #ifdef _WIN32
@@ -44,7 +42,6 @@ namespace manapi::net::worker {
         struct connection_interface {
             manapi::async::mutex iomutex;
             int id{};
-            std::shared_ptr <ev::io> watcher;
             ev_timer timer;
             net::site *site;
             std::shared_ptr<worker::base> worker;
@@ -52,7 +49,8 @@ namespace manapi::net::worker {
             bool configured = false;
             std::atomic<int> status = 0x0;
             std::atomic<int> mustly = 0b11111111;
-            std::function<void()> iohandle;
+            std::function<manapi::future<>()> wcancel{nullptr};
+            std::function<manapi::future<>()> rcancel{nullptr};
 
             std::function<void(ev::io &w, std::shared_ptr<connection> connection, int revents)> handle;
         };
@@ -101,7 +99,6 @@ namespace manapi::net::worker {
         int status (connection &conn) override;
     protected:
         virtual void _recv_setup_connection (manapi::net::worker::connection &storage);
-        static future<void> io_wait (connection_interface &conn, const int &status);
         void update_limit_rate ();
         void _timeout (std::shared_ptr<connection> storage, const int &revents) override;
         void _ev_watcher_stop (connection_interface & conn);
@@ -118,10 +115,12 @@ namespace manapi::net::worker {
         void _io_event (ev::io &w, std::shared_ptr<connection> storage, int revents);
         static void _connection_interface_eraser (connection_interface *connection);
 
-        std::map <int, std::shared_ptr<async_stack_storage>> stacks;
 
         future<ssize_t> default_write (connection &conn, const void *buff, ssize_t size) const;
         future<ssize_t> default_read (connection &conn, void *buff, ssize_t size) const;
+
+        std::map <int, std::shared_ptr<async_stack_storage>> stacks;
+        std::shared_ptr<async::condition_variable> limit_rate_cv;
     private:
         std::string stringify_http_info (manapi::net::http_response &res, const http::versions::http &version, const std::string &delimiter) const;
         std::string stringify_headers (manapi::net::http_response &res, const std::string &delimiter) const;

@@ -48,6 +48,8 @@ namespace manapi::net::worker {
             size_t read_total_prev;
             std::atomic<size_t> stream_read_cnt;
             std::atomic<size_t> stream_write_cnt;
+            std::atomic<ssize_t> transfared_last_second;
+            std::shared_ptr<async::condition_variable> limit_rate_cv;
         };
 
         struct connection_io_await {
@@ -86,7 +88,11 @@ namespace manapi::net::worker {
         void init() override;
         static std::shared_ptr<http_v3_cloudflare_quiche> create(net::site &site, std::shared_ptr<manapi::net::http::config> config);
         future<ssize_t> response(worker::connection &connection, http_response &resp, bool finish) override;
+        void stop() override;
+
     private:
+        void update_limit_rate ();
+        virtual void update_limit_rate_connection (connection &conn);
         static http_v3_cloudflare_quiche *_get_dynamic_worker (const std::shared_ptr<worker::base> &w);
         static bool _flush_write_stream (connection_t &conn_data, std::map<int64_t, std::shared_ptr<worker::connection>>::iterator &stream_it);
         static void _flush_write (connection_t &conn_data);
@@ -114,6 +120,7 @@ namespace manapi::net::worker {
 
         quiche_config *_quiche_config{nullptr};
         quiche_h3_config *_quiche_h3_config{nullptr};
+        size_t limit_rate_timer{0};
     };
 }
 

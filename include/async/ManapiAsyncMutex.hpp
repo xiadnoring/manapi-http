@@ -21,7 +21,7 @@ namespace manapi::async {
 #ifdef _WIN32
         struct promise {
             std::mutex &mx;
-            std::queue <std::coroutine_handle<future<>::promise> > &stack;
+            manapi::chain <std::coroutine_handle<future<>::promise> > &stack;
             std::optional<DWORD> &own;
 
             bool await_ready () noexcept;
@@ -31,7 +31,7 @@ namespace manapi::async {
 #else
         struct promise {
             std::mutex &mx;
-            std::queue <std::coroutine_handle<future<>::promise> > &stack;
+            manapi::chain <std::coroutine_handle<future<>::promise> > &stack;
             std::optional<std::thread::id> &own;
 
             bool await_ready () noexcept;
@@ -61,6 +61,6 @@ namespace manapi::async {
 #else
         std::optional<std::thread::id> own;
 #endif
-        std::queue <std::coroutine_handle<future<>::promise> > stack;
+        manapi::chain <std::coroutine_handle<future<>::promise> > stack;
     };
 }

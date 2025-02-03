@@ -15,24 +15,33 @@ namespace manapi::async {
         typedef const resolve_t& resolve_ref_t;
         typedef const reject_t& reject_ref_t;
 
-        explicit promise(const std::shared_ptr<context> &ctx, const std::function<future<>(resolve_ref_t, reject_ref_t)> &cb) {
-            this->async_cb = cb;
-            this->taskpool = as_threadpool(ctx);
+        struct data_t {
+            std::shared_ptr<threadpool<task>> taskpool{nullptr};
+            std::move_only_function<void(resolve_ref_t, reject_ref_t)> cb{nullptr};
+            std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> async_cb{nullptr};
+            std::exception_ptr exception{nullptr};
+            std::unique_ptr<std::atomic<bool>> ready;
+            std::optional <T> value;
+        };
+
+        explicit promise(const std::shared_ptr<context> &ctx, std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> cb) {
+            this->data = std::make_shared<data_t>(data_t{as_threadpool(ctx), nullptr, std::move(cb), nullptr, nullptr, {}});
+            this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
 
-        explicit promise(const std::shared_ptr<threadpool<task>> &taskpool, const std::function<future<>(resolve_ref_t, reject_ref_t)> &cb) {
-            this->async_cb = cb;
-            this->taskpool = taskpool;
+        explicit promise(std::shared_ptr<threadpool<task>> taskpool, std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> cb) {
+            this->data = std::make_shared<data_t>(data_t{std::move(taskpool), nullptr, std::move(cb), nullptr, nullptr, {}});
+            this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
 
         ~promise() = default;
 
         T await_resume () {
-            if (this->exception) {
-                std::rethrow_exception(this->exception);
+            if (this->data->exception) {
+                std::rethrow_exception(std::move(this->data->exception));
             }
 
-            return this->value.value();
+            return std::move(this->data->value.value());
         }
 
         bool await_ready () {
@@ -42,47 +51,47 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         void await_suspend (std::coroutine_handle<T1> handle) {
-            if (this->cb) {
-                this->cb ([this, handle = std::exchange(handle, nullptr)] (T v) mutable -> void {
-                    this->resolve(handle, v);
-                }, [this, handle] (std::exception_ptr e) {
-                    this->reject(handle, e);
-                });
+            if (this->data->cb) {
+                this->data->cb ([handle, data = this->data] (T v) mutable
+                    -> void { resolve(std::move(data), handle, v); },
+                    [handle, data = this->data] (std::exception_ptr e) mutable
+                    -> void { reject(std::move(data), handle, std::move(e)); });
             }
             else {
-                async::run(this->taskpool, this->async_cb ([this, handle = std::exchange(handle, nullptr)] (T v) mutable -> void {
-                    this->resolve(handle, v);
-                }, [this, handle] (std::exception_ptr e) {
-                    this->reject(handle, e);
-                }));
+                async::run(this->data->taskpool, this->data->async_cb ([handle, data = this->data] (T v) mutable
+                    -> void { resolve(std::move(data), handle, v); },
+                    [handle, data = this->data] (std::exception_ptr e) mutable
+                    -> void { reject(std::move(data), handle, std::move(e)); }));
             }
         }
     private:
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        void call (std::coroutine_handle<T1> handle) {
+        static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
             handle();
         }
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        void resolve (std::coroutine_handle<T1> handle, T &v) {
-            this->value = std::move(v);
-            this->call(handle);
+        static void resolve (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, T &v) {
+            if (data->ready->exchange(true)) {
+                return;
+            }
+            data->value = std::move(v);
+            call(std::move(data), handle);
         }
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        void reject (std::coroutine_handle<T1> handle, const std::exception_ptr &e) {
-            this->exception = e;
-            this->call(handle);
+        static void reject (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, std::exception_ptr e) {
+            if (data->ready->exchange(true)) {
+                return;
+            }
+            data->exception = std::move(e);
+            call(std::move(data), handle);
         }
 
-        std::exception_ptr exception{nullptr};
-        std::shared_ptr<threadpool<task>> taskpool{nullptr};
-        std::function<void(resolve_ref_t, reject_ref_t)> cb{nullptr};
-        std::function<future<>(resolve_ref_t, reject_ref_t)> async_cb{nullptr};
-        std::optional<T> value;
+        std::shared_ptr<data_t> data;
     };
 
 
@@ -95,21 +104,30 @@ namespace manapi::async {
         typedef const resolve_t& resolve_ref_t;
         typedef const reject_t& reject_ref_t;
 
-        explicit promise(const std::shared_ptr<context> &ctx, const std::function<future<>(resolve_ref_t, reject_ref_t)> &cb) {
-            this->async_cb = cb;
-            this->taskpool = as_threadpool(ctx);
+        struct data_t {
+            std::shared_ptr<threadpool<task>> taskpool{nullptr};
+            std::move_only_function<void(resolve_ref_t, reject_ref_t)> cb{nullptr};
+            std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> async_cb{nullptr};
+            std::exception_ptr exception{nullptr};
+            std::unique_ptr<std::atomic<bool>> ready;
+        };
+
+
+        explicit promise(const std::shared_ptr<context> &ctx, std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> cb) {
+            this->data = std::make_shared<data_t>(data_t{as_threadpool(ctx), nullptr, std::move(cb), nullptr});
+            this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
 
-        explicit promise(const std::shared_ptr<threadpool<task>> &taskpool, const std::function<future<>(resolve_ref_t, reject_ref_t)> &cb) {
-            this->async_cb = cb;
-            this->taskpool = taskpool;
+        explicit promise(const std::shared_ptr<threadpool<task>> &taskpool, std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> cb) {
+            this->data = std::make_shared<data_t>(data_t{taskpool, nullptr, std::move(cb), nullptr});
+            this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
 
         ~promise() = default;
 
         void await_resume () {
-            if (this->exception) {
-                std::rethrow_exception(this->exception);
+            if (this->data->exception) {
+                std::rethrow_exception(std::move(this->data->exception));
             }
         }
 
@@ -120,44 +138,46 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         void await_suspend (std::coroutine_handle<T1> handle) {
-            if (this->cb) {
-                this->cb ([this, handle = std::exchange(handle, nullptr)] () mutable -> void {
-                    this->resolve(handle);
-                }, [this, handle] (std::exception_ptr e) {
-                    this->reject(handle, e);
-                });
+            if (this->data->cb) {
+                this->data->cb ([data = this->data, handle] () mutable
+                    -> void { resolve(std::move(data), handle); },
+                [data = this->data, handle] (std::exception_ptr e) mutable
+                    -> void { reject(std::move(data), handle, std::move(e)); });
             }
             else {
-                async::run(this->taskpool, this->async_cb ([this, handle] () mutable -> void {
-                    this->resolve(handle);
-                }, [this, handle] (std::exception_ptr e) {
-                    this->reject(handle, e);
-                }));
+                async::run(this->data->taskpool, this->data->async_cb ([data = this->data, handle] () mutable
+                    -> void { resolve(std::move(data), handle); },
+                [data = this->data, handle] (std::exception_ptr e) mutable
+                    -> void { reject(std::move(data), handle, std::move(e)); }));
             }
         }
     private:
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        void call (std::coroutine_handle<T1> handle) {
+        static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
             handle();
         }
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        void resolve (std::coroutine_handle<T1> handle) {
-            this->call(handle);
+        static void resolve (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
+            if (data->ready->exchange(true)) {
+                return;
+            }
+            call(std::move(data), handle);
         }
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        void reject (std::coroutine_handle<T1> handle, const std::exception_ptr &e) {
-            this->exception = e;
-            this->call(handle);
+        static void reject (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, std::exception_ptr e) {
+            if (data->ready->exchange(true)) {
+                return;
+            }
+            data->exception = std::move(e);
+            call(std::move(data), handle);
         }
 
-        std::exception_ptr exception{nullptr};
-        std::shared_ptr<threadpool<task>> taskpool{nullptr};
-        std::function<void(resolve_ref_t, reject_ref_t)> cb{nullptr};
-        std::function<future<>(resolve_ref_t, reject_ref_t)> async_cb{nullptr};
+    private:
+        std::shared_ptr<data_t> data{nullptr};
     };
 }
