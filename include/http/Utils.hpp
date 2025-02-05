@@ -3,8 +3,8 @@
 #include <string>
 #include <map>
 
-#include "ManapiAsync.hpp"
-#include "async/ManapiAsyncContext.hpp"
+#include "../ManapiAsync.hpp"
+#include "../async/ManapiAsyncContext.hpp"
 #include "../compress/ManapiCompress.hpp"
 
 namespace manapi::net::http {

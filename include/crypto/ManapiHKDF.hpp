@@ -4,8 +4,8 @@
 #include <stdexcept>
 #include <string>
 
-#include "ManapiCryptoUtils.hpp"
-#include "ManapiHttpTypes.hpp"
+#include "./ManapiCryptoUtils.hpp"
+#include "../ManapiHttpTypes.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 #include <openssl/evp.h>

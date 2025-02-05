@@ -1,7 +1,7 @@
 #pragma once
 
 #include <functional>
-#include "ManapiTask.hpp"
+#include "./ManapiTask.hpp"
 
 namespace manapi::net {
     class function_task : public task {

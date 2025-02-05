@@ -5,7 +5,7 @@
 #include <utility>
 
 #include "../ManapiAsync.hpp"
-#include "components/ManapiChain.hpp"
+#include "../components/ManapiChain.hpp"
 #include "./ManapiAsyncMutex.hpp"
 
 namespace manapi::async {

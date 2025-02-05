@@ -1,7 +1,7 @@
 #pragma once
 
-#include "UDP.hpp"
-#include "http/HTTPv2.hpp"
+#include "./UDP.hpp"
+#include "../http/HTTPv2.hpp"
 
 #if MANAPIHTTP_QUICHE_DEPENDENCY
 

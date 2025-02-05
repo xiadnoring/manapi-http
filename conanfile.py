@@ -6,7 +6,7 @@ from conan.errors import ConanInvalidConfiguration
 class ManapiHttpConan(ConanFile):
     name = "manapihttp"
     description = "Fast http server/client"
-    version = "0.0.1"
+    version = "0.0.2"
 
     settings = "os", "compiler", "build_type", "arch"
 
@@ -18,11 +18,12 @@ class ManapiHttpConan(ConanFile):
         "wolfssl_dependency": [True, False],
         "quiche_dependency": [True, False],
         "tquic_dependency": [True, False],
-        "debug": [True, False]
+        "debug": [True, False],
+        "lib": [True, False]
     }
 
     default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": False, "openssl_dependency": True, "quiche_dependency": True,
-                       "tquic_dependency": True, "debug": True}
+                       "tquic_dependency": True, "debug": True, "lib": True}
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
 
@@ -64,6 +65,7 @@ class ManapiHttpConan(ConanFile):
         tc.variables['MANAPIHTTP_OPENSSL_DEPENDENCY'] = self.options.get_safe('openssl_dependency', False)
         tc.variables['MANAPIHTTP_QUICHE_DEPENDENCY'] = self.options.get_safe('quiche_dependency', False)
         tc.variables['MANAPIHTTP_TQUIC_DEPENDENCY'] = self.options.get_safe('tquic_dependency', False)
+        tc.variables['MANAPIHTTP_BUILD_TYPE'] = 'lib' if self.options.get_safe('lib', False) else 'exe'
         tc.generate()
 
     def build(self):

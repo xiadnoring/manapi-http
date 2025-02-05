@@ -1,7 +1,7 @@
 #pragma once
 
 #include "./AsyncPostgreRow.hpp"
-#include "ManapiErrors.hpp"
+#include "../../ManapiErrors.hpp"
 
 namespace manapi::ext::pq {
 #include "libpq-events.h"
@@ -63,9 +63,9 @@ namespace manapi::ext::pq {
             int n = 0;
             const char *ptr = PQresultErrorField(this->res_.get(), PG_DIAG_SQLSTATE);
 
-            while (ptr) {
+            while (ptr && *ptr) {
                 n *= 10;
-                n += (*ptr++)-'0';
+                n += (*(ptr++))-'0';
             }
 
             this->sqlstate_ = n;
@@ -175,11 +175,11 @@ namespace manapi::ext::pq {
         }
     };
 
-    manapi::ext::pq::result::const_iterator manapi::ext::pq::result::begin() const noexcept {
+    inline manapi::ext::pq::result::const_iterator manapi::ext::pq::result::begin() const noexcept {
         return const_iterator{this->res_.get(), 0};
     }
 
-    manapi::ext::pq::result::const_iterator manapi::ext::pq::result::end() const noexcept {
+    inline manapi::ext::pq::result::const_iterator manapi::ext::pq::result::end() const noexcept {
         return const_iterator{this->res_.get(), this->size()};
     }
 }

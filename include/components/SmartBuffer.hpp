@@ -6,9 +6,9 @@
 #include <condition_variable>
 #include <functional>
 
-#include "ManapiAsync.hpp"
-#include "async/ManapiAsyncConditionVariable.hpp"
-#include "async/ManapiAsyncMutex.hpp"
+#include "../ManapiAsync.hpp"
+#include "../async/ManapiAsyncConditionVariable.hpp"
+#include "../async/ManapiAsyncMutex.hpp"
 
 namespace manapi::net::worker {
     class smart_w_buffer {

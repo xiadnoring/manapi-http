@@ -1,14 +1,14 @@
 #pragma once
 
-#include "extensions/ev++.h"
+#include "../extensions/ev++.h"
 
 #if defined(__unix__)||defined(__APPLE__)
 #   include <netdb.h>
 #endif
 
 #include "./base_worker.hpp"
-#include "ManapiAsync.hpp"
-#include "http/HeaderView.hpp"
+#include "./ManapiAsync.hpp"
+#include "../http/HeaderView.hpp"
 
 namespace manapi::net::worker {
     class TCP : public worker::base {

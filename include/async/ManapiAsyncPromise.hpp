@@ -2,8 +2,8 @@
 
 #include <functional>
 
-#include "ManapiAsync.hpp"
-#include "ManapiAsyncContext.hpp"
+#include "../ManapiAsync.hpp"
+#include "./ManapiAsyncContext.hpp"
 
 namespace manapi::async {
     template<typename T>

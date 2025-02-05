@@ -1,7 +1,7 @@
 #pragma once
-#include "services/ManapiEventLoop.hpp"
-#include "services/ManapiTask.hpp"
-#include "services/ManapiThreadPool.hpp"
+#include "../services/ManapiEventLoop.hpp"
+#include "../services/ManapiTask.hpp"
+#include "../services/ManapiThreadPool.hpp"
 
 #ifdef _WIN32
 #   define NOMINMAX

@@ -4,8 +4,8 @@
 #include <string>
 #include <utility>
 
-#include "ManapiCryptoUtils.hpp"
-#include "ManapiUtils.hpp"
+#include "./ManapiCryptoUtils.hpp"
+#include "../ManapiUtils.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 #include <openssl/evp.h>

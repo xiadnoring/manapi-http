@@ -12,7 +12,7 @@
 #include <filesystem>
 #include <fstream>
 
-#include "async/ManapiAsyncFileStream.hpp"
+#include "../async/ManapiAsyncFileStream.hpp"
 
 namespace manapi::crypto {
     enum ciphers {

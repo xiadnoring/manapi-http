@@ -7,12 +7,12 @@
 #include <set>
 #include <map>
 
-#include "ManapiAsync.hpp"
-#include "ManapiEventLoop.hpp"
-#include "ManapiThreadPool.hpp"
-#include "ManapiTask.hpp"
-#include "async/ManapiAsyncMutex.hpp"
-#include "async/ManapiAsyncConditionVariable.hpp"
+#include "../ManapiAsync.hpp"
+#include "./ManapiEventLoop.hpp"
+#include "./ManapiThreadPool.hpp"
+#include "./ManapiTask.hpp"
+#include "../async/ManapiAsyncMutex.hpp"
+#include "../async/ManapiAsyncConditionVariable.hpp"
 
 namespace manapi {
     struct timer_task {

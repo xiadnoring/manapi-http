@@ -7,8 +7,8 @@
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiSite.hpp"
 
-#include "Utils.hpp"
-#include "async/ManapiAsyncFileStream.hpp"
+#include "./Utils.hpp"
+#include "../async/ManapiAsyncFileStream.hpp"
 
 namespace manapi::net::http {
     class base : public manapi::task {

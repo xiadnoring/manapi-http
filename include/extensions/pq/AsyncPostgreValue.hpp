@@ -6,7 +6,7 @@
 #include <typeindex>
 #include <memory.h>
 
-#include "ManapiDebug.hpp"
+#include "../../ManapiDebug.hpp"
 
 namespace manapi::ext::pq {
     class text : public std::string_view {
@@ -82,6 +82,10 @@ namespace manapi::ext::pq {
         return INT8OID;
     }
 
+    inline uint32_t oid_of (const size_t &v) {
+        return INT8OID;
+    }
+
     inline uint32_t oid_of (const int &v) {
         return INT4OID;
     }
@@ -103,6 +107,10 @@ namespace manapi::ext::pq {
     }
 
     inline uint32_t oid_of (const long long &v) {
+        return INT8OID;
+    }
+
+    inline uint32_t oid_of (const ssize_t &v) {
         return INT8OID;
     }
 

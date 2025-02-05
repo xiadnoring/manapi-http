@@ -2,10 +2,10 @@
 
 #include <filesystem>
 
-#include "ManapiAsync.hpp"
-#include "ManapiUtils.hpp"
-#include "ManapiJson.hpp"
-#include "async/ManapiAsyncContext.hpp"
+#include "./ManapiAsync.hpp"
+#include "./ManapiUtils.hpp"
+#include "./ManapiJson.hpp"
+#include "./async/ManapiAsyncContext.hpp"
 
 namespace manapi::filesystem {
     static char delimiter = std::filesystem::path::preferred_separator;

@@ -143,7 +143,7 @@ namespace manapi::ext::pq {
             return std::string{text_};
         }
         static constexpr void to_string (std::string_view text_, std::string const &value) {
-            assert(text_.size() == value.size());
+            assert(text_.size() >= value.size());
             memcpy((void*)text_.data(), value.data(), value.size());
         }
         [[nodiscard]] static size_t size (std::string const &value) {
@@ -367,6 +367,5 @@ namespace manapi::ext::pq {
     template<> inline void to_string (std::string_view text_, const unsigned long long &v) {
         return integral_traits<unsigned long long>::to_string(text_, v);
     }
-
 #endif
 }

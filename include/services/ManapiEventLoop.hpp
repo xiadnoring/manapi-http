@@ -1,17 +1,16 @@
 #pragma once
 
-#include "extensions/ev++.h"
+#include "../extensions/ev++.h"
 #include <set>
 #include <stack>
 #include <curl/curl.h>
-#include "ManapiInt.hpp"
-
-#include "ManapiAsync.hpp"
-#include "ManapiTask.hpp"
-#include "ManapiThreadPool.hpp"
-#include "async/ManapiAsyncMutex.hpp"
-#include "async/ManapiAsyncPromise.hpp"
-#include "components/Atomic.hpp"
+#include "../ManapiInt.hpp"
+#include "../ManapiAsync.hpp"
+#include "./ManapiTask.hpp"
+#include "./ManapiThreadPool.hpp"
+#include "../async/ManapiAsyncMutex.hpp"
+#include "../async/ManapiAsyncPromise.hpp"
+#include "../components/Atomic.hpp"
 
 namespace manapi {
     namespace priority {

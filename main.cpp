@@ -20,12 +20,11 @@ int main () {
     router->set_config_object({
         {"pools", manapi::json::array({
             {
-                {"address", "127.0.0.1"},
-                {"http_version", "2"},
-                {"transport", "tls"},
+                {"address", "::1"},
+                {"http_version", "3"},
+                {"transport", "quic"},
                 {"partial_data_min_size", 0},
-                {"tls_version", "1.3"},
-                {"implementation", "openssl"},
+                {"implementation", "quiche"},
                 {"port", "8888"},
                 {"ssl", {
                     {"cert", "/home/Timur/Documents/ssl/quic/cert.crt"},
@@ -70,7 +69,7 @@ int main () {
     router->GET("/pq", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
         auto lk = co_await mx->lock_guard();
         /* The pool of database connections here / This example is so slow */
-        auto res = co_await db->exec("SELECT id, str_col FROM for_test WHERE id > $1", 0);
+        auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES (78, $1);","no way");
 
         lk.call();
 

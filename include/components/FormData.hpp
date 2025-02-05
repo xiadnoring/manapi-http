@@ -4,7 +4,7 @@
 #include "../ManapiAsync.hpp"
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiUtils.hpp"
-#include "http/Utils.hpp"
+#include "../http/Utils.hpp"
 
 namespace manapi::net::http {
     class base;

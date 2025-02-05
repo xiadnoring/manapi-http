@@ -15,7 +15,7 @@
 #include <pthread.h>
 #endif
 
-#include "components/ManapiChain.hpp"
+#include "../components/ManapiChain.hpp"
 
 namespace manapi {
     template <class T>
