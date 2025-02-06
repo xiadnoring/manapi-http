@@ -242,7 +242,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/extensions/pq/AsyncPostgreRow.hpp
         include/extensions/pq/AsyncPostgreField.hpp
         include/extensions/pq/AsyncPostgreValue.hpp
-        src/extensions/pq/AsyncPostgreValueTypes.cpp
         include/extensions/pq/AsyncPostgreValueTypes.hpp
         include/extensions/pq/AsyncPostgreNotification.hpp
         include/async/ManapiAsyncParallelRun.hpp

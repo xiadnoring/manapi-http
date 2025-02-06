@@ -68,77 +68,88 @@ namespace manapi::ext::pq {
 
 namespace manapi::ext::pq {
 #include <catalog/pg_type_d.h>
-    
+    template<typename T>
+    inline uint32_t oid_of (const T &v) {
+        fprintf(stderr, "Unresolved function: oid_of(...)");
+        exit(1);
+    }
 
-    inline uint32_t oid_of (const unsigned int &v) {
+
+    template<typename T>
+    inline uint32_t oid_of (const T *v) {
+        fprintf(stderr, "Unresolved function: oid_of(...)");
+        exit(1);
+    }
+
+    template<> inline uint32_t oid_of (const unsigned int &v) {
         return INT4OID;
     }
 
-    inline uint32_t oid_of (const unsigned short &v) {
+    template<> inline uint32_t oid_of (const unsigned short &v) {
         return INT2OID;
     }
 
-    inline uint32_t oid_of (const unsigned long long &v) {
+    template<> inline uint32_t oid_of (const unsigned long long &v) {
         return INT8OID;
     }
 
-    inline uint32_t oid_of (const size_t &v) {
+    template<> inline uint32_t oid_of (const size_t &v) {
         return INT8OID;
     }
 
-    inline uint32_t oid_of (const int &v) {
+    template<> inline uint32_t oid_of (const int &v) {
         return INT4OID;
     }
 
-    inline uint32_t oid_of (const std::string_view &v) {
+    template<> inline uint32_t oid_of (const std::string_view &v) {
         return VARCHAROID;
     }
 
-    inline uint32_t oid_of (const pq::text &v) {
+    template<> inline uint32_t oid_of (const pq::text &v) {
         return TEXTOID;
     }
 
-    inline uint32_t oid_of (const pq::blob &v) {
+    template<> inline uint32_t oid_of (const pq::blob &v) {
         return BYTEAOID;
     }
 
-    inline uint32_t oid_of (const short &v) {
+    template<> inline uint32_t oid_of (const short &v) {
         return INT2OID;
     }
 
-    inline uint32_t oid_of (const long long &v) {
+    template<> inline uint32_t oid_of (const long long &v) {
         return INT8OID;
     }
 
-    inline uint32_t oid_of (const ssize_t &v) {
+    template<> inline uint32_t oid_of (const ssize_t &v) {
         return INT8OID;
     }
 
-    inline uint32_t oid_of (const std::string &v) {
+    template<> inline uint32_t oid_of (const std::string &v) {
         return VARCHAROID;
     }
 
-    inline uint32_t oid_of (const char *v) {
+    template<> inline uint32_t oid_of (const char *v) {
         return VARCHAROID;
     }
 
-    inline uint32_t oid_of (const bool &v) {
+    template<> inline uint32_t oid_of (const bool &v) {
         return BOOLOID;
     }
 
-    inline uint32_t oid_of (const char &v) {
+    template<> inline uint32_t oid_of (const char &v) {
         return CHAROID;
     }
 
-    inline uint32_t oid_of (const unsigned char &v) {
+    template<> inline uint32_t oid_of (const unsigned char &v) {
         return CHAROID;
     }
 
-    inline uint32_t oid_of (const float &v) {
+    template<> inline uint32_t oid_of (const float &v) {
         return FLOAT4OID;
     }
 
-    inline uint32_t oid_of (const double &v) {
+    template<> inline uint32_t oid_of (const double &v) {
         return FLOAT8OID;
     }
 

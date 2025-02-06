@@ -41,7 +41,6 @@ namespace manapi::net {
 
         bool contains_header (const std::string &name);
         const std::string& get_header (const std::string &name);
-        bool has_header (const std::string &name);
 
         const std::string& get_query_param (const std::string &name);
 

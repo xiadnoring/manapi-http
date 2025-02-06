@@ -20,11 +20,11 @@ int main () {
     router->set_config_object({
         {"pools", manapi::json::array({
             {
-                {"address", "::1"},
-                {"http_version", "3"},
-                {"transport", "quic"},
+                {"address", "127.0.0.1"},
+                {"http_version", "2"},
+                {"transport", "tls"},
                 {"partial_data_min_size", 0},
-                {"implementation", "quiche"},
+                {"implementation", "openssl"},
                 {"port", "8888"},
                 {"ssl", {
                     {"cert", "/home/Timur/Documents/ssl/quic/cert.crt"},
@@ -66,14 +66,14 @@ int main () {
         co_return resp.text(std::move(data["description"].as_string()));
     });
 
-    router->GET("/pq", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    router->GET("/pq/[id]", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
         auto lk = co_await mx->lock_guard();
         /* The pool of database connections here / This example is so slow */
-        auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES (78, $1);","no way");
+        auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.get_param("id")));
 
         lk.call();
 
-        std::string content;
+        std::string content = "b";
         for (const auto &row: res) {
             content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
         }
