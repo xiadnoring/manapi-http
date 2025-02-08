@@ -9,6 +9,7 @@
 #include "ManapiTask.hpp"
 #include "../ManapiJson.hpp"
 #include "../ManapiHttpRequest.hpp"
+#include "async/ManapiAsyncParallelRun.hpp"
 
 namespace manapi::net {
 
@@ -80,6 +81,7 @@ namespace manapi::net {
         void handle_body(std::function<ssize_t(char *, ssize_t)> handler);
         void handle_async_body(std::function<manapi::future<ssize_t>(char *, ssize_t )> handler);
         void handle_headers (std::function<bool(std::map <std::string, std::string>)> handler);
+        void handle_async_headers (std::function<manapi::future<bool>(std::map<std::string, std::string>)> handler);
         void enable_alpn (bool status);
         void enable_http3 ();
         void enable_http2 ();
@@ -108,9 +110,9 @@ namespace manapi::net {
     private:
         static size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata);
         static size_t curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p);
-        static size_t curl_other_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p);
-        static size_t curl_first_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p);
+
         future<CURLcode> async_curl_perform ();
+        async::parallel_run<void> async_run;
         size_t status_code = 200;
 
         int attempts = 20;
@@ -121,7 +123,8 @@ namespace manapi::net {
         std::function <void(CURL *)> handle_custom_setup;
         std::function <ssize_t(char *, ssize_t)> handler_body{nullptr};
         std::function <manapi::future<>(bool finish)> async_handler_body{nullptr};
-        std::function <bool(std::map <std::string, std::string>)> handler_headers;
+        std::function <bool(std::map <std::string, std::string>)> handler_headers{nullptr};
+        std::function <manapi::future<bool>(std::map <std::string, std::string>)> async_handler_headers{nullptr};
 
         body_type body = BODY_NONE;
 
@@ -129,8 +132,7 @@ namespace manapi::net {
         std::string method{};
         curlformdata body_formdata;
 
-        std::shared_ptr<event_loop> event;
-        std::shared_ptr<manapi::timerpool> timerpool;
+        std::shared_ptr<async::context> ctx;
 
         std::unique_ptr<CURL, curl_deleter> curl {nullptr};
         std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
