@@ -9,6 +9,7 @@
 #include "ManapiHttpConfig.hpp"
 
 #include "http/Utils.hpp"
+#include "services/ManapiFetch.hpp"
 
 namespace manapi::net {
     struct custom_data_t {
@@ -33,6 +34,7 @@ namespace manapi::net {
         void set_partial_status (const bool &auto_partial_status);
         void file (std::string path);
         void proxy (std::string url);
+        void proxy (std::string url, std::function<void(manapi::net::fetch &)> cb);
 
         [[deprecated]]
         const std::string &get_http_version ();
@@ -58,7 +60,7 @@ namespace manapi::net {
         [[nodiscard]] bool get_partial_enabled () const;
         const std::string &get_file ();
         const std::string &get_data ();
-
+        std::function<void(manapi::net::fetch &)> get_proxy_setup_cb ();
         const std::string &get_compress ();
 
         std::vector <std::pair <ssize_t, ssize_t> > ranges;
@@ -100,5 +102,6 @@ namespace manapi::net {
         manapi::net::http::request_data_t *request_data;
 
         std::unique_ptr<std::map<std::string, std::string> > replacers;
+        std::optional<std::function<void(manapi::net::fetch &)>> proxy_setup{};
     };
 }

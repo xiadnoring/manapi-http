@@ -79,8 +79,11 @@ namespace manapi::net {
         fetch &operator=(fetch &&n) noexcept;
         void handle_body(std::function<ssize_t(char *, ssize_t)> handler);
         void handle_async_body(std::function<manapi::future<ssize_t>(char *, ssize_t )> handler);
-        void handle_headers (const std::function<void(const std::map <std::string, std::string> &)> &handler);
-
+        void handle_headers (std::function<bool(std::map <std::string, std::string>)> handler);
+        void enable_alpn (bool status);
+        void enable_http3 ();
+        void enable_http2 ();
+        void enable_http1_1 ();
         void set_body (curlformdata params);
         void set_method (std::string method);
         void set_body (std::string data);
@@ -103,19 +106,22 @@ namespace manapi::net {
 
         void clear ();
     private:
+        static size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata);
+        static size_t curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p);
+        static size_t curl_other_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p);
+        static size_t curl_first_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p);
         future<CURLcode> async_curl_perform ();
         size_t status_code = 200;
 
         int attempts = 20;
         std::chrono::milliseconds attempt_delay {100};
 
-        std::map <std::string, std::string> headers_list;
         std::string url;
 
         std::function <void(CURL *)> handle_custom_setup;
         std::function <ssize_t(char *, ssize_t)> handler_body{nullptr};
         std::function <manapi::future<>(bool finish)> async_handler_body{nullptr};
-        std::function <void(const std::map <std::string, std::string> &)> handler_headers;
+        std::function <bool(std::map <std::string, std::string>)> handler_headers;
 
         body_type body = BODY_NONE;
 

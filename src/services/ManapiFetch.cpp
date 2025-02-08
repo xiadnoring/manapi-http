@@ -9,13 +9,13 @@
 
 struct curl_data_t {
     std::function <ssize_t(char *, const ssize_t&)> handler_body;
-    std::function <void(const std::map <std::string, std::string>&)> handler_headers;
-    std::map <std::string, std::string> *headers;
+    std::function <bool(std::map <std::string, std::string>)> handler_headers;
+    manapi::net::fetch *fetch;
     std::atomic<ssize_t> &total_write;
-    bool first_chunk_body;
+    std::function<size_t(char *, size_t, size_t, void*)> curl_handler;
 };
 
-size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata)
+size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata)
 {
     std::string str (buffer, size * n_items);
 
@@ -29,27 +29,40 @@ size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *use
     }
 
     auto header = manapi::net::http::parse_header(str);
-    static_cast <curl_data_t *> (userdata)->headers->insert(std::move(header));
+    static_cast <curl_data_t *> (userdata)->fetch->headers.insert(std::move(header));
 
     return n_items * size;
 }
 
-size_t curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p)
+size_t manapi::net::fetch::curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p)
 {
     auto &f = *static_cast <curl_data_t *> (user_p);
-    // check if it is the first chunk
-    if (f.first_chunk_body) {
-        f.first_chunk_body = false;
-        if (f.handler_headers)
-        {
-            f.handler_headers (*static_cast <curl_data_t *> (user_p)->headers);
-        }
-    }
+    return f.curl_handler(buffer, size, n_mem_b, user_p);
+}
 
+size_t manapi::net::fetch::curl_other_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p) {
+    auto &f = *static_cast <curl_data_t *> (user_p);
     const auto result = static_cast<ssize_t>(size * n_mem_b);
     f.total_write.fetch_add(result);
     // call user handler
     return static_cast<size_t>(f.handler_body (buffer, result));
+}
+
+size_t manapi::net::fetch::curl_first_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p) {
+    auto &f = *static_cast <curl_data_t *> (user_p);
+
+    curl_easy_getinfo(f.fetch->curl.get(), CURLINFO_HTTP_CODE, &f.fetch->status_code);
+
+    if (f.handler_headers){
+        if (!f.handler_headers (std::move(f.fetch->headers))) {
+            /* cut it off */
+            return CURL_WRITEFUNC_ERROR;
+        }
+    }
+
+    f.curl_handler = curl_other_write_handler;
+
+    return f.curl_handler(buffer, size, n_mem_b, user_p);
 }
 
 size_t curl_send_formdata_cb_read (char *buffer, size_t size, size_t nitems, void *userp) {
@@ -127,7 +140,6 @@ manapi::net::fetch & manapi::net::fetch::operator=(fetch &&n) noexcept {
     this->event = std::move(n.event);
     this->timerpool = std::move(n.timerpool);
     this->status_code = std::exchange(n.status_code, 200);
-    this->headers_list = std::move(n.headers_list);
     this->url = std::move(n.url);
     this->handle_custom_setup = std::move(n.handle_custom_setup);
     this->handler_body = std::move(n.handler_body);
@@ -157,9 +169,9 @@ manapi::future<void> manapi::net::fetch::async_doit() {
     curl_data_t data {
         .handler_body = this->handler_body,
         .handler_headers = this->handler_headers,
-        .headers = &this->headers_list,
+        .fetch = this,
         .total_write = this->total_write,
-        .first_chunk_body = true
+        .curl_handler = curl_first_write_handler
     };
 
     CURLcode resp;
@@ -188,7 +200,7 @@ manapi::future<void> manapi::net::fetch::async_doit() {
     }
 
     // body of the request
-    switch (body) {
+    switch (this->body) {
         case BODY_PLAIN: {
             curl_easy_setopt(this->curl.get(), CURLOPT_POSTFIELDS, this->body_default.data());
             curl_easy_setopt(this->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, this->body_default.size());
@@ -238,15 +250,16 @@ manapi::future<void> manapi::net::fetch::async_doit() {
         THROW_MANAPIHTTP_EXCEPTION (ERR_FATAL, "Connection failed: {}. Error code: {}. Error msg: {}", this->url, static_cast<int> (resp), curl_easy_strerror(resp));
     }
 
-    if (std::exchange(data.first_chunk_body, false) && data.handler_headers) {
-        data.handler_headers (this->headers_list);
+    curl_easy_getinfo(this->curl.get(), CURLINFO_HTTP_CODE, &this->status_code);
+
+    if (data.handler_headers) {
+        data.handler_headers (std::move(this->headers));
     }
 
-    curl_easy_getinfo(this->curl.get(), CURLINFO_HTTP_CODE, &this->status_code);
 }
 
 std::map <std::string, std::string> manapi::net::fetch::get_headers() {
-    return std::move(this->headers_list);
+    return std::move(this->headers);
 }
 
 void manapi::net::fetch::clear() {
@@ -384,8 +397,24 @@ void manapi::net::fetch::handle_async_body(std::function<manapi::future<ssize_t>
     };
 }
 
-void manapi::net::fetch::handle_headers(const std::function<void(const std::map <std::string, std::string> &)> &_handler) {
-    this->handler_headers = _handler;
+void manapi::net::fetch::handle_headers(std::function<bool(std::map <std::string, std::string>)> handler) {
+    this->handler_headers = std::move(handler);
+}
+
+void manapi::net::fetch::enable_alpn(bool status) {
+    curl_easy_setopt(this->curl.get(), CURLOPT_SSL_ENABLE_ALPN, 0);
+}
+
+void manapi::net::fetch::enable_http3() {
+    curl_easy_setopt(this->curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_3);
+}
+
+void manapi::net::fetch::enable_http2() {
+    curl_easy_setopt(this->curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE);
+}
+
+void manapi::net::fetch::enable_http1_1() {
+    curl_easy_setopt(this->curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 }
 
 void manapi::net::fetch::set_body(curlformdata params) {
@@ -404,9 +433,8 @@ void manapi::net::fetch::set_body(std::string data) {
 }
 
 void manapi::net::fetch::set_headers(std::map<std::string, std::string> headers) {
-    this->headers = std::move(headers);
     // headers
-    for (const auto &header: this->headers)
+    for (auto &header: headers)
     {
         this->curl_headers.reset(curl_slist_append(this->curl_headers.release(), manapi::net::http::stringify_header(header).data()));
     }

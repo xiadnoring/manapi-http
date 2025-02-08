@@ -87,7 +87,7 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
                     co_await client->parse_request(j, size);
                     long cnt = client.use_count();
                     if (cnt != 1) {
-                        MANAPIHTTP_LOG("Possible bug: http2.use_count() != 1 ({})", cnt);
+                        //MANAPIHTTP_LOG("Possible bug: http2.use_count() != 1 ({})", cnt);
                     }
                     break;
                 }

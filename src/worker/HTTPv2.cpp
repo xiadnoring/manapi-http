@@ -76,7 +76,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
             rhs = co_await this->worker->read (*this->connection, this->buffer.data(), static_cast<ssize_t>(this->buffer.size()));
 
             if (rhs <= 0) {
-                std::cout << "HALF CLOSED BY READ\n";
+                //std::cout << "HALF CLOSED BY READ\n";
                 this->protocol.conn_type.fetch_or(CONN_HALF_CLOSED);
                 break;
             }
@@ -321,11 +321,11 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         co_await unlimit_all_streams();
     }
 
-    std::cout << "Preparing for close\n";
+    //std::cout << "Preparing for close\n";
     auto lk = co_await this->threads_mutex.lock_guard();
     co_await this->finishcv.wait(this->threads_mutex,
         [this] () -> bool {
-        std::cout << "BEEN NOTIFY " << this->threads.size() << " " << this->deps << "\n";
+        //std::cout << "BEEN NOTIFY " << this->threads.size() << " " << this->deps << "\n";
         return this->threads.empty() && this->deps == 0;
     });
     co_await this->site.async_context()->timerpool()->async_remove_timer(this->ping_interval.exchange(0));
@@ -916,11 +916,11 @@ manapi::future<> manapi::net::worker::http_v2::timer_watcher() {
 
     this->protocol.current_timeout.fetch_sub(this->protocol.timer_interval);
     if (this->protocol.current_timeout <= 0) {
-        MANAPIHTTP_LOG2("TIMEOUT HTTP2");
+        //MANAPIHTTP_LOG2("TIMEOUT HTTP2");
         co_await this->site.async_context()->timerpool()->async_remove_timer(this->ping_interval.exchange(0));
-        MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
+        //MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
         co_await this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout", 0);
-        MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
+        //MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
     }
 }
 

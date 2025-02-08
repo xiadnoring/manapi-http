@@ -229,18 +229,25 @@ manapi::future<void> manapi::net::http::base::send_response_text(manapi::net::ht
 
 manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::http_response &res, response_features_t &features) {
     auto proxy = std::make_unique<fetch>(this->site.async_context(), res.get_data());
+    auto proxy_setup = res.get_proxy_setup_cb();
+
+    proxy_setup (*proxy);
+
     proxy->set_headers({{"ranges", "0-"}});
     size_t content_length = 0;
-    proxy->handle_headers([this, &content_length, &proxy, &res](const std::map<std::string, std::string> &headers) -> void {
-        res.set_status_code(200);
+    proxy->handle_headers([this, &content_length, &proxy, &res](std::map<std::string, std::string> headers) -> bool {
+        res.set_status_code(proxy->get_status_code());
         res.set_status_message(HTTP_STATUS.OK_200);
 
         if (headers.contains(HTTP_HEADER.CONTENT_LENGTH)) {
-            std::string value = headers.at(HTTP_HEADER.CONTENT_LENGTH);
+            std::string &value = headers[HTTP_HEADER.CONTENT_LENGTH];
             content_length = std::stoull(value);
             res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::move(value));
         }
+
+        return true;
     });
+
     auto chunk_cb = [&] (char *buffer, ssize_t size) -> manapi::future<ssize_t> {
         auto rhs = co_await this->worker->fwrite (*this->connection, buffer,
             size, content_length <= size);

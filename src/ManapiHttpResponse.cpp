@@ -228,6 +228,15 @@ void manapi::net::http_response::proxy(std::string url) {
     this->set_compress_enabled(false);
 }
 
+void manapi::net::http_response::proxy(std::string url, std::function<void(manapi::net::fetch &)> cb) {
+    this->proxy(std::move(url));
+    this->proxy_setup = std::move(cb);
+}
+
 const std::string &manapi::net::http_response::get_data() {
     return this->data;
+}
+
+std::function<void(manapi::net::fetch &)> manapi::net::http_response::get_proxy_setup_cb() {
+    return std::move(this->proxy_setup.value_or(nullptr));
 }

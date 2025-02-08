@@ -82,7 +82,11 @@ int main () {
     });
 
     router->GET("/proxy", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        co_return resp.proxy("http://127.0.0.1:8889/video");
+        co_return resp.proxy("https://127.0.0.1:8888", [] (manapi::net::fetch &proxy) -> void {
+            proxy.enable_alpn(false);
+            proxy.enable_http2();
+            proxy.enable_ssl_verify(false);
+        });
     });
 
     router->GET("/video", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
