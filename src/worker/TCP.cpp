@@ -254,7 +254,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
         return {};
     }
 
-    //MANAPIHTTP_LOG("NEW FD: {}", fd);
+    MANAPIHTTP_LOG("NEW FD: {}", fd);
 
     cnt_conns.fetch_add(1);
     this->set_fd_non_blocking(fd);

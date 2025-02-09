@@ -915,7 +915,7 @@ void manapi::net::worker::http_v2::timer_watcher(const std::shared_ptr<manapi::n
     else {
         this->protocol.prev_payload_read = this->protocol.payload_read;
 
-        if (status & CONN_LIMIT_RATE || ((this->protocol.conn_type | CONN_HALF_CLOSED) == CONN_HALF_CLOSED)) {
+        if ((status & CONN_LIMIT_RATE || ((this->protocol.conn_type | CONN_HALF_CLOSED) == CONN_HALF_CLOSED) && this->thread_cnt > 0)) {
             return;
         }
     }
@@ -1075,8 +1075,8 @@ void manapi::net::worker::http_v2::default_ev_data(int id) {
 }
 
 void manapi::net::worker::http_v2::default_ev_goaway(int last_stream_id, int errnum, std::string errmsg) {
-    MANAPIHTTP_LOG("Client sent GOAWAY Frame:\n > Error Code: {}\n > Error Msg: {}\nLast-Stream-Id:{}",
-        errnum, errmsg, last_stream_id);
+    // MANAPIHTTP_LOG("Client sent GOAWAY Frame:\n > Error Code: {}\n > Error Msg: {}\nLast-Stream-Id:{}",
+    //     errnum, errmsg, last_stream_id);
 }
 
 void manapi::net::worker::http_v2::default_ev_finished(int id) {

@@ -251,6 +251,11 @@ void manapi::net::fetch::clear() {
     this->data->async_buffer.clear();
     this->data->async_buffer_cursor=0;
     this->data->headers.clear();
+    this->data->handler_headers=nullptr;
+    this->data->handler_body=nullptr;
+    this->data->async_handler_body=nullptr;
+    this->data->async_handler_headers=nullptr;
+    this->data->async_waiting.store(false);
 }
 
 manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
@@ -314,12 +319,9 @@ void manapi::net::fetch::handle_body(std::function<ssize_t(char *, ssize_t)> han
             }
 
 
-            auto curl = data->curl.get();
-            auto eventloop = data->ctx->eventloop();
             data->async_handler_body = nullptr;
-
             data->async_run.unlock();
-            co_await eventloop->unpause_watch_curl(curl);
+            co_await data->ctx->eventloop()->unpause_watch_curl(data->curl.get());
         };
 
         this->data->handler_body = [this] (char *buffer, size_t buffer_size) -> ssize_t {

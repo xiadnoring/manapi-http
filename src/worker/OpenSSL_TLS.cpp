@@ -100,17 +100,25 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
                         WANT_WRITE(conn);
                         goto cont;
                     }
-                    case SSL_ERROR_ZERO_RETURN:
+                    case SSL_ERROR_ZERO_RETURN: {
+                        conn.iomutex.unlock();
+                        unlock.disable();
+
+                        co_await conn.site->async_context()->timerpool()->async_remove_timer(conn.accept_timer);
                         co_await this->connection_close(connection, true);
-                    break;
+                        co_return false;
+                    }
                     case SSL_ERROR_SSL:
-                        goto error;
                     case SSL_ERROR_SYSCALL:
-                        goto error;
                     default:
-                    error:
+                    error: {
+                        conn.iomutex.unlock();
+                        unlock.disable();
+
+                        co_await conn.site->async_context()->timerpool()->async_remove_timer(conn.accept_timer);
                         co_await this->connection_close(connection, false);
-                    co_return false;
+                        co_return false;
+                    }
                 }
 cont:
                 lk = co_await conn.mx->lock_guard();
@@ -279,8 +287,8 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
             auto ssl = std::exchange(connection->ssl, nullptr);
             //MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
             SSL_free(ssl);
-            MANAPIHTTP_LOG("SSL CLOSED: {} ssl={:}", connection->id, static_cast<void*>(ssl));
         }
+            MANAPIHTTP_LOG("SSL CLOSED: {}", connection->id);
 #ifdef _WIN32
         ::closesocket(connection->id);
 #else
