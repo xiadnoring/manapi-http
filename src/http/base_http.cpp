@@ -16,8 +16,6 @@
 #include "async/ManapiAsyncFileStream.hpp"
 #include "async/ManapiAsyncParallelRun.hpp"
 
-#define FEATURE_EXISTS(x) x != nullptr
-
 std::set<std::string> manapi::net::http::base::methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 
 manapi::net::http::base::base(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site): site(site), worker(std::move(worker)), config(std::move(config)) {}
@@ -79,8 +77,8 @@ manapi::future<void> manapi::net::http::base::execute_handler() {
 manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::http_response &res, response_features_t &features) {
     std::string filepath;
 
-    if (FEATURE_EXISTS(features.compressor)) {
-        if (FEATURE_EXISTS(features.replacers)) {
+    if (features.compressor) {
+        if (features.replacers) {
             THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
         }
 
@@ -118,8 +116,8 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
         ssize_t dynamicFileSize = fileSize;
 
         // replacers
-        if (FEATURE_EXISTS(features.replacers)) {
-            replacers = co_await found_replacers_in_file(this->site.async_context(), filepath, 0, fileSize, *res.get_replacers());
+        if (features.replacers) {
+            replacers = co_await found_replacers_in_file(this->site.async_context(), filepath, 0, fileSize, features.replacers.value());
 
             for (const auto &replacer: replacers) {
                 dynamicFileSize = static_cast<ssize_t> (
@@ -129,14 +127,14 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
 
         // partial enabled
         if (res.get_partial_enabled() && config->get_partial_data_min_size() <= fileSize) {
-            if (FEATURE_EXISTS(features.compressor)) {
+            if (features.compressor) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
                                        "the compress '{}' with the partial content is not supported.",
                                        res.get_compress());
             }
 
 
-            if (FEATURE_EXISTS(features.replacers)) {
+            if (features.replacers) {
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be use with partial");
             }
 
@@ -208,7 +206,7 @@ manapi::future<void> manapi::net::http::base::send_response_text(manapi::net::ht
     // may contains decoded / encoded body
     std::string plaintext = std::move(res.get_body());
 
-    if (false || FEATURE_EXISTS(features.compressor)) {
+    if (false || features.compressor) {
         // encode content !
         //plaintext = co_await features.compressor(res.get_body(), {});
     }
@@ -235,7 +233,7 @@ manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::h
 
     proxy->set_headers({{"ranges", "0-"}});
     size_t content_length = 0;
-    proxy->handle_headers([this, &content_length, &proxy, &res](std::map<std::string, std::string> headers) -> bool {
+    proxy->handle_async_headers ([this, &content_length, &proxy, &res](std::map<std::string, std::string> headers) -> manapi::future<bool> {
         res.set_status_code(proxy->get_status_code());
         res.set_status_message(HTTP_STATUS.OK_200);
 
@@ -245,10 +243,15 @@ manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::h
             res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::move(value));
         }
 
-        return true;
+        const auto rhs1 = co_await this->mask_response(res, content_length == 0);
+        if (rhs1 < 0) {
+            co_return false;
+        }
+
+        co_return true;
     });
 
-    auto chunk_cb = [&] (char *buffer, ssize_t size) -> manapi::future<ssize_t> {
+    proxy->handle_async_body([&](char *buffer, ssize_t size) -> manapi::future<ssize_t> {
         auto rhs = co_await this->worker->fwrite (*this->connection, buffer,
             size, content_length <= size);
 
@@ -258,20 +261,6 @@ manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::h
 
         content_length -= rhs;
         co_return rhs;
-    };
-
-    std::function<manapi::future<ssize_t>(char *buffer, ssize_t size)> current_chunk_cb = [&] (char *buffer, ssize_t size) -> manapi::future<ssize_t> {
-        const auto rhs1 = co_await this->mask_response(res, content_length == 0);
-        if (rhs1 < 0) {
-            co_return -1;
-        }
-
-        current_chunk_cb = chunk_cb;
-        co_return co_await chunk_cb (buffer, size);
-    };
-
-    proxy->handle_async_body([&](char *buffer, ssize_t size) -> manapi::future<ssize_t> {
-        return current_chunk_cb (buffer, size);
     });
 
     co_await proxy->async_doit();

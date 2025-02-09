@@ -119,7 +119,7 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
     }
 }
 
-manapi::net::worker::smart_r_buffer::smart_r_buffer(std::shared_ptr<threadpool<task>> taskpool, read_cb callback, int buffer_size) : gmx(taskpool), cv(taskpool) {
+manapi::net::worker::smart_r_buffer::smart_r_buffer(std::shared_ptr<threadpool<task>> taskpool, read_cb callback, std::atomic<int> &want_read, int buffer_size) : want_read(want_read), gmx(taskpool), cv(taskpool) {
     this->callback = std::move(callback);
     this->buffer.resize(buffer_size);
     this->taskpool = std::move(taskpool);
@@ -128,7 +128,7 @@ manapi::net::worker::smart_r_buffer::smart_r_buffer(std::shared_ptr<threadpool<t
 
 manapi::net::worker::smart_r_buffer::~smart_r_buffer() = default;
 
-manapi::net::worker::smart_r_buffer::smart_r_buffer(smart_r_buffer &&n) noexcept : gmx(n.taskpool), cv(n.taskpool) {
+manapi::net::worker::smart_r_buffer::smart_r_buffer(smart_r_buffer &&n) noexcept : gmx(n.taskpool), cv(n.taskpool), want_read(n.want_read) {
     this->operator=(std::forward<decltype(n)>(n));
 }
 
@@ -172,9 +172,12 @@ manapi::future<ssize_t> manapi::net::worker::smart_r_buffer::add(const void *c, 
 }
 
 manapi::future<ssize_t> manapi::net::worker::smart_r_buffer::read(void *c, ssize_t len) {
-    co_await this->cv.wait([this] () -> bool {
-        return this->buffer_pos != this->buffer_cursor || this->disabled;
-    });
+    if (!available_read ()) {
+        this->want_read.fetch_add(1);
+        co_await this->cv.wait([this] ()
+            -> bool { return this->available_read(); });
+        this->want_read.fetch_sub(1);
+    }
 
     if (this->disabled) {
         co_return -1;
@@ -203,5 +206,9 @@ manapi::future<void> manapi::net::worker::smart_r_buffer::disable() {
     auto lk = co_await this->gmx.lock_guard();
     this->disabled.store(true);
     co_await this->cv.notify_all();
+}
+
+bool manapi::net::worker::smart_r_buffer::available_read() {
+    return this->buffer_pos != this->buffer_cursor || this->disabled;
 }
 

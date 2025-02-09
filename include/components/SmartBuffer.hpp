@@ -48,7 +48,7 @@ namespace manapi::net::worker {
     class smart_r_buffer {
     public:
         typedef std::function<future<void>(int)> read_cb;
-        smart_r_buffer (std::shared_ptr<threadpool<task>> taskpool, read_cb callback, int buffer_size = 16384);
+        smart_r_buffer (std::shared_ptr<threadpool<task>> taskpool, read_cb callback, std::atomic<int> &want_read, int buffer_size = 16384);
         ~smart_r_buffer();
         smart_r_buffer (smart_r_buffer &&n) noexcept;
         smart_r_buffer &operator= (smart_r_buffer &&n) noexcept;
@@ -57,6 +57,8 @@ namespace manapi::net::worker {
         future<ssize_t> read (void *c, ssize_t len);
         future<void> disable ();
     private:
+        bool available_read ();
+        std::atomic<int> &want_read;
         int read_window = 0;
         std::string buffer{};
         size_t buffer_cursor = 0;

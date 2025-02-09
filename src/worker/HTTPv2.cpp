@@ -60,9 +60,8 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
     try {
         this->protocol.conn_type.fetch_or(CONN_IDLE);
 
-        this->ping_interval.store(co_await this->site.async_context()->timerpool()->async_append_interval_async(this->protocol.timer_interval, [this, dep = new_dependency()] () -> future<void> {
-            co_await this->timer_watcher();
-        }));
+        this->ping_interval.store(co_await this->site.async_context()->timerpool()->async_append_interval_sync(this->config->speed_check_delay(), [this, dep = new_dependency()] ()
+            -> void { this->timer_watcher(dep); }));
 
         co_await send_settings ({
             {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, 1},
@@ -180,6 +179,8 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                         break;
                     }
                     case HTTP2_FRAME_DATA: {
+                        this->protocol.payload_read.fetch_add(this->parse_vars.buffer.size());
+
                         {
                             std::shared_ptr<smart_r_buffer> read;
                             auto len = static_cast<ssize_t>(this->parse_vars.buffer.size());
@@ -214,9 +215,12 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                         break;
                     }
                     case HTTP2_FRAME_GOAWAY: {
-                        this->callbacks.goaway(this->protocol.error.last_stream_id, this->protocol.error.errnum, std::move(this->protocol.error.errmsg));
-                        if (this->protocol.error.errnum >= HTTP2_ERROR_NO_ERROR && this->protocol.error.errnum <= HTTP2_ERROR_HTTP_1_1_REQUIRED) {
-                            this->protocol.error.last_stream_id = 0;
+                        auto error = std::move(this->protocol.error.value());
+                        this->protocol.error.reset();
+
+                        this->callbacks.goaway(error.last_stream_id, error.errnum, std::move(error.errmsg));
+                        if (error.errnum >= HTTP2_ERROR_NO_ERROR && error.errnum <= HTTP2_ERROR_HTTP_1_1_REQUIRED) {
+                            error.last_stream_id = 0;
 
                             if (false == this->protocol.conn_type.fetch_or(CONN_CLOSED) & CONN_CLOSED) {
                                 auto lk = co_await this->protocol.mx.lock_guard();
@@ -224,14 +228,12 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                                 co_await this->empty_setting_timeouts();
                             }
 
-                            co_await this->generate_error(HTTP2_ERROR_NO_ERROR, {}, this->protocol.error.last_stream_id);
+                            co_await this->generate_error(HTTP2_ERROR_NO_ERROR, {}, error.last_stream_id);
                         }
                         else {
                             // GOAWAY frame with unknown error code
                             // The endpoint MUST NOT trigger any special behavior.
-                            this->protocol.error.errnum = 0;
-                            this->protocol.error.last_stream_id = 0;
-                            this->protocol.error.errmsg.clear();
+                            this->protocol.error.reset();
                         }
                         break;
                     }
@@ -249,7 +251,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
 
                             if (this->protocol.rst_cnt.fetch_add(1) >= this->config->max_rst_cnt()) {
                                 lk.call();
-                                co_await this->generate_error(HTTP2_ERROR_ENHANCE_YOUR_CALM, "enchance your calm", this->protocol.error.last_stream_id);
+                                co_await this->generate_error(HTTP2_ERROR_ENHANCE_YOUR_CALM, "enchance your calm", this->protocol.stream_id);
                             }
 
                             this->callbacks.rst_stream (thread->first, err_code);
@@ -321,12 +323,12 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         co_await unlimit_all_streams();
     }
 
-    //std::cout << "Preparing for close\n";
+    std::cout << "Preparing for close\n";
     auto lk = co_await this->threads_mutex.lock_guard();
     co_await this->finishcv.wait(this->threads_mutex,
         [this] () -> bool {
-        //std::cout << "BEEN NOTIFY " << this->threads.size() << " " << this->deps << "\n";
-        return this->threads.empty() && this->deps == 0;
+        std::cout << "BEEN NOTIFY " << this->threads.size() << "\n";
+        return this->threads.empty();
     });
     co_await this->site.async_context()->timerpool()->async_remove_timer(this->ping_interval.exchange(0));
     if ((this->protocol.conn_type & CONN_CLOSED) == false ) {
@@ -466,10 +468,6 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::response(worker::connectio
     co_return static_cast<ssize_t>(data.size());
 }
 
-void manapi::net::worker::http_v2::_deps_decrease() {
-    this->deps.fetch_sub(1);
-}
-
 manapi::future<void> manapi::net::worker::http_v2::empty_setting_timeouts() {
     // auto lk = co_await this->protocol.mx.lock_guard(); must be called before
     while (!this->protocol.setting_timeout.empty()) {
@@ -586,7 +584,7 @@ void manapi::net::worker::http_v2::_parse_goaway_last_stream_id(char &c) {
 
     // 4 bytes
     if (this->parse_vars.i == 4) {
-        this->protocol.error.last_stream_id = static_cast<int>(this->parse_vars.buffint) & 0x7FFFFFFF;
+        this->protocol.error.value().last_stream_id = static_cast<int>(this->parse_vars.buffint) & 0x7FFFFFFF;
         this->parse_vars.buffint = 0;
         this->parse_vars.i = 0;
         this->current = [this](char & PH1) { _parse_goaway_error_code(std::forward<decltype(PH1)>(PH1)); };
@@ -599,7 +597,7 @@ void manapi::net::worker::http_v2::_parse_goaway_error_code(char &c) {
 
     // 4 bytes
     if (this->parse_vars.i == 4) {
-        this->protocol.error.errnum = static_cast<int>(this->parse_vars.buffint);
+        this->protocol.error.value().errnum = static_cast<int>(this->parse_vars.buffint);
         this->parse_vars.buffint = 0;
         this->parse_vars.i = 0;
         this->current = [this](char & PH1) { _parse_goaway_additional_debug_data(std::forward<decltype(PH1)>(PH1)); };
@@ -607,7 +605,7 @@ void manapi::net::worker::http_v2::_parse_goaway_error_code(char &c) {
 }
 
 void manapi::net::worker::http_v2::_parse_goaway_additional_debug_data(char &c) {
-    this->protocol.error.errmsg += c;
+    this->protocol.error.value().errmsg += c;
 }
 
 void manapi::net::worker::http_v2::_parse_window_update_value(char &c) {
@@ -832,6 +830,7 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
             this->current = [this](char & PH1) { this->_parse_setting_id(std::forward<decltype(PH1)>(PH1)); };
         break;
         case HTTP2_FRAME_GOAWAY:
+            this->protocol.error = protocol_http2_error_t{0,0,{}};
             this->current = [this](char & PH1) { this->_parse_goaway_last_stream_id(std::forward<decltype(PH1)>(PH1)); };
         break;
         case HTTP2_FRAME_WINDOW_UPDATE:
@@ -903,23 +902,35 @@ manapi::future<void> manapi::net::worker::http_v2::send_empty_frame(http2_frame_
     co_await send_frame (frame, flag, stream_id, "");
 }
 
-manapi::future<> manapi::net::worker::http_v2::timer_watcher() {
+void manapi::net::worker::http_v2::timer_watcher(const std::shared_ptr<manapi::net::worker::base> &dep) {
     if (this->thread_cnt == 0 && (this->protocol.conn_type == 0) && std::chrono::system_clock::now() > this->protocol.prev_ping_time_point + this->protocol.ping_delay) {
-        co_await send_ping_frame();
+        manapi::async::run(this->site.async_context(), send_ping_frame(), [dep, this] ()
+            -> void { });
         this->protocol.prev_ping_time_point = std::chrono::system_clock::now();
     }
 
     const auto status = this->worker->status(*this->connection);
-    if (status & CONN_LIMIT_RATE) {
-        co_return;
+    bool flg = false;
+
+    if ((this->protocol.want_read > 0) && this->protocol.payload_read - this->protocol.prev_payload_read < this->config->speed_check_bytes()) {
+        flg = true;
+    }
+    else {
+        this->protocol.prev_payload_read = this->protocol.payload_read;
+
+        if (status & CONN_LIMIT_RATE || ((this->protocol.conn_type | CONN_HALF_CLOSED) == CONN_HALF_CLOSED)) {
+            return;
+        }
     }
 
-    this->protocol.current_timeout.fetch_sub(this->protocol.timer_interval);
-    if (this->protocol.current_timeout <= 0) {
+
+    this->protocol.current_timeout.fetch_sub(this->config->speed_check_delay());
+    if (flg || this->protocol.current_timeout <= 0) {
         //MANAPIHTTP_LOG2("TIMEOUT HTTP2");
-        co_await this->site.async_context()->timerpool()->async_remove_timer(this->ping_interval.exchange(0));
+        this->site.async_context()->timerpool()->remove_timer(this->ping_interval.exchange(0));
         //MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
-        co_await this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout", 0);
+        async::run(this->site.async_context(), this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout", 0), [dep] ()
+            -> void {});
         //MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
     }
 }
@@ -1049,7 +1060,7 @@ manapi::future<void> manapi::net::worker::http_v2::default_ev_headers(int id, st
 
     auto read_cb = std::make_shared<smart_r_buffer>(this->site.async_context()->taskpool(), [this, id](int size) -> future<void> {
         try { co_await this->send_window_frame(id, size); } catch (std::exception const &e) { MANAPIHTTP_LOG2(e.what()); }
-    }, this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first);
+    }, this->protocol.want_read, this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first);
 
     this->threads.insert({id, {
         .id = id,
@@ -1068,7 +1079,7 @@ void manapi::net::worker::http_v2::default_ev_data(int id) {
 
 void manapi::net::worker::http_v2::default_ev_goaway(int last_stream_id, int errnum, std::string errmsg) {
     MANAPIHTTP_LOG("Client sent GOAWAY Frame:\n > Error Code: {}\n > Error Msg: {}\nLast-Stream-Id:{}",
-        errnum, errmsg, this->protocol.error.last_stream_id);
+        errnum, errmsg, last_stream_id);
 }
 
 void manapi::net::worker::http_v2::default_ev_finished(int id) {

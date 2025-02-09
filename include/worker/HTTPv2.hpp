@@ -116,6 +116,19 @@ namespace manapi::net::worker {
             ssize_t j = 0;
         };
 
+        struct protocol_http2_error_t {
+            int errnum = 0;
+            int last_stream_id = 0;
+            std::string errmsg{};
+        };
+
+        struct protocol_http2_window_t {
+            std::shared_ptr<async::condition_variable> write_cv{};
+
+            std::atomic<ssize_t> read = 0;
+            std::atomic<ssize_t> write = 0;
+        };
+
         struct protocol_http2_t {
             async::mutex mx; // multithread
             ssize_t length = 9 + 8; // 9 must-have octets in the header + 8 metadata
@@ -125,24 +138,13 @@ namespace manapi::net::worker {
             bool initial_frame = true;
             std::map <int, std::pair <std::atomic<int>, std::function <void(int value, bool self)>>> settings;
             ssize_t padding = 0;
-            ssize_t timer_interval = 20;
             std::chrono::system_clock::time_point prev_ping_time_point = std::chrono::system_clock::now();
             std::chrono::milliseconds ping_delay {200};
             std::atomic<int> conn_type = 0;
             std::set <std::string> pings;
 
-            struct protocol_http2_window_t {
-                std::shared_ptr<async::condition_variable> write_cv{};
-
-                std::atomic<ssize_t> read = 0;
-                std::atomic<ssize_t> write = 0;
-            } window{};
-
-            struct protocol_http2_error_t {
-                int errnum = 0;
-                int last_stream_id = 0;
-                std::string errmsg{};
-            } error{};
+            protocol_http2_window_t window{};
+            std::optional<protocol_http2_error_t> error{};
 
             int value = -1;
             std::atomic<int> rst_cnt = 0;
@@ -155,6 +157,9 @@ namespace manapi::net::worker {
 
             std::shared_ptr<async::mutex> setting_param_acks_mx{nullptr};
             std::atomic<size_t> setting_param_acks = 0;
+            std::atomic<size_t> payload_read = 0;
+            size_t prev_payload_read = 0;
+            std::atomic<int> want_read = 0;
         };
     public:
         http_v2 (const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
@@ -172,7 +177,6 @@ namespace manapi::net::worker {
         std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
         std::chrono::steady_clock::time_point start;
     private:
-        void _deps_decrease();
         future<void> empty_setting_timeouts ();
         future<void> generate_error (http2_error_type errnum, std::string errmsg, int last_stream_id = 0) noexcept(false);
 
@@ -209,7 +213,7 @@ namespace manapi::net::worker {
 
         future<void> send_frame (http2_frame_type frame, uint8_t flag, int stream_id, std::string_view data);
         future<void> send_empty_frame (http2_frame_type frame, char flag, int stream_id);
-        future<void> timer_watcher ();
+        void timer_watcher (const std::shared_ptr<manapi::net::worker::base> &dep);
         future<void> send_ping_frame (std::string data={});
         future<void> close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "", int last_stream_id = 0);
 
@@ -266,7 +270,6 @@ namespace manapi::net::worker {
 
         async::condition_variable finishcv;
         std::atomic<size_t> ping_interval = 0;
-        std::atomic<size_t> deps = 0;
 
         static std::map <int, json_mask> allow_settings;
     };

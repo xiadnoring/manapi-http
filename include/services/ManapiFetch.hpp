@@ -65,6 +65,22 @@ namespace manapi::net {
             void operator() (curl_mime *mime)
                 { curl_mime_free(mime); }
         };
+
+        struct shared_data {
+            async::mutex async_run;
+            ssize_t async_buffer_cursor{0};
+            std::string async_buffer{};
+            std::function <void(CURL *)> handle_custom_setup{nullptr};
+            std::function <ssize_t(char *, ssize_t)> handler_body{nullptr};
+            std::function <manapi::future<>(bool finish)> async_handler_body{nullptr};
+            std::function <manapi::future<bool>(std::map <std::string, std::string>)> async_handler_headers{nullptr};
+            std::function <bool(std::map <std::string, std::string>)> handler_headers{nullptr};
+            std::shared_ptr<async::context> ctx;
+            std::unique_ptr<CURL, curl_deleter> curl {nullptr};
+            std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
+            std::map<std::string, std::string> headers{};
+            std::atomic<bool> async_waiting{false};
+        };
     public:
 
         explicit fetch(const std::shared_ptr<async::context> &ctx, const std::string &url);
@@ -90,7 +106,7 @@ namespace manapi::net {
         void set_method (std::string method);
         void set_body (std::string data);
         void set_headers (std::map <std::string, std::string> headers);
-        void set_custom_setup (const std::function<void(CURL *curl)> &func);
+        void set_custom_setup (std::function<void(CURL *curl)> func);
         void enable_ssl_verify (const bool &status);
         void set_verbose (bool status);
 
@@ -112,7 +128,6 @@ namespace manapi::net {
         static size_t curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p);
 
         future<CURLcode> async_curl_perform ();
-        async::parallel_run<void> async_run;
         size_t status_code = 200;
 
         int attempts = 20;
@@ -120,11 +135,7 @@ namespace manapi::net {
 
         std::string url;
 
-        std::function <void(CURL *)> handle_custom_setup;
-        std::function <ssize_t(char *, ssize_t)> handler_body{nullptr};
-        std::function <manapi::future<>(bool finish)> async_handler_body{nullptr};
-        std::function <bool(std::map <std::string, std::string>)> handler_headers{nullptr};
-        std::function <manapi::future<bool>(std::map <std::string, std::string>)> async_handler_headers{nullptr};
+        std::shared_ptr<shared_data> data{nullptr};
 
         body_type body = BODY_NONE;
 
@@ -132,16 +143,8 @@ namespace manapi::net {
         std::string method{};
         curlformdata body_formdata;
 
-        std::shared_ptr<async::context> ctx;
-
-        std::unique_ptr<CURL, curl_deleter> curl {nullptr};
-        std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
-        std::map<std::string, std::string> headers{};
-
         std::atomic<ssize_t> total_read{0};
         std::atomic<ssize_t> total_write{0};
 
-        ssize_t async_buffer_cursor{0};
-        std::string async_buffer{};
     };
 }

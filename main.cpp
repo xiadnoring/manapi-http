@@ -82,27 +82,15 @@ int main () {
     });
 
     router->GET("/proxy", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        manapi::net::fetch fetch (ctx, "https://127.0.0.1:8888");
-        fetch.enable_alpn(false);
-        fetch.enable_http2();
-        fetch.enable_ssl_verify(false);
-        fetch.handle_async_headers([&fetch,ctx] (std::map<std::string, std::string> headers) -> manapi::future<bool> {
-            MANAPIHTTP_LOG("status: {}", fetch.get_status_code());
-            co_await manapi::async::delay(ctx, 1000);
-            MANAPIHTTP_LOG("{} ms arrived", 1000);
-            co_return true;
+        co_return resp.proxy("https://127.0.0.1:8888/video", [] (manapi::net::fetch &proxy) -> void {
+            proxy.enable_alpn(false);
+            proxy.enable_http2();
+            proxy.enable_ssl_verify(false);
         });
-        auto data = co_await fetch.text();
-        co_return resp.text(std::move(data));
-        // co_return resp.proxy("https://127.0.0.1:8888", [] (manapi::net::fetch &proxy) -> void {
-        //     proxy.enable_alpn(false);
-        //     proxy.enable_http2();
-        //     proxy.enable_ssl_verify(false);
-        // });
     });
 
     router->GET("/video", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        resp.set_partial_status(true);
+        resp.set_partial_status(false);
         resp.set_compress_enabled(false);
         co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
     });

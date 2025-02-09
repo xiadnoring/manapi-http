@@ -184,14 +184,14 @@ bool manapi::net::http_response::get_partial_enabled() const {
     return this->partial_enabled;
 }
 
-const std::map<std::string, std::string> *manapi::net::http_response::get_replacers() const {
-    return this->replacers.get();
+std::optional<std::map<std::string, std::string>> manapi::net::http_response::get_replacers() {
+    return std::move(this->replacers);
 }
 
-void manapi::net::http_response::set_custom_data(const custom_data_t &data) {
+void manapi::net::http_response::set_custom_data(custom_data_t data) {
     clear_custom_data();
 
-    this->custom_data = data;
+    this->custom_data = std::move(data);
 }
 
 void manapi::net::http_response::clear_custom_data() {
@@ -203,7 +203,7 @@ void manapi::net::http_response::clear_custom_data() {
     }
 }
 
-const manapi::net::custom_data_t & manapi::net::http_response::get_custom_data() {
+manapi::net::custom_data_t & manapi::net::http_response::get_custom_data() {
     return this->custom_data;
 }
 
@@ -211,7 +211,7 @@ void manapi::net::http_response::set_replacers(std::map<std::string, std::string
     set_compress_enabled(false);
     set_partial_status  (false);
 
-    this->replacers = std::make_unique<std::map<std::string, std::string>> (std::move(_replacers));
+    this->replacers = std::move(_replacers);
 }
 
 void manapi::net::http_response::set_partial_status(const bool &auto_partial_status) {

@@ -42,6 +42,7 @@ namespace manapi::async {
         ~parallel_run () = default;
 
         void run (manapi::future<T> task);
+        manapi::future<> async_run (manapi::future<T> task);
 
         [[nodiscard]] manapi::future<T> get () const;
         template<typename T1 = T>
@@ -75,6 +76,21 @@ namespace manapi::async {
                 mx->unlock();
             });
         }
+        else {
+            THROW_MANAPIHTTP_EXCEPTION2 (ERR_SUBSCRIBE_FAILURE, "parallel run is busy");
+        }
+    }
+
+    template<typename T>
+    manapi::future<void> parallel_run<T>::async_run(manapi::future<T> task) {
+        co_await this->mx->lock_guard();
+        this->value = std::make_shared<value_t>();
+        auto taskrun = this->value->run(std::move(task));
+        async::run(this->ctx->taskpool(), std::move(taskrun),
+        [mx = this->mx, value = this->value] ()
+            -> void {
+            mx->unlock();
+        });
     }
 
     template<typename T>

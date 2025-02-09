@@ -11,7 +11,7 @@ namespace manapi::net::http {
     struct response_features_t {
         const std::string &compress;
         std::function<future<bool>(const std::string &src, const std::string &dest)> compressor = nullptr;
-        const std::map <std::string, std::string> *replacers = nullptr;
+        std::optional<std::map <std::string, std::string>> replacers;
     };
 
     struct header_value_t {

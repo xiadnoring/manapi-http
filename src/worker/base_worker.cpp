@@ -121,5 +121,4 @@ int manapi::net::worker::base::status(connection &conn) {
     return 0;
 }
 
-
 void manapi::net::worker::base::init() {}
