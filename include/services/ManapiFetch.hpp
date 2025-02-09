@@ -72,8 +72,8 @@ namespace manapi::net {
             std::string async_buffer{};
             std::function <void(CURL *)> handle_custom_setup{nullptr};
             std::function <ssize_t(char *, ssize_t)> handler_body{nullptr};
-            std::function <manapi::future<>(bool finish)> async_handler_body{nullptr};
-            std::function <manapi::future<bool>(std::map <std::string, std::string>)> async_handler_headers{nullptr};
+            std::function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)> async_handler_body{nullptr};
+            std::function <manapi::future<bool>(std::shared_ptr<shared_data> data, std::map <std::string, std::string>)> async_handler_headers{nullptr};
             std::function <bool(std::map <std::string, std::string>)> handler_headers{nullptr};
             std::shared_ptr<async::context> ctx;
             std::unique_ptr<CURL, curl_deleter> curl {nullptr};

@@ -323,11 +323,9 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         co_await unlimit_all_streams();
     }
 
-    std::cout << "Preparing for close\n";
     auto lk = co_await this->threads_mutex.lock_guard();
     co_await this->finishcv.wait(this->threads_mutex,
         [this] () -> bool {
-        std::cout << "BEEN NOTIFY " << this->threads.size() << "\n";
         return this->threads.empty();
     });
     co_await this->site.async_context()->timerpool()->async_remove_timer(this->ping_interval.exchange(0));
@@ -335,7 +333,6 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         lk.call();
         co_await this->close_connection (HTTP2_ERROR_NO_ERROR, "shutdown", 0);
     }
-    std::cout << this->threads.empty() << " Closing...\n";
     this->new_dependency = nullptr;
 }
 
