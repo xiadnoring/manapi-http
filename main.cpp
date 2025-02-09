@@ -7,6 +7,7 @@
 #include <extensions/pq/AsyncPostgreClient.hpp>
 
 #include "services/ManapiFetch.hpp"
+#include "services/ManapiFetch2.hpp"
 
 int main () {
     curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -82,6 +83,13 @@ int main () {
     });
 
     router->GET("/proxy", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        // auto response = co_await manapi::net::fetch2::fetch(ctx, "https://localhost:8888/test", {
+        //     {"enable_alpn", false}, {"enable_ssl_verify", false}, {"enable_http2", true},{"method", "POST"}});
+        // auto code = response->status();
+        // if (!response->ok()) {
+        //     std::cout << "no ok\n";
+        // }
+        // co_return resp.json(co_await response->json());
         co_return resp.proxy("https://127.0.0.1:8888/video", [] (manapi::net::fetch &proxy) -> void {
             proxy.enable_alpn(false);
             proxy.enable_http2();

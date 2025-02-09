@@ -27,7 +27,7 @@ namespace manapi::async {
             std::optional<T> value{};
         };
 
-        explicit parallel_run (std::shared_ptr<context> ctx) {
+        parallel_run (std::shared_ptr<context> ctx) {
             this->mx = std::make_shared<async::mutex>(ctx);
             this->ctx = std::move(ctx);
         }

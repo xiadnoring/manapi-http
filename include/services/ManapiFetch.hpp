@@ -9,7 +9,7 @@
 #include "ManapiTask.hpp"
 #include "../ManapiJson.hpp"
 #include "../ManapiHttpRequest.hpp"
-#include "async/ManapiAsyncParallelRun.hpp"
+#include "../async/ManapiAsyncParallelRun.hpp"
 
 namespace manapi::net {
 
@@ -80,6 +80,9 @@ namespace manapi::net {
             std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
             std::map<std::string, std::string> headers{};
             std::atomic<bool> async_waiting{false};
+            std::optional<std::function<manapi::future<>(bool)>> async_user_body_cb{};
+            std::optional<std::function<ssize_t(char *buffer, ssize_t size)>> sync_user_body_cb{};
+            std::optional<std::function<void(CURLcode)>> parallel_task{};
         };
     public:
 
@@ -124,8 +127,12 @@ namespace manapi::net {
 
         void clear ();
     private:
+        static manapi::future<bool> handle_body_verify (std::shared_ptr<shared_data> data);
+        static manapi::future<void> handle_sync_body_finish(std::shared_ptr<shared_data> data, bool finish);
+        static manapi::future<void> handle_async_body_finish(std::shared_ptr<shared_data> data, bool finish);
         static size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata);
         static size_t curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p);
+        void setup_parallel_task ();
 
         future<CURLcode> async_curl_perform ();
         size_t status_code = 200;

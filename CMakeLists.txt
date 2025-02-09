@@ -245,6 +245,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/extensions/pq/AsyncPostgreValueTypes.hpp
         include/extensions/pq/AsyncPostgreNotification.hpp
         include/async/ManapiAsyncParallelRun.hpp
+        include/services/ManapiFetch2.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
