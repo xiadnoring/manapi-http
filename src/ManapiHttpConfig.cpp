@@ -206,7 +206,7 @@ manapi::net::http::config::config(const json &config) {
 
     /* speed_check_bytes */
     if (config.contains("speed_check_bytes")) {
-        this->speed_check_delay_.store(config["speed_check_bytes"].as_integer());
+        this->speed_check_bytes_.store(config["speed_check_bytes"].as_integer());
     }
 }
 

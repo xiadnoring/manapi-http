@@ -26,7 +26,7 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 
     bool upgraded = false;
-    this->buffer.resize(16384);
+    this->buffer.resize(this->config->buffer_size());
 
     if (co_await this->worker->configure_connection(this->connection)) {
         while (true) {

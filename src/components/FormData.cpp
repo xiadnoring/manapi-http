@@ -10,6 +10,7 @@
 #include "http/base_http.hpp"
 
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
+constexpr ssize_t line_max_size = 500;
 
 manapi::net::formdata_recv::formdata_recv(http::request_data_t &request_data, std::shared_ptr<http::config> config, http::base *task) : http_task(task), request_data(&request_data), config(std::move(config)) {
 
@@ -32,7 +33,7 @@ manapi::net::formdata_recv & manapi::net::formdata_recv::operator=(formdata_recv
 }
 
 manapi::future<> manapi::net::formdata_recv::_init() {
-    if (this->current_read_param != nullptr) {
+    if (this->current_read_param) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "FormData Parser was already initializated");
     }
 
@@ -59,11 +60,10 @@ manapi::future<> manapi::net::formdata_recv::_init() {
 
         this->body_boundary = SPECIAL_SYMBOLS_BOUNDARY + header[0].params.at("boundary");
 
-        // the pointer to value of the param in a map params
-        this->buff_extra.resize(std::max(static_cast<size_t>(4096), static_cast<size_t>(this->request_data->buffer.size())));
+        this->buff_extra = {};
         this->content_type_form = CONTENT_TYPE_MULTIPART_FORM_DATA;
         // get the first metadata (name, type and etc)
-        this->current_read_param = [this] (auto &param1) -> future<void> { co_await this->multipart_read_param (param1); co_return; };
+        this->current_read_param = [this] (auto param1) -> future<void> { co_await this->multipart_read_param (std::move(param1)); co_return; };
         co_await this->current_read_param(nullptr);
     }
     else if (content_type == HTTP_MIME.APPLICATION_X_WWW_FORM_URLENCODED)
@@ -72,7 +72,7 @@ manapi::future<> manapi::net::formdata_recv::_init() {
         this->content_type_form = CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED;
         this->buff_extra.resize(2);
 
-        this->current_read_param = [this] (auto &param1) -> future<void> { co_await this->urlencoded_read_param (param1); co_return; };
+        this->current_read_param = [this] (auto param1) -> future<void> { co_await this->urlencoded_read_param (std::move(param1)); co_return; };
         co_await this->current_read_param(nullptr);
     }
     else
@@ -110,256 +110,184 @@ void manapi::net::formdata_recv::buff_to_extra_buff(const http::request_data_t &
     size += size2copy;
 }
 
-manapi::future<void> manapi::net::formdata_recv::multipart_read_param (const std::function<void(const char *, const size_t &)> &send_line) {
+manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::function<void(const char *, const size_t &)> send_line) {
     try {
-        size_t  size_extra      = 0;
-
         this->request_data->body_part = std::min(this->request_data->body_part, this->request_data->body_left);
 
-        bool        value = false;
-        bool        new_line = false;
-        bool        is_boundary = false;
+        bool headers = false;
+        bool value = false;
+        int carret = 0;
 
-        std::string name;
+        std::string line;
 
-        if (type != DATA_NONE)
-        {
+        if (this->type != DATA_NONE) {
             // we parse value for now
             value = true;
+            headers = false;
         }
 
         // the start of the string
         size_t checkpoint = this->request_data->body_index;
 
         // boundary size which equal
-        size_t boundary_index = first_line ? 2 : 0;
+        size_t boundary_index = std::exchange(this->first_line, false) * 2;
+        size_t current_boundary_index = 0;
 
-        // if it is a first line in the body
-        if (first_line)
-        {
-            first_line = false;
-        }
-
-        for (;this->request_data->body_index < this->request_data->body_left; this->request_data->body_index++)
-        {
-            if (this->request_data->body_index >= this->request_data->body_part)
-            {
-
-                if (size_extra > 0)
-                {
-                    send_line(buff_extra.data(), size_extra);
-
-                    size_extra = 0;
-                }
-
-                // bcz the file can be massive, and not to must contains any delimiter (\r\n), we break it by block size
-                if (type != DATA_NONE)
-                {
-
-                    if (boundary_index > 0)
-                    {
-                        buff_to_extra_buff(*request_data, checkpoint, this->request_data->body_index, buff_extra, size_extra);
+        for (;; this->request_data->body_index++) {
+            repeat:
+            if (this->request_data->body_index >= this->request_data->body_part) {
+                if (this->request_data->body_index > checkpoint + current_boundary_index) {
+                    if (value) {
+                        send_line (this->request_data->body_ptr + checkpoint, this->request_data->body_index - checkpoint - current_boundary_index);
                     }
-
-                    else
-                    {
-
-                        send_line(this->request_data->body_ptr + sizeof(char) * checkpoint,
-                                  this->request_data->body_index - checkpoint);
+                    else if (headers) {
+                        auto n = this->request_data->body_index - checkpoint - current_boundary_index;
+                        if (n + line.size() > line_max_size) {
+                            THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "buffer overflow");
+                        }
+                        line.append (this->request_data->body_ptr + checkpoint, n);
                     }
-                }
-
-                else
-                {
-                    // dont +1 bcz body_index == socket block size
-                    buff_to_extra_buff (*request_data, checkpoint, this->request_data->body_index, buff_extra, size_extra);
                 }
 
                 this->request_data->body_left -= this->request_data->body_index;
-                this->request_data->body_index =0;
-                // get the next data
-                ssize_t rhs = co_await http_task->read (this->request_data->buffer.data(), this->request_data->buffer.size());
-                if (rhs == -1) {
-                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next(...) -> {}", rhs);
-                }
-                if (rhs > this->request_data->body_left) {
-                    THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_BODY_TOO_LONG, "received data too long. {} > BODY_LEFT", rhs);
-                }
-                this->request_data->body_part = std::min(static_cast <size_t>(rhs), this->request_data->body_left);
 
-                // read next block
-                if (this->request_data->body_part == 0)
-                {
+                if (!this->request_data->body_left) {
+                    /**
+                     * TODO: check boundary end (--AAXXX--\r\n)
+                     */
+                    this->type = DATA_NONE;
                     break;
                 }
 
+                auto rhs = co_await this->http_task->read (this->request_data->buffer.data(), this->request_data->buffer.size());
+                if (rhs <= 0) {
+                    THROW_MANAPIHTTP_EXCEPTION2(ERR_FILE_IO, "FormData: Connection was closed");
+                }
+                this->request_data->body_index = 0;
+                this->request_data->body_part = rhs;
+                this->request_data->body_ptr = this->request_data->buffer.data();
+                current_boundary_index = 0;
                 checkpoint = 0;
             }
 
-            if (is_boundary)
-            {
-                // the boundary was expected
-                // calc --{BOUNDARY}--
-
-                // calc --{BOUNDARY}
-
-
-
-                if (boundary_index == 0)
-                {
-                    is_boundary = false;
-
-                    if (value)
-                    {
-                        // if (size_extra > 0)
-                        // {
-                        //     buff_to_extra_buff (*request_data, checkpoint, this->request_data->body_index, buff_extra, size_extra);
-                        //     const size_t result_size = size_extra - body_boundary.size() - 2;
-                        //
-                        //     send_line (buff_extra.data(), result_size);
-                        // }
-                        // else
-                        {
-                            size_t size_str = this->request_data->body_index - checkpoint - body_boundary.size() - 2;
-
-                            send_line (this->request_data->body_ptr + sizeof (char) * checkpoint, size_str);
+            auto &c = this->request_data->body_ptr[this->request_data->body_index];
+            if (c == this->body_boundary[boundary_index]) {
+                ++boundary_index;
+                ++current_boundary_index;
+                if (boundary_index == this->body_boundary.size()) {
+                    if (value) {
+                        if (this->request_data->body_index + 1 > current_boundary_index + checkpoint) {
+                            send_line (this->request_data->body_ptr + checkpoint, this->request_data->body_index + 1 - current_boundary_index - checkpoint);
                         }
 
                         value = false;
                     }
 
-                    checkpoint  = this->request_data->body_index;
-                    size_extra  = 0;
-                    if (this->request_data->body_size - 2 == this->request_data->body_index) { this->request_data->body_index+=2; }
+                    checkpoint = this->request_data->body_index + 1;
+                    boundary_index = 0;
+                    current_boundary_index = 0;
                 }
-                else
-                {
-                    boundary_index--;
-                }
-
-                continue;
             }
-
-            repeat:
-
-            if (new_line)
-            {
-                new_line = false;
-
-
-                size_t size_str = this->request_data->body_index + size_extra;
-                if (size_str < checkpoint + 2) {
-                    THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "BUG: size_str < {}.", 0);
+            else {
+                size_t boundary_size = 0;
+                if (boundary_index > 1) {
+                    boundary_size = boundary_index;
+                    carret = 1;
                 }
-                size_str = size_str - checkpoint - 2;
-
-                if (size_str == 0 && !value)
-                {
-                    if (type != DATA_NONE)
-                    {
-                        break;
-                    }
-
-                    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Value without key in the multipart formdata");
+                else if (boundary_index > 0) {
+                    boundary_size = boundary_index;
                 }
 
-                std::string line;
-
-                // which buff contains \r or \n symbols ?
-                const bool  first   = this->request_data->body_index < 2,
-                            second  = this->request_data->body_index < 1;
-
-                if (size_extra < first + second)
-                {
-                    THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "Size of the extra buffer eq -1. Maybe the recv data was not provided?");
-                }
-
-                line.append(buff_extra.data(), size_extra - (first + second));
-
-                line.append(this->request_data->body_ptr + sizeof (char) * checkpoint, this->request_data->body_index - checkpoint + first + second - 2);
-
-                const auto parsed_header = http::parse_header(line);
-                const auto header_value = http::parse_header_value(parsed_header.second);
-
-                if (parsed_header.first == HTTP_HEADER.CONTENT_DISPOSITION)
-                {
-                    if (header_value.empty())
-                    {
-                        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_IMPORTANT_HEADER_MISSING, "header value is empty: {}", HTTP_HEADER.CONTENT_DISPOSITION);
+                if (boundary_index) {
+                    if (boundary_index < this->request_data->body_index) {
+                        if (value) {
+                            send_line (this->request_data->body_ptr + checkpoint, this->request_data->body_index - checkpoint - boundary_size);
+                        }
+                        else {
+                            auto n = this->request_data->body_index - checkpoint - boundary_size;
+                            if (n + line.size() > line_max_size) {
+                                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "buffer overflow");
+                            }
+                            line.append (this->request_data->body_ptr + checkpoint, n);
+                        }
                     }
 
-                    if (header_value[0].params.contains("name"))
-                    {
-                        type = DATA_PLAIN;
-                        name = header_value[0].params.at("name");
+                    if (value) {
+                        send_line (this->body_boundary.data(), boundary_size);
                     }
-
-
-                    if (header_value[0].params.contains("filename"))
-                    {
-                        // file
-                        type = DATA_FILE;
-
-                        file_data.file_name = header_value[0].params.at("filename");
-                        file_data.param_name = std::move(name);
-                    }
-
                     else {
-                        // default param
-                        param_data.first = std::move(name);
-                    }
-                }
-
-                else if (parsed_header.first == HTTP_HEADER.CONTENT_TYPE)
-                {
-                    if (header_value.empty())
-                    {
-                        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_IMPORTANT_HEADER_MISSING, "{} can't be empty", HTTP_HEADER.CONTENT_TYPE);
+                        auto n = boundary_size - 2;
+                        if (n + line.size() > line_max_size) {
+                            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "buffer overflow");
+                        }
+                        line.append(this->body_boundary.data(), n);
                     }
 
-                    if (DATA_FILE == type)
-                    {
-                        file_data.mime_type     = header_value[0].value;
+                    checkpoint = this->request_data->body_index;
+                    current_boundary_index = 0;
+                    boundary_index = 0;
+                }
+
+
+                if (value) {
+                    carret = 0;
+                }
+                else {
+                    if (carret) {
+                        carret = 0;
+
+                        if (headers) {
+                            if (line.empty()) {
+                                value = true;
+                                headers = false;
+                                break;
+                            }
+
+                            auto header_data = http::parse_header(line);
+                            auto header_value = http::parse_header_value(header_data.second);
+
+                            if (header_value.empty()) {
+                                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "{} header is empty", header_data.first);
+                            }
+
+                            if (header_data.first == HTTP_HEADER.CONTENT_DISPOSITION) {
+                                if (header_value[0].value != "form-data" || !header_value[0].params.contains("name")) {
+                                    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Content-Disposition is invalid");
+                                }
+
+                                std::string name = std::move(header_value[0].params["name"]);
+                                if (header_value[0].params.contains("filename")) {
+                                    this->type = DATA_FILE;
+                                    this->file_data.param_name = std::move(name);
+                                    this->file_data.file_name = std::move(header_value[0].params["filename"]);
+                                }
+                                else {
+                                    this->type = DATA_PLAIN;
+                                    this->param_data.first = std::move(name);
+                                }
+                            }
+                            else if (header_data.first == HTTP_HEADER.CONTENT_TYPE) {
+                                switch (this->type) {
+                                    case DATA_FILE:
+                                        this->file_data.mime_type = std::move(header_value[0].value);
+                                    break;
+                                    default:
+                                        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Content-Type not allowed for text/plain param");
+                                }
+                            }
+                            else {
+
+                            }
+
+                            line.clear();
+                        }
+                        else {
+                            headers = true;
+                        }
+
+                        goto repeat;
                     }
                 }
-
-                checkpoint  = this->request_data->body_index;
-                size_extra  = 0;
-            }
-
-            if (this->request_data->body_ptr[this->request_data->body_index] == body_boundary[boundary_index])
-            {
-                boundary_index ++;
-
-                if (body_boundary.size() == boundary_index)
-                {
-                    boundary_index  = 2;
-                    is_boundary     = true;
-
-                    type = DATA_NONE;
-                }
-
-                continue;
-            }
-            if (boundary_index != 0)
-            {
-                // first \r\n is equal, but other is not equ -> cut
-                if (!value && boundary_index >= 2)
-                {
-                    boundary_index -= 2;
-                    // can back in buf
-                    const size_t can_back = std::min (this->request_data->body_index, boundary_index);
-                    const size_t to_buff = boundary_index - can_back;
-                    memcpy(buff_extra.data() + size_extra, body_boundary.data() + 2, to_buff);
-                    size_extra += to_buff;
-                    this->request_data->body_index -= can_back;
-                    new_line = true;
-                }
-
-                boundary_index = 0;
-
-                goto repeat;
-
             }
         }
     }
@@ -372,7 +300,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (const std
     }
 }
 
-manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(const std::function<void(const char *, const size_t &)> &send_line) {
+manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::function<void(const char *, const size_t &)> send_line) {
     size_t size_extra = 0;
     bool used_extra = false;
 
@@ -499,12 +427,12 @@ manapi::future<std::string> manapi::net::formdata_recv::get_file_to_str() {
     co_return std::move(content);
 }
 
-manapi::future<void> manapi::net::formdata_recv::get_file(const std::function<void(const char *, const size_t &)> &handler) {
+manapi::future<void> manapi::net::formdata_recv::get_file(std::function<void(const char *, const size_t &)> handler) {
     if (!next_file())
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_NOT_CONTAINS_FILE, "{}", "no file in the body of the request");
     }
-    co_await current_read_param (handler);
+    co_await current_read_param (std::move(handler));
 }
 
 manapi::future<void> manapi::net::formdata_recv::save_file (const std::string &filepath) {
@@ -580,10 +508,10 @@ void manapi::net::formdata_recv::_move(formdata_recv &&n) noexcept {
 
     switch (this->content_type_form) {
         case CONTENT_TYPE_MULTIPART_FORM_DATA:
-            this->current_read_param = [this] (auto &param1) -> future<void> { co_await this->multipart_read_param (param1); co_return; };
+            this->current_read_param = [this] (auto param1) -> future<void> { co_await this->multipart_read_param (std::move(param1)); co_return; };
         break;
         case CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED:
-            this->current_read_param = [this] (auto &param1) -> future<void> { co_await this->urlencoded_read_param (param1); co_return; };
+            this->current_read_param = [this] (auto param1) -> future<void> { co_await this->urlencoded_read_param (std::move(param1)); co_return; };
         break;
         default:
             break;
