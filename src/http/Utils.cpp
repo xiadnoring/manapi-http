@@ -46,7 +46,6 @@ void manapi::net::http::request_data_clear(request_data_t &data) {
     data.params = {};
     data.uri = {};
     data.path = {};
-    data.body_ptr = nullptr;
     data.body_index = 0;
     data.body_left = 0;
     data.body_part = 0;

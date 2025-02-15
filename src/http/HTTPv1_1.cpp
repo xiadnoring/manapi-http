@@ -21,59 +21,62 @@ void manapi::net::http::http_v1_1::doit() {
 }
 
 manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
-    request_data.body_index = 0;
+    this->request_data.body_index = 0;
 
     {
         if (size == 0) {
             THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "HTTP Status hasn't been parsed");
         }
 
-        current = std::bind(&http_v1_1::_parse_headers, this, std::placeholders::_1);
+        this->current = [this](auto && PH1) { _parse_headers(std::forward<decltype(PH1)>(PH1)); };
         goto skip;
 
-        while (!parse_vars.finished) {
-            size = co_await worker->read (*connection, buffer.data(), buffer.size());
+        while (!this->parse_vars.finished) {
+            size = co_await this->worker->read (*this->connection, this->buffer.data(), static_cast<ssize_t>(this->buffer.size()));
             if (size <= 0) { break; }
             j = 0;
-            skip: for (; j < size && !parse_vars.finished; j++) {
-                current (buffer.at(j));
+            skip: for (; j < size && !this->parse_vars.finished; j++) {
+                this->current (buffer.at(j));
             }
         }
 
         j++;
     }
 
-    size_t content_length = 0;
-    if (request_data.headers.contains(HTTP_HEADER.CONTENT_LENGTH)) {
-        content_length = std::stoull(request_data.headers[HTTP_HEADER.CONTENT_LENGTH]);
+    ssize_t content_length = 0;
+    if (this->request_data.headers.contains(HTTP_HEADER.CONTENT_LENGTH)) {
+        content_length = std::stoll(this->request_data.headers[HTTP_HEADER.CONTENT_LENGTH]);
     }
 
-    request_data.has_body = content_length > 0;
+    this->request_data.has_body = content_length > 0;
 
-    if (request_data.has_body) {
-        request_data.body_size = content_length;
-        request_data.body_left = request_data.body_size;
-        request_data.body_index = 0;
-        request_data.buffer = std::move(this->buffer);
+    if (this->request_data.has_body) {
+        this->request_data.body_size = content_length;
+        this->request_data.body_left = this->request_data.body_size;
+        this->request_data.buffer = std::move(this->buffer);
 
         co_await expect_header();
         while (size <= j) {
-            size = co_await this->read(request_data.buffer.data(), request_data.buffer.size());
+            size = co_await this->read(this->request_data.buffer.data(), static_cast<ssize_t>(this->request_data.buffer.size()));
             if (size < 0) {
                 THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "this->read(...) = {}", size);
             }
-            request_data.body_part = size;
-            request_data.headers_part = 0;
-            j -= size;
+            this->request_data.body_part = size;
+            this->request_data.headers_part = 0;
+            if (j > size) {
+                j -= size;
+            }
+            else {
+                j = 0;
+            }
         }
-        request_data.headers_part = j;
-        request_data.body_part = size - request_data.headers_part;
-        request_data.body_ptr = this->request_data.buffer.data() + j;
-
+        this->request_data.headers_part = j;
+        this->request_data.body_part = size - this->request_data.headers_part;
+        this->request_data.body_index = j;
     }
     else {
-        request_data.body_ptr = nullptr;
-        request_data.body_size = 0;
+        this->request_data.body_index = 0;
+        this->request_data.body_size = 0;
     }
 
     co_return;
@@ -85,8 +88,8 @@ manapi::future<void> manapi::net::http::http_v1_1::execute_handler() {
         co_return;
     }
 
-    const auto handler = site.get_handler(request_data);
-    co_await handle_request(&handler, request_data);
+    const auto handler = this->site.get_handler(this->request_data);
+    co_await handle_request(&handler, this->request_data);
     co_return;
 }
 
@@ -100,25 +103,25 @@ manapi::net::http::versions::http manapi::net::http::http_v1_1::get_upgraded_ver
 
 void manapi::net::http::http_v1_1::_skip_white_space(char &c) {
     if (c == ' ') {
-        current = next;
+        this->current = this->next;
         return;
     }
     THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
 }
 
 void manapi::net::http::http_v1_1::_next_line(char &c) {
-    if (parse_vars.next_line_state) {
-        parse_vars.next_line_state = false;
+    if (this->parse_vars.next_line_state) {
+        this->parse_vars.next_line_state = false;
         if (c == '\n') {
-            current = next;
+            this->current = next;
             return;
         }
     }
     else {
         if (c == '\r') {
-            parse_vars.next_line_state = true;
-            if (parse_vars.dbl) {
-                parse_vars.finished = true;
+            this->parse_vars.next_line_state = true;
+            if (this->parse_vars.dbl) {
+                this->parse_vars.finished = true;
             }
             return;
         }
@@ -129,17 +132,17 @@ void manapi::net::http::http_v1_1::_next_line(char &c) {
 
 void manapi::net::http::http_v1_1::_parse_headers(char &c) {
     if (c == '\r') {
-        parse_vars.is_key = true;
-        if (!parse_vars.key.empty()) {
-            parse_vars.key = "";
+        this->parse_vars.is_key = true;
+        if (!this->parse_vars.key.empty()) {
+            this->parse_vars.key = "";
         }
 
 
-        current = std::bind(&http_v1_1::_next_line, this, std::placeholders::_1);
-        next = std::bind(&http_v1_1::_parse_headers, this, std::placeholders::_1);
-        current(c);
+        this->current = [this](auto && PH1) { _next_line(std::forward<decltype(PH1)>(PH1)); };
+        this->next = [this](auto && PH1) { _parse_headers(std::forward<decltype(PH1)>(PH1)); };
+        this->current(c);
 
-        parse_vars.dbl = true;
+        this->parse_vars.dbl = true;
 
         return;
     }

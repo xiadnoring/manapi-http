@@ -11,6 +11,16 @@
 
 namespace manapi::net::http {
     class HeaderView {
+        struct parse_vars_t {
+            // states
+            std::string buffer;
+
+            bool next_line_state = false;
+            char hex_symbols[2];
+            char hex_index = -1;
+
+            bool finished = false;
+        };
     public:
         HeaderView (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         HeaderView (std::shared_ptr<worker::connection> connection, std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
@@ -28,16 +38,7 @@ namespace manapi::net::http {
         void _parse_http (char &c);
 
         std::function<void(char&)> current, next;
-        struct parse_vars_t {
-            // states
-            std::string buffer;
-
-            bool next_line_state = false;
-            char hex_symbols[2];
-            char hex_index = -1;
-
-            bool finished = false;
-        } parse_vars;
+        std::optional<parse_vars_t> parse_vars;
 
         http::request_data_t request_data;
         std::shared_ptr<manapi::net::worker::base> worker;

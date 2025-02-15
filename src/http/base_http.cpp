@@ -666,7 +666,11 @@ manapi::future<std::string> manapi::net::http::base::compress_file(const std::st
     co_return filepath;
 }
 
-manapi::future<ssize_t> manapi::net::http::base::read(void *buf, size_t size) {
+manapi::future<ssize_t> manapi::net::http::base::read(void *buf, ssize_t size) {
     auto rhs = co_await this->worker->read (*this->connection, buf, size);
     co_return rhs;
+}
+
+manapi::net::site & manapi::net::http::base::get_site() {
+    return this->site;
 }

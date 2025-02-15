@@ -14,6 +14,7 @@
 #include "ManapiJson.hpp"
 #include "ManapiJsonMask.hpp"
 #include "components/FormData.hpp"
+#include "http/Utils.hpp"
 
 namespace manapi::net::http {
     class base;
@@ -36,7 +37,7 @@ namespace manapi::net {
         future<std::string> text ();
         future<manapi::json> json ();
         future<formdata_recv> form ();
-        const size_t &get_body_size ();
+        ssize_t get_body_size ();
         void set_max_plain_body_size (const size_t &size);
 
         bool contains_header (const std::string &name);
@@ -48,9 +49,9 @@ namespace manapi::net {
         [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &get_get_mask () const;
 
         void stop_propagation (const bool &stop_propagation = true);
-        [[nodiscard]] const bool& get_propagation ();
+        [[nodiscard]] bool get_propagation () const;
     private:
-        future<void> _read_body (const std::function<void(const char *, ssize_t )> &handler);
+        future<void> _read_body (std::function<void(const char *, ssize_t )> handler);
         void parse_map_url_param ();
         // peer ip
         const http::manapi_socket_information *ip_data;

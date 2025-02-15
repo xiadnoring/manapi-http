@@ -26,7 +26,11 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 
     bool upgraded = false;
+
     this->buffer.resize(this->config->buffer_size());
+    this->parse_vars = parse_vars_t{};
+
+    auto &d = this->parse_vars.value();
 
     if (co_await this->worker->configure_connection(this->connection)) {
         while (true) {
@@ -36,10 +40,10 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
 
             ssize_t size = 0, j = 0;
             this->current = [this](char & PH1) { this->_parse_method(std::forward<decltype(PH1)>(PH1)); };
-            while (!this->parse_vars.finished) {
+            while (!d.finished) {
                 size = co_await this->worker->read (*this->connection, this->buffer.data(), this->buffer.size());
                 if (size <= 0) { break; }
-                for (j = 0; j < size && !this->parse_vars.finished; j++) {
+                for (j = 0; j < size && !d.finished; j++) {
                     this->current (this->buffer.at(j));
                 }
             }
@@ -48,14 +52,17 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
 
             }
             else {
-                if (!this->parse_vars.finished) {
+                if (!d.finished) {
                     break;
                 }
 
                 const auto version = http::config::parse_http_version(this->request_data.http.substr(5));
                 this->connection->version = version;
             }
-            this->parse_vars.buffer = {};
+
+            d.buffer = {};
+            /* clean up */
+            this->parse_vars.reset();
 
             switch (this->connection->version) {
                 case versions::HTTP_v1_1: {
@@ -71,7 +78,7 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
                         this->connection->version = client->get_upgraded_version();
                         this->buffer = std::move(client->buffer);
 
-                        this->parse_vars.finished = false;
+                        d.finished = false;
                         upgraded = true;
                         continue;
                     }
@@ -112,7 +119,7 @@ void manapi::net::http::HeaderView::_parse_method(char &c) {
         //     THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Invalid method: {}", parse_vars.buffer);
         // }
 
-        this->request_data.method = std::move(this->parse_vars.buffer);
+        this->request_data.method = std::move(this->parse_vars.value().buffer);
 
         this->current = [this](char & PH1) { this->_skip_white_space(std::forward<decltype(PH1)>(PH1)); };
         this->next = [this](char & PH1) { this->_parse_uri(std::forward<decltype(PH1)>(PH1)); };
@@ -120,7 +127,7 @@ void manapi::net::http::HeaderView::_parse_method(char &c) {
         return;
     }
 
-    this->parse_vars.buffer += c;
+    this->parse_vars.value().buffer += c;
 }
 
 void manapi::net::http::HeaderView::_skip_white_space(char &c) {
@@ -132,17 +139,18 @@ void manapi::net::http::HeaderView::_skip_white_space(char &c) {
 }
 
 void manapi::net::http::HeaderView::_next_line(char &c) {
-    if (this->parse_vars.next_line_state) {
-        this->parse_vars.next_line_state = false;
+    auto &d = this->parse_vars.value();
+    if (d.next_line_state) {
+        d.next_line_state = false;
         if (c == '\n') {
             //current = next;
-            this->parse_vars.finished = true;
+            d.finished = true;
             return;
         }
     }
     else {
         if (c == '\r') {
-            this->parse_vars.next_line_state = true;
+            d.next_line_state = true;
             return;
         }
     }
@@ -151,6 +159,8 @@ void manapi::net::http::HeaderView::_next_line(char &c) {
 }
 
 void manapi::net::http::HeaderView::_parse_uri(char &c) {
+    auto &d = this->parse_vars.value();
+    
     if (c == ' ') {
         this->_cleanup_uri();
         this->current = [this](char & PH1) { this->_skip_white_space(std::forward<decltype(PH1)>(PH1)); };
@@ -165,34 +175,34 @@ void manapi::net::http::HeaderView::_parse_uri(char &c) {
 
     this->request_data.uri += c;
 
-    if (this->parse_vars.hex_index >= 0) {
-        this->parse_vars.hex_symbols[parse_vars.hex_index] = c;
+    if (d.hex_index >= 0) {
+        d.hex_symbols[d.hex_index] = c;
 
-        if (this->parse_vars.hex_index == 1) {
-            char x = static_cast<char> (manapi::unicode::hex2dec(this->parse_vars.hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
-                                 this->parse_vars.hex_symbols[1]));
+        if (d.hex_index == 1) {
+            char x = static_cast<char> (manapi::unicode::hex2dec(d.hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
+                                 d.hex_symbols[1]));
 
-            if (((this->parse_vars.hex_symbols[0] >= 'a' && this->parse_vars.hex_symbols[0] <= 'z') || (this->parse_vars.hex_symbols[0] >= 'A' && this->parse_vars.hex_symbols[0] <= 'Z')
-                || (this->parse_vars.hex_symbols[0] >= '0' && this->parse_vars.hex_symbols[0] <= '9')) && ((this->parse_vars.hex_symbols[1] >= 'a' && this->parse_vars.hex_symbols[1] <= 'z') || (this->parse_vars.hex_symbols[1] >= 'A' && this->parse_vars.hex_symbols[1] <= 'Z')
-                || (this->parse_vars.hex_symbols[1] >= '0' && this->parse_vars.hex_symbols[1] <= '9'))) {
+            if (((d.hex_symbols[0] >= 'a' && d.hex_symbols[0] <= 'z') || (d.hex_symbols[0] >= 'A' && d.hex_symbols[0] <= 'Z')
+                || (d.hex_symbols[0] >= '0' && d.hex_symbols[0] <= '9')) && ((d.hex_symbols[1] >= 'a' && d.hex_symbols[1] <= 'z') || (d.hex_symbols[1] >= 'A' && d.hex_symbols[1] <= 'Z')
+                || (d.hex_symbols[1] >= '0' && d.hex_symbols[1] <= '9'))) {
                 this->request_data.path.back() += x;
             } else {
                 this->request_data.path.back() += '%';
-                this->request_data.path.back() += this->parse_vars.hex_symbols;
+                this->request_data.path.back() += d.hex_symbols;
             }
 
-            this->parse_vars.hex_index = -1;
+            d.hex_index = -1;
 
             return;
         }
 
-        this->parse_vars.hex_index++;
+        d.hex_index++;
 
         return;
     }
 
     if (c == '%' && !this->request_data.path.empty()) {
-        this->parse_vars.hex_index = 0;
+        d.hex_index = 0;
 
         return;
     }

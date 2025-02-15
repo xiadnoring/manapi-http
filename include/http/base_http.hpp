@@ -30,7 +30,8 @@ namespace manapi::net::http {
         future<void> send_text(std::string_view text, ssize_t size) const;
         future<void> expect_header ();
         future<std::string> compress_file(const std::string &file, const std::string &folder, const std::string &compress, const std::function<future<bool>(const std::string &src, const std::string &dest)> &compressor) const;
-        virtual future<ssize_t> read (void *buf, size_t size);
+        virtual future<ssize_t> read (void *buf, ssize_t size);
+        manapi::net::site &get_site ();
 
         std::shared_ptr<worker::connection> connection;
         static std::set<std::string> methods;

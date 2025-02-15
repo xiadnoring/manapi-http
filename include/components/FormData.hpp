@@ -1,14 +1,10 @@
 #ifndef MANAPIHTTP_FORMDATA_HPP
 #define MANAPIHTTP_FORMDATA_HPP
 
+#include "../async/ManapiAsyncContext.hpp"
 #include "../ManapiAsync.hpp"
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiUtils.hpp"
-#include "../http/Utils.hpp"
-
-namespace manapi::net::http {
-    class base;
-}
 
 namespace manapi::net {
     struct file_data_t {
@@ -19,19 +15,20 @@ namespace manapi::net {
 
     class formdata_recv {
     public:
-        formdata_recv (http::request_data_t &request_data, std::shared_ptr<http::config> config, http::base *http_task);
+        formdata_recv (std::shared_ptr<async::context> ctx, const ssize_t &buffer_size,
+            ssize_t &body_buffer_size, std::string &buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read);
         ~formdata_recv ();
 
         formdata_recv (formdata_recv &&n) noexcept;
         formdata_recv &operator=(formdata_recv &&n) noexcept;
 
-        future<void> _init ();
+        future<void> _init (bool has_body, const std::string &content_type);
 
         [[nodiscard]] bool next_file () const;
         [[nodiscard]] bool next_param () const;
 
         [[nodiscard]] file_data_t about_file () const;
-        future<void> get_file(std::function<void(const char *, const size_t &)> handler);
+        future<void> get_file(std::function<void(const char *, ssize_t)> handler);
         future<std::string> get_file_to_str();
         future<void> save_file (const std::string &filepath);
 
@@ -53,25 +50,32 @@ namespace manapi::net {
         };
 
         void _move (formdata_recv &&n) noexcept;
-        static void buff_to_extra_buff (const http::request_data_t &req_data, const size_t &start, const size_t &end, std::string &dest, size_t &size);
-        future<void> multipart_read_param (std::function<void(const char *, const size_t &)> send_line = nullptr);
-        future<void> urlencoded_read_param (std::function<void(const char *, const size_t &)> send_line = nullptr);
+        future<void> multipart_read_param (std::function<void(const char *, ssize_t )> send_line = nullptr);
+        future<void> urlencoded_read_param (std::function<void(const char *, ssize_t )> send_line = nullptr);
 
-        std::function<future<void>(std::function<void(const char *, const size_t &)> )> current_read_param;
+        std::function<future<void>(std::function<void(const char *, ssize_t )> )> current_read_param;
+        std::function<future<ssize_t>(void *, ssize_t)> body_read;
 
-        http::request_data_t *request_data;
         // boundary --XXXXXxxxXXX for form data
         std::string body_boundary;
-        std::shared_ptr<http::config> config;
         std::string buff_extra;
-        http::base *http_task;
+        size_t buffer_size;
+
         // the data of the next file
         file_data_t file_data;
         std::pair <std::string, std::string> param_data;
 
+        std::shared_ptr<async::context> ctx;
+
         bool first_line = true;
+
         data_type type = DATA_NONE;
         content_type content_type_form = CONTENT_TYPE_NONE;
+
+        std::string *body_buffer;
+        ssize_t *body_buffer_size;
+        ssize_t *body_max_size_left;
+        ssize_t *body_index;
     };
 }
 

@@ -31,8 +31,8 @@ namespace manapi::net::http {
 
     struct request_data_t {
         // size of the part of the headers in the buffer (READ) [HHHH]BBBBBBB <- 4
-        size_t headers_part;
-        size_t headers_size;
+        ssize_t headers_part;
+        ssize_t headers_size;
         // just headers
         std::map<std::string, std::string> headers;
         // contains params from url .../[param1]-[param2]/...
@@ -49,12 +49,11 @@ namespace manapi::net::http {
         // index of the element where URL get params in the path
         ssize_t divided;
 
-        char* body_ptr;
-        size_t body_index;
-        size_t body_left;
-        size_t body_size;
+        ssize_t body_index;
+        ssize_t body_left;
+        ssize_t body_size;
         // size of the part of the body in the buffer (READ) HHHH[BBBBB] <- 5
-        size_t body_part;
+        ssize_t body_part;
 
         bool has_body    = false;
 

@@ -50,8 +50,10 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
     this->buffer.resize(this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first.load());
     this->current = [this](char & PH1) { this->_next_line(std::forward<decltype(PH1)>(PH1)); };
     this->next = [this](char & PH1) { this->_skip_sm_msg(std::forward<decltype(PH1)>(PH1)); };
-    this->parse_vars.j = j;
-    this->parse_vars.size = size;
+
+    this->parse_vars = parse_vars_t{};
+    this->parse_vars.value().j = j;
+    this->parse_vars.value().size = size;
 
     this->protocol.window.write_cv = std::make_shared<async::condition_variable>(this->site.async_context());
 
@@ -70,8 +72,11 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
             {HTTP2_SETTING_MAX_HEADER_LIST_SIZE,  65000}
         });
 
+        auto d = &this->parse_vars.value();
+
         goto skip;
         while ((this->protocol.conn_type & (CONN_CLOSED | CONN_HALF_CLOSED)) == false) {
+
             rhs = co_await this->worker->read (*this->connection, this->buffer.data(), static_cast<ssize_t>(this->buffer.size()));
 
             if (rhs <= 0) {
@@ -80,11 +85,17 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                 break;
             }
 
-            this->parse_vars.size = rhs;
-            this->parse_vars.j = 0;
+            if (!this->parse_vars.has_value()) {
+                this->parse_vars = parse_vars_t{};
+                d = &this->parse_vars.value();
+            }
 
-            skip: for (; this->parse_vars.j < this->parse_vars.size && this->protocol.length > 0; this->parse_vars.j++, this->protocol.length--) {
-                this->current (this->buffer[this->parse_vars.j]);
+
+            d->size = rhs;
+            d->j = 0;
+
+            skip: for (; d->j < d->size && this->protocol.length > 0; d->j++, this->protocol.length--) {
+                this->current (this->buffer[d->j]);
                 if (this->protocol.parse_exception != nullptr) {
                     co_await this->protocol.parse_exception;
                 }
@@ -94,19 +105,26 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                 this->protocol.length = 0;
             }
             if (this->protocol.length == 0) {
+                /* clean up */
+                j = d->j;
+                size = d->size;
+                auto buffer = std::move(d->buffer);
+
+                this->parse_vars.reset();
+
                 if (this->protocol.type == HTTP2_FRAME_PING) {
                     if (this->protocol.flag & HTTP2_FLAG_PING_ACK) {
                         auto lk = co_await this->protocol.mx.lock_guard();
-                        auto it = this->protocol.pings.find(this->parse_vars.buffer);
+                        auto it = this->protocol.pings.find(buffer);
                         // The endpoint MUST NOT respond to PING frames with ACK if not exists in protocol.pings
                         if (it != this->protocol.pings.end()) {
                             this->protocol.pings.erase(it);
                         }
                     }
                     else {
-                        co_await this->send_ping_frame(this->parse_vars.buffer);
+                        co_await this->send_ping_frame(std::move(buffer));
                     }
-                    this->parse_vars.buffer.clear();
+                    buffer.clear();
                 }
                 else {
                     this->protocol.current_timeout.store(protocol.timeout);
@@ -179,26 +197,26 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                         break;
                     }
                     case HTTP2_FRAME_DATA: {
-                        this->protocol.payload_read.fetch_add(this->parse_vars.buffer.size());
+                        this->protocol.payload_read.fetch_add(buffer.size());
 
                         {
                             std::shared_ptr<smart_r_buffer> read;
-                            auto len = static_cast<ssize_t>(this->parse_vars.buffer.size());
+                            auto len = static_cast<ssize_t>(buffer.size());
                             {
                                 auto lk = co_await this->threads_mutex.lock_guard();
                                 auto thread = this->threads.find(this->protocol.stream_id);
                                 if (thread == this->threads.end()) {
                                     lk.call();
-                                    this->parse_vars.buffer.clear();
+                                    buffer.clear();
                                     co_await this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, std::format("stream {} doesn't exists", this->protocol.stream_id));
                                 }
                                 read = thread->second.read;
                             }
-                            if (read && len != co_await read->add(this->parse_vars.buffer.data(), len, this->protocol.flag & HTTP2_FLAG_DATA_END_STREAM)) {
-                                this->parse_vars.buffer.clear();
+                            if (read && len != co_await read->add(buffer.data(), len, this->protocol.flag & HTTP2_FLAG_DATA_END_STREAM)) {
+                                buffer.clear();
                                 co_await this->generate_error(HTTP2_ERROR_FLOW_CONTROL_ERROR, "read buffer overflow", this->protocol.stream_id);
                             }
-                            this->parse_vars.buffer.clear();
+                            buffer.clear();
                         }
 
                         {
@@ -293,12 +311,16 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                 }
 
                 if ((this->protocol.conn_type & (CONN_CLOSED | CONN_HALF_CLOSED)) == false) {
-                    this->current = [this](char & PH1) { _parse_header_length(PH1); };
+                    this->current = [this](char & PH1)
+                        -> void { this->_parse_header_length(PH1); };
                     //goto skip;
                     this->protocol.length = HEADER_DEFAULT_SIZE;
-                    this->parse_vars.i = 0;
-                    this->parse_vars.buffint = 0;
-                    if (this->parse_vars.j < this->parse_vars.size) {
+
+                    if (j < size) {
+                        this->parse_vars = parse_vars_t{};
+                        this->parse_vars.value().j = j;
+                        this->parse_vars.value().size = size;
+                        d = &this->parse_vars.value();
                         goto skip;
                     }
                 }
@@ -484,21 +506,23 @@ manapi::future<void> manapi::net::worker::http_v2::generate_error(http2_error_ty
 }
 
 void manapi::net::worker::http_v2::_skip_sm_msg(char &c) {
-    this->parse_vars.buffer += c;
-    if (this->parse_vars.buffer.size() == 4) {
-        if (this->parse_vars.buffer != "SM\r\n") {
+    auto &d = this->parse_vars.value();
+    d.buffer += c;
+    if (d.buffer.size() == 4) {
+        if (d.buffer != "SM\r\n") {
             this->protocol.parse_exception = this->generate_error (HTTP2_ERROR_PROTOCOL_ERROR, "SM label is invalid");
             return;
         }
-        this->parse_vars.buffer.clear();
+        d.buffer.clear();
         this->next = [this](char & PH1) { this->_parse_header_octets(std::forward<decltype(PH1)>(PH1)); };
         this->current = [this](char & PH1) { this->_next_line(std::forward<decltype(PH1)>(PH1)); };
     }
 }
 
 void manapi::net::worker::http_v2::_next_line(char &c) {
-    if (this->parse_vars.next_line_state) {
-        this->parse_vars.next_line_state = false;
+    auto &d = this->parse_vars.value();
+    if (d.next_line_state) {
+        d.next_line_state = false;
         if (c == '\n') {
             this->current = this->next;
             return;
@@ -506,7 +530,7 @@ void manapi::net::worker::http_v2::_next_line(char &c) {
     }
     else {
         if (c == '\r') {
-            this->parse_vars.next_line_state = true;
+            d.next_line_state = true;
             return;
         }
     }
@@ -525,48 +549,52 @@ void manapi::net::worker::http_v2::_skip_null_octet(char &c) {
 }
 
 void manapi::net::worker::http_v2::_parse_header_octets(char &c) {
-    this->parse_vars.i = 0;
+    auto &d = this->parse_vars.value();
+    d.i = 0;
     this->current = [this](char & PH1) { this->_parse_header_length(std::forward<decltype(PH1)>(PH1)); };
     this->current(c);
 }
 
 void manapi::net::worker::http_v2::_parse_header_length(char &c) {
-    this->parse_vars.i++;
-    this->parse_vars.buffint = static_cast<ssize_t>((static_cast<size_t>(this->parse_vars.buffint << 8) | static_cast<unsigned char>(c)));
+    auto &d = this->parse_vars.value();
+    d.i++;
+    d.buffint = static_cast<ssize_t>((static_cast<size_t>(d.buffint << 8) | static_cast<unsigned char>(c)));
 
     // 0xXXXXXX
-    if (this->parse_vars.i == 3) {
-        this->protocol.length += this->parse_vars.buffint;
-        this->parse_vars.buffint = 0;
+    if (d.i == 3) {
+        this->protocol.length += d.buffint;
+        d.buffint = 0;
         this->current = [this](char & PH1) { this->_parse_header_type(std::forward<decltype(PH1)>(PH1)); };
     }
 }
 
 void manapi::net::worker::http_v2::_parse_header_type(char &c) {
-    this->parse_vars.i++;
+    auto &d = this->parse_vars.value();
+    d.i++;
     this->protocol.type = static_cast<int>(c);
     this->current = [this](char & PH1) { this->_parse_header_flag(std::forward<decltype(PH1)>(PH1)); };
 }
 
 void manapi::net::worker::http_v2::_parse_header_stream_id(char &c) {
-    this->parse_vars.i ++;
-    this->parse_vars.buffint = static_cast<ssize_t>((static_cast<size_t>(this->parse_vars.buffint << 8) | static_cast<unsigned char>(c)));
+    auto &d = this->parse_vars.value();
+    d.i ++;
+    d.buffint = static_cast<ssize_t>((static_cast<size_t>(d.buffint << 8) | static_cast<unsigned char>(c)));
 
-    if (this->parse_vars.i == 9) {
+    if (d.i == 9) {
         // STREAM ID
 
         // Reserved (1),
         // Stream Identifier (31)
 
-        this->protocol.stream_id = static_cast<int>(parse_vars.buffint) & 0x7FFFFFFF; // 31
-        this->parse_vars.buffint = 0;
-        this->parse_vars.i = 0;
+        this->protocol.stream_id = static_cast<int>(d.buffint) & 0x7FFFFFFF; // 31
+        d.buffint = 0;
+        d.i = 0;
 
         if (this->protocol.flag & HTTP2_FLAG_HEADERS_PRIORITY) {
             //deprecated
-            this->parse_vars.i = 5; // skip 5 bytes
+            d.i = 5; // skip 5 bytes
 
-            this->current = [this, &capture0 = parse_vars.i](char & PH1) { this->_parse_skip_n_bytes(std::forward<decltype(PH1)>(PH1), capture0); };
+            this->current = [this, &capture0 = d.i](char & PH1) { this->_parse_skip_n_bytes(std::forward<decltype(PH1)>(PH1), capture0); };
             this->next = [this](char & PH1) { this->_parse_field_block(std::forward<decltype(PH1)>(PH1)); };
         }
         else {
@@ -576,27 +604,29 @@ void manapi::net::worker::http_v2::_parse_header_stream_id(char &c) {
 }
 
 void manapi::net::worker::http_v2::_parse_goaway_last_stream_id(char &c) {
-    this->parse_vars.i++;
-    this->parse_vars.buffint = static_cast<ssize_t>((static_cast<size_t>(this->parse_vars.buffint << 8) | static_cast<unsigned char>(c)));
+    auto &d = this->parse_vars.value();
+    d.i++;
+    d.buffint = static_cast<ssize_t>((static_cast<size_t>(d.buffint << 8) | static_cast<unsigned char>(c)));
 
     // 4 bytes
-    if (this->parse_vars.i == 4) {
-        this->protocol.error.value().last_stream_id = static_cast<int>(this->parse_vars.buffint) & 0x7FFFFFFF;
-        this->parse_vars.buffint = 0;
-        this->parse_vars.i = 0;
+    if (d.i == 4) {
+        this->protocol.error.value().last_stream_id = static_cast<int>(d.buffint) & 0x7FFFFFFF;
+        d.buffint = 0;
+        d.i = 0;
         this->current = [this](char & PH1) { _parse_goaway_error_code(std::forward<decltype(PH1)>(PH1)); };
     }
 }
 
 void manapi::net::worker::http_v2::_parse_goaway_error_code(char &c) {
-    this->parse_vars.i++;
-    this->parse_vars.buffint = static_cast<ssize_t>((static_cast<size_t>(this->parse_vars.buffint << 8) | static_cast<unsigned char>(c)));
+    auto &d = this->parse_vars.value();
+    d.i++;
+    d.buffint = static_cast<ssize_t>((static_cast<size_t>(d.buffint << 8) | static_cast<unsigned char>(c)));
 
     // 4 bytes
-    if (this->parse_vars.i == 4) {
-        this->protocol.error.value().errnum = static_cast<int>(this->parse_vars.buffint);
-        this->parse_vars.buffint = 0;
-        this->parse_vars.i = 0;
+    if (d.i == 4) {
+        this->protocol.error.value().errnum = static_cast<int>(d.buffint);
+        d.buffint = 0;
+        d.i = 0;
         this->current = [this](char & PH1) { _parse_goaway_additional_debug_data(std::forward<decltype(PH1)>(PH1)); };
     }
 }
@@ -606,79 +636,85 @@ void manapi::net::worker::http_v2::_parse_goaway_additional_debug_data(char &c) 
 }
 
 void manapi::net::worker::http_v2::_parse_window_update_value(char &c) {
-    this->parse_vars.i++;
-    this->parse_vars.buffint = static_cast<ssize_t>((static_cast<size_t>(this->parse_vars.buffint << 8) | static_cast<unsigned char>(c)));
+    auto &d = this->parse_vars.value();
+    d.i++;
+    d.buffint = static_cast<ssize_t>((static_cast<size_t>(d.buffint << 8) | static_cast<unsigned char>(c)));
 
     // 4 bytes
-    if (this->parse_vars.i == 4) {
-        this->protocol.value = static_cast<int>(this->parse_vars.buffint);
+    if (d.i == 4) {
+        this->protocol.value = static_cast<int>(d.buffint);
 
-        this->parse_vars.buffint = 0;
-        this->parse_vars.i = 0;
+        d.buffint = 0;
+        d.i = 0;
         this->current = nullptr;
     }
 }
 
 void manapi::net::worker::http_v2::_parse_rst_stream_action(char &c) {
-    this->parse_vars.i++;
-    this->parse_vars.buffint = static_cast<ssize_t>((static_cast<size_t>(this->parse_vars.buffint << 8) | static_cast<unsigned char>(c)));
+    auto &d = this->parse_vars.value();
+    d.i++;
+    d.buffint = static_cast<ssize_t>((static_cast<size_t>(d.buffint << 8) | static_cast<unsigned char>(c)));
 
     // 4 bytes
-    if (this->parse_vars.i == 4) {
-        this->protocol.value = static_cast<int>(this->parse_vars.buffint);
+    if (d.i == 4) {
+        this->protocol.value = static_cast<int>(d.buffint);
 
-        this->parse_vars.buffint = 0;
-        this->parse_vars.i = 0;
+        d.buffint = 0;
+        d.i = 0;
         this->current = nullptr;
     }
 }
 
 void manapi::net::worker::http_v2::_parse_ping_data(char &c) {
-    this->parse_vars.i++;
-    this->parse_vars.buffer += c;
-    if (this->parse_vars.i == 8) {
-        this->parse_vars.i = 0;
+    auto &d = this->parse_vars.value();
+    d.i++;
+    d.buffer += c;
+    if (d.i == 8) {
+        d.i = 0;
     }
 }
 
 void manapi::net::worker::http_v2::_parse_setting_id(char &c) {
-    this->parse_vars.buffint = static_cast<ssize_t>((static_cast<size_t>(this->parse_vars.buffint << 8) | static_cast<unsigned char>(c)));
-    this->parse_vars.i ++;
+    auto &d = this->parse_vars.value();
+    d.buffint = static_cast<ssize_t>((static_cast<size_t>(d.buffint << 8) | static_cast<unsigned char>(c)));
+    d.i ++;
 
-    if (this->parse_vars.i == 2) {
-        this->parse_vars.nkey = this->parse_vars.buffint;
-        this->parse_vars.buffint = 0;
-        this->parse_vars.i = 0;
+    if (d.i == 2) {
+        d.nkey = d.buffint;
+        d.buffint = 0;
+        d.i = 0;
 
         this->current = [this](char & PH1) { this->_parse_setting_value(std::forward<decltype(PH1)>(PH1)); };
     }
 }
 
 void manapi::net::worker::http_v2::_parse_setting_value(char &c) {
-    this->parse_vars.buffint = static_cast<ssize_t>((static_cast<size_t>(this->parse_vars.buffint << 8) | static_cast<unsigned char>(c)));
-    this->parse_vars.i ++;
+    auto &d = this->parse_vars.value();
+    d.buffint = static_cast<ssize_t>((static_cast<size_t>(d.buffint << 8) | static_cast<unsigned char>(c)));
+    d.i ++;
 
-    if (this->parse_vars.i == 4) {
-        auto param = this->protocol.settings.find(static_cast<int>(this->parse_vars.nkey));
+    if (d.i == 4) {
+        auto param = this->protocol.settings.find(static_cast<int>(d.nkey));
         if (param == this->protocol.settings.end()) {
             this->setting_param_was_ack(false);
         }
         else {
             auto &update = param->second.second;
             if (update) {
-                update(static_cast<int>(this->parse_vars.buffint), false);
+                update(static_cast<int>(d.buffint), false);
             }
         }
 
-        this->parse_vars.nkey = 0;
-        this->parse_vars.buffint = 0;
-        this->parse_vars.i = 0;
+        d.nkey = 0;
+        d.buffint = 0;
+        d.i = 0;
 
         this->current = [this](char & PH1) { this->_parse_setting_id(std::forward<decltype(PH1)>(PH1)); };
     }
 }
 
 void manapi::net::worker::http_v2::_parse_header_data(char &c) {
+    auto &d = this->parse_vars.value();
     // NULL (8)
 
     // LENGTH (8)
@@ -691,19 +727,19 @@ void manapi::net::worker::http_v2::_parse_header_data(char &c) {
     // current = std::bind(&http_v2::_skip_null_octet , this, std::placeholders::_1);
     // current(c);
     auto datasize = this->protocol.length - static_cast<ssize_t>(this->protocol.padding);
-    const auto cutsize = std::min(static_cast<ssize_t>(this->parse_vars.size - this->parse_vars.j), datasize);
-    this->parse_vars.buffer += std::string_view(this->buffer.data() + this->parse_vars.j, cutsize);
+    const auto cutsize = std::min(static_cast<ssize_t>(d.size - d.j), datasize);
+    d.buffer += std::string_view(this->buffer.data() + d.j, cutsize);
     // +1  bcz in loop
     this->protocol.length = protocol.length - cutsize + 1;
-    this->parse_vars.j += cutsize - 1;
+    d.j += cutsize - 1;
     datasize = protocol.length - static_cast<ssize_t>(this->protocol.padding);
 
     if (datasize == 1 && protocol.flag & HTTP2_FLAG_HEADERS_END_HEADERS) {
-        if (!this->protocol.decoder.decode(this->parse_vars.buffer)) {
+        if (!this->protocol.decoder.decode(d.buffer)) {
             this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "hpack: failed to decode headers");
             return;
         }
-        this->parse_vars.buffer.clear();
+        d.buffer.clear();
 
         auto &session = this->sessions[this->protocol.stream_id];
         if (session.type == HTTP2_CONN_IDLE) {
@@ -735,14 +771,15 @@ void manapi::net::worker::http_v2::_parse_header_data(char &c) {
 }
 
 void manapi::net::worker::http_v2::_parse_body_data(char &c) {
+    auto &d = this->parse_vars.value();
     auto datasize = this->protocol.length - this->protocol.padding;
     //const auto cutsize = std::min(static_cast<ssize_t>(parse_vars.size - parse_vars.j), datasize);
-    const auto cutsize = std::min(static_cast<ssize_t>(this->parse_vars.size - this->parse_vars.j), datasize);
-    this->parse_vars.buffer += std::string_view(this->buffer.data() + this->parse_vars.j, cutsize);
+    const auto cutsize = std::min(static_cast<ssize_t>(d.size - d.j), datasize);
+    d.buffer += std::string_view(this->buffer.data() + d.j, cutsize);
     // +1  bcz in loop
     this->protocol.length = protocol.length - cutsize + 1;
-    this->parse_vars.j += cutsize - 1;
-    //MANAPIHTTP_LOG("body length: {} cutsize: {} j: {} size: {}", this->protocol.length, cutsize, this->parse_vars.j, this->parse_vars.size);
+    d.j += cutsize - 1;
+    //MANAPIHTTP_LOG("body length: {} cutsize: {} j: {} size: {}", this->protocol.length, cutsize, d.j, d.size);
     datasize = this->protocol.length - static_cast<ssize_t>(this->protocol.padding);
     if (datasize == 1) {
         return;
@@ -765,6 +802,7 @@ void manapi::net::worker::http_v2::_parse_skip_n_bytes(char &c, ssize_t &n) {
 }
 
 void manapi::net::worker::http_v2::_parse_field_block(char &c) {
+    auto &d = this->parse_vars.value();
     // if protocol.length==1, then it means that the protocol data frame is empty
     const auto length = this->protocol.length - 1;
     switch (this->protocol.type) {
@@ -792,9 +830,9 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
             auto &session = this->sessions[protocol.stream_id];
 
             if (this->protocol.flag & HTTP2_FLAG_HEADERS_PADDED) {
-                this->parse_vars.i = 1;
+                d.i = 1;
                 this->protocol.padding = 0;
-                this->current = [this](char & PH1) { this->_parse_number(std::forward<decltype(PH1)>(PH1), protocol.padding, parse_vars.i); };
+                this->current = [this](char & PH1) { this->_parse_number(std::forward<decltype(PH1)>(PH1), this->protocol.padding, this->parse_vars.value().i); };
                 this->next = [this](char & PH1) { this->_parse_header_data(std::forward<decltype(PH1)>(PH1)); };
             }
             else {
@@ -849,9 +887,9 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
                 return;
             }
             if (this->protocol.flag & HTTP2_FLAG_HEADERS_PADDED) {
-                this->parse_vars.i = 1;
+                d.i = 1;
                 this->protocol.padding = 0;
-                this->current = [this](char & PH1) { this->_parse_number(std::forward<decltype(PH1)>(PH1), this->protocol.padding,  this->parse_vars.i); };
+                this->current = [this](char & PH1) { this->_parse_number(std::forward<decltype(PH1)>(PH1), this->protocol.padding,  this->parse_vars.value().i); };
                 this->next = [this](char & PH1) { this->_parse_body_data(std::forward<decltype(PH1)>(PH1)); };
             }
             else {
@@ -863,15 +901,15 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
             MANAPIHTTP_LOG("Undefined frame type: {}", this->protocol.type);
     }
 
-    //MANAPIHTTP_LOG("length: {} {} {} {}", this->protocol.length, this->protocol.flag, this->parse_vars.j, this->parse_vars.size);
+    //MANAPIHTTP_LOG("length: {} {} {} {}", this->protocol.length, this->protocol.flag, d.j, d.size);
     if (this->protocol.length > this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first+1) {
         this->protocol.parse_exception = generate_error (HTTP2_ERROR_FLOW_CONTROL_ERROR, std::format("The frame size > {}", this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first.load()), this->protocol.stream_id);
         return;
     }
     if (this->protocol.type < HTTP2_FRAME_DATA || this->protocol.type > HTTP2_FRAME_PRIORITY_UPDATE) {
-        this->parse_vars.i = this->protocol.length;
+        d.i = this->protocol.length;
         this->current = [this](char &PH1)
-            -> void { this->_parse_skip_n_bytes(std::forward<decltype(PH1)>(PH1), this->parse_vars.i); };
+            -> void { this->_parse_skip_n_bytes(std::forward<decltype(PH1)>(PH1), this->parse_vars.value().i); };
     }
 }
 
@@ -1157,12 +1195,10 @@ void manapi::net::worker::http_v2::session_worker(int id, bool body, std::shared
         client->request_data.headers_part = 0;
         client->request_data.body_part = 0;
         client->request_data.body_size = contentlength != client->request_data.headers.end() ? std::stoll(contentlength->second) : 0;
-        client->request_data.body_ptr = client->request_data.buffer.data();
     }
     else {
         client->request_data.body_size = 0;
         client->request_data.body_part = 0;
-        client->request_data.body_ptr = nullptr;
     }
     client->request_data.body_left = client->request_data.body_size;
     client->request_data.method = client->request_data.headers[":method"];
@@ -1242,10 +1278,11 @@ void manapi::net::worker::http_v2::setting_value_valid(const http2_setting_type 
 }
 
 void manapi::net::worker::http_v2::_parse_header_flag (char &c) {
-    this->parse_vars.i ++;
-    this->parse_vars.buffint = static_cast<ssize_t>((static_cast<size_t>(this->parse_vars.buffint) << 8) | static_cast<unsigned char>(c));
+    auto &d = this->parse_vars.value();
+    d.i ++;
+    d.buffint = static_cast<ssize_t>((static_cast<size_t>(d.buffint) << 8) | static_cast<unsigned char>(c));
 
-    if (this->parse_vars.i == 5) {
+    if (d.i == 5) {
         // FLAGS
 
         // > HEADERS
@@ -1264,8 +1301,8 @@ void manapi::net::worker::http_v2::_parse_header_flag (char &c) {
         // Unused Flags (2),
         // END_STREAM Flag (1)
 
-        this->protocol.flag = this->parse_vars.buffint;
-        this->parse_vars.buffint = 0;
+        this->protocol.flag = d.buffint;
+        d.buffint = 0;
 
         this->current = [this](char & PH1) { _parse_header_stream_id(std::forward<decltype(PH1)>(PH1)); };
     }

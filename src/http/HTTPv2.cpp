@@ -18,23 +18,27 @@ std::shared_ptr<manapi::net::worker::http_v2> manapi::net::http::http_v2::create
 }
 
 manapi::future<void> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_t size) {
-    for (char & i : request_data.uri) {
+    this->parse_vars = parse_vars_t{};
+
+    for (char & i : this->request_data.uri) {
         _parse_uri(i);
     }
     this->_cleanup_uri();
+    this->parse_vars.reset();
     co_return;
 }
 
 manapi::future<void> manapi::net::http::http_v2::execute_handler() {
-    const auto handler = site.get_handler(request_data);
-    co_await handle_request(&handler, request_data);
+    const auto handler = this->site.get_handler(this->request_data);
+    co_await handle_request(&handler, this->request_data);
     co_return;
 }
 
 void manapi::net::http::http_v2::_parse_uri(char &c) {
+    auto &d = this->parse_vars.value();
     if (c == ' ') {
-        if (this->parse_vars.uri_finished) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "URI parse was finished with error"); }
-        this->parse_vars.uri_finished = true;
+        if (d.uri_finished) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "URI parse was finished with error"); }
+        d.uri_finished = true;
         return;
     }
 
@@ -42,65 +46,65 @@ void manapi::net::http::http_v2::_parse_uri(char &c) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
     }
 
-    if (parse_vars.hex_index >= 0) {
-        parse_vars.hex_symbols[parse_vars.hex_index] = c;
+    if (d.hex_index >= 0) {
+        d.hex_symbols[d.hex_index] = c;
 
-        if (parse_vars.hex_index == 1) {
-            char x = static_cast<char> (manapi::unicode::hex2dec(parse_vars.hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
-                                 parse_vars.hex_symbols[1]));
+        if (d.hex_index == 1) {
+            char x = static_cast<char> (manapi::unicode::hex2dec(d.hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
+                                 d.hex_symbols[1]));
 
-            if (((parse_vars.hex_symbols[0] >= 'a' && parse_vars.hex_symbols[0] <= 'z') || (parse_vars.hex_symbols[0] >= 'A' && parse_vars.hex_symbols[0] <= 'Z')
-                || (parse_vars.hex_symbols[0] >= '0' && parse_vars.hex_symbols[0] <= '9')) && ((parse_vars.hex_symbols[1] >= 'a' && parse_vars.hex_symbols[1] <= 'z') || (parse_vars.hex_symbols[1] >= 'A' && parse_vars.hex_symbols[1] <= 'Z')
-                || (parse_vars.hex_symbols[1] >= '0' && parse_vars.hex_symbols[1] <= '9'))) {
-                request_data.path.back() += x;
+            if (((d.hex_symbols[0] >= 'a' && d.hex_symbols[0] <= 'z') || (d.hex_symbols[0] >= 'A' && d.hex_symbols[0] <= 'Z')
+                || (d.hex_symbols[0] >= '0' && d.hex_symbols[0] <= '9')) && ((d.hex_symbols[1] >= 'a' && d.hex_symbols[1] <= 'z') || (d.hex_symbols[1] >= 'A' && d.hex_symbols[1] <= 'Z')
+                || (d.hex_symbols[1] >= '0' && d.hex_symbols[1] <= '9'))) {
+                this->request_data.path.back() += x;
             }
             else {
-                request_data.path.back() += '%';
-                request_data.path.back() += parse_vars.hex_symbols;
+                this->request_data.path.back() += '%';
+                this->request_data.path.back() += d.hex_symbols;
             }
 
-            parse_vars.hex_index = -1;
+            d.hex_index = -1;
 
             return;
         }
 
-        parse_vars.hex_index++;
+        d.hex_index++;
 
         return;
     }
 
-    if (c == '%' && !request_data.path.empty()) {
-        parse_vars.hex_index = 0;
+    if (c == '%' && !this->request_data.path.empty()) {
+        d.hex_index = 0;
 
         return;
     }
 
-    if (request_data.divided == -1) {
+    if (this->request_data.divided == -1) {
         if (c == '/') {
-            if (request_data.path.empty() || !request_data.path.back().empty()) {
-                request_data.path.emplace_back("");
+            if (this->request_data.path.empty() || !this->request_data.path.back().empty()) {
+                this->request_data.path.emplace_back("");
             }
             return;
         }
 
         if (c == '?') {
             this->_cleanup_uri ();
-            request_data.divided = static_cast<ssize_t>(request_data.path.size());
-            request_data.path.emplace_back("");
+            this->request_data.divided = static_cast<ssize_t>(this->request_data.path.size());
+            this->request_data.path.emplace_back("");
             return;
         }
     }
 
-    if (!request_data.path.empty()) {
-        request_data.path.back() += c;
+    if (!this->request_data.path.empty()) {
+        this->request_data.path.back() += c;
     }
 }
 
 void manapi::net::http::http_v2::_cleanup_uri() {
-    if (request_data.divided!=-1) { return; }
-    for (ssize_t i = request_data.path.size() - 1; i >= 0; i--) {
-        if (request_data.path[i].empty()) {
-            request_data.path.pop_back();
+    if (this->request_data.divided!=-1) { return; }
+    for (ssize_t i = this->request_data.path.size() - 1; i >= 0; i--) {
+        if (this->request_data.path[i].empty()) {
+            this->request_data.path.pop_back();
         }
         else {
             break;

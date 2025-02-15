@@ -380,12 +380,10 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_headers(void *ctx
         client->request_data.headers_part = 0;
         client->request_data.body_part = 0;
         client->request_data.body_size = contentlength != client->request_data.headers.end() ? std::stoll(contentlength->second) : 0;
-        client->request_data.body_ptr = client->request_data.buffer.data();
     }
     else {
         client->request_data.body_size = 0;
         client->request_data.body_part = 0;
-        client->request_data.body_ptr = nullptr;
     }
     client->request_data.body_left = client->request_data.body_size;
     client->request_data.method = client->request_data.headers[":method"];

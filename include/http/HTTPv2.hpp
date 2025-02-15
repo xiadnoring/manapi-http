@@ -8,6 +8,11 @@
 
 namespace manapi::net::http {
     class http_v2 : public http::base {
+        struct parse_vars_t {
+            char hex_symbols[2];
+            char hex_index = -1;
+            bool uri_finished = false;
+        };
     public:
         http_v2 (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
 
@@ -18,11 +23,7 @@ namespace manapi::net::http {
         void _parse_uri (char &c);
         void _cleanup_uri ();
 
-        struct parse_vars_t {
-            char hex_symbols[2];
-            char hex_index = -1;
-            bool uri_finished = false;
-        } parse_vars;
+        std::optional<parse_vars_t> parse_vars{};
     };
 }
 

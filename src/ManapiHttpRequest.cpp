@@ -66,19 +66,19 @@ std::string manapi::net::http_request::dump() const {
 }
 
 manapi::future<std::string> manapi::net::http_request::text() {
-    if (!request_data->has_body)
+    if (!this->request_data->has_body)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
     }
 
     std::string body;
 
-    if (request_data->body_size > max_plain_body_size)
+    if (this->request_data->body_size > max_plain_body_size)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_TOO_LONG, "plain body can have only {} length", max_plain_body_size);
     }
 
-    body.resize(request_data->body_size);
+    body.resize(this->request_data->body_size);
 
     size_t j                    = 0;
     //size_t socket_block_size    = http_server->get_socket_block_size();
@@ -95,7 +95,7 @@ manapi::future<manapi::json> manapi::net::http_request::json()
 {
     // TODO: check with json_mask during processing read_mask()
     const auto &post_mask = get_post_mask();
-    json_builder builder (*post_mask);
+    json_builder builder (post_mask ? *post_mask : nullptr);
     co_await _read_body([&builder] (const char *data, ssize_t size) -> void {
         builder << std::string_view (data, size);
     });
@@ -105,13 +105,15 @@ manapi::future<manapi::json> manapi::net::http_request::json()
 
 manapi::future<manapi::net::formdata_recv> manapi::net::http_request::form ()
 {
-    formdata_recv formdata {*request_data, config, http_task};
-    co_await formdata._init();
+    formdata_recv formdata (this->http_task->get_site().ctx, this->config->buffer_size(),
+        this->request_data->body_part, this->request_data->buffer, this->request_data->body_left, this->request_data->body_index, [http_base = this->http_task] (void *buff, ssize_t buff_size)
+        -> future<ssize_t> { return http_base->read(buff, buff_size);  });
+    co_await formdata._init(this->request_data->has_body, this->request_data->headers[HTTP_HEADER.CONTENT_TYPE]);
     co_return std::move(formdata);
 }
 
-const size_t &manapi::net::http_request::get_body_size() {
-    return request_data->body_size;
+ssize_t manapi::net::http_request::get_body_size() {
+    return this->request_data->body_size;
 }
 
 void manapi::net::http_request::set_max_plain_body_size(const size_t &size) {
@@ -167,38 +169,30 @@ void manapi::net::http_request::stop_propagation(const bool &stop_propagation) {
     is_propagation = !stop_propagation;
 }
 
-const bool & manapi::net::http_request::get_propagation() {
-    return is_propagation;
+bool manapi::net::http_request::get_propagation() const {
+    return this->is_propagation;
 }
 
-manapi::future<void> manapi::net::http_request::_read_body(const std::function<void(const char *, ssize_t)> &handler) {
-    request_data->body_part = std::min (request_data->body_part, request_data->body_left);
+manapi::future<void> manapi::net::http_request::_read_body(std::function<void(const char *, ssize_t)> handler) {
+    this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left);
 
-    // TODO: speed up
-    while (request_data->body_index < request_data->body_left) {
-        if (request_data->body_index >= request_data->body_part) {
-            request_data->body_left -= request_data->body_index;
-            request_data->body_index =0;
-            // get the next data
-            ssize_t rhs = co_await http_task->read (request_data->buffer.data(), request_data->buffer.size());
-            if (rhs == -1) {
-                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
+    while (true) {
+        handler (this->request_data->buffer.data() + this->request_data->body_index, this->request_data->body_part);
+        this->request_data->body_left -= this->request_data->body_part;
+        this->request_data->body_index = 0;
+
+        if (this->request_data->body_left > 0) {
+            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer.data(), static_cast<ssize_t>(this->request_data->buffer.size()));
+            if (this->request_data->body_part < 0) {
+                THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
             }
-            if (rhs > request_data->body_left) {
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
-            }
-            request_data->body_part = rhs;
-            if (request_data->body_part == 0)
-            {
+            if (this->request_data->body_part == 0) {
                 break;
             }
 
-            request_data->body_part       = std::min (request_data->body_part, request_data->body_left);
+            continue;
         }
 
-
-        ///body[j] = request_data->body_ptr[request_data->body_index];
-        handler (request_data->body_ptr, static_cast<ssize_t>(request_data->body_part - request_data->body_index));
-        request_data->body_index = request_data->body_part;
+        break;
     }
 }

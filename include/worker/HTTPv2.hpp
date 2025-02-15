@@ -107,12 +107,12 @@ namespace manapi::net::worker {
     class http_v2 : public worker::base {
         struct parse_vars_t {
             bool next_line_state = false;
-            std::string buffer;
+            std::string buffer{};
             ssize_t i = 0;
             ssize_t buffint = 0;
-            ssize_t nkey;
-            std::string key;
-            ssize_t size;
+            ssize_t nkey = 0;
+            std::string key{};
+            ssize_t size = 0;
             ssize_t j = 0;
         };
 
@@ -254,7 +254,7 @@ namespace manapi::net::worker {
             return std::move(result);
         }
 
-        parse_vars_t parse_vars;
+        std::optional<parse_vars_t> parse_vars;
 
         protocol_http2_t protocol;
 
