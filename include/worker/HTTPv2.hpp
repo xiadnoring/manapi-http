@@ -254,6 +254,7 @@ namespace manapi::net::worker {
             return std::move(result);
         }
 
+        std::string headerbuffer{};
         std::optional<parse_vars_t> parse_vars;
 
         protocol_http2_t protocol;

@@ -29,8 +29,9 @@ namespace manapi::net {
 
         [[nodiscard]] file_data_t about_file () const;
         future<void> get_file(std::function<void(const char *, ssize_t)> handler);
+        future<void> get_async_file(std::function<manapi::future<>(const char *, ssize_t)> handler);
         future<std::string> get_file_to_str();
-        future<void> save_file (const std::string &filepath);
+        future<void> save_file (std::string filepath);
 
         [[nodiscard]] const std::string &about_param () const;
         future<std::pair <std::string, std::string>> get_param ();
@@ -50,10 +51,10 @@ namespace manapi::net {
         };
 
         void _move (formdata_recv &&n) noexcept;
-        future<void> multipart_read_param (std::function<void(const char *, ssize_t )> send_line = nullptr);
-        future<void> urlencoded_read_param (std::function<void(const char *, ssize_t )> send_line = nullptr);
+        future<void> multipart_read_param (std::function<manapi::future<>(const char *, ssize_t )> send_line = nullptr);
+        future<void> urlencoded_read_param (std::function<manapi::future<>(const char *, ssize_t )> send_line = nullptr);
 
-        std::function<future<void>(std::function<void(const char *, ssize_t )> )> current_read_param;
+        std::function<future<void>(std::function<manapi::future<>(const char *, ssize_t )> )> current_read_param;
         std::function<future<ssize_t>(void *, ssize_t)> body_read;
 
         // boundary --XXXXXxxxXXX for form data

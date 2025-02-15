@@ -97,7 +97,6 @@ namespace manapi::net {
         [[nodiscard]] const std::shared_ptr<async::context>& async_context ();
 
         std::string config_cache_dir;
-        std::shared_ptr<async::context> ctx;
         async::mutex cache_config_mx;
     protected:
         void setup ();
@@ -105,6 +104,7 @@ namespace manapi::net {
         void save ();
         void save_config ();
 
+        std::shared_ptr<async::context> ctx;
         manapi::json config;
         std::mutex loopmx;
     private:

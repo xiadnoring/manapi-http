@@ -100,7 +100,7 @@ bool manapi::net::formdata_recv::next_param() const {
     return this->type == DATA_PLAIN;
 }
 
-manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::function<void(const char *, ssize_t)> send_line) {
+manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::function<manapi::future<>(const char *, ssize_t)> send_line) {
     try {
         bool headers = false;
         bool value = false;
@@ -126,7 +126,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
             if (*this->body_index >= *this->body_buffer_size) {
                 if (*this->body_index > checkpoint + current_boundary_index) {
                     if (value) {
-                        send_line (this->body_buffer->data() + checkpoint, *this->body_index - checkpoint - current_boundary_index);
+                        co_await send_line (this->body_buffer->data() + checkpoint, *this->body_index - checkpoint - current_boundary_index);
                     }
                     else if (headers) {
                         auto n = *this->body_index - checkpoint - current_boundary_index;
@@ -162,7 +162,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                 if (boundary_index == this->body_boundary.size()) {
                     if (value) {
                         if (*this->body_index + 1 > current_boundary_index + checkpoint) {
-                            send_line (this->body_buffer->data() + checkpoint, *this->body_index + 1 - current_boundary_index - checkpoint);
+                            co_await send_line (this->body_buffer->data() + checkpoint, *this->body_index + 1 - current_boundary_index - checkpoint);
                         }
 
                         value = false;
@@ -186,7 +186,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                 if (boundary_index) {
                     if (boundary_index < *this->body_index) {
                         if (value) {
-                            send_line (this->body_buffer->data() + checkpoint, *this->body_index - checkpoint - boundary_size);
+                            co_await send_line (this->body_buffer->data() + checkpoint, *this->body_index - checkpoint - boundary_size);
                         }
                         else {
                             auto n = *this->body_index - checkpoint - boundary_size;
@@ -198,7 +198,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                     }
 
                     if (value) {
-                        send_line (this->body_boundary.data(), boundary_size);
+                        co_await send_line (this->body_boundary.data(), boundary_size);
                     }
                     else {
                         auto n = boundary_size - 2;
@@ -285,7 +285,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
     }
 }
 
-manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::function<void(const char *, ssize_t)> send_line) {
+manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::function<manapi::future<>(const char *, ssize_t)> send_line) {
     size_t size_extra = 0;
     bool used_extra = false;
 
@@ -366,7 +366,7 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
             if (!value) {
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "formdata: Invalid sign '&' in the key space");
             }
-            send_line (buffer.data(), static_cast<ssize_t>(buffer.size()));
+            co_await send_line (buffer.data(), static_cast<ssize_t>(buffer.size()));
             buffer.clear();
             value = false;
 
@@ -384,7 +384,7 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
 
     if (*this->body_index == *this->body_max_size_left) {
         if (!value) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "formdata: Unexpected end of the urlencoded data"); }
-        send_line (buffer.data(), static_cast<ssize_t>(buffer.size()));
+        co_await send_line (buffer.data(), static_cast<ssize_t>(buffer.size()));
         type = DATA_NONE;
     }
 }
@@ -412,22 +412,41 @@ manapi::future<void> manapi::net::formdata_recv::get_file(std::function<void(con
     if (!next_file()) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_NOT_CONTAINS_FILE, "{}", "no file in the body of the request");
     }
+    co_await this->current_read_param ([handler = std::move(handler)] (const char *buff, ssize_t size)
+        -> manapi::future<> { handler (buff, size); co_return; });
+}
+
+manapi::future<> manapi::net::formdata_recv::get_async_file(std::function<manapi::future<>(const char *, ssize_t)> handler) {
+    if (!next_file()) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_NOT_CONTAINS_FILE, "{}", "no file in the body of the request");
+    }
+
     co_await this->current_read_param (std::move(handler));
 }
 
-manapi::future<void> manapi::net::formdata_recv::save_file (const std::string &filepath) {
-    std::ofstream out (filepath);
-
+manapi::future<void> manapi::net::formdata_recv::save_file (std::string filepath) {
+    manapi::filesystem::async::fstream out (this->ctx, filepath);
+    co_await out.open(out.FILE_WRITE|out.FILE_CREATE|out.FILE_TRUNC);
     if (!out.is_open())
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Cannot open a file to write: {}", filepath);
     }
 
-    co_await get_file([&] (const char *ptr, ssize_t size) {
-        out.write(ptr, static_cast<std::streamsize> (size));
-    });
+    std::exception_ptr err{nullptr};
 
-    out.close();
+    try {
+        co_await get_async_file ([&] (const char *ptr, ssize_t size)
+            -> manapi::future<> { return out.fwrite(ptr, size); });
+    }
+    catch (...) {
+        err = std::current_exception();
+    }
+
+    co_await out.close();
+
+    if (err) {
+        std::rethrow_exception(std::move(err));
+    }
 }
 
 const std::string & manapi::net::formdata_recv::about_param() const {
@@ -444,9 +463,8 @@ manapi::future<std::pair<std::string, std::string>> manapi::net::formdata_recv::
         THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "No found any param in the body of the request");
     }
     auto n = std::move(param_data);
-    co_await current_read_param ([this, &n] (const char *buffer, ssize_t size) -> void {
-        n.second.append(buffer, size);
-    });
+    co_await current_read_param ([this, &n] (const char *buffer, ssize_t size)
+        -> manapi::future<> { n.second.append(buffer, size); co_return; });
     co_return std::move(n);
 }
 

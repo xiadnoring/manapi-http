@@ -306,6 +306,15 @@ int main (int argc, char *argv[]) {
                 resp.json(std::move(res));
             });
 
+            server.POST ("/file", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
+                co_await req.file("/home/Timur/test.docx");
+                co_return resp.text("OK");
+            });
+
+            server.POST ("/test_fetch", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
+
+            });
+
             server.GET ("/text", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
                 MANAPIHTTP_LOG("{}", "REQ GET");
                 resp.set_compress_enabled(false);

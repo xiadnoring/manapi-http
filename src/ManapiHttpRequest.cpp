@@ -105,11 +105,36 @@ manapi::future<manapi::json> manapi::net::http_request::json()
 
 manapi::future<manapi::net::formdata_recv> manapi::net::http_request::form ()
 {
-    formdata_recv formdata (this->http_task->get_site().ctx, this->config->buffer_size(),
+    formdata_recv formdata (this->http_task->get_site().async_context(), this->config->buffer_size(),
         this->request_data->body_part, this->request_data->buffer, this->request_data->body_left, this->request_data->body_index, [http_base = this->http_task] (void *buff, ssize_t buff_size)
         -> future<ssize_t> { return http_base->read(buff, buff_size);  });
     co_await formdata._init(this->request_data->has_body, this->request_data->headers[HTTP_HEADER.CONTENT_TYPE]);
     co_return std::move(formdata);
+}
+
+manapi::future<> manapi::net::http_request::file(std::string filepath) {
+    manapi::filesystem::async::fstream f (this->http_task->get_site().async_context(), filepath);
+    co_await f.open(f.FILE_WRITE|f.FILE_CREATE|f.FILE_TRUNC);
+
+    if (!f.is_open()) {
+        THROW_MANAPIHTTP_EXCEPTION (ERR_FILE_IO, "http request: Failed to open the file ({}) to write", filepath);
+    }
+
+    std::exception_ptr err{nullptr};
+
+    try {
+        co_await this->_read_async_body([&] (const char *data, ssize_t size)
+            -> manapi::future<> { return f.fwrite(data, size); });
+    }
+    catch (...) {
+        err = std::current_exception();
+    }
+
+    co_await f.close();
+
+    if (err) {
+        std::rethrow_exception(std::move(err));
+    }
 }
 
 ssize_t manapi::net::http_request::get_body_size() {
@@ -178,6 +203,30 @@ manapi::future<void> manapi::net::http_request::_read_body(std::function<void(co
 
     while (true) {
         handler (this->request_data->buffer.data() + this->request_data->body_index, this->request_data->body_part);
+        this->request_data->body_left -= this->request_data->body_part;
+        this->request_data->body_index = 0;
+
+        if (this->request_data->body_left > 0) {
+            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer.data(), static_cast<ssize_t>(this->request_data->buffer.size()));
+            if (this->request_data->body_part < 0) {
+                THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
+            }
+            if (this->request_data->body_part == 0) {
+                break;
+            }
+
+            continue;
+        }
+
+        break;
+    }
+}
+
+manapi::future<> manapi::net::http_request::_read_async_body(std::function<manapi::future<>(const char *, ssize_t)> handler) {
+    this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left);
+
+    while (true) {
+        co_await handler (this->request_data->buffer.data() + this->request_data->body_index, this->request_data->body_part);
         this->request_data->body_left -= this->request_data->body_part;
         this->request_data->body_index = 0;
 

@@ -37,6 +37,7 @@ namespace manapi::net {
         future<std::string> text ();
         future<manapi::json> json ();
         future<formdata_recv> form ();
+        future<void> file (std::string filepath);
         ssize_t get_body_size ();
         void set_max_plain_body_size (const size_t &size);
 
@@ -52,6 +53,7 @@ namespace manapi::net {
         [[nodiscard]] bool get_propagation () const;
     private:
         future<void> _read_body (std::function<void(const char *, ssize_t )> handler);
+        future<void> _read_async_body (std::function<manapi::future<>(const char *, ssize_t )> handler);
         void parse_map_url_param ();
         // peer ip
         const http::manapi_socket_information *ip_data;

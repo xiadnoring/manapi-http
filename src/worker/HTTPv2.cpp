@@ -728,18 +728,19 @@ void manapi::net::worker::http_v2::_parse_header_data(char &c) {
     // current(c);
     auto datasize = this->protocol.length - static_cast<ssize_t>(this->protocol.padding);
     const auto cutsize = std::min(static_cast<ssize_t>(d.size - d.j), datasize);
-    d.buffer += std::string_view(this->buffer.data() + d.j, cutsize);
+    this->headerbuffer.append(this->buffer.data() + d.j, cutsize);
     // +1  bcz in loop
     this->protocol.length = protocol.length - cutsize + 1;
     d.j += cutsize - 1;
     datasize = protocol.length - static_cast<ssize_t>(this->protocol.padding);
 
     if (datasize == 1 && protocol.flag & HTTP2_FLAG_HEADERS_END_HEADERS) {
-        if (!this->protocol.decoder.decode(d.buffer)) {
+        if (!this->protocol.decoder.decode(this->headerbuffer)) {
+            this->headerbuffer = {};
             this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "hpack: failed to decode headers");
             return;
         }
-        d.buffer.clear();
+        this->headerbuffer = {};
 
         auto &session = this->sessions[this->protocol.stream_id];
         if (session.type == HTTP2_CONN_IDLE) {
