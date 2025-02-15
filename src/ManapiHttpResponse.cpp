@@ -58,6 +58,11 @@ void manapi::net::http_response::json(const manapi::json& data, const size_t &sp
     text(std::move(data.dump (static_cast<int>(spaces))));
 }
 
+void manapi::net::http_response::form(formdata_send formdata) {
+    this->type = RESPONSE_FORMDATA;
+    this->formdata = std::move(formdata);
+}
+
 void manapi::net::http_response::set_status_code(const size_t &_status_code) {
     this->status_code = _status_code;
 }

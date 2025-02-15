@@ -25,4 +25,6 @@ namespace manapi::unicode {
     bool escape_char_need (const char &c, const char &quotes = '"');
     bool escape_char_need (const wchar_t &c);
     bool escape_char_need (const char32_t &c);
+    std::string urlencode (std::string_view data);
+    std::string urldecode (std::string_view data);
 }

@@ -10,6 +10,9 @@
 #endif
 #include <codecvt>
 #include <locale>
+#include <curl/curl.h>
+
+#include "ManapiDebug.hpp"
 
 #define BIT_AT(n, i, t) ((n >> (sizeof(t) * 8 - (i + 1))) & 1)
 
@@ -172,6 +175,27 @@ bool manapi::unicode::escape_char_need (const char32_t &ch) {
     return ch == '"' || ch == '\\' || ch == '/';
 }
 
+std::string manapi::unicode::urlencode(std::string_view data) {
+    auto d = curl_easy_escape(nullptr, data.data(), static_cast<int> (data.size()));
+    if (!d) {
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "urlencode_encode(...) error");
+    }
+    auto s = std::string{d};
+    curl_free(d);
+    return std::move(s);
+}
+
+std::string manapi::unicode::urldecode(std::string_view data) {
+    int output_length;
+    auto d = curl_easy_unescape(nullptr, data.data(), static_cast<int> (data.size()), &output_length);
+    if (!d) {
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "urlencode_decode(...) error");
+    }
+    std::string s (d, output_length);
+    curl_free(d);
+    return std::move(s);
+}
+
 bool manapi::unicode::valid_special_symbol(const char &c) {
     /**
      * ascii
@@ -179,3 +203,4 @@ bool manapi::unicode::valid_special_symbol(const char &c) {
      */
     return c >= 0;
 }
+

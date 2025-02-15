@@ -2,11 +2,13 @@
 
 #include "components/FormData.hpp"
 
+#include "ManapiFilesystem.hpp"
 #include "http/Utils.hpp"
 #include "ManapiHttpMime.hpp"
 #include "ManapiUnicode.hpp"
 #include "crypto/ManapiURL.hpp"
 #include "ManapiHttpTypes.hpp"
+#include "ManapiString.hpp"
 #include "http/base_http.hpp"
 
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
@@ -524,3 +526,172 @@ void manapi::net::formdata_recv::_move(formdata_recv &&n) noexcept {
 
     n.current_read_param = nullptr;
 }
+
+constexpr int boundary_payload_size = 32;
+constexpr char boundary_end_symbols[] = "--";
+constexpr char nline[] = "\r\n";
+
+manapi::net::formdata_send::formdata_send(std::shared_ptr<async::context> ctx) : ctx(std::move(ctx)) {}
+
+manapi::net::formdata_send::~formdata_send() {
+}
+
+manapi::net::formdata_send::formdata_send(formdata_send &&n) noexcept {
+    this->operator=(std::forward<decltype(n)>(n));
+}
+
+manapi::net::formdata_send & manapi::net::formdata_send::operator=(formdata_send &&n) noexcept {
+    this->ctx = std::move(n.ctx);
+    this->data = std::move(n.data);
+    return *this;
+}
+
+void manapi::net::formdata_send::append_file(const std::string &name, std::string filepath) {
+    auto filename = manapi::filesystem::basename(filepath);
+    auto filemime = manapi::net::mime_by_file_path(filename);
+
+    this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::move(filemime)}}});
+}
+
+void manapi::net::formdata_send::append_file(const std::string &name, std::string filepath, std::string filename, std::string filemime) {
+    this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::move(filemime)}}});
+}
+
+void manapi::net::formdata_send::append_text(const std::string &name, std::string data) {
+    this->data.insert({name, {DATA_PLAIN, std::move(data), {}}});
+}
+
+void manapi::net::formdata_send::erase(const std::string &name) {
+    this->data.erase(name);
+}
+
+bool manapi::net::formdata_send::contains(const std::string &name) const {
+    return this->data.contains(name);
+}
+
+ssize_t manapi::net::formdata_send::payload_size() const {
+    ssize_t s = 0;
+    for (const auto &param : this->data) {
+        switch (param.second.type) {
+            case DATA_FILE:
+                s += manapi::filesystem::get_size(param.second.data);
+            break;
+            case DATA_PLAIN:
+                s += static_cast<ssize_t>(param.second.data.size());
+            break;
+            default:
+                break;
+        }
+    }
+    return s;
+}
+
+ssize_t manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const {
+    ssize_t s =  boundary_size + 2 /*--*/  + 2 /*\r\n*/;
+    for (const auto &param : this->data) {
+        s += boundary_size + 2 /*\r\n*/;
+        if (param.second.type == DATA_PLAIN) {
+            std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
+                http::stringify_header_value({{"form-data", {{"name", param.first}}}})});
+            s += static_cast<ssize_t> (header.size() + sizeof ("\r\n") - 1);
+        }
+        else if (param.second.type == DATA_FILE) {
+            std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
+                http::stringify_header_value({{"form-data", {{"name", param.first}, {"filename", param.second.file.value().filename}}}})});
+            s += static_cast<ssize_t> (header.size() + sizeof ("\r\n") - 1);
+        }
+
+        s += (sizeof ("\r\n") - 1);
+        /* ... */
+        s += (sizeof ("\r\n") - 1);
+    }
+    return s;
+}
+
+std::string manapi::net::formdata_send::generate_boundary() const {
+    return "-----boundary" + manapi::string::random(boundary_payload_size);;
+}
+
+manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary, ssize_t buffer_size,  std::function<manapi::future<void>(const void *buffer, ssize_t size)> write) {
+    for (auto &param : this->data) {
+        co_await write (boundary.data(), static_cast<ssize_t>(boundary.size()));
+        co_await write (nline, sizeof (nline) - 1);
+
+        if (param.second.type == DATA_PLAIN) {
+            std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
+                http::stringify_header_value({{"form-data", {{"name", param.first}}}})});
+
+            co_await write (header.data(), static_cast<ssize_t>(header.size()));
+            co_await write (nline, sizeof (nline) - 1);
+
+            co_await write (nline, sizeof (nline) - 1);
+
+            co_await write (param.second.data.data(), static_cast<ssize_t> (param.second.data.size()));
+            param.second.data = {};
+
+            co_await write (nline, sizeof (nline) - 1);
+        }
+
+        if (param.second.type == DATA_FILE) {
+            std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
+                http::stringify_header_value({{"form-data", {{"name", param.first}, {"filename", std::move(param.second.file.value().filename)}}}})});
+            co_await write (header.data(), static_cast<ssize_t>(header.size()));
+            co_await write (nline, sizeof (nline) - 1);
+
+            header = http::stringify_header({HTTP_HEADER.CONTENT_TYPE,
+                http::stringify_header_value({{std::move(param.second.file.value().filemime)}})});
+            co_await write (header.data(), static_cast<ssize_t>(header.size()));
+            co_await write (nline, sizeof (nline) - 1);
+
+            co_await write (nline, sizeof (nline) - 1);
+
+            manapi::filesystem::async::fstream f (this->ctx, param.second.data);
+            co_await f.open(f.FILE_READ);
+
+            if (!f.is_open()) {
+                THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read file ({}) to send it as form data parameter", param.second.data);
+            }
+
+            std::exception_ptr err{nullptr};
+
+            std::string buffer;
+            buffer.reserve(buffer_size);
+
+            try {
+                while (!f.eof()) {
+                    auto rhs = co_await f.read(buffer.data(), buffer_size);
+                    if (rhs < 0) {
+                        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read file ({}) to send it as formdata parameter", param.second.data);
+                    }
+                    if (rhs == 0) {
+                        continue;
+                    }
+                    co_await write (buffer.data(), buffer_size);
+                }
+            }
+            catch (...) {
+                err = std::current_exception();
+            }
+
+            co_await f.close();
+
+            if (err) {
+                std::rethrow_exception(std::move(err));
+            }
+
+            param.second.data = {};
+
+            co_await write (nline, sizeof (nline) - 1);
+        }
+    }
+
+    co_await write (boundary.data(), static_cast<ssize_t>(boundary.size()));
+    co_await write (boundary_end_symbols, sizeof (boundary_end_symbols) - 2);
+    co_await write (nline, sizeof (nline) - 1);
+}
+
+
+
+
+
+

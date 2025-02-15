@@ -78,6 +78,49 @@ namespace manapi::net {
         ssize_t *body_max_size_left;
         ssize_t *body_index;
     };
+
+    class formdata_send {
+    public:
+        formdata_send (std::shared_ptr<async::context> ctx);
+        ~formdata_send ();
+
+        formdata_send (formdata_send &&n) noexcept;
+        formdata_send& operator= (formdata_send &&n) noexcept;
+
+        void append_file (const std::string &name, std::string filepath);
+        void append_file (const std::string &name, std::string filepath, std::string filename, std::string filemime);
+        void append_text (const std::string &name, std::string data);
+
+        void erase (const std::string &name);
+        [[nodiscard]] bool contains (const std::string &name) const;
+
+        [[nodiscard]] ssize_t payload_size () const;
+        [[nodiscard]] ssize_t multipart_size (ssize_t boundary_size) const;
+
+        [[nodiscard]] std::string generate_boundary () const;
+
+        manapi::future<> data2multipart (std::string boundary, ssize_t buffer_size,  std::function<manapi::future<void>(const void *buffer, ssize_t size)> write);
+    private:
+        enum data_type {
+            DATA_NONE = 0,
+            DATA_FILE = 1,
+            DATA_PLAIN = 2
+        };
+
+        struct data_file_storage {
+            std::string filename;
+            std::string filemime;
+        };
+
+        struct data_storage {
+            data_type type;
+            std::string data;
+            std::optional<data_file_storage> file;
+        };
+
+        std::map<std::string, data_storage> data{};
+        std::shared_ptr<async::context> ctx;
+    };
 }
 
 #endif //MANAPIHTTP_FORMDATA_HPP

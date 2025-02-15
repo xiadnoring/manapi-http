@@ -112,11 +112,17 @@ int main () {
     });
 
     router->GET("/cat", [&ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        manapi::net::fetch fetch (ctx, "https://dragonball-api.com/api/planets/7");
-        fetch.enable_ssl_verify(false);
-        fetch.set_method("GET");
+        auto fetch = co_await manapi::net::fetch2::fetch (ctx, "https://dragonball-api.com/api/planets/7", {
+            {"enable_ssl_verify", false},
+            {"enable_alpn", true},
+            {"method", "GET"}
+        });
         
-        auto data = co_await fetch.json();
+        if (!fetch->ok()) {
+            co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
+        }
+        
+        auto data = co_await fetch->json();
 
         co_return resp.text(std::move(data["description"].as_string()));
     });

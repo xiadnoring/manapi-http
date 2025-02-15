@@ -7,6 +7,7 @@
 #include "ManapiJson.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiHttpConfig.hpp"
+#include "components/FormData.hpp"
 
 #include "http/Utils.hpp"
 
@@ -26,6 +27,7 @@ namespace manapi::net {
 
         void text (std::string plain_text);
         void json (const manapi::json &data, const size_t &spaces = 0);
+        void form (formdata_send formdata);
         void set_status (const size_t &_status_code, const std::string &_status_message);
         void set_status_code (const size_t &_status_code);
         void set_status_message (const std::string &_status_message);
@@ -74,7 +76,8 @@ namespace manapi::net {
             RESPONSE_PROXY,
             RESPONSE_TEXT,
             RESPONSE_NO_DATA,
-            RESPONSE_FILE
+            RESPONSE_FILE,
+            RESPONSE_FORMDATA
         };
     private:
         // custom data for layers
@@ -102,5 +105,6 @@ namespace manapi::net {
 
         std::optional<std::map<std::string, std::string>> replacers;
         std::optional<std::function<void(class manapi::net::fetch &)>> proxy_setup{};
+        std::optional<formdata_send> formdata;
     };
 }

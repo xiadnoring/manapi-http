@@ -311,8 +311,16 @@ int main (int argc, char *argv[]) {
                 co_return resp.text("OK");
             });
 
-            server.POST ("/test_fetch", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
+            server.POST ("/formdata", [&] (REQ(req), RESP(resp)) -> manapi::future<void> {
+                formdata_send formdata (ctx);
+                formdata.append_text("hello", "world");
+                formdata.append_file("file", "/home/Timur/test.docx");
+                co_return resp.form(std::move(formdata));
+            });
 
+            server.POST ("/test_fetch", [&] (REQ(req), RESP(resp)) -> manapi::future<void> {
+                auto fetch = co_await fetch2::fetch(ctx, "https://localhost:8888/formdata");
+                resp.text(co_await fetch->text());
             });
 
             server.GET ("/text", [] (REQ(req), RESP(resp)) -> manapi::future<void> {

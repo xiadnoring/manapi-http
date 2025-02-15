@@ -167,7 +167,7 @@ std::string manapi::net::http::stringify_header_value (const std::vector <header
 
                 point_param:
 
-                result += param->first + '=' + param->second;
+                result += param->first + '=' + manapi::json{param->second}.dump();
             }
         }
     }
