@@ -128,7 +128,7 @@ namespace manapi::net::worker {
 
         std::stack<std::shared_ptr<async_stack_storage>> tmp;
         addrinfo *local;
-        size_t limit_rate_timer{0};
+        timer limit_rate_timer{};
 #ifdef _WIN32
         char socket_param_true = 1;
         char socket_param_false = 0;

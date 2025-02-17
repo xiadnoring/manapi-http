@@ -337,7 +337,7 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
 
     manapi::async::parallel_run<void> unwatch_curl_action (this->data->ctx);
 
-    size_t timeout_token = co_await this->data->ctx->timerpool()->async_append_interval_sync(200, [&] () -> void {
+    auto timeout_token = co_await this->data->ctx->timerpool()->async_append_interval_sync(200, [&] (manapi::timer t) -> void {
         if (again >= 0 && !this->data->async_waiting && this->total_read - total_read_prev + this->total_write - total_write_prev < 8 * 1024) {
             if (!(again--)) {
                 unwatch_curl_action.run(this->data->ctx->eventloop()->unwatch_curl(this->data->curl.get()));
@@ -367,7 +367,7 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
         res = CURLE_AGAIN;
     }
 
-    co_await this->data->ctx->timerpool()->async_remove_timer(timeout_token);
+    co_await timeout_token.async_stop(this->data->ctx);
     co_await unwatch_curl_action.get ();
 
     co_return res;

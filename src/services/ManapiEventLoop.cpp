@@ -1,6 +1,7 @@
 #include <csignal>
 
 #include "services/ManapiEventLoop.hpp"
+#include "components/TimerObject.hpp"
 
 #ifdef _WIN32
 #   define NOMINMAX
@@ -422,9 +423,9 @@ manapi::future<> manapi::event_loop::_template_cmd_curl(int flag, CURL *curl, st
     });
 }
 
-manapi::future<size_t> manapi::event_loop::_template_cmd_timer(int flag, size_t data, std::function<manapi::future<>()> cb_async, std::function<void()> cb_sync) {
+manapi::future<std::optional<manapi::timer>> manapi::event_loop::_template_cmd_timer(int flag, size_t data, std::function<manapi::future<>(manapi::timer t)> cb_async, std::function<void(manapi::timer t)> cb_sync) {
     auto lk = co_await this->timer_watcher.adding_timer_mx->lock_guard();
-    co_return co_await async::promise<size_t> (this->taskpool, [&] (async::promise<size_t>::resolve_t resolve, async::promise<size_t>::reject_t reject) -> future<void> {
+    co_return co_await async::promise<std::optional<manapi::timer>> (this->taskpool, [&] (async::promise<std::optional<manapi::timer>>::resolve_t resolve, async::promise<std::optional<manapi::timer>>::reject_t reject) -> future<void> {
         this->timer_watcher.adding_timer_data.push_back(adding_timer_data_t {
             .flag = flag,
             .data = data,
@@ -617,20 +618,20 @@ manapi::future<> manapi::event_loop::custom_cb_curl(CURL *curl, std::function<vo
     return this->_template_cmd_curl(4, curl, std::move(cb));
 }
 
-manapi::future<size_t> manapi::event_loop::append_async_timer(size_t time, std::function<manapi::future<>()> cb) {
-    return this->_template_cmd_timer (0, time, std::move(cb), nullptr);
+manapi::future<manapi::timer> manapi::event_loop::append_async_timer(size_t time, std::function<manapi::future<>(manapi::timer t)> cb) {
+    co_return std::move((co_await this->_template_cmd_timer (0, time, std::move(cb), nullptr)).value());
 }
 
-manapi::future<size_t> manapi::event_loop::append_sync_timer(size_t time, std::function<void()> cb) {
-    return this->_template_cmd_timer (0, time, nullptr, std::move(cb));
+manapi::future<manapi::timer> manapi::event_loop::append_sync_timer(size_t time, std::function<void(manapi::timer t)> cb) {
+    co_return std::move((co_await this->_template_cmd_timer (0, time, nullptr, std::move(cb))).value());
 }
 
-manapi::future<size_t> manapi::event_loop::append_async_interval(size_t time, std::function<manapi::future<>()> cb) {
-    return this->_template_cmd_timer (1, time, std::move(cb), nullptr);
+manapi::future<manapi::timer> manapi::event_loop::append_async_interval(size_t time, std::function<manapi::future<>(manapi::timer t)> cb) {
+    co_return std::move((co_await this->_template_cmd_timer (1, time, std::move(cb), nullptr)).value());
 }
 
-manapi::future<size_t> manapi::event_loop::append_sync_interval(size_t time, std::function<void()> cb) {
-    return this->_template_cmd_timer (1, time, nullptr, std::move(cb));
+manapi::future<manapi::timer> manapi::event_loop::append_sync_interval(size_t time, std::function<void(manapi::timer t)> cb) {
+    co_return std::move((co_await this->_template_cmd_timer (1, time, nullptr, std::move(cb))).value());
 }
 
 manapi::future<void> manapi::event_loop::update_state_interval(size_t id) {
@@ -641,7 +642,7 @@ manapi::future<> manapi::event_loop::remove_timer(size_t id) {
     co_await this->_template_cmd_timer (2, id, nullptr, nullptr);
 }
 
-void manapi::event_loop::set_timer_callback(std::function<size_t(adding_timer_data_t data)> cb) {
+void manapi::event_loop::set_timer_callback(std::function<std::optional<manapi::timer>(adding_timer_data_t data)> cb) {
     this->timer_watcher.external_cb = std::move(cb);
 }
 

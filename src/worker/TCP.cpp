@@ -151,7 +151,7 @@ void manapi::net::worker::TCP::init() {
 
     /* every 1 second */
     this->limit_rate_timer = this->site.async_context()->timerpool()->append_interval_sync(1000,
-        [this] () -> void { this->update_limit_rate(); });
+        [this] (manapi::timer t) -> void { this->update_limit_rate(); });
     this->limit_rate_cv = std::make_shared<async::condition_variable>(this->site.async_context());
 }
 
@@ -293,7 +293,7 @@ manapi::future<void> manapi::net::worker::TCP::connection_close(std::shared_ptr<
 
 void manapi::net::worker::TCP::stop() {
     /* in the libev main loop */
-    this->site.async_context()->timerpool()->remove_timer(std::exchange(this->limit_rate_timer, 0));
+    this->limit_rate_timer.sync_stop(this->site.async_context());
 }
 
 int manapi::net::worker::TCP::status(connection &conn) {

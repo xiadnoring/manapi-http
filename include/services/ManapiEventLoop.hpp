@@ -11,6 +11,7 @@
 #include "../async/ManapiAsyncMutex.hpp"
 #include "../async/ManapiAsyncPromise.hpp"
 #include "../components/Atomic.hpp"
+#include "../components/TimerObject.hpp"
 
 namespace manapi {
     namespace priority {
@@ -43,10 +44,10 @@ namespace manapi {
     struct adding_timer_data_t {
         int flag{0};
         size_t data{0};
-        std::function<void()> sync_cb{nullptr};
-        std::function<manapi::future<>()> async_cb{nullptr};
-        async::promise<size_t>::resolve_t resolve{nullptr};
-        async::promise<size_t>::reject_t reject{nullptr};
+        std::function<void(manapi::timer t)> sync_cb{nullptr};
+        std::function<manapi::future<>(manapi::timer t)> async_cb{nullptr};
+        async::promise<std::optional<manapi::timer>>::resolve_t resolve{nullptr};
+        async::promise<std::optional<manapi::timer>>::reject_t reject{nullptr};
     };
 
     class event_loop {
@@ -108,14 +109,14 @@ namespace manapi {
         future<void> pause_watch_curl (CURL *curl);
         future<void> custom_cb_curl (CURL *curl, std::function<void(CURLcode result)> cb);
 
-        future<size_t> append_async_timer (size_t time, std::function<manapi::future<>()> cb);
-        future<size_t> append_sync_timer (size_t time, std::function<void()> cb);
-        future<size_t> append_async_interval (size_t time, std::function<manapi::future<>()> cb);
-        future<size_t> append_sync_interval (size_t time, std::function<void()> cb);
+        future<manapi::timer> append_async_timer (size_t time, std::function<manapi::future<>(manapi::timer t)> cb);
+        future<manapi::timer> append_sync_timer (size_t time, std::function<void(manapi::timer t)> cb);
+        future<manapi::timer> append_async_interval (size_t time, std::function<manapi::future<>(manapi::timer t)> cb);
+        future<manapi::timer> append_sync_interval (size_t time, std::function<void(manapi::timer t)> cb);
         future<void> update_state_interval (size_t id);
         future<void> remove_timer (size_t id);
 
-        void set_timer_callback (std::function<size_t(adding_timer_data_t data)> cb);
+        void set_timer_callback (std::function<std::optional<manapi::timer>(adding_timer_data_t data)> cb);
 
         static void interrupt ();
     protected:
@@ -142,7 +143,7 @@ namespace manapi {
             std::shared_ptr<async::mutex> adding_timer_mx;
             std::shared_ptr <ev::async> adding_timer_async;
             std::function<void()> adding_timer_async_cb{nullptr};
-            std::function<size_t(adding_timer_data_t data)> external_cb;
+            std::function<std::optional<manapi::timer>(adding_timer_data_t data)> external_cb;
         };
 
         void custom_watcher_fd_async (ev::async &w, int revents);
@@ -150,7 +151,7 @@ namespace manapi {
         void custom_watcher_timer_async (ev::async &w, int revents);
     private:
         future<void> _template_cmd_curl (int flag, CURL *curl, std::function<void(CURLcode result)> cb = nullptr);
-        future<size_t> _template_cmd_timer (int flag, size_t data, std::function<manapi::future<>()> cb_async, std::function<void()> cb_sync);
+        future<std::optional<manapi::timer>> _template_cmd_timer (int flag, size_t data, std::function<manapi::future<>(manapi::timer t)> cb_async, std::function<void(manapi::timer t)> cb_sync);
         static std::atomic<bool> interrupted;
         static std::map <size_t, std::shared_ptr<event_loop>> events;
         static std::mutex stop_mx;

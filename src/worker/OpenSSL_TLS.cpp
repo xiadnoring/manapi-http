@@ -83,7 +83,7 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
 
         while (true) {
             if (conn.status & CONN_CLOSED) {
-                co_await this->site.async_context()->timerpool()->async_remove_timer(std::exchange(conn.accept_timer, 0));
+                co_await conn.accept_timer.async_stop(this->site.async_context());
                 co_return false;
             }
 
@@ -104,7 +104,7 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
                         conn.iomutex.unlock();
                         unlock.disable();
 
-                        co_await conn.site->async_context()->timerpool()->async_remove_timer(conn.accept_timer);
+                        co_await conn.accept_timer.async_stop(this->site.async_context());
                         co_await this->connection_close(connection, true);
                         co_return false;
                     }
@@ -115,7 +115,7 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
                         conn.iomutex.unlock();
                         unlock.disable();
 
-                        co_await conn.site->async_context()->timerpool()->async_remove_timer(conn.accept_timer);
+                        co_await conn.accept_timer.async_stop(this->site.async_context());
                         co_await this->connection_close(connection, false);
                         co_return false;
                     }
@@ -134,8 +134,7 @@ cont:
             }
         }
 
-        co_await conn.site->async_context()->timerpool()->async_remove_timer(conn.accept_timer);
-
+        co_await conn.accept_timer.async_stop(this->site.async_context());
         conn.mustly.fetch_or(CONN_READ | CONN_WRITE);
     }
 
@@ -170,8 +169,8 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
         };
         connection.ssl = this->config->get_ssl_config()->enabled ? SSL_new(this->ctx) : nullptr;
         connection.mx = std::make_unique<async::mutex>(this->site.async_context());
-        connection.accept_timer = this->site.async_context()->timerpool()->append_timer_sync(2000, [this, &timer = connection.accept_timer, ms] ()
-            -> void { timer = 0; async::run(this->site.async_context(), this->connection_close(ms, false)); });
+        connection.accept_timer = this->site.async_context()->timerpool()->append_timer_sync(2000, [this, ms] (manapi::timer t)
+            -> void { async::run(this->site.async_context(), this->connection_close(ms, false)); });
         return std::move(ms);
     });
 
@@ -200,11 +199,9 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
         if (clean_disconnect) {
             bool flag = true;
 
-            size_t timer = co_await this->site.async_context()->timerpool()->async_append_timer_sync(500, [&] ()
+            auto timer = co_await this->site.async_context()->timerpool()->async_append_timer_sync(500, [&] (manapi::timer t)
                 -> void {
                 /* libev loop */
-                timer = 0;
-
                 if (connection.rcancel) {
                     async::run(this->site.async_context(), async::invoke(std::move(connection.rcancel)));
                 }
@@ -242,7 +239,7 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
             }
             while (flag);
 
-            co_await this->site.async_context()->timerpool()->async_remove_timer(timer);
+            co_await timer.async_stop(this->site.async_context()->eventloop());
         }
         else {
             SSL_set_shutdown(connection.ssl, SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN);

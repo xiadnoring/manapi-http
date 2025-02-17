@@ -150,7 +150,7 @@ namespace manapi::net::worker {
             std::atomic<int> rst_cnt = 0;
             ssize_t timeout = 1000;
             std::atomic<ssize_t> current_timeout = timeout;
-            std::queue <size_t> setting_timeout{};
+            std::queue <manapi::timer> setting_timeout{};
             manapi::future<> parse_exception{nullptr};
             manapi::compress::hpack::decoder_t decoder{};
             manapi::compress::hpack::encoder_t encoder{};
@@ -270,7 +270,7 @@ namespace manapi::net::worker {
         std::atomic<size_t> thread_cnt;
 
         async::condition_variable finishcv;
-        std::atomic<size_t> ping_interval = 0;
+        manapi::timer ping_interval{};
 
         static std::map <int, json_mask> allow_settings;
     };

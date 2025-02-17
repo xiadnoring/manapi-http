@@ -62,8 +62,8 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
     try {
         this->protocol.conn_type.fetch_or(CONN_IDLE);
 
-        this->ping_interval.store(co_await this->site.async_context()->timerpool()->async_append_interval_sync(this->config->speed_check_delay(), [this, dep = new_dependency()] ()
-            -> void { this->timer_watcher(dep); }));
+        this->ping_interval = co_await this->site.async_context()->timerpool()->async_append_interval_sync(this->config->speed_check_delay(), [this, dep = new_dependency()] (manapi::timer t)
+            -> void { this->timer_watcher(dep); });
 
         co_await send_settings ({
             {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, 1},
@@ -160,7 +160,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                                 if (this->protocol.setting_timeout.empty()) {
                                     co_await this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "unexpected frame");
                                 }
-                                co_await this->site.async_context()->timerpool()->async_remove_timer(this->protocol.setting_timeout.front());
+                                co_await this->protocol.setting_timeout.front().async_stop(this->site.async_context());
                                 this->protocol.setting_timeout.pop();
                             }
                             if (this->protocol.conn_type & CONN_IDLE) {
@@ -350,7 +350,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         [this] () -> bool {
         return this->threads.empty();
     });
-    co_await this->site.async_context()->timerpool()->async_remove_timer(this->ping_interval.exchange(0));
+    co_await this->ping_interval.async_stop(this->site.async_context());
     if ((this->protocol.conn_type & CONN_CLOSED) == false ) {
         lk.call();
         co_await this->close_connection (HTTP2_ERROR_NO_ERROR, "shutdown", 0);
@@ -490,9 +490,9 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::response(worker::connectio
 manapi::future<void> manapi::net::worker::http_v2::empty_setting_timeouts() {
     // auto lk = co_await this->protocol.mx.lock_guard(); must be called before
     while (!this->protocol.setting_timeout.empty()) {
-        auto id = this->protocol.setting_timeout.back();
+        auto timertask = std::move(this->protocol.setting_timeout.back());
         this->protocol.setting_timeout.pop();
-        co_await this->site.async_context()->timerpool()->async_remove_timer(id);
+        co_await timertask.async_stop(this->site.async_context());
     }
     co_return;
 }
@@ -963,7 +963,7 @@ void manapi::net::worker::http_v2::timer_watcher(const std::shared_ptr<manapi::n
     this->protocol.current_timeout.fetch_sub(this->config->speed_check_delay());
     if (flg || this->protocol.current_timeout <= 0) {
         //MANAPIHTTP_LOG2("TIMEOUT HTTP2");
-        this->site.async_context()->timerpool()->remove_timer(this->ping_interval.exchange(0));
+        this->ping_interval.sync_stop(this->site.async_context());
         //MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
         async::run(this->site.async_context(), this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout", 0), [dep] ()
             -> void {});
@@ -1032,7 +1032,7 @@ manapi::future<void> manapi::net::worker::http_v2::send_settings(const std::vect
         co_await generate_error(HTTP2_ERROR_SETTINGS_TIMEOUT, "recv settings timeout", 0);
     };
 
-    this->protocol.setting_timeout.push(co_await this->site.async_context()->timerpool()->async_append_timer_async(1000, [handle = std::move(handle), worker = std::move(this->new_dependency ())] () mutable -> future<void> {
+    this->protocol.setting_timeout.push(co_await this->site.async_context()->timerpool()->async_append_timer_async(1000, [handle = std::move(handle), worker = std::move(this->new_dependency ())] (manapi::timer t) mutable -> future<void> {
         co_await handle(std::move(worker));
     }));
     std::string data;

@@ -512,6 +512,14 @@ int main (int argc, char *argv[]) {
 
             manapi::async::run (ctx, server.start());
 
+            manapi::async::run (ctx, manapi::async::invoke([ctx] () -> manapi::future<> {
+                 manapi::timer timer = ctx->timerpool()->append_interval_sync(500, [i = 0, ctx] (manapi::timer timer) mutable
+                     -> void {
+                     cout << "hello! 500ms" << "\n"; if (++i == 5) { timer.sync_stop(ctx); }
+                 });
+                co_return;
+            }));
+
             ctx->sync_start();
 
             manapi::debug::debug_print_memory("preend");
