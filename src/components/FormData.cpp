@@ -587,18 +587,26 @@ ssize_t manapi::net::formdata_send::payload_size() const {
 }
 
 ssize_t manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const {
-    ssize_t s =  boundary_size + 2 /*--*/  + 2 /*\r\n*/;
+    auto s = static_cast<ssize_t>(boundary_size + (sizeof ("--\r\n") - 1));
     for (const auto &param : this->data) {
-        s += boundary_size + 2 /*\r\n*/;
+        s += static_cast<ssize_t>(boundary_size + (sizeof ("\r\n") - 1));
         if (param.second.type == DATA_PLAIN) {
             std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
-                http::stringify_header_value({{"form-data", {{"name", param.first}}}})});
-            s += static_cast<ssize_t> (header.size() + sizeof ("\r\n") - 1);
+                http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()}}}})});
+            s += static_cast<ssize_t> (header.size());
+            s += (sizeof ("\r\n") - 1);
         }
         else if (param.second.type == DATA_FILE) {
             std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
-                http::stringify_header_value({{"form-data", {{"name", param.first}, {"filename", param.second.file.value().filename}}}})});
-            s += static_cast<ssize_t> (header.size() + sizeof ("\r\n") - 1);
+                http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()},
+                    {"filename", json{param.second.file.value().filename}.dump()}}}})});
+            s += static_cast<ssize_t> (header.size());
+            s += (sizeof ("\r\n") - 1);
+
+            header = http::stringify_header({HTTP_HEADER.CONTENT_TYPE,
+                http::stringify_header_value({{param.second.file.value().filemime}})});
+            s += static_cast<ssize_t> (header.size());
+            s += (sizeof ("\r\n") - 1);
         }
 
         s += (sizeof ("\r\n") - 1);
@@ -609,7 +617,7 @@ ssize_t manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const 
 }
 
 std::string manapi::net::formdata_send::generate_boundary() const {
-    return "-----boundary" + manapi::string::random(boundary_payload_size);;
+    return "--boundary" + manapi::string::random(boundary_payload_size, "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789");
 }
 
 manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary, ssize_t buffer_size,  std::function<manapi::future<void>(const void *buffer, ssize_t size)> write) {
@@ -619,7 +627,7 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
 
         if (param.second.type == DATA_PLAIN) {
             std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
-                http::stringify_header_value({{"form-data", {{"name", param.first}}}})});
+                http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()}}}})});
 
             co_await write (header.data(), static_cast<ssize_t>(header.size()));
             co_await write (nline, sizeof (nline) - 1);
@@ -634,7 +642,8 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
 
         if (param.second.type == DATA_FILE) {
             std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
-                http::stringify_header_value({{"form-data", {{"name", param.first}, {"filename", std::move(param.second.file.value().filename)}}}})});
+                http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()},
+                    {"filename", json{std::move(param.second.file.value().filename)}.dump()}}}})});
             co_await write (header.data(), static_cast<ssize_t>(header.size()));
             co_await write (nline, sizeof (nline) - 1);
 
@@ -658,7 +667,9 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
             buffer.reserve(buffer_size);
 
             try {
-                while (!f.eof()) {
+                auto fsize = f.total_size();
+
+                while (fsize) {
                     auto rhs = co_await f.read(buffer.data(), buffer_size);
                     if (rhs < 0) {
                         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read file ({}) to send it as formdata parameter", param.second.data);
@@ -666,7 +677,10 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
                     if (rhs == 0) {
                         continue;
                     }
-                    co_await write (buffer.data(), buffer_size);
+
+                    fsize -= rhs;
+
+                    co_await write (buffer.data(), rhs);
                 }
             }
             catch (...) {
@@ -686,7 +700,7 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
     }
 
     co_await write (boundary.data(), static_cast<ssize_t>(boundary.size()));
-    co_await write (boundary_end_symbols, sizeof (boundary_end_symbols) - 2);
+    co_await write (boundary_end_symbols, sizeof (boundary_end_symbols) - 1);
     co_await write (nline, sizeof (nline) - 1);
 }
 

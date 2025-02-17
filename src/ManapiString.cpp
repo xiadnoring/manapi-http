@@ -1,5 +1,6 @@
 #include "ManapiString.hpp"
 
+#include "ManapiDebug.hpp"
 #include "ManapiMath.hpp"
 
 /**
@@ -34,15 +35,21 @@
     str.insert(0, new_string);
 }
 
+constexpr char ptr[] = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_-";
+
 std::string manapi::string::random (const size_t &len) {
-    const char ptr[] = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_-";
-    const size_t back = sizeof(ptr) - 2;
+    return random(len, std::string_view{ptr, sizeof(ptr) - 1});
+}
+
+std::string manapi::string::random (const size_t &len, std::string_view src) {
+    if (src.empty()) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "random(...): the 'src' parameter is empty"); }
+    const size_t back = src.size() - 1;
 
     std::string result;
     result.resize(len);
 
     for (size_t i = 0; i < len; i++) {
-        result[i] = ptr[manapi::math::random(0, back)];
+        result[i] = src[manapi::math::random(0, back)];
     }
 
     return std::move(result);

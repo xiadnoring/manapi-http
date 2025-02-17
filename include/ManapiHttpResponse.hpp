@@ -55,12 +55,14 @@ namespace manapi::net {
         [[nodiscard]] bool is_text () const;
         [[nodiscard]] bool is_proxy () const;
         [[nodiscard]] bool is_no_data () const;
+        [[nodiscard]] bool is_formdata () const;
 
         [[nodiscard]] bool has_ranges () const;
 
         [[nodiscard]] bool get_partial_enabled () const;
         const std::string &get_file ();
         const std::string &get_data ();
+        formdata_send get_formdata ();
         std::function<void(class manapi::net::fetch &)> get_proxy_setup_cb ();
         const std::string &get_compress ();
 

@@ -63,6 +63,8 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http_re
         co_await send_response_text(res, features);
     } else if (res.is_proxy()) {
         co_await send_response_proxy(res, features);
+    } else if (res.is_formdata()) {
+        co_await send_response_formdata(res, features);
     } else {
         co_await mask_response(res, true);
     }
@@ -264,6 +266,36 @@ manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::h
     });
 
     co_await proxy->async_doit();
+
+    co_return;
+}
+
+manapi::future<> manapi::net::http::base::send_response_formdata(manapi::net::http_response &res, response_features_t &features) {
+    auto formdata = res.get_formdata();
+
+    if (features.compressor) {
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "formdata: Compression isn't supported");
+    }
+
+    if (features.replacers) {
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "formdata: Replacers isn't supported");
+    }
+
+    auto size = formdata.payload_size();
+    auto boundary = formdata.generate_boundary();
+    size += formdata.multipart_size(static_cast<ssize_t>(boundary.size()));
+
+    res.set_header(HTTP_HEADER.CONTENT_LENGTH, std::to_string(size));
+    res.set_header(HTTP_HEADER.CONTENT_TYPE, stringify_header_value({{"multipart/form-data", {{"boundary", boundary.substr(2)}}}}));
+
+    if (co_await mask_response(res, false) >= 0) {
+        auto &conn_data = *this->connection;
+        co_await formdata.data2multipart(std::move(boundary), this->config->buffer_size(), [this, &conn_data] (const void *buffer, ssize_t size)
+            -> future<> { if (co_await this->worker->fwrite(conn_data, buffer, size, false) < 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_CONNECTION_WAS_CLOSED, "failed to write"); } });
+    }
+    else {
+        MANAPIHTTP_LOG2 ("mask_response < 0");
+    }
 
     co_return;
 }

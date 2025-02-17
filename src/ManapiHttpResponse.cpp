@@ -97,6 +97,10 @@ bool manapi::net::http_response::is_no_data() const {
     return this->type == RESPONSE_NO_DATA;
 }
 
+bool manapi::net::http_response::is_formdata() const {
+    return this->type == RESPONSE_FORMDATA;
+}
+
 bool manapi::net::http_response::has_ranges() const {
     return !this->ranges.empty();
 }
@@ -240,6 +244,16 @@ void manapi::net::http_response::proxy(std::string url, std::function<void(manap
 
 const std::string &manapi::net::http_response::get_data() {
     return this->data;
+}
+
+manapi::net::formdata_send manapi::net::http_response::get_formdata() {
+    if (this->type != RESPONSE_FORMDATA) {
+        THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "formdata is missing in the response. type = {}", static_cast<int>(this->type));
+    }
+    this->type = RESPONSE_NO_DATA;
+    auto data = std::move(this->formdata.value());
+    this->formdata.reset();
+    return std::move(data);
 }
 
 std::function<void(manapi::net::fetch &)> manapi::net::http_response::get_proxy_setup_cb() {
