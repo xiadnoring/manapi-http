@@ -112,6 +112,7 @@ namespace manapi::net::worker {
         void _quiche_flush_egress(connection_t &connection);
         static void _quiche_timeout_again(connection_t &connection);
         std::string gbuffer{};
+        size_t gbuffer_size{0};
         std::map <std::string, std::shared_ptr<worker::connection>> connections;
         std::function<std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche>()> new_dependency;
 

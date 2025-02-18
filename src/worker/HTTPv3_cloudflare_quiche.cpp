@@ -29,7 +29,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
     while (true) {
         std::shared_ptr<worker::connection> connection;
 
-        auto rhs = ::recvfrom(this->fd, this->gbuffer.data(), this->gbuffer.size(), 0x00, reinterpret_cast<sockaddr *> (&sockaddr_src), &sockaddr_len);
+        auto rhs = ::recvfrom(this->fd, this->gbuffer.data(), this->gbuffer_size, 0x00, reinterpret_cast<sockaddr *> (&sockaddr_src), &sockaddr_len);
 
         if (rhs <= 0) {
             if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
@@ -224,7 +224,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                         client->request_data.http = "HTTP/3";
                         client->request_data.has_body = quiche_h3_event_headers_has_more_frames(event);
                         client->request_data.body_left = 0;
-                        client->request_data.buffer.resize(this->config->buffer_size());
+                        client->request_data.buffer_size = this->config->buffer_size();
+                        client->request_data.buffer.reserve(client->request_data.buffer_size);
                         if (client->request_data.has_body) {
                             auto contentlength = client->request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
                             client->request_data.headers_part = 0;
@@ -359,7 +360,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     }
 
 
-    this->gbuffer.resize(MANAPI_MAX_DATAGRAM_SIZE);
+    this->gbuffer_size = MANAPI_MAX_DATAGRAM_SIZE;
+    this->gbuffer.reserve(this->gbuffer_size);
 
     this->write = http_v3_cloudflare_quiche::default_write;
     this->read = http_v3_cloudflare_quiche::default_read;

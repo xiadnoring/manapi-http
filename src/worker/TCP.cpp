@@ -218,17 +218,16 @@ void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
         std::shared_ptr<async_stack_storage> row = std::make_shared<async_stack_storage>(stack, task);
 
         stack->on_finish([this, connection, fd, row] () mutable -> void {
-            async::run(this->site.async_context(), [this, fd, connection] () mutable  -> future<void> {
-                co_await this->connection_close(connection, true);
-            });
+            MANAPIHTTP_LOG("FINISH ASYNC: {} {}", fd, connection.use_count());
+            async::run(this->site.async_context(), [this, fd, connection] () mutable
+                -> future<void> { return this->connection_close(std::move(connection), true); });
             row->stack.reset();
         }, this->site.async_context()->taskpool());
 
         this->stacks[fd] = row;
 
-        this->site.async_context()->taskpool()->append_task([this, connection, row = std::move(row)] () -> void {
-            row->stack->operator()();
-        });
+        this->site.async_context()->taskpool()->append_task([this, row = std::move(row)] ()
+            -> void { row->stack->operator()(); });
     }
 }
 
@@ -365,11 +364,11 @@ void manapi::net::worker::TCP::_connection_close(std::shared_ptr<connection> con
     }
 
     if (connection.wcancel) {
-        async::run(this->site.async_context(), async::invoke(connection.wcancel));
+        async::run(this->site.async_context(), std::move(connection.wcancel));
     }
 
     if (connection.rcancel) {
-        async::run(this->site.async_context(), async::invoke(connection.rcancel));
+        async::run(this->site.async_context(), std::move(connection.rcancel));
     }
 }
 
@@ -419,7 +418,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
 #else
     ::close(connection->id);
 #endif
-    //MANAPIHTTP_LOG("CLOSE(...) {}", connection->id);
+    MANAPIHTTP_LOG("CLOSE(...) {}", connection->id);
     delete connection;
 }
 

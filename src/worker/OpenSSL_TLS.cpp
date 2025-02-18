@@ -105,7 +105,7 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
                         unlock.disable();
 
                         co_await conn.accept_timer.async_stop(this->site.async_context());
-                        co_await this->connection_close(connection, true);
+                        co_await this->connection_close(std::move(connection), true);
                         co_return false;
                     }
                     case SSL_ERROR_SSL:
@@ -116,7 +116,7 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
                         unlock.disable();
 
                         co_await conn.accept_timer.async_stop(this->site.async_context());
-                        co_await this->connection_close(connection, false);
+                        co_await this->connection_close(std::move(connection), false);
                         co_return false;
                     }
                 }
@@ -169,8 +169,10 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
         };
         connection.ssl = this->config->get_ssl_config()->enabled ? SSL_new(this->ctx) : nullptr;
         connection.mx = std::make_unique<async::mutex>(this->site.async_context());
-        connection.accept_timer = this->site.async_context()->timerpool()->append_timer_sync(2000, [this, ms] (manapi::timer t)
-            -> void { async::run(this->site.async_context(), this->connection_close(ms, false)); });
+        connection.accept_timer = this->site.async_context()->timerpool()->append_timer_sync(8000, [this, ms] (manapi::timer t)
+            -> void {
+            async::run(this->site.async_context(), this->connection_close(ms, false));
+        });
         return std::move(ms);
     });
 
@@ -182,8 +184,10 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
         co_return;
     }
 
+
     auto &connection = conn->as<connection_interface>();
     auto lk = co_await connection.iomutex.lock_guard();
+
 
     if (connection.wcancel) {
         co_await connection.wcancel();
@@ -199,7 +203,7 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
         if (clean_disconnect) {
             bool flag = true;
 
-            auto timer = co_await this->site.async_context()->timerpool()->async_append_timer_sync(500, [&] (manapi::timer t)
+            auto timer = co_await this->site.async_context()->timerpool()->async_append_timer_sync(1000, [&] (manapi::timer t)
                 -> void {
                 /* libev loop */
                 if (connection.rcancel) {
@@ -280,7 +284,7 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
     async::run(connection->worker->site.async_context(), [connection] () mutable -> future<void> {
         TCP::_connection_interface_eraser (connection);
         auto prev = connection;
-        if (connection->ssl) {\
+        if (connection->ssl) {
             auto ssl = std::exchange(connection->ssl, nullptr);
             //MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
             SSL_free(ssl);

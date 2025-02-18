@@ -33,6 +33,8 @@ std::map <int, manapi::json_mask> manapi::net::worker::http_v2::allow_settings {
 manapi::net::worker::http_v2::http_v2(const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
     : base(site), protocol{worker->site.async_context()}, threads_mutex(worker->site.async_context()), finishcv(worker->site.async_context()), worker(worker) {
     this->config = std::move(config);
+    this->buffer_size = 0;
+    this->buffer = {};
     this->init_settings();
     this->init_callbacks();
     this->protocol.setting_param_acks_mx = std::make_shared<async::mutex>(this->site.async_context());
@@ -47,7 +49,8 @@ manapi::net::worker::http_v2::~http_v2() = default;
 manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
     this->worker->disable_watcher_for_status(*this->connection, CONN_READ);
 
-    this->buffer.resize(this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first.load());
+    this->buffer_size = this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first.load();
+    this->buffer.reserve(this->buffer_size);
     this->current = [this](char & PH1) { this->_next_line(std::forward<decltype(PH1)>(PH1)); };
     this->next = [this](char & PH1) { this->_skip_sm_msg(std::forward<decltype(PH1)>(PH1)); };
 
@@ -77,7 +80,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         goto skip;
         while ((this->protocol.conn_type & (CONN_CLOSED | CONN_HALF_CLOSED)) == false) {
 
-            rhs = co_await this->worker->read (*this->connection, this->buffer.data(), static_cast<ssize_t>(this->buffer.size()));
+            rhs = co_await this->worker->read (*this->connection, this->buffer.data(), static_cast<ssize_t>(this->buffer_size));
 
             if (rhs <= 0) {
                 //std::cout << "HALF CLOSED BY READ\n";
@@ -95,7 +98,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
             d->j = 0;
 
             skip: for (; d->j < d->size && this->protocol.length > 0; d->j++, this->protocol.length--) {
-                this->current (this->buffer[d->j]);
+                this->current (*(this->buffer.data() + d->j));
                 if (this->protocol.parse_exception != nullptr) {
                     co_await this->protocol.parse_exception;
                 }
@@ -400,7 +403,8 @@ void manapi::net::worker::http_v2::init_settings() {
     this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].second = [this] (int value, bool self) -> void {
         this->setting_value_valid(HTTP2_SETTING_MAX_FRAME_SIZE, value);
         this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first.store(value);
-        this->buffer.resize(value);
+        this->buffer_size = value;
+        this->buffer.reserve(this->buffer_size);
         this->setting_param_was_ack(self);
     };
 
@@ -1190,7 +1194,8 @@ void manapi::net::worker::http_v2::session_worker(int id, bool body, std::shared
     client->request_data.http = "HTTP/2";
     client->request_data.has_body = body;
     client->request_data.body_left = 0;
-    client->request_data.buffer.resize(this->config->buffer_size());
+    client->request_data.buffer_size = this->config->buffer_size();
+    client->request_data.buffer.reserve(client->request_data.buffer_size);
     if (body) {
         auto contentlength = client->request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
         client->request_data.headers_part = 0;

@@ -16,7 +16,8 @@ const int manapi::net::worker::quic::quic_version = 1;
 std::set <int> manapi::net::worker::quic::server_settings_only = {QUIC_SETTING_ORIGINAL_DESTINATION_CONNECTION_ID, QUIC_SETTING_RETRY_SOURCE_CONNECTION_ID, QUIC_SETTING_PREFERED_ADDRESS};
 
 manapi::net::worker::quic::quic(net::site &site) : udp(site) {
-    this->gbuffer.resize(1350);
+    this->gbuffer_size = 1350;
+    this->gbuffer.reserve(this->gbuffer_size);
 }
 
 manapi::net::worker::quic::~quic() {
@@ -46,7 +47,7 @@ void manapi::net::worker::quic::onrecv(ev::io &watcher, int revents) {
         sockaddr_storage sockaddr_src{};
         socklen_t sockaddr_len = sizeof (sockaddr_src);
         memset(&sockaddr_src, '\0', sockaddr_len);
-        ssize_t rhs = ::recvfrom(watcher.fd, this->gbuffer.data(), this->gbuffer.size(), 0, reinterpret_cast <sockaddr *>(&sockaddr_src), &sockaddr_len);
+        ssize_t rhs = ::recvfrom(watcher.fd, this->gbuffer.data(), this->gbuffer_size, 0, reinterpret_cast <sockaddr *>(&sockaddr_src), &sockaddr_len);
         if (rhs < 0) {
             return;
         }

@@ -58,6 +58,7 @@ namespace manapi::net::http {
         bool has_body    = false;
 
         std::string buffer;
+        size_t buffer_size;
     };
 
     struct replace_founded_item {

@@ -82,6 +82,7 @@ namespace manapi::net::worker {
             return std::move(result);
         }
         std::string gbuffer;
+        size_t gbuffer_size;
         uint64_t cnt_packets[3];
         quic_packet_header_byte_t parse_header_byte (uint8_t hb);
     };

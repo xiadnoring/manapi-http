@@ -207,7 +207,7 @@ manapi::future<void> manapi::net::http_request::_read_body(std::function<void(co
         this->request_data->body_index = 0;
 
         if (this->request_data->body_left > 0) {
-            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer.data(), static_cast<ssize_t>(this->request_data->buffer.size()));
+            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer.data(), static_cast<ssize_t>(this->request_data->buffer_size));
             if (this->request_data->body_part < 0) {
                 THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
             }
@@ -231,7 +231,7 @@ manapi::future<> manapi::net::http_request::_read_async_body(std::function<manap
         this->request_data->body_index = 0;
 
         if (this->request_data->body_left > 0) {
-            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer.data(), static_cast<ssize_t>(this->request_data->buffer.size()));
+            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer.data(), static_cast<ssize_t>(this->request_data->buffer_size));
             if (this->request_data->body_part < 0) {
                 THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
             }

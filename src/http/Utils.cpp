@@ -198,17 +198,18 @@ manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net
     ssize_t fsize = f.total_size();
 
     std::string buffer;
-    buffer.resize(BUFSIZ);
+    size_t buffer_size = BUFSIZ;
+    buffer.reserve(buffer_size);
 
     while (fsize > 0) {
-        auto rhs = co_await f.read (buffer.data(), static_cast<ssize_t>(buffer.size()));
+        auto rhs = co_await f.read (buffer.data(), static_cast<ssize_t>(buffer_size));
         if (rhs <= 0) {
             co_await f.close();
             THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read the file: {}", path);
         }
         fsize -= rhs;
         for (size_t j = 0; j < rhs; j++) {
-            char &c = buffer[j];
+            const char &c = *(buffer.data() + j);
 
             if (opened) {
                 if (special) {

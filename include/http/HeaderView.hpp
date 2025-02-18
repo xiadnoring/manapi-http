@@ -45,6 +45,7 @@ namespace manapi::net::http {
         std::shared_ptr<manapi::net::http::config> config;
         manapi::net::site &site;
         std::string buffer;
+        size_t buffer_size;
     };
 }
 

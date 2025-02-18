@@ -16,7 +16,7 @@ manapi::timerpool::timerpool(std::shared_ptr<event_loop> events, const double &d
     this->timer = nullptr;
 
     this->events->set_timer_callback([this] (adding_timer_data_t &&data)
-        -> manapi::timer { return this->_cb_event(std::forward<decltype(data)>(data)); });
+        -> std::optional<manapi::timer> { return this->_cb_event(std::forward<decltype(data)>(data)); });
 }
 
 manapi::timerpool::~timerpool() {
@@ -46,6 +46,11 @@ manapi::future<> manapi::timerpool::async_remove_timer(size_t id) {
 }
 
 void manapi::timerpool::remove_timer(size_t id) {
+    if (this->timer_loop_running) {
+        this->prepare_remove.push(id);
+        return;
+    }
+
     this->_erase_task(id);
 }
 
@@ -134,6 +139,7 @@ manapi::timerpool::sorted_storage::iterator manapi::timerpool::_erase_task(sorte
 }
 
 void manapi::timerpool::_start() {
+    this->timer_loop_running = true;
     auto now = std::chrono::steady_clock::now();
 
     for (auto sorted_task = this->sorted_tasks.begin(); sorted_task != this->sorted_tasks.end(); ) {
@@ -143,29 +149,34 @@ void manapi::timerpool::_start() {
             break;
         }
 
-        auto next_sorted_task = std::next(sorted_task);
-
         if (task->second.active) {
             task->second.active = false;
 
             auto timertask = task->second.timer;
             timertask._call(this->events, this->taskpool);
-            if (timertask.enabled() || timertask.is_async()) {
-                /* if timertask is executed asynchronously, sorted_task hasn't been changed */
-                if (task->second.interval) {
-                    sorted_task = next_sorted_task;
-                    this->_update_interval_state(task->first);
-                    continue;
-                }
-
-                if (!task->second.interval) {
-                    sorted_task = this->_erase_task(sorted_task);
-                    continue;
-                }
+            /* if timertask is executed asynchronously, sorted_task hasn't been changed */
+            if (task->second.interval) {
+                ++sorted_task;
+                this->_update_interval_state(task->first);
+                continue;
+            }
+            else {
+                timertask._clear();
+                sorted_task = this->_erase_task(sorted_task);
+                continue;
             }
         }
 
-        sorted_task = next_sorted_task;
+        ++sorted_task;
+    }
+
+    this->timer_loop_running = false;
+
+    while (!this->prepare_remove.empty()) {
+        auto id = this->prepare_remove.top();
+        this->prepare_remove.pop();
+
+        this->_erase_task(id);
     }
 }
 
@@ -186,7 +197,7 @@ std::shared_ptr<manapi::threadpool<manapi::task>> manapi::timerpool::get_task_po
     return this->taskpool;
 }
 
-manapi::timer manapi::timerpool::_cb_event(adding_timer_data_t data) {
+std::optional<manapi::timer> manapi::timerpool::_cb_event(adding_timer_data_t data) {
     switch (data.flag) {
         case 0: {
             if (data.async_cb) {
@@ -218,7 +229,7 @@ manapi::timer manapi::timerpool::_cb_event(adding_timer_data_t data) {
             break;
     }
 
-    THROW_MANAPIHTTP_EXCEPTION2 (ERR_BUG, "unreachable code");
+    return {};
 }
 
 void manapi::timerpool::_update_interval_state(const size_t &id) {

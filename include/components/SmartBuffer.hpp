@@ -31,6 +31,7 @@ namespace manapi::net::worker {
         future<ssize_t> add (const void *c, ssize_t len, bool flag = false);
         future<void> disable ();
     private:
+        size_t buffer_size{0};
         std::atomic<bool> disabled = false;
         write_cb callback;
         future<ssize_t> _work (bool flag);
@@ -57,6 +58,7 @@ namespace manapi::net::worker {
         future<ssize_t> read (void *c, ssize_t len);
         future<void> disable ();
     private:
+        size_t buffer_size{0};
         bool available_read ();
         std::atomic<int> &want_read;
         int read_window = 0;

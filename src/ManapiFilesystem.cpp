@@ -129,9 +129,9 @@ manapi::future<> manapi::filesystem::write_async(const std::shared_ptr<async::co
 
     try {
         std::string buffer;
-        buffer.resize(BUFSIZ);
+        buffer.reserve(BUFSIZ);
 
-        auto written = cb (buffer.data(), static_cast<ssize_t>(buffer.size()));
+        auto written = cb (buffer.data(), static_cast<ssize_t>(BUFSIZ));
 
         if (written >= 0) {
             std::string_view data (buffer.data(), written);
@@ -154,7 +154,7 @@ manapi::future<> manapi::filesystem::write_async(const std::shared_ptr<async::co
                         }
 
                         if (data.empty()) {
-                            auto written = cb (buffer.data(), static_cast<ssize_t>(buffer.size()));
+                            auto written = cb (buffer.data(), static_cast<ssize_t>(BUFSIZ));
 
                             if (written < 0) {
                                 auto _resolve = std::move(resolve);
@@ -249,12 +249,12 @@ manapi::future<> manapi::filesystem::read_async(const std::shared_ptr<async::con
 
     try {
         std::string buffer;
-        buffer.resize(BUFSIZ);
+        buffer.reserve(BUFSIZ);
 
         co_await async::promise<void> (ctx, [cancellation, fd, ctx, &buffer, cb = std::move(cb)] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
             auto watcher = co_await ctx->eventloop()->watch_fd(fd, ev::READ, [&buffer, resolve = std::move(resolve), reject = std::move(reject), ctx, cb = std::move(cb)] (ev::io &w, int revents) mutable  -> void {
                 if (revents & ev::READ) {
-                    auto rhs = ::read(w.fd, buffer.data(), buffer.size());
+                    auto rhs = ::read(w.fd, buffer.data(), BUFSIZ);
 
                     if (rhs < 0) {
                         auto _reject = std::move(reject);

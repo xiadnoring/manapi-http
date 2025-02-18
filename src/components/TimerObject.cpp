@@ -67,12 +67,18 @@ void manapi::timer::_call(const std::shared_ptr<event_loop> &eventloop, const st
     }
 }
 
+void manapi::timer::_clear() {
+    this->data->async_cb = nullptr;
+    this->data->sync_cb = nullptr;
+}
+
 manapi::future<> manapi::timer::async_stop(const std::shared_ptr<manapi::event_loop> &events) {
     if (!this->data->enabled.exchange(false)) {
         co_return;
     }
 
     co_await events->remove_timer(this->id());
+    this->_clear();
 }
 
 manapi::future<> manapi::timer::async_stop(const std::shared_ptr<manapi::async::context> &ctx) {

@@ -117,6 +117,7 @@ namespace manapi::net::worker {
         void _quic_process_connections ();
 
         std::string gbuffer{};
+        size_t gbuffer_size{0};
         std::function<std::shared_ptr<manapi::net::worker::http_v3_tquic>()> new_dependency;
 
         static future<ssize_t> default_write (connection &conn, const void *buf, size_t size, bool flag);

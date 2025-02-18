@@ -174,6 +174,7 @@ namespace manapi::net::worker {
 
         std::shared_ptr<worker::connection> connection;
         std::string buffer;
+        size_t buffer_size;
         std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
         std::chrono::steady_clock::time_point start;
     private:

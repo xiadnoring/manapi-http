@@ -51,7 +51,7 @@ namespace manapi {
         void clear();
         [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
     protected:
-        manapi::timer _cb_event (struct adding_timer_data_t data);
+        std::optional<manapi::timer> _cb_event (struct adding_timer_data_t data);
         void _erase_task (const size_t &id);
         storage::iterator _erase_task (storage::iterator task);
         sorted_storage::iterator _erase_task (sorted_storage::iterator sorted_task);
@@ -62,6 +62,7 @@ namespace manapi {
         // wait while deps being exists
         std::atomic <size_t> deps;
         std::shared_ptr<async::condition_variable> cv;
+        std::stack<size_t> prepare_remove;
 
         void _update_interval_state (const size_t& id);
         manapi::timer _append (std::chrono::milliseconds duration, std::function<future<>(manapi::timer t)> async_task, std::function<void(manapi::timer t)> task,  bool inteval);
@@ -74,6 +75,7 @@ namespace manapi {
         double delay{};
         std::shared_ptr<ev::timer> timer;
         size_t finish_event{0};
+        bool timer_loop_running = false;
     private:
     };
 }

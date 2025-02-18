@@ -41,7 +41,7 @@ void manapi::net::worker::http_v3_tquic::onrecv(ev::io &watcher, int revents) {
 
     std::shared_ptr<worker::connection> connection;
 
-    auto rhs = ::recvfrom(this->fd, this->gbuffer.data(), this->gbuffer.size(), 0x00, reinterpret_cast<sockaddr *> (&sockaddr_src), &sockaddr_len);
+    auto rhs = ::recvfrom(this->fd, this->gbuffer.data(), this->gbuffer_size, 0x00, reinterpret_cast<sockaddr *> (&sockaddr_src), &sockaddr_len);
 
     if (rhs <= 0) {
         if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
@@ -59,7 +59,7 @@ void manapi::net::worker::http_v3_tquic::onrecv(ev::io &watcher, int revents) {
         .dst_len = this->config->get_server_len()
     };
 
-    auto done = quic_endpoint_recv(this->_quic_server, reinterpret_cast<uint8_t *>(this->gbuffer.data()), this->gbuffer.size(), &packet_info);
+    auto done = quic_endpoint_recv(this->_quic_server, reinterpret_cast<uint8_t *>(this->gbuffer.data()), this->gbuffer_size, &packet_info);
 
     if (done < 0) {
         /* error */
@@ -136,7 +136,8 @@ void manapi::net::worker::http_v3_tquic::init() {
 
 
     quic_config_set_tls_config(this->_quic_config, this->_quic_tls_config);
-    this->gbuffer.resize(MANAPI_MAX_DATAGRAM_SIZE);
+    this->gbuffer_size = MANAPI_MAX_DATAGRAM_SIZE;
+    this->gbuffer.reserve(this->gbuffer_size);
 
     this->write = http_v3_tquic::default_write;
     this->read = http_v3_tquic::default_read;
@@ -374,7 +375,8 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_headers(void *ctx
     client->request_data.http = "HTTP/3";
     client->request_data.has_body = !fin;
     client->request_data.body_left = 0;
-    client->request_data.buffer.resize(worker->config->buffer_size());
+    client->request_data.buffer_size = worker->config->buffer_size();
+    client->request_data.buffer.reserve(client->request_data.buffer_size);
     if (client->request_data.has_body) {
         auto contentlength = client->request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
         client->request_data.headers_part = 0;

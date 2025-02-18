@@ -7,7 +7,8 @@ manapi::net::worker::smart_w_buffer::smart_w_buffer(std::shared_ptr<threadpool<t
     this->sent.store(static_cast<ssize_t>(sent));
     this->callback = std::move(callback);
     this->taskpool = std::move(taskpool);
-    this->buffer.resize(buffer_size);
+    this->buffer.reserve(buffer_size);
+    this->buffer_size = buffer_size;
     this->frame_size = frame_size;
 }
 
@@ -19,6 +20,7 @@ manapi::net::worker::smart_w_buffer::smart_w_buffer(smart_w_buffer &&n) noexcept
 
 manapi::net::worker::smart_w_buffer & manapi::net::worker::smart_w_buffer::operator=(smart_w_buffer &&n) noexcept {
     this->buffer = std::move(n.buffer);
+    this->buffer_size = std::exchange(n.buffer_size, 0);
     this->flag = std::exchange(n.flag, false);
     this->sent.store(n.sent.exchange(0));
     this->callback = std::move(n.callback);
@@ -33,7 +35,8 @@ manapi::net::worker::smart_w_buffer & manapi::net::worker::smart_w_buffer::opera
 
 manapi::future<void> manapi::net::worker::smart_w_buffer::resize(ssize_t size) {
     auto lk = co_await this->gmx.lock_guard();
-    this->buffer.resize(size);
+    this->buffer.reserve(size);
+    this->buffer_size = size;
 }
 
 manapi::future<void> manapi::net::worker::smart_w_buffer::add_allow_to_send(ssize_t size) {
@@ -51,7 +54,7 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::add(const void *c, 
     ssize_t total_res = 0;
     ssize_t align = 0;
     do {
-        auto res = std::min (static_cast<ssize_t>(this->buffer.size() - this->buffer_cursor), len);
+        auto res = std::min (static_cast<ssize_t>(this->buffer_size - this->buffer_cursor), len);
         memcpy(this->buffer.data() + this->buffer_cursor, static_cast<const char *>(c) + align, res);
         this->buffer_cursor += res;
 
@@ -121,9 +124,10 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
 
 manapi::net::worker::smart_r_buffer::smart_r_buffer(std::shared_ptr<threadpool<task>> taskpool, read_cb callback, std::atomic<int> &want_read, int buffer_size) : want_read(want_read), gmx(taskpool), cv(taskpool) {
     this->callback = std::move(callback);
-    this->buffer.resize(buffer_size);
+    this->buffer.reserve(buffer_size);
     this->taskpool = std::move(taskpool);
     this->read_window = buffer_size;
+    this->buffer_size = buffer_size;
 }
 
 manapi::net::worker::smart_r_buffer::~smart_r_buffer() = default;
@@ -140,13 +144,15 @@ manapi::net::worker::smart_r_buffer & manapi::net::worker::smart_r_buffer::opera
     this->buffer_pos = std::exchange(n.buffer_pos, 0);
     this->buffer_cursor = std::exchange(n.buffer_cursor, 0);
     this->read_window = std::exchange(n.read_window, 0);
+    this->buffer_size = std::exchange(n.buffer_size, 0);
 
     return *this;
 }
 
 manapi::future<void> manapi::net::worker::smart_r_buffer::resize(ssize_t buffer_size) {
     auto lk = co_await this->gmx.lock_guard();
-    this->buffer.resize(buffer_size);
+    this->buffer.reserve(buffer_size);
+    this->buffer_size = buffer_size;
 }
 
 manapi::future<ssize_t> manapi::net::worker::smart_r_buffer::add(const void *c, ssize_t len, bool flag) {
@@ -156,7 +162,7 @@ manapi::future<ssize_t> manapi::net::worker::smart_r_buffer::add(const void *c, 
         this->buffer_pos = 0;
         this->buffer_cursor = 0;
     }
-    auto res = std::min(len, static_cast<ssize_t>(this->buffer.size() - this->buffer_cursor));
+    auto res = std::min(len, static_cast<ssize_t>(this->buffer_size - this->buffer_cursor));
     if (res != len) {
         co_return -1;
     }
@@ -192,8 +198,8 @@ manapi::future<ssize_t> manapi::net::worker::smart_r_buffer::read(void *c, ssize
         this->buffer_pos=0;
         this->buffer_cursor=0;
         lk.call();
-        if(this->callback && this->read_window < this->buffer.size()) {
-            int fetchadd = static_cast<int>(this->buffer.size()) - this->read_window;
+        if(this->callback && this->read_window < this->buffer_size) {
+            int fetchadd = static_cast<int>(this->buffer_size) - this->read_window;
             this->read_window += fetchadd;
             co_await this->callback (fetchadd);
         }
