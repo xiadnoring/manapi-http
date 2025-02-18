@@ -359,7 +359,6 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         quiche_config_set_cc_algorithm (this->_quiche_config, algo);
     }
 
-
     this->gbuffer_size = MANAPI_MAX_DATAGRAM_SIZE;
     this->gbuffer.reserve(this->gbuffer_size);
 

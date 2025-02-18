@@ -15,7 +15,7 @@ namespace manapi::net {
 
     class formdata_recv {
     public:
-        formdata_recv (std::shared_ptr<async::context> ctx, const ssize_t &buffer_size,
+        formdata_recv (std::shared_ptr<async::context> ctx, const size_t &buffer_size,
             ssize_t &body_buffer_size, std::string &buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read);
         ~formdata_recv ();
 
@@ -60,7 +60,7 @@ namespace manapi::net {
         // boundary --XXXXXxxxXXX for form data
         std::string body_boundary;
         std::string buff_extra;
-        size_t buffer_size;
+        const size_t *buffer_size;
 
         // the data of the next file
         file_data_t file_data;

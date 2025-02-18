@@ -105,7 +105,7 @@ manapi::future<manapi::json> manapi::net::http_request::json()
 
 manapi::future<manapi::net::formdata_recv> manapi::net::http_request::form ()
 {
-    formdata_recv formdata (this->http_task->get_site().async_context(), this->config->buffer_size(),
+    formdata_recv formdata (this->http_task->get_site().async_context(), this->request_data->buffer_size,
         this->request_data->body_part, this->request_data->buffer, this->request_data->body_left, this->request_data->body_index, [http_base = this->http_task] (void *buff, ssize_t buff_size)
         -> future<ssize_t> { return http_base->read(buff, buff_size);  });
     co_await formdata._init(this->request_data->has_body, this->request_data->headers[HTTP_HEADER.CONTENT_TYPE]);
