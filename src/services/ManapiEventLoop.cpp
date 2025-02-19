@@ -739,10 +739,8 @@ void manapi::event_loop::_pool(manapi::before_delete lk2, std::shared_ptr<event_
     this->_stop_watcher->set<event_loop, &event_loop::_async_break_loop> (this);
     this->_stop_watcher->start();
 
-    auto init_watcher = this->create_watcher_async([&lk2] (ev::async &w, int revents) -> void {
-        w.stop();
-        lk2.call();
-    });
+    auto init_watcher = this->create_watcher_async([&lk2] (ev::async &w, int revents)
+        -> void { w.stop(); lk2.call(); });
 
     init_watcher->start();
     init_watcher->send();

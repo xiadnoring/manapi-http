@@ -13,6 +13,8 @@
 #include <bit>  // For std::bit_cast.
 #endif
 
+#include "ManapiUtils.hpp"
+
 namespace manapi::net::encrypt::base64 {
 
     namespace detail {

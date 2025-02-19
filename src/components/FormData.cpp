@@ -15,9 +15,9 @@ const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 constexpr ssize_t line_max_size = 500;
 
 manapi::net::formdata_recv::formdata_recv(std::shared_ptr<async::context> ctx, const size_t &buffer_size,
-            ssize_t &body_buffer_size, std::string &buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read) : ctx(std::move(ctx)) {
+            ssize_t &body_buffer_size, char *buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read) : ctx(std::move(ctx)) {
     this->body_index = &body_index;
-    this->body_buffer = &buffer;
+    this->body_buffer = buffer;
     this->body_buffer_size = &body_buffer_size;
     this->body_max_size_left = &body_max_size_left;
     this->body_read = std::move(body_read);
@@ -129,14 +129,14 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
             if (*this->body_index >= *this->body_buffer_size) {
                 if (*this->body_index > checkpoint + current_boundary_index) {
                     if (value) {
-                        co_await send_line (this->body_buffer->data() + checkpoint, *this->body_index - checkpoint - current_boundary_index);
+                        co_await send_line (this->body_buffer + checkpoint, *this->body_index - checkpoint - current_boundary_index);
                     }
                     else if (headers) {
                         auto n = *this->body_index - checkpoint - current_boundary_index;
                         if (n + line.size() > line_max_size) {
                             THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "buffer overflow");
                         }
-                        line.append (this->body_buffer->data() + checkpoint, n);
+                        line.append (this->body_buffer + checkpoint, n);
                     }
                 }
 
@@ -148,7 +148,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                     break;
                 }
 
-                auto rhs = co_await this->body_read (this->body_buffer->data(), static_cast<ssize_t>(*this->buffer_size));
+                auto rhs = co_await this->body_read (this->body_buffer, static_cast<ssize_t>(*this->buffer_size));
                 if (rhs <= 0) {
                     THROW_MANAPIHTTP_EXCEPTION2(ERR_FILE_IO, "FormData: Connection was closed");
                 }
@@ -158,14 +158,14 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                 checkpoint = 0;
             }
 
-            auto &c = *(this->body_buffer->data() + *this->body_index);
+            auto &c = *(this->body_buffer + *this->body_index);
             if (c == this->body_boundary[boundary_index]) {
                 ++boundary_index;
                 ++current_boundary_index;
                 if (boundary_index == this->body_boundary.size()) {
                     if (value) {
                         if (*this->body_index + 1 > current_boundary_index + checkpoint) {
-                            co_await send_line (this->body_buffer->data() + checkpoint, *this->body_index + 1 - current_boundary_index - checkpoint);
+                            co_await send_line (this->body_buffer + checkpoint, *this->body_index + 1 - current_boundary_index - checkpoint);
                         }
 
                         value = false;
@@ -189,14 +189,14 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                 if (boundary_index) {
                     if (boundary_index < *this->body_index) {
                         if (value) {
-                            co_await send_line (this->body_buffer->data() + checkpoint, *this->body_index - checkpoint - boundary_size);
+                            co_await send_line (this->body_buffer + checkpoint, *this->body_index - checkpoint - boundary_size);
                         }
                         else {
                             auto n = *this->body_index - checkpoint - boundary_size;
                             if (n + line.size() > line_max_size) {
                                 THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "buffer overflow");
                             }
-                            line.append (this->body_buffer->data() + checkpoint, n);
+                            line.append (this->body_buffer + checkpoint, n);
                         }
                     }
 
@@ -304,7 +304,7 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
             *this->body_max_size_left -= *this->body_index;
             *this->body_index = 0;
             // get the next data
-            ssize_t rhs = co_await this->body_read (this->body_buffer->data(), static_cast<ssize_t>(*this->buffer_size));
+            ssize_t rhs = co_await this->body_read (this->body_buffer, static_cast<ssize_t>(*this->buffer_size));
             if ((rhs <= 0)) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
             }
@@ -315,7 +315,7 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
             *this->body_buffer_size = std::min (*this->body_buffer_size, *this->body_max_size_left);
         }
 
-        auto &c = *(this->body_buffer->data() + *this->body_index);
+        auto &c = *(this->body_buffer + *this->body_index);
 
         if (!manapi::crypto::url_allowed_symbol(c)) {
             THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "Symbol '{}' is not allowed in URLEncoded FormData",

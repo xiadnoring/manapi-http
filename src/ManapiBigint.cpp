@@ -5,6 +5,10 @@
 
 #include "ManapiUtils.hpp"
 #include "ManapiBigint.hpp"
+#include "./ManapiErrors.hpp"
+#include "./ManapiJson.hpp"
+#include "./ManapiTime.hpp"
+#include "./ManapiDebug.hpp"
 
 manapi::bigint zero (0);
 

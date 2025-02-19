@@ -39,6 +39,7 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     find_package(ZLIB REQUIRED)
     find_package(libev REQUIRED)
     find_package(CURL REQUIRED)
+    find_package(jemalloc REQUIRED)
 
     if (MANAPIHTTP_QUICHE_DEPENDENCY)
         find_package(quiche REQUIRED)
@@ -70,6 +71,7 @@ else ()
     pkg_check_modules(GMP REQUIRED gmp)
     pkg_check_modules(ZLIB REQUIRED zlib)
     pkg_check_modules(CURL REQUIRED libcurl)
+    pkg_check_modules (JEMALLOC REQUIRED jemalloc)
 
     if (MANAPIHTTP_WOLFSSL_DEPENDENCY)
         pkg_check_modules(WOLFSSL REQUIRED wolfssl)
@@ -248,6 +250,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/services/ManapiFetch2.hpp
         include/components/TimerObject.hpp
         src/components/TimerObject.cpp
+        include/extensions/jemallocator.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
@@ -278,7 +281,7 @@ find_package(Threads)
 target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
-    target_link_libraries (${PROJECT_NAME} PRIVATE ${QUIC_LIBRARIES} gmp::gmp ZLIB::ZLIB libev::libev CURL::libcurl PostgreSQL::PostgreSQL cpptrace::cpptrace)
+    target_link_libraries (${PROJECT_NAME} PRIVATE ${QUIC_LIBRARIES} jemalloc::jemalloc gmp::gmp ZLIB::ZLIB libev::libev CURL::libcurl PostgreSQL::PostgreSQL cpptrace::cpptrace)
     if (MANAPIHTTP_OPENSSL_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PRIVATE openssl::openssl)
     endif ()
@@ -297,8 +300,8 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
 
     add_compile_definitions(MANAPIHTTP_CPPTRACE_DEPENDENCY=True)
 else ()
-    target_link_libraries       (${PROJECT_NAME} PRIVATE ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${LIBEV_LIBRARIES} ${LSQPACK_LIBRARIES} ${CURL_LIBRARIES})
-    target_include_directories  (${PROJECT_NAME} PRIVATE ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${LSQPACK_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
+    target_link_libraries       (${PROJECT_NAME} PRIVATE ${JEMALLOC_LIBRARIES} ${GMP_LIBRARIES} ${ZLIB_LIBRARIES} ${LIBEV_LIBRARIES} ${LSQPACK_LIBRARIES} ${CURL_LIBRARIES})
+    target_include_directories  (${PROJECT_NAME} PRIVATE ${JEMALLOC_INCLUDE_DIRS} ${GMP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS} ${LSQPACK_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
 
     if (MANAPIHTTP_OPENSSL_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PRIVATE ${OPENSSL_LIBRARIES})

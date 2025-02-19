@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "../async/ManapiAsyncContext.hpp"
 #include "../compress/ManapiCompress.hpp"
@@ -57,8 +58,8 @@ namespace manapi::net::http {
 
         bool has_body    = false;
 
-        std::string buffer;
-        size_t buffer_size;
+        std::unique_ptr<char, manapi::deleter::buffer_deleter_t> buffer{nullptr};
+        size_t buffer_size{0};
     };
 
     struct replace_founded_item {

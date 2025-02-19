@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string_view>
+#include "../../ManapiUtils.hpp"
 
 namespace manapi::ext::pq {
     #include <libpq-fe.h>

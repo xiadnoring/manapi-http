@@ -4,6 +4,7 @@
 #include <queue>
 #include <utility>
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "../components/ManapiChain.hpp"
 #include "./ManapiAsyncMutex.hpp"

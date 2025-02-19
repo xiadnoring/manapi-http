@@ -183,6 +183,7 @@
 #include "extensions/pq/AsyncPostgreValue.hpp"
 #include "services/ManapiEventLoop.hpp"
 #include "worker/tools/OpenSSLTools.hpp"
+#include <memory.h>
 
 using namespace manapi::net;
 
@@ -195,6 +196,7 @@ int main (int argc, char *argv[]) {
     manapi::json b = manapi::json::object();
     b.insert("hello", 78.12341234);
     b.insert("text", std::move(data));
+
     std::cout << b.dump() << " " << b["hello"].as_decimal()<< "\n";
     {
         auto ctx = manapi::async::context::create(16, 0.01);
@@ -316,6 +318,11 @@ int main (int argc, char *argv[]) {
                 formdata.append_text("hello", "world");
                 formdata.append_file("file", "/home/Timur/test.docx");
                 co_return resp.form(std::move(formdata));
+            });
+
+            server.POST ("/exit", [&] (REQ(req), RESP(resp)) -> manapi::future<void> {
+                exit(-1);
+                co_return;
             });
 
             server.POST ("/test_fetch", [&] (REQ(req), RESP(resp)) -> manapi::future<void> {
@@ -519,10 +526,14 @@ int main (int argc, char *argv[]) {
         manapi::debug::debug_print_memory("preend 2");
 
         auto &b = manapi::async::async_tasks;
-        printf("ASYNC STACK: %zi\n", b.size());
+        printf("ASYNC STACK: %zi. ctx: %zi\n", b.size(), ctx.use_count());
 
         manapi::debug::debug_print_memory("preend 8");
     }
+
+    manapi::async::async_tasks = std::move(typeof (manapi::async::async_tasks){});
+
+    sleep(2);
 
     manapi::debug::debug_print_memory("end");
 

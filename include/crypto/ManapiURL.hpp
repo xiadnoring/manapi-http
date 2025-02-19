@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <set>
 
+#include "../ManapiUtils.hpp"
+
 namespace manapi::crypto {
     static const std::set <char> url_allowed_symbols = {'-', '_', '.', '~', '!', '*', '\'', '(', ')', ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '.', '#', '[', ']', '%'};
 

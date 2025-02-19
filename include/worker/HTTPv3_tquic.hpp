@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ManapiUtils.hpp"
 #include "./UDP.hpp"
 
 #if MANAPIHTTP_TQUIC_DEPENDENCY

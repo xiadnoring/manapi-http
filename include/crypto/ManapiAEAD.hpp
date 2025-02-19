@@ -4,6 +4,7 @@
 #include <string>
 #include <utility>
 
+#include "../ManapiUtils.hpp"
 #include "./ManapiCryptoUtils.hpp"
 #include "../ManapiUtils.hpp"
 

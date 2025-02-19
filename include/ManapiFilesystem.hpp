@@ -2,6 +2,7 @@
 
 #include <filesystem>
 
+#include "ManapiUtils.hpp"
 #include "./ManapiAsync.hpp"
 #include "./ManapiUtils.hpp"
 #include "./ManapiJson.hpp"

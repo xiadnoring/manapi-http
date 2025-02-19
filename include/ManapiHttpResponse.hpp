@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 
+#include "ManapiUtils.hpp"
 #include "ManapiAsync.hpp"
 #include "ManapiJson.hpp"
 #include "ManapiUtils.hpp"

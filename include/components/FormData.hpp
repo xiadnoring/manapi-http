@@ -1,6 +1,6 @@
-#ifndef MANAPIHTTP_FORMDATA_HPP
-#define MANAPIHTTP_FORMDATA_HPP
+#pragma once
 
+#include "../ManapiUtils.hpp"
 #include "../async/ManapiAsyncContext.hpp"
 #include "../ManapiAsync.hpp"
 #include "../ManapiHttpConfig.hpp"
@@ -16,7 +16,7 @@ namespace manapi::net {
     class formdata_recv {
     public:
         formdata_recv (std::shared_ptr<async::context> ctx, const size_t &buffer_size,
-            ssize_t &body_buffer_size, std::string &buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read);
+            ssize_t &body_buffer_size, char *buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read);
         ~formdata_recv ();
 
         formdata_recv (formdata_recv &&n) noexcept;
@@ -73,7 +73,7 @@ namespace manapi::net {
         data_type type = DATA_NONE;
         content_type content_type_form = CONTENT_TYPE_NONE;
 
-        std::string *body_buffer;
+        char *body_buffer;
         ssize_t *body_buffer_size;
         ssize_t *body_max_size_left;
         ssize_t *body_index;
@@ -122,5 +122,3 @@ namespace manapi::net {
         std::shared_ptr<async::context> ctx;
     };
 }
-
-#endif //MANAPIHTTP_FORMDATA_HPP

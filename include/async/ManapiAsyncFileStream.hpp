@@ -1,4 +1,5 @@
 #pragma once
+#include "../ManapiUtils.hpp"
 #include "../services/ManapiEventLoop.hpp"
 #include "../services/ManapiTask.hpp"
 #include "../services/ManapiThreadPool.hpp"

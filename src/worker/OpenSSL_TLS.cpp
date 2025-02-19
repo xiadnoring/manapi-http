@@ -289,7 +289,7 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
             //MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
             SSL_free(ssl);
         }
-            MANAPIHTTP_LOG("SSL CLOSED: {}", connection->id);
+            //MANAPIHTTP_LOG("SSL CLOSED: {}", connection->id);
 #ifdef _WIN32
         ::closesocket(connection->id);
 #else

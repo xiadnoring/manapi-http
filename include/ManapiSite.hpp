@@ -6,6 +6,7 @@
 #include <list>
 #include <set>
 
+#include "ManapiUtils.hpp"
 #include "ManapiAsync.hpp"
 #include "ManapiJson.hpp"
 #include "ManapiJsonMask.hpp"

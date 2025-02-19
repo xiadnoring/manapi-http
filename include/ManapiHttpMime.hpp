@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 #include <set>
+#include "ManapiUtils.hpp"
 
 namespace manapi::net {
     static const struct {

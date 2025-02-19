@@ -3,6 +3,7 @@
 
 #include <thread>
 
+#include "../ManapiUtils.hpp"
 #include "./base_http.hpp"
 #include "../worker/HTTPv2.hpp"
 

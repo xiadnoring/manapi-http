@@ -1,11 +1,11 @@
-#ifndef MANAPIHTTP_SMARTBUFFER_HPP
-#define MANAPIHTTP_SMARTBUFFER_HPP
+#pragma once
 
 #include <string>
 #include <mutex>
 #include <condition_variable>
 #include <functional>
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "../async/ManapiAsyncConditionVariable.hpp"
 #include "../async/ManapiAsyncMutex.hpp"
@@ -72,5 +72,3 @@ namespace manapi::net::worker {
         async::mutex gmx;
     };
 }
-
-#endif //MANAPIHTTP_SMARTBUFFER_HPP

@@ -2,6 +2,7 @@
 
 #include <functional>
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "./ManapiAsyncContext.hpp"
 

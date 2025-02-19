@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 
 namespace manapi::async {
@@ -55,7 +56,7 @@ namespace manapi::async {
         manapi::future<void> task;
     };
 
-    inline std::unordered_map <size_t, std::shared_ptr<async_task_t>> async_tasks;
+    inline std::map <size_t, std::shared_ptr<async_task_t>> async_tasks;
 
     inline size_t _run_prepare (const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::function<void()> onfinish) {
         auto index = reinterpret_cast <size_t> (task.get_handle().address());

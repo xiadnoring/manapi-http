@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include "ManapiUtils.hpp"
 
 namespace manapi {
     class before_delete {

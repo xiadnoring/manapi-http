@@ -4,6 +4,7 @@
 #include <functional>
 #include "../extensions/ev++.h"
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiHttpResponse.hpp"
 #include "../ManapiSite.hpp"

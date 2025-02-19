@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ManapiUtils.hpp"
 #include "./ManapiFetch.hpp"
 #include "../ManapiJsonBuilder.hpp"
 

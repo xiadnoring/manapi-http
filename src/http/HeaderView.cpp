@@ -28,7 +28,7 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
     bool upgraded = false;
 
     this->buffer_size = this->config->buffer_size();
-    this->buffer.reserve(this->buffer_size);
+    this->buffer.reset(memory::alloc<char>(this->buffer_size));
     this->parse_vars = parse_vars_t{};
 
     auto &d = this->parse_vars.value();
@@ -42,10 +42,10 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
             ssize_t size = 0, j = 0;
             this->current = [this](char & PH1) { this->_parse_method(std::forward<decltype(PH1)>(PH1)); };
             while (!d.finished) {
-                size = co_await this->worker->read (*this->connection, this->buffer.data(), static_cast<ssize_t>(this->buffer_size));
+                size = co_await this->worker->read (*this->connection, this->buffer.get(), static_cast<ssize_t>(this->buffer_size));
                 if (size <= 0) { break; }
                 for (j = 0; j < size && !d.finished; j++) {
-                    this->current (*(this->buffer.data() + j));
+                    this->current (*(this->buffer.get() + j));
                 }
             }
 

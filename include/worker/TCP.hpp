@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ManapiUtils.hpp"
 #include "../extensions/ev++.h"
 
 #if defined(__unix__)||defined(__APPLE__)

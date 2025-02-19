@@ -12,6 +12,8 @@
 #include <string>
 #include <set>
 
+#include "../ManapiUtils.hpp"
+
 namespace manapi::compress::hpack
 {
 	typedef std::pair< std::string, std::string > header_t;
@@ -645,7 +647,7 @@ namespace manapi::compress::hpack
 			}
 
 			std::vector< uint8_t >
-			encode(const std::string& src) 
+			encode(const std::string& src)
 			{
 				std::vector< uint8_t > s(src.begin(), src.end());
 				return encode(s);

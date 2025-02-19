@@ -1,14 +1,14 @@
 #include <memory.h>
 #include <format>
+#include <utility>
 
 #include "ManapiJson.hpp"
-
-#include <utility>
+#include "ManapiUtils.hpp"
+#include "ManapiDebug.hpp"
 
 #include "ManapiBeforeDelete.hpp"
 #include "ManapiBigint.hpp"
 #include "ManapiUnicode.hpp"
-#include "ManapiUtils.hpp"
 #include "ManapiJsonBuilder.hpp"
 
 const static std::string JSON_TRUE   = "true";
@@ -1107,13 +1107,13 @@ manapi::json::STRING manapi::json::as_string_cast() const {
         return as_string();
     }
     if (type == type_integer) {
-        return std::move(std::to_string(as_integer()));
+        return std::to_string(as_integer());
     }
     if (type == type_bigint) {
-        return std::move(as_bigint().stringify());
+        return as_bigint().stringify();
     }
     if (type == type_decimal) {
-        return std::move(std::to_string(as_decimal()));
+        return std::to_string(as_decimal());
     }
     THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
 }

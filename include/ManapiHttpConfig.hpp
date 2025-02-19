@@ -13,6 +13,7 @@
 #   include <sys/socket.h>
 #endif
 
+#include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
 #include "components/Atomic.hpp"
 

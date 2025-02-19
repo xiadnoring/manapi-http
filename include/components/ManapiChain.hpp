@@ -2,6 +2,7 @@
 #include <memory>
 #include <utility>
 
+#include "../ManapiUtils.hpp"
 namespace manapi {
     template<typename value_type>
     struct chain_item {

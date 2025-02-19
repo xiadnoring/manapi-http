@@ -2,6 +2,7 @@
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 
+#include "../ManapiUtils.hpp"
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 

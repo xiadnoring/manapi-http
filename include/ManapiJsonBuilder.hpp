@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 
+#include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
 #include "ManapiJsonMask.hpp"
 

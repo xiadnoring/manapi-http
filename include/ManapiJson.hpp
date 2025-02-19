@@ -4,6 +4,7 @@
 #include <map>
 #include <functional>
 #include <vector>
+#include "ManapiUtils.hpp"
 #include "ManapiBigint.hpp"
 #include "ManapiInt.hpp"
 #include "ManapiParams.hpp"

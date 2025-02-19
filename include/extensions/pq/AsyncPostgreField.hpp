@@ -4,6 +4,7 @@
 
 #include <string_view>
 
+#include "../../ManapiUtils.hpp"
 #include "../../ManapiDebug.hpp"
 #include "./AsyncPostgreValue.hpp"
 #include "./AsyncPostgreValueTypes.hpp"

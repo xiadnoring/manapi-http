@@ -2,6 +2,7 @@
 
 #include <set>
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiHttpTypes.hpp"
 #include "../worker/base_worker.hpp"
 #include "../ManapiHttpConfig.hpp"
@@ -37,7 +38,8 @@ namespace manapi::net::http {
         std::shared_ptr<worker::connection> connection;
         static std::set<std::string> methods;
         http::request_data_t request_data;
-        std::string buffer;
+
+        std::unique_ptr<char, deleter::buffer_deleter_t> buffer{nullptr};
         size_t buffer_size{0};
     protected:
         std::shared_ptr<manapi::net::http::config> config;

@@ -1,9 +1,8 @@
-#ifndef MANAPIHTTP_MANAPIJSONWEBTOKENTRAITS_HPP
-#define MANAPIHTTP_MANAPIJSONWEBTOKENTRAITS_HPP
+#pragma once
 
+#include "../ManapiUtils.hpp"
 #include <jwt-cpp/jwt.h>
 #include "../ManapiJson.hpp"
-#include "../ManapiUtils.hpp"
 
 namespace jwt {
     namespace traits {
@@ -74,5 +73,3 @@ namespace jwt {
         };
     } // namespace traits
 } // namespace jwt
-
-#endif //MANAPIHTTP_MANAPIJSONWEBTOKENTRAITS_HPP

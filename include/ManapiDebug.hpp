@@ -15,6 +15,7 @@
 #endif
 
 #include "ManapiErrors.hpp"
+#include "ManapiUtils.hpp"
 #include "ManapiTime.hpp"
 
 #if _MSC_VER
@@ -74,7 +75,7 @@ namespace manapi::debug {
                 if (line.find("VmRSS:")!= std::string::npos) {
                     size_t start = line.find(':') + 1;
                     size_t end = line.find(" kB");
-                    memory_usage = std::stoul(line.substr(start, end - start));
+                    memory_usage = std::stoul(std::string{line.substr(start, end - start)});
                     break;
                 }
             }

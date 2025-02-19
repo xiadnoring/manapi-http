@@ -2,6 +2,7 @@
 
 #include <functional>
 #include "./ManapiTask.hpp"
+#include "../ManapiUtils.hpp"
 
 namespace manapi::net {
     class function_task : public task {

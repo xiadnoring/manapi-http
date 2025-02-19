@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiSite.hpp"
 #include "./QUIC_CB_Base.hpp"
 

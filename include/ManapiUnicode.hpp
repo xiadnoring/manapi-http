@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "ManapiUtils.hpp"
 
 namespace manapi::unicode {
     int count_of_octet (unsigned char c);

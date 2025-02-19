@@ -274,7 +274,7 @@ manapi::timer manapi::timerpool::_append(std::chrono::milliseconds duration, std
     return std::move(timertask);
 }
 
-void manapi::timerpool::_async_call_cb(std::unordered_map<size_t, timer_task>::iterator task,
+void manapi::timerpool::_async_call_cb(std::map<size_t, timer_task>::iterator task,
     std::shared_ptr<std::function<future<void>()>> cb) {
     if (task->second.interval) {
         this->deps.fetch_add(1);

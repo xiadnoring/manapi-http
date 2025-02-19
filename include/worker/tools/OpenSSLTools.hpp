@@ -8,6 +8,7 @@
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 # include <openssl/ssl.h>
 #endif
+#include "../../ManapiUtils.hpp"
 
 namespace manapi::net::worker::tools {
     static std::atomic<bool> openssl_gl_init = false;

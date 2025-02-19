@@ -18,16 +18,17 @@ For compile this project, you need to install below projects:
 - gmp 6.3.0 or greater
 - libev 4.33-3 or greater
 - curl 8.8.0-1 or greater
+- jemalloc 5.3.0 or greater
 
 ### For Arch Linux
 ```bash
-pacman -S gmp openssl libev zlib libevdev curl
+pacman -S gmp openssl libev zlib libevdev curl jemalloc
 ```
 
 or 
 
 ```bash
-paru -S gmp openssl libev zlib libevdev curl
+paru -S gmp openssl libev zlib libevdev curl jemalloc
 ```
 
 ### For Windows

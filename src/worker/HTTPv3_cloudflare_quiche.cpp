@@ -224,8 +224,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                         client->request_data.http = "HTTP/3";
                         client->request_data.has_body = quiche_h3_event_headers_has_more_frames(event);
                         client->request_data.body_left = 0;
-                        client->request_data.buffer_size = this->config->buffer_size();
-                        client->request_data.buffer.reserve(client->request_data.buffer_size);
+
                         if (client->request_data.has_body) {
                             auto contentlength = client->request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
                             client->request_data.headers_part = 0;

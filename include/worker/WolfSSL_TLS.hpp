@@ -4,6 +4,7 @@
 
 #include <netdb.h>
 
+#include "../ManapiUtils.hpp"
 #include "./base_worker.hpp"
 #include "./TCP.hpp"
 

@@ -49,8 +49,23 @@ manapi::net::worker::http_v2::~http_v2() = default;
 manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssize_t size) {
     this->worker->disable_watcher_for_status(*this->connection, CONN_READ);
 
-    this->buffer_size = this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first.load();
-    this->buffer.reserve(this->buffer_size);
+    do {
+        std::size_t s = this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first.load();
+        if (this->buffer_size != s) {
+            auto p = this->buffer.release();
+
+            try {
+                this->buffer.reset(manapi::memory::realloc(p, s));
+                this->buffer_size = s;
+            }
+            catch (...) {
+                this->buffer.reset(p);
+                std::rethrow_exception(std::current_exception());
+            }
+        }
+    }
+    while (false);
+
     this->current = [this](char & PH1) { this->_next_line(std::forward<decltype(PH1)>(PH1)); };
     this->next = [this](char & PH1) { this->_skip_sm_msg(std::forward<decltype(PH1)>(PH1)); };
 
@@ -80,7 +95,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         goto skip;
         while ((this->protocol.conn_type & (CONN_CLOSED | CONN_HALF_CLOSED)) == false) {
 
-            rhs = co_await this->worker->read (*this->connection, this->buffer.data(), static_cast<ssize_t>(this->buffer_size));
+            rhs = co_await this->worker->read (*this->connection, this->buffer.get(), static_cast<ssize_t>(this->buffer_size));
 
             if (rhs <= 0) {
                 //std::cout << "HALF CLOSED BY READ\n";
@@ -98,7 +113,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
             d->j = 0;
 
             skip: for (; d->j < d->size && this->protocol.length > 0; d->j++, this->protocol.length--) {
-                this->current (*(this->buffer.data() + d->j));
+                this->current (*(this->buffer.get() + d->j));
                 if (this->protocol.parse_exception != nullptr) {
                     co_await this->protocol.parse_exception;
                 }
@@ -403,8 +418,20 @@ void manapi::net::worker::http_v2::init_settings() {
     this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].second = [this] (int value, bool self) -> void {
         this->setting_value_valid(HTTP2_SETTING_MAX_FRAME_SIZE, value);
         this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first.store(value);
-        this->buffer_size = value;
-        this->buffer.reserve(this->buffer_size);
+        std::size_t s = value;
+        if (this->buffer_size != s) {
+            auto p = this->buffer.release();
+
+            try {
+                this->buffer.reset(manapi::memory::realloc(p, s));
+                this->buffer_size = s;
+            }
+            catch (...) {
+                this->buffer.reset(p);
+                std::rethrow_exception(std::current_exception());
+            }
+
+        }
         this->setting_param_was_ack(self);
     };
 
@@ -732,7 +759,7 @@ void manapi::net::worker::http_v2::_parse_header_data(char &c) {
     // current(c);
     auto datasize = this->protocol.length - static_cast<ssize_t>(this->protocol.padding);
     const auto cutsize = std::min(static_cast<ssize_t>(d.size - d.j), datasize);
-    this->headerbuffer.append(this->buffer.data() + d.j, cutsize);
+    this->headerbuffer.append(this->buffer.get() + d.j, cutsize);
     // +1  bcz in loop
     this->protocol.length = protocol.length - cutsize + 1;
     d.j += cutsize - 1;
@@ -780,7 +807,7 @@ void manapi::net::worker::http_v2::_parse_body_data(char &c) {
     auto datasize = this->protocol.length - this->protocol.padding;
     //const auto cutsize = std::min(static_cast<ssize_t>(parse_vars.size - parse_vars.j), datasize);
     const auto cutsize = std::min(static_cast<ssize_t>(d.size - d.j), datasize);
-    d.buffer += std::string_view(this->buffer.data() + d.j, cutsize);
+    d.buffer += std::string_view(this->buffer.get() + d.j, cutsize);
     // +1  bcz in loop
     this->protocol.length = protocol.length - cutsize + 1;
     d.j += cutsize - 1;
@@ -1194,8 +1221,6 @@ void manapi::net::worker::http_v2::session_worker(int id, bool body, std::shared
     client->request_data.http = "HTTP/2";
     client->request_data.has_body = body;
     client->request_data.body_left = 0;
-    client->request_data.buffer_size = this->config->buffer_size();
-    client->request_data.buffer.reserve(client->request_data.buffer_size);
     if (body) {
         auto contentlength = client->request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
         client->request_data.headers_part = 0;

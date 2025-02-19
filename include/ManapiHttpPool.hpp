@@ -10,6 +10,7 @@
 #include <future>
 #include <functional>
 
+#include "ManapiUtils.hpp"
 #include "ManapiHttpConfig.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"

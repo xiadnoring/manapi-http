@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "ManapiUtils.hpp"
 
 namespace manapi::net::hash {
     class SHA256 {

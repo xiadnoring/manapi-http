@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 
+#include "../ManapiUtils.hpp"
 #include "../async/ManapiAsyncFileStream.hpp"
 
 namespace manapi::crypto {

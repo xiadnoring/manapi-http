@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include "ManapiUtils.hpp"
 
 namespace manapi::math {
     long long binpow(long long a, int n);

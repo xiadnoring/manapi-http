@@ -39,7 +39,7 @@ std::string manapi::net::http::stringify_header (const std::pair<std::string, st
 }
 
 void manapi::net::http::request_data_clear(request_data_t &data) {
-    data.buffer = {};
+    data.buffer = {nullptr};
     data.headers = {};
     data.http = {};
     data.method = {};
@@ -124,12 +124,12 @@ std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_
 
         if (is_key)
         {
-            key     += header_value[i];
+            key += header_value[i];
         }
 
         else
         {
-            value   += header_value[i];
+            value += header_value[i];
         }
     }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "ManapiUtils.hpp"
 
 namespace manapi::string {
     [[maybe_unused]] void rjust (std::string &str, const size_t &size, const char &c);

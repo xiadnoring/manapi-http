@@ -8,6 +8,7 @@
 #include <string>
 #include <functional>
 
+#include "ManapiUtils.hpp"
 #include "ManapiAsync.hpp"
 #include "ManapiHttpConfig.hpp"
 #include "ManapiUtils.hpp"

@@ -2,11 +2,10 @@
 
 #include <chrono>
 #include <functional>
-#include <mutex>
-#include <unordered_map>
 #include <set>
 #include <map>
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "./ManapiEventLoop.hpp"
 #include "./ManapiThreadPool.hpp"
@@ -31,7 +30,7 @@ namespace manapi {
             }
         };
 
-        typedef std::unordered_map<size_t, timer_task> storage;
+        typedef std::map<size_t, timer_task> storage;
         typedef std::set <std::pair <std::chrono::steady_clock::time_point, size_t>, sorted_tasks_compare_t> sorted_storage;
         explicit timerpool(std::shared_ptr<event_loop> events, const double &delay = 0.01);
         ~timerpool();

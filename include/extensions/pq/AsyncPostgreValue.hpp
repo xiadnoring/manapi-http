@@ -6,6 +6,7 @@
 #include <typeindex>
 #include <memory.h>
 
+#include "../../ManapiUtils.hpp"
 #include "../../ManapiDebug.hpp"
 
 namespace manapi::ext::pq {

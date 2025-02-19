@@ -3,6 +3,7 @@
 #include <functional>
 #include <optional>
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 
 namespace manapi {

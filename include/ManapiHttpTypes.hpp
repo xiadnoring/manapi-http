@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 
+#include "ManapiUtils.hpp"
 #include "ManapiErrors.hpp"
 
 namespace manapi::net {

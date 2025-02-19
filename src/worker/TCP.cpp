@@ -218,10 +218,11 @@ void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
         std::shared_ptr<async_stack_storage> row = std::make_shared<async_stack_storage>(stack, task);
 
         stack->on_finish([this, connection, fd, row] () mutable -> void {
-            MANAPIHTTP_LOG("FINISH ASYNC: {} {}", fd, connection.use_count());
-            async::run(this->site.async_context(), [this, fd, connection] () mutable
-                -> future<void> { return this->connection_close(std::move(connection), true); });
-            row->stack.reset();
+            auto r = std::move(row);
+            auto conn = std::move(connection);
+            async::run(this->site.async_context(), [this, fd, conn = std::move(conn)] () mutable
+                -> future<void> { return this->connection_close(std::move(conn), true); });
+            r->stack->reset();
         }, this->site.async_context()->taskpool());
 
         this->stacks[fd] = row;
@@ -253,7 +254,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
         return {};
     }
 
-    MANAPIHTTP_LOG("NEW FD: {}", fd);
+    //MANAPIHTTP_LOG("NEW FD: {}", fd);
 
     cnt_conns.fetch_add(1);
     this->set_fd_non_blocking(fd);
@@ -277,7 +278,8 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     return std::move(this->accept([this] () {
         auto ms = std::make_shared<worker::connection> (new connection_interface (this->site.async_context()), connection_interface_eraser);
         auto &conn_data = ms->as<connection_interface>();
-        conn_data.handle = [this] (auto &&P0, auto &&P1, auto &&P2) -> void { this->_io_event (std::forward<decltype(P0)>(P0), std::forward<decltype(P1)>(P1), std::forward<decltype(P2)>(P2)); };
+        conn_data.handle = [this] (auto &&P0, auto &&P1, auto &&P2)
+            -> void { this->_io_event (std::forward<decltype(P0)>(P0), std::forward<decltype(P1)>(P1), std::forward<decltype(P2)>(P2)); };
 
         return std::move(ms);
     }));

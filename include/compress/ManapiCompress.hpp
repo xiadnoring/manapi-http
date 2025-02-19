@@ -1,6 +1,6 @@
-#ifndef MANAPIHTTP_MANAPICOMPRESS_H
-#define MANAPIHTTP_MANAPICOMPRESS_H
+#pragma once
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiUtils.hpp"
 #include "../compress/ManapiCompress.hpp"
 
@@ -28,5 +28,3 @@ namespace manapi::compress {
     void throw_could_not_open_file (const std::string &name, const std::string &path);
     void throw_file_exists (const std::string &name, const std::string &path);
 }
-
-#endif //MANAPIHTTP_MANAPICOMPRESS_H

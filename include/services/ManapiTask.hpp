@@ -3,6 +3,7 @@
 #include <mutex>
 #include <condition_variable>
 
+#include "../ManapiUtils.hpp"
 namespace manapi {
     class task {
     public:

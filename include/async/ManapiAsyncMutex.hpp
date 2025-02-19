@@ -11,6 +11,7 @@
 #   include <processthreadsapi.h>
 #endif
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "../ManapiBeforeDelete.hpp"
 #include "./ManapiAsyncContext.hpp"

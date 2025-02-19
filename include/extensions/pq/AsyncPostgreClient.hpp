@@ -1,6 +1,7 @@
 #pragma once
 
 
+#include "../../ManapiUtils.hpp"
 #include "../../async/ManapiAsyncContext.hpp"
 #include "../../async/ManapiAsyncSocket.hpp"
 

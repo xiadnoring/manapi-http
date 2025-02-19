@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ManapiUtils.hpp"
 #include <string>
 #include <vector>
 #include <iostream>
@@ -42,7 +43,7 @@ namespace manapi {
         [[nodiscard]] std::string stringify () const;
         [[nodiscard]] ssize_t integerify () const;
         [[nodiscard]] double decimalify () const;
- 
+
         void parse (const std::string &num);
         // void parse (const long long int    &num);
         void parse (const ssize_t &num);

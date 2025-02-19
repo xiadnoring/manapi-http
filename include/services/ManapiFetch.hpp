@@ -6,6 +6,7 @@
 #include <functional>
 #include <curl/curl.h>
 
+#include "../ManapiUtils.hpp"
 #include "ManapiTask.hpp"
 #include "../ManapiJson.hpp"
 #include "../ManapiHttpRequest.hpp"

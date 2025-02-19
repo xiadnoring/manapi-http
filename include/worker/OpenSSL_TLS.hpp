@@ -7,6 +7,7 @@
 #   include <netdb.h>
 #endif
 
+#include "../ManapiUtils.hpp"
 #include "./base_worker.hpp"
 #include "./TCP.hpp"
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ManapiUtils.hpp"
 #include "../extensions/ev++.h"
 #include <set>
 #include <stack>

@@ -40,6 +40,8 @@
 #ifndef EVPP_H__
 #define EVPP_H__
 
+#include "../ManapiUtils.hpp"
+
 #ifdef EV_H
 # include EV_H
 #else

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
 
 namespace manapi {

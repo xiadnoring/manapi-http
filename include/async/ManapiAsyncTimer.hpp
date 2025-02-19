@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "../services/ManapiTimerPool.hpp"
 

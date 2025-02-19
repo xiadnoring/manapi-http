@@ -1,15 +1,16 @@
-#ifndef MANAPIHTTP_HTTP_HEADERVIEW_HPP
-#define MANAPIHTTP_HTTP_HEADERVIEW_HPP
+#pragma once
 
 #include <string>
 #include <functional>
 
+#include "../ManapiUtils.hpp"
+#include "base_http.hpp"
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiSite.hpp"
 #include "../ManapiUtils.hpp"
-#include "../worker/base_worker.hpp"
 
 namespace manapi::net::http {
+
     class HeaderView {
         struct parse_vars_t {
             // states
@@ -44,9 +45,7 @@ namespace manapi::net::http {
         std::shared_ptr<manapi::net::worker::base> worker;
         std::shared_ptr<manapi::net::http::config> config;
         manapi::net::site &site;
-        std::string buffer;
-        size_t buffer_size;
+        std::unique_ptr<char, deleter::buffer_deleter_t> buffer{nullptr};
+        std::size_t buffer_size;
     };
 }
-
-#endif //MANAPIHTTP_HTTP_HEADERVIEW_HPP

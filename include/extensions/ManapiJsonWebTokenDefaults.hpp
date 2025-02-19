@@ -1,11 +1,11 @@
-#ifndef MANAPIHTTP_MANAPIJSONWEBTOKENDEFAULTS_HPP
-#define MANAPIHTTP_MANAPIJSONWEBTOKENDEFAULTS_HPP
+#pragma once
 
 #ifndef JWT_DISABLE_PICOJSON
 #define JWT_DISABLE_PICOJSON
 #endif
 
 #include "ManapiJsonWebTokenTraits.hpp"
+#include "../ManapiUtils.hpp"
 
 
 namespace jwt {
@@ -85,5 +85,3 @@ namespace jwt {
 	 */
 	using verify_context = verify_ops::verify_context<traits::manapi_json>;
 } // namespace jwt
-
-#endif //MANAPIHTTP_MANAPIJSONWEBTOKENDEFAULTS_HPP

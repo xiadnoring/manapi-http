@@ -1,6 +1,7 @@
 #ifndef MANAPIHTTP_HTTP_HTTPV1_1_HPP
 #define MANAPIHTTP_HTTP_HTTPV1_1_HPP
 
+#include "../ManapiUtils.hpp"
 #include "./base_http.hpp"
 #include "../ManapiHttpConfig.hpp"
 

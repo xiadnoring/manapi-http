@@ -3,6 +3,10 @@
 #include <condition_variable>
 
 #include "../ManapiUtils.hpp"
+#include "../ManapiErrors.hpp"
+#include "../ManapiJson.hpp"
+#include "../ManapiTime.hpp"
+#include "../ManapiDebug.hpp"
 #include "../ManapiBeforeDelete.hpp"
 
 namespace manapi {

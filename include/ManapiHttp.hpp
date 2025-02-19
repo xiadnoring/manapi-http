@@ -10,6 +10,7 @@
 #include <future>
 #include "./extensions/ev++.h"
 
+#include "ManapiUtils.hpp"
 #include "ManapiSite.hpp"
 #include "services/ManapiThreadPool.hpp"
 #include "ManapiJsonMask.hpp"
@@ -48,7 +49,7 @@ namespace manapi::net::http {
         async::mutex mx;
         std::atomic <bool> stopping;
 
-        std::unordered_map<size_t, std::unique_ptr<http_pool>> pools{};
+        std::map<size_t, std::unique_ptr<http_pool>> pools{};
 
         size_t event_id{0};
         size_t next_pool_id = 0;
