@@ -30,6 +30,18 @@ namespace manapi {
             return *this;
         }
 
+        bool operator==(const nullptr_t &) const noexcept {
+            return this->data == nullptr;
+        }
+
+        bool operator!=(const nullptr_t &) const noexcept {
+            return !this->operator==(nullptr);
+        }
+
+        [[nodiscard]] operator bool () const noexcept {
+            return this->operator!=(nullptr);
+        }
+
         object_item_pool &operator=(nullptr_t);
 
         T *operator->() {

@@ -21,6 +21,9 @@ void manapi::net::http::http_v1_1::doit() {
 manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
     this->request_data.body_index = 0;
 
+    if (!this->buffer) {
+        this->buffer = http::pool::bufferpool.get();
+    }
 
     this->buffer->resize(this->config->buffer_size().load());
 
@@ -53,7 +56,6 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
 
     if (this->request_data.has_body) {
         this->request_data.body_size = content_length;
-        this->request_data.body_left = this->request_data.body_size;
         this->request_data.buffer = std::move(this->buffer);
 
         co_await expect_header();
@@ -72,12 +74,14 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
             }
         }
         this->request_data.headers_part = j;
-        this->request_data.body_part = size - this->request_data.headers_part;
+        this->request_data.body_part = size;
         this->request_data.body_index = j;
+        this->request_data.body_left = this->request_data.body_size + j;
     }
     else {
         this->request_data.body_index = 0;
         this->request_data.body_size = 0;
+        this->request_data.body_left = 0;
     }
 
     co_return;

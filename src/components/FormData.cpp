@@ -14,14 +14,14 @@
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 constexpr ssize_t line_max_size = 500;
 
-manapi::net::formdata_recv::formdata_recv(std::shared_ptr<async::context> ctx, const size_t &buffer_size,
+manapi::net::formdata_recv::formdata_recv(std::shared_ptr<async::context> ctx, size_t buffer_size,
             ssize_t &body_buffer_size, char *buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read) : ctx(std::move(ctx)) {
     this->body_index = &body_index;
     this->body_buffer = buffer;
     this->body_buffer_size = &body_buffer_size;
     this->body_max_size_left = &body_max_size_left;
     this->body_read = std::move(body_read);
-    this->buffer_size = &buffer_size;
+    this->buffer_size = buffer_size;
 }
 
 manapi::net::formdata_recv::~formdata_recv() = default;
@@ -148,7 +148,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                     break;
                 }
 
-                auto rhs = co_await this->body_read (this->body_buffer, static_cast<ssize_t>(*this->buffer_size));
+                auto rhs = co_await this->body_read (this->body_buffer, static_cast<ssize_t>(this->buffer_size));
                 if (rhs <= 0) {
                     THROW_MANAPIHTTP_EXCEPTION2(ERR_FILE_IO, "FormData: Connection was closed");
                 }
@@ -304,7 +304,7 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
             *this->body_max_size_left -= *this->body_index;
             *this->body_index = 0;
             // get the next data
-            ssize_t rhs = co_await this->body_read (this->body_buffer, static_cast<ssize_t>(*this->buffer_size));
+            ssize_t rhs = co_await this->body_read (this->body_buffer, static_cast<ssize_t>(this->buffer_size));
             if ((rhs <= 0)) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
             }
@@ -506,7 +506,7 @@ void manapi::net::formdata_recv::_move(formdata_recv &&n) noexcept {
     this->param_data = std::move(n.param_data);
     this->type = std::exchange(n.type, DATA_NONE);
     this->ctx = std::move(n.ctx);
-    this->buffer_size = std::exchange(n.buffer_size, nullptr);
+    this->buffer_size = std::exchange(n.buffer_size, 0);
     this->content_type_form = n.content_type_form;
     this->body_index = std::exchange(n.body_index, nullptr);
     this->body_max_size_left = std::exchange(n.body_max_size_left, nullptr);

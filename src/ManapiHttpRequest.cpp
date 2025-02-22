@@ -199,7 +199,9 @@ bool manapi::net::http_request::get_propagation() const {
 }
 
 manapi::future<void> manapi::net::http_request::_read_body(std::function<void(const char *, ssize_t)> handler) {
-    this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left);
+    this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left)
+        - this->request_data->body_index;
+    this->request_data->body_left -= this->request_data->body_index;
 
     while (true) {
         handler (this->request_data->buffer->data() + this->request_data->body_index, this->request_data->body_part);
@@ -223,7 +225,9 @@ manapi::future<void> manapi::net::http_request::_read_body(std::function<void(co
 }
 
 manapi::future<> manapi::net::http_request::_read_async_body(std::function<manapi::future<>(const char *, ssize_t)> handler) {
-    this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left);
+    this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left)
+        - this->request_data->body_index;
+    this->request_data->body_left -= this->request_data->body_index;
 
     while (true) {
         co_await handler (this->request_data->buffer->data() + this->request_data->body_index, this->request_data->body_part);

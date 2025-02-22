@@ -198,7 +198,7 @@ int main (int argc, char *argv[]) {
 
 
     {
-        auto ctx = manapi::async::context::create(16, 0.01);
+        auto ctx = manapi::async::context::create(std::thread::hardware_concurrency(), 0.01);
         ctx->eventloop()->setup_handle_interrupt();
 
         // manapi::async::run(ctx, [ctx] () -> manapi::future<> {

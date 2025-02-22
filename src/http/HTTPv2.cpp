@@ -20,6 +20,12 @@ std::shared_ptr<manapi::net::worker::http_v2> manapi::net::http::http_v2::create
 manapi::future<void> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_t size) {
     this->parse_vars = parse_vars_t{};
 
+    if (!this->request_data.buffer) {
+        this->request_data.buffer = http::pool::bufferpool.get();
+    }
+
+    this->request_data.buffer->resize(this->config->buffer_size());
+
     for (char & i : this->request_data.uri) {
         _parse_uri(i);
     }

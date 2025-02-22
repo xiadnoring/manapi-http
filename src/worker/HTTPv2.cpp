@@ -1184,7 +1184,6 @@ void manapi::net::worker::http_v2::session_worker(int id, bool body, std::shared
     auto it = worker->threads.find(id);
     if (it == worker->threads.end()) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Failed to find session thread data by id"); }
     client->request_data.headers = std::move(it->second.headers);
-
     client->request_data.body_index = 0;
     client->request_data.uri = client->request_data.headers[":path"];
     client->request_data.headers_size = 0;
