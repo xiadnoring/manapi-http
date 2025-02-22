@@ -13,7 +13,7 @@
 #include <forward_list>
 #include <typeinfo>
 
-#include "./extensions/jemallocator.hpp"
+//#include "./extensions/jemallocator.hpp"
 
 #define REQ(_x) manapi::net::http_request &_x
 #define RESP(_x) manapi::net::http_response &_x

@@ -254,6 +254,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/components/Buffer.hpp
         src/components/Buffer.cpp
         include/components/ObjectPool.hpp
+        src/worker/Tools.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

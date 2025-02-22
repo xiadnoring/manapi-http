@@ -25,4 +25,8 @@ namespace manapi::net::worker::tools {
 #endif
         }
     }
+
+
+
+    void ev_library_init ();
 }

@@ -390,7 +390,9 @@ void manapi::event_loop::custom_watcher_callback_async(ev::async &w, int revents
                 data->cb();
             }
             catch (...) {
-                data->reject (std::current_exception());
+                this->taskpool->append_task([reject = std::move(data->reject), err = std::current_exception()] () mutable
+                    -> void { reject(std::move(err)); });
+
                 continue;
             }
 
@@ -407,7 +409,9 @@ void manapi::event_loop::custom_watcher_callback_async(ev::async &w, int revents
                 data->cb();
             }
             catch (...) {
-                data->reject (std::current_exception());
+                this->taskpool->append_task([reject = std::move(data->reject), err = std::current_exception()] () mutable
+                    -> void { reject(std::move(err)); });
+
                 continue;
             }
 
@@ -426,7 +430,11 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
         mcode = curl_multi_add_handle(this->curl_watcher.curl_multi.get(), data->curl);
 
         if (mcode != CURLM_OK) {
-            data->reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "Failed to add the curl handle. curl_multi_add_handle(...) = {}", static_cast<int>(mcode))));
+            auto err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH,
+                "Failed to add the curl handle. curl_multi_add_handle(...) = {}", static_cast<int>(mcode)));
+            this->taskpool->append_task([reject = std::move(data->reject), err = std::move(err)] () mutable
+                -> void { reject(std::move(err)); });
+
         }
         else {
             this->curl_watcher.curl_res.insert({data->curl, std::move(data->finish)});
@@ -444,7 +452,10 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
         mcode = curl_multi_remove_handle(this->curl_watcher.curl_multi.get(), data->curl);
 
         if (mcode != CURLM_OK) {
-            data->reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "Failed to remove the curl handle. curl_multi_remove_handle(...) = {}", static_cast<int>(mcode))));
+            auto err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH,
+                "Failed to remove the curl handle. curl_multi_remove_handle(...) = {}", static_cast<int>(mcode)));
+            this->taskpool->append_task([reject = std::move(data->reject), err = std::move(err)] () mutable
+                -> void { reject(std::move(err)); });
         }
         else {
             this->taskpool->append_task([resolve1 = std::move(data->resolve), resolve2 = std::move(curl_data.mapped())] ()
@@ -455,7 +466,9 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
         /* pause */
         const auto rhs = curl_easy_pause(data->curl, CURLPAUSE_ALL);
         if (CURLE_OK != rhs) {
-            data->reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl_easy_pause(...) with CURLPAUSE_ALL failed -> {}", static_cast<int>(rhs))));
+            auto err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl_easy_pause(...) with CURLPAUSE_ALL failed -> {}", static_cast<int>(rhs)));
+            this->taskpool->append_task([reject = std::move(data->reject), err = std::move(err)] () mutable
+                -> void { reject(std::move(err)); });
         }
         else {
             this->taskpool->append_task(std::move(data->resolve));
@@ -465,7 +478,10 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
         /* unpause */
         const auto rhs = curl_easy_pause(data->curl, CURLPAUSE_CONT);
         if (CURLE_OK != rhs) {
-            data->reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl_easy_pause(...) with CURLPAUSE_CONT failed -> {}", static_cast<int>(rhs))));
+            auto err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH,
+                "curl_easy_pause(...) with CURLPAUSE_CONT failed -> {}", static_cast<int>(rhs)));
+            this->taskpool->append_task([reject = std::move(data->reject), err = std::move(err)] mutable
+                -> void { reject(std::move(err)); });
         }
         else {
             this->taskpool->append_task(std::move(data->resolve));

@@ -175,22 +175,31 @@ namespace manapi::ext::pq {
                     if (revents & ev::READ) {
                         if (!PQconsumeInput(this->conn.get())) {
                             auto _reject = std::move(reject);
-                            this->ctx->eventloop()->stop_watcher(w);
-                            _reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_ERROR, "Consume input error")));
+                            auto _ctx = this->ctx;
+                            auto err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_ERROR, "Consume input error"));
+                            _ctx->eventloop()->stop_watcher(w);
+
+                            _ctx->taskpool()->append_task([reject = std::move(_reject), err = std::move(err)] () mutable
+                                -> void { reject(std::move(err)); });
                         }
                     }
                     if (revents & ev::WRITE) {
                         auto rhs = PQflush(this->conn.get());
                         if (rhs == -1) {
                             auto _reject = std::move(reject);
-                            this->ctx->eventloop()->stop_watcher(w);
-                            _reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_ERROR, "flush failed")));
+                            auto _ctx = this->ctx;
+                            auto err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_ERROR, "flush failed"));
+                            _ctx->eventloop()->stop_watcher(w);
+
+                            _ctx->taskpool()->append_task([reject = std::move(_reject), err = std::move(err)] () mutable
+                                -> void { reject(std::move(err)); });
                         }
                         if (rhs == 0) {
                             /* done */
                             auto _resolve = std::move(resolve);
-                            this->ctx->eventloop()->stop_watcher(w);
-                            _resolve();
+                            auto _ctx = this->ctx;
+                            _ctx->eventloop()->stop_watcher(w);
+                            _ctx->taskpool()->append_task(std::move(_resolve));
                         }
                     }
                 });

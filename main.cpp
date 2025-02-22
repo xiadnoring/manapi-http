@@ -194,8 +194,8 @@ using namespace std;
 
 int main (int argc, char *argv[]) {
     worker::tools::ssl_library_init();
+    worker::tools::ev_library_init();
     manapi::debug::debug_print_memory("start");
-
 
     {
         auto ctx = manapi::async::context::create(std::thread::hardware_concurrency(), 0.01);

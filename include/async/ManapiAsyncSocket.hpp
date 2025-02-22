@@ -8,8 +8,9 @@ namespace manapi::async {
         return ctx->eventloop()->watch_fd(fd, ev::READ, [&ctx, resolve = std::move(resolve), reject = std::move(reject)] (ev::io &w, int revents) mutable -> void {
             if (revents & ev::READ) {
                 auto _resolve = std::move(resolve);
-                ctx->eventloop()->stop_watcher(w);
-                _resolve();
+                auto ctx_ = ctx;
+                ctx_->eventloop()->stop_watcher(w);
+                ctx_->taskpool()->append_task(std::move(_resolve));
             }
         });
     }
@@ -18,8 +19,9 @@ namespace manapi::async {
         return ctx->eventloop()->watch_fd(fd, ev::WRITE, [&ctx, resolve = std::move(resolve), reject = std::move(reject)] (ev::io &w, int revents) mutable -> void {
             if (revents & ev::WRITE) {
                 auto _resolve = std::move(resolve);
-                ctx->eventloop()->stop_watcher(w);
-                _resolve();
+                auto ctx_ = ctx;
+                ctx_->eventloop()->stop_watcher(w);
+                ctx_->taskpool()->append_task(std::move(_resolve));
             }
         });
     }

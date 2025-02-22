@@ -342,6 +342,9 @@ SSL_CTX * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &ver
 
     //SSL_CTX_set_mode(ctx, SSL_MODE_ASYNC);
 
+    // SSL_CTX_set_max_send_fragment(ctx, this->config->buffer_size());
+    // SSL_CTX_set_default_read_buffer_len(ctx, this->config->buffer_size());
+
     SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
     SSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
 

@@ -144,9 +144,14 @@ manapi::future<> manapi::filesystem::write_async(const std::shared_ptr<async::co
 
                             if (rhs <= 0) {
                                 auto _reject = std::move(reject);
-                                ctx->eventloop()->stop_watcher(w);
+                                auto _ctx = ctx;
+                                auto err = std::make_exception_ptr(manapi::exception (ERR_FILE_IO,
+                                    "write_async(...): Failed to write file"));
 
-                                _reject(std::make_exception_ptr(manapi::exception (ERR_FILE_IO, "write_async(...): Failed to write file")));
+                                _ctx->eventloop()->stop_watcher(w);
+                                _ctx->taskpool()->append_task([reject = std::move(_reject), err = std::move(err)] () mutable
+                                    -> void { reject(std::move(err)); });
+
                                 return;
                             }
 
@@ -158,9 +163,9 @@ manapi::future<> manapi::filesystem::write_async(const std::shared_ptr<async::co
 
                             if (written < 0) {
                                 auto _resolve = std::move(resolve);
-                                ctx->eventloop()->stop_watcher(w);
-
-                                _resolve();
+                                auto _ctx = ctx;
+                                _ctx->eventloop()->stop_watcher(w);
+                                _ctx->taskpool()->append_task(std::move(_resolve));
                                 return;
                             }
 
@@ -258,17 +263,20 @@ manapi::future<> manapi::filesystem::read_async(const std::shared_ptr<async::con
 
                     if (rhs < 0) {
                         auto _reject = std::move(reject);
-                        ctx->eventloop()->stop_watcher(w);
-
-                        _reject(std::make_exception_ptr(manapi::exception (ERR_FILE_IO, "read_async(...): Failed to read a file")));
+                        auto _ctx = ctx;
+                        auto err = std::make_exception_ptr(
+                            manapi::exception (ERR_FILE_IO, "read_async(...): Failed to read a file"));
+                        _ctx->eventloop()->stop_watcher(w);
+                        _ctx->taskpool()->append_task([reject = std::move(_reject), err = std::move(err)] () mutable
+                            -> void { reject(std::move(err)); });
                         return;
                     }
 
                     if (rhs == 0) {
                         auto _resolve = std::move(resolve);
-                        ctx->eventloop()->stop_watcher(w);
-
-                        _resolve();
+                        auto _ctx = ctx;
+                        _ctx->eventloop()->stop_watcher(w);
+                        _ctx->taskpool()->append_task(std::move(_resolve));
                         return;
                     }
 
@@ -277,9 +285,14 @@ manapi::future<> manapi::filesystem::read_async(const std::shared_ptr<async::con
 
                         if (written < 0) {
                             auto _reject = std::move(reject);
-                            ctx->eventloop()->stop_watcher(w);
+                            auto _ctx = ctx;
+                            auto err = std::make_exception_ptr(manapi::exception (
+                                ERR_FILE_IO, std::format("read_async(...): cb returned {}", written)));
 
-                            _reject(std::make_exception_ptr(manapi::exception (ERR_FILE_IO, std::format("read_async(...): cb returned {}", written))));
+                            _ctx->eventloop()->stop_watcher(w);
+                            _ctx->taskpool()->append_task([reject = std::move(_reject), err = std::move(err)] () mutable
+                                -> void { reject(std::move(err)); });
+
                             return;
                         }
 
