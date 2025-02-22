@@ -127,7 +127,6 @@ namespace manapi::net::worker {
         std::string stringify_headers (manapi::net::http_response &res, const std::string &delimiter) const;
         static void connection_interface_eraser (void *ptr);
 
-        std::stack<std::shared_ptr<async_stack_storage>> tmp;
         addrinfo *local;
         timer limit_rate_timer{};
 #ifdef _WIN32

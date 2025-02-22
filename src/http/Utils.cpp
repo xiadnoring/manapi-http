@@ -275,3 +275,16 @@ manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net
 
     co_return std::move(founded);
 }
+
+void manapi::net::http::pool::init(const std::shared_ptr<manapi::async::context> &ctx) {
+    auto ctx1 = ctx, ctx2 = ctx;
+    pool::bufferpool.init();
+    pool::cvpool.init(std::move(ctx1));
+    pool::mxpool.init(std::move(ctx2));
+
+    // ctx->taskpool()->for_all_threads(std::move(cb));
+    // co_await ctx->eventloop()->custom_callback(cb);
+    //
+    // co_await manapi::async::promise<void, std::false_type> (ctx, [&] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject)
+    //     -> void { ctx->taskpool()->append_task(std::move(resolve)); });
+}

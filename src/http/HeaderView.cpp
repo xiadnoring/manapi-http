@@ -11,13 +11,13 @@
 
 manapi::net::http::HeaderView::HeaderView(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
     : worker(std::move(worker)), config(std::move(config)), site(site) {
-    this->buffer_size = 0;
 }
 
 manapi::net::http::HeaderView::HeaderView(std::shared_ptr<worker::connection> connection, std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
     : worker(std::move(worker)), config(std::move(config)), site(site) {
     this->connection = std::move(connection);
-    this->buffer_size = 0;
+
+    this->buffer = manapi::net::http::pool::bufferpool.get();
 }
 
 manapi::net::http::HeaderView::~HeaderView() {}
@@ -27,8 +27,7 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
 
     bool upgraded = false;
 
-    this->buffer_size = this->config->buffer_size();
-    this->buffer.reset(memory::alloc<char>(this->buffer_size));
+    this->buffer->resize(this->config->buffer_size());
     this->parse_vars = parse_vars_t{};
 
     auto &d = this->parse_vars.value();
@@ -42,10 +41,10 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
             ssize_t size = 0, j = 0;
             this->current = [this](char & PH1) { this->_parse_method(std::forward<decltype(PH1)>(PH1)); };
             while (!d.finished) {
-                size = co_await this->worker->read (*this->connection, this->buffer.get(), static_cast<ssize_t>(this->buffer_size));
+                size = co_await this->worker->read (*this->connection, this->buffer->data(), static_cast<ssize_t>(this->buffer->size()));
                 if (size <= 0) { break; }
                 for (j = 0; j < size && !d.finished; j++) {
-                    this->current (*(this->buffer.get() + j));
+                    this->current (this->buffer->at(j));
                 }
             }
 
@@ -71,7 +70,6 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
                     client->request_data = std::move(this->request_data);
                     client->connection = this->connection;
                     client->buffer = std::move(this->buffer);
-                    client->buffer_size = std::exchange(this->buffer_size, 0);
                     client->prepare();
                     co_await client->parse_request(j, size);
                     co_await client->execute_handler();
@@ -79,7 +77,6 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
                     if (client->connection_was_upgraded()) {
                         this->connection->version = client->get_upgraded_version();
                         this->buffer = std::move(client->buffer);
-                        this->buffer_size = std::exchange(client->buffer_size, 0);
 
                         d.finished = false;
                         upgraded = true;
@@ -93,7 +90,6 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
                     client->connection = this->connection;
                     client->start = start;
                     client->buffer = std::move(this->buffer);
-                    client->buffer_size = std::exchange(this->buffer_size, 0);
 
                     http::request_data_clear(this->request_data);
                     co_await client->parse_request(j, size);

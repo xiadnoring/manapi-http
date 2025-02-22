@@ -10,6 +10,7 @@
 
 #include "./Utils.hpp"
 #include "../async/ManapiAsyncFileStream.hpp"
+#include "components/Buffer.hpp"
 
 namespace manapi::net::http {
     class base : public manapi::task {
@@ -39,8 +40,7 @@ namespace manapi::net::http {
         static std::set<std::string> methods;
         http::request_data_t request_data;
 
-        std::unique_ptr<char, deleter::buffer_deleter_t> buffer{nullptr};
-        size_t buffer_size{0};
+        object_item_pool<bytebuffer> buffer{};
     protected:
         std::shared_ptr<manapi::net::http::config> config;
         std::shared_ptr<manapi::net::worker::base> worker;

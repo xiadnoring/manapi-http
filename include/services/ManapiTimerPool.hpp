@@ -61,7 +61,7 @@ namespace manapi {
         // wait while deps being exists
         std::atomic <size_t> deps;
         std::shared_ptr<async::condition_variable> cv;
-        std::stack<size_t> prepare_remove;
+        manapi::chain<size_t> prepare_remove;
 
         void _update_interval_state (const size_t& id);
         manapi::timer _append (std::chrono::milliseconds duration, std::function<future<>(manapi::timer t)> async_task, std::function<void(manapi::timer t)> task,  bool inteval);

@@ -3,6 +3,7 @@
 #include <string>
 #include <functional>
 
+#include "../components/Buffer.hpp"
 #include "../ManapiUtils.hpp"
 #include "base_http.hpp"
 #include "../ManapiHttpConfig.hpp"
@@ -45,7 +46,6 @@ namespace manapi::net::http {
         std::shared_ptr<manapi::net::worker::base> worker;
         std::shared_ptr<manapi::net::http::config> config;
         manapi::net::site &site;
-        std::unique_ptr<char, deleter::buffer_deleter_t> buffer{nullptr};
-        std::size_t buffer_size;
+        object_item_pool<bytebuffer> buffer{};
     };
 }

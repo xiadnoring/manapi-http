@@ -105,8 +105,8 @@ manapi::future<manapi::json> manapi::net::http_request::json()
 
 manapi::future<manapi::net::formdata_recv> manapi::net::http_request::form ()
 {
-    formdata_recv formdata (this->http_task->get_site().async_context(), this->request_data->buffer_size,
-        this->request_data->body_part, this->request_data->buffer.get(), this->request_data->body_left, this->request_data->body_index, [http_base = this->http_task] (void *buff, ssize_t buff_size)
+    formdata_recv formdata (this->http_task->get_site().async_context(), this->request_data->buffer->size(),
+        this->request_data->body_part, this->request_data->buffer->data(), this->request_data->body_left, this->request_data->body_index, [http_base = this->http_task] (void *buff, ssize_t buff_size)
         -> future<ssize_t> { return http_base->read(buff, buff_size);  });
     co_await formdata._init(this->request_data->has_body, this->request_data->headers[HTTP_HEADER.CONTENT_TYPE]);
     co_return std::move(formdata);
@@ -202,12 +202,12 @@ manapi::future<void> manapi::net::http_request::_read_body(std::function<void(co
     this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left);
 
     while (true) {
-        handler (this->request_data->buffer.get() + this->request_data->body_index, this->request_data->body_part);
+        handler (this->request_data->buffer->data() + this->request_data->body_index, this->request_data->body_part);
         this->request_data->body_left -= this->request_data->body_part;
         this->request_data->body_index = 0;
 
         if (this->request_data->body_left > 0) {
-            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer.get(), static_cast<ssize_t>(this->request_data->buffer_size));
+            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer->data(), static_cast<ssize_t>(this->request_data->buffer->size()));
             if (this->request_data->body_part < 0) {
                 THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
             }
@@ -226,12 +226,12 @@ manapi::future<> manapi::net::http_request::_read_async_body(std::function<manap
     this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left);
 
     while (true) {
-        co_await handler (this->request_data->buffer.get() + this->request_data->body_index, this->request_data->body_part);
+        co_await handler (this->request_data->buffer->data() + this->request_data->body_index, this->request_data->body_part);
         this->request_data->body_left -= this->request_data->body_part;
         this->request_data->body_index = 0;
 
         if (this->request_data->body_left > 0) {
-            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer.get(), static_cast<ssize_t>(this->request_data->buffer_size));
+            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer->data(), static_cast<ssize_t>(this->request_data->buffer->size()));
             if (this->request_data->body_part < 0) {
                 THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
             }

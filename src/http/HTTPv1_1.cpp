@@ -4,9 +4,7 @@
 #include "services/ManapiFetch.hpp"
 #include "http/HeaderView.hpp"
 
-manapi::net::http::http_v1_1::http_v1_1(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site) : base(std::move(worker), std::move(config), site) {
-    this->buffer_size = 0;
-}
+manapi::net::http::http_v1_1::http_v1_1(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site) : base(std::move(worker), std::move(config), site) {}
 
 manapi::net::http::http_v1_1::~http_v1_1() = default;
 
@@ -24,22 +22,7 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
     this->request_data.body_index = 0;
 
 
-    do {
-        std::size_t s = this->config->buffer_size().load();
-        if (this->buffer_size != s) {
-            auto p = this->buffer.release();
-
-            try {
-                this->buffer.reset(manapi::memory::realloc(p, s));
-                this->buffer_size = s;
-            }
-            catch (...) {
-                this->buffer.reset(p);
-                std::rethrow_exception(std::current_exception());
-            }
-        }
-    }
-    while (false);
+    this->buffer->resize(this->config->buffer_size().load());
 
     {
         if (size == 0) {
@@ -50,11 +33,11 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
         goto skip;
 
         while (!this->parse_vars.finished) {
-            size = co_await this->worker->read (*this->connection, this->buffer.get(), static_cast<ssize_t>(this->buffer_size));
+            size = co_await this->worker->read (*this->connection, this->buffer->data(), static_cast<ssize_t>(this->buffer->size()));
             if (size <= 0) { break; }
             j = 0;
             skip: for (; j < size && !this->parse_vars.finished; j++) {
-                this->current (*(this->buffer.get() + j));
+                this->current (this->buffer->at(j));
             }
         }
 
@@ -72,11 +55,10 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
         this->request_data.body_size = content_length;
         this->request_data.body_left = this->request_data.body_size;
         this->request_data.buffer = std::move(this->buffer);
-        this->request_data.buffer_size = std::exchange(this->buffer_size, 0);
 
         co_await expect_header();
         while (size <= j) {
-            size = co_await this->read(this->request_data.buffer.get(), static_cast<ssize_t>(this->request_data.buffer_size));
+            size = co_await this->read(this->request_data.buffer->data(), static_cast<ssize_t>(this->request_data.buffer->size()));
             if (size < 0) {
                 THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "this->read(...) = {}", size);
             }

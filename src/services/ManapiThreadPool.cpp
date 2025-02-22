@@ -18,6 +18,7 @@ namespace manapi {
 #endif
         this->task_queues.resize(queues_count);
         this->threadnum = thread_num;
+        this->tasks_by_thread.resize(this->threadnum);
     }
 
     template<class T>
@@ -30,6 +31,7 @@ namespace manapi {
     void threadpool<T>::resize(size_t thread_num) {
         if (this->is_stop) {
             this->threadnum = thread_num;
+            this->tasks_by_thread.resize(thread_num);
         }
         else {
             this->stop();
@@ -45,6 +47,11 @@ namespace manapi {
         }
         this->is_stop.store(true);
         this->cv.notify_all();
+    }
+
+    template<class T>
+    std::size_t threadpool<T>::size() const {
+        return this->threadnum;
     }
 
     template<class T>
@@ -66,6 +73,18 @@ namespace manapi {
     }
 
     template<class T>
+    void threadpool<T>::for_all_threads(std::function<void()> cb) {
+        {
+            std::lock_guard<std::mutex> lk (this->queue_mutex);
+            for (auto &row : this->tasks_by_thread) {
+                row.push_back(std::make_unique<net::function_task>(cb));
+            }
+        }
+
+        this->cv.notify_all();
+    }
+
+    template<class T>
     void threadpool<T>::start() {
         if (!this->is_stop) {
             return;
@@ -74,7 +93,7 @@ namespace manapi {
         this->is_stop.store(false);
 
         for (size_t i = 0; i < this->threadnum; ++i) {
-            this->threads.push_back(std::thread(threadpool::worker, this));
+            this->threads.push_back(std::thread(threadpool::worker, this, i));
         }
     }
 
@@ -105,39 +124,46 @@ namespace manapi {
     }
 
     template<class T>
-    void threadpool<T>::append_task(std::function<void()> cb) {
+    void threadpool<T>::append_task(std::move_only_function<void()> cb) {
         this->append_task(std::make_unique<net::function_task>(std::move(cb)));
     }
 
     template<class T>
-    std::unique_ptr<T> threadpool<T>::get_task() {
+    std::unique_ptr<T> threadpool<T>::get_task(std::size_t index) {
         std::unique_ptr<T> task = nullptr;
         std::lock_guard<std::mutex> lk (this->queue_mutex);
-        // from n ... 0 by level
-        for (auto task_queue = this->task_queues.rbegin(); task_queue != this->task_queues.rend(); ++task_queue)
-        {
-            if (!task_queue->empty())
+
+        if (this->tasks_by_thread[index].empty()) {
+            // from n ... 0 by level
+            for (auto task_queue = this->task_queues.rbegin(); task_queue != this->task_queues.rend(); ++task_queue)
             {
-                task = std::move(*task_queue->rbegin());
-                task_queue->pop_back ();
-                break;
+                if (!task_queue->empty())
+                {
+                    task = std::move(*task_queue->rbegin());
+                    task_queue->pop_back ();
+                    break;
+                }
             }
+        }
+        else {
+            task = std::move(this->tasks_by_thread[index].back());
+            this->tasks_by_thread[index].pop_back();
         }
 
         return std::move(task);
     }
 
     template<class T>
-    void *threadpool<T>::worker(void *arg) {
+    void *threadpool<T>::worker(void *arg, std::size_t index) {
         auto *pool = static_cast<threadpool *> (arg);
-        pool->run();
+        pool->run(index);
         return pool;
     }
 
     template<class T>
-    void threadpool<T>::run() {
+    void threadpool<T>::run(std::size_t index) {
         while (!this->is_stop) {
-            auto task = get_task();
+            auto task = get_task(index);
             if (task == nullptr)
             {
                 std::unique_lock<std::mutex> lk (this->m);

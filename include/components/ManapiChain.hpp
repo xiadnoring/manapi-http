@@ -81,6 +81,18 @@ namespace manapi {
             ++this->_s;
         }
 
+        void push_back (const value_type &n) {
+            auto _n = std::make_shared<chain_item<value_type>>( n, nullptr, nullptr);
+            this->push_back(std::move(_n));
+            ++this->_s;
+        }
+
+        void push_front (const value_type &n) {
+            auto _n = std::make_shared<chain_item<value_type>>( n, nullptr, nullptr);
+            this->push_front(std::move(_n));
+            ++this->_s;
+        }
+
         void push_back (_chain_item _n) {
             if (this->_last == nullptr) {
                 this->_src = _n;
@@ -197,7 +209,7 @@ namespace manapi {
 
         void clear () {
             _chain_item &_c = this->_src;
-            while (_c != nullptr) {
+            while (_c) {
                 _chain_item next = std::move(_c->next);
                 _c->prev = nullptr;
                 _c = std::move(next);

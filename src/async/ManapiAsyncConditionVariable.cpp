@@ -37,12 +37,16 @@ manapi::future<> manapi::async::condition_variable::notify_one() {
 }
 
 manapi::future<> manapi::async::condition_variable::notify_all() {
-    auto lk = co_await this->mx->lock_guard();
-    size_t _len = this->stack.size();
-    for (size_t i = 0; i < _len; i++) {
-        if (!co_await this->_notify_first()) {
-            break;
+    if (this->cnt.exchange(1) == 0) {
+        auto lk = co_await this->mx->lock_guard();
+        size_t _len = this->stack.size();
+        for (size_t i = 0; i < _len; i++) {
+            if (!co_await this->_notify_first()) {
+                break;
+            }
         }
+
+        this->cnt.store(0);
     }
 }
 

@@ -86,7 +86,8 @@ class ManapiHttpConan(ConanFile):
         self.requires("libcurl/8.11.1")
         self.requires("libpq/15.5")
         self.requires("cpptrace/0.7.4")
-        self.requires("jemalloc/5.3.0")
+        # self.requires("mimalloc/2.1.7")
+        # self.requires("jemalloc/5.3.0")
 
         if self.options.get_safe('openssl_dependency', False):
             self.requires("openssl/3.3.2")

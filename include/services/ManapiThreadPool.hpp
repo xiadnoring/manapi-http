@@ -31,11 +31,13 @@ namespace manapi {
         void resize (size_t thread_num);
         bool append_task (std::unique_ptr<T> task, int level = 0);
         void append_task (T task);
-        void append_task (std::function<void()> cb);
+        void append_task (std::move_only_function<void()> cb);
         void start();
         void stop();
+        [[nodiscard]] std::size_t size () const;
         void clear();
         void join();
+        void for_all_threads (std::function<void()> cb);
     private:
         // this vector contains all threads for this thread pool
         std::vector <std::thread> threads;
@@ -44,12 +46,12 @@ namespace manapi {
         // queue mutex
         std::mutex queue_mutex;
         // the function that the thread runs. Execute run() function
-        static void *worker(void *arg);
+        static void *worker(void *arg, std::size_t index);
 
-        void run();
+        void run(std::size_t index);
         // execute the task
         void task_doit (std::unique_ptr<T> task);
-        std::unique_ptr<T> get_task();
+        std::unique_ptr<T> get_task(std::size_t index);
         std::atomic<bool> is_stop;
         size_t threadnum;
 
@@ -58,5 +60,6 @@ namespace manapi {
 #endif
         std::mutex m;
         std::condition_variable cv;
+        std::vector<chain<std::unique_ptr<T>>> tasks_by_thread;
     };
 }

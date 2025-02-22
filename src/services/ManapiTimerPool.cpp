@@ -47,7 +47,7 @@ manapi::future<> manapi::timerpool::async_remove_timer(size_t id) {
 
 void manapi::timerpool::remove_timer(size_t id) {
     if (this->timer_loop_running) {
-        this->prepare_remove.push(id);
+        this->prepare_remove.push_back(id);
         return;
     }
 
@@ -173,8 +173,8 @@ void manapi::timerpool::_start() {
     this->timer_loop_running = false;
 
     while (!this->prepare_remove.empty()) {
-        auto id = this->prepare_remove.top();
-        this->prepare_remove.pop();
+        auto id = this->prepare_remove.front();
+        this->prepare_remove.pop_front();
 
         this->_erase_task(id);
     }

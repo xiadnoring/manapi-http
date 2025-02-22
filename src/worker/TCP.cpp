@@ -247,7 +247,6 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     if (fd < 0) {
         return {};
     }
-    bool flag = false;
 
     auto it = this->stacks.insert({fd, nullptr});
     if (!it.second) {
@@ -289,7 +288,8 @@ manapi::future<void> manapi::net::worker::TCP::connection_close(std::shared_ptr<
     auto &connection = conn->as<connection_interface>();
     auto lk = co_await connection.iomutex.lock_guard();
     this->_connection_close(conn, connection);
-    co_await this->limit_rate_cv->notify_all();
+
+    async::run(this->site.async_context(), this->limit_rate_cv->notify_all());
 }
 
 void manapi::net::worker::TCP::stop() {
@@ -420,7 +420,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
 #else
     ::close(connection->id);
 #endif
-    MANAPIHTTP_LOG("CLOSE(...) {}", connection->id);
+    //MANAPIHTTP_LOG("CLOSE(...) {}", connection->id);
     delete connection;
 }
 
@@ -494,6 +494,7 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_read(connection &conn,
     if (!connection.iomutex.try_to_lock()) {
         co_return -1;
     }
+
 
     auto unlock = before_delete([&] ()
         -> void { connection.iomutex.unlock(); });

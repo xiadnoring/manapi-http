@@ -7,6 +7,7 @@
 #include "../components/SmartBuffer.hpp"
 #include "./base_worker.hpp"
 #include "../compress/ManapiHPack.hpp"
+#include "components/Buffer.hpp"
 
 namespace manapi::net::worker {
     enum http2_frame_type {
@@ -174,8 +175,7 @@ namespace manapi::net::worker {
         future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish) override;
 
         std::shared_ptr<worker::connection> connection;
-        std::unique_ptr<char, deleter::buffer_deleter_t> buffer;
-        size_t buffer_size;
+        manapi::object_item_pool<bytebuffer> buffer{};
         std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
         std::chrono::steady_clock::time_point start;
     private:

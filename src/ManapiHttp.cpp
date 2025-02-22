@@ -29,6 +29,9 @@ manapi::net::http::server::server(const std::shared_ptr<manapi::async::context> 
 }
 
 manapi::future<void> manapi::net::http::server::start() {
+    // initialization object pools
+    manapi::net::http::pool::init(this->ctx);
+
     auto lk = co_await this->mx.lock_guard();
 
     if (!server::stopping.exchange(false)) {
