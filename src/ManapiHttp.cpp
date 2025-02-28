@@ -30,7 +30,8 @@ manapi::net::http::server::server(const std::shared_ptr<manapi::async::context> 
 
 manapi::future<void> manapi::net::http::server::start() {
     // initialization object pools
-    manapi::net::http::pool::init(this->ctx);
+    this->bufferpool().init(65536);
+    this->bufferpool().reserve(8000);
 
     auto lk = co_await this->mx.lock_guard();
 

@@ -18,8 +18,8 @@ namespace manapi::async {
 
         struct data_t {
             std::shared_ptr<threadpool<task>> taskpool{nullptr};
-            std::move_only_function<void(resolve_ref_t, reject_ref_t)> cb{nullptr};
-            std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> async_cb{nullptr};
+            std::move_only_function<void(resolve_t, reject_t)> cb{nullptr};
+            std::move_only_function<future<>(resolve_t, reject_t)> async_cb{nullptr};
             std::exception_ptr exception{nullptr};
             std::unique_ptr<std::atomic<bool>> ready;
             std::optional <T> value;
@@ -27,28 +27,28 @@ namespace manapi::async {
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
-        promise(const std::shared_ptr<context> &ctx, std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> cb) {
+        promise(const std::shared_ptr<context> &ctx, std::move_only_function<future<>(resolve_t, reject_t)> cb) {
             this->data = std::make_shared<data_t>(data_t{as_threadpool(ctx), nullptr, std::move(cb), nullptr, nullptr, {}});
             this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
-        promise(std::shared_ptr<threadpool<task>> taskpool, std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> cb) {
+        promise(std::shared_ptr<threadpool<task>> taskpool, std::move_only_function<future<>(resolve_t, reject_t)> cb) {
             this->data = std::make_shared<data_t>(data_t{std::move(taskpool), nullptr, std::move(cb), nullptr, nullptr, {}});
             this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::false_type>)
-        promise(const std::shared_ptr<context> &ctx, std::move_only_function<void(resolve_ref_t, reject_ref_t)> cb) {
+        promise(const std::shared_ptr<context> &ctx, std::move_only_function<void(resolve_t, reject_t)> cb) {
             this->data = std::make_shared<data_t>(data_t{as_threadpool(ctx), std::move(cb), nullptr, nullptr});
             this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::false_type>)
-        promise(const std::shared_ptr<threadpool<task>> &taskpool, std::move_only_function<void(resolve_ref_t, reject_ref_t)> cb) {
+        promise(const std::shared_ptr<threadpool<task>> &taskpool, std::move_only_function<void(resolve_t, reject_t)> cb) {
             this->data = std::make_shared<data_t>(data_t{taskpool, std::move(cb), nullptr, nullptr});
             this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
@@ -125,8 +125,8 @@ namespace manapi::async {
 
         struct data_t {
             std::shared_ptr<threadpool<task>> taskpool{nullptr};
-            std::move_only_function<void(resolve_ref_t, reject_ref_t)> cb{nullptr};
-            std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> async_cb{nullptr};
+            std::move_only_function<void(resolve_t, reject_t)> cb{nullptr};
+            std::move_only_function<future<>(resolve_t, reject_t)> async_cb{nullptr};
             std::exception_ptr exception{nullptr};
             std::unique_ptr<std::atomic<bool>> ready;
         };
@@ -134,28 +134,28 @@ namespace manapi::async {
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
-        promise(const std::shared_ptr<context> &ctx, std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> cb) {
+        promise(const std::shared_ptr<context> &ctx, std::move_only_function<future<>(resolve_t, reject_t)> cb) {
             this->data = std::make_shared<data_t>(data_t{as_threadpool(ctx), nullptr, std::move(cb), nullptr, nullptr});
             this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
-        promise(std::shared_ptr<threadpool<task>> taskpool, std::move_only_function<future<>(resolve_ref_t, reject_ref_t)> cb) {
+        promise(std::shared_ptr<threadpool<task>> taskpool, std::move_only_function<future<>(resolve_t, reject_t)> cb) {
             this->data = std::make_shared<data_t>(data_t{std::move(taskpool), nullptr, std::move(cb), nullptr, nullptr});
             this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::false_type>)
-        promise(const std::shared_ptr<context> &ctx, std::move_only_function<void(resolve_ref_t, reject_ref_t)> cb) {
+        promise(const std::shared_ptr<context> &ctx, std::move_only_function<void(resolve_t, reject_t)> cb) {
             this->data = std::make_shared<data_t>(data_t{as_threadpool(ctx), std::move(cb), nullptr, nullptr});
             this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::false_type>)
-        promise(const std::shared_ptr<threadpool<task>> &taskpool, std::move_only_function<void(resolve_ref_t, reject_ref_t)> cb) {
+        promise(const std::shared_ptr<threadpool<task>> &taskpool, std::move_only_function<void(resolve_t, reject_t)> cb) {
             this->data = std::make_shared<data_t>(data_t{taskpool, std::move(cb), nullptr, nullptr});
             this->data->ready = std::make_unique<std::atomic<bool>>(false);
         }

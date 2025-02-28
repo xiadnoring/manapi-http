@@ -143,6 +143,8 @@ namespace manapi::net {
         static std::size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata);
         static std::size_t curl_write_handler (char *buffer, size_t size, size_t nitems, void *user_p);
         static std::size_t curl_read_handler (char *buffer, std::size_t size, std::size_t nitems, void *user_p);
+        static object_pool<bytebuffer> bufferpool;
+
         void setup_parallel_task ();
         void _default_setup_curl ();
 

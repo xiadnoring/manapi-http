@@ -1,5 +1,4 @@
 #pragma once
-
 #include <mutex>
 
 #include "ManapiChain.hpp"
@@ -74,6 +73,14 @@ namespace manapi {
             this->data = std::make_shared<typename object_item_pool<T, Args...>::data_t>(std::tuple<Args...> (args...));
         }
 
+        void reserve (const std::size_t &size) {
+            constexpr size_t n = std::tuple_size_v<std::tuple<Args...>>;
+
+            while (this->data->objects.size() < size) {
+                this->data->objects.push_back(this->make_unique_(this->data->args, std::make_index_sequence<n>{}));
+            }
+        }
+
         object_item_pool<T, Args...> get () {
             std::unique_lock <std::mutex> lk (this->data->mx);
 
@@ -95,7 +102,13 @@ namespace manapi {
             this->data->objects.push_back(std::move(item));
         }
 
+        static void internal_ret (std::shared_ptr<typename object_item_pool<T, Args...>::data_t> data, std::unique_ptr<T> item) {
+            item->reinit();
+            std::lock_guard<std::mutex> lk (data->mx);
+            data->objects.push_back(std::move(item));
+        }
     private:
+
         template <size_t... Idx>
         std::unique_ptr<T> make_unique_ (std::tuple<Args...> tuple, std::index_sequence<Idx...>) {
             return std::make_unique<T>(std::get<Idx>(tuple)...);
@@ -106,8 +119,7 @@ namespace manapi {
     template<typename T, typename ... Args>
     manapi::object_item_pool<T, Args...> & manapi::object_item_pool<T, Args...>::operator=(nullptr_t) {
         if (this->object && this->data) {
-            std::lock_guard<std::mutex> lk (this->data->mx);
-            this->data->objects.push_back(std::move(this->object));
+            object_pool<T, Args...>::internal_ret(std::move(this->data), std::move(this->object));
         }
         return *this;
     }
@@ -115,8 +127,7 @@ namespace manapi {
     template<typename T, typename ... Args>
     manapi::object_item_pool<T, Args...>::~object_item_pool() {
         if (this->object && this->data) {
-            std::lock_guard<std::mutex> lk (this->data->mx);
-            this->data->objects.push_back(std::move(this->object));
+            object_pool<T, Args...>::internal_ret(std::move(this->data), std::move(this->object));
         }
     }
 }

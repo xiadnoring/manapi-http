@@ -21,7 +21,7 @@ manapi::future<void> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_
     this->parse_vars = parse_vars_t{};
 
     if (!this->request_data.buffer) {
-        this->request_data.buffer = http::pool::bufferpool.get();
+        this->request_data.buffer = this->site.bufferpool().get();
     }
 
     this->request_data.buffer->resize(this->config->buffer_size());

@@ -101,7 +101,7 @@ int main () {
     });
 
     router->GET ("/test", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        co_return resp.json({{"hello", "world"}, {"auaai", 78}});
+        co_return resp.json({{"hello", "world"}, {"auaai", 78}, {"hello2", nullptr}});
     });
 
     router->POST ("/test", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {

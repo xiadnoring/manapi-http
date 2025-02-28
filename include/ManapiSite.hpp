@@ -99,6 +99,8 @@ namespace manapi::net {
 
         std::string config_cache_dir;
         async::mutex cache_config_mx;
+
+        object_pool<bytebuffer, std::size_t> &bufferpool();
     protected:
         void setup ();
         void setup_config ();
@@ -108,6 +110,7 @@ namespace manapi::net {
         std::shared_ptr<async::context> ctx;
         manapi::json config;
         std::mutex loopmx;
+        object_pool<bytebuffer, std::size_t> bufferpool_{};
     private:
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);

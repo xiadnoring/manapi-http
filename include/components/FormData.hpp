@@ -80,9 +80,6 @@ namespace manapi::net {
         ssize_t *body_buffer_size;
         ssize_t *body_max_size_left;
         ssize_t *body_index;
-
-        object_item_pool<manapi::bytebuffer> parallel_buffer{};
-        std::unique_ptr<async::parallel_run<void>> parallel_task{nullptr};
     };
 
     class formdata_send {

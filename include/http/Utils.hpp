@@ -60,7 +60,7 @@ namespace manapi::net::http {
 
         bool has_body    = false;
 
-        object_item_pool<bytebuffer> buffer{};
+        object_item_pool<bytebuffer, std::size_t> buffer{};
     };
 
     struct replace_founded_item {
@@ -77,12 +77,4 @@ namespace manapi::net::http {
     std::string stringify_header (const std::pair<std::string, std::string> &header);
     std::string stringify_header_value (const std::vector <header_value_t> &header_value);
     future<std::vector <replace_founded_item>> found_replacers_in_file (const std::shared_ptr<async::context> &ctx, const std::string &path, const ssize_t &start, const size_t &size, const std::map<std::string, std::string> &replacers);
-
-    namespace pool {
-        inline manapi::object_pool<bytebuffer> bufferpool{};
-        inline manapi::object_pool<manapi::async::mutex, std::shared_ptr<manapi::async::context>> mxpool{};
-        inline manapi::object_pool<manapi::async::condition_variable, std::shared_ptr<manapi::async::context>> cvpool{};
-
-        void init (const std::shared_ptr<manapi::async::context> &ctx);
-    }
 }

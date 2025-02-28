@@ -40,12 +40,12 @@ namespace manapi::net::http {
         static std::set<std::string> methods;
         http::request_data_t request_data;
 
-        object_item_pool<bytebuffer> buffer{};
+        object_item_pool<bytebuffer, std::size_t> buffer{};
     protected:
-        std::shared_ptr<manapi::net::http::config> config;
-        std::shared_ptr<manapi::net::worker::base> worker;
+        std::shared_ptr<manapi::net::http::config> config{nullptr};
+        std::shared_ptr<manapi::net::worker::base> worker{nullptr};
         manapi::net::site &site;
 
-        std::function<void(char&)> current, next;
+        std::function<void(char&)> current{nullptr}, next{nullptr};
     };
 }

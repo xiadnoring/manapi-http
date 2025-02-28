@@ -11,6 +11,8 @@ struct curl_data_t {
     manapi::net::fetch *fetch;
 };
 
+manapi::object_pool<manapi::bytebuffer> manapi::net::fetch::bufferpool {};
+
 size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata)
 {
     auto &f = *static_cast <curl_data_t *> (userdata)->fetch;
@@ -455,7 +457,7 @@ manapi::future<manapi::json> manapi::net::fetch::json() {
 
 void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler) {
     if (!this->data->async_buffer) {
-        this->data->async_buffer = manapi::net::http::pool::bufferpool.get();
+        this->data->async_buffer = fetch::bufferpool.get();
     }
     this->data->async_buffer->resize(65536);
     this->data->sync_user_body_cb.reset();
@@ -615,7 +617,7 @@ void manapi::net::fetch::set_async_body(std::move_only_function<manapi::future<s
     this->body = BODY_CALLBACK;
 
     if (!this->data->async_buffer) {
-        this->data->async_buffer = manapi::net::http::pool::bufferpool.get();
+        this->data->async_buffer = fetch::bufferpool.get();
     }
     this->data->async_buffer->resize(65536);
     this->data->async_buffer_cursor = 0;

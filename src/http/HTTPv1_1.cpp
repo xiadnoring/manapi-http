@@ -22,7 +22,7 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
     this->request_data.body_index = 0;
 
     if (!this->buffer) {
-        this->buffer = http::pool::bufferpool.get();
+        this->buffer = this->site.bufferpool().get();
     }
 
     this->buffer->resize(this->config->buffer_size().load());

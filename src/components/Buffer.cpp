@@ -80,6 +80,10 @@ void manapi::bytebuffer::clear() {
     this->reserved = 0;
 }
 
+void manapi::bytebuffer::reinit() {
+    this->resize(0);
+}
+
 void * manapi::bytebuffer::release() {
     this->s = 0;
     this->reserved = 0;

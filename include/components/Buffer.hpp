@@ -23,6 +23,7 @@ namespace manapi {
         [[nodiscard]] std::size_t size () const;
         void resize (std::size_t s);
         void clear ();
+        void reinit ();
         void *release ();
         [[nodiscard]] bool empty () const;
     private:

@@ -82,10 +82,16 @@ namespace manapi::async {
     }
 
     template<typename T>
-    inline std::invoke_result_t <T> invoke (T executer) {
+    std::invoke_result_t <T> invoke (T executer) {
         auto cb (std::forward<decltype(executer)>(executer));
         co_return co_await cb();
-    };
+    }
+
+    template<typename T, typename ...Args>
+    std::invoke_result_t <T> invoke (T executer, Args &&...args) {
+        auto cb (std::forward<decltype(executer)>(executer));
+        co_return co_await cb(args...);
+    }
 
     inline void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::function<void()> onfinish) {
         const size_t index = async::_run_prepare(taskpool, task, std::move(onfinish));

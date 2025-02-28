@@ -46,6 +46,6 @@ namespace manapi::net::http {
         std::shared_ptr<manapi::net::worker::base> worker;
         std::shared_ptr<manapi::net::http::config> config;
         manapi::net::site &site;
-        object_item_pool<bytebuffer> buffer{};
+        object_item_pool<bytebuffer, std::size_t> buffer{};
     };
 }

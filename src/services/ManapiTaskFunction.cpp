@@ -17,7 +17,6 @@ manapi::net::function_task & manapi::net::function_task::operator=(function_task
 
 void manapi::net::function_task::doit() {
     if (this->func) {
-        auto cb = std::move(this->func);
-        cb();
+        this->func();
     }
 }

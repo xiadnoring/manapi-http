@@ -17,7 +17,7 @@ manapi::net::http::HeaderView::HeaderView(std::shared_ptr<worker::connection> co
     : worker(std::move(worker)), config(std::move(config)), site(site) {
     this->connection = std::move(connection);
 
-    this->buffer = manapi::net::http::pool::bufferpool.get();
+    this->buffer = this->site.bufferpool().get();
 }
 
 manapi::net::http::HeaderView::~HeaderView() {}
