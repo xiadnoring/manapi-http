@@ -34,16 +34,16 @@ namespace manapi {
         typedef std::set <std::pair <std::chrono::steady_clock::time_point, size_t>, sorted_tasks_compare_t> sorted_storage;
         explicit timerpool(std::shared_ptr<event_loop> events, const double &delay = 0.01);
         ~timerpool();
-        future<manapi::timer> async_append_timer_sync (size_t ms, std::function<void(manapi::timer t)> task);
-        future<manapi::timer> async_append_timer_async (size_t ms, std::function<future<void>(manapi::timer t)> task);
-        manapi::timer append_timer_sync (size_t ms, std::function<void(manapi::timer t)> task);
-        manapi::timer append_timer_async (size_t ms, std::function<manapi::future<>(manapi::timer t)> task);
+        future<manapi::timer> async_append_timer_sync (size_t ms, std::move_only_function<void(manapi::timer t)> task);
+        future<manapi::timer> async_append_timer_async (size_t ms, std::move_only_function<future<void>(manapi::timer t)> task);
+        manapi::timer append_timer_sync (size_t ms, std::move_only_function<void(manapi::timer t)> task);
+        manapi::timer append_timer_async (size_t ms, std::move_only_function<manapi::future<>(manapi::timer t)> task);
         future<void> async_remove_timer (size_t id);
         void remove_timer (size_t id);
-        future<manapi::timer> async_append_interval_sync (size_t ms, std::function<void(manapi::timer t)> task);
-        future<manapi::timer> async_append_interval_async (size_t ms, std::function<future<>(manapi::timer t)> task);
-        manapi::timer append_interval_async (size_t ms, std::function<manapi::future<>(manapi::timer t)> task);
-        manapi::timer append_interval_sync (size_t ms, std::function<void(manapi::timer t)> task);
+        future<manapi::timer> async_append_interval_sync (size_t ms, std::move_only_function<void(manapi::timer t)> task);
+        future<manapi::timer> async_append_interval_async (size_t ms, std::move_only_function<future<>(manapi::timer t)> task);
+        manapi::timer append_interval_async (size_t ms, std::move_only_function<manapi::future<>(manapi::timer t)> task);
+        manapi::timer append_interval_sync (size_t ms, std::move_only_function<void(manapi::timer t)> task);
         future<void> start (std::shared_ptr<timerpool> tp);
         future<void> stop ();
         void doit ();
@@ -54,17 +54,17 @@ namespace manapi {
         void _erase_task (const size_t &id);
         storage::iterator _erase_task (storage::iterator task);
         sorted_storage::iterator _erase_task (sorted_storage::iterator sorted_task);
-        void _async_call_cb (storage::iterator task, std::shared_ptr<std::function<future<void>()>> cb);
+        void _async_call_cb (storage::iterator task, std::shared_ptr<std::move_only_function<future<void>()>> cb);
         void _start ();
         void flush_stack_free ();
-        std::function<void()> sleep ();
+        std::move_only_function<void()> sleep ();
         // wait while deps being exists
         std::atomic <size_t> deps;
         std::shared_ptr<async::condition_variable> cv;
         manapi::chain<size_t> prepare_remove;
 
         void _update_interval_state (const size_t& id);
-        manapi::timer _append (std::chrono::milliseconds duration, std::function<future<>(manapi::timer t)> async_task, std::function<void(manapi::timer t)> task,  bool inteval);
+        manapi::timer _append (std::chrono::milliseconds duration, std::move_only_function<future<>(manapi::timer t)> async_task, std::move_only_function<void(manapi::timer t)> task,  bool inteval);
         sorted_storage sorted_tasks;
         storage tasks{};
         std::shared_ptr<event_loop> events{nullptr};

@@ -49,7 +49,7 @@ namespace manapi::async {
         template<typename T1 = T>
         requires(!std::is_same_v<T1, void>)
         [[nodiscard]] manapi::future<T1> get_or (T1 &&v) const;
-
+        manapi::future<void> async_run_with_prepare(std::move_only_function<manapi::future<T>()> task, std::move_only_function<void()> cb);
     private:
         std::shared_ptr<value_t> value{nullptr};
         std::shared_ptr<async::mutex> mx;
@@ -87,6 +87,19 @@ namespace manapi::async {
         co_await this->mx->lock_guard();
         this->value = std::make_shared<value_t>();
         auto taskrun = this->value->run(std::move(task));
+        async::run(this->ctx->taskpool(), std::move(taskrun),
+        [mx = this->mx, value = this->value] ()
+            -> void {
+            mx->unlock();
+        });
+    }
+
+    template<typename T>
+    manapi::future<void> parallel_run<T>::async_run_with_prepare(std::move_only_function<manapi::future<T>()> task, std::move_only_function<void()> cb) {
+        co_await this->mx->lock_guard();
+        cb();
+        this->value = std::make_shared<value_t>();
+        auto taskrun = this->value->run(invoke(std::move(task)));
         async::run(this->ctx->taskpool(), std::move(taskrun),
         [mx = this->mx, value = this->value] ()
             -> void {

@@ -1,4 +1,7 @@
 #pragma once
+
+#include <mutex>
+
 #include "ManapiChain.hpp"
 
 namespace manapi {

@@ -74,6 +74,15 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) {
     this->async_watcher.adding_watcher_async->start();
     this->timer_watcher.adding_timer_async->start();
     this->curl_watcher.adding_curl_multi_async->start();
+
+    /* curl fetch timeout */
+    this->curl_watcher.timeout_watcher = create_watcher_timer(0.5, 0.0, [this] (ev::timer &w, int revents) -> void {
+        this->curl_watcher.adding_curl_multi_async->send();
+
+        w.repeat = 0.5;
+        w.again();
+    });
+    this->curl_watcher.timeout_watcher->start();
 }
 
 manapi::event_loop::~event_loop() {
@@ -145,7 +154,7 @@ manapi::future<> manapi::event_loop::stop() {
     }
 }
 
-manapi::future<size_t> manapi::event_loop::subscribe_finish(std::function<manapi::future<void>()> cb) {
+manapi::future<size_t> manapi::event_loop::subscribe_finish(std::move_only_function<manapi::future<void>()> cb) {
     auto lk = co_await this->mx->lock_guard();
 
     auto id = *reinterpret_cast<const size_t *> (&cb);
@@ -170,7 +179,7 @@ ev::loop_ref manapi::event_loop::get_loop() {
 manapi::future<> manapi::event_loop::_call_and_free_on_finish_cb() {
     while (!this->map_finish_cb.empty()) {
         const auto it = this->map_finish_cb.begin();
-        co_await async::invoke(it->second);
+        co_await async::invoke(std::move(it->second));
         //this->map_finish_cb.erase(it);
     }
 }
@@ -217,7 +226,7 @@ void manapi::event_loop::custom_watcher_fd_async(ev::async &w, int revents) {
     }
 }
 
-manapi::future<> manapi::event_loop::custom_callback(std::function<void()> cb) {
+manapi::future<> manapi::event_loop::custom_callback(std::move_only_function<void()> cb) {
 
     co_await async::promise<void> (this->taskpool, [&](async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> manapi::future<> {
         auto data = std::make_unique<adding_custom_callback_data_t>(std::move(cb), std::move(resolve), std::move(reject));
@@ -288,23 +297,10 @@ void manapi::event_loop::custom_watcher_curl_async(ev::async &w, int revents) {
     int maxfd = -1;
 
     if (running_handles) {
-        if (this->curl_watcher.timeout_watcher) {
-            this->stop_watcher(std::move(this->curl_watcher.timeout_watcher));
-        }
         mcode = curl_multi_fdset(this->curl_watcher.curl_multi.get(), &fd_read, &fd_write, &fd_exc, &maxfd);
 
         if (mcode != CURLM_OK) {
             return;
-        }
-
-        if (maxfd == -1) {
-            /* 100ms */
-            this->curl_watcher.timeout_watcher = create_watcher_timer(0.1, 0.0, [this] (ev::timer &w, int revents) -> void {
-                this->curl_watcher.adding_curl_multi_async->send();
-                this->stop_watcher(std::move(this->curl_watcher.timeout_watcher));
-            });
-
-            this->curl_watcher.timeout_watcher->start();
         }
     }
 
@@ -323,7 +319,7 @@ void manapi::event_loop::custom_watcher_curl_async(ev::async &w, int revents) {
             if(data.empty()) {
                 continue;
             }
-            this->taskpool->append_task([result = msg->data.result, resolve = std::move(data.mapped())] ()
+            this->taskpool->append_task([result = msg->data.result, resolve = std::move(data.mapped())] () mutable
                 -> void { resolve(result); });
         }
     }
@@ -458,7 +454,7 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
                 -> void { reject(std::move(err)); });
         }
         else {
-            this->taskpool->append_task([resolve1 = std::move(data->resolve), resolve2 = std::move(curl_data.mapped())] ()
+            this->taskpool->append_task([resolve1 = std::move(data->resolve), resolve2 = std::move(curl_data.mapped())] () mutable
                 -> void { resolve1 (); resolve2(CURLE_OPERATION_TIMEDOUT); });
         }
     }
@@ -568,7 +564,7 @@ manapi::future<> manapi::event_loop::_template_cmd_watcher(std::unique_ptr<addin
     });
 }
 
-manapi::future<> manapi::event_loop::_template_cmd_curl(int flag, CURL *curl, std::function<void(CURLcode result)> cb) {
+manapi::future<> manapi::event_loop::_template_cmd_curl(int flag, CURL *curl, std::move_only_function<void(CURLcode result)> cb) {
     co_await async::promise<void> (this->taskpool, [&] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
         bool flg = true;
 
@@ -603,7 +599,7 @@ manapi::future<> manapi::event_loop::_template_cmd_curl(int flag, CURL *curl, st
     });
 }
 
-manapi::future<std::optional<manapi::timer>> manapi::event_loop::_template_cmd_timer(int flag, size_t data, std::function<manapi::future<>(manapi::timer t)> cb_async, std::function<void(manapi::timer t)> cb_sync) {
+manapi::future<std::optional<manapi::timer>> manapi::event_loop::_template_cmd_timer(int flag, size_t data, std::move_only_function<manapi::future<>(manapi::timer t)> cb_async, std::move_only_function<void(manapi::timer t)> cb_sync) {
 
     co_return co_await async::promise<std::optional<manapi::timer>> (this->taskpool, [&] (async::promise<std::optional<manapi::timer>>::resolve_t resolve, async::promise<std::optional<manapi::timer>>::reject_t reject) -> future<void> {
         auto data1 = std::make_unique<adding_timer_data_t>(
@@ -640,7 +636,7 @@ manapi::future<std::optional<manapi::timer>> manapi::event_loop::_template_cmd_t
     });
 }
 
-manapi::future<std::shared_ptr<ev::io>> manapi::event_loop::watch_fd(int fd, int flags, std::function<void(ev::io &w, int revents)> callback, int priority) {
+manapi::future<std::shared_ptr<ev::io>> manapi::event_loop::watch_fd(int fd, int flags, std::move_only_function<void(ev::io &w, int revents)> callback, int priority) {
     auto w = this->create_watcher_fd(fd, flags, std::move(callback), priority);
 
     auto data = std::make_unique<adding_watcher_data_t>(
@@ -663,7 +659,7 @@ manapi::future<> manapi::event_loop::unwatch_fd(std::shared_ptr<ev::io> w) {
     return _template_cmd_watcher(std::move(data));
 }
 
-manapi::future<std::shared_ptr<ev::async>> manapi::event_loop::watch_async(std::function<void(ev::async &w, int revents)> callback) {
+manapi::future<std::shared_ptr<ev::async>> manapi::event_loop::watch_async(std::move_only_function<void(ev::async &w, int revents)> callback) {
     auto w = this->create_watcher_async(std::move(callback));
     auto data = std::make_unique<adding_watcher_data_t>(
         1,
@@ -741,7 +737,7 @@ std::shared_ptr<manapi::threadpool<manapi::task>> manapi::event_loop::get_task_p
     return this->taskpool;
 }
 
-manapi::future<> manapi::event_loop::watch_curl(CURL *curl, std::function<void(CURLcode result)> cb) {
+manapi::future<> manapi::event_loop::watch_curl(CURL *curl, std::move_only_function<void(CURLcode result)> cb) {
     return this->_template_cmd_curl(0, curl, std::move(cb));
 }
 
@@ -757,23 +753,23 @@ manapi::future<> manapi::event_loop::unpause_watch_curl(CURL *curl) {
     return this->_template_cmd_curl(3, curl);
 }
 
-manapi::future<> manapi::event_loop::custom_cb_curl(CURL *curl, std::function<void(CURLcode result)> cb) {
+manapi::future<> manapi::event_loop::custom_cb_curl(CURL *curl, std::move_only_function<void(CURLcode result)> cb) {
     return this->_template_cmd_curl(4, curl, std::move(cb));
 }
 
-manapi::future<manapi::timer> manapi::event_loop::append_async_timer(size_t time, std::function<manapi::future<>(manapi::timer t)> cb) {
+manapi::future<manapi::timer> manapi::event_loop::append_async_timer(size_t time, std::move_only_function<manapi::future<>(manapi::timer t)> cb) {
     co_return std::move((co_await this->_template_cmd_timer (0, time, std::move(cb), nullptr)).value());
 }
 
-manapi::future<manapi::timer> manapi::event_loop::append_sync_timer(size_t time, std::function<void(manapi::timer t)> cb) {
+manapi::future<manapi::timer> manapi::event_loop::append_sync_timer(size_t time, std::move_only_function<void(manapi::timer t)> cb) {
     co_return std::move((co_await this->_template_cmd_timer (0, time, nullptr, std::move(cb))).value());
 }
 
-manapi::future<manapi::timer> manapi::event_loop::append_async_interval(size_t time, std::function<manapi::future<>(manapi::timer t)> cb) {
+manapi::future<manapi::timer> manapi::event_loop::append_async_interval(size_t time, std::move_only_function<manapi::future<>(manapi::timer t)> cb) {
     co_return std::move((co_await this->_template_cmd_timer (1, time, std::move(cb), nullptr)).value());
 }
 
-manapi::future<manapi::timer> manapi::event_loop::append_sync_interval(size_t time, std::function<void(manapi::timer t)> cb) {
+manapi::future<manapi::timer> manapi::event_loop::append_sync_interval(size_t time, std::move_only_function<void(manapi::timer t)> cb) {
     co_return std::move((co_await this->_template_cmd_timer (1, time, nullptr, std::move(cb))).value());
 }
 
@@ -785,7 +781,7 @@ manapi::future<> manapi::event_loop::remove_timer(size_t id) {
     co_await this->_template_cmd_timer (2, id, nullptr, nullptr);
 }
 
-void manapi::event_loop::set_timer_callback(std::function<std::optional<manapi::timer>(adding_timer_data_t data)> cb) {
+void manapi::event_loop::set_timer_callback(std::move_only_function<std::optional<manapi::timer>(adding_timer_data_t data)> cb) {
     this->timer_watcher.external_cb = std::move(cb);
 }
 
@@ -807,7 +803,7 @@ void manapi::event_loop::interrupt() {
     }
 }
 
-std::shared_ptr<ev::io> manapi::event_loop::create_watcher_fd(int fd, int flags, std::function<void(ev::io &w, int revents)> callback, int priority) {
+std::shared_ptr<ev::io> manapi::event_loop::create_watcher_fd(int fd, int flags, std::move_only_function<void(ev::io &w, int revents)> callback, int priority) {
     auto w = std::make_shared<ev::io>(this->loop);
     ev_io_init(w.get(), (_ev_custom_watcher <ev_io, ev::io>), fd, flags);
     w->priority = priority;
@@ -815,14 +811,14 @@ std::shared_ptr<ev::io> manapi::event_loop::create_watcher_fd(int fd, int flags,
     return std::move(w);
 }
 
-std::shared_ptr<ev::async> manapi::event_loop::create_watcher_async(std::function<void(ev::async &w, int revents)> callback) {
+std::shared_ptr<ev::async> manapi::event_loop::create_watcher_async(std::move_only_function<void(ev::async &w, int revents)> callback) {
     auto w = std::make_shared<ev::async>(this->loop);
     ev_async_init(w.get(), (_ev_custom_watcher<ev_async, ev::async>));
     w->data = new custom_watcher_data_t<ev::async> {.w = w, .cb = std::move(callback)};
     return std::move(w);
 }
 
-std::shared_ptr<ev::timer> manapi::event_loop::create_watcher_timer(const float &duration, const int &repeat, std::function<void(ev::timer &w, int revents)> callback) {
+std::shared_ptr<ev::timer> manapi::event_loop::create_watcher_timer(const float &duration, const int &repeat, std::move_only_function<void(ev::timer &w, int revents)> callback) {
     auto w = std::make_shared<ev::timer>(this->loop);
     ev_timer_init(w.get(), (_ev_custom_watcher <ev_timer, ev::timer>), duration, repeat);
     w->data = new custom_watcher_data_t<ev::timer> {.w = w, .cb = std::move(callback)};

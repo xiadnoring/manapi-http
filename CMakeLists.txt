@@ -255,6 +255,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/components/Buffer.cpp
         include/components/ObjectPool.hpp
         src/worker/Tools.cpp
+        include/components/ManapiFileTransferInfo.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

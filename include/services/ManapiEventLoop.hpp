@@ -38,20 +38,20 @@ namespace manapi {
     struct adding_curl_data_t {
         int flag{0};
         CURL* curl{nullptr};
-        std::function<void(CURLcode result)> finish{nullptr};
+        std::move_only_function<void(CURLcode result)> finish{nullptr};
         async::promise<void>::resolve_t resolve{nullptr};
         async::promise<void>::reject_t reject{nullptr};
     };
     struct adding_timer_data_t {
         int flag{0};
         size_t data{0};
-        std::function<void(manapi::timer t)> sync_cb{nullptr};
-        std::function<manapi::future<>(manapi::timer t)> async_cb{nullptr};
+        std::move_only_function<void(manapi::timer t)> sync_cb{nullptr};
+        std::move_only_function<manapi::future<>(manapi::timer t)> async_cb{nullptr};
         async::promise<std::optional<manapi::timer>>::resolve_t resolve{nullptr};
         async::promise<std::optional<manapi::timer>>::reject_t reject{nullptr};
     };
     struct adding_custom_callback_data_t {
-        std::function<void()> cb;
+        std::move_only_function<void()> cb;
         async::promise<void, std::false_type>::resolve_t resolve{nullptr};
         async::promise<void, std::false_type>::reject_t reject{nullptr};
     };
@@ -66,7 +66,7 @@ namespace manapi {
         template<class ev_>
         struct custom_watcher_data_t {
             std::shared_ptr<ev_> w;
-            std::function<void(ev_ &w, int revents)> cb;
+            std::move_only_function<void(ev_ &w, int revents)> cb;
         };
     public:
         explicit event_loop(std::shared_ptr<threadpool<task>> taskpool);
@@ -79,14 +79,14 @@ namespace manapi {
 
         manapi::future<> stop ();
 
-        manapi::future<size_t> subscribe_finish (std::function<manapi::future<void>()> cb);
+        manapi::future<size_t> subscribe_finish (std::move_only_function<manapi::future<void>()> cb);
         manapi::future<> unsubscribe_finish (const size_t &id);
 
         ev::loop_ref get_loop();
 
-        std::shared_ptr<ev::io> create_watcher_fd (int fd, int flags, std::function<void(ev::io &w, int revents)> callback, int priority = 0);
-        std::shared_ptr<ev::async> create_watcher_async (std::function<void(ev::async &w, int revents)> callback);
-        std::shared_ptr<ev::timer> create_watcher_timer (const float &after, const int &repeat, std::function<void(ev::timer &w, int revents)> callback);
+        std::shared_ptr<ev::io> create_watcher_fd (int fd, int flags, std::move_only_function<void(ev::io &w, int revents)> callback, int priority = 0);
+        std::shared_ptr<ev::async> create_watcher_async (std::move_only_function<void(ev::async &w, int revents)> callback);
+        std::shared_ptr<ev::timer> create_watcher_timer (const float &after, const int &repeat, std::move_only_function<void(ev::timer &w, int revents)> callback);
 
         template<typename T>
         void stop_watcher (T &w);
@@ -94,10 +94,10 @@ namespace manapi {
         template<typename T>
         void stop_watcher (std::shared_ptr<T> w);
 
-        future<std::shared_ptr<ev::io>> watch_fd (int fd, int flags, std::function<void(ev::io &w, int revents)> callback, int priority = 0);
+        future<std::shared_ptr<ev::io>> watch_fd (int fd, int flags, std::move_only_function<void(ev::io &w, int revents)> callback, int priority = 0);
         future<void> unwatch_fd (std::shared_ptr<ev::io> w);
 
-        future<std::shared_ptr<ev::async>> watch_async (std::function<void(ev::async &w, int revents)> callback);
+        future<std::shared_ptr<ev::async>> watch_async (std::move_only_function<void(ev::async &w, int revents)> callback);
         future<void> unwatch_async (std::shared_ptr<ev::async> w);
         future<void> unwatch_timer (std::shared_ptr<ev::timer> w);
 
@@ -109,22 +109,22 @@ namespace manapi {
 
         [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
 
-        future<void> watch_curl (CURL *curl, std::function<void(CURLcode result)> cb);
+        future<void> watch_curl (CURL *curl, std::move_only_function<void(CURLcode result)> cb);
         future<void> unwatch_curl (CURL *curl);
         future<void> unpause_watch_curl (CURL *curl);
         future<void> pause_watch_curl (CURL *curl);
-        future<void> custom_cb_curl (CURL *curl, std::function<void(CURLcode result)> cb);
+        future<void> custom_cb_curl (CURL *curl, std::move_only_function<void(CURLcode result)> cb);
 
-        future<void> custom_callback (std::function<void()> cb);
+        future<void> custom_callback (std::move_only_function<void()> cb);
 
-        future<manapi::timer> append_async_timer (size_t time, std::function<manapi::future<>(manapi::timer t)> cb);
-        future<manapi::timer> append_sync_timer (size_t time, std::function<void(manapi::timer t)> cb);
-        future<manapi::timer> append_async_interval (size_t time, std::function<manapi::future<>(manapi::timer t)> cb);
-        future<manapi::timer> append_sync_interval (size_t time, std::function<void(manapi::timer t)> cb);
+        future<manapi::timer> append_async_timer (size_t time, std::move_only_function<manapi::future<>(manapi::timer t)> cb);
+        future<manapi::timer> append_sync_timer (size_t time, std::move_only_function<void(manapi::timer t)> cb);
+        future<manapi::timer> append_async_interval (size_t time, std::move_only_function<manapi::future<>(manapi::timer t)> cb);
+        future<manapi::timer> append_sync_interval (size_t time, std::move_only_function<void(manapi::timer t)> cb);
         future<void> update_state_interval (size_t id);
         future<void> remove_timer (size_t id);
 
-        void set_timer_callback (std::function<std::optional<manapi::timer>(adding_timer_data_t data)> cb);
+        void set_timer_callback (std::move_only_function<std::optional<manapi::timer>(adding_timer_data_t data)> cb);
 
         static void interrupt ();
     protected:
@@ -156,7 +156,7 @@ namespace manapi {
             manapi::chain<std::unique_ptr<adding_watcher_data_t>> adding_watcher_data{};
             std::shared_ptr<async::mutex> adding_watcher_mx;
             std::shared_ptr <ev::async> adding_watcher_async;
-            std::function<void()> adding_watcher_async_cb{nullptr};
+            std::move_only_function<void()> adding_watcher_async_cb{nullptr};
             std::deque<async_watcher_data_cached_t> watcher_data_cached{};
         };
         struct curl_watcher_t {
@@ -165,9 +165,9 @@ namespace manapi {
             std::shared_ptr<ev::async> adding_curl_multi_async{nullptr};
             manapi::chain<std::unique_ptr<adding_curl_data_t>> adding_curl_data{};
 
-            std::function<void()> adding_curl_async_cb{nullptr};
+            std::move_only_function<void()> adding_curl_async_cb{nullptr};
             std::queue<std::shared_ptr<ev::io>> curl_fds{};
-            std::map<CURL*, std::function<void(CURLcode result)>> curl_res{};
+            std::map<CURL*, std::move_only_function<void(CURLcode result)>> curl_res{};
             std::shared_ptr<ev::timer> timeout_watcher{nullptr};
             std::deque<curl_watcher_data_cached_t> watcher_data_cached{};
         };
@@ -175,15 +175,15 @@ namespace manapi {
             manapi::chain<std::unique_ptr<adding_timer_data_t>> adding_timer_data{};
             std::shared_ptr<async::mutex> adding_timer_mx;
             std::shared_ptr <ev::async> adding_timer_async;
-            std::function<void()> adding_timer_async_cb{nullptr};
-            std::function<std::optional<manapi::timer>(adding_timer_data_t data)> external_cb;
+            std::move_only_function<void()> adding_timer_async_cb{nullptr};
+            std::move_only_function<std::optional<manapi::timer>(adding_timer_data_t data)> external_cb;
             std::deque<timer_watcher_data_cached_t> watcher_data_cached{};
         };
         struct custom_callback_t {
             manapi::chain<std::unique_ptr<adding_custom_callback_data_t>> callback_data{};
             std::shared_ptr<async::mutex> adding_mx;
             std::shared_ptr <ev::async> adding_async;
-            std::function<void()> adding_async_cb{nullptr};
+            std::move_only_function<void()> adding_async_cb{nullptr};
             std::deque<callback_watcher_data_cached_t> watcher_data_cached{};
         };
 
@@ -195,8 +195,8 @@ namespace manapi {
         void handle_curl_watcher_data (std::unique_ptr<adding_curl_data_t> data);
         void handle_async_watcher_data (std::unique_ptr<adding_watcher_data_t> data);
         future<void> _template_cmd_watcher (std::unique_ptr<adding_watcher_data_t> data);
-        future<void> _template_cmd_curl (int flag, CURL *curl, std::function<void(CURLcode result)> cb = nullptr);
-        future<std::optional<manapi::timer>> _template_cmd_timer (int flag, size_t data, std::function<manapi::future<>(manapi::timer t)> cb_async, std::function<void(manapi::timer t)> cb_sync);
+        future<void> _template_cmd_curl (int flag, CURL *curl, std::move_only_function<void(CURLcode result)> cb = nullptr);
+        future<std::optional<manapi::timer>> _template_cmd_timer (int flag, size_t data, std::move_only_function<manapi::future<>(manapi::timer t)> cb_async, std::move_only_function<void(manapi::timer t)> cb_sync);
         static std::atomic<bool> interrupted;
         static std::map <size_t, std::shared_ptr<event_loop>> events;
         static std::mutex stop_mx;
@@ -216,7 +216,7 @@ namespace manapi {
         std::thread::id loop_thread_id{0};
 #endif
         std::shared_ptr<threadpool<task>> taskpool;
-        std::map <size_t, std::function<manapi::future<void>()>> map_finish_cb;
+        std::map <size_t, std::move_only_function<manapi::future<void>()>> map_finish_cb;
         std::shared_ptr<ev::async> _stop_watcher{nullptr};
         async::promise<void>::resolve_t resolve_stop{nullptr};
         std::atomic<bool> loop_interrupted;

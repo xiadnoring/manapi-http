@@ -62,6 +62,9 @@ manapi::future<> manapi::net::formdata_recv::_init(bool has_body, const std::str
             THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_BOUNDARY_MISSING, "{}", "boundary not found");
         }
 
+        this->parallel_buffer = manapi::net::http::pool::bufferpool.get();
+        this->parallel_buffer->resize(this->buffer_size);
+        this->parallel_task = std::make_unique<manapi::async::parallel_run<>>(this->ctx);
         this->body_boundary = SPECIAL_SYMBOLS_BOUNDARY + header[0].params.at("boundary");
 
         this->buff_extra = {};
@@ -104,6 +107,13 @@ bool manapi::net::formdata_recv::next_param() const {
 }
 
 manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::function<manapi::future<>(const char *, ssize_t)> send_line) {
+    // send_line = [this, send_line] (const char *buffer, ssize_t size) -> manapi::future<> {
+    //     return this->parallel_task->async_run_with_prepare(
+    //                         [send_line, this, size] ()
+    //                             -> manapi::future<void> { return send_line (this->parallel_buffer->as<char>(), size); },
+    //                         [this, size, buffer] ()
+    //                             -> void { memcpy(this->parallel_buffer->as<void*>(), buffer, size); });
+    // };
     try {
         bool headers = false;
         bool value = false;
@@ -124,8 +134,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
         ssize_t boundary_index = std::exchange(this->first_line, false) * 2;
         ssize_t current_boundary_index = 0;
 
-        for (;; (*this->body_index)++) {
-            repeat:
+        while(true) {
             if (*this->body_index >= *this->body_buffer_size) {
                 if (*this->body_index > checkpoint + current_boundary_index) {
                     if (value) {
@@ -189,6 +198,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                 if (boundary_index) {
                     if (boundary_index < *this->body_index) {
                         if (value) {
+                            goto skip;
                             co_await send_line (this->body_buffer + checkpoint, *this->body_index - checkpoint - boundary_size);
                         }
                         else {
@@ -212,6 +222,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                     }
 
                     checkpoint = *this->body_index;
+                    skip:
                     current_boundary_index = 0;
                     boundary_index = 0;
                 }
@@ -273,10 +284,12 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                             headers = true;
                         }
 
-                        goto repeat;
+                       continue;
                     }
                 }
             }
+
+            (*this->body_index)++;
         }
     }
     catch (std::exception const &e) {
@@ -513,6 +526,8 @@ void manapi::net::formdata_recv::_move(formdata_recv &&n) noexcept {
     this->body_buffer = std::exchange(n.body_buffer, nullptr);
     this->body_buffer_size = std::exchange(n.body_buffer_size, nullptr);
     this->body_read = std::move(n.body_read);
+    this->parallel_task = std::move(n.parallel_task);
+    this->parallel_buffer = std::move(n.parallel_buffer);
 
     switch (this->content_type_form) {
         case CONTENT_TYPE_MULTIPART_FORM_DATA:

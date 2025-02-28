@@ -24,20 +24,20 @@ manapi::timerpool::~timerpool() {
 }
 
 manapi::future<manapi::timer> manapi::timerpool::async_append_timer_sync(
-    size_t ms, std::function<void(manapi::timer t)> task) {
+    size_t ms, std::move_only_function<void(manapi::timer t)> task) {
     return this->events->append_sync_timer(ms, std::move(task));
 }
 
 manapi::future<manapi::timer> manapi::timerpool::async_append_timer_async(
-    size_t ms, std::function<future<void>(manapi::timer t)> task) {
+    size_t ms, std::move_only_function<future<void>(manapi::timer t)> task) {
     return this->events->append_async_timer(ms, std::move(task));
 }
 
-manapi::timer manapi::timerpool::append_timer_sync(size_t ms, std::function<void(manapi::timer t)> task) {
+manapi::timer manapi::timerpool::append_timer_sync(size_t ms, std::move_only_function<void(manapi::timer t)> task) {
     return this->_append(std::chrono::milliseconds(ms), nullptr, std::move(task), false);
 }
 
-manapi::timer manapi::timerpool::append_timer_async(size_t ms, std::function<manapi::future<>(manapi::timer t)> task) {
+manapi::timer manapi::timerpool::append_timer_async(size_t ms, std::move_only_function<manapi::future<>(manapi::timer t)> task) {
     return this->_append(std::chrono::milliseconds(ms), std::move(task), nullptr, false);
 }
 
@@ -54,19 +54,19 @@ void manapi::timerpool::remove_timer(size_t id) {
     this->_erase_task(id);
 }
 
-manapi::future<manapi::timer> manapi::timerpool::async_append_interval_sync( size_t ms, std::function<void(manapi::timer t)> task) {
+manapi::future<manapi::timer> manapi::timerpool::async_append_interval_sync( size_t ms, std::move_only_function<void(manapi::timer t)> task) {
     return this->events->append_sync_interval(ms, std::move(task));
 }
 
-manapi::future<manapi::timer> manapi::timerpool::async_append_interval_async( size_t ms, std::function<future<>(manapi::timer t)> task) {
+manapi::future<manapi::timer> manapi::timerpool::async_append_interval_async( size_t ms, std::move_only_function<future<>(manapi::timer t)> task) {
     return this->events->append_async_interval(ms, std::move(task));
 }
 
-manapi::timer manapi::timerpool::append_interval_async(size_t ms, std::function<manapi::future<>(manapi::timer t)> task) {
+manapi::timer manapi::timerpool::append_interval_async(size_t ms, std::move_only_function<manapi::future<>(manapi::timer t)> task) {
     return this->_append(std::chrono::milliseconds(ms), std::move(task), nullptr, true);
 }
 
-manapi::timer manapi::timerpool::append_interval_sync(size_t ms, std::function<void(manapi::timer t)> task) {
+manapi::timer manapi::timerpool::append_interval_sync(size_t ms, std::move_only_function<void(manapi::timer t)> task) {
     return this->_append(std::chrono::milliseconds(ms), nullptr, std::move(task), true);
 }
 
@@ -246,7 +246,7 @@ void manapi::timerpool::_update_interval_state(const size_t &id) {
     this->sorted_tasks.insert({task->second.point, id});
 }
 
-manapi::timer manapi::timerpool::_append(std::chrono::milliseconds duration, std::function<future<>(manapi::timer t)> async_task, std::function<void(manapi::timer t)> task, bool interval) {
+manapi::timer manapi::timerpool::_append(std::chrono::milliseconds duration, std::move_only_function<future<>(manapi::timer t)> async_task, std::move_only_function<void(manapi::timer t)> task, bool interval) {
     manapi::timer timertask{};
 
     if (task) {
@@ -275,7 +275,7 @@ manapi::timer manapi::timerpool::_append(std::chrono::milliseconds duration, std
 }
 
 void manapi::timerpool::_async_call_cb(std::map<size_t, timer_task>::iterator task,
-    std::shared_ptr<std::function<future<void>()>> cb) {
+    std::shared_ptr<std::move_only_function<future<void>()>> cb) {
     if (task->second.interval) {
         this->deps.fetch_add(1);
         this->taskpool->append_task ([this, id = task->first, cb = std::move(cb)] () mutable -> void {

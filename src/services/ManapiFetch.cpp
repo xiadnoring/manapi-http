@@ -9,35 +9,53 @@
 
 struct curl_data_t {
     manapi::net::fetch *fetch;
-    std::atomic<ssize_t> &total_write;
 };
 
 size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata)
 {
+    auto &f = *static_cast <curl_data_t *> (userdata)->fetch;
+    /**
+     * clear body send callback
+     */
+    f.data->async_buffer_cursor = 0;
+
     std::string str (buffer, size * n_items);
 
     // delete \r\n at the end of the header
     if (str.size() >= 2)
     {
-        // \n
-        str.pop_back();
-        // \r
-        str.pop_back();
+        str.pop_back(); // \n
+        str.pop_back(); // \r
     }
 
     auto header = manapi::net::http::parse_header(str);
-    static_cast <curl_data_t *> (userdata)->fetch->data->headers.insert(std::move(header));
+    f.data->headers.insert(std::move(header));
 
     return n_items * size;
 }
 
-size_t manapi::net::fetch::curl_write_handler (char *buffer, size_t size, size_t n_mem_b, void *user_p)
+size_t manapi::net::fetch::curl_write_handler (char *buffer, size_t size, size_t nitems, void *user_p)
 {
     auto &f = *static_cast <curl_data_t *> (user_p);
-    const auto result = static_cast<ssize_t>(size * n_mem_b);
-    f.total_write.fetch_add(result);
-    // call user handler
-    return static_cast<size_t>(f.fetch->data->handler_body (buffer, result));
+    try {
+        // call user handler
+        return static_cast<size_t>(f.fetch->data->handler_recv_body (buffer, static_cast<ssize_t>(size * nitems)));
+    }
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("noexcept curl_write_handler(...): throw exception: {}", e.what());
+        return -1;
+    }
+}
+
+std::size_t manapi::net::fetch::curl_read_handler(char *buffer, std::size_t size, std::size_t nitems, void *user_p) {
+    auto &f = *static_cast<curl_data_t *> (user_p);
+    try {
+        return static_cast<std::size_t>(f.fetch->data->handler_send_body(buffer, static_cast<ssize_t> (size * nitems)));
+    }
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("noexcept curl_read_handler(...): throw exception: {}", e.what());
+        return -1;
+    }
 }
 
 void manapi::net::fetch::setup_parallel_task() {
@@ -45,11 +63,15 @@ void manapi::net::fetch::setup_parallel_task() {
         auto data = this->data;
         curl_easy_getinfo(this->data->curl.get(), CURLINFO_HTTP_CODE, &this->status_code);
         data->parallel_task = [data] (CURLcode code) -> void {
-            async::run(data->ctx, data->async_handler_body(data, false));
+            async::run(data->ctx, data->async_handler_recv_body(data, false));
         };
 
         data->parallel_task.value()(code);
     };
+}
+
+void manapi::net::fetch::_default_setup_curl() {
+    this->set_timeout(5);
 }
 
 size_t curl_send_formdata_cb_read (char *buffer, size_t size, size_t nitems, void *userp) {
@@ -78,24 +100,15 @@ manapi::net::curlformdata & manapi::net::curlformdata::operator=(curlformdata &&
 }
 
 void manapi::net::curlformdata::setdata(const std::string &name, std::string value) {
-    std::unique_ptr<void, void (*)(void*)> udata (reinterpret_cast<void *> (new std::string(std::move(value))), [] (void *ptr) -> void {
-        delete static_cast <std::string *> (ptr);
-    });
-    this->mdata.insert({name, {.data = std::move(udata), .type = PARAM_DEFAULT}});
+    this->mdata.insert({name, {.strdata = std::move(std::move(value)), .filedata = {}, .type = PARAM_DEFAULT}});
 }
 
 void manapi::net::curlformdata::setfile(const std::string &filename, std::string filepath) {
-    std::unique_ptr<void, void (*)(void*)> udata (reinterpret_cast<void *> (new std::string(std::move(filepath))), [] (void *ptr) -> void {
-        delete static_cast <std::string *> (ptr);
-    });
-    this->mdata.insert({filename, {.data = std::move(udata), .type = PARAM_FILE}});
+    this->mdata.insert({filename, {.strdata = std::move(filepath), .filedata = {}, .type = PARAM_FILE}});
 }
 
-void manapi::net::curlformdata::setcallback(const std::string &name, const long long &size, const std::function<size_t(void *buff, size_t buff_size)> &cb) {
-    std::unique_ptr<void, void (*)(void*)> udata (reinterpret_cast<void *> (new multipart_param_value_file({cb, size})), [] (void *ptr) -> void {
-        delete static_cast <multipart_param_value_file *> (ptr);
-    });
-    this->mdata.insert({name, {.data = std::move(udata), .type = PARAM_CALLBACK}});
+void manapi::net::curlformdata::setcallback(const std::string &name, const long long &size, std::move_only_function<size_t(void *buff, size_t buff_size)> cb) {
+    this->mdata.insert({name, {.strdata = {}, .filedata = multipart_param_value_file({std::move(cb), size}), .type = PARAM_CALLBACK}});
 }
 
 void manapi::net::curlformdata::clear() {
@@ -117,6 +130,8 @@ manapi::net::fetch::fetch(const std::shared_ptr<async::context> &ctx, const std:
     this->method = "GET";
     this->data->ctx = ctx;
     this->data->curl.reset(curl_easy_init());
+
+    this->_default_setup_curl();
 }
 
 manapi::net::fetch::fetch(fetch &&n) noexcept {
@@ -131,8 +146,8 @@ manapi::net::fetch & manapi::net::fetch::operator=(fetch &&n) noexcept {
     this->url = std::move(n.url);
     this->body = std::exchange(n.body, BODY_NONE);
     this->body_default = std::move(n.body_default);
-    this->method = std::move(n.method);
     this->body_formdata = std::move(n.body_formdata);
+    this->method = std::move(n.method);
 
     return *this;
 }
@@ -149,8 +164,7 @@ manapi::future<void> manapi::net::fetch::async_doit() {
         -> void { this->clear(); });
 
     curl_data_t data {
-        .fetch = this,
-        .total_write = this->total_write,
+        .fetch = this
     };
 
     CURLcode resp;
@@ -160,7 +174,7 @@ manapi::future<void> manapi::net::fetch::async_doit() {
     curl_easy_setopt(this->data->curl.get(), CURLOPT_HEADERDATA, &data);
 
     // if handler has been set
-    if (this->data->handler_body)
+    if (this->data->handler_recv_body)
     {
         curl_easy_setopt(this->data->curl.get(), CURLOPT_WRITEFUNCTION, curl_write_handler);
         curl_easy_setopt(this->data->curl.get(), CURLOPT_WRITEDATA, &data);
@@ -185,25 +199,31 @@ manapi::future<void> manapi::net::fetch::async_doit() {
             curl_easy_setopt(this->data->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, this->body_default.size());
             break;
         }
+        case BODY_CALLBACK: {
+            curl_easy_setopt(this->data->curl.get(), CURLOPT_READFUNCTION, curl_read_handler);
+            curl_easy_setopt(this->data->curl.get(), CURLOPT_READDATA, &data);
+
+            break;
+        }
         case BODY_MULTIPART: {
             form.reset(curl_mime_init(this->data->curl.get()));
             curl_mimepart *field = nullptr;
-            for (auto &param : this->body_formdata) {
+            for (auto &param : this->body_formdata.value()) {
                 field = curl_mime_addpart(form.get());
                 curl_mime_name(field, param.first.data());
                 switch (param.second.type) {
                     case curlformdata::PARAM_DEFAULT: {
-                        auto &strdata = *static_cast <std::string *> (param.second.data.get());
-                        curl_mime_data(field, strdata.data(), strdata.size());
+                        auto str = param.second.strdata.value();
+                        curl_mime_data(field, str.data(), str.size());
                         break;
                     }
                     case curlformdata::PARAM_FILE: {
-                        auto &strdata = *static_cast <std::string *> (param.second.data.get());
-                        curl_mime_filedata(field, strdata.data());
+                        auto str = param.second.strdata.value();
+                        curl_mime_filedata(field, str.data());
                         break;
                     }
                     case curlformdata::PARAM_CALLBACK: {
-                        auto &cbdata = *static_cast <curlformdata::multipart_param_value_file *> (param.second.data.get());
+                        auto &cbdata = param.second.filedata.value();
                         curl_mime_data_cb(field, cbdata.filesize, curl_send_formdata_cb_read, curl_send_formdata_cb_seek, curl_send_formdata_cb_free, &cbdata.callback);
                         break;
                     }
@@ -258,19 +278,23 @@ void manapi::net::fetch::clear() {
     this->url.clear();
     this->status_code=200;
     this->body = BODY_NONE;
-    this->body_formdata.clear();
+    this->body_formdata.reset();
     this->body_default.clear();
-    this->data->async_buffer.clear();
+    this->data->async_buffer = nullptr;
     this->data->async_buffer_cursor=0;
     this->data->headers.clear();
     this->data->handler_headers=nullptr;
-    this->data->handler_body=nullptr;
-    this->data->async_handler_body=nullptr;
+    this->data->handler_recv_body=nullptr;
+    this->data->async_handler_recv_body=nullptr;
     this->data->async_handler_headers=nullptr;
     this->data->async_waiting.store(false);
     this->data->parallel_task.reset();
     this->data->sync_user_body_cb.reset();
     this->data->async_user_body_cb.reset();
+    this->data->async_handler_send_body=nullptr;
+    this->data->handler_send_body=nullptr;
+
+    this->_default_setup_curl();
 }
 
 manapi::future<bool> manapi::net::fetch::handle_body_verify(std::shared_ptr<shared_data> data) {
@@ -292,7 +316,7 @@ manapi::future<bool> manapi::net::fetch::handle_body_verify(std::shared_ptr<shar
 }
 
 manapi::future<void> manapi::net::fetch::handle_sync_body_finish(std::shared_ptr<shared_data> data, bool finish) {
-    data->handler_body = std::move(data->sync_user_body_cb.value());
+    data->handler_recv_body = std::move(data->sync_user_body_cb.value());
     data->sync_user_body_cb.reset();
     data->async_waiting.store(false);
 
@@ -304,7 +328,7 @@ manapi::future<void> manapi::net::fetch::handle_sync_body_finish(std::shared_ptr
         /* cached */
         ssize_t current = 0, rhs = 0;
         while (current < data->async_buffer_cursor) {
-            if ((rhs = data->handler_body (data->async_buffer.data() + current, data->async_buffer_cursor - current)) < 0) {
+            if ((rhs = data->handler_recv_body (data->async_buffer->as<char>() + current, data->async_buffer_cursor - current)) < 0) {
                 data->async_buffer_cursor = 0;
                 co_await data->ctx->eventloop()->unwatch_curl(data->curl.get());
                 data->async_run.unlock();
@@ -317,17 +341,17 @@ manapi::future<void> manapi::net::fetch::handle_sync_body_finish(std::shared_ptr
         data->async_buffer_cursor = 0;
     }
 
-    data->async_handler_body = nullptr;
+    data->async_handler_recv_body = nullptr;
     data->async_run.unlock();
     co_await data->ctx->eventloop()->unpause_watch_curl(data->curl.get());
 }
 
 manapi::future<void> manapi::net::fetch::handle_async_body_finish(std::shared_ptr<shared_data> data, bool finish) {
-    data->async_handler_body = [] (std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
-        return data->async_user_body_cb.value()(finish);
+    data->async_handler_recv_body = [] (std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
+        return data->async_user_body_cb.value()(std::move(data), finish);
     };
 
-    co_await data->async_handler_body (data, finish);
+    co_await data->async_handler_recv_body (data, finish);
 }
 
 manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
@@ -335,15 +359,15 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
     ssize_t total_write_prev = 0;
     ssize_t again = 10;
 
-    manapi::async::parallel_run<void> unwatch_curl_action (this->data->ctx);
-
-    auto timeout_token = co_await this->data->ctx->timerpool()->async_append_interval_sync(200, [&] (manapi::timer t) -> void {
-        if (again >= 0 && !this->data->async_waiting && this->total_read - total_read_prev + this->total_write - total_write_prev < 8 * 1024) {
-            if (!(again--)) {
-                unwatch_curl_action.run(this->data->ctx->eventloop()->unwatch_curl(this->data->curl.get()));
-            }
-        }
-    });
+    // manapi::async::parallel_run<void> unwatch_curl_action (this->data->ctx);
+    //
+    // auto timeout_token = co_await this->data->ctx->timerpool()->async_append_interval_sync(1000, [&] (manapi::timer t) -> void {
+    //     if (again >= 0 && !this->data->async_waiting && this->total_read - total_read_prev + this->total_write - total_write_prev < 8 * 1024) {
+    //         if (!(again--)) {
+    //             unwatch_curl_action.run(this->data->ctx->eventloop()->unwatch_curl(this->data->curl.get()));
+    //         }
+    //     }
+    // });
 
     CURLcode res;
 
@@ -359,23 +383,23 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
         });
 
 
-        if (this->data->async_handler_body && this->data->async_buffer_cursor) {
-            co_await this->data->async_handler_body(this->data, true);
+        if (this->data->async_handler_recv_body && this->data->async_buffer_cursor) {
+            co_await this->data->async_handler_recv_body(this->data, true);
         }
     }
     catch (...) {
         res = CURLE_AGAIN;
     }
 
-    co_await timeout_token.async_stop(this->data->ctx);
-    co_await unwatch_curl_action.get ();
+    // co_await timeout_token.async_stop(this->data->ctx);
+    // co_await unwatch_curl_action.get ();
 
     co_return res;
 }
 
-void manapi::net::fetch::handle_body(std::function<ssize_t(char *, ssize_t)> handler) {
-    if (this->data->async_handler_body) {
-        this->data->async_handler_body = nullptr;
+void manapi::net::fetch::handle_body(std::move_only_function<ssize_t(char *, ssize_t)> handler) {
+    if (this->data->async_handler_recv_body) {
+        this->data->async_handler_recv_body = nullptr;
         this->data->async_user_body_cb.reset();
     }
 
@@ -383,7 +407,7 @@ void manapi::net::fetch::handle_body(std::function<ssize_t(char *, ssize_t)> han
 
     this->setup_parallel_task();
 
-    this->data->async_handler_body = [](std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
+    this->data->async_handler_recv_body = [](std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
         if (!co_await fetch::handle_body_verify(data)) {
             co_return;
         }
@@ -397,12 +421,12 @@ void manapi::net::fetch::handle_body(std::function<ssize_t(char *, ssize_t)> han
         co_await handle_sync_body_finish(data, finish);
     };
 
-    this->data->handler_body = [this] (char *buffer, size_t buffer_size) -> ssize_t {
+    this->data->handler_recv_body = [this] (char *buffer, size_t buffer_size) -> ssize_t {
         auto data = this->data;
         data->async_waiting.store(true);
 
         /* in the loop event */
-        manapi::async::run(data->ctx, data->ctx->eventloop()->custom_cb_curl(data->curl.get(), data->parallel_task.value()));
+        manapi::async::run(data->ctx, data->ctx->eventloop()->custom_cb_curl(data->curl.get(), std::move(data->parallel_task.value())));
 
         assert(data->async_run.try_to_lock());
 
@@ -429,17 +453,30 @@ manapi::future<manapi::json> manapi::net::fetch::json() {
 }
 
 
-void manapi::net::fetch::handle_async_body(std::function<manapi::future<ssize_t>(char *, ssize_t)> handler) {
-    this->data->async_buffer.resize(65536);
+void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler) {
+    if (!this->data->async_buffer) {
+        this->data->async_buffer = manapi::net::http::pool::bufferpool.get();
+    }
+    this->data->async_buffer->resize(65536);
     this->data->sync_user_body_cb.reset();
+    this->data->async_buffer_cursor = 0;
 
     this->setup_parallel_task();
 
-    this->data->async_user_body_cb = [handler = std::move(handler), data = this->data] (bool finish) -> manapi::future<> {
+    this->data->async_user_body_cb = [handler = std::move(handler)] (std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
         ssize_t total = 0;
 
         while (total < data->async_buffer_cursor) {
-            const auto rhs = co_await handler (data->async_buffer.data() + total, data->async_buffer_cursor - total);
+            ssize_t rhs = -1;
+
+            try {
+                rhs = co_await handler (data->async_buffer->as<char>() + total, data->async_buffer_cursor - total);
+            }
+            catch (std::exception const &e) {
+                // DEBUG
+                MANAPIHTTP_LOG("handle_async_body(...) failed: {}", e.what());
+            }
+
             if (rhs < 0) {
                 if (finish) {
                     THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "handle_async_body(...): Write handler error : {}", rhs);
@@ -465,7 +502,7 @@ void manapi::net::fetch::handle_async_body(std::function<manapi::future<ssize_t>
         co_await data->ctx->eventloop()->unpause_watch_curl(data->curl.get());
     };
 
-    this->data->async_handler_body = [] (std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
+    this->data->async_handler_recv_body = [] (std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
         if (!co_await fetch::handle_body_verify(data)) {
             co_return;
         }
@@ -478,11 +515,11 @@ void manapi::net::fetch::handle_async_body(std::function<manapi::future<ssize_t>
         co_await handle_async_body_finish (data, finish);
     };
 
-    this->data->handler_body = [this] (char *buffer, ssize_t size) -> ssize_t {
-        if (this->data->async_buffer_cursor < this->data->async_buffer.size()
-            && this->data->async_buffer.size() - this->data->async_buffer_cursor >= size) {
+    this->data->handler_recv_body = [this] (char *buffer, ssize_t size) -> ssize_t {
+        if (this->data->async_buffer_cursor < this->data->async_buffer->size()
+            && this->data->async_buffer->size() - this->data->async_buffer_cursor >= size) {
             const auto copy = size;
-            memcpy(this->data->async_buffer.data() + this->data->async_buffer_cursor, buffer, copy);
+            memcpy(this->data->async_buffer->as<char>() + this->data->async_buffer_cursor, buffer, copy);
             this->data->async_buffer_cursor += copy;
 
             return copy;
@@ -499,12 +536,12 @@ void manapi::net::fetch::handle_async_body(std::function<manapi::future<ssize_t>
     };
 }
 
-void manapi::net::fetch::handle_headers(std::function<bool(std::map <std::string, std::string>)> handler) {
+void manapi::net::fetch::handle_headers(std::move_only_function<bool(std::map <std::string, std::string>)> handler) {
     if (this->data->async_handler_headers) { this->data->async_handler_headers = {nullptr}; }
     this->data->handler_headers = std::move(handler);
 }
 
-void manapi::net::fetch::handle_async_headers(std::function<manapi::future<bool>(std::map<std::string, std::string>)> handler) {
+void manapi::net::fetch::handle_async_headers(std::move_only_function<manapi::future<bool>(std::map<std::string, std::string>)> handler) {
     if (this->data->handler_headers) { this->data->handler_headers = {nullptr}; }
     this->data->async_handler_headers = [handler = std::move(handler)] (std::shared_ptr<shared_data> data, std::map<std::string, std::string> headers) mutable
         -> manapi::future<bool> { return handler(std::move(headers)); };
@@ -541,6 +578,120 @@ void manapi::net::fetch::set_body(std::string data) {
     this->body_default = std::move(data);
 }
 
+manapi::future<> manapi::net::fetch::set_body(file_transfer_info file_info) {
+    auto file = std::make_shared <manapi::filesystem::async::fstream> (this->data->ctx, file_info.filelocal());
+    co_await file->open(file->FILE_READ);
+    if (!file->is_open()) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to open the file: {}", file_info.filelocal());
+    }
+
+    curl_easy_setopt(this->data->curl.get(), CURLOPT_POSTFIELDS, nullptr);
+    curl_easy_setopt(this->data->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, file->total_size());
+
+    this->set_async_body([file = std::move(file), file_info = std::move(file_info)] (char *buffer, ssize_t size) mutable
+        -> manapi::future<ssize_t> {
+        ssize_t cursor = 0;
+        while (cursor < size) {
+            auto rhs = co_await file->read(buffer + cursor, size - cursor);
+
+            if (rhs == 0) {
+                /* eof */
+                break;
+            }
+
+            if (rhs < 0) {
+                /* error */
+                co_return -1;
+            }
+
+            cursor += rhs;
+        }
+
+        co_return cursor;
+    });
+}
+
+void manapi::net::fetch::set_async_body(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler) {
+    this->body = BODY_CALLBACK;
+
+    if (!this->data->async_buffer) {
+        this->data->async_buffer = manapi::net::http::pool::bufferpool.get();
+    }
+    this->data->async_buffer->resize(65536);
+    this->data->async_buffer_cursor = 0;
+
+    this->data->async_handler_send_body = [handler = std::move(handler)] (std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
+        while (data->async_buffer_cursor < data->async_buffer->size()) {
+            ssize_t rhs = -1;
+            try {
+                rhs = co_await handler (data->async_buffer->as<char>() + data->async_buffer_cursor, static_cast<ssize_t>(data->async_buffer->size() - data->async_buffer_cursor));
+            }
+            catch (std::exception const &e) {
+                MANAPIHTTP_LOG("set_async_body(...) failed: {}", e.what());
+            }
+            if (rhs < 0) {
+                /* error */
+                if (finish) {
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "set_async_body(...): read handler error : {}", rhs);
+                }
+
+                data->async_buffer_cursor = 0;
+                co_await data->ctx->eventloop()->unwatch_curl(data->curl.get());
+                data->async_run.unlock();
+
+                co_return;
+            }
+
+            if (rhs == 0) {
+                /* eof */
+                break;
+            }
+
+            data->async_buffer_cursor += rhs;
+        }
+
+        data->async_waiting.store(false);
+
+        if (finish) {
+            co_return;
+        }
+
+        data->async_run.unlock();
+        co_await data->ctx->eventloop()->unpause_watch_curl(data->curl.get());
+    };
+
+    this->data->handler_send_body = [this, index = ssize_t{0}] (char *buffer, ssize_t size) mutable -> ssize_t {
+        size = std::min(this->data->async_buffer_cursor-index, size);
+        if (size > 0) {
+            memcpy(buffer, this->data->async_buffer->as<char>() + index, size);
+            index += size;
+
+            if (this->data->async_buffer_cursor == index) {
+                this->data->async_buffer_cursor = 0;
+                index = 0;
+            }
+
+            return size;
+        }
+
+        this->data->async_waiting.store(true);
+
+        /* in the loop event */
+        assert(this->data->async_run.try_to_lock());
+
+        manapi::async::run(this->data->ctx, this->data->ctx->eventloop()->custom_cb_curl(this->data->curl.get(), [data = this->data] (CURLcode code)
+            -> void { async::run(data->ctx, data->async_handler_send_body(data, false)); }));
+
+        return CURL_READFUNC_PAUSE;
+    };
+}
+
+void manapi::net::fetch::set_body(std::move_only_function<ssize_t(char *, ssize_t)> handler) {
+    this->body = BODY_CALLBACK;
+    this->data->async_handler_send_body = nullptr;
+    this->data->handler_send_body = std::move(handler);
+}
+
 void manapi::net::fetch::set_headers(std::map<std::string, std::string> headers) {
     // headers
     for (auto &header: headers)
@@ -549,7 +700,7 @@ void manapi::net::fetch::set_headers(std::map<std::string, std::string> headers)
     }
 }
 
-void manapi::net::fetch::set_custom_setup(std::function<void(CURL *curl)> func) {
+void manapi::net::fetch::set_custom_setup(std::move_only_function<void(CURL *curl)> func) {
     this->data->handle_custom_setup = std::move(func);
 }
 
@@ -562,6 +713,10 @@ void manapi::net::fetch::enable_ssl_verify(const bool &status) {
 
 void manapi::net::fetch::set_verbose(bool status) {
     curl_easy_setopt(this->data->curl.get(), CURLOPT_VERBOSE, static_cast<long>(status));
+}
+
+void manapi::net::fetch::set_timeout(const std::size_t &seconds) {
+    curl_easy_setopt(this->data->curl.get(), CURLOPT_TIMEOUT, seconds);
 }
 
 void manapi::net::fetch::break_write_loop() {
