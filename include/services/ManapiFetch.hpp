@@ -11,7 +11,7 @@
 #include "../ManapiJson.hpp"
 #include "../ManapiHttpRequest.hpp"
 #include "../async/ManapiAsyncParallelRun.hpp"
-#include "components/ManapiFileTransferInfo.hpp"
+#include "../components/ManapiFileTransferInfo.hpp"
 
 namespace manapi::net {
 

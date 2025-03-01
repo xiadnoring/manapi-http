@@ -16,10 +16,10 @@
 #endif
 
 #include "../ManapiUtils.hpp"
-#include "./ManapiErrors.hpp"
-#include "./ManapiJson.hpp"
-#include "./ManapiTime.hpp"
-#include "./ManapiDebug.hpp"
+#include "../ManapiErrors.hpp"
+#include "../ManapiJson.hpp"
+#include "../ManapiTime.hpp"
+#include "../ManapiDebug.hpp"
 #include "../components/ManapiChain.hpp"
 
 namespace manapi {

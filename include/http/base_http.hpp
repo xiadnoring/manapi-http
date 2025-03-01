@@ -10,7 +10,7 @@
 
 #include "./Utils.hpp"
 #include "../async/ManapiAsyncFileStream.hpp"
-#include "components/Buffer.hpp"
+#include "../components/Buffer.hpp"
 
 namespace manapi::net::http {
     class base : public manapi::task {

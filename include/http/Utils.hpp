@@ -7,8 +7,8 @@
 #include "../ManapiAsync.hpp"
 #include "../async/ManapiAsyncContext.hpp"
 #include "../compress/ManapiCompress.hpp"
-#include "components/Buffer.hpp"
-#include "components/ObjectPool.hpp"
+#include "../components/Buffer.hpp"
+#include "../components/ObjectPool.hpp"
 
 namespace manapi::net::http {
     struct response_features_t {

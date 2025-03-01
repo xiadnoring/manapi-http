@@ -44,7 +44,7 @@ namespace manapi {
         int stack_deepth = 0;
         std::coroutine_handle<> waiting;
         std::exception_ptr exception;
-        std::function<void()> finish_cb{nullptr};
+        std::move_only_function<void()> finish_cb{nullptr};
         std::shared_ptr<threadpool<task>> taskpool{nullptr};
     };
 
@@ -245,7 +245,7 @@ namespace manapi {
             handle.resume();
         }
 
-        void on_finish (std::function<void()> cb, std::shared_ptr<threadpool<task>> taskpool) {
+        void on_finish (std::move_only_function<void()> cb, std::shared_ptr<threadpool<task>> taskpool) {
             if (this->handle) {
                 auto &promise = this->handle.promise();
                 promise.finish_cb = std::move(cb);

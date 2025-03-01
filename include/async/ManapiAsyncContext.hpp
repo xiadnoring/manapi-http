@@ -10,10 +10,10 @@ namespace manapi::async {
     class mutex;
     class condition_variable;
 
-    inline void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::function<void()> onfinish = nullptr);
-    inline void run (const std::shared_ptr<context> &ctx, manapi::future<> task,  std::function<void()> onfinish = nullptr);
-    inline void run (const std::shared_ptr<context> &ctx, auto && executor,  std::function<void()> onfinish = nullptr);
-    inline void run (const std::shared_ptr<threadpool<task>> &taskpool, auto && executor,  std::function<void()> onfinish = nullptr);
+    inline void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::move_only_function<void()> onfinish = nullptr);
+    inline void run (const std::shared_ptr<context> &ctx, manapi::future<> task,  std::move_only_function<void()> onfinish = nullptr);
+    inline void run (const std::shared_ptr<context> &ctx, auto && executor,  std::move_only_function<void()> onfinish = nullptr);
+    inline void run (const std::shared_ptr<threadpool<task>> &taskpool, auto && executor,  std::move_only_function<void()> onfinish = nullptr);
     inline const std::shared_ptr<threadpool<task>> &as_threadpool(const std::shared_ptr<context> &ctx);
 }
 
@@ -58,7 +58,7 @@ namespace manapi::async {
 
     inline std::map <size_t, std::shared_ptr<async_task_t>> async_tasks;
 
-    inline size_t _run_prepare (const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::function<void()> onfinish) {
+    inline size_t _run_prepare (const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::move_only_function<void()> onfinish) {
         auto index = reinterpret_cast <size_t> (task.get_handle().address());
 
         task.on_finish([index, taskpool, onfinish = std::move(onfinish)] () mutable -> void {
@@ -93,7 +93,7 @@ namespace manapi::async {
         co_return co_await cb(args...);
     }
 
-    inline void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::function<void()> onfinish) {
+    inline void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::move_only_function<void()> onfinish) {
         const size_t index = async::_run_prepare(taskpool, task, std::move(onfinish));
 
         if (!task.finished()) {
@@ -102,7 +102,7 @@ namespace manapi::async {
         }
     }
 
-    inline void run (const std::shared_ptr<context> &ctx, manapi::future<> task,  std::function<void()> onfinish ) {
+    inline void run (const std::shared_ptr<context> &ctx, manapi::future<> task,  std::move_only_function<void()> onfinish ) {
         async::run (ctx->taskpool(), std::move(task), std::move(onfinish));
     }
 
@@ -110,11 +110,11 @@ namespace manapi::async {
         return ctx->taskpool();
     }
 
-    inline void run (const std::shared_ptr<context> &ctx, auto && executor,  std::function<void()> onfinish ) {
+    inline void run (const std::shared_ptr<context> &ctx, auto && executor,  std::move_only_function<void()> onfinish ) {
         async::run (ctx->taskpool(), invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
     }
 
-    inline void run (const std::shared_ptr<threadpool<task>> &taskpool, auto && executor,  std::function<void()> onfinish ) {
+    inline void run (const std::shared_ptr<threadpool<task>> &taskpool, auto && executor,  std::move_only_function<void()> onfinish ) {
         async::run (taskpool, invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
     }
 }

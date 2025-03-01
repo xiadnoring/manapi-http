@@ -28,19 +28,23 @@ namespace manapi::net {
             this->fetchdata = std::make_shared<fetch_data>(this->ctx, this->ctx, true);
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params = manapi::json::object(), std::optional<curlformdata> body = {}) {
+        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params = manapi::json::object()) {
+            return fetch_(ctx, std::move(url), std::move(params), std::optional<std::string> {});
+        }
+
+        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<curlformdata> body) {
             return fetch_(ctx, std::move(url), std::move(params), std::move(body));
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params = manapi::json::object(), std::optional<std::string> body = {}) {
+        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<std::string> body) {
             return fetch_(ctx, std::move(url), std::move(params), std::move(body));
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params = manapi::json::object(), std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body = {}) {
+        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body) {
             return fetch_(ctx, std::move(url), std::move(params), std::move(body));
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params = manapi::json::object(), std::optional<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)>> body = {}) {
+        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)>> body) {
             auto response = std::make_shared<fetch2>(ctx, std::move(url));
             if (body.has_value()) {
                 response->data->set_async_body(std::move(body.value()));
@@ -50,7 +54,7 @@ namespace manapi::net {
             co_return std::move(response);
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params = manapi::json::object(), std::optional<file_transfer_info> body = {}) {
+        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<file_transfer_info> body) {
             auto response = std::make_shared<fetch2>(ctx, std::move(url));
             if (body.has_value()) {
                 co_await response->data->set_body(std::move(body.value()));

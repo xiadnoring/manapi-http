@@ -26,7 +26,8 @@ int main () {
 
     router->set_config("./config.json");
 
-    router->GET ("/", [cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
+    router->GET ("/", [ctx, cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
+
         co_return resp.text(std::format("Hello World! Count: {}", cnt->fetch_add(1)));
     });
 
@@ -74,13 +75,21 @@ int main () {
         co_return resp.text(std::move(content));
     });
 
+    router->POST ("/json", [ctx] (REQ(req), RESP(resp)) -> manapi::future<void> {
+         auto res = co_await req.json();
+         resp.json(std::move(res));
+    }, nullptr, {
+           {"email", "{string(>=5 <=50)}"},
+           {"password", "{string(>=5 <=50)}"}
+       });
+
     router->GET("/proxy", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
         manapi::net::curlformdata formdata;
         std::string filepath = "/home/Timur/a.out";
         formdata.setfile("hello", filepath);
         formdata.setdata("size", std::to_string(manapi::filesystem::get_size(filepath)));
-        auto response = co_await manapi::net::fetch2::fetch(ctx, "https://localhost:8888/test", {
-            {"enable_alpn", false}, {"enable_ssl_verify", false}, {"enable_http2", true},{"method", "POST"}}, std::move(formdata));
+        auto response = co_await manapi::net::fetch2::fetch (ctx, "https://localhost:8888/test", {
+            {"enable_alpn", false}, {"enable_ssl_verify", false}, {"enable_http2", true},{"method", "POST"}});
         if (!response->ok()) {
             std::cout << "no ok\n";
         }

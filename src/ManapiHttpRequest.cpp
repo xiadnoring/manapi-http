@@ -95,7 +95,8 @@ manapi::future<manapi::json> manapi::net::http_request::json()
 {
     // TODO: check with json_mask during processing read_mask()
     const auto &post_mask = get_post_mask();
-    json_builder builder (post_mask ? *post_mask : nullptr);
+
+    json_builder builder = post_mask ? json_builder (*post_mask) : json_builder ();
     co_await _read_body([&builder] (const char *data, ssize_t size) -> void {
         builder << std::string_view (data, size);
     });

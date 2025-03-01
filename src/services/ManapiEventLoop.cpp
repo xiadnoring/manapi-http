@@ -829,12 +829,14 @@ template<typename T>
 void manapi::event_loop::event_loop::stop_watcher(T &w) {
     auto data = static_cast<custom_watcher_data_t<T> *>(std::exchange(w.data, nullptr));
 
+    w.stop();
+
     if (data) {
         data->w.reset();
         delete data;
     }
 
-    w.stop();
+    // 'w' was destroyed here
 }
 
 template<typename T>

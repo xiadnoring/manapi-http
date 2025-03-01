@@ -7,7 +7,7 @@
 #include "../ManapiAsync.hpp"
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiUtils.hpp"
-#include "async/ManapiAsyncParallelRun.hpp"
+#include "../async/ManapiAsyncParallelRun.hpp"
 
 namespace manapi::net {
     struct file_data_t {
