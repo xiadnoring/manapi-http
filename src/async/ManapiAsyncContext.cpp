@@ -84,11 +84,6 @@ size_t manapi::async::_run_prepare(const std::shared_ptr<threadpool<task>> &task
                 data = std::move(async_tasks.extract(it));
             }
         }
-        if (data && data.mapped()) {
-            if (!data.mapped()->task.finished()) {
-                printf("why\n");
-            }
-        }
     }, taskpool);
 
     task();

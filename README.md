@@ -18,17 +18,16 @@ For compile this project, you need to install below projects:
 - gmp 6.3.0 or greater
 - libev 4.33-3 or greater
 - curl 8.8.0-1 or greater
-- jemalloc 5.3.0 or greater
 
 ### For Arch Linux
 ```bash
-pacman -S gmp openssl libev zlib libevdev curl jemalloc
+pacman -S gmp openssl libev zlib libevdev curl
 ```
 
 or 
 
 ```bash
-paru -S gmp openssl libev zlib libevdev curl jemalloc
+paru -S gmp openssl libev zlib libevdev curl
 ```
 
 ### For Windows
@@ -130,7 +129,7 @@ int main () {
 
     router->GET("/pq", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
         auto lk = co_await mx->lock_guard();
-        /* The pool of database connections here / This example is so slow */
+        /* The pool of database connections here / That example is so slow */
         auto res = co_await db->exec("SELECT id, str_col FROM for_test WHERE id > $1", 0);
 
         lk.call();
