@@ -43,9 +43,9 @@ namespace manapi {
 
         int stack_deepth = 0;
         std::coroutine_handle<> waiting;
-        std::exception_ptr exception;
+        std::exception_ptr exception{nullptr};
         std::move_only_function<void()> finish_cb{nullptr};
-        std::shared_ptr<threadpool<task>> taskpool{nullptr};
+        threadpool<task> *taskpool{nullptr};
     };
 
     template <typename T = void>
@@ -132,8 +132,13 @@ namespace manapi {
 
         void reset () {
             if (this->handle) {
-                std::exchange(this->handle, nullptr).destroy();
+                this->handle.destroy();
+                this->handle = nullptr;
             }
+        }
+
+        std::coroutine_handle<promise> release () {
+            return std::exchange(this->handle, nullptr);
         }
 
         operator future<void> () noexcept {
@@ -148,16 +153,16 @@ namespace manapi {
         requires(std::is_same_v<T1, void>)
         void get(std::shared_ptr<threadpool<task>> taskpool) {
             if (!this->handle.done()) {
-                auto mx = std::make_unique<std::mutex>();
+                std::mutex mx;
                 bool stop = false;
                 {
-                    mx->lock();
+                    mx.lock();
                     this->on_finish([&stop, &mx] () -> void {
                         stop = true;
-                        mx->unlock();
+                        mx.unlock();
                     }, std::move(taskpool));
                     this->resume_promise(this->handle);
-                    mx->lock();
+                    mx.lock();
                 }
             }
         }
@@ -166,16 +171,16 @@ namespace manapi {
         requires(!std::is_same_v<T1, void>)
         T1 get(std::shared_ptr<threadpool<task>> taskpool) {
             if (!this->handle.done()) {
-                auto mx = std::make_unique<std::mutex>();
+                std::mutex mx;
                 bool stop = false;
                 {
-                    mx->lock();
+                    mx.lock();
                     this->on_finish([&stop, &mx] () -> void {
                         stop = true;
-                        mx->unlock();
+                        mx.unlock();
                     }, std::move(taskpool));
                     this->resume_promise(this->handle);
-                    mx->lock();
+                    mx.lock();
                 }
             }
             return std::move(this->handle.promise().get_value());
@@ -249,7 +254,7 @@ namespace manapi {
             if (this->handle) {
                 auto &promise = this->handle.promise();
                 promise.finish_cb = std::move(cb);
-                promise.taskpool = taskpool;
+                promise.taskpool = taskpool.get();
             }
         }
 

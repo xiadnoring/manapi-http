@@ -28,7 +28,8 @@ void manapi::before_delete::call () {
     this->disable();
 
     if (this->f) {
-        std::exchange(this->f, nullptr)();
+        auto cb = std::move(this->f);
+        cb();
     }
 }
 

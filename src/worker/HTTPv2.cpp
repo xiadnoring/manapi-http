@@ -347,11 +347,10 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         co_await unlimit_all_streams();
     }
 
-    auto lk = co_await this->threads_mutex.lock_guard();
-    co_await this->finishcv.wait(this->threads_mutex,
-        [this] () -> bool {
-        return this->threads.empty();
+    co_await this->finishcv.wait([this] () -> bool {
+        return this->thread_cnt == 0;
     });
+    auto lk = co_await this->threads_mutex.lock_guard();
     co_await this->ping_interval.async_stop(this->site.async_context());
     if ((this->protocol.conn_type & CONN_CLOSED) == false ) {
         lk.call();

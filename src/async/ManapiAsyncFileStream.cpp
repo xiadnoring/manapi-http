@@ -196,12 +196,14 @@ void manapi::filesystem::async::fstream::_seekg(const ssize_t &pos, const seek_f
 void manapi::filesystem::async::fstream::_event(ev::io &w, int revents, const std::shared_ptr<fstream_data_t_> &data) {
     if ((revents & ev::READ) && (data->status & FILE_READ)) {
         data->status.fetch_xor(FILE_READ);
-        data->taskpool->append_task(std::move(data->r_resolve));
+        data->taskpool->append_task([resolve = std::move(data->r_resolve)] ()
+            -> void { resolve(); });
     }
 
     if ((revents & ev::WRITE) && (data->status & FILE_WRITE)) {
         data->status.fetch_xor(FILE_WRITE);
-        data->taskpool->append_task(std::move(data->w_resolve));
+        data->taskpool->append_task([resolve = std::move(data->w_resolve)] ()
+            -> void { resolve(); });
     }
 }
 #ifdef _WIN32

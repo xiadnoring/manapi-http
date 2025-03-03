@@ -165,7 +165,8 @@ manapi::future<> manapi::filesystem::write_async(const std::shared_ptr<async::co
                                 auto _resolve = std::move(resolve);
                                 auto _ctx = ctx;
                                 _ctx->eventloop()->stop_watcher(w);
-                                _ctx->taskpool()->append_task(std::move(_resolve));
+                                _ctx->taskpool()->append_task([resolve = std::move(_resolve)] ()
+                                    -> void { resolve(); });
                                 return;
                             }
 
@@ -276,7 +277,8 @@ manapi::future<> manapi::filesystem::read_async(const std::shared_ptr<async::con
                         auto _resolve = std::move(resolve);
                         auto _ctx = ctx;
                         _ctx->eventloop()->stop_watcher(w);
-                        _ctx->taskpool()->append_task(std::move(_resolve));
+                        _ctx->taskpool()->append_task([resolve = std::move(_resolve)] ()
+                            -> void { resolve(); });
                         return;
                     }
 

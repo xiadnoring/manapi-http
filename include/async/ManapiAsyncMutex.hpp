@@ -17,6 +17,7 @@
 #include "./ManapiAsyncContext.hpp"
 
 namespace manapi::async {
+#pragma pack(push,16)
     class mutex {
     public:
 #ifdef _WIN32
@@ -33,7 +34,7 @@ namespace manapi::async {
         struct promise {
             std::mutex &mx;
             manapi::chain <std::coroutine_handle<future<>::promise> > &stack;
-            std::optional<std::thread::id> &own;
+            bool &own;
 
             bool await_ready () noexcept;
             void await_resume () noexcept;
@@ -60,8 +61,9 @@ namespace manapi::async {
 #ifdef _WIN32
         std::optional<DWORD> own;
 #else
-        std::optional<std::thread::id> own;
+        bool own{false};
 #endif
         manapi::chain <std::coroutine_handle<future<>::promise> > stack;
     };
+#pragma pack(pop)
 }

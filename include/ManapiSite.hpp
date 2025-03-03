@@ -88,8 +88,8 @@ namespace manapi::net {
         void set_transport_protocol_worker (const std::string &type, const std::string &name, const std::function<std::shared_ptr<class worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker);
         const std::map <std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &get_transport_protocol_worker (const std::string &type);
 
-        void set_config (const std::string &path);
-        void set_config_object (const json &config);
+        void set_config (std::string path);
+        void set_config_object (json config);
         const manapi::json &get_config ();
 
         std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm);

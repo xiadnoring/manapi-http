@@ -11,13 +11,9 @@
 #include "ManapiHttpMime.hpp"
 #include "services/ManapiFetch.hpp"
 #include "services/ManapiFetch2.hpp"
-#include "worker/tools/OpenSSLTools.hpp"
+#include "ManapiInitTools.hpp"
 
 int main () {
-    manapi::net::worker::tools::ssl_library_init();
-    manapi::net::worker::tools::ev_library_init();
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-
     auto ctx = manapi::async::context::create();
     auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
     auto router = std::make_shared<manapi::net::http::server> (ctx);
@@ -63,8 +59,14 @@ int main () {
     router->GET("/pq/[id]", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
         auto lk = co_await mx->lock_guard();
         /* The pool of database connections here / This example is so slow */
-        auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.get_param("id")));
+        try {
+            auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.get_param("id")));
+        }
+        catch (...) {
 
+        }
+
+        auto res = co_await db->exec("SELECT * FROM for_test;");
         lk.call();
 
         std::string content = "b";
@@ -164,6 +166,13 @@ int main () {
         /* stop the app */
         co_await manapi::async::delay{ctx, 10000};
         co_return resp.text("10sec");
+    });
+
+    router->GET ("/bigfile", [] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        resp.set_partial_status(false);
+        resp.set_compress_enabled(false);
+
+        co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
     });
 
     manapi::async::run(ctx, [router, db] () -> manapi::future<> {

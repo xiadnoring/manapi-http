@@ -199,7 +199,8 @@ namespace manapi::ext::pq {
                             auto _resolve = std::move(resolve);
                             auto _ctx = this->ctx;
                             _ctx->eventloop()->stop_watcher(w);
-                            _ctx->taskpool()->append_task(std::move(_resolve));
+                            _ctx->taskpool()->append_task([resolve = std::move(_resolve)] ()
+                                -> void { resolve(); });
                         }
                     }
                 });

@@ -6,15 +6,11 @@ void manapi::async::mutex::promise::await_resume() noexcept {}
 
 void manapi::async::mutex::promise::await_suspend(std::coroutine_handle<future<>::promise> handle) {
     std::unique_lock <std::mutex> lk (this->mx);
-    if (this->own.has_value()) {
+    if (this->own) {
         this->stack.push_back(std::exchange(handle, nullptr));
     }
     else {
-#ifdef _WIN32
-        this->own = ::GetCurrentThreadId();
-#else
-        this->own = std::this_thread::get_id();
-#endif
+        this->own = true;
         lk.unlock();
         future<>::resume_promise(handle);
     }
@@ -31,22 +27,22 @@ manapi::future<void> manapi::async::mutex::lock(){
 
 bool manapi::async::mutex::try_to_lock() {
     std::lock_guard<std::mutex> lk (this->mx);
-    if (this->own.has_value()) { return false; }
+    if (this->own) { return false; }
 #ifdef _WIN32
     this->own = ::GetCurrentThreadId();
 #else
-    this->own = std::this_thread::get_id();
+    this->own = true;
 #endif
     return true;
 }
 
 void manapi::async::mutex::unlock()  {
     std::lock_guard<std::mutex> lk (this->mx);
-    if (!this->own.has_value()) {
+    if (!this->own) {
         return;
     }
     if (this->stack.empty()) {
-        this->own.reset();
+        this->own = false;
         return;
     }
     auto handle = this->stack.back();
@@ -61,7 +57,7 @@ void manapi::async::mutex::unlock()  {
 
 bool manapi::async::mutex::locked() {
     std::lock_guard<std::mutex> lk (this->mx);
-    return this->own.has_value();
+    return this->own;
 }
 
 manapi::future<manapi::before_delete> manapi::async::mutex::lock_guard()  {
@@ -73,7 +69,7 @@ manapi::future<manapi::before_delete> manapi::async::mutex::lock_guard()  {
 
 manapi::async::mutex::~mutex() {
     std::lock_guard<std::mutex> lk (this->mx);
-    if (!stack.empty()) {
+    if (!this->stack.empty()) {
         std::cerr << "~async::mutex(): i can't work anymore, i'm sorrryyy :(. stack.empty() != true\n";
     }
 }

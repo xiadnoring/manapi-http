@@ -96,8 +96,8 @@ void manapi::net::site::setup() {
     this->set_transport_protocol_worker("quic", "default", worker::quic::create);
 }
 
-void manapi::net::site::set_config(const std::string &path) {
-    this->config_path = path;
+void manapi::net::site::set_config(std::string path) {
+    this->config_path = std::move(path);
 
     if (!manapi::filesystem::exists(this->config_path))
     {
@@ -106,12 +106,12 @@ void manapi::net::site::set_config(const std::string &path) {
     }
 
     this->config = manapi::filesystem::config::read (this->config_path);
-    setup_config ();
+    this->setup_config ();
 }
 
-void manapi::net::site::set_config_object(const json &config) {
-    this->config = config;
-    setup_config();
+void manapi::net::site::set_config_object(json config) {
+    this->config = std::move(config);
+    this->setup_config();
 }
 
 const manapi::json &manapi::net::site::get_config() {

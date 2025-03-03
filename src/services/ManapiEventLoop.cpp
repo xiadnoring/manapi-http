@@ -226,9 +226,9 @@ void manapi::event_loop::custom_watcher_fd_async(ev::async &w, int revents) {
     }
 }
 
-manapi::future<> manapi::event_loop::custom_callback(std::move_only_function<void()> cb) {
-
+manapi::future<void> manapi::event_loop::custom_callback(std::move_only_function<void()> cb) {
     co_await async::promise<void> (this->taskpool, [&](async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> manapi::future<> {
+        auto this_ = this;
         auto data = std::make_unique<adding_custom_callback_data_t>(std::move(cb), std::move(resolve), std::move(reject));
         bool flg = true;
 
@@ -247,8 +247,7 @@ manapi::future<> manapi::event_loop::custom_callback(std::move_only_function<voi
             auto lk = co_await this->callback_watcher.adding_mx->lock_guard();
             this->callback_watcher.callback_data.push_back(std::move(data));
         }
-
-        this->callback_watcher.adding_async_cb();
+        this_->callback_watcher.adding_async_cb();
     });
 }
 
@@ -398,8 +397,8 @@ void manapi::event_loop::custom_watcher_callback_async(ev::async &w, int revents
 
     if (this->callback_watcher.adding_mx->try_to_lock()) {
         while (!this->callback_watcher.callback_data.empty()) {
-            auto data = std::move(this->callback_watcher.callback_data.back());
-            this->callback_watcher.callback_data.pop_back();
+            auto data = std::move(this->callback_watcher.callback_data.front());
+            this->callback_watcher.callback_data.pop_front();
 
             try {
                 data->cb();
@@ -411,7 +410,10 @@ void manapi::event_loop::custom_watcher_callback_async(ev::async &w, int revents
                 continue;
             }
 
-            this->taskpool->append_task(std::move(data->resolve));
+            this->taskpool->append_task([resolve = std::move(data->resolve)] ()
+                -> void {
+                resolve();
+            });
         }
 
         this->callback_watcher.adding_mx->unlock();
@@ -435,7 +437,8 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
         else {
             this->curl_watcher.curl_res.insert({data->curl, std::move(data->finish)});
 
-            this->taskpool->append_task(std::move(data->resolve));
+            this->taskpool->append_task([resolve = std::move(data->resolve)] ()
+                -> void { resolve(); });
         }
     }
     else if (data->flag==1) {
@@ -467,7 +470,8 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
                 -> void { reject(std::move(err)); });
         }
         else {
-            this->taskpool->append_task(std::move(data->resolve));
+            this->taskpool->append_task([resolve = std::move(data->resolve)] ()
+                -> void { resolve(); });
         }
     }
     else if (data->flag==3) {
@@ -480,7 +484,8 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
                 -> void { reject(std::move(err)); });
         }
         else {
-            this->taskpool->append_task(std::move(data->resolve));
+            this->taskpool->append_task([resolve = std::move(data->resolve)] ()
+                -> void { resolve(); });
         }
     }
     else if (data->flag==4) {
@@ -490,9 +495,11 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
 }
 
 void manapi::event_loop::handle_async_watcher_data(std::unique_ptr<adding_watcher_data_t> data) {
+    int fd = 0;
     if (data->flag == 1) {
         switch (data->type) {
             case EV_IO:
+                fd = data->w_io->fd;
                 data->w_io->start();
             break;
             case EV_ASYNC:
@@ -532,7 +539,8 @@ void manapi::event_loop::handle_async_watcher_data(std::unique_ptr<adding_watche
     }
 
     if (data->resolve) {
-        this->taskpool->append_task(std::move(data->resolve));
+        this->taskpool->append_task([type = data->type, fd, flag = data->flag, resolve = std::move(data->resolve)] ()
+            -> void { resolve(); });
     }
 }
 
@@ -553,12 +561,12 @@ manapi::future<> manapi::event_loop::_template_cmd_watcher(std::unique_ptr<addin
         //     }
         // }
 
+        auto this_ = this;
         if (flg) {
             auto lk = co_await this->async_watcher.adding_watcher_mx->lock_guard();
             this->async_watcher.adding_watcher_data.push_back(std::move(data));
         }
-
-        this->async_watcher.adding_watcher_async_cb();
+        this_->async_watcher.adding_watcher_async_cb();
 
         co_return;
     });
@@ -588,13 +596,16 @@ manapi::future<> manapi::event_loop::_template_cmd_curl(int flag, CURL *curl, st
         // }
 
 
+        auto this_ = this;
         if (flg) {
             auto lk = co_await this->curl_watcher.curl_multi_mx->lock_guard();
 
             this->curl_watcher.adding_curl_data.push_back(std::move(data));
         }
 
-        this->curl_watcher.adding_curl_async_cb();
+        this_->curl_watcher.adding_curl_async_cb();
+
+
         co_return;
     });
 }
@@ -625,12 +636,12 @@ manapi::future<std::optional<manapi::timer>> manapi::event_loop::_template_cmd_t
         // }
 
 
+        auto this_ = this;
         if (flg) {
             auto lk = co_await this->timer_watcher.adding_timer_mx->lock_guard();
             this->timer_watcher.adding_timer_data.push_back(std::move(data1));
         }
-
-        this->timer_watcher.adding_timer_async_cb();
+        this_->timer_watcher.adding_timer_async_cb();
 
         co_return;
     });

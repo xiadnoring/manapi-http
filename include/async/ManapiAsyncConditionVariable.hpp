@@ -15,13 +15,11 @@ namespace manapi::async {
         struct notify_sub_t {
             std::coroutine_handle<future<>::promise> handle;
             std::function<bool()> cond;
-            async::mutex *mx;
         };
     public:
         struct promise {
             std::function<bool()> cond;
             std::shared_ptr<async::mutex> gmx;
-            async::mutex *mx;
             std::shared_ptr<threadpool<task>> &taskpool;
             chain <notify_sub_t> *stack;
 
@@ -36,18 +34,13 @@ namespace manapi::async {
 
         future<void> wait (std::function<bool()> cond);
 
-        future<void> wait (async::mutex &mx, std::function<bool()> cond);
-
         future<void> notify_one ();
 
         future<void> notify_all ();
 
         ~condition_variable () = default;
     private:
-        future<void> _notify_item (chain<notify_sub_t>::iterator it);
-        future<bool> _notify_first ();
         std::atomic<bool> stop = false;
-        std::atomic<int> cnt = 0;
         std::shared_ptr<threadpool<task>> taskpool;
         std::shared_ptr<async::mutex> mx;
         chain <notify_sub_t> stack;

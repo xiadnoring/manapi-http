@@ -15,7 +15,7 @@ manapi::bytebuffer::bytebuffer(void *src, std::size_t size) {
 }
 
 manapi::bytebuffer::bytebuffer(std::size_t size) {
-    this->src = manapi::memory::alloc<uint8_t>(size);
+    this->src = size ? manapi::memory::alloc<uint8_t>(size) : nullptr;
     this->s = size;
     this->reserved = size;
 }

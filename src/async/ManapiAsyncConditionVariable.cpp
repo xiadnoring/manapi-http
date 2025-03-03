@@ -1,8 +1,8 @@
 #include "async/ManapiAsyncConditionVariable.hpp"
 
 void manapi::async::condition_variable::promise::await_suspend(std::coroutine_handle<future<>::promise> handle) {
-    async::run(this->taskpool, this->gmx->lock(), [cond = std::move(this->cond), mx = this->mx, stack = this->stack, gmx = this->gmx, handle = std::exchange(handle, nullptr)] () -> void {
-        stack->push_back({handle, std::move(cond), mx});
+    async::run(this->taskpool, this->gmx->lock(), [cond = std::move(this->cond), stack = this->stack, gmx = this->gmx, handle = std::exchange(handle, nullptr)] () mutable -> void {
+        stack->push_back({handle, std::move(cond)});
         gmx->unlock();
     });
 }
@@ -17,74 +17,38 @@ manapi::async::condition_variable::condition_variable(const std::shared_ptr<thre
 
 manapi::future<> manapi::async::condition_variable::wait(std::function<bool()> cond) {
     if (cond()) { co_return; }
-    co_await promise{std::move(cond), this->mx, nullptr, this->taskpool, &this->stack};
-}
-
-manapi::future<> manapi::async::condition_variable::wait(async::mutex &mx, std::function<bool()> cond) {
-    if (cond()) {
-        if (!mx.locked()) {
-            co_await mx.lock();
-        }
-        co_return;
-    }
-    mx.unlock();
-    co_await promise{std::move(cond), this->mx, &mx, this->taskpool, &this->stack};
+    co_await promise{std::move(cond), this->mx, this->taskpool, &this->stack};
 }
 
 manapi::future<> manapi::async::condition_variable::notify_one() {
     auto lk = co_await this->mx->lock_guard();
-    co_await this->_notify_first();
+    if (this->stack.empty()) {
+        co_return;
+    }
+    auto &row = this->stack.back();
+    if (!row.cond()) {
+        co_return;
+    }
+
+    auto handle = std::move(row.handle);
+    this->stack.pop_back();
+
+    this->taskpool->append_task([handle = std::move(handle)] () mutable
+        -> void { handle.resume(); });
 }
 
 manapi::future<> manapi::async::condition_variable::notify_all() {
-    if (this->cnt.exchange(1) == 0) {
-        auto lk = co_await this->mx->lock_guard();
-        size_t _len = this->stack.size();
-        for (size_t i = 0; i < _len; i++) {
-            if (!co_await this->_notify_first()) {
-                break;
-            }
+    auto lk = co_await this->mx->lock_guard();
+    for (auto it = this->stack.begin(); it != this->stack.end(); ) {
+        if (!it->cond()) {
+            it++;
+            continue;
         }
 
-        this->cnt.store(0);
+        auto handle = std::move(it->handle);
+        it = this->stack.erase(it);
+
+        this->taskpool->append_task([handle = std::move(handle)] () mutable
+            -> void { handle.resume(); });
     }
-}
-
-manapi::future<> manapi::async::condition_variable::_notify_item(chain<notify_sub_t>::iterator it) {
-    // auto extracted = std::move(*it);
-    // this->stack.erase(it);
-    //
-    // //MANAPIHTTP_LOG2("--pop_front");
-    // this->taskpool->append_task([handle = std::exchange(extracted.handle, nullptr)] ()
-    //     -> void { future<>::resume_promise(handle); });
-    co_return;
-}
-
-manapi::future<bool> manapi::async::condition_variable::_notify_first() {
-    if (this->stack.empty()) { co_return false; }
-    auto &data = *this->stack.rbegin();
-    if (data.mx) { co_await data.mx->lock(); }
-    auto it = this->stack.rbegin();
-    bool rhs = false;
-    try { rhs = it->cond(); }
-    catch (std::exception const &e) { MANAPIHTTP_LOG("async condition variable: {}", e.what()); }
-
-    if (rhs) {
-        auto extracted = std::move(*it);
-        this->stack.erase(it);
-
-        //MANAPIHTTP_LOG2("--pop_front");
-        this->taskpool->append_task([handle = std::exchange(extracted.handle, nullptr)] ()
-            -> void { future<>::resume_promise(handle); });
-    }
-    else {
-        if (data.mx) {
-            data.mx->unlock();
-        }
-
-        if (this->stop) {
-            this->stack.erase(it);
-        }
-    }
-    co_return true;
 }

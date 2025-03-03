@@ -269,7 +269,7 @@ namespace manapi::net::worker {
 
         async::mutex threads_mutex;
         std::map <int, http_v2_thread_data_t> threads;
-        std::atomic<size_t> thread_cnt;
+        std::atomic<size_t> thread_cnt{0};
 
         async::condition_variable finishcv;
         manapi::timer ping_interval{};

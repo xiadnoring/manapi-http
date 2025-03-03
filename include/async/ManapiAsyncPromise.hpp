@@ -80,14 +80,14 @@ namespace manapi::async {
                 async::run(this->data->taskpool, this->data->async_cb ([handle, data = this->data] (T v) mutable
                     -> void { resolve(std::move(data), handle, v); },
                     [handle, data = this->data] (std::exception_ptr e) mutable
-                    -> void { reject(std::move(data), handle, std::move(e)); }));
+                    -> void { reject(std::move(data), handle, std::move(e)); }), [data = this->data] () -> void {});
             }
         }
     private:
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
-            handle();
+            handle.resume();
         }
 
         template <typename T1>
@@ -185,14 +185,14 @@ namespace manapi::async {
                 async::run(this->data->taskpool, this->data->async_cb ([data = this->data, handle] () mutable
                     -> void { resolve(std::move(data), handle); },
                 [data = this->data, handle] (std::exception_ptr e) mutable
-                    -> void { reject(std::move(data), handle, std::move(e)); }));
+                    -> void { reject(std::move(data), handle, std::move(e)); }), [data = this->data] () -> void {});
             }
         }
     private:
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
-            handle();
+            handle.resume();
         }
 
         template <typename T1>

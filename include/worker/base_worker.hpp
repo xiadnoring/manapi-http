@@ -11,6 +11,8 @@
 #include "../ManapiUtils.hpp"
 
 namespace manapi::net::worker {
+#pragma pack(push,16)
+
     class connection {
     public:
         connection (void *ptr, void(*eraser)(void*));
@@ -70,7 +72,7 @@ namespace manapi::net::worker {
 
         virtual future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish);
         static std::shared_ptr<base> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
-        virtual void _timeout (std::shared_ptr<connection> storage, const int &revents);
+        virtual void _timeout (std::shared_ptr<connection> storage);
         virtual void stop ();
         virtual int status (connection &conn);
 
@@ -85,4 +87,6 @@ namespace manapi::net::worker {
         std::shared_ptr<manapi::net::http::config> config;
         std::atomic<int> cnt_conns = 0;
     };
+#pragma pack(pop)
+
 }

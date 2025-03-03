@@ -39,13 +39,24 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
             this->request_data.divided = -1;
 
             ssize_t size = 0, j = 0;
+            bool error = false;
             this->current = [this](char & PH1) { this->_parse_method(std::forward<decltype(PH1)>(PH1)); };
             while (!d.finished) {
                 size = co_await this->worker->read (*this->connection, this->buffer->data(), static_cast<ssize_t>(this->buffer->size()));
-                if (size <= 0) { break; }
+                if (size < 0) {
+                    error = true;
+                    break;
+                }
+                if (size == 0) {
+                    break;
+                }
                 for (j = 0; j < size && !d.finished; j++) {
                     this->current (this->buffer->at(j));
                 }
+            }
+
+            if (error) {
+                break;
             }
 
             if (std::exchange(upgraded, false)) {
@@ -108,8 +119,8 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
         }
     }
 
-
-    co_await this->worker->connection_close(this->connection, false);
+    async::run(this->site.async_context(),
+        this->worker->connection_close(this->connection, true));
 
     co_return;
 }

@@ -209,7 +209,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/worker/OpenSSL_QUIC.hpp
         src/worker/UDP.cpp
         include/worker/UDP.hpp
-        include/worker/tools/OpenSSLTools.hpp
+        include/ManapiInitTools.hpp
         include/worker/HTTPv3_clouflare_quiche.hpp
         src/worker/HTTPv3_cloudflare_quiche.cpp
         src/worker/HTTPv3_tquic.cpp
@@ -254,9 +254,10 @@ set(MANAPIHTTP_HTTP_FILES
         include/components/Buffer.hpp
         src/components/Buffer.cpp
         include/components/ObjectPool.hpp
-        src/worker/Tools.cpp
+        src/ManapiInitTools.cpp
         include/components/ManapiFileTransferInfo.hpp
         include/components/ManapiMemoryPool.hpp
+        src/async/ManapiAsyncSocket.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
