@@ -22,14 +22,17 @@ namespace manapi {
         };
     public:
         timer ();
+        timer (nullptr_t);
         timer (std::shared_ptr<timer_data_t> data);
         timer (std::move_only_function<void(manapi::timer t)> sync_cb);
         timer (std::move_only_function<manapi::future<>(manapi::timer t)> async_cb);
         timer (const timer &n);
         timer (timer &&n) noexcept;
         timer &operator=(timer &&n) noexcept;
+        timer &operator=(const timer &n);
+        timer &operator=(nullptr_t);
         ~timer ();
-
+        explicit operator bool () const;
         [[nodiscard]] size_t id () const;
         void _call (const std::shared_ptr<event_loop> &eventloop, const std::shared_ptr<threadpool<task>> &taskpool);
         void _clear ();

@@ -10,6 +10,7 @@
 #include "./base_worker.hpp"
 #include "./ManapiAsync.hpp"
 #include "../http/HeaderView.hpp"
+#include "../async/ManapiCancellation.hpp"
 
 namespace manapi::net::worker {
     class TCP : public worker::base {
@@ -54,7 +55,7 @@ namespace manapi::net::worker {
             bool configured = false;
             std::atomic<int> status = 0x0;
             std::atomic<int> mustly = 0b11111111;
-            std::function<manapi::future<>()> iocancel{nullptr};
+            async::cancellation_action iocancel;
         };
 #endif
 #pragma pack(pop)

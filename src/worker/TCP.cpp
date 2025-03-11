@@ -222,7 +222,7 @@ void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
                     printf("123\n");
                 }
                 co_await this->connection_close(conn, true);
-                co_await this->site.async_context()->eventloop()->custom_callback([this, conn = std::move(conn)] () mutable
+                co_await this->site.async_context()->eventloop()->custom_callback([this, conn = std::move(conn)] (event_loop *ev) mutable
                     -> void {
                     auto &connection = conn->as<connection_interface>();
                     connection.t.sync_stop(this->site.async_context());
@@ -350,9 +350,9 @@ void manapi::net::worker::TCP::_ev_watcher_stop(connection_interface &conn) {
 }
 
 void manapi::net::worker::TCP::_connection_close(std::shared_ptr<connection> conn, connection_interface &connection) {
-    if ((connection.status & (CONN_READ|CONN_WRITE))) {
-        manapi::async::run(this->site.async_context(),
-            manapi::async::invoke(std::move(connection.iocancel)));
+    if (connection.iocancel) {
+        connection.iocancel.sync_cancel();
+        connection.iocancel = nullptr;
     }
 
     if ((connection.status & CONN_CLOSED) == false) {
@@ -447,8 +447,10 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_write(connection &conn
             unlock.disable();
 
             connection.status.fetch_or(CONN_WRITE);
-            co_await async::write_ready (this->site.async_context(), connection.id, &connection.iocancel, [&] ()
+            connection.iocancel.reset(this->site.async_context());
+            connection.iocancel.handle_ready([&] ()
                 -> void { connection.iomutex.unlock(); unlock.disable(); });
+            co_await async::write_ready (this->site.async_context(), connection.id, connection.iocancel);
             connection.status.fetch_xor(CONN_WRITE);
 
             if (!connection.iomutex.try_to_lock()) {
@@ -509,8 +511,10 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_read(connection &conn,
         if (rhs < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 connection.status.fetch_or(CONN_READ);
-                co_await async::read_ready (this->site.async_context(), connection.id, &connection.iocancel, [&] ()
+                connection.iocancel.reset(this->site.async_context());
+                connection.iocancel.handle_ready([&] ()
                     -> void { connection.iomutex.unlock(); unlock.disable(); });
+                co_await async::read_ready (this->site.async_context(), connection.id, connection.iocancel);
                 connection.status.fetch_xor(CONN_READ);
 
                 if (!connection.iomutex.try_to_lock()) {

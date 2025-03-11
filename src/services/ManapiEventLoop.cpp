@@ -226,7 +226,7 @@ void manapi::event_loop::custom_watcher_fd_async(ev::async &w, int revents) {
     }
 }
 
-manapi::future<void> manapi::event_loop::custom_callback(std::move_only_function<void()> cb) {
+manapi::future<void> manapi::event_loop::custom_callback(std::move_only_function<void(event_loop *ev)> cb) {
     co_await async::promise<void> (this->taskpool, [&](async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> manapi::future<> {
         auto this_ = this;
         auto data = std::make_unique<adding_custom_callback_data_t>(std::move(cb), std::move(resolve), std::move(reject));
@@ -401,7 +401,7 @@ void manapi::event_loop::custom_watcher_callback_async(ev::async &w, int revents
             this->callback_watcher.callback_data.pop_front();
 
             try {
-                data->cb();
+                data->cb(this);
             }
             catch (...) {
                 this->taskpool->append_task([reject = std::move(data->reject), err = std::current_exception()] () mutable
@@ -458,7 +458,7 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
         }
         else {
             this->taskpool->append_task([resolve1 = std::move(data->resolve), resolve2 = std::move(curl_data.mapped())] () mutable
-                -> void { resolve1 (); resolve2(CURLE_OPERATION_TIMEDOUT); });
+                -> void { resolve1 (); resolve2(CURLE_ABORTED_BY_CALLBACK); });
         }
     }
     else if (data->flag==2) {

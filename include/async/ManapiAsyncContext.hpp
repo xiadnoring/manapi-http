@@ -60,6 +60,7 @@ namespace manapi::async {
     inline std::map <size_t, std::shared_ptr<async_task_t>> async_tasks;
 
     size_t _run_prepare (const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::move_only_function<void()> onfinish);
+    manapi::future<> blank_future();
 
     template<typename T>
     std::invoke_result_t <T> invoke (T &&executer) {

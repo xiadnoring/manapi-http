@@ -46,8 +46,8 @@ int main () {
                 {"msg", resp.get_status_message()}});
     });
 
-    router->GET("/cat", [&ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        manapi::net::fetch fetch (ctx, "https://dragonball-api.com/api/planets/7");
+    router->GET("/cat/[id]", [&ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+        manapi::net::fetch fetch (ctx, "https://dragonball-api.com/api/planets/" + req.get_param("id"));
         fetch.enable_ssl_verify(false);
         fetch.set_method("GET");
         //fetch.set_verbose(true);

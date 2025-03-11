@@ -51,7 +51,7 @@ namespace manapi {
         async::promise<std::optional<manapi::timer>>::reject_t reject{nullptr};
     };
     struct adding_custom_callback_data_t {
-        std::move_only_function<void()> cb;
+        std::move_only_function<void(event_loop *ev)> cb;
         async::promise<void, std::false_type>::resolve_t resolve{nullptr};
         async::promise<void, std::false_type>::reject_t reject{nullptr};
     };
@@ -115,7 +115,7 @@ namespace manapi {
         future<void> pause_watch_curl (CURL *curl);
         future<void> custom_cb_curl (CURL *curl, std::move_only_function<void(CURLcode result)> cb);
 
-        future<void> custom_callback (std::move_only_function<void()> cb);
+        future<void> custom_callback (std::move_only_function<void(event_loop *ev)> cb);
 
         future<manapi::timer> append_async_timer (size_t time, std::move_only_function<manapi::future<>(manapi::timer t)> cb);
         future<manapi::timer> append_sync_timer (size_t time, std::move_only_function<void(manapi::timer t)> cb);

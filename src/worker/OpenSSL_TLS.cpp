@@ -23,13 +23,15 @@
 #include "ManapiUtils.hpp"
 #include "http/HeaderView.hpp"
 
-#define WANT_READ(x_) x_.status.fetch_or(CONN_READ); \
-co_await async::read_ready (this->site.async_context(), x_.id, &x_.iocancel, [&] () \
--> void { x_.iomutex.unlock(); unlock.disable(); lk.call(); }); \
+#define WANT_READ(x_, ctx) x_.status.fetch_or(CONN_READ); \
+x_.iocancel.reset(ctx);\
+x_.iocancel.handle_ready([&] () -> void { x_.iomutex.unlock(); unlock.disable(); lk.call(); }); \
+co_await async::read_ready (this->site.async_context(), x_.id, x_.iocancel); \
 x_.status.fetch_xor(CONN_READ);
-#define WANT_WRITE(x_) x_.status.fetch_or(CONN_WRITE); \
-co_await async::write_ready (this->site.async_context(), x_.id, &x_.iocancel, [&] () \
--> void { x_.iomutex.unlock(); unlock.disable(); lk.call();  }); \
+#define WANT_WRITE(x_, ctx) x_.status.fetch_or(CONN_WRITE); \
+x_.iocancel.reset(ctx);\
+x_.iocancel.handle_ready([&] () -> void { x_.iomutex.unlock(); unlock.disable(); lk.call();  }); \
+co_await async::write_ready (this->site.async_context(), x_.id, x_.iocancel); \
 x_.status.fetch_xor(CONN_WRITE);
 
 manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::site &site) : TCP (site) {
@@ -93,11 +95,11 @@ manapi::future<bool> manapi::net::worker::OpenSSL_TLS::configure_connection(std:
             if (rhs != SSL_ERROR_NONE) {
                 switch (rhs) {
                     case SSL_ERROR_WANT_READ: {
-                        WANT_READ(conn);
+                        WANT_READ(conn, this->site.async_context());
                         goto cont;
                     }
                     case SSL_ERROR_WANT_WRITE: {
-                        WANT_WRITE(conn);
+                        WANT_WRITE(conn, this->site.async_context());
                         goto cont;
                     }
                     case SSL_ERROR_ZERO_RETURN: {
@@ -187,11 +189,11 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
 
 
     if (connection.iocancel) {
-        co_await connection.iocancel();
-        connection.iocancel=nullptr;
+        co_await connection.iocancel.cancel();
+        connection.iocancel = nullptr;
     }
 
-    if ((false == connection.status & CONN_CLOSED)) {
+    if ((false && false == connection.status & CONN_CLOSED)) {
         if (clean_disconnect) {
             bool flag = true;
 
@@ -199,7 +201,7 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
                 -> void {
                 /* libev loop */
                 if (connection.iocancel) {
-                    async::run(this->site.async_context(), async::invoke(std::move(connection.iocancel)));
+                    connection.iocancel.sync_cancel();
                 }
             });
 
@@ -211,14 +213,14 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
                 }
                 switch (ssl_errno) {
                     case SSL_ERROR_WANT_READ:
-                        co_await async::read_ready(this->site.async_context(), connection.id, &connection.iocancel, [] () -> void {  });
+                        co_await async::read_ready(this->site.async_context(), connection.id, connection.iocancel);
                     break;
                     case SSL_ERROR_WANT_WRITE:
-                        co_await async::write_ready(this->site.async_context(), connection.id, &connection.iocancel, [] () -> void {  });
+                        co_await async::write_ready(this->site.async_context(), connection.id, connection.iocancel);
                     break;
                     case SSL_ERROR_SYSCALL: {
                         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                            co_await async::read_ready(this->site.async_context(), connection.id, &connection.iocancel, [] () -> void {  });
+                            co_await async::read_ready(this->site.async_context(), connection.id, connection.iocancel);
                             break;
                         }
                         flag=false;
@@ -456,11 +458,11 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_write(connection &
                         co_return -1;
                     }
                     case SSL_ERROR_WANT_READ: {
-                        WANT_READ(connection);
+                        WANT_READ(connection, this->site.async_context());
                         goto cont;
                     }
                     case SSL_ERROR_WANT_WRITE: {
-                        WANT_WRITE(connection);
+                        WANT_WRITE(connection, this->site.async_context());
                         goto cont;
                     }
                     default:
@@ -537,17 +539,17 @@ manapi::future<ssize_t> manapi::net::worker::OpenSSL_TLS::ssl_read(connection &c
                 switch (ssl_errno) {
                     case SSL_ERROR_SYSCALL: {
                         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                            WANT_READ(connection);
+                            WANT_READ(connection, this->site.async_context());
                             goto cont;
                         }
                         co_return -1;
                     }
                     case SSL_ERROR_WANT_READ: {
-                        WANT_READ(connection);
+                        WANT_READ(connection, this->site.async_context());
                         goto cont;
                     }
                     case SSL_ERROR_WANT_WRITE: {
-                        WANT_WRITE(connection);
+                        WANT_WRITE(connection, this->site.async_context());
                         goto cont;
                     }
                     default:

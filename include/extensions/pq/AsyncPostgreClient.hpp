@@ -81,11 +81,11 @@ namespace manapi::ext::pq {
                     switch (ret) {
                         case PGRES_POLLING_READING:
                             this->fd_ = PQsocket(this->conn.get());
-                            co_await async::read_ready(this->ctx, this->fd_);
+                        co_await async::read_ready(this->ctx, this->fd_);
                         continue;
                         case PGRES_POLLING_WRITING:
                             this->fd_ = PQsocket(this->conn.get());
-                            co_await async::write_ready(this->ctx, this->fd_);
+                        co_await async::write_ready(this->ctx, this->fd_);
                         continue;
                         case PGRES_POLLING_FAILED:
                             THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "Polling failed");
@@ -119,7 +119,7 @@ namespace manapi::ext::pq {
             std::string buffer;
             auto [t, v, l, f] = pq::serialize(buffer, std::make_tuple(args...));
             if (!PQsendQueryParams(this->conn.get(), sql.data(), t.size(), t.data(), v.data(), l.data(), f.data(), 1)) {
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "send the query failed");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "send query failed");
             }
 
             co_return std::move(co_await this->generic_single_result_query());
@@ -281,6 +281,7 @@ namespace manapi::ext::pq {
             co_return;
         }
 
+        manapi::timer timeout{};
         std::function<manapi::future<>(notification notify)> notify_cb{nullptr};
         bool init_{true};
         int fd_{-1};

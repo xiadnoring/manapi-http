@@ -30,67 +30,73 @@ std::shared_ptr<ev::io> manapi::async::pwrite_ready_mk_(std::shared_ptr<context>
     return std::move(w);
 }
 
-manapi::future<> manapi::async::pio_ready_(std::shared_ptr<context> ctx, std::shared_ptr<ev::io> w) {
-    co_await ctx->eventloop()->watch_fd(std::move(w));
-}
-
 manapi::future<void> manapi::async::read_ready(std::shared_ptr<context> ctx, int fd) {
     co_await promise<void> (ctx, [ctx, fd] (promise<void>::resolve_t resolve, promise<void>::reject_t reject) -> future<> {
         auto w = pread_ready_mk_(ctx, fd, std::move(resolve), std::move(reject));
-        co_await pio_ready_(ctx, std::move(w));
+        co_await ctx->eventloop()->watch_fd(std::move(w));
     });
 }
 
 manapi::future<void> manapi::async::write_ready(std::shared_ptr<context> ctx, int fd) {
     co_await promise<void> (ctx, [ctx, fd] (promise<void>::resolve_t resolve, promise<void>::reject_t reject) -> future<> {
         auto w = pwrite_ready_mk_(ctx, fd, std::move(resolve), std::move(reject));
-        co_await pio_ready_(ctx, std::move(w));
+        co_await ctx->eventloop()->watch_fd(std::move(w));
     });
 }
 
-manapi::future<void> manapi::async::read_ready(std::shared_ptr<context> ctx, int fd,std::function<manapi::future<>()> *cancellation, std::function<void()> complete) {
-    auto cb = std::make_shared<std::move_only_function<void()>> ([n = std::make_shared<std::atomic<bool>>(false), complete = std::move(complete)] () mutable -> void {
-        if (!n->exchange(true)) {
-            complete();
+manapi::future<> pio_ready (std::shared_ptr<manapi::async::context> ctx, std::shared_ptr<ev::io> w, manapi::async::cancellation_action cancellation) {
+    return ctx->eventloop()->custom_callback([ctx, w, cancellation] (manapi::event_loop *ev) mutable -> void {
+        if (cancellation.contains_timeout()) {
+            cancellation.timeout_struct (ctx->timerpool()->append_timer_sync(cancellation.timeout(), [cancellation] (manapi::timer t) mutable
+                -> void {
+                cancellation.timeout_received();
+            }));
         }
-    });
 
-    co_await promise<void> (ctx, [cb, ctx, fd, cancellation] (promise<void>::resolve_t resolve, promise<void>::reject_t reject) mutable -> manapi::future<> {
+        /** bind watcher */
+        w->start();
+    });
+}
+
+manapi::future<void> manapi::async::read_ready(std::shared_ptr<context> ctx, int fd,cancellation_action cancellation) {
+    co_await promise<void> (ctx, [ctx, fd, cancellation] (promise<void>::resolve_t resolve, promise<void>::reject_t reject) mutable -> manapi::future<> {
         auto w = pread_ready_mk_(ctx, fd, resolve, std::move(reject));
 
-        if (cancellation) {
-            (*cancellation) = [ctx, w, resolve] () mutable -> manapi::future<> {
+        if (cancellation.contains_cancel_callback()) {
+            cancellation.set_cancel_callback([ctx, w, resolve] () mutable -> manapi::future<> {
                 co_await ctx->eventloop()->unwatch_fd(std::move(w));
                 resolve ();
-            };
+            });
         }
-        co_await pio_ready_(ctx, std::move(w));
-        cb->operator()();
+
+        co_await pio_ready(ctx, std::move(w), cancellation);
+
+        cancellation.ready();
         co_return;
     });
 
-    cb->operator()();
+    /** already */
+    cancellation.disable_cancellation();
+    cancellation.ready();
 }
 
-manapi::future<void> manapi::async::write_ready(std::shared_ptr<context> ctx, int fd,std::function<manapi::future<>()> *cancellation, std::function<void()> complete) {
-    auto cb = std::make_shared<std::move_only_function<void()>> ([n = std::make_shared<std::atomic<bool>>(0), complete = std::move(complete)] () mutable -> void {
-        if (!n->exchange(true)) {
-            complete();
-        }
-    });
-
-    co_await promise<void> (ctx, [cb, ctx, fd, cancellation] (promise<void>::resolve_t resolve, promise<void>::reject_t reject) mutable -> manapi::future<> {
+manapi::future<void> manapi::async::write_ready(std::shared_ptr<context> ctx, int fd,cancellation_action cancellation) {
+    co_await promise<void> (ctx, [ctx, fd, cancellation] (promise<void>::resolve_t resolve, promise<void>::reject_t reject) mutable -> manapi::future<> {
         auto w = pwrite_ready_mk_(ctx, fd, resolve, std::move(reject));
 
-        if (cancellation) {
-            (*cancellation) = [ctx, w, resolve] () mutable -> manapi::future<> {
+        if (cancellation.contains_cancel_callback()) {
+            cancellation.set_cancel_callback([ctx, w, resolve] () mutable -> manapi::future<> {
                 co_await ctx->eventloop()->unwatch_fd(std::move(w));
                 resolve();
-            };
+            });
         }
 
-        co_await pio_ready_(ctx, std::move(w));
-        cb->operator()();
+        co_await pio_ready(ctx, std::move(w), cancellation);
+
+        cancellation.ready();
     });
-    cb->operator()();
+
+    /** already */
+    cancellation.disable_cancellation();
+    cancellation.ready();
 }

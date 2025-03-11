@@ -258,6 +258,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/components/ManapiFileTransferInfo.hpp
         include/components/ManapiMemoryPool.hpp
         src/async/ManapiAsyncSocket.cpp
+        include/async/ManapiCancellation.hpp
+        src/async/ManapiCancellation.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

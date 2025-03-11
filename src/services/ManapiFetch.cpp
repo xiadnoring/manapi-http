@@ -320,8 +320,12 @@ manapi::future<bool> manapi::net::fetch::handle_body_verify(std::shared_ptr<shar
     if (data->async_handler_headers) {
         flg = co_await data->async_handler_headers(data, std::move(data->headers));
     }
-    if (data->handler_headers) {
+
+    else if (data->handler_headers) {
         flg = data->handler_headers(std::move(data->headers));
+    }
+    else {
+        flg = true;
     }
 
     if (!flg) {
@@ -379,7 +383,9 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
         res = co_await async::promise<CURLcode> (this->data->ctx->eventloop()->get_task_pool(), [this] (async::promise<CURLcode>::resolve_t resolve, async::promise<CURLcode>::reject_t reject) -> future<> {
             try {
                 co_await this->data->ctx->eventloop()->watch_curl(this->data->curl.get(), [resolve = std::move(resolve)] (CURLcode result)
-                    -> void { resolve (result); });
+                    -> void {
+                    resolve (result);
+                });
             }
             catch (...) {
                 reject (std::current_exception());

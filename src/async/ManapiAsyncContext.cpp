@@ -91,6 +91,10 @@ size_t manapi::async::_run_prepare(const std::shared_ptr<threadpool<task>> &task
     return index;
 }
 
+manapi::future<> manapi::async::blank_future () {
+    co_return;
+}
+
 void manapi::async::run(const std::shared_ptr<context> &ctx, manapi::future<> task,std::move_only_function<void()> onfinish) {
     async::run (ctx->taskpool(), std::move(task), std::move(onfinish));
 }

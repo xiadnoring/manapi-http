@@ -5,6 +5,10 @@ manapi::timer::timer() {
     this->data = nullptr;
 }
 
+manapi::timer::timer(nullptr_t) {
+    this->data = nullptr;
+}
+
 manapi::timer::timer(std::shared_ptr<timer_data_t> data) {
     this->data = std::move(data);
 }
@@ -42,7 +46,21 @@ manapi::timer & manapi::timer::operator=(timer &&n) noexcept {
     return *this;
 }
 
+manapi::timer & manapi::timer::operator=(const timer &n) {
+    this->data = n.data;
+    return *this;
+}
+
+manapi::timer & manapi::timer::operator=(nullptr_t) {
+    this->data = nullptr;
+    return *this;
+}
+
 manapi::timer::~timer() = default;
+
+manapi::timer::operator bool() const {
+    return this->data != nullptr;
+}
 
 size_t manapi::timer::id() const {
     return manapi::timer::_id(this->data);
