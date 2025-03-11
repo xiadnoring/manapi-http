@@ -56,7 +56,7 @@ const std::map<std::string, std::function<std::shared_ptr<manapi::net::worker::b
     return this->transport_protocol_workers[type];
 }
 
-manapi::object_pool<manapi::bytebuffer, long unsigned int> & manapi::net::site::bufferpool() {
+manapi::object_pool<manapi::bytebuffer, std::false_type, long unsigned int> & manapi::net::site::bufferpool() {
     return this->bufferpool_;
 }
 

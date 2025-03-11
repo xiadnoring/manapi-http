@@ -86,12 +86,17 @@ int main () {
        });
 
     router->GET("/proxy", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        manapi::net::curlformdata formdata;
-        std::string filepath = "/home/Timur/a.out";
-        formdata.setfile("hello", filepath);
-        formdata.setdata("size", std::to_string(manapi::filesystem::get_size(filepath)));
         auto response = co_await manapi::net::fetch2::fetch (ctx, "https://localhost:8888/test", {
-            {"enable_alpn", false}, {"enable_ssl_verify", false}, {"enable_http2", true},{"method", "POST"}});
+            {"enable_alpn", false}, {"enable_ssl_verify", false}, {"enable_http2", true},{"method", "POST"}, {
+                "headers", {
+                    {"content-length", 100}
+                }
+            }}, [s = ssize_t(100)] (char *buffer, ssize_t size) mutable -> manapi::future<ssize_t> {
+                auto res = std::min(s, size);
+                s -= res;
+                memset(buffer, 'h', res);
+                co_return res;
+            });
         if (!response->ok()) {
             std::cout << "no ok\n";
         }
@@ -112,36 +117,38 @@ int main () {
     });
 
     router->GET ("/test", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+
         co_return resp.json({{"hello", "world"}, {"auaai", 78}, {"hello2", nullptr}});
     });
 
     router->POST ("/test", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        resp.set_header(manapi::net::HTTP_HEADER.CONTENT_TYPE, manapi::net::HTTP_MIME.TEXT_PLAIN);
-        auto formdata = co_await req.form();
-        ssize_t size = 298512394;
-        ssize_t fsize = 0;
-        std::string data;
-        while (true) {
-            if (formdata.next_file()) {
-                std::cout << formdata.about_file().param_name << " " << formdata.about_file().file_name << " " << formdata.about_file().mime_type << "\n";
-                co_await formdata.save_file("/home/Timur/video2.mp4");
-                fsize = manapi::filesystem::get_size("/home/Timur/video2.mp4");
-                continue;
-            }
-            if (formdata.next_param()) {
-                auto data = co_await formdata.get_param();
-                if (data.first == "size") {
-                    size = std::stoll(data.second);
-                }
-                continue;
-            }
-
-            break;
-        }
+        co_await req.file("./test.empty");
+        // resp.set_header(manapi::net::HTTP_HEADER.CONTENT_TYPE, manapi::net::HTTP_MIME.TEXT_PLAIN);
+        // auto formdata = co_await req.form();
+        // ssize_t size = 298512394;
+        // ssize_t fsize = 0;
+        // std::string data;
+        // while (true) {
+        //     if (formdata.next_file()) {
+        //         std::cout << formdata.about_file().param_name << " " << formdata.about_file().file_name << " " << formdata.about_file().mime_type << "\n";
+        //         co_await formdata.save_file("/home/Timur/video2.mp4");
+        //         fsize = manapi::filesystem::get_size("/home/Timur/video2.mp4");
+        //         continue;
+        //     }
+        //     if (formdata.next_param()) {
+        //         auto data = co_await formdata.get_param();
+        //         if (data.first == "size") {
+        //             size = std::stoll(data.second);
+        //         }
+        //         continue;
+        //     }
+        //
+        //     break;
+        // }
         // if (size != fsize) {
         //     co_return resp.text(std::format("{} {}", size, fsize));
         // }
-        co_return resp.json({{"status", fsize == size ? "OK" : "ERROR"}});
+        co_return resp.json({{"status", true ? "OK" : "ERROR"}});
     });
 
     router->POST ("/test2", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {

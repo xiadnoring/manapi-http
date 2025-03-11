@@ -156,6 +156,10 @@ namespace manapi::net {
                 this->data->enable_http3();
             }
 
+            if (params.contains("headers") && params["headers"].is_object()) {
+                this->data->set_json_headers(std::move(params["headers"]));
+            }
+
             this->fetchdata->setup = true;
 
             this->data->handle_body([fetchdata = this->fetchdata] (char *buffer, ssize_t size)

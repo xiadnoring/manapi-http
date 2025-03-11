@@ -4,7 +4,7 @@
 #include "ManapiChain.hpp"
 
 namespace manapi {
-    template<typename T, typename ...Args>
+    template<typename T, typename pre_init, typename ...Args>
     class object_pool;
 
     template<typename T, typename ...Args>
@@ -56,19 +56,34 @@ namespace manapi {
 
         ~object_item_pool();
 
+        static void internal_ret (std::shared_ptr<typename object_item_pool<T, Args...>::data_t> data, std::unique_ptr<T> item) {
+            item->reinit();
+            std::lock_guard<std::mutex> lk (data->mx);
+            data->objects.push_back(std::move(item));
+        }
+
     private:
         std::shared_ptr<data_t> data;
         std::unique_ptr<T> object;
     };
 
-    template<typename T, typename ...Args>
+    template<typename T, typename pre_init, typename ...Args>
     class object_pool {
     public:
         typedef std::unique_ptr<T> item;
 
+        template<typename pre_init2 = pre_init>
+        requires(std::is_same_v<pre_init2, std::false_type>)
         explicit object_pool() : data(nullptr) {}
+
+        template<typename pre_init2 = pre_init>
+        requires(std::is_same_v<pre_init2, std::true_type>)
+        explicit object_pool(Args &&...args) { this->data = std::make_shared<typename object_item_pool<T, Args...>::data_t>(std::tuple<Args...> (args...)); }
+
         ~object_pool() = default;
 
+        template<typename pre_init2 = pre_init>
+        requires(std::is_same_v<pre_init2, std::false_type>)
         void init (Args &&...args) {
             this->data = std::make_shared<typename object_item_pool<T, Args...>::data_t>(std::tuple<Args...> (args...));
         }
@@ -101,12 +116,6 @@ namespace manapi {
             std::lock_guard<std::mutex> lk (this->data->mx);
             this->data->objects.push_back(std::move(item));
         }
-
-        static void internal_ret (std::shared_ptr<typename object_item_pool<T, Args...>::data_t> data, std::unique_ptr<T> item) {
-            item->reinit();
-            std::lock_guard<std::mutex> lk (data->mx);
-            data->objects.push_back(std::move(item));
-        }
     private:
 
         template <size_t... Idx>
@@ -119,7 +128,7 @@ namespace manapi {
     template<typename T, typename ... Args>
     manapi::object_item_pool<T, Args...> & manapi::object_item_pool<T, Args...>::operator=(nullptr_t) {
         if (this->object && this->data) {
-            object_pool<T, Args...>::internal_ret(std::move(this->data), std::move(this->object));
+            internal_ret(std::move(this->data), std::move(this->object));
         }
         return *this;
     }
@@ -127,7 +136,7 @@ namespace manapi {
     template<typename T, typename ... Args>
     manapi::object_item_pool<T, Args...>::~object_item_pool() {
         if (this->object && this->data) {
-            object_pool<T, Args...>::internal_ret(std::move(this->data), std::move(this->object));
+            internal_ret(std::move(this->data), std::move(this->object));
         }
     }
 }

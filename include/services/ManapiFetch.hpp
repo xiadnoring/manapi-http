@@ -118,6 +118,7 @@ namespace manapi::net {
         void set_async_body (std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler);
         void set_body (std::move_only_function<ssize_t(char *, ssize_t)> handler);
         void set_headers (std::map <std::string, std::string> headers);
+        void set_json_headers (manapi::json headers);
         void set_custom_setup (std::move_only_function<void(CURL *curl)> func);
         void enable_ssl_verify (const bool &status);
         void set_verbose (bool status);
@@ -137,22 +138,22 @@ namespace manapi::net {
 
         void clear ();
     private:
+        static std::map <std::string, CURLoption> http_method_to_enum;
         static manapi::future<bool> handle_body_verify (std::shared_ptr<shared_data> data);
         static manapi::future<void> handle_sync_body_finish(std::shared_ptr<shared_data> data, bool finish);
         static manapi::future<void> handle_async_body_finish(std::shared_ptr<shared_data> data, bool finish);
         static std::size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata);
         static std::size_t curl_write_handler (char *buffer, size_t size, size_t nitems, void *user_p);
         static std::size_t curl_read_handler (char *buffer, std::size_t size, std::size_t nitems, void *user_p);
-        static object_pool<bytebuffer> bufferpool;
+        static object_pool<bytebuffer, std::true_type> bufferpool;
 
         void setup_parallel_task ();
         void _default_setup_curl ();
 
         future<CURLcode> async_curl_perform ();
-        size_t status_code = 200;
 
-        int attempts = 20;
-        std::chrono::milliseconds attempt_delay {100};
+        size_t status_code = 200;
+        ssize_t content_length = -1;
 
         std::string url;
 
@@ -163,9 +164,5 @@ namespace manapi::net {
         std::string body_default{};
         std::string method{};
         std::optional<curlformdata> body_formdata{};
-
-        std::atomic<ssize_t> total_read{0};
-        std::atomic<ssize_t> total_write{0};
-
     };
 }

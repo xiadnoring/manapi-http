@@ -59,19 +59,14 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
         this->request_data.body_size = content_length;
 
         co_await expect_header();
-        while (size <= j) {
+        if (size <= j) {
             size = co_await this->read(this->request_data.buffer->data(), static_cast<ssize_t>(this->request_data.buffer->size()));
             if (size < 0) {
                 THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "this->read(...) = {}", size);
             }
             this->request_data.body_part = size;
             this->request_data.headers_part = 0;
-            if (j > size) {
-                j -= size;
-            }
-            else {
-                j = 0;
-            }
+            j = 0;
         }
         this->request_data.headers_part = j;
         this->request_data.body_part = size;
