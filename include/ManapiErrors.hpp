@@ -45,7 +45,8 @@ namespace manapi {
         ERR_INTERRUPTED = 37,
         ERR_THREAD_SAFE = 38,
         ERR_POSTGRE_ERROR = 39,
-        ERR_POSTGRE_RESULT = 40
+        ERR_POSTGRE_RESULT = 40,
+        ERR_CONNECTION_TIMEOUT = 41
     };
 
     const std::map <err_num, std::string> err_msg {
@@ -60,7 +61,8 @@ namespace manapi {
         {ERR_SUBSCRIBE_FAILURE, "Failed to subscribe"},
         {ERR_INTERRUPTED, "App was interrupted"},
         {ERR_THREAD_SAFE, "That method isn't thread safe"},
-        {ERR_POSTGRE_ERROR, "PostgreSQL error"}
+        {ERR_POSTGRE_ERROR, "PostgreSQL error"},
+        {ERR_CONNECTION_TIMEOUT, "Connection Timeout"}
     };
 
     const inline std::string & get_msg_by_err_num(const err_num &errnum) {

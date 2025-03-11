@@ -18,6 +18,9 @@ int main () {
     auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
     auto router = std::make_shared<manapi::net::http::server> (ctx);
 
+    /** 1000ms **/
+    db->timeout(1000);
+
     ctx->eventloop()->setup_handle_interrupt();
 
     router->set_config("./config.json");

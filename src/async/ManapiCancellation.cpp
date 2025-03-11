@@ -15,7 +15,12 @@ manapi::async::cancellation_action::cancellation_action() {
 }
 
 manapi::async::cancellation_action::cancellation_action(std::shared_ptr<async::context> ctx) {
-    this->data = std::make_shared<data_t>(0, 0, 0, nullptr, nullptr, nullptr, std::move(ctx));
+    if (ctx) {
+        this->data = std::make_shared<data_t>(0, 0, 0, nullptr, nullptr, nullptr, std::move(ctx));
+    }
+    else {
+        this->data = nullptr;
+    }
 }
 
 manapi::async::cancellation_action::cancellation_action(cancellation_action &&n) noexcept {
