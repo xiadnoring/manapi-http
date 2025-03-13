@@ -89,21 +89,27 @@ int main () {
        });
 
     router->GET("/proxy", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        auto response = co_await manapi::net::fetch2::fetch (ctx, "https://localhost:8888/test", {
-            {"enable_alpn", false}, {"enable_ssl_verify", false}, {"enable_http2", true},{"method", "POST"}, {
-                "headers", {
-                    {"content-length", 100}
-                }
-            }}, [s = ssize_t(100)] (char *buffer, ssize_t size) mutable -> manapi::future<ssize_t> {
-                auto res = std::min(s, size);
-                s -= res;
-                memset(buffer, 'h', res);
-                co_return res;
-            });
-        if (!response->ok()) {
-            std::cout << "no ok\n";
+        try {
+            auto response = co_await manapi::net::fetch2::fetch (ctx, "https://localhost:8888/test1", {
+                {"enable_alpn", false}, {"enable_ssl_verify", false}, {"enable_http2", true},{"method", "POST"}, {
+                    "headers", {
+                        {"content-length", 100}
+                    }
+                }}, [s = ssize_t(100)] (char *buffer, ssize_t size) mutable -> manapi::future<ssize_t> {
+                    auto res = std::min(s, size);
+                    s -= res;
+                    memset(buffer, 'h', res);
+                    co_return -1;
+                });
+            if (!response->ok()) {
+                std::cout << "no ok\n";
+            }
+            co_return resp.json (co_await response->json());
         }
-        co_return resp.json (co_await response->json());
+        catch (...) {
+
+        }
+        co_return resp.text("BAD");
         // co_return resp.proxy("https://127.0.0.1:8888/video", [] (manapi::net::fetch &proxy) -> void {
         //     proxy.enable_alpn(false);
         //     proxy.enable_http2();

@@ -445,6 +445,9 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
         /* remove */
         auto curl_data = this->curl_watcher.curl_res.extract(data->curl);
         if (curl_data.empty()) {
+            /** already was removed */
+            this->taskpool->append_task([resolve1 = std::move(data->resolve)] () mutable
+                -> void { resolve1 (); });
             return;
         }
 
