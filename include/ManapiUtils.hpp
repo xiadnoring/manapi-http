@@ -15,8 +15,8 @@
 
 //#include "./extensions/jemallocator.hpp"
 
-#define REQ(_x) manapi::net::http_request &_x
-#define RESP(_x) manapi::net::http_response &_x
+#define REQ(_x) manapi::net::http::request &_x
+#define RESP(_x) manapi::net::http::response &_x
 
 #define HANDLER(_req, _resp) (REQ(_req), RESP(_resp))
 

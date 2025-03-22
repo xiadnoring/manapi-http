@@ -10,17 +10,17 @@
 #include "http/HTTPv1_1.hpp"
 
 manapi::net::http::HeaderView::HeaderView(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
-    : worker(std::move(worker)), config(std::move(config)), site(site) {
+    : worker(std::move(worker)), config(std::move(config)), site(site), parse_vars(nullptr), request_data({}) {
 }
 
 manapi::net::http::HeaderView::HeaderView(std::shared_ptr<worker::connection> connection, std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
-    : worker(std::move(worker)), config(std::move(config)), site(site) {
+    : worker(std::move(worker)), config(std::move(config)), site(site), request_data({}) {
     this->connection = std::move(connection);
-
+    this->parse_vars = nullptr;
     this->buffer = this->site.bufferpool().get();
 }
 
-manapi::net::http::HeaderView::~HeaderView() {}
+manapi::net::http::HeaderView::~HeaderView() = default;
 
 manapi::future<void> manapi::net::http::HeaderView::doit() {
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
@@ -28,9 +28,9 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
     bool upgraded = false;
 
     this->buffer->resize(this->config->buffer_size());
-    this->parse_vars = parse_vars_t{};
+    this->parse_vars = std::make_shared<parse_vars_t>();
 
-    auto &d = this->parse_vars.value();
+    auto &d = *this->parse_vars;
 
     if (co_await this->worker->configure_connection(this->connection)) {
         while (true) {
@@ -131,7 +131,7 @@ void manapi::net::http::HeaderView::_parse_method(char &c) {
         //     THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Invalid method: {}", parse_vars.buffer);
         // }
 
-        this->request_data.method = std::move(this->parse_vars.value().buffer);
+        this->request_data.method = std::move(this->parse_vars->buffer);
 
         this->current = [this](char & PH1) { this->_skip_white_space(std::forward<decltype(PH1)>(PH1)); };
         this->next = [this](char & PH1) { this->_parse_uri(std::forward<decltype(PH1)>(PH1)); };
@@ -139,7 +139,7 @@ void manapi::net::http::HeaderView::_parse_method(char &c) {
         return;
     }
 
-    this->parse_vars.value().buffer += c;
+    this->parse_vars->buffer += c;
 }
 
 void manapi::net::http::HeaderView::_skip_white_space(char &c) {
@@ -151,7 +151,7 @@ void manapi::net::http::HeaderView::_skip_white_space(char &c) {
 }
 
 void manapi::net::http::HeaderView::_next_line(char &c) {
-    auto &d = this->parse_vars.value();
+    auto &d = *this->parse_vars;
     if (d.next_line_state) {
         d.next_line_state = false;
         if (c == '\n') {
@@ -171,81 +171,19 @@ void manapi::net::http::HeaderView::_next_line(char &c) {
 }
 
 void manapi::net::http::HeaderView::_parse_uri(char &c) {
-    auto &d = this->parse_vars.value();
-    
     if (c == ' ') {
-        this->_cleanup_uri();
+        auto data = this->parse_vars->url_decode.result();
+        this->request_data.path = std::move(data.first);
+        this->request_data.divided = data.second;
+
         this->current = [this](char & PH1) { this->_skip_white_space(std::forward<decltype(PH1)>(PH1)); };
         this->next = [this](char & PH1) { this->_parse_http(std::forward<decltype(PH1)>(PH1)); };
         this->current(c);
-        return;
-    }
-
-    if (!crypto::url_allowed_symbol(c)) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid char");
-    }
-
-    this->request_data.uri += c;
-
-    if (d.hex_index >= 0) {
-        d.hex_symbols[d.hex_index] = c;
-
-        if (d.hex_index == 1) {
-            char x = static_cast<char> (manapi::unicode::hex2dec(d.hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
-                                 d.hex_symbols[1]));
-
-            if (((d.hex_symbols[0] >= 'a' && d.hex_symbols[0] <= 'z') || (d.hex_symbols[0] >= 'A' && d.hex_symbols[0] <= 'Z')
-                || (d.hex_symbols[0] >= '0' && d.hex_symbols[0] <= '9')) && ((d.hex_symbols[1] >= 'a' && d.hex_symbols[1] <= 'z') || (d.hex_symbols[1] >= 'A' && d.hex_symbols[1] <= 'Z')
-                || (d.hex_symbols[1] >= '0' && d.hex_symbols[1] <= '9'))) {
-                this->request_data.path.back() += x;
-            } else {
-                this->request_data.path.back() += '%';
-                this->request_data.path.back() += d.hex_symbols;
-            }
-
-            d.hex_index = -1;
-
-            return;
-        }
-
-        d.hex_index++;
 
         return;
     }
 
-    if (c == '%' && !this->request_data.path.empty()) {
-        d.hex_index = 0;
-
-        return;
-    }
-
-    if (this->request_data.divided == -1) {
-        if (c == '/') {
-            if (this->request_data.path.empty() || !this->request_data.path.back().empty()) {
-                this->request_data.path.emplace_back("");
-            }
-            return;
-        }
-
-        if (c == '?') {
-            this->_cleanup_uri ();
-            this->request_data.divided = static_cast<ssize_t>(this->request_data.path.size());
-            this->request_data.path.emplace_back("");
-            return;
-        }
-    }
-
-    if (!this->request_data.path.empty()) {
-        this->request_data.path.back() += c;
-    }
-}
-
-void manapi::net::http::HeaderView::_cleanup_uri() {
-    if (this->request_data.divided!=-1) { return; }
-    for (auto i = static_cast<ssize_t>(this->request_data.path.size() - 1); i >= 0; i--) {
-        if (this->request_data.path[i].empty()) { this->request_data.path.pop_back(); }
-        else { break; }
-    }
+    this->parse_vars->url_decode << c;
 }
 
 void manapi::net::http::HeaderView::_parse_http(char &c) {

@@ -1,6 +1,7 @@
 #include "http/Utils.hpp"
 
 #include "ManapiFilesystem.hpp"
+#include "ManapiUnicode.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
 
 std::pair<std::string, std::string> manapi::net::http::parse_header(const std::string &header) {
@@ -59,8 +60,9 @@ void manapi::net::http::request_data_clear(request_data_t &data) {
 std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_value (const std::string &header_value) {
     std::vector <header_value_t> data;
 
-    bool        opened_queues   = false;
-    bool        is_key          = true;
+    bool opened_queues = false;
+    bool is_key = true;
+    int symbol_size = 0;
     std::string key;
     std::string value;
 
@@ -68,68 +70,89 @@ std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_
         // if end -> append to map
         if (i == header_value.size())
         {
+            if (symbol_size) {
+                THROW_MANAPIHTTP_EXCEPTION2 (ERR_PARSE_UNEXPECTED_END, "invalid UTF-8 symbol");
+            }
+
             goto p;
         }
 
-        if (header_value[i] == '\\') {
-            i++;
-
-            if (i == header_value.size())
-            {
-                break;
+        if (symbol_size) {
+            // 10xx xxx (1000 0000 = 128, 1100 0000 = 192)
+            if (!(static_cast<uint8_t>(header_value[i]) > 127 && static_cast<uint8_t>(header_value[i]) < 192)) {
+                THROW_MANAPIHTTP_EXCEPTION2 (ERR_PARSE_ERROR, "invalid UTF-8 symbol");
             }
+
+            symbol_size--;
         }
-
-        else
-        {
-            if (header_value[i] == '"')
-            {
-                opened_queues = !opened_queues;
-                continue;
+        else {
+            if (static_cast<uint8_t>(header_value[i]) > 127) {
+                // utf symbol
+                symbol_size = unicode::count_of_octet(header_value[i]);
+                /** add */
+                symbol_size--;
             }
+            else {
+                if (header_value[i] == '\\') {
+                    i++;
 
-            if (!opened_queues) {
-                if (header_value[i] == '=')
-                {
-                    is_key = false;
-                    continue;
+                    if (i == header_value.size())
+                    {
+                        break;
+                    }
                 }
-                if (header_value[i] == ';' || header_value[i] == ',')
+                else
                 {
-                    p:
-                    if (is_key) {
-                        data.push_back({key, {}});
+                    if (header_value[i] == '"')
+                    {
+                        opened_queues = !opened_queues;
+                        continue;
                     }
 
-                    else {
-                        if (data.empty())
-                            data.push_back({});
+                    if (!opened_queues) {
+                        if (header_value[i] == '=')
+                        {
+                            is_key = false;
+                            continue;
+                        }
+                        if (header_value[i] == ';' || header_value[i] == ',')
+                        {
+                            p:
+                            if (is_key) {
+                                data.push_back({key, {}});
+                            }
 
-                        data.back().params.insert({key, value});
+                            else {
+                                if (data.empty())
+                                    data.push_back({});
+
+                                data.back().params.insert({key, value});
+                            }
+
+                            is_key  = true;
+                            key     = "";
+                            value   = "";
+
+                            continue;
+                        }
+
+                        if (header_value[i] == ' ')
+                        {
+                            continue;
+                        }
                     }
-
-                    is_key  = true;
-                    key     = "";
-                    value   = "";
-
-                    continue;
                 }
 
-                if (header_value[i] == ' ')
+                if (is_key)
                 {
-                    continue;
+                    key += header_value[i];
+                }
+
+                else
+                {
+                    value += header_value[i];
                 }
             }
-        }
-
-        if (is_key)
-        {
-            key += header_value[i];
-        }
-
-        else
-        {
-            value += header_value[i];
         }
     }
 
@@ -145,7 +168,7 @@ std::string manapi::net::http::stringify_header_value (const std::vector <header
         // skip ','
         goto point_value;
 
-        for (; value != header_value.end(); value++)
+        for (; value != header_value.end(); ++value)
         {
             result += ',';
 
@@ -161,7 +184,7 @@ std::string manapi::net::http::stringify_header_value (const std::vector <header
                 goto point_param;
             }
 
-            for (; param != value->params.end(); param++)
+            for (; param != value->params.end(); ++param)
             {
                 result += ';';
 

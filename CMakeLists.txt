@@ -260,6 +260,11 @@ set(MANAPIHTTP_HTTP_FILES
         src/async/ManapiAsyncSocket.cpp
         include/async/ManapiCancellation.hpp
         src/async/ManapiCancellation.cpp
+        include/components/ManapiURLDecodeStream.hpp
+        src/components/ManapiURLDecodeStream.cpp
+        src/http/ManapiURLParams.cpp
+        include/http/ManapiURLParams.hpp
+        src/ManapiHttpTypes.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

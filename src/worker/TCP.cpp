@@ -164,7 +164,7 @@ manapi::future<bool> manapi::net::worker::TCP::configure_connection(std::shared_
     co_return true;
 }
 
-manapi::future<ssize_t> manapi::net::worker::TCP::response(worker::connection &connection, http_response &resp, bool finish) {
+manapi::future<ssize_t> manapi::net::worker::TCP::response(worker::connection &connection, http::response &resp, bool finish) {
     static const std::string delimiter = "\r\n";
     const auto response = this->stringify_http_info(resp, connection.version, delimiter) + this->stringify_headers(resp, delimiter) + delimiter;
 
@@ -373,11 +373,11 @@ void manapi::net::worker::TCP::_connection_interface_eraser(connection_interface
     connection->worker->cnt_conns.fetch_sub(1);
 }
 
-std::string manapi::net::worker::TCP::stringify_http_info(manapi::net::http_response &res, const http::versions::http &version, const std::string &delimiter) const {
-    return "HTTP/" + http::config::stringify_http_version(version) + ' ' + std::to_string(res.get_status_code()) + (version < http::versions::HTTP_v2 ? ' ' + res.get_status_message() + delimiter : delimiter);
+std::string manapi::net::worker::TCP::stringify_http_info(manapi::net::http::response &res, const http::versions::http &version, const std::string &delimiter) const {
+    return "HTTP/" + http::config::stringify_http_version(version) + ' ' + std::to_string(res.status_code()) + (version < http::versions::HTTP_v2 ? ' ' + std::string{res.status_message()} + delimiter : delimiter);
 }
 
-std::string manapi::net::worker::TCP::stringify_headers(manapi::net::http_response &res, const std::string &delimiter) const {
+std::string manapi::net::worker::TCP::stringify_headers(manapi::net::http::response &res, const std::string &delimiter) const {
     std::string data;
     // add headers
     for (const auto &header: res.ref_headers()) {

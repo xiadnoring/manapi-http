@@ -459,10 +459,10 @@ void manapi::net::worker::http_v2::set_callbacks(const http_v2_callbacks_t &call
     this->callbacks = callbacks;
 }
 
-manapi::future<ssize_t> manapi::net::worker::http_v2::response(worker::connection &connection, http_response &resp, bool finish) {
+manapi::future<ssize_t> manapi::net::worker::http_v2::response(worker::connection &connection, http::response &resp, bool finish) {
     manapi::compress::hpack::encoder_t  encoder;
-    encoder.add (compress::hpack::header_t(":status", std::to_string(resp.get_status_code())));
-    for (const auto &header: resp.get_headers()) {
+    encoder.add (compress::hpack::header_t(":status", std::to_string(resp.status_code())));
+    for (const auto &header: resp.headers()) {
         encoder.add (compress::hpack::header_t(header.first, header.second));
     }
     uint8_t cflag = 0x0;
@@ -1191,7 +1191,7 @@ void manapi::net::worker::http_v2::session_worker(int id, bool body, std::shared
     client->request_data.has_body = body;
     client->request_data.body_left = 0;
     if (body) {
-        auto contentlength = client->request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
+        auto contentlength = client->request_data.headers.find(http::HEADER.CONTENT_LENGTH);
         client->request_data.headers_part = 0;
         client->request_data.body_part = 0;
         client->request_data.body_size = contentlength != client->request_data.headers.end() ? std::stoll(contentlength->second) : 0;

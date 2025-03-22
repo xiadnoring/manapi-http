@@ -47,7 +47,7 @@ namespace manapi::net {
         static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)>> body) {
             auto response = std::make_shared<fetch2>(ctx, std::move(url));
             if (body.has_value()) {
-                response->data->set_async_body(std::move(body.value()));
+                response->data->async_body(std::move(body.value()));
             }
             response->setup_fetch(std::move(params));
             co_await response->response();
@@ -57,7 +57,7 @@ namespace manapi::net {
         static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<file_transfer_info> body) {
             auto response = std::make_shared<fetch2>(ctx, std::move(url));
             if (body.has_value()) {
-                co_await response->data->set_body(std::move(body.value()));
+                co_await response->data->body(std::move(body.value()));
             }
             response->setup_fetch(std::move(params));
             co_await response->response();
@@ -70,11 +70,11 @@ namespace manapi::net {
         }
 
         [[nodiscard]] size_t status () const {
-            return this->data->get_status_code();
+            return this->data->status_code();
         }
 
         std::map<std::string, std::string> headers () {
-            return this->data->get_headers();
+            return this->data->headers();
         }
 
         manapi::future<> async_callback (std::function<manapi::future<ssize_t>(char *buffer, ssize_t size)> cb) {
@@ -117,7 +117,7 @@ namespace manapi::net {
         static manapi::future<std::shared_ptr<fetch2>> fetch_ (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, T body) {
             auto response = std::make_shared<fetch2>(ctx, std::move(url));
             if (body.has_value()) {
-                response->data->set_body(std::move(body.value()));
+                response->data->body(std::move(body.value()));
             }
             response->setup_fetch(std::move(params));
             co_await response->response();
@@ -125,7 +125,7 @@ namespace manapi::net {
         }
 
         void setup_send_body (std::string &&data) {
-            this->data->set_body(std::forward<decltype(data)>(data));
+            this->data->body(std::forward<decltype(data)>(data));
         }
 
         manapi::future<> continue_receiving () {
@@ -135,13 +135,13 @@ namespace manapi::net {
         }
         void setup_fetch (manapi::json params) {
             if (params.contains("method")) {
-                this->data->set_method(std::move(params["method"].as_string()));
+                this->data->method(std::move(params["method"].as_string()));
             }
             if (params.contains("enable_ssl_verify")) {
                 this->data->enable_ssl_verify(params["enable_ssl_verify"].as_bool());
             }
             if (params.contains("verbose")) {
-                this->data->set_verbose(params["verbose"].as_bool());
+                this->data->verbose(params["verbose"].as_bool());
             }
             if (params.contains("enable_alpn")) {
                 this->data->enable_alpn(params["enable_alpn"].as_bool());
@@ -157,7 +157,7 @@ namespace manapi::net {
             }
 
             if (params.contains("headers") && params["headers"].is_object()) {
-                this->data->set_json_headers(std::move(params["headers"]));
+                this->data->json_headers(std::move(params["headers"]));
             }
 
             this->fetchdata->setup = true;

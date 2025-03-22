@@ -14,7 +14,7 @@
 #include "ManapiInitTools.hpp"
 
 int main () {
-    auto ctx = manapi::async::context::create(0);
+    auto ctx = manapi::async::context::create();
     auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
     auto router = std::make_shared<manapi::net::http::server> (ctx);
 
@@ -36,23 +36,23 @@ int main () {
     });
 
     router->GET("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        resp.set_replacers({
-            {"status_code", std::to_string(resp.get_status_code())},
-            {"status_message", resp.get_status_message()}
+        resp.replacers({
+            {"status_code", std::to_string(resp.status_code())},
+            {"status_message", std::string{resp.status_message()}}
         });
 
         co_return resp.file ("../examples/error.html");
     });
 
     router->POST("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        co_return resp.json({{"error", resp.get_status_code()},
-                {"msg", resp.get_status_message()}});
+        co_return resp.json({{"error", resp.status_code()},
+                {"msg", resp.status_message()}});
     });
 
     router->GET("/cat/[id]", [&ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
         manapi::net::fetch fetch (ctx, "https://dragonball-api.com/api/planets/" + req.get_param("id"));
         fetch.enable_ssl_verify(false);
-        fetch.set_method("GET");
+        fetch.method("GET");
         //fetch.set_verbose(true);
         auto data = co_await fetch.json();
 
@@ -167,8 +167,8 @@ int main () {
     });
 
     router->GET("/video", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        resp.set_partial_status(true);
-        resp.set_compress_enabled(false);
+        resp.partial_status(true);
+        resp.compress_enabled(false);
         co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
     });
 
@@ -185,8 +185,8 @@ int main () {
     });
 
     router->GET ("/bigfile", [] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        resp.set_partial_status(false);
-        resp.set_compress_enabled(false);
+        resp.partial_status(false);
+        resp.compress_enabled(false);
 
         co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
     });

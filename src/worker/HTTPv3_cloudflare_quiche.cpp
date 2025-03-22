@@ -226,7 +226,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                         client->request_data.body_left = 0;
 
                         if (client->request_data.has_body) {
-                            auto contentlength = client->request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
+                            auto contentlength = client->request_data.headers.find(http::HEADER.CONTENT_LENGTH);
                             client->request_data.headers_part = 0;
                             client->request_data.body_part = 0;
                             client->request_data.body_size = contentlength != client->request_data.headers.end() ? std::stoll(contentlength->second) : 0;
@@ -378,11 +378,11 @@ std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::wor
     return std::move(worker);
 }
 
-manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response(worker::connection &connection, http_response &resp, bool finish) {
+manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response(worker::connection &connection, http::response &resp, bool finish) {
     auto &stream_data = connection.as<connection_stream_t>();
     auto &conn_data = stream_data.connection->as<connection_t>();
 
-    auto headers = std::move(resp.get_headers());
+    auto headers = std::move(resp.headers());
     stream_data.headers = new quiche_h3_header[1 + headers.size()];
     stream_data.headers_size = 1 + headers.size();
 
@@ -390,7 +390,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response
         [&stream_data] () -> void { stream_data.headers_size = 0; delete[] std::exchange(stream_data.headers, nullptr); }};
 
     size_t i = 0;
-    http_v3_cloudflare_quiche::_quiche_set_header(stream_data.headers[i++], ":status", std::to_string(resp.get_status_code()));
+    http_v3_cloudflare_quiche::_quiche_set_header(stream_data.headers[i++], ":status", std::to_string(resp.status_code()));
 
     const size_t max_header_value_len = 200;
     for (auto header = headers.begin(); header != headers.end(); ++header) {

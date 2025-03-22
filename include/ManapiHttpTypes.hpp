@@ -2,12 +2,15 @@
 
 #include <string>
 #include <map>
+#include <optional>
 
 #include "ManapiUtils.hpp"
 #include "ManapiErrors.hpp"
 
-namespace manapi::net {
+namespace manapi::net::http {
     static const struct {
+        std::string EMPTY                               = "Empty";
+
         std::string CONTINUE_100                        = "Continue";
         std::string SWITCHING_PROTOCOLS_101             = "Switching Protocols";
         std::string PROCESSING_102                      = "Processing";
@@ -86,7 +89,7 @@ namespace manapi::net {
         std::string SSL_HANDSHAKE_FAILED_525            = "SSL Handshake Failed";
         std::string INVALID_SSL_CERTIFICATE_526         = "Invalid SSL Certificate";
 
-    } HTTP_STATUS;
+    } STATUS;
 
     static const struct {
         std::string CONTENT_RANGE       = "content-range";
@@ -118,5 +121,7 @@ namespace manapi::net {
         std::string AUTHORIZATION       = "authorization";
         std::string UPGRADE             = "upgrade";
         std::string EXPECT              = "expect";
-    } HTTP_HEADER;
+    } HEADER;
+
+    std::string_view status_to_string (const std::size_t &status);
 }

@@ -179,7 +179,7 @@ std::shared_ptr<manapi::net::worker::http_v3_tquic> manapi::net::worker::http_v3
     return std::move(worker);
 }
 
-manapi::future<ssize_t> manapi::net::worker::http_v3_tquic::response(worker::connection &connection, http_response &resp, bool finish) {
+manapi::future<ssize_t> manapi::net::worker::http_v3_tquic::response(worker::connection &connection, http::response &resp, bool finish) {
     auto &stream_data = connection.as<connection_stream_t>();
     auto &conn_data = stream_data.connection->as<connection_t>();
 
@@ -193,7 +193,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_tquic::response(worker::con
     size_t i = 0;
 
     std::string status_key {":status"};
-    std::string status_value {std::to_string(resp.get_status_code())};
+    std::string status_value {std::to_string(resp.status_code())};
     http_v3_tquic::_quic_set_header(stream_data.headers[i++], status_key, status_value);
 
     for (auto &header: headers) {
@@ -377,7 +377,7 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_headers(void *ctx
     client->request_data.body_left = 0;
 
     if (client->request_data.has_body) {
-        auto contentlength = client->request_data.headers.find(HTTP_HEADER.CONTENT_LENGTH);
+        auto contentlength = client->request_data.headers.find(http::HEADER.CONTENT_LENGTH);
         client->request_data.headers_part = 0;
         client->request_data.body_part = 0;
         client->request_data.body_size = contentlength != client->request_data.headers.end() ? std::stoll(contentlength->second) : 0;

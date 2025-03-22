@@ -90,7 +90,7 @@ namespace manapi::net::worker {
         bool is_valid_connection(worker::connection &connection) override;
         void init ();
         future<bool> configure_connection (std::shared_ptr<worker::connection> connection);
-        future<ssize_t> response(worker::connection &connection, http_response &resp, bool finish) override;
+        future<ssize_t> response(worker::connection &connection, http::response &resp, bool finish) override;
         TCP &operator=(TCP &&n) noexcept;
         void disable_watcher_for_status(connection &conn, const connection_status &status) override;
         void onrecv(ev::io &watcher, int revents) override;
@@ -122,8 +122,8 @@ namespace manapi::net::worker {
         std::map <int, std::shared_ptr<async_stack_storage>> stacks;
         std::shared_ptr<async::condition_variable> limit_rate_cv;
     private:
-        std::string stringify_http_info (manapi::net::http_response &res, const http::versions::http &version, const std::string &delimiter) const;
-        std::string stringify_headers (manapi::net::http_response &res, const std::string &delimiter) const;
+        std::string stringify_http_info (manapi::net::http::response &res, const http::versions::http &version, const std::string &delimiter) const;
+        std::string stringify_headers (manapi::net::http::response &res, const std::string &delimiter) const;
         static void connection_interface_eraser (void *ptr);
 
         addrinfo *local;

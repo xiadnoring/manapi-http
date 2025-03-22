@@ -25,8 +25,8 @@
 namespace manapi::net::http {
     class server : public site {
     public:
-        using resp = manapi::net::http_response &;
-        using req = manapi::net::http_request &;
+        using resp = manapi::net::http::response &;
+        using req = manapi::net::http::request &;
 
         server(const std::shared_ptr<async::context> &ctx);
         ~server() final;

@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <set>
 
+#include "../ManapiErrors.hpp"
+#include "../ManapiDebug.hpp"
 #include "../ManapiUtils.hpp"
 
 namespace manapi::crypto {

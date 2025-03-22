@@ -48,8 +48,8 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
     }
 
     ssize_t content_length = 0;
-    if (this->request_data.headers.contains(HTTP_HEADER.CONTENT_LENGTH)) {
-        content_length = std::stoll(this->request_data.headers[HTTP_HEADER.CONTENT_LENGTH]);
+    if (this->request_data.headers.contains(HEADER.CONTENT_LENGTH)) {
+        content_length = std::stoll(this->request_data.headers[HEADER.CONTENT_LENGTH]);
     }
 
     this->request_data.has_body = content_length > 0;
@@ -176,11 +176,11 @@ void manapi::net::http::http_v1_1::_parse_headers(char &c) {
 manapi::future<manapi::net::http::versions::http> manapi::net::http::http_v1_1::upgrade_connection() {
     http::versions::http toupgrade = versions::HTTP_v1_1;
 
-    if (this->request_data.headers.contains(HTTP_HEADER.CONNECTION)) {
-        const auto connection_header = http::parse_header_value(this->request_data.headers[HTTP_HEADER.CONNECTION]);
+    if (this->request_data.headers.contains(HEADER.CONNECTION)) {
+        const auto connection_header = http::parse_header_value(this->request_data.headers[HEADER.CONNECTION]);
         for (const auto &param: connection_header) {
             if (param.value == "Upgrade") {
-                if (this->request_data.headers[HTTP_HEADER.UPGRADE] == "h2c") {
+                if (this->request_data.headers[HEADER.UPGRADE] == "h2c") {
                     toupgrade = versions::HTTP_v2;
                 }
                 continue;
@@ -193,11 +193,11 @@ manapi::future<manapi::net::http::versions::http> manapi::net::http::http_v1_1::
     }
 
     if (toupgrade != versions::HTTP_v1_1) {
-        http_response resp (this->request_data, 101, HTTP_STATUS.SWITCHING_PROTOCOLS_101, *config);
-        resp.set_header(HTTP_HEADER.CONNECTION, "upgrade");
+        http::response resp (this->request_data, 101, *config);
+        resp.header(HEADER.CONNECTION, "upgrade");
         switch (toupgrade) {
             case versions::HTTP_v2:
-                resp.set_header(HTTP_HEADER.UPGRADE, "h2c");
+                resp.header(HEADER.UPGRADE, "h2c");
             break;
             default:
                 break;

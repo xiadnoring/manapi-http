@@ -49,7 +49,7 @@ manapi::future<> manapi::net::formdata_recv::_init(bool has_body, const std::str
 
     if (header.empty())
     {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_CONTENT_TYPE_MISSING, "header value is empty: {}", HTTP_HEADER.CONTENT_TYPE);
+        THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_CONTENT_TYPE_MISSING, "header value is empty: {}", http::HEADER.CONTENT_TYPE);
     }
 
     auto &content_type_value = header[0].value;
@@ -239,7 +239,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "{} header is empty", header_data.first);
                             }
 
-                            if (header_data.first == HTTP_HEADER.CONTENT_DISPOSITION) {
+                            if (header_data.first == http::HEADER.CONTENT_DISPOSITION) {
                                 if (header_value[0].value != "form-data" || !header_value[0].params.contains("name")) {
                                     THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Content-Disposition is invalid");
                                 }
@@ -255,7 +255,7 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                                     this->param_data.first = std::move(name);
                                 }
                             }
-                            else if (header_data.first == HTTP_HEADER.CONTENT_TYPE) {
+                            else if (header_data.first == http::HEADER.CONTENT_TYPE) {
                                 switch (this->type) {
                                     case DATA_FILE:
                                         this->file_data.mime_type = std::move(header_value[0].value);
@@ -595,19 +595,19 @@ ssize_t manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const 
     for (const auto &param : this->data) {
         s += static_cast<ssize_t>(boundary_size + (sizeof ("\r\n") - 1));
         if (param.second.type == DATA_PLAIN) {
-            std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
+            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION,
                 http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()}}}})});
             s += static_cast<ssize_t> (header.size());
             s += (sizeof ("\r\n") - 1);
         }
         else if (param.second.type == DATA_FILE) {
-            std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
+            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION,
                 http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()},
                     {"filename", json{param.second.file.value().filename}.dump()}}}})});
             s += static_cast<ssize_t> (header.size());
             s += (sizeof ("\r\n") - 1);
 
-            header = http::stringify_header({HTTP_HEADER.CONTENT_TYPE,
+            header = http::stringify_header({http::HEADER.CONTENT_TYPE,
                 http::stringify_header_value({{param.second.file.value().filemime}})});
             s += static_cast<ssize_t> (header.size());
             s += (sizeof ("\r\n") - 1);
@@ -630,7 +630,7 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
         co_await write (nline, sizeof (nline) - 1);
 
         if (param.second.type == DATA_PLAIN) {
-            std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
+            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION,
                 http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()}}}})});
 
             co_await write (header.data(), static_cast<ssize_t>(header.size()));
@@ -645,13 +645,13 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
         }
 
         if (param.second.type == DATA_FILE) {
-            std::string header = http::stringify_header({HTTP_HEADER.CONTENT_DISPOSITION,
+            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION,
                 http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()},
                     {"filename", json{std::move(param.second.file.value().filename)}.dump()}}}})});
             co_await write (header.data(), static_cast<ssize_t>(header.size()));
             co_await write (nline, sizeof (nline) - 1);
 
-            header = http::stringify_header({HTTP_HEADER.CONTENT_TYPE,
+            header = http::stringify_header({http::HEADER.CONTENT_TYPE,
                 http::stringify_header_value({{std::move(param.second.file.value().filemime)}})});
             co_await write (header.data(), static_cast<ssize_t>(header.size()));
             co_await write (nline, sizeof (nline) - 1);

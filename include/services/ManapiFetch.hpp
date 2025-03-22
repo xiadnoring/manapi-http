@@ -91,7 +91,7 @@ namespace manapi::net {
         };
     public:
 
-        explicit fetch(const std::shared_ptr<async::context> &ctx, const std::string &url);
+        explicit fetch(const std::shared_ptr<async::context> &ctx, std::string url);
         fetch(fetch &&n) noexcept;
         ~fetch() override;
 
@@ -111,30 +111,30 @@ namespace manapi::net {
         void enable_http3 ();
         void enable_http2 ();
         void enable_http1_1 ();
-        void set_body (curlformdata params);
-        void set_method (std::string method);
-        void set_body (std::string data);
-        manapi::future<> set_body (file_transfer_info file_info);
-        void set_async_body (std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler);
-        void set_body (std::move_only_function<ssize_t(char *, ssize_t)> handler);
-        void set_headers (std::map <std::string, std::string> headers);
-        void set_json_headers (manapi::json headers);
-        void set_custom_setup (std::move_only_function<void(CURL *curl)> func);
+        void body (curlformdata params);
+        void method (std::string method);
+        void body (std::string data);
+        manapi::future<> body (file_transfer_info file_info);
+        void async_body (std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler);
+        void body (std::move_only_function<ssize_t(char *, ssize_t)> handler);
+        void headers (std::map <std::string, std::string> headers);
+        void json_headers (manapi::json headers);
+        void custom_setup (std::move_only_function<void(CURL *curl)> func);
         void enable_ssl_verify (const bool &status);
-        void set_verbose (bool status);
-        void set_timeout (const std::size_t &seconds);
+        void verbose (bool status);
+        void timeout (const std::size_t &seconds);
 
         void break_write_loop ();
         void continue_write_loop ();
 
-        [[nodiscard]] size_t get_status_code () const;
+        [[nodiscard]] size_t status_code () const;
 
         future<void> async_doit();
 
         future<std::string> text();
         future<manapi::json> json();
 
-        std::map <std::string, std::string> get_headers();
+        std::map <std::string, std::string> headers();
 
         void clear ();
     private:
@@ -152,17 +152,17 @@ namespace manapi::net {
 
         future<CURLcode> async_curl_perform ();
 
-        size_t status_code = 200;
-        ssize_t content_length = -1;
+        size_t status_code_ = 200;
+        ssize_t content_length_ = -1;
 
-        std::string url;
+        std::string url_;
 
-        std::shared_ptr<shared_data> data{nullptr};
+        std::shared_ptr<shared_data> data_{nullptr};
 
-        body_type body = BODY_NONE;
+        body_type body_ = BODY_NONE;
 
-        std::string body_default{};
-        std::string method{};
-        std::optional<curlformdata> body_formdata{};
+        std::string body_default_{};
+        std::string method_{};
+        std::optional<curlformdata> body_formdata_{};
     };
 }

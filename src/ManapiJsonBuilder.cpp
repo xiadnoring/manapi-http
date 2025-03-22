@@ -12,7 +12,7 @@ manapi::json_builder::json_builder(const json_mask &mask, const bool &use_bigint
     this->current_types = mask.get_api_tree().is_null() ? nullptr : &mask.get_api_tree()["obj"];
     this->current_type = 0;
 
-    action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
+    this->action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
 }
 
 manapi::json_builder::
@@ -24,13 +24,13 @@ json_builder(const json &mask, const bool &use_bigint, const size_t &bigint_prec
     this->current_types = mask == nullptr ? nullptr : &mask;
     this->current_type = 0;
 
-    action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
+    this->action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
 }
 
 manapi::json_builder::~json_builder() = default;
 
 manapi::json_builder & manapi::json_builder::operator<<(std::string_view str) {
-    if (getting) { getting = false; }
+    if (this->getting) { this->getting = false; }
     size_t j = 0;
     _parse(str, j);
     return *this;
@@ -41,27 +41,27 @@ manapi::json_builder & manapi::json_builder::operator<<(const char &c) {
 }
 
 manapi::json manapi::json_builder::get() {
-    getting = true;
-    if (!ready)
+    this->getting = true;
+    if (!this->ready)
     {
         size_t j = 0;
-        action("", j);
+        this->action("", j);
     }
-    if (object.is_null()) {
+    if (this->object.is_null()) {
         // maybe no content provided
         // TODO: think
         _check_eq_type();
     }
     _reset ();
-    return std::move(object);
+    return std::move(this->object);
 }
 
 const bool & manapi::json_builder::is_ready() const {
-    return ready;
+    return this->ready;
 }
 
 bool manapi::json_builder::is_empty() const {
-    return i == 0 && type == json::type_null;
+    return this->i == 0 && this->type == json::type_null;
 }
 
 void manapi::json_builder::clear() {
@@ -70,16 +70,16 @@ void manapi::json_builder::clear() {
 
 void manapi::json_builder::_parse(std::string_view plain_text, size_t &j, bool root) {
 
-    this->use_bigint = use_bigint;
-    this->bigint_precision = bigint_precision;
+    this->use_bigint = this->use_bigint;
+    this->bigint_precision = this->bigint_precision;
 
-    end_cut = plain_text.size() + i;
+    this->end_cut = plain_text.size() + this->i;
 
-    i += j;
+    this->i += j;
 
-    while (i < end_cut) {
+    while (i < this->end_cut) {
         // yo
-        action (plain_text, j);
+        this->action (plain_text, j);
     }
 
     if (root)
@@ -89,7 +89,7 @@ void manapi::json_builder::_parse(std::string_view plain_text, size_t &j, bool r
 }
 
 void manapi::json_builder::_check_type(std::string_view plain_text, size_t &j) {
-    for (; j < plain_text.size(); i++, j++)
+    for (; j < plain_text.size(); this->i++, j++)
     {
         const unsigned char &c = plain_text.at(j);
 
@@ -102,22 +102,22 @@ void manapi::json_builder::_check_type(std::string_view plain_text, size_t &j) {
         switch (c)
         {
             case '{':
-                type = json::type_object;
-                object = json::object();
-                action = std::bind(&json_builder::_build_object, this, std::placeholders::_1, std::placeholders::_2);
+                this->type = json::type_object;
+                this->object = json::object();
+                this->action = std::bind(&json_builder::_build_object, this, std::placeholders::_1, std::placeholders::_2);
                 goto finish;
             case '[':
-                type = json::type_array;
-                object = json::array();
-                action = std::bind(&json_builder::_build_array, this, std::placeholders::_1, std::placeholders::_2);
+                this->type = json::type_array;
+                this->object = json::array();
+                this->action = std::bind(&json_builder::_build_array, this, std::placeholders::_1, std::placeholders::_2);
                 goto finish;
             case '"':
-                type = json::type_string;
-                action = std::bind(&json_builder::_build_string, this, std::placeholders::_1, std::placeholders::_2);
+                this->type = json::type_string;
+                this->action = std::bind(&json_builder::_build_string, this, std::placeholders::_1, std::placeholders::_2);
                 goto finish;
             default:
-                type = json::type_number;
-                action = std::bind(&json_builder::_build_numeric, this, std::placeholders::_1, std::placeholders::_2);
+                this->type = json::type_number;
+                this->action = std::bind(&json_builder::_build_numeric, this, std::placeholders::_1, std::placeholders::_2);
                 goto finish;
         }
     }
@@ -127,7 +127,7 @@ void manapi::json_builder::_check_type(std::string_view plain_text, size_t &j) {
     if (j != plain_text.size())
     {
         // type was found
-        start_cut = i;
+        this->start_cut = this->i;
 
         _check_eq_type ();
     }
@@ -139,15 +139,15 @@ void manapi::json_builder::_build_string(std::string_view plain_text, size_t &j)
         _check_max_mean(true);
 
         unsigned char c = plain_text.at(j);
-        if (_valid_utf_char(plain_text, j, wchar_left))
+        if (_valid_utf_char(plain_text, j, this->wchar_left))
         {
             // nothing
         }
         else
         {
-            if (escaped)
+            if (this->escaped)
             {
-                escaped = false;
+                this->escaped = false;
 
                 switch (c) {
                     case 't':
@@ -167,7 +167,7 @@ void manapi::json_builder::_build_string(std::string_view plain_text, size_t &j)
                     break;
                     case 'u':
                         // \u1234 must be
-                        utf_escaped_status = 0;
+                        this->utf_escaped_status = 0;
                         continue;
                     break;
                     case '\\':
@@ -177,12 +177,12 @@ void manapi::json_builder::_build_string(std::string_view plain_text, size_t &j)
                     case '"':
                         break;
                     default:
-                        throw json_parse_exception(ERR_JSON_BAD_ESCAPED_CHAR, "Bad escaped character at " + std::to_string(i));
+                        throw json_parse_exception(ERR_JSON_BAD_ESCAPED_CHAR, "Bad escaped character at " + std::to_string(this->i));
                 }
             }
             else
             {
-                if (utf_escaped_status != -1) {
+                if (this->utf_escaped_status != -1) {
                     // we grab ascii chars for utf char
                     c = std::tolower(c);
                     if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
@@ -190,39 +190,39 @@ void manapi::json_builder::_build_string(std::string_view plain_text, size_t &j)
                         // U+0080 - U+07FF -> 110xxxyy10yyzzzz
                         // U+0800 - U+FFFF -> 1110wwww10xxxxyy10yyzzzz
                         // U+010000 - U+10FFFF -> 11110uvv10vvwwww10xxxxyy10yyzzzz
-                        utf_escaped[utf_escaped_status++] = unicode::hex2dec(c);
+                        this->utf_escaped[this->utf_escaped_status++] = unicode::hex2dec(c);
 
-                        if (utf_escaped_status == sizeof (utf_escaped)) {
+                        if (this->utf_escaped_status == sizeof (this->utf_escaped)) {
 
-                            if (utf_escaped[0] == 0 && utf_escaped[1] <= 7) {
-                                if (utf_escaped[1] == 0 && utf_escaped[2] <= 7) {
+                            if (this->utf_escaped[0] == 0 && this->utf_escaped[1] <= 7) {
+                                if (this->utf_escaped[1] == 0 && this->utf_escaped[2] <= 7) {
                                     // 0yyy zzzz
-                                    buffer.push_back(static_cast<char> (utf_escaped[2] << 4 | utf_escaped[3]));
+                                    this->buffer.push_back(static_cast<char> (this->utf_escaped[2] << 4 | this->utf_escaped[3]));
                                 }
                                 else {
                                     // 110x xxyy 10yy zzzz
                                     // 1100 0000 <- 192 (128 + 64)
                                     // 100000000 <- 128
-                                    buffer.push_back(static_cast<char> (static_cast<unsigned char>(192) | (utf_escaped[1] << 2) | (utf_escaped[2] >> 2)));
-                                    buffer.push_back(static_cast<char> (static_cast<unsigned char>(128) | (static_cast<unsigned char> (utf_escaped[2] << 6) >> 2) | utf_escaped[3]));
+                                    this->buffer.push_back(static_cast<char> (static_cast<unsigned char>(192) | (this->utf_escaped[1] << 2) | (this->utf_escaped[2] >> 2)));
+                                    this->buffer.push_back(static_cast<char> (static_cast<unsigned char>(128) | (static_cast<unsigned char> (this->utf_escaped[2] << 6) >> 2) | this->utf_escaped[3]));
                                 }
                             }
                             else {
                                 // 1110 wwww 10xx xxyy 10yy zzzz
                                 // 1110 0000 <- 224 (128 + 64 + 32)
                                 // 1000 0000 <- 128
-                                buffer.push_back(static_cast<char> (static_cast<unsigned char> (224) | (utf_escaped[0])));
-                                buffer.push_back(static_cast<char> (static_cast<unsigned char> (128) | (utf_escaped[1] << 2) | (utf_escaped[2] >> 2)));
-                                buffer.push_back(static_cast<char> (static_cast<unsigned char> (128) | (static_cast<unsigned char> (utf_escaped[2] << 6) >> 2) | utf_escaped[3]));
+                                this->buffer.push_back(static_cast<char> (static_cast<unsigned char> (224) | (this->utf_escaped[0])));
+                                this->buffer.push_back(static_cast<char> (static_cast<unsigned char> (128) | (this->utf_escaped[1] << 2) | (this->utf_escaped[2] >> 2)));
+                                this->buffer.push_back(static_cast<char> (static_cast<unsigned char> (128) | (static_cast<unsigned char> (this->utf_escaped[2] << 6) >> 2) | this->utf_escaped[3]));
                             }
 
-                            utf_escaped_status = -1;
+                            this->utf_escaped_status = -1;
                         }
                         continue;
                     }
 
                     // error
-                    throw json_parse_exception (ERR_JSON_BAD_ESCAPED_CHAR, "bad Unicode escape at " + std::to_string(i));
+                    throw json_parse_exception (ERR_JSON_BAD_ESCAPED_CHAR, "bad Unicode escape at " + std::to_string(this->i));
                 }
 
                 switch (c) {
@@ -231,21 +231,21 @@ void manapi::json_builder::_build_string(std::string_view plain_text, size_t &j)
                     case '\r':
                     case '\f':
                     case '\b':
-                        throw json_parse_exception(ERR_JSON_INVALID_CHAR, "Bad control character at " + std::to_string(i));
+                        throw json_parse_exception(ERR_JSON_INVALID_CHAR, "Bad control character at " + std::to_string(this->i));
                 }
 
                 if (c == '\\')
                 {
 
-                    escaped = true;
+                    this->escaped = true;
                     continue;
                 }
 
                 if (c == '"')
                 {
-                    opened_quote = !opened_quote;
+                    this->opened_quote = !this->opened_quote;
 
-                    if (!opened_quote) {
+                    if (!this->opened_quote) {
                         goto finish;
                     }
 
@@ -255,9 +255,9 @@ void manapi::json_builder::_build_string(std::string_view plain_text, size_t &j)
         }
 
 
-        if (opened_quote)
+        if (this->opened_quote)
         {
-            buffer.push_back(static_cast<char> (c));
+            this->buffer.push_back(static_cast<char> (c));
         }
         else {
             if (!unicode::is_space_symbol(c))
@@ -268,9 +268,9 @@ void manapi::json_builder::_build_string(std::string_view plain_text, size_t &j)
     }
 
     finish:
-    if (plain_text.size() != j || getting)
+    if (plain_text.size() != j || this->getting)
     {
-        if (opened_quote)
+        if (this->opened_quote)
         {
             json::error_unexpected_end(j);
         }
@@ -279,51 +279,51 @@ void manapi::json_builder::_build_string(std::string_view plain_text, size_t &j)
         i++;
         j++;
 
-        end_cut = i;
-        object = buffer;
+        this->end_cut = this->i;
+        this->object = this->buffer;
         _check_string();
 
         // clean up only after passing the checks
-        buffer.clear();
+        this->buffer.clear();
 
-        ready = true;
+        this->ready = true;
     }
 }
 
 void manapi::json_builder::_build_numeric(std::string_view plain_text, size_t &j) {
-    for (; j < plain_text.size(); j++, i++)
+    for (; j < plain_text.size(); j++, this->i++)
     {
         unsigned char c = plain_text[j];
 
-        if (buffer.empty())
+        if (this->buffer.empty())
         {
-            operate_already = true;
+            this->operate_already = true;
 
             if (c == '-' || c == '+') {
-                buffer += static_cast<char> (c);
+                this->buffer += static_cast<char> (c);
                 continue;
             }
         }
 
         if (c >= '0' && c <= '9')
         {
-            if (type == json::type_number) { type = json::type_integer; }
-            if (buffer.size() == 1 && buffer[0] == '0') {
+            if (this->type == json::type_number) { this->type = json::type_integer; }
+            if (this->buffer.size() == 1 && this->buffer[0] == '0') {
                 // it can't be
                 json::error_invalid_char(plain_text, j);
             }
-            buffer += static_cast<char> (c);
+            this->buffer += static_cast<char> (c);
         }
         else {
-            if (buffer.empty())
+            if (this->buffer.empty())
             {
                 // its true or false or null
-                action = std::bind(&json_builder::_build_numeric_string, this, std::placeholders::_1, std::placeholders::_2);
+                this->action = std::bind(&json_builder::_build_numeric_string, this, std::placeholders::_1, std::placeholders::_2);
 
                 return;
             }
 
-            if (buffer.size() == 1 && buffer[0] == '-')
+            if (this->buffer.size() == 1 && this->buffer[0] == '-')
             {
                 // we need at least 1 digit
                 json::error_invalid_char(plain_text, j);
@@ -336,33 +336,33 @@ void manapi::json_builder::_build_numeric(std::string_view plain_text, size_t &j
             switch (c) {
                 case '-':
                 case '+':
-                    if (operate_already) {
+                    if (this->operate_already) {
                         json::error_invalid_char(plain_text, j);
                     }
-                    operate_already = true;
-                    buffer += static_cast<char> (c);
+                    this->operate_already = true;
+                    this->buffer += static_cast<char> (c);
                 break;
                 case 'e':
                 case 'E':
                     // exp
-                    if (exp_already) {
+                    if (this->exp_already) {
                         json::error_invalid_char(plain_text, j);
                     }
-                    if (type != json::type_decimal) {
-                        type = json::type_decimal;
+                    if (this->type != json::type_decimal) {
+                        this->type = json::type_decimal;
                     }
-                    buffer += static_cast<char> (c);
-                    operate_already = false;
+                    this->buffer += static_cast<char> (c);
+                    this->operate_already = false;
                 break;
                 case '.':
-                    if (type == json::type_decimal)
+                    if (this->type == json::type_decimal)
                     {
                         json::error_invalid_char(plain_text, j);
                     }
 
                     // its decimal
-                    type = json::type_decimal;
-                    buffer += static_cast<char> (c);
+                    this->type = json::type_decimal;
+                    this->buffer += static_cast<char> (c);
                     break;
                 case '}':
                 case ']':
@@ -375,45 +375,45 @@ void manapi::json_builder::_build_numeric(std::string_view plain_text, size_t &j
     }
 
     finish:
-    if (j != plain_text.size() || getting)
+    if (j != plain_text.size() || this->getting)
     {
         // bcz we didnt consider this chars ('}', ',') in this type
-        end_cut = i;
+        this->end_cut = this->i;
 
         // finish
-        if (use_bigint)
+        if (this->use_bigint)
         {
-            object = json (bigint(buffer));
+            this->object = json (bigint(this->buffer));
         }
         else
         {
             std::stringstream stream (buffer);
 
-            if (type == json::type_decimal)
+            if (this->type == json::type_decimal)
             {
                 json::DECIMAL d;
                 stream >> d;
-                object = json (d);
+                this->object = json (d);
             }
             else if (type == json::type_integer)
             {
                 json::INTEGER n;
                 stream >> n;
-                object = json(static_cast<json::INTEGER> (n));
+                this->object = json(static_cast<json::INTEGER> (n));
             }
         }
 
         _check_numeric();
 
         // clean up only after passing the checks
-        buffer.clear();
+        this->buffer.clear();
 
-        ready = true;
+        this->ready = true;
     }
 }
 
 void manapi::json_builder::_build_numeric_string(std::string_view plain_text, size_t &j) {
-    for (; j < plain_text.size(); i++, j++)
+    for (; j < plain_text.size(); this->i++, j++)
     {
         unsigned char c = plain_text[j];
 
@@ -422,40 +422,40 @@ void manapi::json_builder::_build_numeric_string(std::string_view plain_text, si
             goto finish;
         }
 
-        buffer += static_cast<char> (c);
+        this->buffer += static_cast<char> (c);
     }
 
     finish:
-    if (j != plain_text.size() || getting)
+    if (j != plain_text.size() || this->getting)
     {
-        end_cut = i;
+        this->end_cut = i;
 
         // check if this is true, false, null ->
 
-        const std::string_view value = std::move(buffer);
+        const std::string_view value = std::move(this->buffer);
 
-        ready = true;
+        this->ready = true;
 
         // true
         if (value == "true") {
-            type = json::type_boolean;
-            object = json (true);
+            this->type = json::type_boolean;
+            this->object = json (true);
             _check_numeric();
             return;
         }
 
         // false
         if (value == "false") {
-            type = json::type_boolean;
-            object = json (false);
+            this->type = json::type_boolean;
+            this->object = json (false);
             _check_numeric();
             return;
         }
 
         // null
         if (value == "null") {
-            type = json::type_null;
-            object = json(nullptr);
+            this->type = json::type_null;
+            this->object = json(nullptr);
             _check_numeric();
             return;
         }
@@ -472,31 +472,31 @@ void manapi::json_builder::_build_object(std::string_view plain_text, size_t &j)
         _next_type();
         _check_part_object();
 
-        return get_current_type()["value"][key]["obj"];
+        return get_current_type()["value"][this->key]["obj"];
     };
 
     doit:
-    if (item != nullptr)
+    if (this->item != nullptr)
     {
-        i -= j;
-        item->_parse(plain_text, j, false);
-        i = i + j;
+        this->i -= j;
+        this->item->_parse(plain_text, j, false);
+        this->i = this->i + j;
 
-        if (item->ready)
+        if (this->item->ready)
         {
-            json it = item->get();
-            item = nullptr;
+            json it = this->item->get();
+            this->item = nullptr;
 
-            if (is_key)
+            if (this->is_key)
             {
-                key = it.as_string();
+                this->key = it.as_string();
             }
             else
             {
-                object.insert(key, std::move(it));
+                this->object.insert(this->key, std::move(it));
             }
 
-            go_to_delimiter = true;
+            this->go_to_delimiter = true;
         }
     }
 
@@ -509,22 +509,22 @@ void manapi::json_builder::_build_object(std::string_view plain_text, size_t &j)
             continue;
         }
 
-        if (go_to_delimiter)
+        if (this->go_to_delimiter)
         {
             if (unicode::is_space_symbol(c))
             {
                 continue;
             }
 
-            if ((is_key && c == ':') || (!is_key && c == ','))
+            if ((this->is_key && c == ':') || (!this->is_key && c == ','))
             {
-                is_key = !is_key;
-                go_to_delimiter = false;
+                this->is_key = !is_key;
+                this->go_to_delimiter = false;
                 continue;
             }
 
             if (c == '}') {
-                opened_quote = false;
+                this->opened_quote = false;
                 // the end
                 goto finish;
             }
@@ -533,29 +533,29 @@ void manapi::json_builder::_build_object(std::string_view plain_text, size_t &j)
             json::error_invalid_char(plain_text, j);
         }
 
-        if (opened_quote)
+        if (this->opened_quote)
         {
             if (c == '}')
             {
-                opened_quote = false;
+                this->opened_quote = false;
                 goto finish;
             }
 
-            if (is_key || current_types == nullptr)
+            if (this->is_key || this->current_types == nullptr)
             {
-                item = std::make_unique<json_builder> (json(nullptr), use_bigint, bigint_precision);
+                this->item = std::make_unique<json_builder> (json(nullptr), this->use_bigint, this->bigint_precision);
             }
             else
             {
-                item = std::make_unique<json_builder>(get_current_type()["value"][key]["obj"], use_bigint, bigint_precision);
-                item->next_parent = next_parent_for_child;
+                this->item = std::make_unique<json_builder>(get_current_type()["value"][key]["obj"], this->use_bigint, this->bigint_precision);
+                this->item->next_parent = next_parent_for_child;
             }
             goto doit;
         }
 
         if (c == '{')
         {
-            opened_quote = true;
+            this->opened_quote = true;
             continue;
         }
 
@@ -563,43 +563,43 @@ void manapi::json_builder::_build_object(std::string_view plain_text, size_t &j)
     }
 
     finish:
-    if (j != plain_text.size() || getting)
+    if (j != plain_text.size() || this->getting)
     {
         // is_key = true when {..., ...',' <- we are expecting a key}, false otherwise
-        if (opened_quote || (is_key && object.size() > 0))
+        if (this->opened_quote || (this->is_key && this->object.size() > 0))
         {
             json::error_unexpected_end(i);
         }
 
-        i++;
+        this->i++;
         j++;
 
-        end_cut = i;
-        is_key = true;
-        key.clear();
+        this->end_cut = this->i;
+        this->is_key = true;
+        this->key.clear();
 
         _check_object();
 
-        ready = true;
+        this->ready = true;
     }
 }
 
 void manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) {
     doit:
-    if (item != nullptr)
+    if (this->item != nullptr)
     {
-        i -= j;
-        item->_parse(plain_text, j, false);
-        i = i + j;
+        this->i -= j;
+        this->item->_parse(plain_text, j, false);
+        this->i = this->i + j;
 
-        if (item->ready)
+        if (this->item->ready)
         {
-            json it = item->get();
-            item = nullptr;
+            json it = this->item->get();
+            this->item = nullptr;
 
-            object.push_back(std::move(it));
+            this->object.push_back(std::move(it));
 
-            go_to_delimiter = true;
+            this->go_to_delimiter = true;
         }
     }
 
@@ -612,7 +612,7 @@ void manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) 
             continue;
         }
 
-        if (go_to_delimiter)
+        if (this->go_to_delimiter)
         {
             if (unicode::is_space_symbol(c))
             {
@@ -621,12 +621,12 @@ void manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) 
 
             if (c == ',')
             {
-                go_to_delimiter = false;
+                this->go_to_delimiter = false;
                 continue;
             }
 
             if (c == ']') {
-                opened_quote = false;
+                this->opened_quote = false;
                 // the end
                 goto finish;
             }
@@ -635,19 +635,19 @@ void manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) 
             json::error_invalid_char(plain_text, j);
         }
 
-        if (opened_quote)
+        if (this->opened_quote)
         {
             if (c == ']')
             {
-                opened_quote = false;
+                this->opened_quote = false;
                 goto finish;
             }
 
             // if exists default (TYPE(...)[...]) or exists ({..., ..., ...})
 
-            if (current_types == nullptr)
+            if (this->current_types == nullptr)
             {
-                item = std::make_unique<json_builder>(json(nullptr), use_bigint, bigint_precision);
+                this->item = std::make_unique<json_builder>(json(nullptr), this->use_bigint, this->bigint_precision);
             }
             else
             {
@@ -655,20 +655,20 @@ void manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) 
 
                 if (current.contains("default"))
                 {
-                    item = std::make_unique<json_builder>(get_current_type()["default"], use_bigint, bigint_precision);
+                    this->item = std::make_unique<json_builder>(get_current_type()["default"], this->use_bigint, this->bigint_precision);
                 }
                 else
                 {
-                    item = std::make_unique<json_builder>(get_current_type()["value"][element_index]["obj"], use_bigint, bigint_precision);
+                    this->item = std::make_unique<json_builder>(get_current_type()["value"][this->element_index]["obj"], this->use_bigint, this->bigint_precision);
                 }
             }
-            element_index++;
+            this->element_index++;
             goto doit;
         }
 
         if (c == '[')
         {
-            opened_quote = true;
+            this->opened_quote = true;
             continue;
         }
 
@@ -676,20 +676,20 @@ void manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) 
     }
 
     finish:
-    if (j != plain_text.size() || getting)
+    if (j != plain_text.size() || this->getting)
     {
-        if (opened_quote)
+        if (this->opened_quote)
         {
-            json::error_unexpected_end(i);
+            json::error_unexpected_end(this->i);
         }
 
-        i++;
+        this->i++;
         j++;
 
-        end_cut = i;
+        this->end_cut = this->i;
         _check_array();
 
-        ready = true;
+        this->ready = true;
     }
 }
 
@@ -704,14 +704,14 @@ void manapi::json_builder::_check_end(std::string_view plain_text, size_t &j) {
 }
 
 void manapi::json_builder::_reset_type() {
-    max_mean_size = nullptr;
-    min_mean_size = nullptr;
+    this->max_mean_size = nullptr;
+    this->min_mean_size = nullptr;
 }
 
 void manapi::json_builder::_next_type() {
-    current_type++;
+    this->current_type++;
 
-    if ((current_types != nullptr && current_types->is_array() && current_type < current_types->size()) || _next_parent())
+    if ((this->current_types != nullptr && this->current_types->is_array() && this->current_type < this->current_types->size()) || _next_parent())
     {
         _check_eq_type();
         return;
@@ -721,9 +721,9 @@ void manapi::json_builder::_next_type() {
 }
 
 bool manapi::json_builder::_next_parent() {
-    if (next_parent != nullptr) {
-        current_types = &next_parent();
-        current_type = 0;
+    if (this->next_parent != nullptr) {
+        this->current_types = &this->next_parent();
+        this->current_type = 0;
         return true;
     }
     return false;
@@ -732,7 +732,7 @@ bool manapi::json_builder::_next_parent() {
 void manapi::json_builder::_check_eq_type() {
     _reset_type();
 
-    if (current_types == nullptr)
+    if (this->current_types == nullptr)
     {
         return;
     }
@@ -744,11 +744,11 @@ void manapi::json_builder::_check_eq_type() {
     if (current_type == -1)
     {
         // this solve is better
-        current_types = nullptr;
+        this->current_types = nullptr;
         return;
     }
 
-    if (type == json::type_number)
+    if (this->type == json::type_number)
     {
         if (
             current_type == json::type_decimal ||
@@ -767,12 +767,12 @@ void manapi::json_builder::_check_eq_type() {
         }
     }
 
-    _next_type();
-    _check_eq_type();
+    this->_next_type();
+    this->_check_eq_type();
 }
 
 bool manapi::json_builder::_check_max_mean(const bool &building) {
-    if (max_mean_size == nullptr) { return true; }
+    if (this->max_mean_size == nullptr) { return true; }
 
     if (building)
     {
@@ -786,23 +786,23 @@ bool manapi::json_builder::_check_max_mean(const bool &building) {
     }
     else
     {
-        switch (type)
+        switch (this->type)
         {
             case json::type_string:
-                if (object.size() < *max_mean_size) { return true; }
+                if (this->object.size() < *this->max_mean_size) { return true; }
             break;
             case json::type_integer:
-                if (object.as_integer() < *max_mean_size) { return true; }
+                if (this->object.as_integer() < *this->max_mean_size) { return true; }
             break;
             case json::type_bigint:
-                if (object.as_bigint() < *max_mean_size) { return true; }
+                if (this->object.as_bigint() < *this->max_mean_size) { return true; }
             break;
             case json::type_decimal:
-                if (object.as_decimal() < *max_mean_size) { return true; }
+                if (this->object.as_decimal() < *this->max_mean_size) { return true; }
             break;
             case json::type_array:
             case json::type_object:
-                if (object.size() < *max_mean_size) { return true; }
+                if (this->object.size() < *this->max_mean_size) { return true; }
             break;
             default:
                 return true;
@@ -813,25 +813,25 @@ bool manapi::json_builder::_check_max_mean(const bool &building) {
 }
 
 bool manapi::json_builder::_check_min_mean() {
-    if (min_mean_size == nullptr) { return true; }
+    if (this->min_mean_size == nullptr) { return true; }
 
-    switch (type)
+    switch (this->type)
     {
         case json::type_string:
-            if (*min_mean_size < 0 || object.size() > *min_mean_size) { return true; }
+            if (*this->min_mean_size < 0 || this->object.size() > *this->min_mean_size) { return true; }
         break;
         case json::type_integer:
-            if (object.as_integer() > *min_mean_size) { return true; }
+            if (this->object.as_integer() > *this->min_mean_size) { return true; }
         break;
         case json::type_bigint:
-            if (object.as_bigint() > *min_mean_size) { return true; }
+            if (this->object.as_bigint() > *this->min_mean_size) { return true; }
         break;
         case json::type_decimal:
-            if (object.as_decimal() > *min_mean_size) { return true; }
+            if (this->object.as_decimal() > *this->min_mean_size) { return true; }
         break;
         case json::type_array:
         case json::type_object:
-            if (*min_mean_size < 0 || object.size() > *min_mean_size) { return true; }
+            if (*this->min_mean_size < 0 || this->object.size() > *this->min_mean_size) { return true; }
         break;
         default:
             return true;
@@ -852,21 +852,21 @@ bool manapi::json_builder::_check_type_none_complex_value() {
     {
         return true;
     }
-    if ((current["value"] == object)) { return true; }
+    if ((current["value"] == this->object)) { return true; }
 
     _next_type();
     return false;
 }
 
 bool manapi::json_builder::_check_default() {
-    return (current_types == nullptr) || (_check_max_mean() && _check_min_mean() && _check_type_none_complex_value() && _check_meta_value());
+    return (this->current_types == nullptr) || (_check_max_mean() && _check_min_mean() && _check_type_none_complex_value() && _check_meta_value());
 }
 
 bool manapi::json_builder::_check_meta_value() {
     const auto &current = get_current_type ();
-    if (object.is_array() || object.is_object() || !current.contains("value")) { return true; }
+    if (this->object.is_array() || this->object.is_object() || !current.contains("value")) { return true; }
 
-    if (current.at("value") == object) { return true; }
+    if (current.at("value") == this->object) { return true; }
     _next_type();
     return false;
 }
@@ -874,7 +874,7 @@ bool manapi::json_builder::_check_meta_value() {
 void manapi::json_builder::_check_string() {
     while (true)
     {
-        if (_check_default())
+        if (this->_check_default())
         {
             break;
         }
@@ -884,7 +884,7 @@ void manapi::json_builder::_check_string() {
 void manapi::json_builder::_check_numeric() {
     while (true)
     {
-        if (_check_default())
+        if (this->_check_default())
         {
             break;
         }
@@ -894,7 +894,7 @@ void manapi::json_builder::_check_numeric() {
 void manapi::json_builder::_check_object() {
     while (true)
     {
-        if (_check_default())
+        if (this->_check_default())
         {
             break;
         }
@@ -904,7 +904,7 @@ void manapi::json_builder::_check_object() {
 void manapi::json_builder::_check_array() {
     while (true)
     {
-        if (_check_default())
+        if (this->_check_default())
         {
             break;
         }
@@ -916,7 +916,7 @@ void manapi::json_builder::_check_part_object() {
         json_mask mask_child;
         mask_child.set_api_tree({{"obj", get_current_type()}, {"none", false}});
         mask_child.set_complete_status(false);
-        if (mask_child.valid(object)) {
+        if (mask_child.valid(this->object)) {
             break;
         }
         _next_type();
@@ -924,8 +924,8 @@ void manapi::json_builder::_check_part_object() {
 }
 
 const manapi::json & manapi::json_builder::get_current_type() {
-    if (current_types->is_array()) { return current_types->at(current_type); }
-    return *current_types;
+    if (this->current_types->is_array()) { return this->current_types->at(this->current_type); }
+    return *this->current_types;
 }
 
 bool manapi::json_builder::_valid_utf_char(std::string_view plain_text, const size_t &i, size_t &left) {
@@ -981,7 +981,7 @@ void manapi::json_builder::_reset() {
     this->exp_already = false;
     this->operate_already = false;
 
-    _reset_type();
+    this->_reset_type();
 
-    action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
+    this->action = [this](std::string_view && PH1, size_t & PH2) -> void { _check_type(std::forward<decltype(PH1)>(PH1), PH2); };
 }

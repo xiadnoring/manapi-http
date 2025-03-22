@@ -70,7 +70,7 @@ namespace manapi::net::worker {
         manapi::future<ssize_t> fwrite (connection &conn, const void *buff, ssize_t size, bool finish);
         manapi::future<ssize_t> fread (connection &conn, void *buff, ssize_t size);
 
-        virtual future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish);
+        virtual future<ssize_t> response (worker::connection &connection, http::response &resp, bool finish);
         static std::shared_ptr<base> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         virtual void _timeout (std::shared_ptr<connection> storage);
         virtual void stop ();

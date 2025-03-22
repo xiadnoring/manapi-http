@@ -19,14 +19,11 @@
 
 namespace manapi::net::http {
     class base;
-}
 
-namespace manapi::net {
-
-    class http_request {
+    class request {
     public:
-        http_request(const manapi::net::http::manapi_socket_information &ip_data, manapi::net::http::request_data_t &request_data, class manapi::net::http::base *http_task, std::shared_ptr<http::config>, const void *handler);
-        ~http_request();
+        request(const manapi::net::http::manapi_socket_information &ip_data, manapi::net::http::request_data_t &request_data, class manapi::net::http::base *http_task, std::shared_ptr<http::config>, const void *handler);
+        ~request();
 
         [[nodiscard]] const http::manapi_socket_information &get_ip_data () const;
         [[nodiscard]] const std::string &get_method () const;

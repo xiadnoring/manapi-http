@@ -25,7 +25,7 @@ namespace manapi::net::worker {
 }
 
 namespace manapi::net {
-    typedef std::function <future<void>(manapi::net::http_request &req, manapi::net::http_response &res)> handler_template_t;
+    typedef std::function <future<void>(manapi::net::http::request &req, manapi::net::http::response &res)> handler_template_t;
 
     struct http_uri_part;
 

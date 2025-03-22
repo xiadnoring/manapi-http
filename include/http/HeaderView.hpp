@@ -9,6 +9,7 @@
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiSite.hpp"
 #include "../ManapiUtils.hpp"
+#include "components/ManapiURLDecodeStream.hpp"
 
 namespace manapi::net::http {
 
@@ -18,10 +19,8 @@ namespace manapi::net::http {
             std::string buffer;
 
             bool next_line_state = false;
-            char hex_symbols[2];
-            char hex_index = -1;
-
             bool finished = false;
+            net::http::url_decode_stream url_decode;
         };
     public:
         HeaderView (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
@@ -36,11 +35,10 @@ namespace manapi::net::http {
         void _next_line (char &c);
         void _parse_method (char &c);
         void _parse_uri (char &c);
-        void _cleanup_uri ();
         void _parse_http (char &c);
 
         std::function<void(char&)> current, next;
-        std::optional<parse_vars_t> parse_vars;
+        std::shared_ptr <parse_vars_t> parse_vars;
 
         http::request_data_t request_data;
         std::shared_ptr<manapi::net::worker::base> worker;

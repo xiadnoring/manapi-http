@@ -172,7 +172,7 @@ namespace manapi::net::worker {
         void init_callbacks();
         void set_callbacks(const http_v2_callbacks_t &callbacks);
 
-        future<ssize_t> response (worker::connection &connection, http_response &resp, bool finish) override;
+        future<ssize_t> response (worker::connection &connection, http::response &resp, bool finish) override;
 
         std::shared_ptr<worker::connection> connection;
         manapi::object_item_pool<bytebuffer, std::size_t> buffer{};

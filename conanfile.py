@@ -83,7 +83,7 @@ class ManapiHttpConan(ConanFile):
         self.requires("libev/4.33")
         self.requires("zlib/1.3.1")
         self.requires("gmp/6.3.0")
-        self.requires("libcurl/8.11.1")
+        self.requires("libcurl/[>=8.12.1 <9]")
         self.requires("libpq/15.5")
         self.requires("cpptrace/0.7.4")
         # self.requires("mimalloc/2.1.7")

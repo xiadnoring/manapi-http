@@ -105,7 +105,7 @@ manapi::future<ssize_t> manapi::net::worker::base::fread(connection &conn, void 
     co_return total;
 }
 
-manapi::future<ssize_t> manapi::net::worker::base::response(worker::connection &connection, http_response &resp, bool finish) { co_return -1; }
+manapi::future<ssize_t> manapi::net::worker::base::response(worker::connection &connection, http::response &resp, bool finish) { co_return -1; }
 
 std::shared_ptr<manapi::net::worker::base> manapi::net::worker::base::create(net::site &site, std::shared_ptr<manapi::net::http::config> config) {
     auto worker = std::make_shared<base>(site);
