@@ -25,36 +25,42 @@ namespace manapi::net::http {
         request(const manapi::net::http::manapi_socket_information &ip_data, manapi::net::http::request_data_t &request_data, class manapi::net::http::base *http_task, std::shared_ptr<http::config>, const void *handler);
         ~request();
 
-        [[nodiscard]] const http::manapi_socket_information &get_ip_data () const;
-        [[nodiscard]] const std::string &get_method () const;
-        [[nodiscard]] const std::string &get_http_version() const;
+        [[nodiscard]] const http::manapi_socket_information &ip_data () const;
+        [[nodiscard]] const std::string &method () const;
+        [[nodiscard]] const std::string &http_version() const;
         [[nodiscard]] const std::map<std::string, std::string> &ref_headers () const;
-        [[nodiscard]] std::map<std::string, std::string> get_headers () const;
-        [[nodiscard]] const std::string &get_param (const std::string &param) const;
+        [[nodiscard]] std::map<std::string, std::string> headers () const;
+        [[nodiscard]] const std::string &param (const std::string &param) const;
         [[nodiscard]] std::string dump() const;
         future<std::string> text ();
         future<manapi::json> json ();
         future<formdata_recv> form ();
         future<void> file (std::string filepath);
-        ssize_t get_body_size ();
-        void set_max_plain_body_size (const size_t &size);
+        ssize_t body_size ();
+        const std::string &get (const std::string &key);
+        bool contains_get (const std::string &key);
+        void max_plain_body_size (const size_t &size);
 
         bool contains_header (const std::string &name);
-        const std::string& get_header (const std::string &name);
+        const std::string& header (const std::string &name);
 
-        const std::string& get_query_param (const std::string &name);
+        const std::string& query_param (const std::string &name);
 
-        [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &get_post_mask () const;
-        [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &get_get_mask () const;
+        [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &post_mask () const;
+        [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &get_mask () const;
 
         void stop_propagation (const bool &stop_propagation = true);
-        [[nodiscard]] bool get_propagation () const;
+        [[nodiscard]] bool propagation () const;
     private:
         future<void> _read_body (std::function<void(const char *, ssize_t )> handler);
         future<void> _read_async_body (std::function<manapi::future<>(const char *, ssize_t )> handler);
+
+        std::map<std::string, std::string> get_params_;
+
+        void prepare_get_params_();
         void parse_map_url_param ();
         // peer ip
-        const http::manapi_socket_information *ip_data;
+        const http::manapi_socket_information *ip_data_;
 
         // body, headers, url and etc
         http::request_data_t *request_data;
@@ -69,11 +75,10 @@ namespace manapi::net::http {
         std::shared_ptr<http::config> config;
 
         // if peer sent larger by size then max_plain_body_size -> error
-        size_t max_plain_body_size = 1000000;
+        size_t max_plain_body_size_ = 1000000;
 
         // url get params ?param1=xxx&param2=xxx
         std::unique_ptr<std::map <std::string, std::string>> map_url_params;
-
 
         bool is_propagation = true;
     };

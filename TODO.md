@@ -43,6 +43,9 @@
 - [x] Static files share
 - [x] Async
 
+## HTTP/1.1
+- [x] default
+
 ## HTTP/2
 - [x] default
 - [ ] nghttp2

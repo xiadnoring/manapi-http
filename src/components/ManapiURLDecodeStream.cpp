@@ -38,40 +38,40 @@ void manapi::net::http::url_decode_stream::handle_char_(const char &c) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_PARSE_INVALID_CHAR, "url_decode_stream: invalid char");
     }
 
-    if (this->hex_index >= 0) {
-        this->hex_symbols[this->hex_index] = c;
+    if (this->divided == -1) {
+        if (this->hex_index >= 0) {
+            this->hex_symbols[this->hex_index] = c;
 
-        if (this->hex_index == 1) {
-            char x = static_cast<char> (manapi::unicode::hex2dec(this->hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
-                                 this->hex_symbols[1]));
+            if (this->hex_index == 1) {
+                char x = static_cast<char> (manapi::unicode::hex2dec(this->hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
+                                     this->hex_symbols[1]));
 
-            if (((this->hex_symbols[0] >= 'a' && this->hex_symbols[0] <= 'z') || (this->hex_symbols[0] >= 'A' && this->hex_symbols[0] <= 'Z')
-                || (this->hex_symbols[0] >= '0' && this->hex_symbols[0] <= '9')) && ((this->hex_symbols[1] >= 'a' && this->hex_symbols[1] <= 'z') || (this->hex_symbols[1] >= 'A' && this->hex_symbols[1] <= 'Z')
-                || (this->hex_symbols[1] >= '0' && this->hex_symbols[1] <= '9'))) {
-                this->result_.back() += x;
+                if (((this->hex_symbols[0] >= 'a' && this->hex_symbols[0] <= 'z') || (this->hex_symbols[0] >= 'A' && this->hex_symbols[0] <= 'Z')
+                    || (this->hex_symbols[0] >= '0' && this->hex_symbols[0] <= '9')) && ((this->hex_symbols[1] >= 'a' && this->hex_symbols[1] <= 'z') || (this->hex_symbols[1] >= 'A' && this->hex_symbols[1] <= 'Z')
+                    || (this->hex_symbols[1] >= '0' && this->hex_symbols[1] <= '9'))) {
+                    this->result_.back() += x;
+                }
+                else {
+                    this->result_.back() += '%';
+                    this->result_.back() += this->hex_symbols;
+                }
+
+                this->hex_index = -1;
+
+                return;
             }
-            else {
-                this->result_.back() += '%';
-                this->result_.back() += this->hex_symbols;
-            }
 
-            this->hex_index = -1;
+            this->hex_index++;
 
             return;
         }
 
-        this->hex_index++;
+        if (c == '%' && !this->result_.empty()) {
+            this->hex_index = 0;
 
-        return;
-    }
+            return;
+        }
 
-    if (c == '%' && !this->result_.empty()) {
-        this->hex_index = 0;
-
-        return;
-    }
-
-    if (this->divided == -1) {
         if (c == '/') {
             if (this->result_.empty() || !this->result_.back().empty()) {
                 this->result_.emplace_back("");

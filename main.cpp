@@ -26,8 +26,11 @@ int main () {
     router->config("./config.json");
 
     router->GET ("/", [ctx, cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
-
-        co_return resp.text(std::format("Hello World! Count: {}", cnt->fetch_add(1)));
+        std::string data;
+        if (req.contains_get("hello 🦄")) {
+            data = req.get("hello 🦄");
+        }
+        co_return resp.text(std::format("Hello World!{} Count: {}", data, cnt->fetch_add(1)));
     });
 
     router->GET("/murtaza", [ctx, cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
@@ -50,7 +53,7 @@ int main () {
     });
 
     router->GET("/cat/[id]", [&ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        manapi::net::fetch fetch (ctx, "https://dragonball-api.com/api/planets/" + req.get_param("id"));
+        manapi::net::fetch fetch (ctx, "https://dragonball-api.com/api/planets/" + req.param("id"));
         fetch.enable_ssl_verify(false);
         fetch.method("GET");
         //fetch.set_verbose(true);
@@ -63,7 +66,7 @@ int main () {
         auto lk = co_await mx->lock_guard();
         /* The pool of database connections here / This example is so slow */
         try {
-            auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.get_param("id")));
+            auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
         }
         catch (...) {
 

@@ -316,7 +316,7 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
         for (const auto &layer: data->layer) {
             co_await layer->handler(req, res);
 
-            if (!req.get_propagation()) {
+            if (!req.propagation()) {
                 // skip other layers and handlers
                 goto finish;
             }

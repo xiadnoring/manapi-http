@@ -54,3 +54,17 @@ std::string manapi::string::random (const size_t &len, std::string_view src) {
 
     return std::move(result);
 }
+
+std::vector<std::string_view> manapi::string::split(std::string_view s, char c) {
+    std::vector<std::string_view> n;
+
+    std::size_t j = 0;
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == c) {
+            n.emplace_back(s.data() + j, s.data() + i);
+            j = i + 1;
+        }
+    }
+
+    return std::move(n);
+}

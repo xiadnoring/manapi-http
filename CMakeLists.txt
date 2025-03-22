@@ -265,6 +265,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/http/ManapiURLParams.cpp
         include/http/ManapiURLParams.hpp
         src/ManapiHttpTypes.cpp
+        src/crypto/ManapiURL.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

@@ -6,11 +6,12 @@
 #include "ManapiJsonBuilder.hpp"
 #include "ManapiHttpMime.hpp"
 #include "http/base_http.hpp"
+#include "http/ManapiURLParams.hpp"
 
 
 manapi::net::http::request::request(const manapi::net::http::manapi_socket_information &ip_data, manapi::net::http::request_data_t &request_data, http::base *http_task, std::shared_ptr<http::config> config, const void *handler) : config(std::move(config))
 {
-    this->ip_data = &ip_data;
+    this->ip_data_ = &ip_data;
     this->request_data = &request_data;
     this->http_task = http_task;
     this->page_handler = handler;
@@ -18,29 +19,29 @@ manapi::net::http::request::request(const manapi::net::http::manapi_socket_infor
 
 manapi::net::http::request::~request () = default;
 
-const manapi::net::http::manapi_socket_information &manapi::net::http::request::get_ip_data() const {
-    return *ip_data;
+const manapi::net::http::manapi_socket_information &manapi::net::http::request::ip_data() const {
+    return *this->ip_data_;
 }
 
-const std::string &manapi::net::http::request::get_method() const {
-    return request_data->method;
+const std::string &manapi::net::http::request::method() const {
+    return this->request_data->method;
 }
 
-const std::string &manapi::net::http::request::get_http_version() const {
-    return request_data->http;
+const std::string &manapi::net::http::request::http_version() const {
+    return this->request_data->http;
 }
 
 [[nodiscard]] const std::map<std::string, std::string> &manapi::net::http::request::ref_headers () const {
     return this->request_data->headers;
 }
 
-std::map<std::string, std::string> manapi::net::http::request::get_headers() const {
+std::map<std::string, std::string> manapi::net::http::request::headers() const {
     return std::move(this->request_data->headers);
 }
 
-const std::string &manapi::net::http::request::get_param(const std::string &param) const {
-    if (request_data->params.contains(param))
-        return request_data->params.at(param);
+const std::string &manapi::net::http::request::param(const std::string &param) const {
+    if (this->request_data->params.contains(param))
+        return this->request_data->params.at(param);
 
     THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PARAM_MISSING, "cannot find param '{}'", param);
 }
@@ -48,9 +49,9 @@ const std::string &manapi::net::http::request::get_param(const std::string &para
 std::string manapi::net::http::request::dump() const {
     std::string result;
 
-    result += "HTTP: " + get_http_version() + '\n';
-    result += "Method: " + get_method() + '\n';
-    result += "URL: " + request_data->uri + '\n';
+    result += "HTTP: " + this->http_version() + '\n';
+    result += "Method: " + this->method() + '\n';
+    result += "URL: " + this->request_data->uri + '\n';
 
     result += "Headers: \n";
 
@@ -73,9 +74,9 @@ manapi::future<std::string> manapi::net::http::request::text() {
 
     std::string body;
 
-    if (this->request_data->body_size > max_plain_body_size)
+    if (this->request_data->body_size > this->max_plain_body_size_)
     {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_TOO_LONG, "plain body can have only {} length", max_plain_body_size);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_TOO_LONG, "plain body can have only {} length", max_plain_body_size_);
     }
 
     body.resize(this->request_data->body_size);
@@ -94,7 +95,7 @@ manapi::future<std::string> manapi::net::http::request::text() {
 manapi::future<manapi::json> manapi::net::http::request::json()
 {
     // TODO: check with json_mask during processing read_mask()
-    const auto &post_mask = get_post_mask();
+    const auto &post_mask = this->post_mask();
 
     json_builder builder = post_mask ? json_builder (*post_mask) : json_builder ();
     co_await _read_body([&builder] (const char *data, ssize_t size) -> void {
@@ -138,20 +139,42 @@ manapi::future<> manapi::net::http::request::file(std::string filepath) {
     }
 }
 
-ssize_t manapi::net::http::request::get_body_size() {
+ssize_t manapi::net::http::request::body_size() {
     return this->request_data->body_size;
 }
 
-void manapi::net::http::request::set_max_plain_body_size(const size_t &size) {
-    max_plain_body_size = size;
+const std::string & manapi::net::http::request::get(const std::string &key) {
+    this->prepare_get_params_();
+
+    auto it = this->get_params_.find(key);
+    if (it == this->get_params_.end()) {
+        THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PARAM_MISSING, "GET param {} is missing", key);
+    }
+
+    return it->second;
+}
+
+bool manapi::net::http::request::contains_get(const std::string &key) {
+    this->prepare_get_params_();
+    return this->get_params_.contains(key);
+}
+
+void manapi::net::http::request::max_plain_body_size(const size_t &size) {
+    this->max_plain_body_size_ = size;
 }
 
 bool manapi::net::http::request::contains_header(const std::string &name) {
-    return request_data->headers.contains(name);
+    return this->request_data->headers.contains(name);
 }
 
-const std::string &manapi::net::http::request::get_header(const std::string &name) {
-    return request_data->headers.at(name);
+const std::string &manapi::net::http::request::header(const std::string &name) {
+    return this->request_data->headers.at(name);
+}
+
+void manapi::net::http::request::prepare_get_params_() {
+    if (this->get_params_.empty() && this->request_data->divided != -1) {
+        this->get_params_ = http::parse_get_params (this->request_data->path[this->request_data->divided]);
+    }
 }
 
 void manapi::net::http::request::parse_map_url_param() {
@@ -169,33 +192,33 @@ void manapi::net::http::request::parse_map_url_param() {
     }
 }
 
-const std::string &manapi::net::http::request::get_query_param(const std::string &name) {
-    if (map_url_params == nullptr)
+const std::string &manapi::net::http::request::query_param(const std::string &name) {
+    if (this->map_url_params == nullptr)
     {
         parse_map_url_param();
     }
 
-    if (map_url_params->contains(name))
+    if (this->map_url_params->contains(name))
     {
-        return map_url_params->at(name);
+        return this->map_url_params->at(name);
     }
 
     THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_QUERY_PARAM_MISSING, "Can not find query param by name: {}", name);
 }
 
-const std::unique_ptr<const manapi::json_mask> &manapi::net::http::request::get_post_mask() const {
-    return static_cast<const http_handler_page *> (page_handler)->handler->post_mask;
+const std::unique_ptr<const manapi::json_mask> &manapi::net::http::request::post_mask() const {
+    return static_cast<const http_handler_page *> (this->page_handler)->handler->post_mask;
 }
 
-const std::unique_ptr<const manapi::json_mask> &manapi::net::http::request::get_get_mask() const {
-    return static_cast<const http_handler_page *> (page_handler)->handler->get_mask;
+const std::unique_ptr<const manapi::json_mask> &manapi::net::http::request::get_mask() const {
+    return static_cast<const http_handler_page *> (this->page_handler)->handler->get_mask;
 }
 
 void manapi::net::http::request::stop_propagation(const bool &stop_propagation) {
-    is_propagation = !stop_propagation;
+    this->is_propagation = !stop_propagation;
 }
 
-bool manapi::net::http::request::get_propagation() const {
+bool manapi::net::http::request::propagation() const {
     return this->is_propagation;
 }
 
