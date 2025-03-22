@@ -75,22 +75,22 @@ namespace manapi::net {
         site (const std::shared_ptr<async::context> &ctx);
         virtual ~site();
 
-        http_uri_part *set_handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
-        http_uri_part *set_handler (std::string method, std::string uri, std::string folder);
+        http_uri_part *handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+        http_uri_part *handler (std::string method, std::string uri, std::string folder);
 
-        http_handler_page get_handler (http::request_data_t &request_data) const;
+        http_handler_page handler (http::request_data_t &request_data) const;
 
-        void set_compressor (const std::string &name, const std::function<future<bool>(const std::string &src, const std::string &dest)> &handler);
+        void compressor (const std::string &name, const std::function<future<bool>(const std::string &src, const std::string &dest)> &handler);
         const std::function<future<bool>(const std::string &src, const std::string &dest)> &get_compressor (const std::string &name);
 
         [[nodiscard]] bool contains_compressor (const std::string &name) const;
 
-        void set_transport_protocol_worker (const std::string &type, const std::string &name, const std::function<std::shared_ptr<class worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker);
-        const std::map <std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &get_transport_protocol_worker (const std::string &type);
+        void transport_protocol_worker (const std::string &type, const std::string &name, const std::function<std::shared_ptr<class worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker);
+        const std::map <std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &transport_protocol_worker (const std::string &type);
 
-        void set_config (std::string path);
-        void set_config_object (json config);
-        const manapi::json &get_config ();
+        void config (std::string path);
+        void config_object (json config);
+        const manapi::json &config ();
 
         std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm);
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
@@ -108,7 +108,7 @@ namespace manapi::net {
         void save_config ();
 
         std::shared_ptr<async::context> ctx;
-        manapi::json config;
+        manapi::json config_;
         std::mutex loopmx;
         object_pool<bytebuffer, std::false_type, std::size_t> bufferpool_{};
     private:
@@ -118,7 +118,7 @@ namespace manapi::net {
 
         manapi::json cache_config;
         std::string config_path = "/tmp/http.json";
-        bool enabled_save_config     = false;
+        bool enabled_save_config = false;
 
         http_uri_part handlers;
 

@@ -54,23 +54,23 @@ manapi::future<void> manapi::net::http::server::start() {
 }
 
 void manapi::net::http::server::GET(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->set_handler("GET", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
+    this->handler("GET", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
 void manapi::net::http::server::POST(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->set_handler("POST", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
+    this->handler("POST", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
 void manapi::net::http::server::OPTIONS(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->set_handler("OPTIONS", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
+    this->handler("OPTIONS", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
 void manapi::net::http::server::PUT(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->set_handler("PUT", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
+    this->handler("PUT", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
 void manapi::net::http::server::PATCH(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->set_handler("PATCH", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
+    this->handler("PATCH", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
 // void manapi::net::http::server::DELETE(const std::string &uri, handler_template_t handler, const json_mask &get_mask, const json_mask &post_mask) {
@@ -78,7 +78,7 @@ void manapi::net::http::server::PATCH(std::string uri, handler_template_t handle
 // }
 
 void manapi::net::http::server::GET(std::string uri, std::string folder) {
-    set_handler ("GET", std::move(uri), std::move(folder));
+    handler ("GET", std::move(uri), std::move(folder));
 }
 
 manapi::future<void> manapi::net::http::server::stop() {
@@ -94,9 +94,9 @@ manapi::future<void> manapi::net::http::server::stop() {
 
 manapi::future<> manapi::net::http::server::_init_pool() {
     // init all pools
-    if (this->config.contains("pools"))
+    if (this->config_.contains("pools"))
     {
-        for (auto it = this->config["pools"].begin<json::ARRAY>(); it != this->config["pools"].end<json::ARRAY>(); ++it, this->next_pool_id++)
+        for (auto it = this->config_["pools"].begin<json::ARRAY>(); it != this->config_["pools"].end<json::ARRAY>(); ++it, this->next_pool_id++)
         {
             auto p = std::make_unique<http_pool> (*it, this, this->next_pool_id, this->ctx->eventloop());
             co_await p->run();

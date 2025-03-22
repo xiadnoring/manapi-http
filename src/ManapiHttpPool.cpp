@@ -66,7 +66,7 @@ manapi::future<void> manapi::net::http_pool::_pool() {
     {
         auto implementation = config->get_implementation();
         auto transport = config->get_transport();
-        auto implementations = site->get_transport_protocol_worker(*transport);
+        auto implementations = site->transport_protocol_worker(*transport);
 
         if (implementations.contains(*implementation))
         {

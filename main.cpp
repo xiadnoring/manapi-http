@@ -23,7 +23,7 @@ int main () {
 
     ctx->eventloop()->setup_handle_interrupt();
 
-    router->set_config("./config.json");
+    router->config("./config.json");
 
     router->GET ("/", [ctx, cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
 

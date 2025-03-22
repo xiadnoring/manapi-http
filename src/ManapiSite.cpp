@@ -25,11 +25,11 @@ namespace manapi::net {
 }
 
 std::string manapi::net::site::default_cache_dir        = "/tmp/";
-std::string manapi::net::site::default_config_name      = "config.json";
+std::string manapi::net::site::default_config_name      = "config_.json";
 
 // ======================[ configs funcs]==========================
 
-void manapi::net::site::set_compressor(const std::string &name, const std::function<future<bool>(const std::string &src, const std::string &dest)> &handler) {
+void manapi::net::site::compressor(const std::string &name, const std::function<future<bool>(const std::string &src, const std::string &dest)> &handler) {
     this->compressors[name] = handler;
 }
 
@@ -46,13 +46,13 @@ bool manapi::net::site::contains_compressor(const std::string &name) const {
     return this->compressors.contains(name);
 }
 
-void manapi::net::site::set_transport_protocol_worker(const std::string &type, const std::string &name, const std::function<std::shared_ptr<worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker) {
+void manapi::net::site::transport_protocol_worker(const std::string &type, const std::string &name, const std::function<std::shared_ptr<worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker) {
     this->transport_protocol_workers[type][name] = [this, worker] (std::shared_ptr<http::config> &&config) {
         return worker (*this, std::forward<decltype(config)>(config));
     };
 }
 
-const std::map<std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &manapi::net::site::get_transport_protocol_worker(const std::string &type) {
+const std::map<std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &manapi::net::site::transport_protocol_worker(const std::string &type) {
     return this->transport_protocol_workers[type];
 }
 
@@ -65,17 +65,17 @@ void manapi::net::site::setup() {
     // std::ios_base::sync_with_stdio(false);
     // std::cout.tie(nullptr);
 
-    this->config = manapi::json::object();
+    this->config_ = manapi::json::object();
     this->cache_config = manapi::json::object();
 
-    this->set_compressor("deflate", [this] (const std::string &src, const std::string &dest)
+    this->compressor("deflate", [this] (const std::string &src, const std::string &dest)
         -> future<bool> { return manapi::compress::deflate_compress_file(this->ctx, src, dest); });
-    this->set_compressor("gzip", [this] (const std::string &src, const std::string &dest)
+    this->compressor("gzip", [this] (const std::string &src, const std::string &dest)
         -> future<bool> { return manapi::compress::gzip_compress_file(this->ctx, src, dest); });
 
-    this->set_transport_protocol_worker("tcp", "default", worker::TCP::create);
+    this->transport_protocol_worker("tcp", "default", worker::TCP::create);
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
-    this->set_transport_protocol_worker("tls", "openssl", worker::OpenSSL_TLS::create);
+    this->transport_protocol_worker("tls", "openssl", worker::OpenSSL_TLS::create);
 # ifdef MANAPI_OPENSSL_QUIC_REALIZATION
     this->set_transport_protocol_worker("quic", "openssl", worker::openssl_quic::create);
 # endif
@@ -86,42 +86,42 @@ void manapi::net::site::setup() {
 #endif
 
 #if MANAPIHTTP_QUICHE_DEPENDENCY
-    this->set_transport_protocol_worker("quic", "quiche", worker::http_v3_cloudflare_quiche::create);
+    this->transport_protocol_worker("quic", "quiche", worker::http_v3_cloudflare_quiche::create);
 #endif
 
 #if MANAPIHTTP_TQUIC_DEPENDENCY
-    this->set_transport_protocol_worker("quic", "tquic", worker::http_v3_tquic::create);
+    this->transport_protocol_worker("quic", "tquic", worker::http_v3_tquic::create);
 #endif
 
-    this->set_transport_protocol_worker("quic", "default", worker::quic::create);
+    this->transport_protocol_worker("quic", "default", worker::quic::create);
 }
 
-void manapi::net::site::set_config(std::string path) {
+void manapi::net::site::config(std::string path) {
     this->config_path = std::move(path);
 
     if (!manapi::filesystem::exists(this->config_path))
     {
-        manapi::filesystem::config::write(this->config_path, this->config);
+        manapi::filesystem::config::write(this->config_path, this->config_);
         return;
     }
 
-    this->config = manapi::filesystem::config::read (this->config_path);
+    this->config_ = manapi::filesystem::config::read (this->config_path);
     this->setup_config ();
 }
 
-void manapi::net::site::set_config_object(json config) {
-    this->config = std::move(config);
+void manapi::net::site::config_object(json config) {
+    this->config_ = std::move(config_);
     this->setup_config();
 }
 
-const manapi::json &manapi::net::site::get_config() {
-    return this->config;
+const manapi::json &manapi::net::site::config() {
+    return this->config_;
 }
 
 void manapi::net::site::setup_config() {
-    if (this->config.contains("cache_dir"))
+    if (this->config_.contains("cache_dir"))
     {
-        const auto b = config.at("cache_dir");
+        const auto b = config_.at("cache_dir");
         this->config_cache_dir = b.as_string();
     }
     else
@@ -144,10 +144,10 @@ void manapi::net::site::setup_config() {
         }
     }
 
-    if (this->config.contains("save_config")) {
-        if (this->config["save_config"].is_bool())
+    if (this->config_.contains("save_config")) {
+        if (this->config_["save_config"].is_bool())
         {
-            this->enabled_save_config = this->config["save_config"].as_bool();
+            this->enabled_save_config = this->config_["save_config"].as_bool();
         }
     }
 }
@@ -211,7 +211,7 @@ void manapi::net::site::save() {
 void manapi::net::site::save_config() {
     if (!manapi::filesystem::exists(this->config_path) && manapi::filesystem::is_file(this->config_path)) {
         // main config
-        manapi::filesystem::config::write(this->config_path, this->config);
+        manapi::filesystem::config::write(this->config_path, this->config_);
     }
     // cache config
     manapi::filesystem::config::write(this->config_cache_dir + site::default_config_name, this->cache_config);
@@ -226,7 +226,7 @@ void manapi::net::site::check_exists_method_on_url(const std::string &url,
     if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_ADD_PAGE, "The method {} already contains in the static url {}", method, url); }
 }
 
-manapi::net::http_handler_page manapi::net::site::get_handler(http::request_data_t &request_data) const {
+manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &request_data) const {
     http_handler_page handler_page;
     handler_page.error = std::make_unique<http_handler_page>();
     // how much we will take the layers from handler_page.layers at the start to the handler_page.error.layer
@@ -337,7 +337,7 @@ manapi::net::site::site(const std::shared_ptr<async::context> &ctx)
 manapi::net::site::~site() = default;
 
 
-manapi::net::http_uri_part *manapi::net::site::set_handler(std::string method, std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
+manapi::net::http_uri_part *manapi::net::site::handler(std::string method, std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
     size_t  type            = URI_PAGE_DEFAULT;
 
     http_uri_part *cur      = build_uri_part(uri, type);
@@ -390,7 +390,7 @@ manapi::net::http_uri_part *manapi::net::site::set_handler(std::string method, s
     return cur;
 }
 
-manapi::net::http_uri_part *manapi::net::site::set_handler(std::string method, std::string uri, std::string folder) {
+manapi::net::http_uri_part *manapi::net::site::handler(std::string method, std::string uri, std::string folder) {
     size_t  type            = URI_PAGE_DEFAULT;
 
     http_uri_part *cur      = build_uri_part(uri, type);

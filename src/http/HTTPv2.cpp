@@ -39,7 +39,7 @@ manapi::future<void> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_
 }
 
 manapi::future<void> manapi::net::http::http_v2::execute_handler() {
-    const auto handler = this->site.get_handler(this->request_data);
+    const auto handler = this->site.handler(this->request_data);
     co_await handle_request(&handler, this->request_data);
     co_return;
 }

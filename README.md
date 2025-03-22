@@ -63,15 +63,13 @@ cmake ... -DMANAPIHTTP_BUILD_METHOD=conan
 
 ```c++
 int main () {
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-
     auto ctx = manapi::async::context::create();
     auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
     auto router = std::make_shared<manapi::net::http::server> (ctx);
 
     ctx->eventloop()->setup_handle_interrupt();
 
-    router->set_config_object({
+    router->config_object({
         {"pools", manapi::json::array({
             {
                 {"address", "127.0.0.1"},
@@ -98,17 +96,17 @@ int main () {
     });
 
     router->GET("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        resp.set_replacers({
-            {"status_code", std::to_string(resp.get_status_code())},
-            {"status_message", resp.get_status_message()}
+        resp.replacers({
+            {"status_code", std::to_string(resp.status_code())},
+            {"status_message", std::string{resp.status_message()}}
         });
 
         co_return resp.file ("../examples/error.html");
     });
 
     router->POST("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        co_return resp.json({{"error", resp.get_status_code()},
-                {"msg", resp.get_status_message()}});
+        co_return resp.json({{"error", resp.status_code()},
+                {"msg", std::string{resp.status_message()}}});
     });
 
     router->GET("/cat", [&ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
@@ -117,11 +115,11 @@ int main () {
             {"enable_alpn", true},
             {"method", "GET"}
         });
-        
+
         if (!fetch->ok()) {
             co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
         }
-        
+
         auto data = co_await fetch->json();
 
         co_return resp.text(std::move(data["description"].as_string()));
@@ -147,8 +145,8 @@ int main () {
     });
 
     router->GET("/video", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        resp.set_partial_status(true);
-        resp.set_compress_enabled(false);
+        resp.partial_status(true);
+        resp.compress_enabled(false);
         co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
     });
 
