@@ -1,5 +1,6 @@
 # Tasks
 
+## Common
 - [x] Implement socket connection (linux)
 - [x] Implement HTTP/1.1 Format
 - [x] JSON support
@@ -26,12 +27,12 @@
 - [ ] Module manager
 - [ ] Other instruments (autogenerate the cert., debugging, etc)
 - [x] Implement HTTP/2.0 Format
-- [ ] Implement HTTP/3.0 Format
+- [x] Implement HTTP/3.0 Format
 - [ ] Ready-made solutions for the API-service, site, etc
 - [ ] Docs API
 - [ ] MySQL support
-- [x] MariaDB support
-- [ ] PostgreSQL support
+- [ ] MariaDB support
+- [x] PostgreSQL support
 - [x] Support gzip
 - [x] Support deflate
 - [ ] Support brotli
@@ -40,4 +41,28 @@
 - [x] Content Range (video, audio, massive files)
 - [ ] Multiple Content Range
 - [x] Static files share
-- [ ] Async
+- [x] Async
+
+## HTTP/2
+- [x] default
+- [ ] nghttp2
+
+## HTTP/3
+- [ ] default
+- [x] quiche (cloudflare)
+- [ ] nginx-http3
+
+## TLS
+- [ ] default
+- [x] OpenSSL support
+- [ ] WolfSSL support
+- [ ] BoringSSL support
+
+## QUIC
+- [x] quiche (cloudflare)
+- [ ] WolfSSL
+- [ ] BoringSSL
+- [ ] OpenSSL
+- [ ] TQUIC
+- [ ] quicX
+- [ ] default

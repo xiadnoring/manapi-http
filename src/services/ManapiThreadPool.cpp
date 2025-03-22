@@ -10,7 +10,7 @@
 
 namespace manapi {
     template<class T>
-    threadpool<T>::threadpool(size_t thread_num, size_t queues_count): is_stop(true) {
+    threadpool<T>::threadpool(ssize_t thread_num, ssize_t queues_count): is_stop(true) {
 #if defined(__unix__)||defined(__APPLE__)
         sigemptyset(&this->blockedSignal);
         sigaddset(&this->blockedSignal, SIGPIPE);
@@ -28,7 +28,7 @@ namespace manapi {
     }
 
     template<class T>
-    void threadpool<T>::resize(size_t thread_num) {
+    void threadpool<T>::resize(ssize_t thread_num) {
         if (this->is_stop) {
             this->threadnum = thread_num;
             this->tasks_by_thread.resize(thread_num);
@@ -85,6 +85,18 @@ namespace manapi {
     }
 
     template<class T>
+    bool threadpool<T>::try_todo_task() {
+        if (!this->is_stop) {
+            auto task = get_task(-1);
+            if (task) {
+                task_doit(std::move(task));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    template<class T>
     void threadpool<T>::start() {
         if (!this->is_stop) {
             return;
@@ -92,7 +104,7 @@ namespace manapi {
 
         this->is_stop.store(false);
 
-        for (size_t i = 0; i < this->threadnum; ++i) {
+        for (ssize_t i = 0; i < this->threadnum; ++i) {
             this->threads.push_back(std::thread(threadpool::worker, this, i));
         }
     }
@@ -129,11 +141,11 @@ namespace manapi {
     }
 
     template<class T>
-    std::unique_ptr<T> threadpool<T>::get_task(std::size_t index) {
+    std::unique_ptr<T> threadpool<T>::get_task(ssize_t index) {
         std::unique_ptr<T> task = nullptr;
         std::lock_guard<std::mutex> lk (this->queue_mutex);
 
-        if (this->tasks_by_thread[index].empty()) {
+        if (index == -1 || this->tasks_by_thread[index].empty()) {
             // from n ... 0 by level
             for (auto task_queue = this->task_queues.rbegin(); task_queue != this->task_queues.rend(); ++task_queue)
             {
@@ -154,14 +166,14 @@ namespace manapi {
     }
 
     template<class T>
-    void *threadpool<T>::worker(void *arg, std::size_t index) {
+    void *threadpool<T>::worker(void *arg, ssize_t index) {
         auto *pool = static_cast<threadpool *> (arg);
         pool->run(index);
         return pool;
     }
 
     template<class T>
-    void threadpool<T>::run(std::size_t index) {
+    void threadpool<T>::run(ssize_t index) {
         while (!this->is_stop) {
             auto task = get_task(index);
             if (task == nullptr)

@@ -14,7 +14,7 @@
 #include "ManapiInitTools.hpp"
 
 int main () {
-    auto ctx = manapi::async::context::create();
+    auto ctx = manapi::async::context::create(0);
     auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
     auto router = std::make_shared<manapi::net::http::server> (ctx);
 

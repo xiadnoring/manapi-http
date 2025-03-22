@@ -13,3 +13,7 @@ build
 test.cpp
 test.h
 .clangd
+conan/quiche/all/test_package/build
+conan/quiche/all/test_package/CMakeUserPresets.json
+conan/tquic/all/test_package/build
+conan/tquic/all/test_package/CMakeUserPresets.json

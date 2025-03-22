@@ -28,7 +28,7 @@ void handler_interrupt (int sig) {
     manapi::event_loop::interrupt();
 }
 
-manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) {
+manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : idle_watcher(loop) {
     this->mx = std::make_shared<async::mutex>(taskpool);
     this->curl_watcher.curl_multi_mx = std::make_shared<async::mutex>(taskpool);
     this->async_watcher.adding_watcher_mx = std::make_shared<async::mutex>(taskpool);
@@ -64,12 +64,15 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) {
     this->callback_watcher.adding_async_cb = [this] ()
         -> void { this->callback_watcher.adding_async->send(); };
 
+    this->idle_watcher.set<event_loop, &event_loop::handle_idle_event>(this);
+
     /* data cached */
     // this->async_watcher.watcher_data_cached.resize(8000);
     // this->timer_watcher.watcher_data_cached.resize(8000);
     // this->callback_watcher.watcher_data_cached.resize(8000);
     // this->curl_watcher.watcher_data_cached.resize(8000);
 
+    this->idle_watcher.start();
     this->callback_watcher.adding_async->start();
     this->async_watcher.adding_watcher_async->start();
     this->timer_watcher.adding_timer_async->start();
@@ -82,6 +85,7 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) {
         w.repeat = 0.5;
         w.again();
     });
+
     this->curl_watcher.timeout_watcher->start();
 }
 
@@ -93,6 +97,7 @@ manapi::event_loop::~event_loop() {
     this->stop_watcher (this->curl_watcher.adding_curl_multi_async);
     this->stop_watcher (this->async_watcher.adding_watcher_async);
     this->stop_watcher(this->callback_watcher.adding_async);
+    this->idle_watcher.stop();
 }
 
 manapi::future<> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
@@ -417,6 +422,13 @@ void manapi::event_loop::custom_watcher_callback_async(ev::async &w, int revents
         }
 
         this->callback_watcher.adding_mx->unlock();
+    }
+}
+
+void manapi::event_loop::handle_idle_event(ev::idle &w, int revents) {
+    if (!this->taskpool->size()) {
+        /** without workers */
+        this->taskpool->try_todo_task();
     }
 }
 
@@ -811,8 +823,10 @@ void manapi::event_loop::interrupt() {
 #else
         it.second->loop_interrupted = it.second->loop_thread_id == std::this_thread::get_id();
 #endif
-        it.second->stop()
-            .get(it.second->taskpool);
+        manapi::async::run(it.second->taskpool, it.second->stop());
+        if (!it.second->taskpool->size()) {
+            while (it.second->taskpool->try_todo_task()) {}
+        }
         lk.lock();
     }
 }
@@ -865,14 +879,14 @@ manapi::future<> manapi::event_loop::_fix_event_pool_interrupt() {
     if (this->loop_interrupted) {
         auto lk = co_await this->async_watcher.adding_watcher_mx->lock_guard();
 
-        this->async_watcher.adding_watcher_async_cb = [this] ()
-            -> void { this->custom_watcher_fd_async(*this->async_watcher.adding_watcher_async, 0); };
-        this->curl_watcher.adding_curl_async_cb = [this] ()
-        -> void { this->custom_watcher_curl_async(*this->curl_watcher.adding_curl_multi_async, 0); };
-        this->timer_watcher.adding_timer_async_cb = [this] ()
-            -> void { this->custom_watcher_timer_async(*this->timer_watcher.adding_timer_async, 0); };
-        this->callback_watcher.adding_async_cb = [this] ()
-            -> void { this->custom_watcher_callback_async(*this->callback_watcher.adding_async, 0); };
+        // this->async_watcher.adding_watcher_async_cb = [this] ()
+        //     -> void { this->custom_watcher_fd_async(*this->async_watcher.adding_watcher_async, 0); };
+        // this->curl_watcher.adding_curl_async_cb = [this] ()
+        // -> void { this->custom_watcher_curl_async(*this->curl_watcher.adding_curl_multi_async, 0); };
+        // this->timer_watcher.adding_timer_async_cb = [this] ()
+        //     -> void { this->custom_watcher_timer_async(*this->timer_watcher.adding_timer_async, 0); };
+        // this->callback_watcher.adding_async_cb = [this] ()
+        //     -> void { this->custom_watcher_callback_async(*this->callback_watcher.adding_async, 0); };
     }
 }
 

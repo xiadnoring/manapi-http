@@ -90,16 +90,16 @@ class ManapiHttpConan(ConanFile):
         # self.requires("jemalloc/5.3.0")
 
         if self.options.get_safe('openssl_dependency', False):
-            self.requires("openssl/3.3.2")
+            self.requires("openssl/[>=3.3.2 <4]")
 
         if self.options.get_safe('wolfssl_dependency', False):
-            self.requires("wolfssl/5.7.2")
+            self.requires("wolfssl/[>=5.7.2]")
 
         if self.options.get_safe('quiche_dependency', False):
-            self.requires("quiche/0.22.0")
+            self.requires("quiche/[>=0.23.4]")
 
         if self.options.get_safe('tquic_dependency', False):
-            self.requires("tquic/1.5.0")
+            self.requires("tquic/[>=1.6.0]")
 
     def package_info(self):
         self.cpp_info.set_property("cmake_find_mode", "both")
