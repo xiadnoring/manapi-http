@@ -182,6 +182,11 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
         }
 
         if (conn_data.http3_conn) {
+            if (quiche_conn_is_closed(conn_data.conn)) {
+                /** connection was closed */
+                conn_data.status.fetch_or(CONN_CLOSED);
+            }
+
             http_v3_cloudflare_quiche::_flush_write(conn_data);
 
             quiche_h3_event *event{nullptr};
@@ -265,7 +270,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                         break;
                     }
                     case QUICHE_H3_EVENT_FINISHED: {
-                        conn_data.status.fetch_or(CONN_HALF_CLOSED);
+                        //conn_data.status.fetch_or(CONN_HALF_CLOSED);
 
                         break;
                     }
@@ -335,7 +340,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     quiche_config_set_initial_max_stream_data_uni(this->_quiche_config, 1000000);
     quiche_config_set_initial_max_streams_bidi (this->_quiche_config, 100);
     quiche_config_set_initial_max_streams_uni (this->_quiche_config, 100);
-    quiche_config_set_disable_active_migration (this->_quiche_config, true);
+    //quiche_config_set_disable_active_migration (this->_quiche_config, true);
     quiche_config_verify_peer(this->_quiche_config, this->config->get_verify_peer());
     if (this->config->is_quic_debug()) {
         quiche_enable_debug_logging([] (const char *line, void *argp)
@@ -663,28 +668,39 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_write_watcher_cb(struct ev
 
 void manapi::net::worker::http_v3_cloudflare_quiche::_force_close(connection_t &conn_data) {
     auto connection = *static_cast<std::shared_ptr<worker::connection> *> (conn_data.quiche_timer.data);
-    quiche_stats stats;
-    quiche_path_stats path_stats;
 
-    quiche_conn_stats(conn_data.conn, &stats);
-    quiche_conn_path_stats(conn_data.conn, 0, &path_stats);
+    if (quiche_conn_is_closed(conn_data.conn)) {
+        conn_data.status.fetch_or(CONN_CLOSED);
 
-    fprintf(stderr, "connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu\n",
-            stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
+        quiche_stats stats;
+        quiche_path_stats path_stats;
 
-    http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->connections.erase(conn_data.cid);
-    conn_data.quiche_timer.stop();
-    //conn_data.timer.stop();
-    conn_data.write_watcher.stop();
-    conn_data.io_timer.sync_stop(conn_data.worker->site.async_context());
-    http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_reset_all_streams(conn_data);
+        quiche_conn_stats(conn_data.conn, &stats);
+        quiche_conn_path_stats(conn_data.conn, 0, &path_stats);
 
-    delete static_cast<std::shared_ptr<worker::connection> *> (std::exchange(conn_data.quiche_timer.data, nullptr));
+        fprintf(stderr, "connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu\n",
+                stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
-    if (conn_data.http3_conn) {
-        quiche_h3_conn_free(std::exchange(conn_data.http3_conn, nullptr));
+        http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->connections.erase(conn_data.cid);
+        conn_data.quiche_timer.stop();
+        //conn_data.timer.stop();
+        conn_data.write_watcher.stop();
+        conn_data.io_timer.sync_stop(conn_data.worker->site.async_context());
+        http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_reset_all_streams(conn_data);
+
+        delete static_cast<std::shared_ptr<worker::connection> *> (std::exchange(conn_data.quiche_timer.data, nullptr));
+
+        if (conn_data.http3_conn) {
+            quiche_h3_conn_free(std::exchange(conn_data.http3_conn, nullptr));
+        }
+        quiche_conn_free(std::exchange(conn_data.conn, nullptr));
     }
-    quiche_conn_free(std::exchange(conn_data.conn, nullptr));
+    else {
+        if ((conn_data.status.fetch_or(CONN_HALF_CLOSED) & CONN_HALF_CLOSED) == 0) {
+            /** refuse connection */
+            quiche_conn_close(conn_data.conn, true, 0x02, reinterpret_cast <const uint8_t *> ("i/o timeout"), sizeof ("i/o timeout") - 1);
+        }
+    }
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::_flush_connection_closed(connection_t &conn_data) {
@@ -713,7 +729,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_reset_all_streams(connecti
 void manapi::net::worker::http_v3_cloudflare_quiche::_io_timeout(connection_t &conn_data) {
     if (conn_data.stream_read_cnt > 0) {
         if (conn_data.read_total - conn_data.read_total_prev < conn_data.worker->config->speed_check_bytes()) {
-            conn_data.status.fetch_or(CONN_CLOSED);
+            //conn_data.status.fetch_or(CONN_CLOSED);
             _force_close(conn_data);
             return;
         }
@@ -721,7 +737,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_io_timeout(connection_t &c
 
     if (conn_data.stream_write_cnt > 0) {
         if (conn_data.write_total - conn_data.write_total_prev < conn_data.worker->config->speed_check_bytes()) {
-            conn_data.status.fetch_or(CONN_CLOSED);
+            //conn_data.status.fetch_or(CONN_CLOSED);
             _force_close(conn_data);
             return;
         }
