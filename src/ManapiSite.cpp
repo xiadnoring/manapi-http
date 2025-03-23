@@ -110,7 +110,7 @@ void manapi::net::site::config(std::string path) {
 }
 
 void manapi::net::site::config_object(json config) {
-    this->config_ = std::move(config_);
+    this->config_ = std::move(config);
     this->setup_config();
 }
 
