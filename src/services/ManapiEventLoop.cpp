@@ -185,7 +185,7 @@ manapi::future<> manapi::event_loop::_call_and_free_on_finish_cb() {
     while (!this->map_finish_cb.empty()) {
         const auto it = this->map_finish_cb.begin();
         co_await async::invoke(std::move(it->second));
-        //this->map_finish_cb.erase(it);
+        this->map_finish_cb.erase(it);
     }
 }
 
