@@ -59,7 +59,7 @@ int main () {
         //fetch.set_verbose(true);
         auto data = co_await fetch.json();
 
-        co_return resp.text(std::move(data["description"].as_string()));
+        co_return resp.text(std::move(data.contains("error") ? data.dump() : data["description"].as_string()));
     });
 
     router->GET("/pq/[id]", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {

@@ -28,17 +28,17 @@ void handler_interrupt (int sig) {
     manapi::event_loop::interrupt();
 }
 
-manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : prepare_watcher(loop) {
+manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : prepare_watcher(this->loop) {
     this->mx = std::make_shared<async::mutex>(taskpool);
     this->curl_watcher.curl_multi_mx = std::make_shared<async::mutex>(taskpool);
     this->async_watcher.adding_watcher_mx = std::make_shared<async::mutex>(taskpool);
     this->timer_watcher.adding_timer_mx = std::make_shared<async::mutex>(taskpool);
     this->callback_watcher.adding_mx = std::make_shared<async::mutex>(taskpool);
+    this->map_finish_cb_mx = std::make_shared<async::mutex>(taskpool);
     this->taskpool = std::move(taskpool);
     this->async_watcher.adding_watcher_data = {};
     this->curl_watcher.curl_multi.reset(curl_multi_init());
-    this->loop_interrupted = false;
-    this->status.store(false);
+    this->status = false;
 
     this->async_watcher.adding_watcher_async = this->create_watcher_async([this] (ev::async &w, int revents)
         -> void { this->custom_watcher_fd_async(w, revents); });
@@ -102,7 +102,7 @@ manapi::event_loop::~event_loop() {
 
 manapi::future<> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
     auto lk = co_await this->mx->lock_guard();
-    if (this->status.exchange(true)) {
+    if (std::exchange(this->status,true)) {
         co_return;
     }
 
@@ -111,7 +111,7 @@ manapi::future<> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
 
 void manapi::event_loop::sync_start(std::shared_ptr<event_loop> le) {
     auto lk = this->mx->lock_guard().get(this->taskpool);
-    if (this->status.exchange(true)) {
+    if (std::exchange(this->status,true)) {
         return;
     }
 
@@ -130,20 +130,16 @@ void manapi::event_loop::setup_handle_interrupt() {
 }
 
 manapi::future<> manapi::event_loop::stop() {
-    if (!this->status.load()) {
-        co_return;
-    }
-
-    co_await this->_fix_event_pool_interrupt();
-    co_await this->_call_and_free_on_finish_cb();
 
     auto lk = co_await this->mx->lock_guard();
 
-    if (!this->status.exchange(false)) {
+    if (!std::exchange(this->status,false)) {
         co_return;
     }
 
-    if (this->loop_interrupted) {
+    co_await this->_call_and_free_on_finish_cb();
+
+    if (false) {
         /* in the libev */
         auto promise = async::promise<void> (this->taskpool,
         [this] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<> {
@@ -151,21 +147,22 @@ manapi::future<> manapi::event_loop::stop() {
             co_return;
         });
         co_await promise;
-        this->_stop_watcher->send();
+        this->stop_watcher_->send();
     }
     else {
         auto promise = async::promise<void> (this->taskpool,
             [this] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<> {
             this->resolve_stop = std::move(resolve);
-            this->_stop_watcher->send();
+            this->stop_watcher_->send();
             co_return;
         });
+
         co_await promise;
     }
 }
 
 manapi::future<size_t> manapi::event_loop::subscribe_finish(std::move_only_function<manapi::future<void>()> cb) {
-    auto lk = co_await this->mx->lock_guard();
+    auto lk = co_await this->map_finish_cb_mx->lock_guard();
 
     auto id = *reinterpret_cast<const size_t *> (&cb);
 
@@ -178,7 +175,7 @@ manapi::future<size_t> manapi::event_loop::subscribe_finish(std::move_only_funct
 
 manapi::future<void> manapi::event_loop::unsubscribe_finish(const std::size_t &id) {
     if (!id) { co_return; }
-    auto lk = co_await this->mx->lock_guard();
+    auto lk = co_await this->map_finish_cb_mx->lock_guard();
     this->map_finish_cb.erase(id);
 }
 
@@ -187,23 +184,25 @@ ev::loop_ref manapi::event_loop::get_loop() {
 }
 
 manapi::future<> manapi::event_loop::_call_and_free_on_finish_cb() {
+    auto lk = co_await this->map_finish_cb_mx->lock_guard();
     while (!this->map_finish_cb.empty()) {
         const auto it = this->map_finish_cb.begin();
+        std::size_t address = it->first;
         if (it->second) {
-            co_await async::invoke(std::move(it->second));
+            auto callback = std::move(it->second);
+            lk.call();
+            co_await async::invoke(std::move(callback));
         }
-        else {
-            auto lk = co_await this->mx->lock_guard();
-            this->map_finish_cb.erase(it);
-        }
+        lk = co_await this->map_finish_cb_mx->lock_guard();
+        this->map_finish_cb.erase(address);
     }
 }
 
 void manapi::event_loop::stop_pool(async::promise<void>::resolve_t resolve) {
-    {
-        std::lock_guard <std::mutex> lk (event_loop::stop_mx);
-        event_loop::events.erase(reinterpret_cast<size_t>(this));
-    }
+    // {
+    //     std::lock_guard <std::mutex> lk (event_loop::stop_mx);
+    //     event_loop::events.erase(reinterpret_cast<size_t>(this));
+    // }
 
     resolve();
 }
@@ -214,6 +213,10 @@ void manapi::event_loop::_async_break_loop(ev::async &watcher, int revents) {
     if (this->resolve_stop) {
         /* if resolve caballback exists, break the loop otherwise */
         this->stop_pool(std::exchange(this->resolve_stop, nullptr));
+    }
+
+    if (!this->taskpool->size()) {
+        while (this->taskpool->try_todo_task()) {}
     }
 }
 
@@ -825,20 +828,14 @@ void manapi::event_loop::interrupt() {
     event_loop::interrupted.store(true);
     std::unique_lock <std::mutex> lk (event_loop::stop_mx);
 
-    while(!manapi::event_loop::events.empty()) {
-        auto it = *manapi::event_loop::events.begin();
-        lk.unlock();
-#ifdef _WIN32
-        it.second->loop_interrupted = it.second->loop_thread_id == ::GetCurrentThreadId();
-#else
-        it.second->loop_interrupted = it.second->loop_thread_id == std::this_thread::get_id();
-#endif
-        manapi::async::run(it.second->taskpool, it.second->stop());
-        if (!it.second->taskpool->size()) {
-            while (it.second->taskpool->try_todo_task()) {}
+    for (auto &loop :  manapi::event_loop::events) {
+        async::run(loop.second->taskpool, loop.second->stop());
+        if (!loop.second->taskpool->size()) {
+            while (loop.second->taskpool->try_todo_task()) {}
         }
-        lk.lock();
     }
+
+    manapi::event_loop::events.clear();
 }
 
 std::shared_ptr<ev::io> manapi::event_loop::create_watcher_fd(int fd, int flags, std::move_only_function<void(ev::io &w, int revents)> callback, int priority) {
@@ -885,21 +882,6 @@ void manapi::event_loop::event_loop::stop_watcher(std::shared_ptr<T> w) {
     this->stop_watcher(*w);
 }
 
-manapi::future<> manapi::event_loop::_fix_event_pool_interrupt() {
-    if (this->loop_interrupted) {
-        auto lk = co_await this->async_watcher.adding_watcher_mx->lock_guard();
-
-        // this->async_watcher.adding_watcher_async_cb = [this] ()
-        //     -> void { this->custom_watcher_fd_async(*this->async_watcher.adding_watcher_async, 0); };
-        // this->curl_watcher.adding_curl_async_cb = [this] ()
-        // -> void { this->custom_watcher_curl_async(*this->curl_watcher.adding_curl_multi_async, 0); };
-        // this->timer_watcher.adding_timer_async_cb = [this] ()
-        //     -> void { this->custom_watcher_timer_async(*this->timer_watcher.adding_timer_async, 0); };
-        // this->callback_watcher.adding_async_cb = [this] ()
-        //     -> void { this->custom_watcher_callback_async(*this->callback_watcher.adding_async, 0); };
-    }
-}
-
 void manapi::event_loop::_pool(manapi::before_delete lk2, std::shared_ptr<event_loop> le) {
     {
         std::lock_guard<std::mutex> lk (event_loop::stop_mx);
@@ -916,9 +898,9 @@ void manapi::event_loop::_pool(manapi::before_delete lk2, std::shared_ptr<event_
     this->loop_thread_id = std::this_thread::get_id();
 #endif
 
-    this->_stop_watcher = std::make_shared<ev::async>(this->loop);
-    this->_stop_watcher->set<event_loop, &event_loop::_async_break_loop> (this);
-    this->_stop_watcher->start();
+    this->stop_watcher_ = std::make_shared<ev::async>(this->loop);
+    this->stop_watcher_->set<event_loop, &event_loop::_async_break_loop> (this);
+    this->stop_watcher_->start();
 
     auto init_watcher = this->create_watcher_async([&lk2] (ev::async &w, int revents)
         -> void { w.stop(); lk2.call(); });
@@ -932,7 +914,7 @@ void manapi::event_loop::_pool(manapi::before_delete lk2, std::shared_ptr<event_
     lk2.call();
     this->stop_watcher(init_watcher);
 
-    this->_stop_watcher->stop();
+    this->stop_watcher_->stop();
     this->async_watcher.adding_watcher_async->stop();
 }
 

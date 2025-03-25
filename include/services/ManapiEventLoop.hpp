@@ -202,14 +202,14 @@ namespace manapi {
         static std::map <size_t, std::shared_ptr<event_loop>> events;
         static std::mutex stop_mx;
 
-        future<> _fix_event_pool_interrupt();
         void _pool(manapi::before_delete lk2, std::shared_ptr<event_loop> le);
         manapi::future<> _call_and_free_on_finish_cb ();
         void stop_pool (async::promise<void>::resolve_t resolve);
         void _async_break_loop (ev::async &watcher, int revents);
 
-        std::atomic<bool> status;
+        bool status;
         std::shared_ptr<async::mutex> mx;
+        std::shared_ptr<async::mutex> map_finish_cb_mx;
         ev::dynamic_loop loop;
 #ifdef _WIN32
         uint32_t loop_thread_id{0};
@@ -218,9 +218,9 @@ namespace manapi {
 #endif
         std::shared_ptr<threadpool<task>> taskpool;
         std::map <size_t, std::move_only_function<manapi::future<void>()>> map_finish_cb;
-        std::shared_ptr<ev::async> _stop_watcher{nullptr};
+        std::shared_ptr<ev::async> stop_watcher_{nullptr};
         async::promise<void>::resolve_t resolve_stop{nullptr};
-        std::atomic<bool> loop_interrupted;
+        std::atomic<bool> loop_interrupte1d;
         async_watcher_t async_watcher{};
         curl_watcher_t curl_watcher{};
         timer_watcher_t timer_watcher{};
