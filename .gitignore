@@ -12,6 +12,7 @@ build
 .tmp
 test.cpp
 test.h
+old
 .clangd
 venv
 conan/quiche/all/test_package/build

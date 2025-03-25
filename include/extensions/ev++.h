@@ -37,15 +37,14 @@
  * either the BSD or the GPL.
  */
 
-#ifndef EVPP_H__
-#define EVPP_H__
+#pragma once
 
 #include "../ManapiUtils.hpp"
 
 #ifdef EV_H
 # include EV_H
 #else
-# include "ev.h"
+# include "./ev.h"
 #endif
 
 #ifndef EV_USE_STDEXCEPT
@@ -815,6 +814,4 @@ namespace ev {
   #undef EV_BEGIN_WATCHER
   #undef EV_END_WATCHER
 }
-
-#endif
 

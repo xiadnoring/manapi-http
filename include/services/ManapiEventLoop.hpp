@@ -192,7 +192,7 @@ namespace manapi {
         void custom_watcher_timer_async (ev::async &w, int revents);
         void custom_watcher_callback_async (ev::async &w, int revents);
     private:
-        void handle_idle_event (ev::idle &w, int revents);
+        void handle_tasks_do_event (ev::prepare &w, int revents);
         void handle_curl_watcher_data (std::unique_ptr<adding_curl_data_t> data);
         void handle_async_watcher_data (std::unique_ptr<adding_watcher_data_t> data);
         future<void> _template_cmd_watcher (std::unique_ptr<adding_watcher_data_t> data);
@@ -225,6 +225,6 @@ namespace manapi {
         curl_watcher_t curl_watcher{};
         timer_watcher_t timer_watcher{};
         custom_callback_t callback_watcher{};
-        ev::idle idle_watcher;
+        ev::prepare prepare_watcher;
     };
 }

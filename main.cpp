@@ -14,7 +14,7 @@
 #include "ManapiInitTools.hpp"
 
 int main () {
-    auto ctx = manapi::async::context::create();
+    auto ctx = manapi::async::context::create(0);
     auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
     auto router = std::make_shared<manapi::net::http::server> (ctx);
 
@@ -195,11 +195,13 @@ int main () {
     });
 
     manapi::async::run(ctx, [router, db, ctx] () -> manapi::future<> {
-        co_await manapi::async::delay{ctx, 5000};
         co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
         co_await router->start();
     });
 
+
+
+    MANAPIHTTP_LOG2 ("START\n");
     ctx->sync_start();
 
     return 0;

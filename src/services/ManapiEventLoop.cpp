@@ -28,7 +28,7 @@ void handler_interrupt (int sig) {
     manapi::event_loop::interrupt();
 }
 
-manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : idle_watcher(loop) {
+manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : prepare_watcher(loop) {
     this->mx = std::make_shared<async::mutex>(taskpool);
     this->curl_watcher.curl_multi_mx = std::make_shared<async::mutex>(taskpool);
     this->async_watcher.adding_watcher_mx = std::make_shared<async::mutex>(taskpool);
@@ -64,7 +64,7 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : idl
     this->callback_watcher.adding_async_cb = [this] ()
         -> void { this->callback_watcher.adding_async->send(); };
 
-    this->idle_watcher.set<event_loop, &event_loop::handle_idle_event>(this);
+    this->prepare_watcher.set<event_loop, &event_loop::handle_tasks_do_event>(this);
 
     /* data cached */
     // this->async_watcher.watcher_data_cached.resize(8000);
@@ -72,7 +72,7 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : idl
     // this->callback_watcher.watcher_data_cached.resize(8000);
     // this->curl_watcher.watcher_data_cached.resize(8000);
 
-    this->idle_watcher.start();
+    this->prepare_watcher.start();
     this->callback_watcher.adding_async->start();
     this->async_watcher.adding_watcher_async->start();
     this->timer_watcher.adding_timer_async->start();
@@ -97,7 +97,7 @@ manapi::event_loop::~event_loop() {
     this->stop_watcher (this->curl_watcher.adding_curl_multi_async);
     this->stop_watcher (this->async_watcher.adding_watcher_async);
     this->stop_watcher(this->callback_watcher.adding_async);
-    this->idle_watcher.stop();
+    this->prepare_watcher.stop();
 }
 
 manapi::future<> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
@@ -435,10 +435,10 @@ void manapi::event_loop::custom_watcher_callback_async(ev::async &w, int revents
     }
 }
 
-void manapi::event_loop::handle_idle_event(ev::idle &w, int revents) {
+void manapi::event_loop::handle_tasks_do_event(ev::prepare &w, int revents) {
     if (!this->taskpool->size()) {
         /** without workers */
-        this->taskpool->try_todo_task();
+        while (this->taskpool->try_todo_task()) {};
     }
 }
 
