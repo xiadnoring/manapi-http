@@ -38,7 +38,7 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : idl
     this->async_watcher.adding_watcher_data = {};
     this->curl_watcher.curl_multi.reset(curl_multi_init());
     this->loop_interrupted = false;
-    this->status = false;
+    this->status.store(false);
 
     this->async_watcher.adding_watcher_async = this->create_watcher_async([this] (ev::async &w, int revents)
         -> void { this->custom_watcher_fd_async(w, revents); });
@@ -102,7 +102,7 @@ manapi::event_loop::~event_loop() {
 
 manapi::future<> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
     auto lk = co_await this->mx->lock_guard();
-    if (std::exchange(this->status, true)) {
+    if (this->status.exchange(true)) {
         co_return;
     }
 
@@ -111,7 +111,7 @@ manapi::future<> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
 
 void manapi::event_loop::sync_start(std::shared_ptr<event_loop> le) {
     auto lk = this->mx->lock_guard().get(this->taskpool);
-    if (std::exchange(this->status, true)) {
+    if (this->status.exchange(true)) {
         return;
     }
 
@@ -130,11 +130,16 @@ void manapi::event_loop::setup_handle_interrupt() {
 }
 
 manapi::future<> manapi::event_loop::stop() {
+    if (!this->status.load()) {
+        co_return;
+    }
+
     co_await this->_fix_event_pool_interrupt();
     co_await this->_call_and_free_on_finish_cb();
 
     auto lk = co_await this->mx->lock_guard();
-    if (!std::exchange(this->status, false)) {
+
+    if (!this->status.exchange(false)) {
         co_return;
     }
 
@@ -171,7 +176,7 @@ manapi::future<size_t> manapi::event_loop::subscribe_finish(std::move_only_funct
     co_return id;
 }
 
-manapi::future<void> manapi::event_loop::unsubscribe_finish(const size_t &id) {
+manapi::future<void> manapi::event_loop::unsubscribe_finish(const std::size_t &id) {
     if (!id) { co_return; }
     auto lk = co_await this->mx->lock_guard();
     this->map_finish_cb.erase(id);
@@ -184,8 +189,13 @@ ev::loop_ref manapi::event_loop::get_loop() {
 manapi::future<> manapi::event_loop::_call_and_free_on_finish_cb() {
     while (!this->map_finish_cb.empty()) {
         const auto it = this->map_finish_cb.begin();
-        co_await async::invoke(std::move(it->second));
-        this->map_finish_cb.erase(it);
+        if (it->second) {
+            co_await async::invoke(std::move(it->second));
+        }
+        else {
+            auto lk = co_await this->mx->lock_guard();
+            this->map_finish_cb.erase(it);
+        }
     }
 }
 

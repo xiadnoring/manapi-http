@@ -80,7 +80,7 @@ namespace manapi {
         manapi::future<> stop ();
 
         manapi::future<size_t> subscribe_finish (std::move_only_function<manapi::future<void>()> cb);
-        manapi::future<> unsubscribe_finish (const size_t &id);
+        manapi::future<> unsubscribe_finish (const std::size_t &id);
 
         ev::loop_ref get_loop();
 
@@ -208,7 +208,7 @@ namespace manapi {
         void stop_pool (async::promise<void>::resolve_t resolve);
         void _async_break_loop (ev::async &watcher, int revents);
 
-        bool status;
+        std::atomic<bool> status;
         std::shared_ptr<async::mutex> mx;
         ev::dynamic_loop loop;
 #ifdef _WIN32
