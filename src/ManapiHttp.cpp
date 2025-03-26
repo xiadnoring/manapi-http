@@ -40,10 +40,11 @@ manapi::future<void> manapi::net::http::server::start() {
 
     co_await this->_init_pool();
 
-    this->event_id = co_await this->ctx->eventloop()->subscribe_finish([this] () -> future<> {
-        co_return co_await this->stop();
-    });
+    this->event_id = co_await this->ctx->eventloop()->subscribe_finish([this] ()
+        -> future<> { co_return co_await this->stop_(true); });
 
+    this->clean_up_id = co_await this->ctx->eventloop()->subscribe_clean_up([this] ()
+        -> void { this->clean_up(); });
 
     co_await async::promise<void> (this->ctx, [this, &lk] (async::promise<void>::resolve_ref_t resolve, async::promise<void>::reject_ref_t reject) -> future<> {
         co_await this->_pool([&lk, resolve] () mutable -> void {
@@ -82,14 +83,27 @@ void manapi::net::http::server::GET(std::string uri, std::string folder) {
 }
 
 manapi::future<void> manapi::net::http::server::stop() {
+    return this->stop_(false);
+}
+
+manapi::future<void> manapi::net::http::server::stop_(bool evloop) {
     auto lk = co_await this->mx.lock_guard();
 
     if (server::stopping.exchange(true)) {
         co_return;
     }
 
-    co_await this->ctx->eventloop()->unsubscribe_finish(std::exchange(this->event_id, 0));
+    if (!evloop) {
+        co_await this->ctx->eventloop()->unsubscribe_finish(std::exchange(this->event_id, 0));
+        co_await this->ctx->eventloop()->unsubscribe_clean_up(std::exchange(this->clean_up_id, 0));
+    }
+
     co_await this->stop_pool();
+
+    if (!evloop) {
+        /* clean up */
+        this->clean_up();
+    }
 }
 
 manapi::future<> manapi::net::http::server::_init_pool() {
@@ -114,26 +128,32 @@ manapi::future<void> manapi::net::http::server::_pool(const std::function<void()
     this->init_watcher->send();
 }
 
+void manapi::net::http::server::clean_up() {
+    // clean
+    this->pools.clear();
+    // reset
+    this->next_pool_id = 0;
+}
+
 manapi::future<> manapi::net::http::server::stop_pool() {
     MANAPIHTTP_LOG2("cv_stopping -> pass");
 
     // stop all pools
-    for (const auto &pool: pools)
+    for (const auto &pool: this->pools)
     {
         MANAPIHTTP_LOG ("pool #{} is stopping...", pool.first);
         pool.second->stop();
         MANAPIHTTP_LOG ("pool #{} stopped successfully", pool.first);
     }
-    this->pools.clear();
+
     MANAPIHTTP_LOG2("pools(...) -> pass");
 
     this->save();
 
-    // reset
-    this->next_pool_id = 0;
-
     if (this->init_watcher) {
+        printf("unwatch_async(this->init_watcher);\n");
         co_await this->ctx->eventloop()->unwatch_async(this->init_watcher);
         this->init_watcher.reset();
+        printf("finish unwatch_async(this->init_watcher);\n");
     }
 }

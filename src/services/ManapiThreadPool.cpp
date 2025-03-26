@@ -3,6 +3,7 @@
 #include "services/ManapiThreadPool.hpp"
 
 #include <future>
+#include <stacktrace>
 
 #include "services/ManapiTask.hpp"
 #include "services/ManapiTaskFunction.hpp"
@@ -115,15 +116,19 @@ namespace manapi {
             return false;
         }
 
-        // obtain a mutex
-        this->queue_mutex.lock();
+        {
+            // obtain a mutex
+            std::lock_guard<std::mutex> lk (this->queue_mutex);
 
-        // add into the queue
-        this->task_queues[level].push_back (std::move(task));
-
-        this->queue_mutex.unlock();
-
-        // wake up the thread waiting for the task
+            try {
+                // add into the queue
+                this->task_queues[level].push_back (std::move(task));
+            }
+            catch (...) {
+                std::cout << std::stacktrace::current() << "\n";
+            }
+            // wake up the thread waiting for the task
+        }
 
         this->cv.notify_one();
 

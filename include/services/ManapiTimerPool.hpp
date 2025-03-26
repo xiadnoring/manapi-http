@@ -50,6 +50,7 @@ namespace manapi {
         void clear();
         [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
     protected:
+        future<void> stop_ (bool evloop);
         std::optional<manapi::timer> _cb_event (struct adding_timer_data_t data);
         void _erase_task (const size_t &id);
         storage::iterator _erase_task (storage::iterator task);

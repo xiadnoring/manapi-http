@@ -39,7 +39,7 @@
 #define IPV4_REGEX R"(((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"
 
 manapi::net::worker::TCP::TCP(net::site &site) : base (site) {
-    local = nullptr;
+    this->local = nullptr;
 }
 
 manapi::net::worker::TCP::TCP(TCP &&n) noexcept : base (std::forward<worker::base>(n)) {

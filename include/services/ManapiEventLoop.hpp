@@ -80,7 +80,10 @@ namespace manapi {
         manapi::future<> stop ();
 
         manapi::future<size_t> subscribe_finish (std::move_only_function<manapi::future<void>()> cb);
-        manapi::future<> unsubscribe_finish (const std::size_t &id);
+        manapi::future<> unsubscribe_finish (std::size_t id);
+
+        manapi::future<std::size_t> subscribe_clean_up (std::move_only_function<void()> cb);
+        manapi::future<> unsubscribe_clean_up (std::size_t id);
 
         ev::loop_ref get_loop();
 
@@ -203,13 +206,15 @@ namespace manapi {
         static std::mutex stop_mx;
 
         void _pool(manapi::before_delete lk2, std::shared_ptr<event_loop> le);
-        manapi::future<> _call_and_free_on_finish_cb ();
+        manapi::future<> _call_on_finish_cb ();
+        void _free_on_finish_cb ();
         void stop_pool (async::promise<void>::resolve_t resolve);
         void _async_break_loop (ev::async &watcher, int revents);
 
         bool status;
         std::shared_ptr<async::mutex> mx;
         std::shared_ptr<async::mutex> map_finish_cb_mx;
+        std::shared_ptr<async::mutex> map_clean_up_cb_mx;
         ev::dynamic_loop loop;
 #ifdef _WIN32
         uint32_t loop_thread_id{0};
@@ -218,6 +223,8 @@ namespace manapi {
 #endif
         std::shared_ptr<threadpool<task>> taskpool;
         std::map <size_t, std::move_only_function<manapi::future<void>()>> map_finish_cb;
+        std::map <size_t, std::move_only_function<void()>> map_clean_up_cb;
+        std::shared_ptr<ev::async> interrupted_watcher_{nullptr};
         std::shared_ptr<ev::async> stop_watcher_{nullptr};
         async::promise<void>::resolve_t resolve_stop{nullptr};
         std::atomic<bool> loop_interrupte1d;

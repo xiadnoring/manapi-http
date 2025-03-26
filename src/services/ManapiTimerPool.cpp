@@ -79,9 +79,8 @@ manapi::future<void> manapi::timerpool::start(std::shared_ptr<timerpool> tp) {
 
     this->_stop.store(false);
 
-    this->finish_event = co_await this->events->subscribe_finish([tp] () -> future<> {
-        co_await tp->stop();
-    });
+    this->finish_event = co_await this->events->subscribe_finish([tp] ()
+        -> future<> { co_await tp->stop_(true); });
 
     this->timer = this->events->create_watcher_timer(0, 0, [this, tp] (ev::timer &w, int revents)
         -> void { this->_start(); w.repeat = this->delay; w.again(); });
@@ -91,7 +90,11 @@ manapi::future<void> manapi::timerpool::start(std::shared_ptr<timerpool> tp) {
     co_await this->events->watch_timer(this->timer);
 }
 
-manapi::future<void> manapi::timerpool::stop() {
+manapi::future<void> manapi::timerpool::stop () {
+    return this->stop_(false);
+}
+
+manapi::future<void> manapi::timerpool::stop_(bool evloop) {
     auto lk = co_await this->smx->lock_guard();
 
     if (this->_stop) {
@@ -101,11 +104,13 @@ manapi::future<void> manapi::timerpool::stop() {
     this->_stop.store(true);
 
 
-    co_await this->events->unsubscribe_finish(std::exchange(this->finish_event, 0));
-    co_await this->events->unwatch_timer(std::move(this->timer));
+
+    if (!evloop) {
+        co_await this->events->unsubscribe_finish(std::exchange(this->finish_event, 0));
+        co_await this->events->unwatch_timer(std::move(this->timer));
+    }
 
     this->deps.fetch_sub(1);
-
     co_await this->cv->wait([this] ()
         -> bool { return this->deps == 0; });
 }

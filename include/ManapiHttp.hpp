@@ -42,8 +42,10 @@ namespace manapi::net::http {
 
         manapi::future<void> stop ();
     private:
+        manapi::future<void> stop_ (bool evloop);
         manapi::future<> _init_pool ();
         manapi::future<void> _pool (const std::function<void()> &cb);
+        void clean_up ();
         manapi::future<void> stop_pool ();
 
         async::mutex mx;
@@ -51,7 +53,8 @@ namespace manapi::net::http {
 
         std::map<size_t, std::unique_ptr<http_pool>> pools{};
 
-        size_t event_id{0};
+        std::size_t event_id{0};
+        std::size_t clean_up_id{0};
         size_t next_pool_id = 0;
         async::promise<void>::resolve_t resolve_stop{nullptr};
         std::shared_ptr<ev::async> init_watcher{nullptr};
