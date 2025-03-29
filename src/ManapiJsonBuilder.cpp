@@ -387,19 +387,30 @@ void manapi::json_builder::_build_numeric(std::string_view plain_text, size_t &j
         }
         else
         {
-            std::stringstream stream (buffer);
 
             if (this->type == json::type_decimal)
             {
+                std::stringstream stream (std::move(this->buffer));
                 json::DECIMAL d;
                 stream >> d;
                 this->object = json (d);
             }
-            else if (type == json::type_integer)
+            else if (this->type == json::type_integer)
             {
-                json::INTEGER n;
-                stream >> n;
-                this->object = json(static_cast<json::INTEGER> (n));
+                bool have_sign = this->buffer.size() && this->buffer[0] == '-';
+                std::stringstream stream (std::move(this->buffer));
+
+                if (have_sign) {
+                    json::INTEGER n;
+                    stream >> n;
+                    this->object = json(static_cast<json::INTEGER> (n));
+                }
+                else {
+                    /* loss of the number of values */
+                    std::size_t un;
+                    stream >> un;
+                    this->object = json(static_cast<json::INTEGER> (un));
+                }
             }
         }
 

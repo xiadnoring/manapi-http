@@ -14,197 +14,208 @@
 #include "ManapiInitTools.hpp"
 
 int main () {
-    auto ctx = manapi::async::context::create(0,0.02);
-    auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
-    auto router = std::make_shared<manapi::net::http::server> (ctx);
+    std::string a = "18446744073709551614";
+    std::stringstream b (a);
+    std::size_t res;
+    b >> res;
+    ssize_t c = static_cast<ssize_t>(res);
+    std::cout << c << ' ' << size_t(c) << "\n";
+    manapi::json dd (R"({"hello":   18446744073709551615})", true);
 
-    /** 1000ms **/
-    db->timeout(1000);
+    std::cout << dd["hello"].as_integer() << " " << std::size_t (dd["hello"].as_integer()) << "\n";
 
-    ctx->eventloop()->setup_handle_interrupt();
-
-    router->config("./config.json");
-
-    router->GET ("/", [ctx, cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
-        std::string data;
-        if (req.contains_get("hello 🦄")) {
-            data = req.get("hello 🦄");
-        }
-        co_return resp.text(std::format("Hello World!{} Count: {}", data, cnt->fetch_add(1)));
-    });
-
-    router->GET("/murtaza", [ctx, cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
-        co_await manapi::async::delay{ctx, 5000};
-        co_return resp.text("hello ,murtaza");
-    });
-
-    router->GET("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        resp.replacers({
-            {"status_code", std::to_string(resp.status_code())},
-            {"status_message", std::string{resp.status_message()}}
-        });
-
-        co_return resp.file ("../examples/error.html");
-    });
-
-    router->POST("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        co_return resp.json({{"error", resp.status_code()},
-                {"msg", resp.status_message()}});
-    });
-
-    router->GET("/cat/[id]", [&ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        manapi::net::fetch fetch (ctx, "https://dragonball-api.com/api/planets/" + req.param("id"));
-        fetch.enable_ssl_verify(false);
-        fetch.method("GET");
-        //fetch.set_verbose(true);
-        auto data = co_await fetch.json();
-
-        co_return resp.text(std::move(data.contains("error") ? data.dump() : data["description"].as_string()));
-    });
-
-    router->GET("/pq/[id]", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        auto lk = co_await mx->lock_guard();
-        /* The pool of database connections here / This example is so slow */
-        try {
-            auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
-        }
-        catch (...) {
-
-        }
-
-        auto res = co_await db->exec("SELECT * FROM for_test;");
-        lk.call();
-
-        std::string content = "b";
-        for (const auto &row: res) {
-            content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
-        }
-
-        co_return resp.text(std::move(content));
-    });
-
-    router->POST ("/json", [ctx] (REQ(req), RESP(resp)) -> manapi::future<void> {
-         auto res = co_await req.json();
-         resp.json(std::move(res));
-    }, nullptr, {
-           {"email", "{string(>=5 <=50)}"},
-           {"password", "{string(>=5 <=50)}"}
-       });
-
-    router->GET("/proxy", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        try {
-            auto response = co_await manapi::net::fetch2::fetch (ctx, "https://localhost:8888/test1", {
-                {"enable_alpn", false}, {"enable_ssl_verify", false}, {"enable_http2", true},{"method", "POST"}, {
-                    "headers", {
-                        {"content-length", 100}
-                    }
-                }}, [s = ssize_t(100)] (char *buffer, ssize_t size) mutable -> manapi::future<ssize_t> {
-                    auto res = std::min(s, size);
-                    s -= res;
-                    memset(buffer, 'h', res);
-                    co_return -1;
-                });
-            if (!response->ok()) {
-                std::cout << "no ok\n";
-            }
-            co_return resp.json (co_await response->json());
-        }
-        catch (...) {
-
-        }
-        co_return resp.text("BAD");
-        // co_return resp.proxy("https://127.0.0.1:8888/video", [] (manapi::net::fetch &proxy) -> void {
-        //     proxy.enable_alpn(false);
-        //     proxy.enable_http2();
-        //     proxy.enable_ssl_verify(false);
-        // });
-    });
-
-    router->GET("/aaa", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        co_return resp.proxy("https://127.0.0.1:8888/video", [] (manapi::net::fetch &proxy) -> void {
-            proxy.enable_alpn(false);
-            proxy.enable_http2();
-            proxy.enable_ssl_verify(false);
-        });
-    });
-
-    router->GET ("/test", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-
-        co_return resp.json({{"hello", "world"}, {"auaai", 78}, {"hello2", nullptr}});
-    });
-
-    router->POST ("/test", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        co_await req.file("./test.empty");
-        // resp.set_header(manapi::net::HTTP_HEADER.CONTENT_TYPE, manapi::net::HTTP_MIME.TEXT_PLAIN);
-        // auto formdata = co_await req.form();
-        // ssize_t size = 298512394;
-        // ssize_t fsize = 0;
-        // std::string data;
-        // while (true) {
-        //     if (formdata.next_file()) {
-        //         std::cout << formdata.about_file().param_name << " " << formdata.about_file().file_name << " " << formdata.about_file().mime_type << "\n";
-        //         co_await formdata.save_file("/home/Timur/video2.mp4");
-        //         fsize = manapi::filesystem::get_size("/home/Timur/video2.mp4");
-        //         continue;
-        //     }
-        //     if (formdata.next_param()) {
-        //         auto data = co_await formdata.get_param();
-        //         if (data.first == "size") {
-        //             size = std::stoll(data.second);
-        //         }
-        //         continue;
-        //     }
-        //
-        //     break;
-        // }
-        // if (size != fsize) {
-        //     co_return resp.text(std::format("{} {}", size, fsize));
-        // }
-        co_return resp.json({{"status", true ? "OK" : "ERROR"}});
-    });
-
-    router->POST ("/test2", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        co_await manapi::async::delay{ctx, 50000};
-        co_await req.file("/home/Timur/video2.mp4");
-        resp.file ("/home/Timur/video2.mp4");
-    });
-
-    router->GET("/video", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        resp.partial_status(true);
-        resp.compress_enabled(false);
-        co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
-    });
-
-    router->GET("/stop", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        /* stop the app */
-        co_await ctx->stop();
-        co_return resp.text("stopped");
-    });
-
-    router->GET("/timeout", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        /* stop the app */
-        co_await manapi::async::delay{ctx, 10000};
-        co_return resp.text("10sec");
-    });
-
-    router->GET ("/bigfile", [] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
-        resp.partial_status(false);
-        resp.compress_enabled(false);
-
-        co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
-    });
-
-    manapi::async::run(ctx, [router, db, ctx] () -> manapi::future<> {
-        co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
-        co_await router->start();
-    });
-
-
-
-    MANAPIHTTP_LOG2 ("START\n");
-    ctx->sync_start();
-
-    return 0;
+        return 0;
+    // auto ctx = manapi::async::context::create(0,0.02);
+    // auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
+    // auto router = std::make_shared<manapi::net::http::server> (ctx);
+    //
+    // /** 1000ms **/
+    // db->timeout(1000);
+    //
+    // ctx->eventloop()->setup_handle_interrupt();
+    //
+    // router->config("./config.json");
+    //
+    // router->GET ("/", [ctx, cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
+    //     std::string data;
+    //     if (req.contains_get("hello 🦄")) {
+    //         data = req.get("hello 🦄");
+    //     }
+    //     co_return resp.text(std::format("Hello World!{} Count: {}", data, cnt->fetch_add(1)));
+    // });
+    //
+    // router->GET("/murtaza", [ctx, cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
+    //     co_await manapi::async::delay{ctx, 5000};
+    //     co_return resp.text("hello ,murtaza");
+    // });
+    //
+    // router->GET("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     resp.replacers({
+    //         {"status_code", std::to_string(resp.status_code())},
+    //         {"status_message", std::string{resp.status_message()}}
+    //     });
+    //
+    //     co_return resp.file ("../examples/error.html");
+    // });
+    //
+    // router->POST("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     co_return resp.json({{"error", resp.status_code()},
+    //             {"msg", resp.status_message()}});
+    // });
+    //
+    // router->GET("/cat/[id]", [&ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     manapi::net::fetch fetch (ctx, "https://dragonball-api.com/api/planets/" + req.param("id"));
+    //     fetch.enable_ssl_verify(false);
+    //     fetch.method("GET");
+    //     //fetch.set_verbose(true);
+    //     auto data = co_await fetch.json();
+    //
+    //     co_return resp.text(std::move(data.contains("error") ? data.dump() : data["description"].as_string()));
+    // });
+    //
+    // router->GET("/pq/[id]", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     auto lk = co_await mx->lock_guard();
+    //     /* The pool of database connections here / This example is so slow */
+    //     try {
+    //         auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
+    //     }
+    //     catch (...) {
+    //
+    //     }
+    //
+    //     auto res = co_await db->exec("SELECT * FROM for_test;");
+    //     lk.call();
+    //
+    //     std::string content = "b";
+    //     for (const auto &row: res) {
+    //         content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+    //     }
+    //
+    //     co_return resp.text(std::move(content));
+    // });
+    //
+    // router->POST ("/json", [ctx] (REQ(req), RESP(resp)) -> manapi::future<void> {
+    //      auto res = co_await req.json();
+    //      resp.json(std::move(res));
+    // }, nullptr, {
+    //        {"email", "{string(>=5 <=50)}"},
+    //        {"password", "{string(>=5 <=50)}"}
+    //    });
+    //
+    // router->GET("/proxy", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     try {
+    //         auto response = co_await manapi::net::fetch2::fetch (ctx, "https://localhost:8888/test1", {
+    //             {"enable_alpn", false}, {"enable_ssl_verify", false}, {"enable_http2", true},{"method", "POST"}, {
+    //                 "headers", {
+    //                     {"content-length", 100}
+    //                 }
+    //             }}, [s = ssize_t(100)] (char *buffer, ssize_t size) mutable -> manapi::future<ssize_t> {
+    //                 auto res = std::min(s, size);
+    //                 s -= res;
+    //                 memset(buffer, 'h', res);
+    //                 co_return -1;
+    //             });
+    //         if (!response->ok()) {
+    //             std::cout << "no ok\n";
+    //         }
+    //         co_return resp.json (co_await response->json());
+    //     }
+    //     catch (...) {
+    //
+    //     }
+    //     co_return resp.text("BAD");
+    //     // co_return resp.proxy("https://127.0.0.1:8888/video", [] (manapi::net::fetch &proxy) -> void {
+    //     //     proxy.enable_alpn(false);
+    //     //     proxy.enable_http2();
+    //     //     proxy.enable_ssl_verify(false);
+    //     // });
+    // });
+    //
+    // router->GET("/aaa", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     co_return resp.proxy("https://127.0.0.1:8888/video", [] (manapi::net::fetch &proxy) -> void {
+    //         proxy.enable_alpn(false);
+    //         proxy.enable_http2();
+    //         proxy.enable_ssl_verify(false);
+    //     });
+    // });
+    //
+    // router->GET ("/test", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //
+    //     co_return resp.json({{"hello", "world"}, {"auaai", 78}, {"hello2", nullptr}});
+    // });
+    //
+    // router->POST ("/test", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     co_await req.file("./test.empty");
+    //     // resp.set_header(manapi::net::HTTP_HEADER.CONTENT_TYPE, manapi::net::HTTP_MIME.TEXT_PLAIN);
+    //     // auto formdata = co_await req.form();
+    //     // ssize_t size = 298512394;
+    //     // ssize_t fsize = 0;
+    //     // std::string data;
+    //     // while (true) {
+    //     //     if (formdata.next_file()) {
+    //     //         std::cout << formdata.about_file().param_name << " " << formdata.about_file().file_name << " " << formdata.about_file().mime_type << "\n";
+    //     //         co_await formdata.save_file("/home/Timur/video2.mp4");
+    //     //         fsize = manapi::filesystem::get_size("/home/Timur/video2.mp4");
+    //     //         continue;
+    //     //     }
+    //     //     if (formdata.next_param()) {
+    //     //         auto data = co_await formdata.get_param();
+    //     //         if (data.first == "size") {
+    //     //             size = std::stoll(data.second);
+    //     //         }
+    //     //         continue;
+    //     //     }
+    //     //
+    //     //     break;
+    //     // }
+    //     // if (size != fsize) {
+    //     //     co_return resp.text(std::format("{} {}", size, fsize));
+    //     // }
+    //     co_return resp.json({{"status", true ? "OK" : "ERROR"}});
+    // });
+    //
+    // router->POST ("/test2", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     co_await manapi::async::delay{ctx, 50000};
+    //     co_await req.file("/home/Timur/video2.mp4");
+    //     resp.file ("/home/Timur/video2.mp4");
+    // });
+    //
+    // router->GET("/video", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     resp.partial_status(true);
+    //     resp.compress_enabled(false);
+    //     co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+    // });
+    //
+    // router->GET("/stop", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     /* stop the app */
+    //     co_await ctx->stop();
+    //     co_return resp.text("stopped");
+    // });
+    //
+    // router->GET("/timeout", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     /* stop the app */
+    //     co_await manapi::async::delay{ctx, 10000};
+    //     co_return resp.text("10sec");
+    // });
+    //
+    // router->GET ("/bigfile", [] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    //     resp.partial_status(false);
+    //     resp.compress_enabled(false);
+    //
+    //     co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
+    // });
+    //
+    // manapi::async::run(ctx, [router, db, ctx] () -> manapi::future<> {
+    //     co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
+    //     co_await router->start();
+    // });
+    //
+    //
+    //
+    // MANAPIHTTP_LOG2 ("START\n");
+    // ctx->sync_start();
+    //
+    // return 0;
 }
 
 
