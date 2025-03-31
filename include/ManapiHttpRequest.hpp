@@ -35,6 +35,8 @@ namespace manapi::net::http {
         future<std::string> text ();
         future<manapi::json> json ();
         future<formdata_recv> form ();
+        future<void> callback_sync (std::move_only_function<ssize_t(const char *buffer, ssize_t size)> callback);
+        future<void> callback_async (std::move_only_function<manapi::future<ssize_t>(const char *buffer, ssize_t size)> callback);
         future<void> file (std::string filepath);
         ssize_t body_size ();
         const std::string &get (const std::string &key);
@@ -52,8 +54,8 @@ namespace manapi::net::http {
         void stop_propagation (const bool &stop_propagation = true);
         [[nodiscard]] bool propagation () const;
     private:
-        future<void> _read_body (std::function<void(const char *, ssize_t )> handler);
-        future<void> _read_async_body (std::function<manapi::future<>(const char *, ssize_t )> handler);
+        future<void> _read_body (std::move_only_function<ssize_t(const char *, ssize_t )> handler);
+        future<void> _read_async_body (std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t )> handler);
 
         std::map<std::string, std::string> get_params_;
 

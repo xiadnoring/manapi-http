@@ -26,7 +26,9 @@ namespace manapi::net::http {
             RESPONSE_TEXT,
             RESPONSE_NO_DATA,
             RESPONSE_FILE,
-            RESPONSE_FORMDATA
+            RESPONSE_FORMDATA,
+            RESPONSE_SYNC_CALLBACK,
+            RESPONSE_ASYNC_CALLBACK
         };
 
         response (manapi::net::http::request_data_t &request_data, const size_t &_status, http::config &config);
@@ -41,10 +43,12 @@ namespace manapi::net::http {
         void status (const size_t &status_code);
         void status_code (const size_t &status_code);
         void replacers (std::map<std::string, std::string> replacers);
-        void partial_status (const bool &auto_partial_status);
+        void partial_enabled (const bool &state);
         void file (std::string path);
         void proxy (std::string url);
-        void proxy (std::string url, std::function<void(class fetch &)> cb);
+        void proxy (std::string url, std::move_only_function<void(class fetch &)> cb);
+        void sync_callback (std::move_only_function<ssize_t(char *, ssize_t , bool &)> cb);
+        void async_callback (std::move_only_function<manapi::future<ssize_t>(char *, ssize_t , bool &)> cb);
 
         [[deprecated]]
         const std::string &http_version ();
@@ -65,6 +69,8 @@ namespace manapi::net::http {
         [[nodiscard]] bool is_proxy () const;
         [[nodiscard]] bool is_no_data () const;
         [[nodiscard]] bool is_formdata () const;
+        [[nodiscard]] bool is_async_cb() const;
+        [[nodiscard]] bool is_sync_cb() const;
 
         [[nodiscard]] bool has_ranges () const;
 
@@ -72,7 +78,7 @@ namespace manapi::net::http {
         const std::string &file ();
         const std::string &data ();
         formdata_send formdata ();
-        std::function<void(class manapi::net::fetch &)> proxy_setup_cb ();
+        std::shared_ptr<std::move_only_function<void(class manapi::net::fetch &)>>& proxy_setup_cb ();
         const std::string &compress ();
 
         std::vector <std::pair <ssize_t, ssize_t> > ranges_;
@@ -82,6 +88,9 @@ namespace manapi::net::http {
         void custom_data (struct custom_data_t data);
         void clear_custom_data ();
         struct custom_data_t &custom_data ();
+
+        std::shared_ptr<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t, bool &)>> &async_callback();
+        std::shared_ptr<std::move_only_function<ssize_t(char *, ssize_t, bool &)>> &sync_callback();
     private:
         // custom data for layers
         custom_data_t custom_data_;
@@ -106,7 +115,9 @@ namespace manapi::net::http {
         manapi::net::http::request_data_t *request_data_;
 
         std::optional<std::map<std::string, std::string>> replacers_;
-        std::optional<std::function<void(class manapi::net::fetch &)>> proxy_setup{};
+        std::shared_ptr<std::move_only_function<void(class manapi::net::fetch &)>> proxy_setup{};
         std::optional<formdata_send> formdata_;
+        std::shared_ptr<std::move_only_function<ssize_t(char *buffer, ssize_t size, bool &finished)>> sync_cb;
+        std::shared_ptr<std::move_only_function<manapi::future<ssize_t>(char *buffer, ssize_t size, bool &finished)>> async_cb;
     };
 }

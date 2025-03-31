@@ -12,7 +12,7 @@ namespace manapi::net {
         explicit file_transfer_info (std::string filelocal) {
             this->filelocal_ = std::move(filelocal);
             this->filename_ = filesystem::basename(this->filelocal_);
-            this->filemime_ = mime_by_file_path(this->filename_);
+            this->filemime_ = mime::mime_by_file_path(this->filename_);
         }
 
         file_transfer_info (std::string filelocal, std::string filename, std::string filemime) {

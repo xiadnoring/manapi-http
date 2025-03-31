@@ -25,6 +25,8 @@ namespace manapi::net::http {
         virtual future<void> send_response_text (manapi::net::http::response &res, response_features_t &features);
         virtual future<void> send_response_proxy (manapi::net::http::response &res, response_features_t &features);
         virtual future<void> send_response_formdata (manapi::net::http::response &res, response_features_t &features);
+        virtual future<void> send_response_sync_cb (manapi::net::http::response &res, response_features_t &features);
+        virtual future<void> send_response_async_cb (manapi::net::http::response &res, response_features_t &features);
         virtual future<ssize_t> mask_response (manapi::net::http::response &resp, bool finish);
         future<void> handle_request (const http_handler_page *data, http::request_data_t &request_data, const size_t &status = 200);
         future<void> send_error_response (const size_t &status, http::request_data_t &request_data, const http_handler_page *error);

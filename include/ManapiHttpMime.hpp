@@ -5,7 +5,7 @@
 #include <set>
 #include "ManapiUtils.hpp"
 
-namespace manapi::net {
+namespace manapi::mime {
     static const struct {
         std::string TEXT_PLAIN                          = "text/plain";
         std::string TEXT_HTML                           = "text/html";
@@ -49,7 +49,7 @@ namespace manapi::net {
         std::string FONT_WOFF2                          = "font/woff2";
         std::string FONT_OTF                            = "font/otf";
 
-    } HTTP_MIME;
+    } types;
 
     extern const std::map <std::string, std::string> mime_by_extension;
     extern const std::set <std::string> mime_types_media;

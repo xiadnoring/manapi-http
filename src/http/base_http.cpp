@@ -65,7 +65,11 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http::r
         co_await send_response_proxy(res, features);
     } else if (res.is_formdata()) {
         co_await send_response_formdata(res, features);
-    } else {
+    } else if (res.is_async_cb()) {
+        co_await send_response_async_cb(res, features);
+    } else if (res.is_sync_cb()) {
+        co_await send_response_sync_cb(res, features);
+    }else {
         co_await mask_response(res, true);
     }
 
@@ -102,7 +106,7 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
     try {
         // set headers
         {
-            std::string mimetype = mime_by_file_path(res.file());
+            std::string mimetype = mime::mime_by_file_path(res.file());
             if (mimetype.size() > sizeof ("text")) {
                 if (strncmp("text", mimetype.data(), sizeof ("text") - 1) == 0) {
                     mimetype = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
@@ -229,9 +233,11 @@ manapi::future<void> manapi::net::http::base::send_response_text(manapi::net::ht
 
 manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::http::response &res, response_features_t &features) {
     auto proxy = std::make_unique<fetch>(this->site.async_context(), res.data());
-    auto proxy_setup = res.proxy_setup_cb();
 
-    proxy_setup (*proxy);
+    {
+        const auto proxy_setup = std::move(res.proxy_setup_cb());
+        proxy_setup->operator()(*proxy);
+    }
 
     proxy->headers({{"ranges", "0-"}});
     size_t content_length = 0;
@@ -299,6 +305,66 @@ manapi::future<> manapi::net::http::base::send_response_formdata(manapi::net::ht
     co_return;
 }
 
+manapi::future<> manapi::net::http::base::send_response_sync_cb(manapi::net::http::response &res, response_features_t &features) {
+    if (features.compressor) {
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Compression isn't supported");
+    }
+
+    if (features.replacers) {
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Replacers isn't supported");
+    }
+
+    if (co_await mask_response(res, false) >= 0) {
+        std::string buffer;
+        const ssize_t reserved = this->config->buffer_size();
+        buffer.reserve(reserved);
+
+        auto cb = std::move(res.sync_callback());
+
+        bool finish = false;
+
+        while (!finish) {
+            auto rhs = cb->operator()(buffer.data(), reserved, finish);
+            if (rhs < 0) {
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "The callback returned an invalid length");
+            }
+            co_await this->worker->fwrite(*this->connection, buffer.data(), rhs, finish);
+        }
+    } else {
+        MANAPIHTTP_LOG("{}", "mask_response(...) < 0");
+    }
+}
+
+manapi::future<> manapi::net::http::base::send_response_async_cb(manapi::net::http::response &res,response_features_t &features) {
+    if (features.compressor) {
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Compression isn't supported");
+    }
+
+    if (features.replacers) {
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Replacers isn't supported");
+    }
+
+    if (co_await mask_response(res, false) >= 0) {
+        std::string buffer;
+        const ssize_t reserved = this->config->buffer_size();
+        buffer.reserve(reserved);
+
+        auto cb = std::move(res.async_callback());
+
+        bool finish = false;
+
+        while (!finish) {
+            auto rhs = co_await cb->operator()(buffer.data(), reserved, finish);
+            if (rhs < 0) {
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "The callback returned an invalid length");
+            }
+            co_await this->worker->fwrite(*this->connection, buffer.data(), rhs, finish);
+        }
+    } else {
+        MANAPIHTTP_LOG("{}", "mask_response(...) < 0");
+    }
+}
+
 manapi::future<ssize_t> manapi::net::http::base::mask_response(manapi::net::http::response &resp, bool finish) {
     const auto rhs = co_await this->worker->response(*connection, resp, finish);
     co_return rhs;
@@ -337,13 +403,13 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
 
                 if (manapi::filesystem::exists(path) && manapi::filesystem::is_file(path)) {
                     const auto ext = manapi::filesystem::extension(path);
-                    auto mime = mime_by_extension.find(ext);
+                    auto mime = mime::mime_by_extension.find(ext);
                     bool binary = false;
-                    if (mime != mime_by_extension.end()) {
-                        binary = mime_partitial_data(mime->second);
+                    if (mime != mime::mime_by_extension.end()) {
+                        binary = mime::mime_partitial_data(mime->second);
                     }
                     res.compress_enabled(!binary);
-                    res.partial_status(binary);
+                    res.partial_enabled(binary);
                     res.file(path);
 
                     try {

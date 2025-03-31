@@ -29,8 +29,8 @@ namespace manapi::async {
             void await_suspend (std::coroutine_handle<future<>::promise> handle);
         };
 
-        explicit condition_variable (const std::shared_ptr<async::context> &ctx);
-        explicit condition_variable (const std::shared_ptr<threadpool<task>> &taskpool);
+        condition_variable (const std::shared_ptr<async::context> &ctx);
+        condition_variable (const std::shared_ptr<threadpool<task>> &taskpool);
 
         future<void> wait (std::function<bool()> cond);
 

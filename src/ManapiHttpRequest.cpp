@@ -84,9 +84,10 @@ manapi::future<std::string> manapi::net::http::request::text() {
     size_t j = 0;
     //size_t socket_block_size    = http_server->get_socket_block_size();
 
-    co_await _read_body([&body, &j] (const char *data, ssize_t size) -> void {
+    co_await _read_body([&body, &j] (const char *data, ssize_t size) -> ssize_t {
         memcpy (body.data() + j, data, size);
         j += size;
+        return size;
     });
 
     co_return body;
@@ -98,9 +99,8 @@ manapi::future<manapi::json> manapi::net::http::request::json()
     const auto &post_mask = this->post_mask();
 
     json_builder builder = post_mask ? json_builder (*post_mask) : json_builder ();
-    co_await _read_body([&builder] (const char *data, ssize_t size) -> void {
-        builder << std::string_view (data, size);
-    });
+    co_await _read_body([&builder] (const char *data, ssize_t size)
+        -> ssize_t { builder << std::string_view (data, size); return size; });
 
     co_return std::move(builder.get());
 }
@@ -112,6 +112,14 @@ manapi::future<manapi::net::formdata_recv> manapi::net::http::request::form ()
         -> future<ssize_t> { return http_base->read(buff, buff_size);  });
     co_await formdata._init(this->request_data->has_body, this->request_data->headers[http::HEADER.CONTENT_TYPE]);
     co_return std::move(formdata);
+}
+
+manapi::future<> manapi::net::http::request::callback_sync( std::move_only_function<ssize_t(const char *buffer, ssize_t size)> callback) {
+    return this->_read_body(std::move(callback));
+}
+
+manapi::future<> manapi::net::http::request::callback_async(std::move_only_function<manapi::future<ssize_t>(const char *buffer, ssize_t size)> callback) {
+    return this->_read_async_body(std::move(callback));
 }
 
 manapi::future<> manapi::net::http::request::file(std::string filepath) {
@@ -126,7 +134,7 @@ manapi::future<> manapi::net::http::request::file(std::string filepath) {
 
     try {
         co_await this->_read_async_body([&] (const char *data, ssize_t size)
-            -> manapi::future<> { return f.fwrite(data, size); });
+            -> manapi::future<ssize_t> { return f.write(data, size); });
     }
     catch (...) {
         err = std::current_exception();
@@ -222,13 +230,21 @@ bool manapi::net::http::request::propagation() const {
     return this->is_propagation;
 }
 
-manapi::future<void> manapi::net::http::request::_read_body(std::function<void(const char *, ssize_t)> handler) {
+manapi::future<void> manapi::net::http::request::_read_body(std::move_only_function<ssize_t(const char *, ssize_t)> handler) {
     this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left)
         - this->request_data->body_index;
     this->request_data->body_left -= this->request_data->body_index;
 
     while (true) {
-        handler (this->request_data->buffer->data() + this->request_data->body_index, this->request_data->body_part);
+        {
+            ssize_t cursor = 0;
+            while (cursor < this->request_data->body_part) {
+                auto rhs = handler (this->request_data->buffer->data() + this->request_data->body_index + cursor, this->request_data->body_part - cursor);
+                if (rhs < 0) { THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "The custom handler returned an invalid signal"); }
+                cursor += rhs;
+            }
+        }
+
         this->request_data->body_left -= this->request_data->body_part;
         this->request_data->body_index = 0;
 
@@ -248,13 +264,20 @@ manapi::future<void> manapi::net::http::request::_read_body(std::function<void(c
     }
 }
 
-manapi::future<> manapi::net::http::request::_read_async_body(std::function<manapi::future<>(const char *, ssize_t)> handler) {
+manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t)> handler) {
     this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left)
         - this->request_data->body_index;
     this->request_data->body_left -= this->request_data->body_index;
 
     while (true) {
-        co_await handler (this->request_data->buffer->data() + this->request_data->body_index, this->request_data->body_part);
+        {
+            ssize_t cursor = 0;
+            while (cursor < this->request_data->body_part) {
+                auto rhs = co_await handler (this->request_data->buffer->data() + this->request_data->body_index + cursor, this->request_data->body_part - cursor);
+                if (rhs < 0) { THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "The custom handler returned an invalid signal"); }
+                cursor += rhs;
+            }
+        }
         this->request_data->body_left -= this->request_data->body_part;
         this->request_data->body_index = 0;
 

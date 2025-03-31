@@ -41,7 +41,7 @@ namespace manapi::async {
             void await_suspend (std::coroutine_handle<future<>::promise> handle);
         };
 #endif
-        explicit mutex (std::shared_ptr<manapi::threadpool<task>> taskpool_);
+        mutex (std::shared_ptr<manapi::threadpool<task>> taskpool_);
         mutex (const std::shared_ptr<manapi::async::context> &ctx);
 
         manapi::future<void> lock ();

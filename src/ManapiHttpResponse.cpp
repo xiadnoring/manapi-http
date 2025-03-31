@@ -13,6 +13,8 @@
 manapi::net::http::response::response(manapi::net::http::request_data_t &request_data, const size_t &_status, http::config &config): config_(config), status_code_(_status), http_version_("1.1") {
     this->request_data_ = &request_data;
     this->type_ = RESPONSE_NO_DATA;
+    this->sync_cb = nullptr;
+    this->async_cb = nullptr;
 
     detect_ranges ();
 }
@@ -55,7 +57,7 @@ void manapi::net::http::response::text(std::string plain_text) {
 }
 
 void manapi::net::http::response::json(manapi::json data, const size_t &spaces) {
-    header(HEADER.CONTENT_TYPE, HTTP_MIME.APPLICATION_JSON);
+    header(HEADER.CONTENT_TYPE, manapi::mime::types.APPLICATION_JSON);
     text(std::move(data.dump (static_cast<int>(spaces))));
 }
 
@@ -95,6 +97,14 @@ bool manapi::net::http::response::is_no_data() const {
 
 bool manapi::net::http::response::is_formdata() const {
     return this->type_ == RESPONSE_FORMDATA;
+}
+
+bool manapi::net::http::response::is_async_cb() const {
+    return this->type_ == RESPONSE_ASYNC_CALLBACK;
+}
+
+bool manapi::net::http::response::is_sync_cb() const {
+    return this->type_ == RESPONSE_SYNC_CALLBACK;
 }
 
 bool manapi::net::http::response::has_ranges() const {
@@ -212,17 +222,25 @@ manapi::net::http::custom_data_t & manapi::net::http::response::custom_data() {
     return this->custom_data_;
 }
 
+std::shared_ptr<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t, bool &)>> &manapi::net::http::response::async_callback() {
+    return this->async_cb;
+}
+
+std::shared_ptr<std::move_only_function<ssize_t(char *, ssize_t, bool &)>> & manapi::net::http::response::sync_callback() {
+    return this->sync_cb;
+}
+
 void manapi::net::http::response::replacers(std::map<std::string, std::string> replacers) {
-    compress_enabled (false);
-    partial_status (false);
+    this->compress_enabled (false);
+    this->partial_enabled (false);
 
     this->replacers_ = std::move(replacers);
 }
 
-void manapi::net::http::response::partial_status(const bool &auto_partial_status) {
+void manapi::net::http::response::partial_enabled(const bool &state) {
     //if (has_ranges())
     //{
-        this->partial_enabled_ = auto_partial_status;
+        this->partial_enabled_ = state;
     //}
 }
 
@@ -233,9 +251,19 @@ void manapi::net::http::response::proxy(std::string url) {
     this->compress_enabled(false);
 }
 
-void manapi::net::http::response::proxy(std::string url, std::function<void(manapi::net::fetch &)> cb) {
+void manapi::net::http::response::proxy(std::string url, std::move_only_function<void(manapi::net::fetch &)> cb) {
     this->proxy(std::move(url));
-    this->proxy_setup = std::move(cb);
+    this->proxy_setup = std::make_shared<decltype(this->proxy_setup)::element_type>(std::move(cb));
+}
+
+void manapi::net::http::response::sync_callback(std::move_only_function<ssize_t(char *, ssize_t , bool &)> cb) {
+    this->type_ = RESPONSE_SYNC_CALLBACK;
+    this->sync_cb = std::make_shared<decltype(this->sync_cb)::element_type>(std::move(cb));
+}
+
+void manapi::net::http::response::async_callback(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t , bool &)> cb) {
+    this->type_ = RESPONSE_ASYNC_CALLBACK;
+    this->async_cb = std::make_shared<decltype(this->async_cb)::element_type>(std::move(cb));
 }
 
 const std::string &manapi::net::http::response::data() {
@@ -252,6 +280,6 @@ manapi::net::formdata_send manapi::net::http::response::formdata() {
     return std::move(data);
 }
 
-std::function<void(manapi::net::fetch &)> manapi::net::http::response::proxy_setup_cb() {
-    return std::move(this->proxy_setup.value_or(nullptr));
+std::shared_ptr<std::move_only_function<void(class manapi::net::fetch &)>> &manapi::net::http::response::proxy_setup_cb() {
+    return this->proxy_setup;
 }

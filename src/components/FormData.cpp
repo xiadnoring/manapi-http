@@ -55,7 +55,7 @@ manapi::future<> manapi::net::formdata_recv::_init(bool has_body, const std::str
     auto &content_type_value = header[0].value;
     *this->body_buffer_size = std::min(*this->body_buffer_size, *this->body_max_size_left);
 
-    if (content_type_value == HTTP_MIME.MULTIPART_FORM_DATA)
+    if (content_type_value == mime::types.MULTIPART_FORM_DATA)
     {
         if (!header[0].params.contains("boundary"))
         {
@@ -70,7 +70,7 @@ manapi::future<> manapi::net::formdata_recv::_init(bool has_body, const std::str
         this->current_read_param = [this] (auto param1) -> future<void> { co_await this->multipart_read_param (std::move(param1)); co_return; };
         co_await this->current_read_param(nullptr);
     }
-    else if (content_type_value == HTTP_MIME.APPLICATION_X_WWW_FORM_URLENCODED)
+    else if (content_type_value == mime::types.APPLICATION_X_WWW_FORM_URLENCODED)
     {
         this->content_type_form = CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED;
         this->buff_extra.resize(2);
@@ -552,7 +552,7 @@ manapi::net::formdata_send & manapi::net::formdata_send::operator=(formdata_send
 
 void manapi::net::formdata_send::append_file(const std::string &name, std::string filepath) {
     auto filename = manapi::filesystem::basename(filepath);
-    auto filemime = manapi::net::mime_by_file_path(filename);
+    auto filemime = manapi::mime::mime_by_file_path(filename);
 
     this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::move(filemime)}}});
 }
