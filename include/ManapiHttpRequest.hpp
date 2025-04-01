@@ -40,13 +40,11 @@ namespace manapi::net::http {
         future<void> file (std::string filepath);
         ssize_t body_size ();
         const std::string &get (const std::string &key);
-        bool contains_get (const std::string &key);
+        bool contains_get_param (const std::string &key);
         void max_plain_body_size (const size_t &size);
 
         bool contains_header (const std::string &name);
         const std::string& header (const std::string &name);
-
-        const std::string& query_param (const std::string &name);
 
         [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &post_mask () const;
         [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &get_mask () const;
@@ -57,10 +55,9 @@ namespace manapi::net::http {
         future<void> _read_body (std::move_only_function<ssize_t(const char *, ssize_t )> handler);
         future<void> _read_async_body (std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t )> handler);
 
-        std::map<std::string, std::string> get_params_;
+        std::optional<std::map<std::string, std::string>> get_params_;
 
         void prepare_get_params_();
-        void parse_map_url_param ();
         // peer ip
         const http::manapi_socket_information *ip_data_;
 
@@ -78,9 +75,6 @@ namespace manapi::net::http {
 
         // if peer sent larger by size then max_plain_body_size -> error
         size_t max_plain_body_size_ = 1000000;
-
-        // url get params ?param1=xxx&param2=xxx
-        std::unique_ptr<std::map <std::string, std::string>> map_url_params;
 
         bool is_propagation = true;
     };

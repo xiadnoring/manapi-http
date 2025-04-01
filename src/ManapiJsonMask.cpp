@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "ManapiDebug.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiJsonBuilder.hpp"
 #include "ManapiUnicode.hpp"
@@ -47,7 +48,7 @@ manapi::json_mask::json_mask(json_mask &&n) noexcept {
 
 manapi::json_mask::json_mask(const nullptr_t &n)
 {
-    enabled = false;
+    this->enabled = false;
 }
 
 manapi::json_mask::json_mask(const json_mask &n) {
@@ -59,7 +60,7 @@ manapi::json_mask::json_mask(const json_mask &n) {
 manapi::json_mask::~json_mask() = default;
 
 bool manapi::json_mask::is_enabled() const {
-    return enabled;
+    return this->enabled;
 }
 
 void manapi::json_mask::set_enabled(const bool &status) {
@@ -68,38 +69,42 @@ void manapi::json_mask::set_enabled(const bool &status) {
 
 bool manapi::json_mask::valid(const manapi::json &obj) const
 {
-    if (!enabled)
+    if (!this->enabled)
     {
         THROW_MANAPIHTTP_JSON_ERROR2(ERR_JSON_MASK_VERIFY_FAILED, "json_mask is not enabled to valid the object.");
     }
 
-    return recursive_valid (obj, information);
+    try {
+        return recursive_valid (obj, this->information);
+    }
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG2(e.what());
+    }
+    return false;
 }
 
 bool manapi::json_mask::valid(const std::map<std::string, std::string> &obj) const
 {
-    if (!enabled)
+    if (!this->enabled)
     {
         THROW_MANAPIHTTP_JSON_ERROR2(ERR_JSON_MASK_VERIFY_FAILED, "json_mask is not enabled to valid the object.");
     }
-
-    json a = json::object();
-
-    for (const auto &it: obj)
-    {
-        a.insert(it.first, it.second);
+    try {
+        return recursive_valid (json{obj}, this->information);
     }
-
-    return recursive_valid (a, information);
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG2(e.what());
+    }
+    return false;
 }
 
 const manapi::json & manapi::json_mask::get_api_tree() const {
-    return information;
+    return this->information;
 }
 
 void manapi::json_mask::set_api_tree(json tree) {
-    information = std::move(tree);
-    enabled = true;
+    this->information = std::move(tree);
+    this->enabled = true;
 }
 
 manapi::json manapi::json_mask::OR(json data, bool none) {
@@ -164,7 +169,7 @@ void manapi::json_mask::_insert_meta_row(json &information, const std::string &k
 void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 {
     {
-        if (obj.is_object() && obj["__manapi_prepared"] == true) {
+        if (obj.is_object() && obj.contains("__manapi_prepared") && obj["__manapi_prepared"] == true) {
             obj.erase("__manapi_prepared");
             return;
         }
@@ -278,12 +283,12 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
             }
         }
 
-        json        parsed_buff;
+        json parsed_buff;
 
         json_builder builder;
 
         // compare type (=, >=, <=, >, <)
-        char        compare_type = MANAPIHTTP_MASK_COMPARE_NONE;
+        char compare_type = MANAPIHTTP_MASK_COMPARE_NONE;
 
         // calc params
         for (; i < m; i++)
@@ -543,9 +548,14 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
         // is an array
         for (auto it = information.begin<json::ARRAY>(); it != information.end<json::ARRAY>(); it++)
         {
-            if (recursive_valid(obj, *it, false))
-            {
-                return true;
+            try {
+                if (recursive_valid(obj, *it, false))
+                {
+                    return true;
+                }
+            }
+            catch (std::exception const &e) {
+                MANAPIHTTP_LOG2(e.what());
             }
         }
 
@@ -705,7 +715,7 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
                 return false;
             }
 
-            if (complete) {
+            if (this->complete) {
                 for (const auto &it : data.entries())
                 {
                     // incorrect key

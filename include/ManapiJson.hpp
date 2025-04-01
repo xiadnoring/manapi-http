@@ -103,6 +103,48 @@ namespace manapi {
             this->_parse (static_cast<DECIMAL>(n));
         }
 
+        template<typename V>
+        json(std::map<std::string, V> object) {
+            this->_set_object();
+            for (auto &v: object) { this->operator[](v.first) = std::move(v.second); }
+        }
+
+        template<typename V>
+        json(std::unordered_map<std::string, V> object) {
+            this->_set_object();
+            for (auto &v: object) { this->operator[](v.first) = std::move(v.second); }
+        }
+
+        template<typename V>
+        json(std::vector<V> array) {
+            this->_set_array();
+            for (auto &v: array) { this->push_back(std::move(v)); }
+        }
+
+        template<typename V>
+        json(std::deque<V> array) {
+            this->_set_array();
+            for (auto &v: array) { this->push_back(std::move(v)); }
+        }
+
+        template<typename V>
+        json(std::stack<V> array) {
+            this->_set_array();
+            for (auto &v: array) { this->push_back(std::move(v)); }
+        }
+
+        template<typename V>
+        json(std::set<V> array) {
+            this->_set_array();
+            while (!array.empty()) { this->push_back(std::move(array.extract(array.begin()).value())); }
+        }
+
+        template<typename V, std::size_t N>
+        json(std::array<V, N> array) {
+            this->_set_array();
+            for (auto &v: array) { this->push_back(std::move(v)); }
+        }
+
         ~json();
 
         [[nodiscard]] bool contains (const std::string &key) const;

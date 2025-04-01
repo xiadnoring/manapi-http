@@ -154,17 +154,17 @@ ssize_t manapi::net::http::request::body_size() {
 const std::string & manapi::net::http::request::get(const std::string &key) {
     this->prepare_get_params_();
 
-    auto it = this->get_params_.find(key);
-    if (it == this->get_params_.end()) {
+    auto it = this->get_params_.value().find(key);
+    if (it == this->get_params_.value().end()) {
         THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PARAM_MISSING, "GET param {} is missing", key);
     }
 
     return it->second;
 }
 
-bool manapi::net::http::request::contains_get(const std::string &key) {
+bool manapi::net::http::request::contains_get_param(const std::string &key) {
     this->prepare_get_params_();
-    return this->get_params_.contains(key);
+    return this->get_params_.value().contains(key);
 }
 
 void manapi::net::http::request::max_plain_body_size(const size_t &size) {
@@ -180,38 +180,20 @@ const std::string &manapi::net::http::request::header(const std::string &name) {
 }
 
 void manapi::net::http::request::prepare_get_params_() {
-    if (this->get_params_.empty() && this->request_data->divided != -1) {
-        this->get_params_ = http::parse_get_params (this->request_data->path[this->request_data->divided]);
-    }
-}
+    if (!this->get_params_.has_value()) {
+        if (this->request_data->divided != -1) {
+            this->get_params_ = http::parse_get_params (this->request_data->path[this->request_data->divided]);
+        }
+        else {
+            this->get_params_ = decltype(this->get_params_)::value_type();
+        }
 
-void manapi::net::http::request::parse_map_url_param() {
-    if (map_url_params == nullptr)
-    {
-        map_url_params = std::make_unique<std::map <std::string, std::string> >();
-    }
-
-    if (request_data->divided != -1)
-    {
-        for (size_t i = request_data->divided; i < request_data->path.size(); i++)
-        {
-            std::cerr << request_data->path[i] << "\n";
+        // verify params
+        auto &mask = this->get_mask();
+        if (mask && !mask->valid(this->get_params_.value())) {
+            THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_GET_PARAMS_MASK_FAILED, "GET params verify failed");
         }
     }
-}
-
-const std::string &manapi::net::http::request::query_param(const std::string &name) {
-    if (this->map_url_params == nullptr)
-    {
-        parse_map_url_param();
-    }
-
-    if (this->map_url_params->contains(name))
-    {
-        return this->map_url_params->at(name);
-    }
-
-    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_QUERY_PARAM_MISSING, "Can not find query param by name: {}", name);
 }
 
 const std::unique_ptr<const manapi::json_mask> &manapi::net::http::request::post_mask() const {

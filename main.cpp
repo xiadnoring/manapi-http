@@ -51,14 +51,24 @@ int main (int argc, char *argv[]) {
         server.config("./config.json");
 
         server.GET ("/", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-            resp.compress_enabled(true);
+            std::string msg;
+            if (req.contains_get_param("hello")) {
+                msg = req.get ("hello");
+            }
+            //resp.compress_enabled(true);
             resp.header(http::HEADER.ALT_SVC, http::stringify_header_value({{"", {{"h3", "\":8888\""}, {"ma", "86400"}}}}));
-            resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
+            if (msg.empty()) {
+                resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
+            }
+            else {
+                resp.text(std::format("You wrote: {}", msg));
+            }
             co_return;
-        });
+        }, {{"hello", "{string(<=100)}"}}, nullptr);
 
         server.GET ("/response", [&server] (REQ(req), RESP(resp)) -> manapi::future<void> {
             printf("3 sec later...\n");
+
             co_await manapi::async::delay{server.async_context(), 5000};
             resp.text("5 sec later...");
             co_return;
@@ -138,7 +148,7 @@ int main (int argc, char *argv[]) {
             };
 
             try {
-                jp["hello"] = req.query_param("hello");
+                jp["hello"] = req.get("hello");
             }
             catch (const manapi::exception &e)
             {
