@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <mutex>
+#include "ManapiUtils.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 # include <openssl/ssl.h>

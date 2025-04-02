@@ -1,0 +1,29 @@
+import { loader } from 'fumadocs-core/source';
+import Link from 'next/link';
+import icon from './icon.svg';
+import icon_dark from './icon-dark.svg';
+
+export default function HomePage() {
+  return (
+    <main className="flex flex-1 flex-col justify-center text-center">
+      <div className="grid sm:grid-cols-1 md:grid-cols-2 container">
+        <div className="md:text-start flex flex-1 flex-col justify-center">
+          <h2 className="text-red-300 text-[2rem] md:text-[2rem] xl:text-[3rem] font-bold">Manapi Http</h2>
+          <p className="text-[2rem] my-0 md:text-[2rem] my-[-1rem] xl:text-[3rem] font-bold">server/client library for</p>
+          <p className="text-[2rem] md:text-[2rem] xl:text-[3rem] font-bold">asynchronous C++</p>
+          <div className="text-gray-400 text-[1.2rem] md:text[1.3rem] xl:text-[1.5rem] my-4">
+            Build and run microservices written in C++ with different HTTP implementations
+          </div>
+          <div className="flex gap-2 justify-center md:justify-start">
+            <a className="bg-red-300 transition-colors py-2 px-4 rounded-[1.8rem] text-black hover:bg-red-200" href="./docs/quick-start">Quick Start</a>
+            <a className="bg-gray-300 text-black hover:bg-gray-200 dark:bg-gray-800 transition-colors py-2 px-4 rounded-[1.8rem] dark:hover:bg-gray-700 dark:text-white" href="./docs/">Documentation</a>
+          </div>
+        </div>
+        <div className="order-[-1] md:order-1 max-h-[350px]">
+        <img className="w-full h-full hidden dark:block" src={icon_dark.src}></img>
+          <img className="w-full h-full dark:hidden" src={icon.src}></img>
+        </div>
+      </div>
+    </main>
+  );
+}

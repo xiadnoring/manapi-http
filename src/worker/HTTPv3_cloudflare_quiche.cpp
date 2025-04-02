@@ -2,6 +2,8 @@
 
 #include "crypto/ManapiAEAD.hpp"
 #include "worker/HTTPv3_clouflare_quiche.hpp"
+#include "ManapiVersions.hpp"
+#include "ManapiParams.hpp"
 
 #if MANAPIHTTP_QUICHE_DEPENDENCY
 
@@ -9,6 +11,28 @@
 # define MANAPI_QUICHE_CONNECTION_ID_LEN 16
 
 constexpr static size_t _quiche_token_max_len = sizeof ("quiche") - 1 + sizeof (struct sockaddr_storage) + QUICHE_MAX_CONN_ID_LEN;
+
+template<typename T>
+requires(version_greater_or_equals(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+bool manapi_quiche_h3_event_headers_has_more_frames_ (T event) {
+    return quiche_h3_event_headers_has_more_frames(static_cast<T>(event));
+}
+
+template<typename T>
+requires(version_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+bool manapi_quiche_h3_event_headers_has_more_frames_ (T event) {
+    return quiche_h3_event_headers_has_body(static_cast<T>(event));
+}
+
+template<typename ...Args>
+requires(version_greater_or_equals(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+ssize_t manapi_quiche_h3_send_additional_headers_(Args...args) {
+    return quiche_h3_send_additional_headers(args...);
+}
+
+template<typename ...Args>
+requires(version_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+ssize_t manapi_quiche_h3_send_additional_headers_(Args...args) { /* skip */ return 0; }
 
 manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(net::site &site) : udp(site) {
 
@@ -227,7 +251,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                         client->request_data.headers_size = 0;
                         client->request_data.divided = -1;
                         client->request_data.http = "HTTP/3";
-                        client->request_data.has_body = quiche_h3_event_headers_has_more_frames(event);
+
+                        client->request_data.has_body = manapi_quiche_h3_event_headers_has_more_frames_(event);
                         client->request_data.body_left = 0;
 
                         if (client->request_data.has_body) {
@@ -511,8 +536,12 @@ bool manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
             int rhs;
             auto headers = s.headers+s.header_cursor;
             if (s.header_cursor != 0) {
-                rhs = quiche_h3_send_additional_headers(conn_data.http3_conn, conn_data.conn, s.stream_id, headers, i - s.header_cursor, false, s.finished && i == s.headers_size);
-                std::cout << "quiche_h3_send_additional_headers(...) for headers: max << " << s.headers_size <<  " index: " << i << " size:" << i - s.header_cursor << " rlt: " << rhs << "\n";
+                if constexpr (version_greater_or_equals(MANAPIHTTP_QUICHE_VERSION, "0.23.0")) {
+                    rhs = manapi_quiche_h3_send_additional_headers_(conn_data.http3_conn, conn_data.conn, s.stream_id, headers, i - s.header_cursor, false, s.finished && i == s.headers_size);
+                }
+                else {
+                    rhs = 0;
+                }
             }
             else {
                 rhs = quiche_h3_send_response(conn_data.http3_conn, conn_data.conn, s.stream_id, headers, i - s.header_cursor, s.finished && i == s.headers_size);

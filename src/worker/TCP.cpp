@@ -1,4 +1,5 @@
 #include "worker/TCP.hpp"
+#include "ManapiParams.hpp"
 
 #include <iostream>
 #include <csignal>

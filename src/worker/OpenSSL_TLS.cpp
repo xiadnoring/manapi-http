@@ -1,5 +1,6 @@
 #include "worker/OpenSSL_TLS.hpp"
 
+#include "ManapiParams.hpp"
 #include "async/ManapiAsyncSocket.hpp"
 #include "ManapiInitTools.hpp"
 

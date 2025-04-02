@@ -1,8 +1,12 @@
-libdir=@CMAKE_INSTALL_FULL_LIBDIR@
-includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
+prefix="@CMAKE_INSTALL_PREFIX@"
+exec_prefix="${prefix}"
+libdir="${prefix}/lib"
+includedir="${prefix}/include"
 
 Name: @PROJECT_NAME@
-Description: @PROJECT_DESCRIPTION@
-Version: @VERSION@
-Libs: -L${libdir} -lmanapihttp @MYTARGET_LINK_LIBRARIES@
-Cflags: -I${includedir} @MYTARGET_LINK_LIBRARIES@
+Description: @CMAKE_PROJECT_DESCRIPTION@
+URL: @CMAKE_PROJECT_HOMEPAGE_URL@
+Version: @PROJECT_VERSION@
+Cflags: -I"${includedir}"
+Libs: -L"${libdir}" -lmanapihttp
+Libs.private: -L"${libdir}" -lmanapihttp @pc_libs_private@

@@ -232,6 +232,7 @@ manapi::future<void> manapi::net::http::base::send_response_text(manapi::net::ht
 }
 
 manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::http::response &res, response_features_t &features) {
+#ifdef MANAPIHTTP_FETCH_SUPPORT
     auto proxy = std::make_unique<fetch>(this->site.async_context(), res.data());
 
     {
@@ -273,6 +274,9 @@ manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::h
     co_await proxy->async_doit();
 
     co_return;
+#else
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Fetch is required");
+#endif
 }
 
 manapi::future<> manapi::net::http::base::send_response_formdata(manapi::net::http::response &res, response_features_t &features) {

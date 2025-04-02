@@ -1,8 +1,12 @@
 #pragma once
 
 #include "../ManapiUtils.hpp"
+
+#if MANAPIHTTP_ZLIB_DEPENDENCY
+
 #include "../ManapiUtils.hpp"
 #include "../compress/ManapiCompress.hpp"
+#include "../async/ManapiAsyncContext.hpp"
 
 #ifndef Z_DEFAULT_COMPRESSION
 #   define Z_DEFAULT_COMPRESSION 0
@@ -28,3 +32,5 @@ namespace manapi::compress {
     void throw_could_not_open_file (const std::string &name, const std::string &path);
     void throw_file_exists (const std::string &name, const std::string &path);
 }
+
+#endif

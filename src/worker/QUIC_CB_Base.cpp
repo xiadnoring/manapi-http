@@ -1,4 +1,5 @@
 #include "worker/QUIC_CB_Base.hpp"
+#include "ManapiUtils.hpp"
 
 manapi::net::worker::quic_cb_base::quic_cb_base(net::site &site) {
 

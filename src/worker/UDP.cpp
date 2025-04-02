@@ -1,4 +1,5 @@
 #include "worker/UDP.hpp"
+#include "ManapiParams.hpp"
 
 #include <fcntl.h>
 

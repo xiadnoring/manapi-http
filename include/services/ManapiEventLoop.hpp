@@ -4,7 +4,6 @@
 #include "../extensions/ev++.h"
 #include <set>
 #include <stack>
-#include <curl/curl.h>
 #include "../ManapiInt.hpp"
 #include "../ManapiAsync.hpp"
 #include "./ManapiTask.hpp"
@@ -13,6 +12,10 @@
 #include "../async/ManapiAsyncPromise.hpp"
 #include "../components/Atomic.hpp"
 #include "../components/TimerObject.hpp"
+
+#if MANAPIHTTP_CURL_DEPENDENCY
+#   include <curl/curl.h>
+#endif
 
 namespace manapi {
     namespace priority {
@@ -35,6 +38,7 @@ namespace manapi {
         std::shared_ptr<ev::timer> w_timer{nullptr};
         async::promise<void>::resolve_t resolve{nullptr};
     };
+#if MANAPIHTTP_CURL_DEPENDENCY
     struct adding_curl_data_t {
         int flag{0};
         CURL* curl{nullptr};
@@ -42,6 +46,7 @@ namespace manapi {
         async::promise<void>::resolve_t resolve{nullptr};
         async::promise<void>::reject_t reject{nullptr};
     };
+#endif
     struct adding_timer_data_t {
         int flag{0};
         size_t data{0};
@@ -57,12 +62,13 @@ namespace manapi {
     };
 
     class event_loop {
+#if MANAPIHTTP_CURL_DEPENDENCY
         struct curl_multi_deleter {
             void operator()(CURLM *curl_multi) noexcept {
                 curl_multi_cleanup(curl_multi);
             }
         };
-
+#endif
         template<class ev_>
         struct custom_watcher_data_t {
             std::shared_ptr<ev_> w;
@@ -111,13 +117,13 @@ namespace manapi {
         future<void> again_timer (std::shared_ptr<ev::timer> w);
 
         [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
-
+#if MANAPIHTTP_CURL_DEPENDENCY
         future<void> watch_curl (CURL *curl, std::move_only_function<void(CURLcode result)> cb);
         future<void> unwatch_curl (CURL *curl);
         future<void> unpause_watch_curl (CURL *curl);
         future<void> pause_watch_curl (CURL *curl);
         future<void> custom_cb_curl (CURL *curl, std::move_only_function<void(CURLcode result)> cb);
-
+#endif
         future<void> custom_callback (std::move_only_function<void(event_loop *ev)> cb);
 
         future<manapi::timer> append_async_timer (size_t time, std::move_only_function<manapi::future<>(manapi::timer t)> cb);
@@ -149,12 +155,12 @@ namespace manapi {
             std::atomic<int> status{0};
             std::unique_ptr<adding_custom_callback_data_t> data{nullptr};
         };
-
+#if MANAPIHTTP_CURL_DEPENDENCY
         struct curl_watcher_data_cached_t {
             std::atomic<int> status{0};
             std::unique_ptr<adding_curl_data_t> data{nullptr};
         };
-
+#endif
         struct async_watcher_t {
             manapi::chain<std::unique_ptr<adding_watcher_data_t>> adding_watcher_data{};
             std::shared_ptr<async::mutex> adding_watcher_mx;
@@ -162,6 +168,7 @@ namespace manapi {
             std::move_only_function<void()> adding_watcher_async_cb{nullptr};
             std::deque<async_watcher_data_cached_t> watcher_data_cached{};
         };
+#if MANAPIHTTP_CURL_DEPENDENCY
         struct curl_watcher_t {
             std::unique_ptr<CURLM, curl_multi_deleter> curl_multi{nullptr};
             std::shared_ptr<async::mutex> curl_multi_mx{nullptr};
@@ -174,6 +181,7 @@ namespace manapi {
             std::shared_ptr<ev::timer> timeout_watcher{nullptr};
             std::deque<curl_watcher_data_cached_t> watcher_data_cached{};
         };
+#endif
         struct timer_watcher_t {
             manapi::chain<std::unique_ptr<adding_timer_data_t>> adding_timer_data{};
             std::shared_ptr<async::mutex> adding_timer_mx;
@@ -191,15 +199,21 @@ namespace manapi {
         };
 
         void custom_watcher_fd_async (ev::async &w, int revents);
+#if MANAPIHTTP_CURL_DEPENDENCY
         void custom_watcher_curl_async (ev::async &w, int revents);
+#endif
         void custom_watcher_timer_async (ev::async &w, int revents);
         void custom_watcher_callback_async (ev::async &w, int revents);
     private:
         void handle_tasks_do_event (ev::prepare &w, int revents);
+#if MANAPIHTTP_CURL_DEPENDENCY
         void handle_curl_watcher_data (std::unique_ptr<adding_curl_data_t> data);
+#endif
         void handle_async_watcher_data (std::unique_ptr<adding_watcher_data_t> data);
         future<void> _template_cmd_watcher (std::unique_ptr<adding_watcher_data_t> data);
+#if MANAPIHTTP_CURL_DEPENDENCY
         future<void> _template_cmd_curl (int flag, CURL *curl, std::move_only_function<void(CURLcode result)> cb = nullptr);
+#endif
         future<std::optional<manapi::timer>> _template_cmd_timer (int flag, size_t data, std::move_only_function<manapi::future<>(manapi::timer t)> cb_async, std::move_only_function<void(manapi::timer t)> cb_sync);
         static std::atomic<bool> interrupted;
         static std::map <size_t, std::shared_ptr<event_loop>> events;
@@ -229,7 +243,9 @@ namespace manapi {
         async::promise<void>::resolve_t resolve_stop{nullptr};
         std::atomic<bool> loop_interrupte1d;
         async_watcher_t async_watcher{};
+#if MANAPIHTTP_CURL_DEPENDENCY
         curl_watcher_t curl_watcher{};
+#endif
         timer_watcher_t timer_watcher{};
         custom_callback_t callback_watcher{};
         ev::prepare prepare_watcher;

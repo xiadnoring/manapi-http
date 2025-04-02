@@ -9,7 +9,7 @@
 #include "../ManapiDebug.hpp"
 #include "../ManapiUtils.hpp"
 
-namespace manapi::crypto {
+namespace manapi::encoding {
     extern const std::set <char> url_allowed_symbols;
 
     std::string encode_url(const std::string &str);

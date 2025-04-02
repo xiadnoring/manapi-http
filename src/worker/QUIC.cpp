@@ -3,6 +3,7 @@
 
 #include <memory>
 
+#include "ManapiParams.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "crypto/ManapiAES.hpp"
 #include "crypto/ManapiCryptoUtils.hpp"

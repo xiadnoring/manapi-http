@@ -243,7 +243,7 @@ void manapi::net::http::response::partial_enabled(const bool &state) {
         this->partial_enabled_ = state;
     //}
 }
-
+#ifdef MANAPIHTTP_FETCH_SUPPORT
 void manapi::net::http::response::proxy(std::string url) {
     this->type_ = RESPONSE_PROXY;
     this->data_ = std::move(url);
@@ -255,6 +255,7 @@ void manapi::net::http::response::proxy(std::string url, std::move_only_function
     this->proxy(std::move(url));
     this->proxy_setup = std::make_shared<decltype(this->proxy_setup)::element_type>(std::move(cb));
 }
+#endif
 
 void manapi::net::http::response::sync_callback(std::move_only_function<ssize_t(char *, ssize_t , bool &)> cb) {
     this->type_ = RESPONSE_SYNC_CALLBACK;
@@ -280,6 +281,8 @@ manapi::net::formdata_send manapi::net::http::response::formdata() {
     return std::move(data);
 }
 
+#ifdef MANAPIHTTP_FETCH_SUPPORT
 std::shared_ptr<std::move_only_function<void(class manapi::net::fetch &)>> &manapi::net::http::response::proxy_setup_cb() {
     return this->proxy_setup;
 }
+#endif

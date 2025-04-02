@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../ManapiUtils.hpp"
+
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 #include <openssl/ssl.h>
 
@@ -7,7 +9,6 @@
 #   include <netdb.h>
 #endif
 
-#include "../ManapiUtils.hpp"
 #include "./base_worker.hpp"
 #include "./TCP.hpp"
 

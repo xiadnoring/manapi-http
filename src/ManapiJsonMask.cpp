@@ -5,7 +5,7 @@
 #include "ManapiDebug.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiJsonBuilder.hpp"
-#include "ManapiUnicode.hpp"
+#include "../include/encoding/ManapiUnicode.hpp"
 
 #define MANAPIHTTP_JSON_ANY (-1)
 #define MANAPIHTTP_JSON_NONE (-2)
@@ -241,10 +241,12 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
         {
             ntype = json::type_decimal;
         }
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         else if (type == "bigint")
         {
             ntype = json::type_bigint;
         }
+#endif
         else if (type == "bool")
         {
             ntype = json::type_boolean;
@@ -412,10 +414,12 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                     {
                         parsed_buff = builder.get().as_decimal_cast();
                     }
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
                     else if (ntype == json::type_bigint)
                     {
                         parsed_buff = builder.get().as_bigint_cast();
                     }
+#endif
                     else if (ntype == json::type_boolean)
                     {
                         parsed_buff = builder.get().as_bool_cast();
@@ -659,6 +663,7 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
         // ex: {decimal}
         return true;
     }
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
     if (type == json::type_bigint)
     {
         // invalid type
@@ -681,9 +686,14 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
         // ex: {bigint}
         return true;
     }
+#endif
     if (type == json::type_number)
     {
-        if (!obj.is_bigint() && !obj.is_integer() && !obj.is_decimal())
+        if (
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+            !obj.is_bigint() &&
+#endif
+            !obj.is_integer() && !obj.is_decimal())
         {
             return false;
         }

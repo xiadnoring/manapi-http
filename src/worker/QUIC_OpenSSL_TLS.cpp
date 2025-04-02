@@ -2,6 +2,7 @@
 
 #include <openssl/err.h>
 
+#include "ManapiParams.hpp"
 #include "crypto/ManapiCryptoUtils.hpp"
 #include "worker/QUIC.hpp"
 

@@ -13,7 +13,7 @@
 #include "include/services/ManapiFetch.hpp"
 #include "ManapiJsonBuilder.hpp"
 #include "ManapiJsonMask.hpp"
-#include "ManapiUnicode.hpp"
+#include "include/encoding/ManapiUnicode.hpp"
 #include "ManapiHttpMime.hpp"
 #include "compress/ManapiHPack.hpp"
 #include "ManapiAsync.hpp"

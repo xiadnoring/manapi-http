@@ -10,8 +10,12 @@
 namespace manapi {
     class json_builder {
     public:
-        explicit json_builder (const json_mask &mask = nullptr, const bool &use_bigint = false, const size_t &bigint_precision = 128);
-        explicit json_builder (const json &mask, const bool &use_bigint = false, const size_t &bigint_precision = 128);
+        explicit json_builder (const json_mask &mask = nullptr);
+        explicit json_builder (const json &mask);
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+        explicit json_builder (const json_mask &mask, bool use_bigint, size_t bigint_precision = 128);
+        explicit json_builder (const json &mask, bool use_bigint, size_t bigint_precision = 128);
+#endif
         ~json_builder();
         json_builder &operator<< (std::string_view str);
         json_builder &operator<< (const char &c);
@@ -67,9 +71,11 @@ namespace manapi {
         const json *current_types;
         size_t current_type;
 
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         // bigint
         bool use_bigint = false;
         size_t bigint_precision = 128;
+#endif
 
         // build vars
         bool opened_quote = false;

@@ -1,7 +1,10 @@
+#include "services/ManapiFetch.hpp"
+
+#if MANAPIHTTP_CURL_DEPENDENCY
+
 #include <exception>
 
 #include "ManapiHttp.hpp"
-#include "services/ManapiFetch.hpp"
 
 #include "async/ManapiAsyncPromise.hpp"
 
@@ -767,3 +770,4 @@ size_t manapi::net::fetch::status_code() const {
     return this->status_code_;
 }
 
+#endif

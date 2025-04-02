@@ -2,10 +2,10 @@
 
 #include <http/HTTPv2.hpp>
 
-#include "ManapiUnicode.hpp"
+#include "encoding/ManapiUnicode.hpp"
 #include "ManapiUtils.hpp"
 #include "crypto/ManapiAEAD.hpp"
-#include "crypto/ManapiURL.hpp"
+#include "encoding/ManapiURL.hpp"
 #include "http/base_http.hpp"
 #include "http/HTTPv1_1.hpp"
 

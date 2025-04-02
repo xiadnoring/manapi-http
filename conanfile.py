@@ -18,12 +18,14 @@ class ManapiHttpConan(ConanFile):
         "wolfssl_dependency": [True, False],
         "quiche_dependency": [True, False],
         "tquic_dependency": [True, False],
-        "debug": [True, False],
+        "zlib_dependency": [True, False],
+        "curl_dependency": [True, False],
+        "gmp_dependency": [True, False],
         "lib": [True, False]
     }
 
-    default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": False, "openssl_dependency": True, "quiche_dependency": True,
-                       "tquic_dependency": True, "debug": True, "lib": True}
+    default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": True, "openssl_dependency": False, "quiche_dependency": True,
+                       "tquic_dependency": True, "lib": True, "curl_dependency": True, "gmp_dependency": True, "zlib_dependency": True}
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
 
@@ -58,7 +60,6 @@ class ManapiHttpConan(ConanFile):
         deps.generate()
 
         tc = CMakeToolchain(self)
-        tc.variables['MANAPIHTTP_BUILD_TYPE'] = "exe" if self.options.get_safe('debug', False) else "lib"
         tc.variables['MANAPIHTTP_BUILD_METHOD'] = "conan"
         tc.variables['MANAPIHTTP_JSON_DEBUG'] = self.options.get_safe('json_debug', False)
         tc.variables['MANAPIHTTP_WOLFSSL_DEPENDENCY'] = self.options.get_safe('wolfssl_dependency', False)

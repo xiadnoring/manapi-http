@@ -1,11 +1,10 @@
 #include "worker/OpenSSL_QUIC.hpp"
+#include "ManapiUtils.hpp"
 
 #ifdef MANAPI_OPENSSL_QUIC_REALIZATION
 
-#include "worker/tools/OpenSSLTools.hpp"
-
 manapi::net::worker::openssl_quic::openssl_quic(net::site &site) : worker::udp(site) {
-    tools::ssl_library_init();
+
 }
 
 manapi::net::worker::openssl_quic::~openssl_quic() {

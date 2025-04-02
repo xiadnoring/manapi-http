@@ -1,4 +1,4 @@
-ind_path(MSQUIC_INCLUDE_DIR
+find_path(MSQUIC_INCLUDE_DIR
         NAMES msquic.h
 )
 find_library(MSQUIC_LIBRARY

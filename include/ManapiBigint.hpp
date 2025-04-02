@@ -1,6 +1,10 @@
 #pragma once
 
 #include "ManapiUtils.hpp"
+
+#if MANAPIHTTP_GMP_DEPENDENCY
+#define MANAPIHTTP_BIGINT_SUPPORT
+
 #include <string>
 #include <vector>
 #include <iostream>
@@ -263,3 +267,5 @@ namespace manapi {
 
 std::ostream &operator<<(std::ostream &os, const manapi::bigint &m);
 std::istream &operator>>(std::istream &is, manapi::bigint &m);
+
+#endif

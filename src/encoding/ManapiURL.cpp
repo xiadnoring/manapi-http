@@ -1,10 +1,10 @@
-#include "crypto/ManapiURL.hpp"
+#include "encoding/ManapiURL.hpp"
+#include "ManapiUtils.hpp"
+#include "encoding/ManapiUnicode.hpp"
 
-#include "ManapiUnicode.hpp"
+const std::set<char> manapi::encoding::url_allowed_symbols = {'-', '_', '.', '~', '!', '*', '\'', '(', ')', ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '.', '#', '[', ']', '%'};
 
-const std::set<char> manapi::crypto::url_allowed_symbols = {'-', '_', '.', '~', '!', '*', '\'', '(', ')', ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '.', '#', '[', ']', '%'};
-
-std::string manapi::crypto::encode_url(const std::string &str) {
+std::string manapi::encoding::encode_url(const std::string &str) {
     std::ostringstream escaped;
     escaped.fill('0');
     escaped << std::hex;
@@ -31,13 +31,13 @@ std::string manapi::crypto::encode_url(const std::string &str) {
     return escaped.str();
 }
 
-std::string manapi::crypto::decode_url(const std::string &str) {
+std::string manapi::encoding::decode_url(const std::string &str) {
     std::string ret;
 
     std::size_t i;
 
     for (i = 0; i < str.size(); i++){
-        if (!crypto::url_allowed_symbol(str[i])) {
+        if (!encoding::url_allowed_symbol(str[i])) {
             THROW_MANAPIHTTP_EXCEPTION2(ERR_PARSE_INVALID_CHAR, "decode_url: invalid char");
         }
 
@@ -66,6 +66,6 @@ std::string manapi::crypto::decode_url(const std::string &str) {
     return ret;
 }
 
-bool manapi::crypto::url_allowed_symbol(const char &c) {
+bool manapi::encoding::url_allowed_symbol(const char &c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || url_allowed_symbols.contains(c);
 }

@@ -2,10 +2,10 @@
 
 #include <utility>
 
-#include "crypto/ManapiURL.hpp"
+#include "encoding/ManapiURL.hpp"
 
 #include "ManapiDebug.hpp"
-#include "ManapiUnicode.hpp"
+#include "encoding/ManapiUnicode.hpp"
 #include "ManapiUtils.hpp"
 
 manapi::net::http::url_decode_stream::url_decode_stream() : hex_symbols{'\0','\0'} {
@@ -34,7 +34,7 @@ std::pair<std::vector<std::string>, ssize_t> manapi::net::http::url_decode_strea
 }
 
 void manapi::net::http::url_decode_stream::handle_char_(const char &c) {
-    if (!crypto::url_allowed_symbol(c)) {
+    if (!encoding::url_allowed_symbol(c)) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_PARSE_INVALID_CHAR, "url_decode_stream: invalid char");
     }
 

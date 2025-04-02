@@ -1,7 +1,7 @@
 #include "http/Utils.hpp"
 
 #include "ManapiFilesystem.hpp"
-#include "ManapiUnicode.hpp"
+#include "encoding/ManapiUnicode.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
 
 std::pair<std::string, std::string> manapi::net::http::parse_header(const std::string &header) {

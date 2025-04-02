@@ -12,6 +12,8 @@
 #include <list>
 #include <forward_list>
 #include <typeinfo>
+#include "ManapiParams.hpp"
+
 
 //#include "./extensions/jemallocator.hpp"
 

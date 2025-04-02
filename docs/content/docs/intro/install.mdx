@@ -1,0 +1,78 @@
+---
+title: Installation
+description: How to install that library
+---
+## Introduction
+There are two methods to install: installation with conan and installation with system shared libraries.
+
+I thought about creating dependencies in the project directory too, but I don't need this build method yet.
+
+## Using system libraries
+For the first step, you need to clone this github project with from [the following link](https://github.com/xiadnoring/manapi-http)
+and download dependencies from the os repositories for Arch Linux, Ubuntu; or you need to compile it from the source.
+- [OpenSSL](https://github.com/openssl/openssl) ([OpenSSL >=3.4.1](https://github.com/openssl/openssl/releases/tag/openssl-3.4.1))
+- [zlib](https://github.com/madler/zlib) ([zlib >=1.3.1](https://github.com/madler/zlib/releases/tag/v1.3.1))
+- [gmp](https://gmplib.org/) ([gmp >=6.3.0](https://gmplib.org/download/gmp/gmp-6.3.0.tar.bz2))
+- [libev](https://dist.schmorp.de/libev/Attic/) ([libev >=4.33](https://dist.schmorp.de/libev/Attic/libev-4.33.tar.gz))
+- [curl](https://github.com/curl/curl) ([curl >=8.8.0](https://github.com/curl/curl/releases/tag/curl-8_13_0))
+
+### Arch Linux
+
+#### Pacman & Yay
+```bash
+sudo pacman -Sy gmp openssl libev zlib libevdev curl
+```
+
+
+```bash
+# optionaly
+sudo pacman -Sy quiche
+```
+
+#### Paru
+```bash
+paru -Sy gmp openssl libev zlib libevdev curl
+```
+
+```bash
+# optionaly
+sudo paru -Sy quiche
+```
+
+### Ubuntu
+
+#### Apt-Get
+```bash
+sudo apt-get install libgmp3-dev libssl-dev libev-dev zlib1g-dev libcurl4-openssl-dev
+```
+
+### Build & Install
+
+Execute cmake to build and install manapihttp library
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release -DMANAPIHTTP_BUILD_TYPE=lib
+```
+
+## Using conan
+With conan you need only to clone this github project from the [the following link](https://github.com/xiadnoring/manapi-http) and
+create the conan package from the source with the bash-like commands bellow:
+
+```bash
+# quiche http3 backend (optionaly)
+conan create ./conan/quiche --version 0.23.4
+```
+
+```bash
+# tquic http3 backend (optionaly)
+conan create ./conan/tquic --version 1.9.9
+```
+
+```bash
+# create manapi-http package
+conan create . --version 0.0.1 \
+    -o "manapihttp/*:shared=False" -o "manapihttp/*:json_debug=False" \
+    -o "manapihttp/*:wolfssl_dependency=False" -o "manapihttp/*:openssl_dependency=True" \
+    -o "manapihttp/*:quiche_dependency=True" -o "manapihttp/*:tquic_dependency=True" \
+    -o "manapihttp/*:curl_dependency=True" -o "manapihttp/*:gmp_dependency=True" \
+    -o "manapihttp/*:zlib_dependency=True" -o "manapihttp/*:lib=True"
+```

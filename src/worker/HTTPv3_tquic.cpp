@@ -5,8 +5,9 @@
 #include "http/HTTPv2.hpp"
 
 #include "crypto/ManapiAEAD.hpp"
+#include "ManapiParams.hpp"
 
-#if MANAPIHTTP_QUICHE_DEPENDENCY
+#if MANAPIHTTP_TQUIC_DEPENDENCY
 
 # define MANAPI_MAX_DATAGRAM_SIZE 1350
 # define MANAPI_QUICHE_CONNECTION_ID_LEN 16

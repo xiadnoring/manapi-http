@@ -7,7 +7,6 @@
 #include "ManapiUtils.hpp"
 #include "ManapiBigint.hpp"
 #include "ManapiInt.hpp"
-#include "ManapiParams.hpp"
 
 namespace manapi {
     enum json_err_num {
@@ -44,7 +43,9 @@ namespace manapi {
         typedef nullptr_t NULLPTR;
         typedef std::string STRING;
         typedef std::string_view STRING_VIEW;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         typedef bigint BIGINT;
+#endif
         typedef bool BOOLEAN;
         typedef std::pair <json, json> PAIR;
 
@@ -59,7 +60,9 @@ namespace manapi {
             type_object = 5,
             type_array = 6,
             type_integer = 7,
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
             type_bigint = 8,
+#endif
             type_pair = 9
         };
 
@@ -85,7 +88,6 @@ namespace manapi {
         json(const char *plain_text, const bool &parse = false);
         json(STRING str);
         json(const DECIMAL &num);
-        json(BIGINT num);
         json(const NULLPTR &n);
         json(const BOOLEAN &value);
         json(OBJECT obj);
@@ -173,7 +175,6 @@ namespace manapi {
         json &operator= (const INTEGER &num);
         json &operator= (const DECIMAL &num);
         json &operator= (const NULLPTR &n);
-        json &operator= (BIGINT num);
         json &operator= (const json &obj);
         json &operator= (json &&obj) noexcept ;
         json &operator= (const std::initializer_list <json> &data);
@@ -194,7 +195,6 @@ namespace manapi {
 
         json operator* (const INTEGER &num) const;
         json operator* (const DECIMAL &num) const;
-        json operator* (const BIGINT &num) const;
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -210,7 +210,6 @@ namespace manapi {
 
         json &operator*= (const INTEGER &num);
         json &operator*= (const DECIMAL &num);
-        json &operator*= (const BIGINT &num);
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -226,7 +225,6 @@ namespace manapi {
 
         json operator- (const INTEGER &num) const;
         json operator- (const DECIMAL &num) const;
-        json operator- (const BIGINT &num) const;
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -242,7 +240,6 @@ namespace manapi {
 
         json operator+ (const INTEGER &num) const;
         json operator+ (const DECIMAL &num) const;
-        json operator+ (const BIGINT &num) const;
         json operator+ (const STRING &str) const;
         json operator+ (const char *str) const;
 
@@ -261,7 +258,6 @@ namespace manapi {
         json & operator-= (const INTEGER &num);
         json & operator-= (const int &num);
         json & operator-= (const DECIMAL &num);
-        json & operator-= (const BIGINT &num);
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -279,7 +275,6 @@ namespace manapi {
         json &operator+= (const char *str);
         json &operator+= (const INTEGER &num);
         json &operator+= (const DECIMAL &num);
-        json &operator+= (const BIGINT &num);
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -413,7 +408,9 @@ namespace manapi {
         [[nodiscard]] bool is_integer     () const;
         [[nodiscard]] bool is_null        () const;
         [[nodiscard]] bool is_decimal     () const;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         [[nodiscard]] bool is_bigint      () const;
+#endif
         [[nodiscard]] bool is_bool        () const;
 
         /**
@@ -451,12 +448,6 @@ namespace manapi {
          */
         [[nodiscard]] const DECIMAL &as_decimal () const;
         [[nodiscard]] DECIMAL &as_decimal ();
-        /**
-         * strict bigint retrieval
-         * @return
-         */
-        [[nodiscard]] const BIGINT &as_bigint () const;
-        [[nodiscard]] BIGINT &as_bigint ();
         /**
          * strict boolean retrieval
          * @return
@@ -514,16 +505,6 @@ namespace manapi {
          */
         [[nodiscard]] DECIMAL as_decimal_cast () const;
         /**
-         * non-strict bigint retrieval
-         *
-         * @note bigint - bigint
-         * @note integer - bigint
-         * @note decimal - bigint
-         * @note string - bigint
-         * @return
-         */
-        [[nodiscard]] BIGINT as_bigint_cast () const;
-        /**
          * non-strict boolean retrieval
          *
          * @note boolean - boolean
@@ -539,6 +520,33 @@ namespace manapi {
         static void error_invalid_char (const UNICODE_STRING &plain_text, const size_t &i);
         static void error_invalid_char (const STRING_VIEW &plain_text, const size_t &i);
         static void error_unexpected_end (const size_t &i);
+
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+        /**
+         * non-strict bigint retrieval
+         *
+         * @note bigint - bigint
+         * @note integer - bigint
+         * @note decimal - bigint
+         * @note string - bigint
+         * @return
+         */
+        [[nodiscard]] BIGINT as_bigint_cast () const;
+        json &operator+= (const BIGINT &num);
+        json(BIGINT num);
+        json operator* (const BIGINT &num) const;
+        json &operator*= (const BIGINT &num);
+        json operator- (const BIGINT &num) const;
+        json operator+ (const BIGINT &num) const;
+        json &operator= (BIGINT num);
+        json & operator-= (const BIGINT &num);
+        /**
+         * strict bigint retrieval
+         * @return
+         */
+        [[nodiscard]] const BIGINT &as_bigint () const;
+        [[nodiscard]] BIGINT &as_bigint ();
+#endif
     protected:
         bool root = true;
     private:
@@ -548,20 +556,27 @@ namespace manapi {
         [[nodiscard]] INTEGER &_as_integer () const;
         [[nodiscard]] DECIMAL &_as_decimal () const;
         [[nodiscard]] BOOLEAN &_as_bool () const;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         [[nodiscard]] BIGINT &_as_bigint () const;
+#endif
         [[nodiscard]] PAIR &_as_pair () const;
 
         // string
         void _parse (const UNICODE_STRING &plain_text);
-        void _parse (const STRING_VIEW &plain_text, const bool &bigint = false, const size_t &bigint_precision = 128);
-
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+        void _parse (const STRING_VIEW &plain_text, bool bigint = false, size_t bigint_precision = 128);
+#else
+        void _parse (const STRING_VIEW &plain_text);
+#endif
         // integers
         void _parse (const size_t &num);
         void _parse (const INTEGER &num);
         void _parse (const int &num);
         void _parse (const double &num);
         void _parse (const DECIMAL &num);
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         void _parse (BIGINT num);
+#endif
         void _parse (OBJECT obj);
         void _parse (ARRAY arr);
         void _parse (const BOOLEAN &val);
@@ -587,7 +602,9 @@ namespace manapi {
         void _set_string (STRING_VIEW val);
         void _set_integer (const INTEGER &val);
         void _set_decimal (const DECIMAL &val);
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         void _set_bigint (BIGINT val);
+#endif
         void _set_pair (json first, json second);
 #if MANAPIHTTP_JSON_DEBUG
         void _debug_symb_reinit () {

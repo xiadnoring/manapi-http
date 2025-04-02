@@ -5,6 +5,8 @@
 #include "../ManapiJsonBuilder.hpp"
 #include "../components/ManapiFileTransferInfo.hpp"
 
+#ifdef MANAPIHTTP_FETCH_SUPPORT
+
 namespace manapi::net {
     class fetch2 {
         struct fetch_data {
@@ -200,3 +202,5 @@ namespace manapi::net {
         std::shared_ptr<fetch_data> fetchdata;
     };
 }
+
+#endif

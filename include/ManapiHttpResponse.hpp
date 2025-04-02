@@ -45,8 +45,10 @@ namespace manapi::net::http {
         void replacers (std::map<std::string, std::string> replacers);
         void partial_enabled (const bool &state);
         void file (std::string path);
+#ifdef MANAPIHTTP_FETCH_SUPPORT
         void proxy (std::string url);
         void proxy (std::string url, std::move_only_function<void(class fetch &)> cb);
+#endif
         void sync_callback (std::move_only_function<ssize_t(char *, ssize_t , bool &)> cb);
         void async_callback (std::move_only_function<manapi::future<ssize_t>(char *, ssize_t , bool &)> cb);
 
@@ -78,7 +80,9 @@ namespace manapi::net::http {
         const std::string &file ();
         const std::string &data ();
         formdata_send formdata ();
+#ifdef MANAPIHTTP_FETCH_SUPPORT
         std::shared_ptr<std::move_only_function<void(class manapi::net::fetch &)>>& proxy_setup_cb ();
+#endif
         const std::string &compress ();
 
         std::vector <std::pair <ssize_t, ssize_t> > ranges_;
@@ -115,7 +119,9 @@ namespace manapi::net::http {
         manapi::net::http::request_data_t *request_data_;
 
         std::optional<std::map<std::string, std::string>> replacers_;
+#ifdef MANAPIHTTP_FETCH_SUPPORT
         std::shared_ptr<std::move_only_function<void(class manapi::net::fetch &)>> proxy_setup{};
+#endif
         std::optional<formdata_send> formdata_;
         std::shared_ptr<std::move_only_function<ssize_t(char *buffer, ssize_t size, bool &finished)>> sync_cb;
         std::shared_ptr<std::move_only_function<manapi::future<ssize_t>(char *buffer, ssize_t size, bool &finished)>> async_cb;

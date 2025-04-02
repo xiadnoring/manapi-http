@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include "ManapiUtils.hpp"
+#include "../ManapiUtils.hpp"
 
 namespace manapi::unicode {
     int count_of_octet (unsigned char c);
@@ -26,6 +26,4 @@ namespace manapi::unicode {
     bool escape_char_need (const char &c, const char &quotes = '"');
     bool escape_char_need (const wchar_t &c);
     bool escape_char_need (const char32_t &c);
-    std::string urlencode (std::string_view data);
-    std::string urldecode (std::string_view data);
 }

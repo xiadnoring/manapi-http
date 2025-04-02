@@ -5,8 +5,8 @@
 #include "ManapiFilesystem.hpp"
 #include "http/Utils.hpp"
 #include "ManapiHttpMime.hpp"
-#include "ManapiUnicode.hpp"
-#include "crypto/ManapiURL.hpp"
+#include "encoding/ManapiUnicode.hpp"
+#include "encoding/ManapiURL.hpp"
 #include "ManapiHttpTypes.hpp"
 #include "ManapiString.hpp"
 #include "http/base_http.hpp"
@@ -320,7 +320,7 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
 
         auto &c = *(this->body_buffer + *this->body_index);
 
-        if (!manapi::crypto::url_allowed_symbol(c)) {
+        if (!manapi::encoding::url_allowed_symbol(c)) {
             THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "Symbol '{}' is not allowed in URLEncoded FormData",
                 static_cast<int>(c));
         }
@@ -490,11 +490,11 @@ std::string manapi::net::formdata_recv::json2form(const json &obj) {
         loop:
         if (it->second.is_string())
         {
-            data += crypto::encode_url(it->first) + "=" + crypto::encode_url(it->second.as_string());
+            data += encoding::encode_url(it->first) + "=" + encoding::encode_url(it->second.as_string());
         }
         else
         {
-            data += crypto::encode_url(it->first) + "=" + crypto::encode_url(it->second.dump());
+            data += encoding::encode_url(it->first) + "=" + encoding::encode_url(it->second.dump());
         }
 
     }

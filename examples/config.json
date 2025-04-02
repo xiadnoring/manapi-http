@@ -9,7 +9,7 @@
       "port": "8888",
       "buffer_size": 65536,
       "quic_cc_algo": "RENO",
-      "quic_debug": true,
+      "quic_debug": false,
       "ssl": {
         "cert": "self-signed-ssl/cert.crt",
         "enabled": true,

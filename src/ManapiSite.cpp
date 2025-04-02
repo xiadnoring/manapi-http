@@ -1,12 +1,13 @@
 #include "ManapiFilesystem.hpp"
 #include "ManapiSite.hpp"
 
-#include "ManapiUnicode.hpp"
+#include "../include/encoding/ManapiUnicode.hpp"
 #include "worker/base_worker.hpp"
 #include "worker/TCP.hpp"
 #include "worker/OpenSSL_TLS.hpp"
 #include "worker/QUIC.hpp"
 #include "worker/HTTPv2.hpp"
+#include "ManapiUtils.hpp"
 
 #include "services/ManapiTaskFunction.hpp"
 #include "services/ManapiThreadPool.hpp"
@@ -68,21 +69,23 @@ void manapi::net::site::setup() {
     this->config_ = manapi::json::object();
     this->cache_config = manapi::json::object();
 
+#if MANAPIHTTP_ZLIB_DEPENDENCY
     this->compressor("deflate", [this] (const std::string &src, const std::string &dest)
         -> future<bool> { return manapi::compress::deflate_compress_file(this->ctx, src, dest); });
     this->compressor("gzip", [this] (const std::string &src, const std::string &dest)
         -> future<bool> { return manapi::compress::gzip_compress_file(this->ctx, src, dest); });
+#endif
 
     this->transport_protocol_worker("tcp", "default", worker::TCP::create);
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
     this->transport_protocol_worker("tls", "openssl", worker::OpenSSL_TLS::create);
 # ifdef MANAPI_OPENSSL_QUIC_REALIZATION
-    this->set_transport_protocol_worker("quic", "openssl", worker::openssl_quic::create);
+    this->transport_protocol_worker("quic", "openssl", worker::openssl_quic::create);
 # endif
 #endif
 
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
-    this->set_transport_protocol_worker("tls", "wolfssl", worker::WolfSSL_TLS::create);
+    this->transport_protocol_worker("tls", "wolfssl", worker::WolfSSL_TLS::create);
 #endif
 
 #if MANAPIHTTP_QUICHE_DEPENDENCY

@@ -1,8 +1,8 @@
 #include "http/HTTPv2.hpp"
 
-#include "ManapiUnicode.hpp"
+#include "encoding/ManapiUnicode.hpp"
 #include "crypto/ManapiAEAD.hpp"
-#include "crypto/ManapiURL.hpp"
+#include "encoding/ManapiURL.hpp"
 #include "components/ManapiURLDecodeStream.hpp"
 
 manapi::net::http::http_v2::http_v2(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config,

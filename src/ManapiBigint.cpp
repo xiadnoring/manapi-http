@@ -1,10 +1,13 @@
+#include "ManapiUtils.hpp"
+#include "ManapiBigint.hpp"
+
+#if MANAPIHTTP_GMP_DEPENDENCY
+
 #include <cmath>
 #include <algorithm>
 #include <memory.h>
 #include <codecvt>
 
-#include "ManapiUtils.hpp"
-#include "ManapiBigint.hpp"
 #include "./ManapiErrors.hpp"
 #include "./ManapiJson.hpp"
 #include "./ManapiTime.hpp"
@@ -551,3 +554,5 @@ std::istream &operator>>(std::istream &is, manapi::bigint &m) {
 
     return is;
 }
+
+#endif

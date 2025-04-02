@@ -1,3 +1,7 @@
+#include "compress/ManapiCompress.hpp"
+
+#if MANAPIHTTP_ZLIB_DEPENDENCY
+
 #include <fstream>
 #include <format>
 
@@ -447,3 +451,5 @@ manapi::future<bool> manapi::compress::gzip_decompress_file(const std::shared_pt
 
     co_return true;
 }
+
+#endif

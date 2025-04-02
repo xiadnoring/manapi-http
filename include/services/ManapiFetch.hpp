@@ -1,5 +1,10 @@
 #pragma once
 
+#include "../ManapiUtils.hpp"
+
+#if MANAPIHTTP_CURL_DEPENDENCY
+#define MANAPIHTTP_FETCH_SUPPORT
+
 #include <string>
 #include <vector>
 #include <map>
@@ -166,3 +171,5 @@ namespace manapi::net {
         std::optional<curlformdata> body_formdata_{};
     };
 }
+
+#endif

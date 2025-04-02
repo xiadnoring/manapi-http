@@ -1,10 +1,11 @@
 #include <sstream>
 
 #include "ManapiJsonBuilder.hpp"
-#include "ManapiUnicode.hpp"
+#include "../include/encoding/ManapiUnicode.hpp"
 #include "ManapiUtils.hpp"
 
-manapi::json_builder::json_builder(const json_mask &mask, const bool &use_bigint, const size_t &bigint_precision)  {
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+manapi::json_builder::json_builder(const json_mask &mask, bool use_bigint, size_t bigint_precision)  {
     this->start_cut = 0;
     this->end_cut = 0;
     this->use_bigint = use_bigint;
@@ -16,11 +17,38 @@ manapi::json_builder::json_builder(const json_mask &mask, const bool &use_bigint
 }
 
 manapi::json_builder::
-json_builder(const json &mask, const bool &use_bigint, const size_t &bigint_precision) {
+json_builder(const json &mask, bool use_bigint, size_t bigint_precision) {
     this->start_cut = 0;
     this->end_cut = 0;
     this->use_bigint = use_bigint;
     this->bigint_precision = bigint_precision;
+    this->current_types = mask == nullptr ? nullptr : &mask;
+    this->current_type = 0;
+
+    this->action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
+}
+#endif
+
+manapi::json_builder::json_builder(const json_mask &mask) {
+    this->start_cut = 0;
+    this->end_cut = 0;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+    this->use_bigint = false;
+    this->bigint_precision = 128;
+#endif
+    this->current_types = mask.get_api_tree().is_null() ? nullptr : &mask.get_api_tree()["obj"];
+    this->current_type = 0;
+
+    this->action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
+}
+
+manapi::json_builder::json_builder(const json &mask) {
+    this->start_cut = 0;
+    this->end_cut = 0;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+    this->use_bigint = false;
+    this->bigint_precision = 128;
+#endif
     this->current_types = mask == nullptr ? nullptr : &mask;
     this->current_type = 0;
 
@@ -69,10 +97,10 @@ void manapi::json_builder::clear() {
 }
 
 void manapi::json_builder::_parse(std::string_view plain_text, size_t &j, bool root) {
-
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
     this->use_bigint = this->use_bigint;
     this->bigint_precision = this->bigint_precision;
-
+#endif
     this->end_cut = plain_text.size() + this->i;
 
     this->i += j;
@@ -379,13 +407,14 @@ void manapi::json_builder::_build_numeric(std::string_view plain_text, size_t &j
     {
         // bcz we didnt consider this chars ('}', ',') in this type
         this->end_cut = this->i;
-
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         // finish
         if (this->use_bigint)
         {
             this->object = json (bigint(this->buffer));
         }
         else
+#endif
         {
 
             if (this->type == json::type_decimal)
@@ -554,11 +583,19 @@ void manapi::json_builder::_build_object(std::string_view plain_text, size_t &j)
 
             if (this->is_key || this->current_types == nullptr)
             {
-                this->item = std::make_unique<json_builder> (json(nullptr), this->use_bigint, this->bigint_precision);
+                this->item = std::make_unique<json_builder> (json(nullptr)
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+                    ,this->use_bigint, this->bigint_precision
+#endif
+                );
             }
             else
             {
-                this->item = std::make_unique<json_builder>(get_current_type()["value"][key]["obj"], this->use_bigint, this->bigint_precision);
+                this->item = std::make_unique<json_builder>(get_current_type()["value"][key]["obj"]
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+                    , this->use_bigint, this->bigint_precision
+#endif
+                    );
                 this->item->next_parent = next_parent_for_child;
             }
             goto doit;
@@ -658,7 +695,11 @@ void manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) 
 
             if (this->current_types == nullptr)
             {
-                this->item = std::make_unique<json_builder>(json(nullptr), this->use_bigint, this->bigint_precision);
+                this->item = std::make_unique<json_builder>(json(nullptr)
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+                    ,this->use_bigint, this->bigint_precision
+#endif
+                    );
             }
             else
             {
@@ -666,11 +707,19 @@ void manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) 
 
                 if (current.contains("default"))
                 {
-                    this->item = std::make_unique<json_builder>(get_current_type()["default"], this->use_bigint, this->bigint_precision);
+                    this->item = std::make_unique<json_builder>(get_current_type()["default"]
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+                    , this->use_bigint, this->bigint_precision
+#endif
+                    );
                 }
                 else
                 {
-                    this->item = std::make_unique<json_builder>(get_current_type()["value"][this->element_index]["obj"], this->use_bigint, this->bigint_precision);
+                    this->item = std::make_unique<json_builder>(get_current_type()["value"][this->element_index]["obj"]
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+                        , this->use_bigint, this->bigint_precision
+#endif
+                        );
                 }
             }
             this->element_index++;
@@ -763,7 +812,9 @@ void manapi::json_builder::_check_eq_type() {
     {
         if (
             current_type == json::type_decimal ||
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
             current_type == json::type_bigint ||
+#endif
             current_type == json::type_integer ||
             current_type == json::type_boolean ||
             current_type == json::type_null)
@@ -805,9 +856,11 @@ bool manapi::json_builder::_check_max_mean(const bool &building) {
             case json::type_integer:
                 if (this->object.as_integer() < *this->max_mean_size) { return true; }
             break;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
             case json::type_bigint:
                 if (this->object.as_bigint() < *this->max_mean_size) { return true; }
             break;
+#endif
             case json::type_decimal:
                 if (this->object.as_decimal() < *this->max_mean_size) { return true; }
             break;
@@ -834,9 +887,11 @@ bool manapi::json_builder::_check_min_mean() {
         case json::type_integer:
             if (this->object.as_integer() > *this->min_mean_size) { return true; }
         break;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         case json::type_bigint:
             if (this->object.as_bigint() > *this->min_mean_size) { return true; }
         break;
+#endif
         case json::type_decimal:
             if (this->object.as_decimal() > *this->min_mean_size) { return true; }
         break;
