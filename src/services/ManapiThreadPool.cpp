@@ -78,7 +78,7 @@ namespace manapi {
         {
             std::lock_guard<std::mutex> lk (this->queue_mutex);
             for (auto &row : this->tasks_by_thread) {
-                row.push_back(std::make_unique<net::function_task>(cb));
+                row.push_back(std::make_unique<function_task>(cb));
             }
         }
 
@@ -142,7 +142,7 @@ namespace manapi {
 
     template<class T>
     void threadpool<T>::append_task(std::move_only_function<void()> cb) {
-        this->append_task(std::make_unique<net::function_task>(std::move(cb)));
+        this->append_task(std::make_unique<function_task>(std::move(cb)));
     }
 
     template<class T>

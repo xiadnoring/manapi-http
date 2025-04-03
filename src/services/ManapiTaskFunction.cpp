@@ -2,20 +2,20 @@
 
 #include <utility>
 
-manapi::net::function_task::function_task(std::move_only_function <void ()> func) {
+manapi::function_task::function_task(std::move_only_function <void ()> func) {
     this->func = std::move(func);
 }
 
-manapi::net::function_task::function_task(function_task &&task) noexcept {
+manapi::function_task::function_task(function_task &&task) noexcept {
     this->func = std::move(task.func);
 }
 
-manapi::net::function_task & manapi::net::function_task::operator=(function_task &&task) noexcept {
+manapi::function_task & manapi::function_task::operator=(function_task &&task) noexcept {
     this->func = std::move(task.func);
     return *this;
 }
 
-void manapi::net::function_task::doit() {
+void manapi::function_task::doit() {
     if (this->func) {
         this->func();
     }

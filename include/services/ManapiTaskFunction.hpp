@@ -4,7 +4,7 @@
 #include "./ManapiTask.hpp"
 #include "../ManapiUtils.hpp"
 
-namespace manapi::net {
+namespace manapi {
     class function_task : public task {
     public:
         function_task(std::move_only_function <void ()> func);

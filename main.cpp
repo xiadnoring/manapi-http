@@ -43,9 +43,15 @@ using namespace std;
 int main (int argc, char *argv[]) {
     manapi::debug::debug_print_memory("start");
 
+
     {
         auto ctx = manapi::async::context::create(std::thread::hardware_concurrency(), 0.01);
         ctx->eventloop()->setup_handle_interrupt();
+
+
+        auto task = std::make_unique<manapi::function_task> ([] ()
+            -> void { std::cout << "Hello World\n"; });
+        ctx->taskpool()->append_task(std::move(task));
 
         http::server server (ctx);
         server.config("./config.json");
@@ -66,12 +72,18 @@ int main (int argc, char *argv[]) {
             co_return;
         }, nullptr, nullptr);
 
-        server.GET ("/response", [&server] (REQ(req), RESP(resp)) -> manapi::future<void> {
-            printf("3 sec later...\n");
+        server.GET ("/test78", [&server, ctx] (REQ(req), RESP(resp)) -> manapi::future<void> {
 
-            co_await manapi::async::delay{server.async_context(), 5000};
-            resp.text("5 sec later...");
-            co_return;
+            co_await ctx->timerpool()->async_append_timer_async(500, [ctx] (manapi::timer t) -> manapi::future<> {
+                /**
+                 * called in the event loop thread.
+                 * from other threads (which aren't an event loop) it will be undefined behaviour (UB)
+                 */
+                co_await ctx->timerpool()->async_append_interval_sync(500, [ctx, index = 0] (manapi::timer t) mutable
+                    -> void { std::cout << std::format("interval: cnt {}\n", index++); });
+            });
+
+            co_return resp.text("timer has been added");
         });
 
         server.GET ("/lenar", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
@@ -314,6 +326,7 @@ int main (int argc, char *argv[]) {
         });
 
         server.GET("/audio", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
+
             resp.partial_enabled(true);
             resp.compress_enabled(true);
             resp.compress("gzip");

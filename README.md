@@ -158,7 +158,7 @@ int main () {
     router.GET("/video", [](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
         resp.partial_status(true);
         resp.compress_enabled(false);
-        co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+        co_return resp.file("video.mp4");
     });
 
     router.GET("/stop", [ctx](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
