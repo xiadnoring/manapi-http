@@ -10,11 +10,10 @@
 #include "./base_worker.hpp"
 #include "./TCP.hpp"
 
-namespace manapi::net::worker {
-#include <wolfssl/options.h>
-#include <wolfssl/wolfio.h>
-#include <wolfssl/ssl.h>
+struct WOLFSSL;
+struct WOLFSSL_CTX;
 
+namespace manapi::net::worker {
     class WolfSSL_TLS : public worker::TCP {
     public:
         struct connection_interface : TCP::connection_interface {

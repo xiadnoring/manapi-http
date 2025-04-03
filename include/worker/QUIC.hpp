@@ -9,6 +9,8 @@
 #include "./QUIC_CB_Base.hpp"
 #include "./UDP.hpp"
 
+#if MANAPIHTTP_OPENSSL_DEPENDENCY
+
 namespace manapi::net::worker {
     class quic : public udp {
     public:
@@ -88,3 +90,6 @@ namespace manapi::net::worker {
         quic_packet_header_byte_t parse_header_byte (uint8_t hb);
     };
 }
+
+
+#endif

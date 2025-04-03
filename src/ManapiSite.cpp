@@ -96,7 +96,10 @@ void manapi::net::site::setup() {
     this->transport_protocol_worker("quic", "tquic", worker::http_v3_tquic::create);
 #endif
 
+#ifdef MANAPIHTTP_DEFAULT_QUIC
     this->transport_protocol_worker("quic", "default", worker::quic::create);
+#endif
+
 }
 
 void manapi::net::site::config(std::string path) {

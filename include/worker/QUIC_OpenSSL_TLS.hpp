@@ -4,6 +4,10 @@
 #include "../ManapiSite.hpp"
 #include "./QUIC_CB_Base.hpp"
 
+#if MANAPIHTTP_OPENSSL_DEPENDENCY
+
+#define MANAPIHTTP_DEFAULT_QUIC
+
 #include <openssl/ssl.h>
 
 namespace manapi::net::worker {
@@ -43,3 +47,6 @@ namespace manapi::net::worker {
         std::string rbuf;
     };
 }
+
+
+#endif

@@ -3,6 +3,10 @@
 
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
 
+#include <wolfssl/options.h>
+#include <wolfssl/wolfio.h>
+#include <wolfssl/ssl.h>
+
 #include <iostream>
 #include <csignal>
 #include <utility>
@@ -289,7 +293,7 @@ int manapi::net::worker::WolfSSL_TLS::wolfssl_async_callback(connection &storage
     return 0;
 }
 
-manapi::net::worker::WOLFSSL_CTX * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &version) {
+WOLFSSL_CTX * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &version) {
     WOLFSSL_METHOD *method;
     WOLFSSL_CTX *ctx;
 
@@ -317,41 +321,42 @@ manapi::net::worker::WOLFSSL_CTX * manapi::net::worker::WolfSSL_TLS::ssl_create_
     // SSL_CTX_set_max_send_fragment(ctx, this->config->buffer_size());
     // SSL_CTX_set_default_read_buffer_len(ctx, this->config->buffer_size());
 
-    wolfSSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
+    wolfSSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
     //wolfSSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
-
     //SSL_CTX_set_cipher_list(ctx,"TLS_AES_256_GCM_SHA384");
-    // wolfSSL_CTX_set_alpn_select_cb(ctx, [] (WOLFSSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,
-    //     unsigned int inlen, void *arg) -> int {
-    //     auto worker = static_cast<WolfSSL_TLS *> (arg);
-    //     std::vector <std::string> wishs;
-    //     switch (worker->config->get_http_version()) {
-    //         case http::versions::HTTP_v1_1:
-    //             wishs.emplace_back("http/1.1");
-    //         break;
-    //         case http::versions::HTTP_v2:
-    //             wishs.emplace_back("h2");
-    //         break;
-    //     }
-    //
-    //     std::map <std::string_view, int > exists;
-    //     int j = 0;
-    //     for (int i = 0; i < inlen;j++) {
-    //         int plen = in[i++];
-    //         std::string_view buff (reinterpret_cast<const char *>(in) + i, reinterpret_cast<const char *>(in) + i + plen);
-    //         exists.insert({buff, j});
-    //         i += plen;
-    //     }
-    //     for (const auto &wish: wishs) {
-    //         auto it = exists.find(wish);
-    //         if (it != exists.end()) {
-    //             *out = reinterpret_cast<const unsigned char *> (it->first.data());
-    //             *outlen = it->first.size();
-    //             return 0;
-    //         }
-    //     }
-    //     return -1;
-    // }, this);
+#if MANAPIHTTP_WOLFSSL_WITH_ALPN
+    wolfSSL_CTX_set_alpn_select_cb(ctx, [] (WOLFSSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,
+        unsigned int inlen, void *arg) -> int {
+        auto worker = static_cast<WolfSSL_TLS *> (arg);
+        std::vector <std::string> wishs;
+        switch (worker->config->get_http_version()) {
+            case http::versions::HTTP_v1_1:
+                wishs.emplace_back("http/1.1");
+            break;
+            case http::versions::HTTP_v2:
+                wishs.emplace_back("h2");
+            break;
+        }
+
+        std::map <std::string_view, int > exists;
+        int j = 0;
+        for (int i = 0; i < inlen;j++) {
+            int plen = in[i++];
+            std::string_view buff (reinterpret_cast<const char *>(in) + i, reinterpret_cast<const char *>(in) + i + plen);
+            exists.insert({buff, j});
+            i += plen;
+        }
+        for (const auto &wish: wishs) {
+            auto it = exists.find(wish);
+            if (it != exists.end()) {
+                *out = reinterpret_cast<const unsigned char *> (it->first.data());
+                *outlen = it->first.size();
+                return 0;
+            }
+        }
+        return -1;
+    }, this);
+#endif
 
     return ctx;
 }

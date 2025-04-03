@@ -10,6 +10,8 @@
 #include "crypto/ManapiHKDF.hpp"
 #include "worker/QUIC_OpenSSL_TLS.hpp"
 
+#if MANAPIHTTP_OPENSSL_DEPENDENCY
+
 static constexpr char SHA1_FIRST_COLLISION[] = "38762cf7f55934b34d179ae6a4c80cadccbb7f0a";
 
 const int manapi::net::worker::quic::aead_token_size = 16;
@@ -572,3 +574,5 @@ void manapi::net::worker::quic::_replace_prev_byte_with(std::string &buffer, ssi
 
     buffer[i-1] = static_cast<char>(c);
 }
+
+#endif

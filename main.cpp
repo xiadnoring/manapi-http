@@ -321,6 +321,22 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
+        server.GET("/cat/[id]", [&ctx](http::server::req req, http::server::resp resp) -> manapi::future<> {
+            auto fetch = co_await manapi::net::fetch2::fetch (ctx, "https://dragonball-api.com/api/planets/" + req.param("id"), {
+                {"enable_ssl_verify", false},
+                {"enable_alpn", true},
+                {"method", "GET"}
+            });
+
+            if (!fetch->ok()) {
+                co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
+            }
+
+            auto data = co_await fetch->json();
+
+            co_return resp.text(std::move(data["description"].as_string()));
+        });
+
         server.GET("/freeze", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             resp.text(std::to_string(1));
             co_return;

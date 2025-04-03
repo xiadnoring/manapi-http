@@ -59,7 +59,7 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : pre
         -> void { this->callback_watcher.adding_async->send(); };
 
 #if MANAPIHTTP_CURL_DEPENDENCY
-    this->curl_watcher.curl_multi_mx = std::make_shared<async::mutex>(taskpool);
+    this->curl_watcher.curl_multi_mx = std::make_shared<async::mutex>(this->taskpool);
     this->curl_watcher.curl_multi.reset(curl_multi_init());
     this->curl_watcher.adding_curl_multi_async = this->create_watcher_async([this] (ev::async &w, int revents)
         -> void { this->custom_watcher_curl_async(w, revents); });

@@ -3,7 +3,6 @@
 #include "../ManapiUtils.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
-#include <openssl/ssl.h>
 
 #if defined(__unix__)||defined(__APPLE__)
 #   include <netdb.h>
@@ -16,7 +15,7 @@ namespace manapi::net::worker {
     class OpenSSL_TLS : public worker::TCP {
     public:
         struct connection_interface : TCP::connection_interface {
-            SSL *ssl{};
+            struct SSL *ssl{};
             std::unique_ptr<async::mutex> mx;
             manapi::timer accept_timer;
         };
@@ -37,16 +36,16 @@ namespace manapi::net::worker {
         void update_limit_rate_connection(connection &conn) override;
     private:
         static void connection_interface_eraser (void *ptr);
-        static int _gl_openssl_async_callback (SSL *ssl, void *argp);
+        static int _gl_openssl_async_callback (struct SSL *ssl, void *argp);
         int openssl_async_callback (connection &storage);
-        SSL_CTX* ssl_create_context (const size_t &version = http::versions::TLS_v1_3);
+        struct SSL_CTX* ssl_create_context (const size_t &version = http::versions::TLS_v1_3);
         void ssl_configure_context ();
         void ssl_get_error ();
 
         future<ssize_t> ssl_write (connection &conn, const void *buff, ssize_t size);
         future<ssize_t> ssl_read (connection &conn, void *buff, ssize_t size);
 
-        SSL_CTX *ctx = nullptr;
+        struct SSL_CTX *ctx = nullptr;
         int ssl_session_ctx_id{1};
     };
 }

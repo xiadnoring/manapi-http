@@ -1,5 +1,7 @@
 #include "worker/QUIC_OpenSSL_TLS.hpp"
 
+#if MANAPIHTTP_OPENSSL_DEPENDENCY
+
 #include <openssl/err.h>
 
 #include "ManapiParams.hpp"
@@ -205,3 +207,5 @@ manapi::future<> manapi::net::worker::quic_openssl_tls::_deinit_ssl() {
     SSL_free(this->ssl);
     co_return;
 }
+
+#endif
