@@ -13,21 +13,33 @@ So many important utils will be supported out of the box, for example, `JSON`, `
 
 ## Installation
 For compile this project, you need to install below projects:
-- OpenSSL 3.3.1 or greater
-- zlib 1.3.1 or greater
-- gmp 6.3.0 or greater
-- libev 4.33-3 or greater
-- curl 8.8.0-1 or greater
+- OpenSSL 3.3.1 or greater **\[optional\]**
+- zlib 1.3.1 or greater **\[optional\]**
+- gmp 6.3.0 or greater **\[optional\]**
+- libev 4.33-3 or greater **\[required\]**
+- curl 8.8.0-1 or greater **\[optional\]**
+- wolfssl 5.5.0 or greater **\[optional\]**
+- quiche 0.22.0 or greater **\[optional\]**
+- tquic 1.5.0 or greater **\[optional\]**
 
 ### For Arch Linux
 ```bash
-pacman -S gmp openssl libev zlib libevdev curl
+pacman -Sy libev
+```
+
+```bash
+# optinal
+pacman -Sy gmp openssl zlib libevdev curl
 ```
 
 or 
 
 ```bash
-paru -S gmp openssl libev zlib libevdev curl
+paru -Sy libev
+```
+
+```bash
+paru -Sy gmp openssl zlib libevdev curl
 ```
 
 ### For Windows
