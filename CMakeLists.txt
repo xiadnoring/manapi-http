@@ -20,6 +20,7 @@ OPTION(MANAPIHTTP_MSQUIC_DEPENDENCY "The QUIC Implementation by Microsoft" ON)
 OPTION(MANAPIHTTP_OPENSSL_DEPENDENCY "TLS, QUIC and etc implementations by OpenSSL" ON)
 OPTION(MANAPIHTTP_WOLFSSL_DEPENDENCY "TLS, QUIC and etc implementations by WolfSSL" ON)
 OPTION(MANAPIHTTP_BUILD_METHOD "Build method" "default")
+OPTION(MANAPIHTTP_WOLFSSL_WITH_ALPN "WolfSSL with ALPN" ON)
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 
@@ -149,13 +150,6 @@ endif ()
 
 
 include(CheckLibraryExists)
-
-set(MANAPIHTTP_WOLFSSL_WITH_ALPN OFF)
-
-if (MANAPIHTTP_WOLFSSL_DEPENDENCY)
-    # check alpn exists
-    check_library_exists(wolfssl wolfSSL_CTX_set_alpn_select_cb "" MANAPIHTTP_WOLFSSL_WITH_ALPN)
-endif ()
 
 file(READ preprocess/ManapiParams.hpp TEXT)
 string(REPLACE "{{ VAR_MANAPIHTTP_JSON_DEBUG }}" $<BOOL:${MANAPIHTTP_JSON_DEBUG}> TEXT "${TEXT}")

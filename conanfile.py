@@ -54,9 +54,6 @@ class ManapiHttpConan(ConanFile):
         cmake_layout(self)
 
     def generate(self):
-        deps = CMakeDeps(self)
-        deps.generate()
-
         tc = CMakeToolchain(self)
         tc.variables['MANAPIHTTP_BUILD_METHOD'] = "conan"
         tc.variables['MANAPIHTTP_JSON_DEBUG'] = self.options.get_safe('json_debug', False)
@@ -69,7 +66,11 @@ class ManapiHttpConan(ConanFile):
         tc.variables['MANAPIHTTP_ZLIB_DEPENDENCY'] = self.options.get_safe('zlib_dependency', False)
         tc.variables['MANAPIHTTP_MSQUIC_DEPENDENCY'] = self.options.get_safe('msquic_dependency', False)
         tc.variables['MANAPIHTTP_BUILD_TYPE'] = 'lib' if self.options.get_safe('lib', False) else 'exe'
+        tc.cache_variables["CMAKE_TRY_COMPILE_CONFIGURATION"] = str(self.settings.build_type)
         tc.generate()
+
+        deps = CMakeDeps(self)
+        deps.generate()
 
     def build(self):
         cmake = CMake(self)

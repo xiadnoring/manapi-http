@@ -49,6 +49,7 @@ namespace manapi::net::worker {
 
         WOLFSSL_CTX *ctx = nullptr;
         int ssl_session_ctx_id{1};
+        std::string alpn_protocol_list;
     };
 }
 #endif
