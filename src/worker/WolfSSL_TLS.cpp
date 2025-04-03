@@ -347,7 +347,9 @@ WOLFSSL_CTX * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t 
     // SSL_CTX_set_default_read_buffer_len(ctx, this->config->buffer_size());
 
     wolfSSL_CTX_set_options(ctx, WOLFSSL_OP_NO_SSLv2);
+#if MANAPIHTTP_WOLFSSL_WITH_ALPN
     wolfSSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
+#endif
     wolfSSL_CTX_set_cipher_list(ctx,"TLS_AES_256_GCM_SHA384");
 
     return ctx;

@@ -3,68 +3,90 @@ title: Installation
 description: How to install that library
 ---
 ## Introduction
-There are two methods to install: installation with conan and installation with system shared libraries.
+There are two ways to install the library: installation using conan and installation using system shared libraries.
 
 I thought about creating dependencies in the project directory too, but I don't need this build method yet.
 
 ## Using system libraries
-For the first step, you need to clone this github project with from [the following link](https://github.com/xiadnoring/manapi-http)
+At the first stage, you need to clone this github project with from [the following link](https://github.com/xiadnoring/manapi-http)
 and download dependencies from the os repositories for Arch Linux, Ubuntu; or you need to compile it from the source.
-- [OpenSSL](https://github.com/openssl/openssl) ([OpenSSL >=3.4.1](https://github.com/openssl/openssl/releases/tag/openssl-3.4.1))
-- [zlib](https://github.com/madler/zlib) ([zlib >=1.3.1](https://github.com/madler/zlib/releases/tag/v1.3.1))
-- [gmp](https://gmplib.org/) ([gmp >=6.3.0](https://gmplib.org/download/gmp/gmp-6.3.0.tar.bz2))
-- [libev](https://dist.schmorp.de/libev/Attic/) ([libev >=4.33](https://dist.schmorp.de/libev/Attic/libev-4.33.tar.gz))
-- [curl](https://github.com/curl/curl) ([curl >=8.8.0](https://github.com/curl/curl/releases/tag/curl-8_13_0))
-
+- OpenSSL is optional [3.4.1 or greater](https://github.com/openssl/openssl/releases/tag/openssl-3.4.1)
+- zlib is optional [1.3.1 or greater](https://github.com/madler/zlib/releases/tag/v1.3.1)
+- gmp is optional [6.3.0 or greater](https://gmplib.org/download/gmp/gmp-6.3.0.tar.bz2)
+- **libev is required** [4.33 or greater](https://dist.schmorp.de/libev/Attic/libev-4.33.tar.gz)
+- curl is optional [8.8.0 or greater](https://github.com/curl/curl/releases/tag/curl-8_13_0)
+- wolfssl is optional [5.0.0 or greater](https://github.com/wolfSSL/wolfssl/releases/tag/v5.7.6-stable)
+- quiche is optional [0.23.0 or greater](https://github.com/cloudflare/quiche/releases/tag/0.23.5)
+- tquic is optional [1.6.0 or greater](https://github.com/Tencent/tquic/releases/tag/v1.6.0)
 ### Arch Linux
 
 #### Pacman & Yay
 ```bash
-sudo pacman -Sy gmp openssl libev zlib libevdev curl
+sudo pacman -Sy libevdev libev
 ```
 
 
 ```bash
-# optionaly
-sudo pacman -Sy quiche
+# optional
+sudo pacman -Sy quiche gmp openssl zlib curl
 ```
 
 #### Paru
 ```bash
-paru -Sy gmp openssl libev zlib libevdev curl
+paru -Sy libev libevdev
 ```
 
 ```bash
-# optionaly
-sudo paru -Sy quiche
+# optional
+sudo paru -Sy quiche gmp openssl zlib curl
 ```
 
 ### Ubuntu
 
 #### Apt-Get
 ```bash
-sudo apt-get install libgmp3-dev libssl-dev libev-dev zlib1g-dev libcurl4-openssl-dev
+sudo apt-get install libev-dev
+```
+
+```bash
+# optional
+sudo apt-get install libgmp3-dev libssl-dev zlib1g-dev libcurl4-openssl-dev
 ```
 
 ### Build & Install
 
 Execute cmake to build and install manapihttp library
+
+#### Setup
 ```bash
-cmake -DCMAKE_BUILD_TYPE=Release -DMANAPIHTTP_BUILD_TYPE=lib
+cmake -B ./build -DCMAKE_BUILD_TYPE=Release -DMANAPIHTTP_BUILD_METHOD="default" -DBUILD_SHARED_LIBS=ON -DMANAPIHTTP_BUILD_TYPE=lib \
+    -DMANAPIHTTP_OPENSSL_DEPENDENCY=ON -DMANAPIHTTP_WOLFSSL_DEPENDENCY=ON \
+    -DMANAPIHTTP_GMP_DEPENDENCY=ON -DMANAPIHTTP_ZLIB_DEPENDENCY=ON -DMANAPIHTTP_CURL_DEPENDENCY=ON -DMANAPIHTTP_QUICHE_DEPENDENCY=ON \
+    -DMANAPIHTTP_TQUIC_DEPENDENCY=ON -DMANAPIHTTP_MSQUIC_DEPENDENCY=ON -MANAPIHTTP_JSON_DEBUG=ON
+```
+
+#### Build
+```bash
+cmake --build ./build
+```
+
+#### Install
+```bash
+sudo cmake --install ./build
 ```
 
 ## Using conan
-With conan you need only to clone this github project from the [the following link](https://github.com/xiadnoring/manapi-http) and
-create the conan package from the source with the bash-like commands bellow:
+Using conan you only need to clone this github project from the [the following link](https://github.com/xiadnoring/manapi-http) and
+create the conan package from the source using the bash-like commands bellow:
 
 ```bash
-# quiche http3 backend (optionaly)
+# quiche http3 backend (optional)
 conan create ./conan/quiche --version 0.23.4
 ```
 
 ```bash
-# tquic http3 backend (optionaly)
-conan create ./conan/tquic --version 1.9.9
+# tquic http3 backend (optional)
+conan create ./conan/tquic --version 1.6.0
 ```
 
 ```bash

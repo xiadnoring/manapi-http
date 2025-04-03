@@ -3,4 +3,72 @@ title: Quick start
 description: Quick Start
 ---
 
-hello
+After installation, iniclude the library using CMakeLists.txt. 
+
+## Preparation
+
+Import the ManapiHttp library to your project.
+
+### Using System Libraries (Default)
+```cmake
+find_package(Threads REQUIRED)
+find_package(ManapiHttp REQUIRED)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads manapihttp)
+```
+
+### Using Conan
+```cmake
+find_package(manapihttp REQUIRED)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE manapihttp::manapihttp)
+```
+
+<Callout title="Rust libraries with the ManapiHttp shared library">
+    If you are using the rust libraries such as quiche or tquic, you should link these libraries again to your project to avoid undefined symbols error.
+</Callout>
+
+## Building
+
+All preparations were completed. Let's write the "hello world" programm.
+
+```c++
+#include <iostream>
+#include <format>
+
+#include <manapihttp/ManapiHttp.hpp>
+#include <manapihttp/ManapiFilesystem.hpp>
+
+int main () {
+    auto ctx = manapi::async::context::create();
+    manapi::net::http::server router (ctx);
+
+    ctx->eventloop()->setup_handle_interrupt();
+
+    router.config_object({
+        {"pools", manapi::json::array({
+            {
+                {"address", "127.0.0.1"},
+                {"http_version", "1.1"},
+                {"transport", "tcp"},
+                {"partial_data_min_size", 0},
+                {"implementation", "default"},
+                {"port", "8888"},
+                {"tcp_no_delay", true}
+            }
+        })},
+        {"save_config", false}
+    });
+
+    router.GET ("/", [](manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+        co_return resp.text("hello world");
+    });
+
+    manapi::async::run(ctx, [router] ()
+        -> manapi::future<> { return router.start(); });
+
+    ctx->sync_start();
+
+    return 0;
+}
+```

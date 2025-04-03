@@ -1,22 +1,14 @@
 {
   "pools": [
     {
-      "address": "::1",
-      "http_version": "3",
-      "transport": "quic",
-      "implementation": "quiche",
+      "address": "127.0.0.1",
+      "http_version": "1.1",
+      "transport": "tcp",
+      "implementation": "default",
       "partial_data_min_size": 0,
       "port": "8888",
-      "buffer_size": 65536,
-      "quic_cc_algo": "RENO",
-      "quic_debug": false,
-      "ssl": {
-        "cert": "self-signed-ssl/cert.crt",
-        "enabled": true,
-        "key": "self-signed-ssl/cert.key"
-      }
+      "buffer_size": 65536
     }
   ],
-  "save_config": false,
-  "cache_dir": "/tmp/manapi_http/cache/"
+  "save_config": false
 }

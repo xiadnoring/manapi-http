@@ -13,14 +13,14 @@ So many important utils will be supported out of the box, for example, `JSON`, `
 
 ## Installation
 For compile this project, you need to install below projects:
-- OpenSSL 3.3.1 or greater **\[optional\]**
-- zlib 1.3.1 or greater **\[optional\]**
-- gmp 6.3.0 or greater **\[optional\]**
-- libev 4.33-3 or greater **\[required\]**
-- curl 8.8.0-1 or greater **\[optional\]**
-- wolfssl 5.5.0 or greater **\[optional\]**
-- quiche 0.22.0 or greater **\[optional\]**
-- tquic 1.5.0 or greater **\[optional\]**
+- OpenSSL 3.3.1 or greater \[optional\]
+- zlib 1.3.1 or greater \[optional\]
+- gmp 6.3.0 or greater \[optional\]
+- **libev 4.33-3 or greater \[required\]**
+- curl 8.8.0-1 or greater \[optional\]
+- wolfssl 5.5.0 or greater \[optional\]
+- quiche 0.22.0 or greater \[optional\]
+- tquic 1.5.0 or greater \[optional\]
 
 ### For Arch Linux
 ```bash
@@ -77,11 +77,11 @@ cmake ... -DMANAPIHTTP_BUILD_METHOD=conan
 int main () {
     auto ctx = manapi::async::context::create();
     auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
-    auto router = std::make_shared<manapi::net::http::server> (ctx);
+    manapi::net::http::server router (ctx) 
 
     ctx->eventloop()->setup_handle_interrupt();
 
-    router->config_object({
+    router.config_object({
         {"pools", manapi::json::array({
             {
                 {"address", "127.0.0.1"},
@@ -99,15 +99,14 @@ int main () {
                 {"tcp_no_delay", true}
             }
         })},
-        {"cache_dir", "/tmp/manapi_http/cache/"},
         {"save_config", false}
     });
 
-    router->GET ("/", [cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) mutable -> manapi::future<> {
+    router.GET ("/", [cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::req req, decltype(router)::resp resp) mutable -> manapi::future<> {
         co_return resp.text(std::format("Hello World! Count: {}", cnt->fetch_add(1)));
     });
 
-    router->GET("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    router.GET("/+error", [](decltype(router)::req req, decltype(router):::resp resp) -> manapi::future<> {
         resp.replacers({
             {"status_code", std::to_string(resp.status_code())},
             {"status_message", std::string{resp.status_message()}}
@@ -116,12 +115,12 @@ int main () {
         co_return resp.file ("../examples/error.html");
     });
 
-    router->POST("/+error", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    router.POST("/+error", [](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
         co_return resp.json({{"error", resp.status_code()},
                 {"msg", std::string{resp.status_message()}}});
     });
 
-    router->GET("/cat", [&ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    router.GET("/cat", [&ctx](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
         auto fetch = co_await manapi::net::fetch2::fetch (ctx, "https://dragonball-api.com/api/planets/7", {
             {"enable_ssl_verify", false},
             {"enable_alpn", true},
@@ -137,7 +136,7 @@ int main () {
         co_return resp.text(std::move(data["description"].as_string()));
     });
 
-    router->GET("/pq", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    router.GET("/pq", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
         auto lk = co_await mx->lock_guard();
         /* The pool of database connections here / That example is so slow */
         auto res = co_await db->exec("SELECT id, str_col FROM for_test WHERE id > $1", 0);
@@ -152,23 +151,23 @@ int main () {
         co_return resp.text(std::move(content));
     });
 
-    router->GET("/proxy", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    router.GET("/proxy", [](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
         co_return resp.proxy("http://127.0.0.1:8889/video");
     });
 
-    router->GET("/video", [](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    router.GET("/video", [](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
         resp.partial_status(true);
         resp.compress_enabled(false);
         co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
     });
 
-    router->GET("/stop", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    router.GET("/stop", [ctx](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
         /* stop the app */
         co_await ctx->stop();
         co_return resp.text("stopped");
     });
 
-    router->GET("/timeout", [ctx](decltype(router)::element_type::req req, decltype(router)::element_type::resp resp) -> manapi::future<> {
+    router.GET("/timeout", [ctx](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
         /* stop the app */
         co_await manapi::async::delay{ctx, 10000};
         co_return resp.text("10sec");
@@ -176,7 +175,7 @@ int main () {
 
     manapi::async::run(ctx, [router, db] () -> manapi::future<> {
         co_await db->connect("address", "port", "username", "password", "db");
-        co_await router->start();
+        co_await router.start();
     });
 
     ctx->sync_start();

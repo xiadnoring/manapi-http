@@ -71,9 +71,28 @@ namespace manapi::net {
     };
 
     class site {
+        struct data_t {
+            std::shared_ptr<async::context> ctx;
+            async::mutex cache_config_mx;
+            manapi::json cache_config;
+            manapi::json config_;
+            std::string config_path;
+            std::string config_cache_dir;
+            bool enabled_save_config;
+            http_uri_part handlers;
+            std::map <std::string, std::function<future<bool>(const std::string &src, const std::string &dest)>> compressors{};
+            std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers{};
+            object_pool<bytebuffer, std::false_type, std::size_t> bufferpool_{};
+            std::mutex loopmx{};
+        };
     public:
         site (const std::shared_ptr<async::context> &ctx);
         virtual ~site();
+
+        site (site &&n) noexcept;
+        site &operator=(site &&n) noexcept;
+        site (const site &n);
+        site &operator=(const site &n);
 
         http_uri_part *handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
         http_uri_part *handler (std::string method, std::string uri, std::string folder);
@@ -96,37 +115,23 @@ namespace manapi::net {
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
 
         [[nodiscard]] const std::shared_ptr<async::context>& async_context ();
-
-        std::string config_cache_dir;
-        async::mutex cache_config_mx;
-
         object_pool<bytebuffer, std::false_type, std::size_t> &bufferpool();
+
+        [[nodiscard]] const std::string &config_cache_dir();
+        [[nodiscard]] async::mutex &cache_config_mx();
+
     protected:
         void setup ();
         void setup_config ();
         void save ();
         void save_config ();
 
-        std::shared_ptr<async::context> ctx;
-        manapi::json config_;
-        std::mutex loopmx;
-        object_pool<bytebuffer, std::false_type, std::size_t> bufferpool_{};
+        std::shared_ptr<data_t> data;
     private:
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);
 
-        manapi::json cache_config;
-        std::string config_path = "/tmp/http.json";
-        bool enabled_save_config = false;
-
-        http_uri_part handlers;
-
-
-        std::map <std::string, std::function<future<bool>(const std::string &src, const std::string &dest)>> compressors;
-        std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers;
-
-        static std::string default_cache_dir;
         static std::string default_config_name;
     };
 }

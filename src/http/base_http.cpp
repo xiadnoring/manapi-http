@@ -88,7 +88,7 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
             THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
         }
 
-        filepath = co_await this->compress_file(res.file(), site.config_cache_dir, features.compress, features.compressor);
+        filepath = co_await this->compress_file(res.file(), this->site.config_cache_dir(), features.compress, features.compressor);
     }
     else {
         filepath = res.file();
@@ -747,7 +747,7 @@ manapi::future<std::string> manapi::net::http::base::compress_file(const std::st
     std::string filepath;
 
     // compressor
-    auto lk = co_await this->site.cache_config_mx.lock_guard();
+    auto lk = co_await this->site.cache_config_mx().lock_guard();
     auto cached = this->site.get_compressed_cache_file(file, compress);
 
     if (cached.empty()) {

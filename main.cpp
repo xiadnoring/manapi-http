@@ -64,7 +64,7 @@ int main (int argc, char *argv[]) {
                 resp.text(std::format("You wrote: {}", msg));
             }
             co_return;
-        }, {{"hello", "{string(<=100)}"}}, nullptr);
+        }, nullptr, nullptr);
 
         server.GET ("/response", [&server] (REQ(req), RESP(resp)) -> manapi::future<void> {
             printf("3 sec later...\n");

@@ -15,7 +15,7 @@ export default function HomePage() {
             Build and run microservices written in C++ with different HTTP implementations
           </div>
           <div className="flex gap-2 justify-center md:justify-start">
-            <a className="bg-red-300 transition-colors py-2 px-4 rounded-[1.8rem] text-black hover:bg-red-200" href="./docs/quick-start">Quick Start</a>
+            <a className="bg-red-300 transition-colors py-2 px-4 rounded-[1.8rem] text-black hover:bg-red-200" href="./docs/intro/quick-start">Quick Start</a>
             <a className="bg-gray-300 text-black hover:bg-gray-200 dark:bg-gray-800 transition-colors py-2 px-4 rounded-[1.8rem] dark:hover:bg-gray-700 dark:text-white" href="./docs/">Documentation</a>
           </div>
         </div>
