@@ -3,20 +3,29 @@
 
 #include "ManapiInitTools.hpp"
 #include "extensions/ev++.h"
-#if MANAPIHTTP_CURL_DEPENDENCY
-#include "curl/curl.h"
-#endif
 
 static std::atomic<bool> openssl_gl_init = false;
+
+#if MANAPIHTTP_OPENSSL_DEPENDENCY
+namespace manapi::init_tools::openssl {
+#   include <openssl/ssl.h>
+}
+#endif
+
+#if MANAPIHTTP_CURL_DEPENDENCY
+namespace manapi::init_tools::curl {
+#   include "curl/curl.h"
+}
+#endif
 
 void manapi::init_tools::ssl_library_init() {
     auto value = openssl_gl_init.exchange(true);
 
     if (!value) {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
-        OpenSSL_add_ssl_algorithms();
-        SSL_load_error_strings();
-        OpenSSL_add_all_algorithms();
+        openssl::OpenSSL_add_ssl_algorithms();
+        openssl::SSL_load_error_strings();
+        openssl::OpenSSL_add_all_algorithms();
 #endif
     }
 }
@@ -32,7 +41,5 @@ void manapi::init_tools::ev_library_init() {
 }
 
 void manapi::init_tools::curl_library_init() {
-#if MANAPIHTTP_CURL_DEPENDENCY
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-#endif
+    curl::curl_global_init(CURL_GLOBAL_DEFAULT);
 }

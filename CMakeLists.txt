@@ -357,38 +357,38 @@ find_package(Threads)
 target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
-    target_link_libraries (${PROJECT_NAME} PRIVATE libev::libev)
+    target_link_libraries (${PROJECT_NAME} PUBLIC libev::libev)
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
-        target_link_libraries(${PROJECT_NAME} PRIVATE PostgreSQL::PostgreSQL cpptrace::cpptrace)
+        target_link_libraries(${PROJECT_NAME} PUBLIC PostgreSQL::PostgreSQL cpptrace::cpptrace)
     endif ()
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PRIVATE gmp::gmp)
+        target_link_libraries(${PROJECT_NAME} PUBLIC gmp::gmp)
     endif ()
 
     if (MANAPIHTTP_ZLIB_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PRIVATE ZLIB::ZLIB)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ZLIB::ZLIB)
     endif ()
 
     if (MANAPIHTTP_CURL_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
+        target_link_libraries(${PROJECT_NAME} PUBLIC CURL::libcurl)
     endif ()
 
     if (MANAPIHTTP_OPENSSL_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PRIVATE openssl::openssl)
+        target_link_libraries(${PROJECT_NAME} PUBLIC openssl::openssl)
     endif ()
 
     if (MANAPIHTTP_WOLFSSL_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PRIVATE wolfssl::wolfssl)
+        target_link_libraries(${PROJECT_NAME} PUBLIC wolfssl::wolfssl)
     endif ()
 
     if (MANAPIHTTP_QUICHE_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PRIVATE quiche::quiche)
+        target_link_libraries(${PROJECT_NAME} PUBLIC quiche::quiche)
     endif ()
 
     if (MANAPIHTTP_TQUIC_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PRIVATE tquic::tquic)
+        target_link_libraries(${PROJECT_NAME} PUBLIC tquic::tquic)
     endif ()
 
     add_compile_definitions(MANAPIHTTP_CPPTRACE_DEPENDENCY=True)

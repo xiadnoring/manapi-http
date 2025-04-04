@@ -19,11 +19,13 @@
 #   include <openssl/evp.h>
 #   include <openssl/err.h>
 #   include <openssl/crypto.h>
+#   undef MANAPIHTTP_CRYPTO_LIBRARY
 #   define MANAPIHTTP_CRYPTO_LIBRARY 1 /* openssl */
 #elif MANAPIHTTP_WOLFSSL_DEPENDENCY && OPENSSL_EXTRA
 #   include <wolfssl/openssl/evp.h>
 #   include <wolfssl/openssl/err.h>
 #   include <wolfssl/openssl/crypto.h>
+#   undef MANAPIHTTP_CRYPTO_LIBRARY
 #   define MANAPIHTTP_CRYPTO_LIBRARY 2 /* wolfssl */
 #endif
 

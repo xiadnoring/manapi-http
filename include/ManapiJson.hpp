@@ -582,7 +582,7 @@ namespace manapi {
         void _parse (const BOOLEAN &val);
         // other
         void _parse (const nullptr_t &n);
-        
+
         static void delete_value_static (const short &type, void *src);
 
         void delete_value ();
@@ -592,7 +592,9 @@ namespace manapi {
         void _set_string ();
         void _set_integer ();
         void _set_decimal ();
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         void _set_bigint ();
+#endif
         void _set_nullptr ();
         void _set_pair ();
         void _set_object (OBJECT val);
@@ -610,7 +612,9 @@ namespace manapi {
         void _debug_symb_reinit () {
             _debug_bool_src = nullptr;
             _debug_array_src = nullptr;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
             _debug_bigint_src = nullptr;
+#endif
             _debug_object_src = nullptr;
             _debug_string_src = nullptr;
             _debug_integer_src = nullptr;
@@ -628,9 +632,11 @@ namespace manapi {
                 case type_integer:
                     _debug_integer_src = &this->as_integer();
                 break;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
                 case type_bigint:
                     _debug_bigint_src = &this->as_bigint();
                 break;
+#endif
                 case type_boolean:
                     _debug_bool_src = &this->as_bool();
                 break;
@@ -657,7 +663,9 @@ namespace manapi {
 #if MANAPIHTTP_JSON_DEBUG
         const BOOLEAN *_debug_bool_src    = nullptr;
         const ARRAY   *_debug_array_src   = nullptr;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         const BIGINT  *_debug_bigint_src  = nullptr;
+#endif
         const OBJECT  *_debug_object_src  = nullptr;
         const char  *_debug_string_src  = nullptr;
         const INTEGER *_debug_integer_src  = nullptr;

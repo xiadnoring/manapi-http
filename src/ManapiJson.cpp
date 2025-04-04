@@ -2,13 +2,13 @@
 #include <format>
 #include <utility>
 
-#include "ManapiJson.hpp"
 #include "ManapiUtils.hpp"
+#include "ManapiJson.hpp"
 #include "ManapiDebug.hpp"
 
 #include "ManapiBeforeDelete.hpp"
 #include "ManapiBigint.hpp"
-#include "../include/encoding/ManapiUnicode.hpp"
+#include "encoding/ManapiUnicode.hpp"
 #include "ManapiJsonBuilder.hpp"
 
 const static std::string JSON_TRUE   = "true";
