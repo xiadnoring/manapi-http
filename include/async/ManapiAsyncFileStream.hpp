@@ -47,6 +47,10 @@ namespace manapi::filesystem::async {
 
         fstream (const std::shared_ptr<manapi::async::context> &ctx, std::string_view path);
         fstream (const std::shared_ptr<event_loop> &eventloop, std::string_view path);
+        fstream (fstream &&n) noexcept;
+        fstream &operator=(fstream &&n) noexcept;
+        fstream (const fstream &n);
+        fstream &operator=(const fstream &n);
         future<> open (int flags = FILE_RESERVED, unsigned int mode = 0644);
         [[nodiscard]] bool is_open () const;
         ~fstream();

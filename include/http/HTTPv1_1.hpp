@@ -13,11 +13,12 @@ namespace manapi::net::http {
         ~http_v1_1 () override;
         static std::shared_ptr<http_v1_1> create (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         void doit() override;
-        manapi::future<void> parse_request(ssize_t j, ssize_t size) override;
+        manapi::future<bool> parse_request(ssize_t j, ssize_t size) override;
         manapi::future<void> execute_handler () override;
 
         [[nodiscard]] bool connection_was_upgraded () const;
         [[nodiscard]] versions::http get_upgraded_version () const;
+        future<ssize_t> read (void *buffer, ssize_t size) override;
     protected:
         void _skip_white_space (char &c);
         void _next_line (char &c);
@@ -44,6 +45,7 @@ namespace manapi::net::http {
         } parse_vars;
 
         versions::http upgraded = versions::HTTP_v1_1;
+        std::move_only_function<manapi::future<ssize_t>(void *buffer, ssize_t size)> read_async;
     };
 }
 

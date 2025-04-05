@@ -49,8 +49,8 @@ namespace manapi::net::http {
         void proxy (std::string url);
         void proxy (std::string url, std::move_only_function<void(class fetch &)> cb);
 #endif
-        void sync_callback (std::move_only_function<ssize_t(char *, ssize_t , bool &)> cb);
-        void async_callback (std::move_only_function<manapi::future<ssize_t>(char *, ssize_t , bool &)> cb);
+        void callback_sync (std::move_only_function<ssize_t(char *, ssize_t, bool&)> cb);
+        void callback_async (std::move_only_function<manapi::future<ssize_t>(char *, ssize_t, bool&)> cb);
 
         [[deprecated]]
         const std::string &http_version ();
@@ -93,8 +93,8 @@ namespace manapi::net::http {
         void clear_custom_data ();
         struct custom_data_t &custom_data ();
 
-        std::shared_ptr<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t, bool &)>> &async_callback();
-        std::shared_ptr<std::move_only_function<ssize_t(char *, ssize_t, bool &)>> &sync_callback();
+        std::shared_ptr<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t, bool&)>> &callback_async();
+        std::shared_ptr<std::move_only_function<ssize_t(char *, ssize_t, bool&)>> &callback_sync();
     private:
         // custom data for layers
         custom_data_t custom_data_;
@@ -123,7 +123,7 @@ namespace manapi::net::http {
         std::shared_ptr<std::move_only_function<void(class manapi::net::fetch &)>> proxy_setup{};
 #endif
         std::optional<formdata_send> formdata_;
-        std::shared_ptr<std::move_only_function<ssize_t(char *buffer, ssize_t size, bool &finished)>> sync_cb;
-        std::shared_ptr<std::move_only_function<manapi::future<ssize_t>(char *buffer, ssize_t size, bool &finished)>> async_cb;
+        std::shared_ptr<std::move_only_function<ssize_t(char *buffer, ssize_t size, bool&)>> sync_cb;
+        std::shared_ptr<std::move_only_function<manapi::future<ssize_t>(char *buffer, ssize_t size, bool&)>> async_cb;
     };
 }

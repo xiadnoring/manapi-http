@@ -53,7 +53,9 @@ manapi::future<> manapi::net::formdata_recv::_init(bool has_body, const std::str
     }
 
     auto &content_type_value = header[0].value;
-    *this->body_buffer_size = std::min(*this->body_buffer_size, *this->body_max_size_left);
+    if (*this->body_max_size_left >= 0) {
+        *this->body_buffer_size = std::min(*this->body_buffer_size, *this->body_max_size_left);
+    }
 
     if (content_type_value == mime::types.MULTIPART_FORM_DATA)
     {
@@ -148,7 +150,12 @@ manapi::future<void> manapi::net::formdata_recv::multipart_read_param (std::func
                 }
 
                 auto rhs = co_await this->body_read (this->body_buffer, static_cast<ssize_t>(this->buffer_size));
-                if (rhs <= 0) {
+                if (rhs == 0) {
+                    this->type = DATA_NONE;
+                    *this->body_max_size_left = 0;
+                    break;
+                }
+                if (rhs < 0) {
                     THROW_MANAPIHTTP_EXCEPTION2(ERR_FILE_IO, "FormData: Connection was closed");
                 }
                 *this->body_index = 0;
@@ -298,7 +305,7 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
     std::string buffer;
     bool value = type != DATA_NONE;
 
-    for (; *this->body_index < *this->body_max_size_left; (*this->body_index)++) {
+    for (; *this->body_max_size_left < 0 || *this->body_index < *this->body_max_size_left; (*this->body_index)++) {
         // if (buffer.size() > config->get_partial_data_min_size()) {
         //     THROW_MANAPIHTTP_EXCEPTION2();
         // }
@@ -308,14 +315,23 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
             *this->body_index = 0;
             // get the next data
             ssize_t rhs = co_await this->body_read (this->body_buffer, static_cast<ssize_t>(this->buffer_size));
-            if ((rhs <= 0)) {
+            if (rhs == 0) {
+                /* eof */
+                *this->body_max_size_left = 0;
+                break;
+            }
+            if ((rhs < 0)) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "socket read error: read_next() = {}", rhs);
             }
-            if (rhs > *this->body_max_size_left) {
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
-            }
+
             *this->body_buffer_size = rhs;
-            *this->body_buffer_size = std::min (*this->body_buffer_size, *this->body_max_size_left);
+
+            if (*this->body_max_size_left >= 0) {
+                if (rhs > *this->body_max_size_left) {
+                    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
+                }
+                *this->body_buffer_size = std::min (*this->body_buffer_size, *this->body_max_size_left);
+            }
         }
 
         auto &c = *(this->body_buffer + *this->body_index);
@@ -360,9 +376,9 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
             if (value) {
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "formdata: The Key already was defined");
             }
-            param_data.first = std::move(buffer);
+            this->param_data.first = std::move(buffer);
             buffer.clear();
-            type = DATA_PLAIN;
+            this->type = DATA_PLAIN;
 
             ++(*this->body_index);
             break;
@@ -391,17 +407,17 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
     if (*this->body_index == *this->body_max_size_left) {
         if (!value) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "formdata: Unexpected end of the urlencoded data"); }
         co_await send_line (buffer.data(), static_cast<ssize_t>(buffer.size()));
-        type = DATA_NONE;
+        this->type = DATA_NONE;
     }
 }
 
 manapi::net::file_data_t manapi::net::formdata_recv::about_file() const {
-    if (DATA_FILE != type)
+    if (DATA_FILE != this->type)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_NOT_CONTAINS_FILE, "{}", "No found any file in the body of the request");
     }
 
-    return file_data;
+    return this->file_data;
 }
 
 manapi::future<std::string> manapi::net::formdata_recv::get_file_to_str() {

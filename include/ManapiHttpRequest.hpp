@@ -27,7 +27,7 @@ namespace manapi::net::http {
 
         [[nodiscard]] const http::manapi_socket_information &ip_data () const;
         [[nodiscard]] const std::string &method () const;
-        [[nodiscard]] const std::string &http_version() const;
+        [[nodiscard]] int http_version() const;
         [[nodiscard]] const std::map<std::string, std::string> &ref_headers () const;
         [[nodiscard]] std::map<std::string, std::string> headers () const;
         [[nodiscard]] const std::string &param (const std::string &param) const;

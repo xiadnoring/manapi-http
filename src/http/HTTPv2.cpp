@@ -18,7 +18,7 @@ std::shared_ptr<manapi::net::worker::http_v2> manapi::net::http::http_v2::create
     return std::move(w);
 }
 
-manapi::future<void> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_t size) {
+manapi::future<bool> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_t size) {
     net::http::url_decode_stream url_decode;
 
     if (!this->request_data.buffer) {
@@ -35,7 +35,7 @@ manapi::future<void> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_
     this->request_data.path = std::move(result.first);
     this->request_data.divided = result.second;
 
-    co_return;
+    co_return true;
 }
 
 manapi::future<void> manapi::net::http::http_v2::execute_handler() {

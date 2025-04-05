@@ -17,6 +17,7 @@ namespace manapi::net::http {
         struct parse_vars_t {
             // states
             std::string buffer;
+            std::string http;
 
             bool next_line_state = false;
             bool finished = false;

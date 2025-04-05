@@ -18,7 +18,7 @@ void manapi::net::http::http_v1_1::doit() {
 
 }
 
-manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
+manapi::future<bool> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssize_t size) {
     this->request_data.body_index = 0;
 
     if (!this->buffer) {
@@ -48,17 +48,180 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
     }
 
     ssize_t content_length = 0;
+    bool transfer_encoding_chunked = false;
+
+    if (this->request_data.headers.contains(HEADER.TRANSFER_ENCODING)) {
+        const auto header_value = parse_header_value(this->request_data.headers[HEADER.TRANSFER_ENCODING]);
+        for (const auto &param : header_value) {
+            if (param.value == "chunked") {
+                transfer_encoding_chunked = true;
+            }
+            else {
+                /* brotli, gzip and etc isn't supported yet */
+                MANAPIHTTP_LOG("request was declined with {} status code because the request transfer-encoding header "
+                               "contains the unsupported value: {}", static_cast<int>(PRECONDITION_FAILED_412), param.value);
+
+                const auto handler = this->site.handler(this->request_data);
+                co_await this->send_error_response(PRECONDITION_FAILED_412, this->request_data, handler.error.get());
+
+                co_return false;
+            }
+        }
+    }
+
     if (this->request_data.headers.contains(HEADER.CONTENT_LENGTH)) {
         content_length = std::stoll(this->request_data.headers[HEADER.CONTENT_LENGTH]);
     }
+    else if (transfer_encoding_chunked) {
+        /* content length isn't fixed */
+        content_length = -1;
+    }
 
-    this->request_data.has_body = content_length > 0;
+    this->request_data.has_body = content_length == -1 || content_length > 0;
     this->request_data.buffer = std::move(this->buffer);
+    this->read_async = [this, transfer_encoding_chunked] (void *buffer, ssize_t size)
+        -> manapi::future<ssize_t> {
+        auto data = this;
+        if (co_await data->expect_header()) {}
+
+        if (transfer_encoding_chunked) {
+            data->read_async = [data, left = static_cast<ssize_t>(0), state = 0, prev = std::string()] (void *buffer, ssize_t size) mutable
+                -> manapi::future<ssize_t> {
+                ssize_t i = 0;
+                ssize_t tmp = size;
+
+                while (true) {
+                    if (left == -1) {
+                        /* end of chunk stream */
+                        break;
+                    }
+
+                    if (state != 2) {
+                        /* accept \r\n */
+                        if (prev.empty()) {
+                            prev.resize(20);
+                            auto rhs = co_await data->worker->read (*data->connection, prev.data(), static_cast<ssize_t>(prev.size()));
+                            if (rhs < 0) { co_return rhs; }
+                            prev.resize(rhs);
+                        }
+                    }
+                    if (state < 2) {
+                        /* accept length number and \r\n */
+                        for (; i < prev.size(); i++) {
+                            auto c = tolower(prev[i]);
+
+                            if (left > /* TODO: set it using the config */ 200000) {
+                                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "read(...): Transfer-Encoding chunk is too large to be "
+                                                                                    "accepted. Max Size: {}", 200000);
+                            }
+
+                            if (0 == state) {
+                                if (c >= '0' && c <= '9') {
+                                    left *= 16; left += (c - '0'); continue;
+                                }
+                                if (c >= 'a' && c <= 'f') {
+                                    left *= 16; left += c - 'a' + 10; continue;
+                                }
+
+                                if (c == '\r') {
+                                    state = 1; continue;
+                                }
+                            }
+                            if (1 == state && c == '\n') {
+                                state = 2;
+                                i++;
+
+                                auto copy = std::min(static_cast<ssize_t>(prev.size()) - i, left);
+                                memcpy(buffer, prev.data() + i, copy);
+
+                                left -= copy;
+
+                                if (!left) {
+                                    /* already copied */
+                                    if (copy) {
+                                        state = 3;
+                                        i += copy;
+                                    }
+                                    else {
+                                        /* end of chunk stream */
+                                        state = 3;
+                                        left = -1;
+                                    }
+                                }
+                                else {
+                                    prev.resize(0);
+                                    i = copy;
+                                }
+
+                                break;
+                            }
+
+                            THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "read(...): Transfer-Encoding rules must be respected, but the request "
+                                                                                  "violated them");
+                        }
+
+                        if (i == prev.size() && state != 2) {
+                            prev.resize(0);
+                            i = 0;
+                            continue;
+                        }
+                    }
+                    if (2 == state) {
+                        auto rhs = co_await data->worker->read (*data->connection, static_cast<char *>(buffer) + i, std::min(size - i, left));
+                        i = 0;
+                        if (rhs < 0) { co_return rhs; }
+                        left -= rhs;
+                        size -= rhs;
+                        if (!left) {
+                            state = 3;
+                        }
+                    }
+
+                    if (state > 2) {
+                        if (prev.empty()) {
+                            continue;
+                        }
+
+                        for (; i < prev.size(); i++) {
+                            if (state == 3 && prev[i] == '\r') {
+                                state = 4;
+                                continue;
+                            }
+                            if (state == 4 && prev[i] == '\n') {
+                                state = 0;
+                                i++;
+
+                                break;
+                            }
+                            THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "read(...): Transfer-Encoding: rules must be respected, but the request "
+                                                                                "violated them");
+                        }
+
+                        if (prev.size() == i) {
+                            prev.resize(0);
+                            i = 0;
+                        }
+
+                        continue;
+                    }
+
+                    break;
+                }
+
+                co_return tmp - size;
+            };
+        }
+        else {
+            data->read_async = [data] (void *buffer, ssize_t size)
+                -> manapi::future<ssize_t> { co_return co_await data->worker->read (*data->connection, buffer, size); };
+        }
+
+        co_return co_await data->read_async(buffer, size);
+    };
 
     if (this->request_data.has_body) {
         this->request_data.body_size = content_length;
 
-        co_await expect_header();
         if (size <= j) {
             size = co_await this->read(this->request_data.buffer->data(), static_cast<ssize_t>(this->request_data.buffer->size()));
             if (size < 0) {
@@ -71,7 +234,13 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
         this->request_data.headers_part = j;
         this->request_data.body_part = size;
         this->request_data.body_index = j;
-        this->request_data.body_left = this->request_data.body_size + j;
+        if (this->request_data.body_size >= 0) {
+            this->request_data.body_left = this->request_data.body_size + j;
+        }
+        else {
+            /* content length isn't fixed */
+            this->request_data.body_left = -1;
+        }
     }
     else {
         this->request_data.body_index = 0;
@@ -79,7 +248,7 @@ manapi::future<void> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
         this->request_data.body_left = 0;
     }
 
-    co_return;
+    co_return true;
 }
 
 manapi::future<void> manapi::net::http::http_v1_1::execute_handler() {
@@ -99,6 +268,10 @@ bool manapi::net::http::http_v1_1::connection_was_upgraded() const {
 
 manapi::net::http::versions::http manapi::net::http::http_v1_1::get_upgraded_version() const {
     return this->upgraded;
+}
+
+manapi::future<ssize_t> manapi::net::http::http_v1_1::read(void *buffer, ssize_t size) {
+    return this->read_async(buffer, size);
 }
 
 void manapi::net::http::http_v1_1::_skip_white_space(char &c) {

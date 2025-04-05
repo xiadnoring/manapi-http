@@ -27,7 +27,7 @@ const std::string &manapi::net::http::request::method() const {
     return this->request_data->method;
 }
 
-const std::string &manapi::net::http::request::http_version() const {
+int manapi::net::http::request::http_version() const {
     return this->request_data->http;
 }
 
@@ -79,16 +79,22 @@ manapi::future<std::string> manapi::net::http::request::text() {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_TOO_LONG, "plain body can have only {} length", max_plain_body_size_);
     }
 
-    body.resize(this->request_data->body_size);
+    if (this->request_data->body_size >= 0) {
+        body.resize(this->request_data->body_size);
 
-    size_t j = 0;
-    //size_t socket_block_size    = http_server->get_socket_block_size();
+        size_t j = 0;
+        //size_t socket_block_size    = http_server->get_socket_block_size();
 
-    co_await _read_body([&body, &j] (const char *data, ssize_t size) -> ssize_t {
-        memcpy (body.data() + j, data, size);
-        j += size;
-        return size;
-    });
+        co_await this->_read_body([&body, &j] (const char *data, ssize_t size) -> ssize_t {
+            memcpy (body.data() + j, data, size);
+            j += size;
+            return size;
+        });
+    }
+    else {
+        co_await this->_read_body([&body] (const char *data, ssize_t size)
+            -> ssize_t { body.append(data, size); return size; });
+    }
 
     co_return body;
 }
@@ -213,8 +219,11 @@ bool manapi::net::http::request::propagation() const {
 }
 
 manapi::future<void> manapi::net::http::request::_read_body(std::move_only_function<ssize_t(const char *, ssize_t)> handler) {
-    this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left)
-        - this->request_data->body_index;
+    if (this->request_data->body_left >= 0) {
+        this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left)
+            - this->request_data->body_index;
+    }
+
     this->request_data->body_left -= this->request_data->body_index;
 
     while (true) {
@@ -230,12 +239,20 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
         this->request_data->body_left -= this->request_data->body_part;
         this->request_data->body_index = 0;
 
-        if (this->request_data->body_left > 0) {
-            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer->data(), static_cast<ssize_t>(this->request_data->buffer->size()));
+        if (this->request_data->body_left != 0) {
+            ssize_t request_size;
+            if (this->request_data->body_left < 0) {
+                request_size = static_cast<ssize_t>(this->request_data->buffer->size());
+            }
+            else {
+                request_size = std::min(static_cast<ssize_t>(this->request_data->buffer->size()), this->request_data->body_left);
+            }
+            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer->data(), request_size);
             if (this->request_data->body_part < 0) {
                 THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
             }
             if (this->request_data->body_part == 0) {
+                /* eof */
                 break;
             }
 
@@ -247,8 +264,10 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
 }
 
 manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t)> handler) {
-    this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left)
-        - this->request_data->body_index;
+    if (this->request_data->body_left >= 0) {
+        this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left)
+            - this->request_data->body_index;
+    }
     this->request_data->body_left -= this->request_data->body_index;
 
     while (true) {
@@ -263,12 +282,20 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
         this->request_data->body_left -= this->request_data->body_part;
         this->request_data->body_index = 0;
 
-        if (this->request_data->body_left > 0) {
-            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer->data(), static_cast<ssize_t>(this->request_data->buffer->size()));
+        if (this->request_data->body_left != 0) {
+            ssize_t request_size;
+            if (this->request_data->body_left < 0) {
+                request_size = static_cast<ssize_t>(this->request_data->buffer->size());
+            }
+            else {
+                request_size = std::min(static_cast<ssize_t>(this->request_data->buffer->size()), this->request_data->body_left);
+            }
+            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer->data(), request_size);
             if (this->request_data->body_part < 0) {
                 THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
             }
             if (this->request_data->body_part == 0) {
+                /* eof */
                 break;
             }
 

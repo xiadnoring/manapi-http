@@ -24,7 +24,7 @@ class ManapiHttpConan(ConanFile):
         "lib": [True, False]
     }
 
-    default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": True, "openssl_dependency": False, "quiche_dependency": True,
+    default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": False, "openssl_dependency": False, "quiche_dependency": True,
                        "tquic_dependency": True, "lib": True, "curl_dependency": True, "gmp_dependency": True, "zlib_dependency": True}
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
@@ -49,6 +49,18 @@ class ManapiHttpConan(ConanFile):
                 if self.options.get_safe('curl_dependency', False):
                     self.options["wolfssl"].with_curl = True
                     self.options["libcurl"].with_ssl = 'wolfssl'
+
+        if not self.options.get_safe("lib", False):
+            self.options["wolfssl"].shared = True
+            self.options["openssl"].shared = True
+            self.options["libev"].shared = True
+            self.options["quiche"].shared = True
+            self.options["tquic"].shared = True
+            self.options["zlib"].shared = True
+            self.options["libcurl"].shared = True
+            self.options["gmp"].shared = True
+            self.options["libpq"].shared = True
+            self.options["cpptrace"].shared = True
 
     def layout(self):
         cmake_layout(self)

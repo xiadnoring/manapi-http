@@ -79,13 +79,13 @@ namespace manapi::net {
             return this->data->headers();
         }
 
-        manapi::future<> async_callback (std::function<manapi::future<ssize_t>(char *buffer, ssize_t size)> cb) {
+        manapi::future<> callback_async (std::function<manapi::future<ssize_t>(char *buffer, ssize_t size)> cb) {
             if (!this->fetchdata->setup) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "fetch2 must be initialized fetch2::fetch(...) only"); }
             this->data->handle_async_body(std::move(cb));
             co_await continue_receiving();
         }
 
-        manapi::future<> sync_callback (std::function<ssize_t(char *buffer, ssize_t size)> cb) {
+        manapi::future<> callback_sync (std::function<ssize_t(char *buffer, ssize_t size)> cb) {
             if (!this->fetchdata->setup) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "fetch2 must be initialized fetch2::fetch(...) only"); }
             this->data->handle_body(std::move(cb));
             co_await continue_receiving();
@@ -94,7 +94,7 @@ namespace manapi::net {
         manapi::future<std::string> text () {
             std::string data;
 
-            co_await this->sync_callback ([&data] (char *buffer, ssize_t size) -> ssize_t {
+            co_await this->callback_sync ([&data] (char *buffer, ssize_t size) -> ssize_t {
                 data.append(buffer, size);
                 return size;
             });
@@ -104,7 +104,7 @@ namespace manapi::net {
 
         manapi::future<manapi::json> json () {
             manapi::json_builder builder;
-            co_await this->sync_callback([&builder] (char *buffer, ssize_t size) -> ssize_t {
+            co_await this->callback_sync([&builder] (char *buffer, ssize_t size) -> ssize_t {
                 try {
                     builder << std::string_view(buffer, size);
                     return size;

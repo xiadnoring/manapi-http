@@ -365,6 +365,7 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_headers(void *ctx
         .stream_id = stream_id, .connection = connection, .status = 0x00, .handle_io = {nullptr},
         .rbuff_pos = 0, .wbuff_pos = 0, .rbuff_caret = 0, .wbuff_caret = 0, .finished = false, .headers = {nullptr}},
         [] (void *ptr) -> void { delete static_cast<connection_stream_t *> (ptr); });
+    client->connection->version = http::versions::HTTP_v3;
 
     conn_data.streams[stream_id] = client->connection;
 
@@ -373,7 +374,7 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_headers(void *ctx
     client->request_data.uri = client->request_data.headers[":path"];
     client->request_data.headers_size = 0;
     client->request_data.divided = -1;
-    client->request_data.http = "HTTP/3";
+    client->request_data.http = http::versions::HTTP_v3;
     client->request_data.has_body = !fin;
     client->request_data.body_left = 0;
 
@@ -381,7 +382,7 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_headers(void *ctx
         auto contentlength = client->request_data.headers.find(http::HEADER.CONTENT_LENGTH);
         client->request_data.headers_part = 0;
         client->request_data.body_part = 0;
-        client->request_data.body_size = contentlength != client->request_data.headers.end() ? std::stoll(contentlength->second) : 0;
+        client->request_data.body_size = contentlength != client->request_data.headers.end() ? std::stoll(contentlength->second) : -1 /* the size isn't fixed */;
     }
     else {
         client->request_data.body_size = 0;
@@ -392,8 +393,9 @@ void manapi::net::worker::http_v3_tquic::tquic_http3_on_stream_headers(void *ctx
 
     worker->site.async_context()->taskpool()->append_task([client, taskpool = worker->site.async_context()->taskpool()] () mutable  -> void {
         async::run(std::move(taskpool), [client] () mutable -> future<> {
-            co_await client->parse_request(0, 0);
-            co_await client->execute_handler();
+            if (co_await client->parse_request(0, 0)) {
+                co_await client->execute_handler();
+            }
             std::cout << "FINISHED\n";
             // auto &conn_data = client->connection->as<connection_t>();
             // conn_data.write_watcher.send()

@@ -30,6 +30,24 @@ manapi::filesystem::async::fstream::fstream(const std::shared_ptr<event_loop> &e
     );
 }
 
+manapi::filesystem::async::fstream::fstream(fstream &&n) noexcept {
+    this->data = std::move(n.data);
+}
+
+manapi::filesystem::async::fstream & manapi::filesystem::async::fstream::operator=(fstream &&n) noexcept {
+    this->data = std::move(n.data);
+    return *this;
+}
+
+manapi::filesystem::async::fstream::fstream(const fstream &n) {
+    this->data = n.data;
+}
+
+manapi::filesystem::async::fstream & manapi::filesystem::async::fstream::operator=(const fstream &n) {
+    this->data = n.data;
+    return *this;
+}
+
 manapi::future<> manapi::filesystem::async::fstream::open(int flags, unsigned int mode) {
     int o_flags = O_RDWR;
 #ifdef _WIN32
@@ -68,7 +86,9 @@ bool manapi::filesystem::async::fstream::is_open() const {
 }
 
 manapi::filesystem::async::fstream::~fstream() {
-    manapi::async::run(this->data->taskpool, this->close());
+    if (this->data) {
+        manapi::async::run(this->data->taskpool, this->close());
+    }
 }
 
 manapi::future<ssize_t> manapi::filesystem::async::fstream::read(void *buff, ssize_t buff_size) {

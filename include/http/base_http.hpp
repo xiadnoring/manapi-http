@@ -18,7 +18,7 @@ namespace manapi::net::http {
         base(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~base() override;
         virtual void prepare ();
-        virtual future<void> parse_request (ssize_t j = 0, ssize_t size = 0);
+        virtual future<bool> parse_request (ssize_t j = 0, ssize_t size = 0);
         virtual future<void> send_response (manapi::net::http::response &res);
         virtual future<void> execute_handler ();
         virtual future<void> send_response_file (manapi::net::http::response &res, response_features_t &features);
@@ -33,7 +33,7 @@ namespace manapi::net::http {
         future<void> send_file(manapi::net::http::response &res, filesystem::async::fstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const;
         future<void> send_file(manapi::net::http::response &res, filesystem::async::fstream &f, ssize_t size) const;
         future<void> send_text(std::string_view text, ssize_t size) const;
-        future<void> expect_header ();
+        future<bool> expect_header ();
         future<std::string> compress_file(const std::string &file, const std::string &folder, const std::string &compress, const std::function<future<bool>(const std::string &src, const std::string &dest)> &compressor) const;
         virtual future<ssize_t> read (void *buf, ssize_t size);
         manapi::net::site &get_site ();

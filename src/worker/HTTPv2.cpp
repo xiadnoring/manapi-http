@@ -1187,14 +1187,14 @@ void manapi::net::worker::http_v2::session_worker(int id, bool body, std::shared
     client->request_data.uri = client->request_data.headers[":path"];
     client->request_data.headers_size = 0;
     client->request_data.divided = -1;
-    client->request_data.http = "HTTP/2";
+    client->request_data.http = http::versions::HTTP_v2;
     client->request_data.has_body = body;
     client->request_data.body_left = 0;
     if (body) {
         auto contentlength = client->request_data.headers.find(http::HEADER.CONTENT_LENGTH);
         client->request_data.headers_part = 0;
         client->request_data.body_part = 0;
-        client->request_data.body_size = contentlength != client->request_data.headers.end() ? std::stoll(contentlength->second) : 0;
+        client->request_data.body_size = contentlength != client->request_data.headers.end() ? std::stoll(contentlength->second) : -1 /* the size isn't fixed */;
     }
     else {
         client->request_data.body_size = 0;
@@ -1207,8 +1207,9 @@ void manapi::net::worker::http_v2::session_worker(int id, bool body, std::shared
         int stream_errnum = HTTP2_ERROR_NO_ERROR;
 
         try {
-            co_await client->parse_request(0,0);
-            co_await client->execute_handler();
+            if (co_await client->parse_request(0,0)) {
+                co_await client->execute_handler();
+            }
 
         }
         catch (std::exception const &e) {

@@ -222,11 +222,11 @@ manapi::net::http::custom_data_t & manapi::net::http::response::custom_data() {
     return this->custom_data_;
 }
 
-std::shared_ptr<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t, bool &)>> &manapi::net::http::response::async_callback() {
+std::shared_ptr<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t, bool&)>> &manapi::net::http::response::callback_async() {
     return this->async_cb;
 }
 
-std::shared_ptr<std::move_only_function<ssize_t(char *, ssize_t, bool &)>> & manapi::net::http::response::sync_callback() {
+std::shared_ptr<std::move_only_function<ssize_t(char *, ssize_t, bool&)>> & manapi::net::http::response::callback_sync() {
     return this->sync_cb;
 }
 
@@ -257,12 +257,12 @@ void manapi::net::http::response::proxy(std::string url, std::move_only_function
 }
 #endif
 
-void manapi::net::http::response::sync_callback(std::move_only_function<ssize_t(char *, ssize_t , bool &)> cb) {
+void manapi::net::http::response::callback_sync(std::move_only_function<ssize_t(char *, ssize_t, bool&)> cb) {
     this->type_ = RESPONSE_SYNC_CALLBACK;
     this->sync_cb = std::make_shared<decltype(this->sync_cb)::element_type>(std::move(cb));
 }
 
-void manapi::net::http::response::async_callback(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t , bool &)> cb) {
+void manapi::net::http::response::callback_async(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t, bool&)> cb) {
     this->type_ = RESPONSE_ASYNC_CALLBACK;
     this->async_cb = std::make_shared<decltype(this->async_cb)::element_type>(std::move(cb));
 }

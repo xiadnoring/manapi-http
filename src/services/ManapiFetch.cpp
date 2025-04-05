@@ -136,12 +136,13 @@ manapi::net::curlformdata::tdata::iterator manapi::net::curlformdata::end() {
 
 
 manapi::net::fetch::fetch(const std::shared_ptr<async::context> &ctx, std::string url) {
-    this->data_ = std::make_shared<shared_data>(ctx);
+    this->data_ = std::make_shared<shared_data>(0, ctx);
     this->url_ = std::move(url);
     this->method_ = "GET";
     this->data_->ctx = ctx;
     this->data_->curl.reset(curl_easy_init());
     this->content_length_ = -1;
+    this->flags = 0;
 
     this->_default_setup_curl();
 }
@@ -161,6 +162,7 @@ manapi::net::fetch & manapi::net::fetch::operator=(fetch &&n) noexcept {
     this->body_formdata_ = std::move(n.body_formdata_);
     this->method_ = std::move(n.method_);
     this->content_length_ = std::exchange(n.content_length_, -1);
+    this->flags = std::exchange(n.flags, 0);
 
     return *this;
 }
@@ -170,7 +172,7 @@ manapi::future<void> manapi::net::fetch::async_doit() {
 
     if (!this->data_->curl)
     {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl can not be init: {}", url_);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl can not be init: {}", this->url_);
     }
 
     auto clear_ = before_delete ([this] ()
@@ -182,21 +184,9 @@ manapi::future<void> manapi::net::fetch::async_doit() {
 
     CURLcode resp;
 
-    curl_easy_setopt(this->data_->curl.get(), CURLOPT_URL, url_.data());
+    curl_easy_setopt(this->data_->curl.get(), CURLOPT_URL, this->url_.data());
     curl_easy_setopt(this->data_->curl.get(), CURLOPT_HEADERFUNCTION, curl_header_handler);
     curl_easy_setopt(this->data_->curl.get(), CURLOPT_HEADERDATA, &data);
-
-    // if handler has been set
-    if (this->data_->handler_recv_body)
-    {
-        curl_easy_setopt(this->data_->curl.get(), CURLOPT_WRITEFUNCTION, curl_write_handler);
-        curl_easy_setopt(this->data_->curl.get(), CURLOPT_WRITEDATA, &data);
-    }
-
-    if (this->data_->curl_headers)
-    {
-        curl_easy_setopt(this->data_->curl.get(), CURLOPT_HTTPHEADER, this->data_->curl_headers.get());
-    }
 
     {
         const auto optheader = net::fetch::http_method_to_enum.find(this->method_);
@@ -206,6 +196,13 @@ manapi::future<void> manapi::net::fetch::async_doit() {
         else {
             curl_easy_setopt(this->data_->curl.get(), optheader->second, 1);
         }
+    }
+
+    // if handler has been set
+    if (this->data_->handler_recv_body)
+    {
+        curl_easy_setopt(this->data_->curl.get(), CURLOPT_WRITEFUNCTION, curl_write_handler);
+        curl_easy_setopt(this->data_->curl.get(), CURLOPT_WRITEDATA, &data);
     }
 
     if (this->data_->handle_custom_setup)
@@ -221,12 +218,12 @@ manapi::future<void> manapi::net::fetch::async_doit() {
             break;
         }
         case BODY_CALLBACK: {
-            if (this->content_length_ < 0) {
-                THROW_MANAPIHTTP_EXCEPTION2 (ERR_CONFIG_ERROR, "ManapiFetch: content-length is required");
-            }
             curl_easy_setopt(this->data_->curl.get(), CURLOPT_READFUNCTION, curl_read_handler);
             curl_easy_setopt(this->data_->curl.get(), CURLOPT_READDATA, &data);
-            curl_easy_setopt(this->data_->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, this->content_length_);
+
+            if (this->flags & FLAG_CONTENT_LENGTH) {
+                curl_easy_setopt(this->data_->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, this->content_length_);
+            }
 
             break;
         }
@@ -259,6 +256,11 @@ manapi::future<void> manapi::net::fetch::async_doit() {
         }
         default:
             break;
+    }
+
+    if (this->data_->curl_headers)
+    {
+        curl_easy_setopt(this->data_->curl.get(), CURLOPT_HTTPHEADER, this->data_->curl_headers.get());
     }
 
     try {
@@ -660,6 +662,7 @@ void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize
 
             if (rhs == 0) {
                 /* eof */
+                data->flags |= FLAG_DATA_EOF;
                 break;
             }
 
@@ -690,6 +693,11 @@ void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize
             return size;
         }
 
+        if (this->data_->flags & FLAG_DATA_EOF) {
+            /* end of stream */
+            return 0;
+        }
+
         this->data_->async_waiting.store(true);
 
         /* in the loop event */
@@ -712,10 +720,17 @@ void manapi::net::fetch::body(std::move_only_function<ssize_t(char *, ssize_t)> 
 }
 
 void manapi::net::fetch::headers(std::map<std::string, std::string> headers) {
-    auto content_length = headers.find(http::HEADER.CONTENT_LENGTH);
-    if (content_length != headers.end()) {
-        this->content_length_ = std::stoll(content_length->second);
-        headers.erase(content_length);
+    {
+        auto content_length = headers.find(http::HEADER.CONTENT_LENGTH);
+        if (content_length != headers.end()) {
+            this->flags |= FLAG_CONTENT_LENGTH;
+            this->content_length_ = std::stoll(content_length->second);
+            headers.erase(content_length);
+        }
+    }
+
+    if (headers.contains(http::HEADER.TRANSFER_ENCODING)) {
+        this->flags |= FLAG_TRANSFER_ENCODING;
     }
 
     // headers
@@ -725,13 +740,25 @@ void manapi::net::fetch::headers(std::map<std::string, std::string> headers) {
     }
 }
 
+void manapi::net::fetch::header_(std::string key, std::string value) {
+    this->data_->curl_headers.reset(curl_slist_append(this->data_->curl_headers.release(), manapi::net::http::stringify_header({std::move(key), std::move(value)}).data()));
+}
+
 void manapi::net::fetch::json_headers(manapi::json headers) {
-    auto &m = headers.entries();
-    auto content_length = m.find(http::HEADER.CONTENT_LENGTH);
-    if (content_length != m.end()) {
-        this->content_length_ = content_length->second.as_integer_cast();
-        headers.erase(content_length);
+    {
+        auto &m = headers.entries();
+        auto content_length = m.find(http::HEADER.CONTENT_LENGTH);
+        if (content_length != m.end()) {
+            this->flags |= FLAG_CONTENT_LENGTH;
+            this->content_length_ = content_length->second.as_integer_cast();
+            headers.erase(content_length);
+        }
     }
+
+    if (headers.contains(http::HEADER.TRANSFER_ENCODING)) {
+        this->flags |= FLAG_TRANSFER_ENCODING;
+    }
+
     // headers
     for (auto &header: headers.entries())
     {

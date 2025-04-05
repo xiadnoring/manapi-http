@@ -24,7 +24,7 @@ manapi::net::http::base::~base() = default;
 
 void manapi::net::http::base::prepare() {}
 
-manapi::future<void> manapi::net::http::base::parse_request(ssize_t j, ssize_t size) { co_return; }
+manapi::future<bool> manapi::net::http::base::parse_request(ssize_t j, ssize_t size) { co_return true; }
 
 manapi::future<void> manapi::net::http::base::send_response(manapi::net::http::response &res) {
     std::string response;
@@ -55,7 +55,7 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http::r
 
     // set time
     res.header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", manapi::time::current_time(false)));
-    if (config->get_http_version() < versions::HTTP_v2) { res.header(HEADER.CONNECTION, "close"); }
+    if (this->config->get_http_version() < versions::HTTP_v2) { res.header(HEADER.CONNECTION, "close"); }
 
     if (res.is_file()) {
         co_await send_response_file(res, features);
@@ -323,7 +323,7 @@ manapi::future<> manapi::net::http::base::send_response_sync_cb(manapi::net::htt
         const ssize_t reserved = this->config->buffer_size();
         buffer.reserve(reserved);
 
-        auto cb = std::move(res.sync_callback());
+        auto cb = std::move(res.callback_sync());
 
         bool finish = false;
 
@@ -353,7 +353,7 @@ manapi::future<> manapi::net::http::base::send_response_async_cb(manapi::net::ht
         const ssize_t reserved = this->config->buffer_size();
         buffer.reserve(reserved);
 
-        auto cb = std::move(res.async_callback());
+        auto cb = std::move(res.callback_async());
 
         bool finish = false;
 
@@ -452,7 +452,7 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
 }
 
 manapi::future<void> manapi::net::http::base::send_error_response(const size_t &status, http::request_data_t &request_data, const http_handler_page *error) {
-    if (error == nullptr) {
+    if (!error) {
         // TODO: Default error page
         co_return;
     }
@@ -723,17 +723,18 @@ manapi::future<void> manapi::net::http::base::send_text(std::string_view text, s
     }
 }
 
-manapi::future<void> manapi::net::http::base::expect_header() {
-    const auto expect = request_data.headers.find(HEADER.EXPECT);
-    if (expect != request_data.headers.end()) {
+manapi::future<bool> manapi::net::http::base::expect_header() {
+    const auto expect = this->request_data.headers.find(HEADER.EXPECT);
+    if (expect != this->request_data.headers.end()) {
         if (expect->second == "100-continue") {
-            http::response resp (request_data, 100,  *config);
+            http::response resp (this->request_data, 100,  *this->config);
             co_await send_response(resp);
+            co_return true;
         }
-        else {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid Expect header");
-        }
+
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Invalid Expect header");
     }
+    co_return false;
 }
 
 std::string generate_cache_name(const std::string &file, const std::string &ext) {
@@ -768,8 +769,7 @@ manapi::future<std::string> manapi::net::http::base::compress_file(const std::st
 }
 
 manapi::future<ssize_t> manapi::net::http::base::read(void *buf, ssize_t size) {
-    auto rhs = co_await this->worker->read (*this->connection, buf, size);
-    co_return rhs;
+    co_return co_await this->worker->read (*this->connection, buf, size);
 }
 
 manapi::net::site & manapi::net::http::base::get_site() {

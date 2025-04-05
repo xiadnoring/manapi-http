@@ -46,7 +46,7 @@ namespace manapi::net::http {
         // PATH
         std::string uri;
         // version server
-        std::string http;
+        int http;
         // split by '/'
         std::vector <std::string> path;
         // index of the element where URL get params in the path

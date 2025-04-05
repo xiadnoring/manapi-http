@@ -60,6 +60,13 @@ namespace manapi::net {
     };
 
     class fetch : public task {
+        enum status_flags {
+            FLAG_TRANSFER_ENCODING = 0b1,
+            FLAG_CONTENT_LENGTH = 0b10
+        };
+        enum status_data_flags {
+            FLAG_DATA_EOF = 0b1
+        };
         struct curl_deleter {
             void operator() (CURL *curl)
                 { curl_free(curl); }
@@ -75,6 +82,7 @@ namespace manapi::net {
         };
 
         struct shared_data {
+            int flags;
             async::mutex async_run;
             ssize_t async_buffer_cursor{0};
             object_item_pool<manapi::bytebuffer> async_buffer{};
@@ -152,11 +160,13 @@ namespace manapi::net {
         static std::size_t curl_read_handler (char *buffer, std::size_t size, std::size_t nitems, void *user_p);
         static object_pool<bytebuffer, std::true_type> bufferpool;
 
+        void header_ (std::string key, std::string value);
         void setup_parallel_task ();
         void _default_setup_curl ();
 
         future<CURLcode> async_curl_perform ();
 
+        int flags;
         size_t status_code_ = 200;
         ssize_t content_length_ = -1;
 

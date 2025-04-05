@@ -28,12 +28,12 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
     bool upgraded = false;
 
     this->buffer->resize(this->config->buffer_size());
-    this->parse_vars = std::make_shared<parse_vars_t>();
 
-    auto &d = *this->parse_vars;
 
     if (co_await this->worker->configure_connection(this->connection)) {
         while (true) {
+            this->parse_vars = std::make_shared<parse_vars_t>();
+            auto &d = *this->parse_vars;
 
             this->request_data.path = {};
             this->request_data.divided = -1;
@@ -67,7 +67,8 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
                     break;
                 }
 
-                const auto version = http::config::parse_http_version(this->request_data.http.substr(5));
+                const auto version = http::config::parse_http_version(this->parse_vars->http.substr(5));
+                this->parse_vars->http = {};
                 this->connection->version = version;
             }
 
@@ -82,12 +83,29 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
                     client->connection = this->connection;
                     client->buffer = std::move(this->buffer);
                     client->prepare();
-                    co_await client->parse_request(j, size);
-                    co_await client->execute_handler();
 
-                    if (client->connection_was_upgraded()) {
-                        this->connection->version = client->get_upgraded_version();
-                        this->buffer = std::move(client->buffer);
+
+                    if (co_await client->parse_request(j, size)) {
+                        if (client->connection_was_upgraded()) {
+                            this->connection->version = client->get_upgraded_version();
+                            goto cont;
+                        }
+
+                        co_await client->execute_handler();
+                    }
+
+                    break;
+
+                    cont: {
+                        if (client->buffer) {
+                            this->buffer = std::move(client->buffer);
+                        }
+                        else if (client->request_data.buffer) {
+                            this->buffer = std::move(client->request_data.buffer);
+                        }
+                        else {
+                            THROW_MANAPIHTTP_EXCEPTION2 (ERR_BUG, "the buffer was wasted. subsequent execution will return a fatal error.");
+                        }
 
                         d.finished = false;
                         upgraded = true;
@@ -194,5 +212,5 @@ void manapi::net::http::HeaderView::_parse_http(char &c) {
         return;
     }
 
-    this->request_data.http += c;
+    this->parse_vars->http.push_back(c);
 }

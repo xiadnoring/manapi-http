@@ -129,21 +129,41 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET("/custom-cb", [&] (REQ(req), RESP(resp)) -> manapi::future<> {
-            ssize_t size = 78;
-            resp.header(http::HEADER.CONTENT_TYPE, manapi::mime::types.TEXT_PLAIN);
-            resp.header(http::HEADER.CONTENT_LENGTH, std::to_string(size));
-            co_return resp.async_callback([ms = size, ctx] (char *buffer, ssize_t size, bool &finish) mutable -> manapi::future<ssize_t> {
-                size = std::min(ms, size);
-                std::string b = manapi::string::random(size);
-                memcpy(buffer, b.data(), b.size());
-                ms -= size;
-                if (!ms) {
-                    finish = true;
-                }
-                co_return size;
+        server.POST("/custom-cb", [&] (REQ(req), RESP(resp)) -> manapi::future<> {
+            for (auto &header : req.headers()) {
+                std::cout << header.first << ": " << header.second << "\n";
+            }
+            std::string result;
+            co_await req.callback_sync([&result] (const char *buffer, ssize_t size)
+                -> ssize_t {
+                result += std::format("result = {}</br>", size); return size;
             });
+            resp.text(std::move(result));
         });
+
+        server.GET ("/test-custom-cb", [ctx] (REQ(req), RESP(resp)) -> manapi::future<> {
+            if (!req.contains_get_param("file")) {
+                co_return resp.text("msg: GET parameter 'file' not found in the URL");
+            }
+            manapi::filesystem::async::fstream fio (ctx, req.get("file"));
+            co_await fio.open(fio.FILE_READ);
+            if (!fio.is_open()) {
+                co_return resp.text("hnnn");
+            }
+            auto response = co_await manapi::net::fetch2::fetch (ctx,  "https://localhost:8888/custom-cb", {
+                {"enable_alpn", false},
+                {"enable_http2", true},
+                {"method", "POST"},
+                {"headers", {
+                        // {"content-length", fio.total_size()}
+                }}
+            }, [fio] (char *buffer, ssize_t size) mutable
+                -> manapi::future<ssize_t> {
+                co_return co_await fio.read(buffer, size);
+            });
+
+            co_return resp.text(co_await response->text());
+        }, {{"file", "{string|none}"}});
 
         // server.GET ("/bigfile", [] (REQ(req), RESP(resp)) {
         //     resp.compress_enabled(false);
