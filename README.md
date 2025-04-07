@@ -85,7 +85,7 @@ int main () {
         {"pools", manapi::json::array({
             {
                 {"address", "127.0.0.1"},
-                {"http_versions", ["2", "1.1"]},
+                {"http_versions", manapi::json::array({"2", "1.1"})},
                 {"transport", "tls"},
                 {"partial_data_min_size", 0},
                 {"tls_version", "1.3"},
