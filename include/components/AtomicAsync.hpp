@@ -11,7 +11,7 @@ namespace manapi {
     class AtomicAsyncReference {
     public:
         AtomicAsyncReference ();
-        AtomicAsyncReference (const T &, std::shared_ptr<size_t> deps, std::shared_ptr<async::mutex> mdeps, std::shared_ptr<async::condition_variable> cv);
+        AtomicAsyncReference (const T &, std::shared_ptr<std::atomic<size_t>> deps, std::shared_ptr<async::condition_variable> cv);
         AtomicAsyncReference (AtomicAsyncReference &&n) noexcept;
         ~AtomicAsyncReference ();
         AtomicAsyncReference &operator=(AtomicAsyncReference &&n) noexcept;
@@ -20,8 +20,7 @@ namespace manapi {
     private:
         void _expect_nullptr ();
         const T* ref;
-        std::shared_ptr<size_t> deps;
-        std::shared_ptr<async::mutex> mdeps;
+        std::shared_ptr<std::atomic<size_t>> deps;
         std::shared_ptr<async::condition_variable> cv;
     };
     template <typename T>
@@ -41,7 +40,8 @@ namespace manapi {
         manapi::future<void> set (T v);
         manapi::future<AtomicAsyncReference <T>> get ();
 
-        manapi::future<void> update (const std::function<manapi::future<void>(T &v)> &func);
+        manapi::future<void> update (std::move_only_function<manapi::future<void>(T &v)> func);
+        manapi::future<std::pair<T &, before_delete>> edit ();
 
         manapi::future<AtomicAsyncReference<T>> operator*();
     private:
@@ -49,9 +49,8 @@ namespace manapi {
         manapi::future<before_delete> readwrite_lock ();
         async::mutex gmx;             // global mutex
         async::mutex mx;              // default mutex
-        std::shared_ptr<async::mutex> mdeps;           // deps mutex
         std::shared_ptr<async::condition_variable> cv; // deps cv
-        std::shared_ptr<size_t> deps;                // deps count
+        std::shared_ptr<std::atomic<size_t>> deps;                // deps count
         T value;                    // value
     };
 
@@ -59,19 +58,16 @@ namespace manapi {
     AtomicAsyncReference<T>::AtomicAsyncReference() {
         this->cv = nullptr;
         this->deps = nullptr;
-        this->mdeps = nullptr;
         this->ref = nullptr;
     }
 
     template<typename T>
-    AtomicAsyncReference<T>::AtomicAsyncReference(const T &n, std::shared_ptr<size_t> deps, std::shared_ptr<async::mutex> mdeps, std::shared_ptr<async::condition_variable> cv) {
+    AtomicAsyncReference<T>::AtomicAsyncReference(const T &n, std::shared_ptr<std::atomic<size_t>> deps, std::shared_ptr<async::condition_variable> cv) {
         this->ref = &n;
         this->deps = std::move(deps);
-        this->mdeps = std::move(mdeps);
         this->cv = std::move(cv);
 
-        std::lock_guard<async::mutex> lk (*this->mdeps);
-        ++(*this->deps);
+        this->deps->fetch_add(1);
         this->cv->notify_all();
     }
 
@@ -81,15 +77,13 @@ namespace manapi {
 
         n.cv = nullptr;
         n.deps = nullptr;
-        n.mdeps = nullptr;
         n.ref = nullptr;
     }
 
     template<typename T>
     AtomicAsyncReference<T>::~AtomicAsyncReference() {
-        if (this->mdeps && this->deps && this->cv) {
-            std::lock_guard<async::mutex> lk (*this->mdeps);
-            --(*this->deps);
+        if (this->deps && this->cv) {
+            this->deps->fetch_sub(1);
             this->cv->notify_all();
         }
     }
@@ -98,7 +92,6 @@ namespace manapi {
     AtomicAsyncReference<T> & AtomicAsyncReference<T>::operator=(AtomicAsyncReference &&n) noexcept {
         this->cv = std::move(n.cv);
         this->deps = std::move(n.deps);
-        this->mdeps = std::move(n.mdeps);
         this->ref = std::exchange(n.ref, nullptr);
 
         return *this;
@@ -123,16 +116,14 @@ namespace manapi {
 
     template<typename T>
     AtomicAsync<T>::AtomicAsync(const std::shared_ptr<async::context> &ctx) : gmx(ctx), mx(ctx) {
-        this->mdeps = std::make_shared<async::mutex>(ctx);
-        this->deps = std::make_shared<size_t>(0);
+        this->deps = std::make_shared<std::atomic<size_t>>(0);
         this->cv = std::make_shared<async::condition_variable>(ctx);
     }
 
     template<typename T>
     template<typename T1>
     AtomicAsync<T>::AtomicAsync(const std::shared_ptr<async::context> &ctx, T1 v) : gmx(ctx), mx(ctx) {
-        this->mdeps = std::make_shared<async::mutex>(ctx);
-        this->deps = std::make_shared<size_t>(0);
+        this->deps = std::make_shared<std::atomic<size_t>>(0);
         this->cv = std::make_shared<async::condition_variable>(ctx);
 
         this->value = v;
@@ -142,8 +133,7 @@ namespace manapi {
     template<typename T1>
     requires(std::is_same_v<T1, std::string>)
     AtomicAsync<T>::AtomicAsync(const std::shared_ptr<async::context> &ctx, const char *n) : gmx(ctx), mx(ctx) {
-        this->mdeps = std::make_shared<async::mutex>(ctx);
-        this->deps = std::make_shared<size_t>(0);
+        this->deps = std::make_shared<std::atomic<size_t>>(0);
         this->cv = std::make_shared<async::condition_variable>(ctx);
 
         this->set(std::string{n});
@@ -167,9 +157,14 @@ namespace manapi {
     }
 
     template<typename T>
-    manapi::future<void> AtomicAsync<T>::update(const std::function<manapi::future<void>(T &v)> &func) {
+    manapi::future<void> AtomicAsync<T>::update(std::move_only_function<manapi::future<void>(T &v)> func) {
         auto lk = co_await this->readwrite_lock();
         co_await func (this->value);
+    }
+
+    template<typename T>
+    manapi::future<std::pair<T &, before_delete>> AtomicAsync<T>::edit() {
+        co_return {this->value, co_await this->readwrite_lock()};
     }
 
     template<typename T>
@@ -185,11 +180,10 @@ namespace manapi {
     template<typename T>
     manapi::future<before_delete> AtomicAsync<T>::readwrite_lock() {
         auto lk = co_await this->read_lock();
-        auto lkdeps = co_await this->mdeps->lock_guard();
-        this->cv->wait(this->mdeps, [this] () -> bool {
-            return (*this->deps) == 0;
+        this->cv->wait([this] () -> bool {
+            return this->deps->load == 0;
         });
 
-        co_return before_delete{[lk = std::move(lk), lkdeps = std::move(lkdeps)] () -> void {}};
+        co_return std::move(lk);
     }
 }

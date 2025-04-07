@@ -1,6 +1,7 @@
 #include "http/Utils.hpp"
 
 #include "ManapiFilesystem.hpp"
+#include "ManapiHttpConfig.hpp"
 #include "encoding/ManapiUnicode.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
 

@@ -1,7 +1,7 @@
 #include "ManapiHttpConfig.hpp"
 #include "ManapiUtils.hpp"
 
-const std::map <manapi::net::http::versions::http , std::string> http_version_to_print = {
+const std::map <int , std::string> http_version_to_print = {
     {manapi::net::http::versions::HTTP_v0_9, "0.9"},
     {manapi::net::http::versions::HTTP_v1_0, "1.0"},
     {manapi::net::http::versions::HTTP_v1_1, "1.1"},
@@ -32,20 +32,23 @@ manapi::net::http::config::config(const json &config) {
         this->socket_block_size.store(config["socket_block_size"].as_integer());
     }
 
-    /* http version */
-    if (config.contains("http_version")) {
-        this->http_version_str = config["http_version"].as_string();
+    /* http versions */
+    if (config.contains("http_versions")) {
+        for (const auto &version : config["http_versions"].as_array() ) {
+            int num = -1;
+            if (version == "0.9")           num = versions::HTTP_v0_9;
+            else if (version == "1.0")      num = versions::HTTP_v1_0;
+            else if (version == "1.1")      num = versions::HTTP_v1_1;
+            else if (version == "2")        num = versions::HTTP_v2;
+            else if (version == "3")        num = versions::HTTP_v3;
+            else {
+                MANAPIHTTP_LOG("http version '{}' is invalid in the config", version.as_string());
+            }
 
-        if (this->http_version_str       == "0.9")    this->http_version.store(versions::HTTP_v0_9);
-        else if (this->http_version_str  == "1.0")    this->http_version.store(versions::HTTP_v1_0);
-        else if (this->http_version_str  == "1.1")    this->http_version.store(versions::HTTP_v1_1);
-        else if (this->http_version_str  == "2")      this->http_version.store(versions::HTTP_v2);
-        else if (this->http_version_str  == "3")      this->http_version.store(versions::HTTP_v3);
-        else {
-            this->http_version_str = "1.1";
-            this->http_version.store(versions::HTTP_v1_1);
-
-            MANAPIHTTP_LOG("http version '{}' is invalid in the config", *http_version_str.get());
+            if (-1 != num) {
+                auto [tx, lk] = this->http_versions_.edit();
+                tx.insert(num);
+            }
         }
     }
 
@@ -234,20 +237,31 @@ std::atomic<size_t> &manapi::net::http::config::get_partial_data_min_size() {
     return this->partial_data_min_size;
 }
 
-void manapi::net::http::config::set_http_version(const size_t &new_http_version) {
-    this->http_version.store(new_http_version);
+void manapi::net::http::config::set_http_version(int version) {
+    auto [tx, lk] = this->http_versions_.edit();
+    tx.insert(version);
 }
 
-std::atomic<size_t> &manapi::net::http::config::get_http_version() {
-    return this->http_version;
+void manapi::net::http::config::remove_http_version(int version) {
+    auto [tx, lk] = this->http_versions_.edit();
+    tx.erase(version);
 }
 
-void manapi::net::http::config::set_http_version_str(const std::string &new_http_version) {
-    this->http_version_str = new_http_version;
+bool manapi::net::http::config::contains_http_version(int version) {
+    auto n = this->http_versions().get();
+    return n->contains(version);
 }
 
-manapi::AtomicReference<std::string> manapi::net::http::config::get_http_version_str() {
-    return *this->http_version_str;
+int manapi::net::http::config::recommended_http_version() {
+    auto n = this->http_versions().get();
+    if (n->empty()) {
+        return -1;
+    }
+    return *n->rbegin();
+}
+
+manapi::Atomic<std::set<int>> & manapi::net::http::config::http_versions() {
+    return this->http_versions_;
 }
 
 /**
@@ -391,7 +405,7 @@ void manapi::net::http::config::set_function_contains_compressor(const std::func
     this->function_contains_compressor = func;
 }
 
-const std::string &manapi::net::http::config::stringify_http_version(const versions::http &version) {
+const std::string &manapi::net::http::config::stringify_http_version(const int &version) {
     return http_version_to_print.at(version);
 }
 

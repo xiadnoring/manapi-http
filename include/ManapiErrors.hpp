@@ -51,7 +51,10 @@ namespace manapi {
         ERR_PARSE_INVALID_SYMBOL = 43,
         ERR_PARSE_UNEXPECTED_END = 44,
         ERR_PARSE_INVALID_CHAR = 45,
-        ERR_HTTP_GET_PARAMS_MASK_FAILED = 46
+        ERR_HTTP_GET_PARAMS_MASK_FAILED = 46,
+        ERR_SOCKET = 47,
+        ERR_FILE_DESCRIPTOR = 48,
+        ERR_INCOMPATIBLE_SETTING = 49
     };
 
     extern const std::map <err_num, std::string> err_msg;

@@ -62,6 +62,8 @@ class ManapiHttpConan(ConanFile):
             self.options["libpq"].shared = True
             self.options["cpptrace"].shared = True
 
+        self.options["libcurl"].with_nghttp2 = True
+
     def layout(self):
         cmake_layout(self)
 

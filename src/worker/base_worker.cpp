@@ -47,6 +47,8 @@ manapi::future<void> manapi::net::worker::base::connection_close(std::shared_ptr
 
 void manapi::net::worker::base::disable_watcher_for_status(connection &conn, const connection_status &status) {}
 
+manapi::future<void> manapi::net::worker::base::connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) { co_return; }
+
 manapi::future<bool> manapi::net::worker::base::configure_connection(std::shared_ptr<connection> conn) { co_return false; }
 
 std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept(
@@ -63,17 +65,6 @@ manapi::net::worker::base & manapi::net::worker::base::operator=(base &&n) noexc
     this->read = std::move(n.read);
     this->write = std::move(n.write);
     return *this;
-}
-
-void manapi::net::worker::base::set_fd_non_blocking(int fd) {
-#ifdef _WIN32
-    u_long arg = 1;
-    ioctlsocket(fd, FIONBIO, &arg);
-#else
-    int flgs = fcntl(fd, F_GETFL, 0);
-    flgs |= O_NONBLOCK;
-    fcntl(fd, F_SETFL, flgs);
-#endif
 }
 
 manapi::future<ssize_t> manapi::net::worker::base::fwrite(connection &conn,const void *buff, ssize_t size, bool finish) {

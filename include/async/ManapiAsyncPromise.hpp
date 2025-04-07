@@ -87,7 +87,8 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
-            handle.resume();
+            data->taskpool->append_task([handle = std::exchange(handle, nullptr)] ()
+                 -> void { handle.resume(); });
         }
 
         template <typename T1>
@@ -192,7 +193,8 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
-            handle.resume();
+            data->taskpool->append_task([handle = std::exchange(handle, nullptr)] ()
+                -> void { handle.resume(); });
         }
 
         template <typename T1>

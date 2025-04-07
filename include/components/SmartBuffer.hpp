@@ -13,7 +13,10 @@
 namespace manapi::net::worker {
     class smart_w_buffer {
     public:
-        typedef std::function<future<ssize_t> (void *, ssize_t size, bool flag, std::atomic<bool> &disabled)> write_cb;
+        enum flags {
+            FLAG_DISABLED = 0b1
+        };
+        typedef std::function<future<ssize_t> (void *, ssize_t size, bool flag, std::atomic<int> &flags)> write_cb;
 
         smart_w_buffer (std::shared_ptr<threadpool<task>> taskpool, write_cb callback, size_t sent = 0, ssize_t buffer_size = 16384, ssize_t frame_size = 16384);
         ~smart_w_buffer();
@@ -32,7 +35,7 @@ namespace manapi::net::worker {
         future<void> disable ();
     private:
         size_t buffer_size{0};
-        std::atomic<bool> disabled = false;
+        std::atomic<int> flags = 0;
         write_cb callback;
         future<ssize_t> _work (bool flag);
         async::mutex gmx;
@@ -47,6 +50,10 @@ namespace manapi::net::worker {
     };
 
     class smart_r_buffer {
+        enum flags {
+            FLAG_DISABLED = 0b1,
+            FLAG_EOS = 0b10
+        };
     public:
         typedef std::function<future<void>(int)> read_cb;
         smart_r_buffer (std::shared_ptr<threadpool<task>> taskpool, read_cb callback, std::atomic<int> &want_read, int buffer_size = 16384);
@@ -65,7 +72,7 @@ namespace manapi::net::worker {
         std::string buffer{};
         size_t buffer_cursor = 0;
         size_t buffer_pos = 0;
-        std::atomic<bool> disabled = false;
+        std::atomic<int> flags = 0;
         read_cb callback;
         async::condition_variable cv;
         std::shared_ptr<threadpool<task>> taskpool;

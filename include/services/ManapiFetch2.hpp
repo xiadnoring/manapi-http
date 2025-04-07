@@ -139,22 +139,22 @@ namespace manapi::net {
             if (params.contains("method")) {
                 this->data->method(std::move(params["method"].as_string()));
             }
-            if (params.contains("enable_ssl_verify")) {
-                this->data->enable_ssl_verify(params["enable_ssl_verify"].as_bool());
+            if (params.contains("ssl_verify")) {
+                this->data->enable_ssl_verify(params["ssl_verify"].as_bool());
             }
             if (params.contains("verbose")) {
                 this->data->verbose(params["verbose"].as_bool());
             }
-            if (params.contains("enable_alpn")) {
-                this->data->enable_alpn(params["enable_alpn"].as_bool());
+            if (params.contains("alpn")) {
+                this->data->enable_alpn(params["alpn"].as_bool());
             }
-            if (params.contains("enable_http1_1")&&params["enable_http1_1"].as_bool()) {
+            if (params.contains("http1_1")&&params["http1_1"].as_bool()) {
                 this->data->enable_http1_1();
             }
-            if (params.contains("enable_http2")&&params["enable_http2"].as_bool()) {
+            if (params.contains("http2")&&params["http2"].as_bool()) {
                 this->data->enable_http2();
             }
-            if (params.contains("enable_http3")&&params["enable_http3"].as_bool()) {
+            if (params.contains("http3")&&params["http3"].as_bool()) {
                 this->data->enable_http3();
             }
 

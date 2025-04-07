@@ -3,6 +3,8 @@
 
 #include <fcntl.h>
 
+#include "async/ManapiAsyncSocket.hpp"
+
 manapi::net::worker::udp::udp(net::site &site) : worker::base(site) {
 
 }
@@ -40,7 +42,7 @@ void manapi::net::worker::udp::init() {
 
     setsockopt((fd), SOL_SOCKET, SO_REUSEADDR, &this->socket_param_true, sizeof(this->socket_param_true));
 
-    set_fd_non_blocking(fd);
+    manapi::async::set_non_blocking(fd);
 
     if (bind(fd.load(), this->local->ai_addr, this->local->ai_addrlen) < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);

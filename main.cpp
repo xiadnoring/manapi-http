@@ -45,7 +45,7 @@ int main (int argc, char *argv[]) {
 
 
     {
-        auto ctx = manapi::async::context::create(std::thread::hardware_concurrency(), 0.01);
+        auto ctx = manapi::async::context::create(0, 0.01);
         ctx->eventloop()->setup_handle_interrupt();
 
 
@@ -130,16 +130,53 @@ int main (int argc, char *argv[]) {
         });
 
         server.POST("/custom-cb", [&] (REQ(req), RESP(resp)) -> manapi::future<> {
+            ssize_t s = 0;
             for (auto &header : req.headers()) {
                 std::cout << header.first << ": " << header.second << "\n";
             }
             std::string result;
-            co_await req.callback_sync([&result] (const char *buffer, ssize_t size)
+
+            co_await req.callback_sync([&result, &s] (const char *buffer, ssize_t size)
                 -> ssize_t {
+                s += size;
                 result += std::format("result = {}</br>", size); return size;
             });
+            result = std::to_string(s) + "<hr>" + result;
             resp.text(std::move(result));
         });
+
+        server.GET ("/test-custom-cb2", [ctx] (REQ(req), RESP(resp)) -> manapi::future<> {
+            if (!req.contains_get_param("file")) {
+                co_return resp.text("msg: GET parameter 'file' not found in the URL");
+            }
+            manapi::filesystem::async::fstream fio (ctx, req.get("file"));
+            co_await fio.open(fio.FILE_READ);
+            if (!fio.is_open()) {
+                co_return resp.text("hnnn");
+            }
+            ssize_t ff = 0;
+            auto response = co_await manapi::net::fetch2::fetch (ctx,  "https://localhost:8080", {
+                {"alpn", true},
+                {"http2", true},
+                {"ssl_verify", false},
+                {"method", "POST"},
+                {"verbose", true},
+                {"headers", {
+                        {"content-length", fio.total_size()},
+                    {"content-type", manapi::mime::types.TEXT_PLAIN}
+                }}
+            }, [fio, &ff] (char *buffer, ssize_t size) mutable
+                -> manapi::future<ssize_t> {
+                auto rhs = co_await fio.read(buffer, size);
+                ff+=rhs;
+                if (rhs <= 0) {
+                    std::cout << "we are here: " << ff <<" ? " << fio.tellg() << "/" << fio.total_size()<<"\n";
+                }
+                co_return rhs;
+            });
+            std::cout << "skip\n";
+            co_return resp.text(co_await response->text());
+        }, {{"file", "{string|none}"}});
 
         server.GET ("/test-custom-cb", [ctx] (REQ(req), RESP(resp)) -> manapi::future<> {
             if (!req.contains_get_param("file")) {
@@ -150,18 +187,27 @@ int main (int argc, char *argv[]) {
             if (!fio.is_open()) {
                 co_return resp.text("hnnn");
             }
-            auto response = co_await manapi::net::fetch2::fetch (ctx,  "https://localhost:8888/custom-cb", {
-                {"enable_alpn", false},
-                {"enable_http2", true},
+            ssize_t ff = 0;
+            auto response = co_await manapi::net::fetch2::fetch (ctx,  "https://localhost:8888/custom-cb/", {
+                {"alpn", false},
+                {"http2", true},
+                {"ssl_verify", false},
                 {"method", "POST"},
+                {"verbose", true},
                 {"headers", {
-                        // {"content-length", fio.total_size()}
+                        // {"content-length", fio.total_size()},
+                    {"content-type", manapi::mime::types.TEXT_PLAIN}
                 }}
-            }, [fio] (char *buffer, ssize_t size) mutable
+            }, [fio, &ff] (char *buffer, ssize_t size) mutable
                 -> manapi::future<ssize_t> {
-                co_return co_await fio.read(buffer, size);
+                auto rhs = co_await fio.read(buffer, size);
+                ff+=rhs;
+                if (rhs <= 0) {
+                    std::cout << "we are here: " << ff <<" ? " << fio.tellg() << "/" << fio.total_size()<<"\n";
+                }
+                co_return rhs;
             });
-
+            std::cout << "skip\n";
             co_return resp.text(co_await response->text());
         }, {{"file", "{string|none}"}});
 
@@ -354,7 +400,7 @@ int main (int argc, char *argv[]) {
             co_return;
         });
 
-        server.GET("/cat/[id]", [&ctx](http::server::req req, http::server::resp resp) -> manapi::future<> {
+        server.GET("/cat/[id]", [&ctx](http::server::req &req, http::server::resp &resp) -> manapi::future<> {
             auto fetch = co_await manapi::net::fetch2::fetch (ctx, "https://dragonball-api.com/api/planets/" + req.param("id"), {
                 {"enable_ssl_verify", false},
                 {"enable_alpn", true},
@@ -368,6 +414,10 @@ int main (int argc, char *argv[]) {
             auto data = co_await fetch->json();
 
             co_return resp.text(std::move(data["description"].as_string()));
+        });
+
+        server.GET("/download/[id]", [&ctx] (http::server::req &req, http::server::resp &resp) -> manapi::future<> {
+            co_return resp.proxy("http://www.fileconvoy.com/gf.php?id=g80195ca999d418791000586375.1836287cfc9eb241a43a68c&sts=17439984947779173102dccc3e2f7eed59ab7329055cde9bb6d0");
         });
 
         server.GET("/freeze", [] (REQ(req), RESP(resp)) -> manapi::future<void> {

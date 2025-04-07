@@ -41,9 +41,10 @@ namespace manapi {
 
         ~Atomic ();
 
+        std::pair<T &, before_delete> edit ();
         AtomicReference <T> get ();
 
-        void update (const std::function<void(T &v)> &func);
+        void update (std::move_only_function<void(T &v)> func);
 
         Atomic& operator=(const T &n);
 
@@ -215,6 +216,11 @@ namespace manapi {
     }
 
     template<typename T>
+    std::pair<T &, before_delete> Atomic<T>::edit() {
+        return {this->value, this->readwrite_lock()};
+    }
+
+    template<typename T>
     AtomicReference <T> Atomic<T>::get() {
         auto lk = this->read_lock();
 
@@ -222,7 +228,7 @@ namespace manapi {
     }
 
     template<typename T>
-    void Atomic<T>::update(const std::function<void(T &v)> &func) {
+    void Atomic<T>::update(std::move_only_function<void(T &v)> func) {
         auto lk = this->readwrite_lock();
         func (this->value);
     }

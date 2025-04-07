@@ -17,7 +17,10 @@ const std::map <manapi::err_num, std::string> manapi::err_msg {
     {ERR_PARSE_ERROR, "Parse: Error"},
     {ERR_PARSE_INVALID_CHAR, "Parse: invalid char"},
     {ERR_PARSE_INVALID_SYMBOL, "Parse: invalid symbol"},
-    {ERR_PARSE_UNEXPECTED_END, "Parse: Unexpected end"}
+    {ERR_PARSE_UNEXPECTED_END, "Parse: Unexpected end"},
+    {ERR_SOCKET, "Socket Error"},
+    {ERR_FILE_DESCRIPTOR, "FD error"},
+    {ERR_INCOMPATIBLE_SETTING, "Incompatible setting"}
 };
 
 manapi::exception::exception(const err_num &errnum, std::string message_): message(std::move(message_)) {

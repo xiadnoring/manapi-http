@@ -55,7 +55,7 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http::r
 
     // set time
     res.header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", manapi::time::current_time(false)));
-    if (this->config->get_http_version() < versions::HTTP_v2) { res.header(HEADER.CONNECTION, "close"); }
+    if (this->request_data.http < versions::HTTP_v2) { res.header(HEADER.CONNECTION, "close"); }
 
     if (res.is_file()) {
         co_await send_response_file(res, features);
@@ -237,7 +237,9 @@ manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::h
 
     {
         const auto proxy_setup = std::move(res.proxy_setup_cb());
-        proxy_setup->operator()(*proxy);
+        if (proxy_setup) {
+            proxy_setup->operator()(*proxy);
+        }
     }
 
     proxy->headers({{"ranges", "0-"}});
@@ -372,6 +374,15 @@ manapi::future<> manapi::net::http::base::send_response_async_cb(manapi::net::ht
 manapi::future<ssize_t> manapi::net::http::base::mask_response(manapi::net::http::response &resp, bool finish) {
     const auto rhs = co_await this->worker->response(*connection, resp, finish);
     co_return rhs;
+}
+
+manapi::future<bool> manapi::net::http::base::validate_http_version() {
+    if (!this->config->contains_http_version(this->request_data.http)) {
+        const auto handler = this->site.handler(this->request_data);
+        co_await this->send_error_response(HTTP_VERSION_NOT_SUPPORTED_505, this->request_data, handler.error.get());
+        co_return false;
+    }
+    co_return true;
 }
 
 manapi::future<void> manapi::net::http::base::handle_request(const http_handler_page *data, http::request_data_t &request_data, const size_t &status) {

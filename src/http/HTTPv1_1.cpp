@@ -223,14 +223,10 @@ manapi::future<bool> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
         this->request_data.body_size = content_length;
 
         if (size <= j) {
-            size = co_await this->read(this->request_data.buffer->data(), static_cast<ssize_t>(this->request_data.buffer->size()));
-            if (size < 0) {
-                THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "this->read(...) = {}", size);
-            }
-            this->request_data.body_part = size;
-            this->request_data.headers_part = 0;
+            size = 0;
             j = 0;
         }
+
         this->request_data.headers_part = j;
         this->request_data.body_part = size;
         this->request_data.body_index = j;
@@ -248,15 +244,17 @@ manapi::future<bool> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
         this->request_data.body_left = 0;
     }
 
+    /* try upgrade */
+    this->upgraded = co_await upgrade_connection();
+
+    if (!co_await this->validate_http_version()) {
+        co_return false;
+    }
+
     co_return true;
 }
 
 manapi::future<void> manapi::net::http::http_v1_1::execute_handler() {
-    this->upgraded = co_await upgrade_connection();
-    if (this->connection_was_upgraded()) {
-        co_return;
-    }
-
     const auto handler = this->site.handler(this->request_data);
     co_await handle_request(&handler, this->request_data);
     co_return;
@@ -266,12 +264,20 @@ bool manapi::net::http::http_v1_1::connection_was_upgraded() const {
     return this->upgraded != versions::HTTP_v1_1;
 }
 
-manapi::net::http::versions::http manapi::net::http::http_v1_1::get_upgraded_version() const {
+int manapi::net::http::http_v1_1::upgraded_version() const {
     return this->upgraded;
 }
 
 manapi::future<ssize_t> manapi::net::http::http_v1_1::read(void *buffer, ssize_t size) {
     return this->read_async(buffer, size);
+}
+
+manapi::future<bool> manapi::net::http::http_v1_1::validate_http_version() {
+    if (this->connection_was_upgraded()) {
+        co_return true;
+    }
+
+    co_return co_await base::validate_http_version();
 }
 
 void manapi::net::http::http_v1_1::_skip_white_space(char &c) {
@@ -320,30 +326,34 @@ void manapi::net::http::http_v1_1::_parse_headers(char &c) {
         return;
     }
 
-    if (parse_vars.dbl) {
-        parse_vars.dbl = false;
+    if (this->parse_vars.dbl) {
+        this->parse_vars.dbl = false;
     }
 
-    if (c == ':' && parse_vars.is_key) {
-        parse_vars.is_key = false;
-        parse_vars.value = &request_data.headers[parse_vars.key];
+    if (c == ':' && this->parse_vars.is_key) {
+        this->parse_vars.is_key = false;
+        this->parse_vars.value = &this->request_data.headers[this->parse_vars.key];
 
         return;
     }
 
 
 
-    if (parse_vars.is_key) {
-        parse_vars.key += static_cast<char>(std::tolower(c));
+    if (this->parse_vars.is_key) {
+        this->parse_vars.key += static_cast<char>(std::tolower(c));
     } else {
-        if (c == ' ' && parse_vars.value->empty()) {
+        if (c == ' ' && this->parse_vars.value->empty()) {
             return;
         }
-        if (!parse_vars.value) {
+        if (!this->parse_vars.value) {
             THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "error in the headers section");
         }
-        *parse_vars.value += c;
+        *this->parse_vars.value += c;
     }
+}
+
+int manapi::net::http::http_v1_1::flags() const {
+    return this->flags_;
 }
 
 manapi::future<manapi::net::http::versions::http> manapi::net::http::http_v1_1::upgrade_connection() {

@@ -22,6 +22,29 @@
 
 #define HANDLER(_req, _resp) (REQ(_req), RESP(_resp))
 
+#ifdef _WIN32
+#   define MANAPIHTTP_NONUNIX true
+#else
+#   define MANAPIHTTP_NONUNIX false
+#endif
+
+namespace manapi {
+#if MANAPIHTTP_NONUNIX
+    typedef FILE fd_t;
+    typedef SOCKET sd_t;
+#else
+    typedef int fd_t;
+    typedef int sd_t;
+#endif
+}
+
+namespace manapi::sockets {
+    enum ip_version {
+        IP_VERSION_4 = 4,
+        IP_VERSION_6 = 6
+    };
+}
+
 namespace manapi::memory {
     template<typename T>
     constexpr T *alloc (std::size_t size) {

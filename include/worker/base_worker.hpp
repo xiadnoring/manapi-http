@@ -30,7 +30,7 @@ namespace manapi::net::worker {
 
         sockaddr_storage client{};
         socklen_t len{};
-        http::versions::http version = http::versions::HTTP_v1_1;
+        int version = http::versions::HTTP_v1_1;
     private:
         std::unique_ptr<void, void(*)(void *)> ptr;
     };
@@ -55,6 +55,7 @@ namespace manapi::net::worker {
         virtual void set_config (std::shared_ptr<manapi::net::http::config> config);
         virtual future<void> connection_close (std::shared_ptr<connection> conn, bool clean_disconnect);
         virtual void disable_watcher_for_status (connection &conn, const connection_status &status);
+        virtual manapi::future<void> connection_shutdown (std::shared_ptr<connection> conn, bool connection_status);
 
         virtual future<bool> configure_connection (std::shared_ptr<connection> conn);
 
@@ -64,8 +65,6 @@ namespace manapi::net::worker {
         virtual void onrecv (ev::io &watcher, int revents);
 
         base &operator= (base &&n) noexcept;
-
-        void set_fd_non_blocking (int fd);
 
         manapi::future<ssize_t> fwrite (connection &conn, const void *buff, ssize_t size, bool finish);
         manapi::future<ssize_t> fread (connection &conn, void *buff, ssize_t size);

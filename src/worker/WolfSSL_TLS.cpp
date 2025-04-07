@@ -31,11 +31,13 @@
 
 #define WANT_READ(x_, ctx) x_.status.fetch_or(CONN_READ); \
 x_.iocancel.reset(ctx);\
+x_.iocancel.ask_cancel_callback();\
 x_.iocancel.handle_ready([&] () -> void { x_.iomutex.unlock(); unlock.disable(); lk.call(); }); \
 co_await async::read_ready (this->site.async_context(), x_.id, x_.iocancel); \
 x_.status.fetch_xor(CONN_READ);
 #define WANT_WRITE(x_, ctx) x_.status.fetch_or(CONN_WRITE); \
 x_.iocancel.reset(ctx);\
+x_.iocancel.ask_cancel_callback();\
 x_.iocancel.handle_ready([&] () -> void { x_.iomutex.unlock(); unlock.disable(); lk.call();  }); \
 co_await async::write_ready (this->site.async_context(), x_.id, x_.iocancel); \
 x_.status.fetch_xor(CONN_WRITE);

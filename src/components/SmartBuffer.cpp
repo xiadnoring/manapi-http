@@ -25,7 +25,7 @@ manapi::net::worker::smart_w_buffer & manapi::net::worker::smart_w_buffer::opera
     this->sent.store(n.sent.exchange(0));
     this->callback = std::move(n.callback);
     this->frame_size = std::exchange(n.frame_size, 0);
-    this->disabled.store(n.disabled.exchange(false));
+    this->flags.store(n.flags.exchange(0));
     this->taskpool = std::move(n.taskpool);
     this->buffer_cursor = std::exchange(n.buffer_cursor, 0);
     this->buffer_pos = std::exchange(n.buffer_pos, 0);
@@ -68,7 +68,7 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::add(const void *c, 
 }
 
 manapi::future<void> manapi::net::worker::smart_w_buffer::disable() {
-    this->disabled.store(true);
+    this->flags.fetch_or(FLAG_DISABLED);
     co_await this->cv.notify_all();
 }
 
@@ -77,10 +77,10 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
     ssize_t total = 0;
     while (true) {
         co_await this->cv.wait([this] () -> bool {
-            return this->sent > 0 || this->disabled;
+            return this->sent > 0 || (this->flags & FLAG_DISABLED);
         });
 
-        if (this->disabled) {
+        if (this->flags & FLAG_DISABLED) {
             THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
         }
         if (this->callback == nullptr) { THROW_MANAPIHTTP_EXCEPTION2(ERR_FUNCTION_IS_NULL, "class smart_w_buffer(...): Function was not set"); }
@@ -91,7 +91,7 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
         auto limit = this->buffer_pos + (buff_size / this->frame_size) * this->frame_size;
         while (limit > this->buffer_pos) {
             const bool last = this->buffer_cursor == this->buffer_pos + this->frame_size;
-            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, this->frame_size, (flag && last), this->disabled);
+            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, this->frame_size, (flag && last), this->flags);
             if (rhs <= 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "эм"); }
             this->buffer_pos += rhs;
         }
@@ -102,7 +102,7 @@ manapi::future<ssize_t> manapi::net::worker::smart_w_buffer::_work(bool flag) {
         if (this->sent > 0 && (this->buffer_pos < this->buffer_cursor)) {
             // less than frame_size
             auto pred = static_cast<ssize_t>(this->buffer_cursor - this->buffer_pos);
-            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, std::min(this->sent.load(), pred), flag && pred <= this->sent.load(), this->disabled);
+            auto rhs = co_await this->callback (this->buffer.data() + this->buffer_pos, std::min(this->sent.load(), pred), flag && pred <= this->sent.load(), this->flags);
             this->buffer_pos += rhs;
             this->sent.fetch_sub(rhs);
         }
@@ -139,7 +139,7 @@ manapi::net::worker::smart_r_buffer::smart_r_buffer(smart_r_buffer &&n) noexcept
 manapi::net::worker::smart_r_buffer & manapi::net::worker::smart_r_buffer::operator=(smart_r_buffer &&n) noexcept {
     this->buffer = std::move(n.buffer);
     this->callback = std::move(n.callback);
-    this->disabled.store(n.disabled.exchange(false));
+    this->flags.store(n.flags.exchange(0));
     this->taskpool = std::move(n.taskpool);
     this->buffer_pos = std::exchange(n.buffer_pos, 0);
     this->buffer_cursor = std::exchange(n.buffer_cursor, 0);
@@ -169,6 +169,10 @@ manapi::future<ssize_t> manapi::net::worker::smart_r_buffer::add(const void *c, 
     memcpy(this->buffer.data() + this->buffer_cursor, c, res);
     this->buffer_cursor += res;
     this->read_window -= static_cast<int>(res);
+    if (flag) {
+        /* end of stream */
+        this->flags.fetch_or(FLAG_EOS);
+    }
 
     lk.call();
     //std::cout << "wait " << len << "flag: " << flag << "\n";
@@ -185,7 +189,7 @@ manapi::future<ssize_t> manapi::net::worker::smart_r_buffer::read(void *c, ssize
         this->want_read.fetch_sub(1);
     }
 
-    if (this->disabled) {
+    if (this->flags & FLAG_DISABLED) {
         co_return -1;
     }
 
@@ -198,8 +202,9 @@ manapi::future<ssize_t> manapi::net::worker::smart_r_buffer::read(void *c, ssize
         this->buffer_pos=0;
         this->buffer_cursor=0;
         lk.call();
-        if(this->callback && this->read_window < this->buffer_size) {
+        if(!(this->flags & FLAG_EOS) && this->callback && this->read_window < this->buffer_size) {
             int fetchadd = static_cast<int>(this->buffer_size) - this->read_window;
+            //MANAPIHTTP_LOG("fetchadd {} bytes", fetchadd);
             this->read_window += fetchadd;
             co_await this->callback (fetchadd);
         }
@@ -210,11 +215,11 @@ manapi::future<ssize_t> manapi::net::worker::smart_r_buffer::read(void *c, ssize
 
 manapi::future<void> manapi::net::worker::smart_r_buffer::disable() {
     auto lk = co_await this->gmx.lock_guard();
-    this->disabled.store(true);
+    this->flags.fetch_or(FLAG_DISABLED);
     co_await this->cv.notify_all();
 }
 
 bool manapi::net::worker::smart_r_buffer::available_read() {
-    return this->buffer_pos != this->buffer_cursor || this->disabled;
+    return this->buffer_pos != this->buffer_cursor || (this->flags & (FLAG_DISABLED|FLAG_EOS));
 }
 

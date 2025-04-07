@@ -100,6 +100,7 @@ namespace manapi::net::worker {
         future<void> connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
         void stop() override;
         int status (connection &conn) override;
+        manapi::future<> connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) override;
     protected:
         virtual void _recv_setup_connection (manapi::net::worker::connection &storage);
         void update_limit_rate ();
@@ -122,7 +123,7 @@ namespace manapi::net::worker {
         std::map <int, std::shared_ptr<async_stack_storage>> stacks;
         std::shared_ptr<async::condition_variable> limit_rate_cv;
     private:
-        std::string stringify_http_info (manapi::net::http::response &res, const http::versions::http &version, const std::string &delimiter) const;
+        std::string stringify_http_info (manapi::net::http::response &res, const int &version, const std::string &delimiter) const;
         std::string stringify_headers (manapi::net::http::response &res, const std::string &delimiter) const;
         static void connection_interface_eraser (void *ptr);
 

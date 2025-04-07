@@ -35,6 +35,10 @@ manapi::future<bool> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_
     this->request_data.path = std::move(result.first);
     this->request_data.divided = result.second;
 
+    if (!co_await this->validate_http_version()) {
+        co_return false;
+    }
+
     co_return true;
 }
 

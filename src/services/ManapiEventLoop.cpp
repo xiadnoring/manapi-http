@@ -4,6 +4,7 @@
 
 #include <memory>
 
+#include "async/ManapiAsyncSocket.hpp"
 #include "components/TimerObject.hpp"
 
 #ifdef _WIN32
@@ -66,6 +67,9 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : pre
     this->curl_watcher.adding_curl_multi_async->priority = priority::oncurl;
     this->curl_watcher.adding_curl_async_cb = [this] ()
         -> void { this->curl_watcher.adding_curl_multi_async->send(); };
+
+    curl_multi_setopt(this->curl_watcher.curl_multi.get(), CURLMOPT_SOCKETFUNCTION, event_loop::handle_curl_socket);
+    curl_multi_setopt(this->curl_watcher.curl_multi.get(), CURLMOPT_SOCKETDATA, this);
 #endif
 
     this->prepare_watcher.set<event_loop, &event_loop::handle_tasks_do_event>(this);
@@ -340,32 +344,55 @@ void manapi::event_loop::custom_watcher_curl_async(ev::async &w, int revents) {
 
         this->curl_watcher.curl_multi_mx->unlock();
     }
-
+    //
     int running_handles = 0;
     auto mcode = curl_multi_perform(this->curl_watcher.curl_multi.get(), &running_handles);
 
     if (mcode != CURLM_OK) {
         return;
     }
+    //
+    // fd_set fd_read;
+    // fd_set fd_write;
+    // fd_set fd_exc;
+    //
+    // FD_ZERO(&fd_read);
+    // FD_ZERO(&fd_write);
+    // FD_ZERO(&fd_exc);
+    //
+    // int maxfd = -1;
+    //
+    // if (running_handles) {
+    //     mcode = curl_multi_fdset(this->curl_watcher.curl_multi.get(), &fd_read, &fd_write, &fd_exc, &maxfd);
+    //
+    //     if (mcode != CURLM_OK) {
+    //         return;
+    //     }
+    // }
+    //
+    this->handle_curl_check_connections();
+    //
+    // for (int i = 0; i <= maxfd; i++) {
+    //     int flag = 0;
+    //     if (FD_ISSET(i, &fd_read)) {
+    //         flag |= ev::READ;
+    //     }
+    //
+    //     if (FD_ISSET(i, &fd_write)) {
+    //         flag |= ev::WRITE;
+    //     }
+    //     if (flag) {
+    //         this->curl_watcher.curl_fds.push(this->create_watcher_fd(i, flag, [wloop = this->curl_watcher.adding_curl_multi_async] (ev::io &w, int revents)
+    //             -> void {
+    //             wloop->send();
+    //         }));
+    //
+    //         this->curl_watcher.curl_fds.front()->start();
+    //     }
+    // }
+}
 
-    fd_set fd_read;
-    fd_set fd_write;
-    fd_set fd_exc;
-
-    FD_ZERO(&fd_read);
-    FD_ZERO(&fd_write);
-    FD_ZERO(&fd_exc);
-
-    int maxfd = -1;
-
-    if (running_handles) {
-        mcode = curl_multi_fdset(this->curl_watcher.curl_multi.get(), &fd_read, &fd_write, &fd_exc, &maxfd);
-
-        if (mcode != CURLM_OK) {
-            return;
-        }
-    }
-
+void manapi::event_loop::handle_curl_check_connections() {
     int msgs_left;
     CURLMsg *msg;
     while (true) {
@@ -381,27 +408,7 @@ void manapi::event_loop::custom_watcher_curl_async(ev::async &w, int revents) {
             if(data.empty()) {
                 continue;
             }
-            this->taskpool->append_task([result = msg->data.result, resolve = std::move(data.mapped())] () mutable
-                -> void { resolve(result); });
-        }
-    }
-
-    for (int i = 0; i <= maxfd; i++) {
-        int flag = 0;
-        if (FD_ISSET(i, &fd_read)) {
-            flag |= ev::READ;
-        }
-
-        if (FD_ISSET(i, &fd_write)) {
-            flag |= ev::WRITE;
-        }
-        if (flag) {
-            this->curl_watcher.curl_fds.push(this->create_watcher_fd(i, flag, [wloop = this->curl_watcher.adding_curl_multi_async] (ev::io &w, int revents)
-                -> void {
-                wloop->send();
-            }));
-
-            this->curl_watcher.curl_fds.front()->start();
+            data.mapped().second(msg->data.result);
         }
     }
 }
@@ -429,8 +436,7 @@ void manapi::event_loop::custom_watcher_timer_async(ev::async &w, int revents) {
 
             auto resolve = std::move(data->resolve);
             auto res = this->timer_watcher.external_cb(std::move(*data));
-            this->taskpool->append_task([res = std::move(res), resolve = std::move(resolve)] () mutable
-                -> void { resolve (std::move(res)); });
+            resolve(std::move(res));
         }
 
         this->timer_watcher.adding_timer_mx->unlock();
@@ -468,16 +474,12 @@ void manapi::event_loop::custom_watcher_callback_async(ev::async &w, int revents
                 data->cb(this);
             }
             catch (...) {
-                this->taskpool->append_task([reject = std::move(data->reject), err = std::current_exception()] () mutable
-                    -> void { reject(std::move(err)); });
+                data->reject(std::move(std::current_exception()));
 
                 continue;
             }
 
-            this->taskpool->append_task([resolve = std::move(data->resolve)] ()
-                -> void {
-                resolve();
-            });
+            data->resolve();
         }
 
         this->callback_watcher.adding_mx->unlock();
@@ -491,80 +493,140 @@ void manapi::event_loop::handle_tasks_do_event(ev::prepare &w, int revents) {
     }
 }
 #if MANAPIHTTP_CURL_DEPENDENCY
+curl_socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, curlsocktype type, curl_sockaddr *addr) {
+    auto data = static_cast<event_loop *>(cbp);
+    try {
+        return manapi::async::create_socket(addr->family, addr->protocol, addr->socktype, &addr->addr, addr->addrlen);
+    }
+    catch (...) { }
+    return -1;
+}
+
+int manapi::event_loop::handle_curl_socket(CURL *curl, curl_socket_t fd, int revents, void *userp, void *) {
+    auto data = static_cast<event_loop *> (userp);
+
+    if ((revents & 0b11)) {
+        auto it = data->curl_watcher.watchers.find(fd);
+
+        if (it != data->curl_watcher.watchers.end()) {
+            it->second->events = revents;
+        }
+        else {
+            auto watcher = data->create_watcher_fd(fd, revents & 0b11, [data, fd] (ev::io &w, int revents)
+                    -> void {
+                auto data2 = data;
+                //MANAPIHTTP_LOG("CURL EV: {} {}", revents, (int)fd);
+                int cnt; auto rhs = curl_multi_socket_action(data->curl_watcher.curl_multi.get(), fd, (revents & 0b11), &cnt);
+                if (rhs != CURLM_OK) { MANAPIHTTP_LOG("curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs)); }
+                data2->handle_curl_check_connections();
+            });
+
+            watcher->start();
+
+            data->curl_watcher.watchers.insert({fd, std::move(watcher)});
+        }
+    }
+    else if ((revents & CURL_POLL_REMOVE)) {
+        //MANAPIHTTP_LOG("curl ev shutdown: {}",(int) fd);
+        auto mapped = data->curl_watcher.watchers.extract(fd);
+        if (!mapped.empty() && mapped.mapped()) {
+            mapped.mapped()->stop();
+        }
+    }
+
+    return 0;
+}
+
+int manapi::event_loop::handle_curl_close_socket(void *cbp, curl_socket_t socket) {
+    auto data = static_cast<event_loop *>(cbp);
+    auto watcher_data = data->curl_watcher.watchers.extract(static_cast<sd_t>(socket));
+    if (!watcher_data.empty() && watcher_data.mapped()) {
+        watcher_data.mapped()->stop();
+    }
+    async::close_descriptor(static_cast<sd_t>(socket));
+    return 0;
+}
+
 void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_data_t> data) {
     CURLMcode mcode;
 
     if (data->flag==0) {
         /* add */
-        mcode = curl_multi_add_handle(this->curl_watcher.curl_multi.get(), data->curl);
+        curl_easy_setopt (data->curl.get(), CURLOPT_OPENSOCKETFUNCTION, handle_curl_open_socket);
+        curl_easy_setopt (data->curl.get(), CURLOPT_OPENSOCKETDATA, this);
+
+        curl_easy_setopt (data->curl.get(), CURLOPT_CLOSESOCKETFUNCTION, handle_curl_close_socket);
+        curl_easy_setopt (data->curl.get(), CURLOPT_CLOSESOCKETDATA, this);
+
+        mcode = curl_multi_add_handle(this->curl_watcher.curl_multi.get(), data->curl.get());
 
         if (mcode != CURLM_OK) {
             auto err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH,
                 "Failed to add the curl handle. curl_multi_add_handle(...) = {}", static_cast<int>(mcode)));
-            this->taskpool->append_task([reject = std::move(data->reject), err = std::move(err)] () mutable
-                -> void { reject(std::move(err)); });
+            data->reject(std::move(err));
 
         }
         else {
-            this->curl_watcher.curl_res.insert({data->curl, std::move(data->finish)});
+            this->curl_watcher.curl_res.insert({data->curl.get(), {data->curl, std::move(data->finish)}});
 
-            this->taskpool->append_task([resolve = std::move(data->resolve)] ()
-                -> void { resolve(); });
+            data->resolve();
         }
     }
     else if (data->flag==1) {
         /* remove */
-        auto curl_data = this->curl_watcher.curl_res.extract(data->curl);
+        auto curl_data = this->curl_watcher.curl_res.extract(data->curl.get());
         if (curl_data.empty()) {
             /** already was removed */
-            this->taskpool->append_task([resolve1 = std::move(data->resolve)] () mutable
-                -> void { resolve1 (); });
+            data->resolve();
             return;
         }
 
-        mcode = curl_multi_remove_handle(this->curl_watcher.curl_multi.get(), data->curl);
+        mcode = curl_multi_remove_handle(this->curl_watcher.curl_multi.get(), data->curl.get());
 
         if (mcode != CURLM_OK) {
             auto err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH,
                 "Failed to remove the curl handle. curl_multi_remove_handle(...) = {}", static_cast<int>(mcode)));
-            this->taskpool->append_task([reject = std::move(data->reject), err = std::move(err)] () mutable
-                -> void { reject(std::move(err)); });
+            data->reject(std::move(err));
         }
         else {
-            this->taskpool->append_task([resolve1 = std::move(data->resolve), resolve2 = std::move(curl_data.mapped())] () mutable
-                -> void { resolve1 (); resolve2(CURLE_ABORTED_BY_CALLBACK); });
+            data->resolve();
         }
+
+        curl_data.mapped().second(CURLE_ABORTED_BY_CALLBACK);
     }
     else if (data->flag==2) {
         /* pause */
-        const auto rhs = curl_easy_pause(data->curl, CURLPAUSE_ALL);
+        const auto rhs = curl_easy_pause(data->curl.get(), CURLPAUSE_ALL);
         if (CURLE_OK != rhs) {
             auto err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl_easy_pause(...) with CURLPAUSE_ALL failed -> {}", static_cast<int>(rhs)));
-            this->taskpool->append_task([reject = std::move(data->reject), err = std::move(err)] () mutable
-                -> void { reject(std::move(err)); });
+
+            data->reject(std::move(err));
         }
         else {
-            this->taskpool->append_task([resolve = std::move(data->resolve)] ()
-                -> void { resolve(); });
+            data->resolve();
         }
     }
     else if (data->flag==3) {
         /* unpause */
-        const auto rhs = curl_easy_pause(data->curl, CURLPAUSE_CONT);
+        const auto rhs = curl_easy_pause(data->curl.get(), CURLPAUSE_CONT);
         if (CURLE_OK != rhs) {
             auto err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH,
                 "curl_easy_pause(...) with CURLPAUSE_CONT failed -> {}", static_cast<int>(rhs)));
-            this->taskpool->append_task([reject = std::move(data->reject), err = std::move(err)] mutable
-                -> void { reject(std::move(err)); });
+            data->reject(std::move(err));
         }
         else {
-            this->taskpool->append_task([resolve = std::move(data->resolve)] ()
-                -> void { resolve(); });
+            data->resolve();
         }
     }
     else if (data->flag==4) {
         /* callback */
-        data->finish (CURLE_OK);
+        try {
+            data->finish (CURLE_OK);
+        }
+        catch (...) {
+
+        }
+        data->resolve();
     }
 }
 #endif
@@ -614,8 +676,7 @@ void manapi::event_loop::handle_async_watcher_data(std::unique_ptr<adding_watche
     }
 
     if (data->resolve) {
-        this->taskpool->append_task([type = data->type, fd, flag = data->flag, resolve = std::move(data->resolve)] ()
-            -> void { resolve(); });
+        data->resolve();
     }
 }
 
@@ -647,7 +708,7 @@ manapi::future<> manapi::event_loop::_template_cmd_watcher(std::unique_ptr<addin
     });
 }
 #if MANAPIHTTP_CURL_DEPENDENCY
-manapi::future<> manapi::event_loop::_template_cmd_curl(int flag, CURL *curl, std::move_only_function<void(CURLcode result)> cb) {
+manapi::future<> manapi::event_loop::_template_cmd_curl(int flag, std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb) {
     co_await async::promise<void> (this->taskpool, [&] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
         bool flg = true;
 
@@ -823,23 +884,23 @@ std::shared_ptr<manapi::threadpool<manapi::task>> manapi::event_loop::get_task_p
     return this->taskpool;
 }
 #if MANAPIHTTP_CURL_DEPENDENCY
-manapi::future<> manapi::event_loop::watch_curl(CURL *curl, std::move_only_function<void(CURLcode result)> cb) {
+manapi::future<> manapi::event_loop::watch_curl(std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb) {
     return this->_template_cmd_curl(0, curl, std::move(cb));
 }
 
-manapi::future<> manapi::event_loop::unwatch_curl(CURL *curl) {
+manapi::future<> manapi::event_loop::unwatch_curl(std::shared_ptr<CURL> curl) {
     return this->_template_cmd_curl(1, curl);
 }
 
-manapi::future<> manapi::event_loop::pause_watch_curl(CURL *curl) {
+manapi::future<> manapi::event_loop::pause_watch_curl(std::shared_ptr<CURL> curl) {
     return this->_template_cmd_curl(2, curl);
 }
 
-manapi::future<> manapi::event_loop::unpause_watch_curl(CURL *curl) {
+manapi::future<> manapi::event_loop::unpause_watch_curl(std::shared_ptr<CURL> curl) {
     return this->_template_cmd_curl(3, curl);
 }
 
-manapi::future<> manapi::event_loop::custom_cb_curl(CURL *curl, std::move_only_function<void(CURLcode result)> cb) {
+manapi::future<> manapi::event_loop::custom_cb_curl(std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb) {
     return this->_template_cmd_curl(4, curl, std::move(cb));
 }
 #endif

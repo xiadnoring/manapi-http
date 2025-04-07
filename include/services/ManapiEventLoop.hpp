@@ -41,7 +41,7 @@ namespace manapi {
 #if MANAPIHTTP_CURL_DEPENDENCY
     struct adding_curl_data_t {
         int flag{0};
-        CURL* curl{nullptr};
+        std::shared_ptr<CURL> curl{nullptr};
         std::move_only_function<void(CURLcode result)> finish{nullptr};
         async::promise<void>::resolve_t resolve{nullptr};
         async::promise<void>::reject_t reject{nullptr};
@@ -118,11 +118,11 @@ namespace manapi {
 
         [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
 #if MANAPIHTTP_CURL_DEPENDENCY
-        future<void> watch_curl (CURL *curl, std::move_only_function<void(CURLcode result)> cb);
-        future<void> unwatch_curl (CURL *curl);
-        future<void> unpause_watch_curl (CURL *curl);
-        future<void> pause_watch_curl (CURL *curl);
-        future<void> custom_cb_curl (CURL *curl, std::move_only_function<void(CURLcode result)> cb);
+        future<void> watch_curl (std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb);
+        future<void> unwatch_curl (std::shared_ptr<CURL> curl);
+        future<void> unpause_watch_curl (std::shared_ptr<CURL> curl);
+        future<void> pause_watch_curl (std::shared_ptr<CURL> curl);
+        future<void> custom_cb_curl (std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb);
 #endif
         future<void> custom_callback (std::move_only_function<void(event_loop *ev)> cb);
 
@@ -177,9 +177,10 @@ namespace manapi {
 
             std::move_only_function<void()> adding_curl_async_cb{nullptr};
             std::queue<std::shared_ptr<ev::io>> curl_fds{};
-            std::map<CURL*, std::move_only_function<void(CURLcode result)>> curl_res{};
+            std::map<CURL*, std::pair<std::shared_ptr<CURL>, std::move_only_function<void(CURLcode result)>>> curl_res{};
             std::shared_ptr<ev::timer> timeout_watcher{nullptr};
             std::deque<curl_watcher_data_cached_t> watcher_data_cached{};
+            std::map<sd_t, std::shared_ptr<ev::io>> watchers;
         };
 #endif
         struct timer_watcher_t {
@@ -201,18 +202,23 @@ namespace manapi {
         void custom_watcher_fd_async (ev::async &w, int revents);
 #if MANAPIHTTP_CURL_DEPENDENCY
         void custom_watcher_curl_async (ev::async &w, int revents);
+        void handle_curl_check_connections ();
 #endif
         void custom_watcher_timer_async (ev::async &w, int revents);
         void custom_watcher_callback_async (ev::async &w, int revents);
     private:
         void handle_tasks_do_event (ev::prepare &w, int revents);
 #if MANAPIHTTP_CURL_DEPENDENCY
+        static curl_socket_t handle_curl_open_socket (void *cbp, curlsocktype type, curl_sockaddr *addr);
+        static_assert(ev::READ == CURL_POLL_IN && ev::WRITE == CURL_POLL_OUT, "need for review");
+        static int handle_curl_socket (CURL *curl, curl_socket_t fd, int revents, void *userp, void *);
+        static int handle_curl_close_socket (void *cbp, curl_socket_t socket);
         void handle_curl_watcher_data (std::unique_ptr<adding_curl_data_t> data);
 #endif
         void handle_async_watcher_data (std::unique_ptr<adding_watcher_data_t> data);
         future<void> _template_cmd_watcher (std::unique_ptr<adding_watcher_data_t> data);
 #if MANAPIHTTP_CURL_DEPENDENCY
-        future<void> _template_cmd_curl (int flag, CURL *curl, std::move_only_function<void(CURLcode result)> cb = nullptr);
+        future<void> _template_cmd_curl (int flag, std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb = nullptr);
 #endif
         future<std::optional<manapi::timer>> _template_cmd_timer (int flag, size_t data, std::move_only_function<manapi::future<>(manapi::timer t)> cb_async, std::move_only_function<void(manapi::timer t)> cb_sync);
         static std::atomic<bool> interrupted;

@@ -62,7 +62,8 @@ namespace manapi::net {
     class fetch : public task {
         enum status_flags {
             FLAG_TRANSFER_ENCODING = 0b1,
-            FLAG_CONTENT_LENGTH = 0b10
+            FLAG_CONTENT_LENGTH = 0b10,
+            FLAG_WAS_USED = 0b100
         };
         enum status_data_flags {
             FLAG_DATA_EOF = 0b1
@@ -92,7 +93,7 @@ namespace manapi::net {
             std::move_only_function <manapi::future<bool>(std::shared_ptr<shared_data> data, std::map <std::string, std::string>)> async_handler_headers{nullptr};
             std::move_only_function <bool(std::map <std::string, std::string>)> handler_headers{nullptr};
             std::shared_ptr<async::context> ctx;
-            std::unique_ptr<CURL, curl_deleter> curl {nullptr};
+            std::shared_ptr<CURL> curl {nullptr};
             std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
             std::map<std::string, std::string> headers{};
             std::atomic<bool> async_waiting{false};
@@ -151,6 +152,7 @@ namespace manapi::net {
 
         void clear ();
     private:
+        void clear_ ();
         static std::map <std::string, CURLoption> http_method_to_enum;
         static manapi::future<bool> handle_body_verify (std::shared_ptr<shared_data> data);
         static manapi::future<void> handle_sync_body_finish(std::shared_ptr<shared_data> data, bool finish);

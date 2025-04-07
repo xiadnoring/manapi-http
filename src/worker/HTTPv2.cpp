@@ -357,6 +357,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         co_await this->close_connection (HTTP2_ERROR_NO_ERROR, "shutdown", 0);
     }
     this->new_dependency = nullptr;
+    std::cerr<<"http request has been completed\n";
 }
 
 void manapi::net::worker::http_v2::init_settings() {
@@ -807,10 +808,15 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
     auto &d = this->parse_vars.value();
     // if protocol.length==1, then it means that the protocol data frame is empty
     const auto length = this->protocol.length - 1;
+    if (length < 0) {
+        this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_FRAME_SIZE_ERROR, "The DATA frame has a negative length");
+        return;
+    }
+
     switch (this->protocol.type) {
         case HTTP2_FRAME_HEADERS: {
-            if (length <= 0) {
-                this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_FRAME_SIZE_ERROR, "HEADERS Frame is empty");
+            if (length == 0) {
+                this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_FRAME_SIZE_ERROR, "HEADERS frame is empty");
                 return;
             }
 
@@ -884,10 +890,6 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
             this->current = [this](char & PH1) { this->_parse_ping_data(std::forward<decltype(PH1)>(PH1)); };
         break;
         case HTTP2_FRAME_DATA: {
-            if (length<=0) {
-                this->protocol.parse_exception = this->generate_error(HTTP2_ERROR_FRAME_SIZE_ERROR, "DATA Frame is empty");
-                return;
-            }
             if (this->protocol.flag & HTTP2_FLAG_HEADERS_PADDED) {
                 d.i = 1;
                 this->protocol.padding = 0;
@@ -963,12 +965,12 @@ void manapi::net::worker::http_v2::timer_watcher(const std::shared_ptr<manapi::n
 
     this->protocol.current_timeout.fetch_sub(this->config->speed_check_delay());
     if (flg || this->protocol.current_timeout <= 0) {
-        //MANAPIHTTP_LOG2("TIMEOUT HTTP2");
+        MANAPIHTTP_LOG2("TIMEOUT HTTP2");
         this->ping_interval.sync_stop(this->site.async_context());
-        //MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
+        MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
         async::run(this->site.async_context(), this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout", 0), [dep] ()
             -> void {});
-        //MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
+        MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
     }
 }
 
@@ -1008,6 +1010,7 @@ manapi::future<void> manapi::net::worker::http_v2::close_connection(int errnum, 
         co_return;
     }
 
+   // co_await this->worker->connection_shutdown(this->connection, CONN_READ);
     co_await reset_all_streams();
     co_await this->empty_setting_timeouts();
     bool clean_disconnect = true;
@@ -1016,6 +1019,7 @@ manapi::future<void> manapi::net::worker::http_v2::close_connection(int errnum, 
         std::string data;
         data += stringify_number<int> (last_stream_id) + stringify_number<int>(errnum) + additional_data;
         this->resolve_timeout_timer();
+        std::cout << "SEND GOAWAY\n";
         co_await this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, data);
     }
     catch (...) {
@@ -1046,13 +1050,13 @@ manapi::future<void> manapi::net::worker::http_v2::send_settings(const std::vect
     co_await send_frame (HTTP2_FRAME_SETTINGS, 0x0, 0, data);
 }
 
-manapi::future<ssize_t> manapi::net::worker::http_v2::send_data(int stream_id, const void *buf, ssize_t size, bool finish, std::atomic<bool> &disabled) {
+manapi::future<ssize_t> manapi::net::worker::http_v2::send_data(int stream_id, const void *buf, ssize_t size, bool finish, std::atomic<int> &flags) {
     if (size == 0) {
         co_return size;
     }
 
-    co_await this->protocol.window.write_cv->wait([this, &disabled] ()
-        -> bool { return this->protocol.window.write.load() > 0 || this->protocol.conn_type & CONN_CLOSED || disabled.load(); });
+    co_await this->protocol.window.write_cv->wait([this, &flags] ()
+        -> bool { return this->protocol.window.write.load() > 0 || this->protocol.conn_type & CONN_CLOSED || (flags & smart_w_buffer::FLAG_DISABLED); });
     auto sent = std::min(size, this->protocol.window.write.load());
     this->protocol.window.write.fetch_sub(sent);
     char cflag = 0x00;
@@ -1090,8 +1094,8 @@ manapi::future<void> manapi::net::worker::http_v2::default_ev_headers(int id, st
     this->thread_cnt.fetch_add(1);
 
     auto write_cb = std::make_shared<smart_w_buffer>(this->site.async_context()->taskpool(),
-        [this, id](const void * buff, ssize_t size, bool finish, std::atomic<bool> &disabled)
-            -> future<ssize_t> { return this->send_data(id, buff, size, finish, disabled); },
+        [this, id](const void * buff, ssize_t size, bool finish, std::atomic<int> &flags)
+            -> future<ssize_t> { return this->send_data(id, buff, size, finish, flags); },
         static_cast<size_t>(this->protocol.settings[HTTP2_SETTING_INITIAL_WINDOW_SIZE].first), this->config->buffer_size(),
         this->protocol.settings[HTTP2_SETTING_MAX_FRAME_SIZE].first);
 

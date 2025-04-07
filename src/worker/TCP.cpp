@@ -132,7 +132,7 @@ void manapi::net::worker::TCP::init() {
         setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &socket_param_true, sizeof (this->socket_param_true));
     }
 
-    this->set_fd_non_blocking(fd);
+    manapi::async::set_non_blocking(fd);
 
     if (bind(fd.load(), local->ai_addr, local->ai_addrlen) < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", port);
@@ -262,8 +262,8 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
 
     MANAPIHTTP_LOG("NEW FD: {}", fd);
 
-    cnt_conns.fetch_add(1);
-    this->set_fd_non_blocking(fd);
+    this->cnt_conns.fetch_add(1);
+    manapi::async::set_non_blocking(fd);
 
     auto connection = init();
     connection->client = client;
@@ -302,6 +302,22 @@ void manapi::net::worker::TCP::stop() {
 
 int manapi::net::worker::TCP::status(connection &conn) {
     return conn.as<connection_io_await>().iostatus;
+}
+
+manapi::future<> manapi::net::worker::TCP::
+connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) {
+    if (!conn) {
+        co_return;
+    }
+    auto &connection = conn->as<connection_interface>();
+    auto lk = co_await connection.iomutex.lock_guard();
+    int flags = 0;
+    if (connection_status & CONN_READ) { flags = SHUT_RD; }
+    if (connection_status & CONN_WRITE) {
+        if (connection_status & CONN_READ) { flags = SHUT_RDWR; }
+        else { flags = SHUT_WR; }
+    }
+    ::shutdown(connection.id, flags);
 }
 
 void manapi::net::worker::TCP::_recv_setup_connection(manapi::net::worker::connection &storage) {}
@@ -374,7 +390,7 @@ void manapi::net::worker::TCP::_connection_interface_eraser(connection_interface
     connection->worker->cnt_conns.fetch_sub(1);
 }
 
-std::string manapi::net::worker::TCP::stringify_http_info(manapi::net::http::response &res, const http::versions::http &version, const std::string &delimiter) const {
+std::string manapi::net::worker::TCP::stringify_http_info(manapi::net::http::response &res, const int &version, const std::string &delimiter) const {
     return "HTTP/" + http::config::stringify_http_version(version) + ' ' + std::to_string(res.status_code()) + (version < http::versions::HTTP_v2 ? ' ' + std::string{res.status_message()} + delimiter : delimiter);
 }
 
@@ -449,6 +465,7 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_write(connection &conn
 
             connection.status.fetch_or(CONN_WRITE);
             connection.iocancel.reset(this->site.async_context());
+            connection.iocancel.ask_cancel_callback();
             connection.iocancel.handle_ready([&] ()
                 -> void { connection.iomutex.unlock(); unlock.disable(); });
             co_await async::write_ready (this->site.async_context(), connection.id, connection.iocancel);
@@ -513,6 +530,7 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_read(connection &conn,
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 connection.status.fetch_or(CONN_READ);
                 connection.iocancel.reset(this->site.async_context());
+                connection.iocancel.ask_cancel_callback();
                 connection.iocancel.handle_ready([&] ()
                     -> void { connection.iomutex.unlock(); unlock.disable(); });
                 co_await async::read_ready (this->site.async_context(), connection.id, connection.iocancel);

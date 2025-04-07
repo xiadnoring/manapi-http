@@ -44,6 +44,7 @@ namespace manapi::net::http {
 
         object_item_pool<bytebuffer, std::size_t> buffer{};
     protected:
+        virtual future<bool> validate_http_version ();
         std::shared_ptr<manapi::net::http::config> config{nullptr};
         std::shared_ptr<manapi::net::worker::base> worker{nullptr};
         manapi::net::site &site;

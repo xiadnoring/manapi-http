@@ -9,6 +9,10 @@ namespace manapi::net::http {
     class http_v1_1 : public http::base
     {
     public:
+        enum available_flags {
+            FLAG_UPGRADED_BY_SERVER = 0b1
+        };
+
         http_v1_1 (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~http_v1_1 () override;
         static std::shared_ptr<http_v1_1> create (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
@@ -17,9 +21,11 @@ namespace manapi::net::http {
         manapi::future<void> execute_handler () override;
 
         [[nodiscard]] bool connection_was_upgraded () const;
-        [[nodiscard]] versions::http get_upgraded_version () const;
+        [[nodiscard]] int upgraded_version () const;
         future<ssize_t> read (void *buffer, ssize_t size) override;
+        [[nodiscard]] int flags () const;
     protected:
+        future<bool> validate_http_version() override;
         void _skip_white_space (char &c);
         void _next_line (char &c);
         void _parse_headers (char &c);
@@ -44,7 +50,8 @@ namespace manapi::net::http {
             bool finished = false;
         } parse_vars;
 
-        versions::http upgraded = versions::HTTP_v1_1;
+        int flags_ = 0;
+        int upgraded = versions::HTTP_v1_1;
         std::move_only_function<manapi::future<ssize_t>(void *buffer, ssize_t size)> read_async;
     };
 }

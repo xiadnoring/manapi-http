@@ -65,11 +65,11 @@ namespace manapi::net::http {
 
         [[nodiscard]] std::atomic<size_t> &get_partial_data_min_size ();
 
-        void set_http_version (const size_t &new_http_version);
-        [[nodiscard]] std::atomic<size_t> &get_http_version ();
-
-        void set_http_version_str (const std::string &new_http_version);
-        [[nodiscard]] AtomicReference<std::string> get_http_version_str ();
+        void set_http_version (int version);
+        void remove_http_version (int version);
+        bool contains_http_version (int version);
+        int recommended_http_version ();
+        Atomic<std::set<int>> &http_versions ();
 
         void set_keep_alive (const long int &seconds);
         [[nodiscard]] std::atomic<size_t> &get_keep_alive ();
@@ -122,7 +122,7 @@ namespace manapi::net::http {
         [[nodiscard]] bool contains_compressor (const std::string &name);
         void set_function_contains_compressor (const std::function<bool(const std::string &name)> &func);
 
-        static const std::string &stringify_http_version (const versions::http &version);
+        static const std::string &stringify_http_version (const int &version);
         static http::versions::http parse_http_version (const std::string &version);
 
         std::atomic<bool> &get_tcp_no_delay ();
@@ -138,8 +138,7 @@ namespace manapi::net::http {
         std::atomic<size_t> max_header_block_size = 4096UL;
         std::atomic<size_t> socket_block_size = 1350UL;
         std::atomic<size_t> partial_data_min_size = 0UL;
-        std::atomic<size_t> http_version = versions::HTTP_v1_1;
-        Atomic<std::string> http_version_str = "1.1";
+        Atomic<std::set<int>> http_versions_ = {};
         Atomic<std::string> address = "0.0.0.0";
         Atomic<std::string> port = "8888";// settings
         Atomic<std::string> implementation = "default";

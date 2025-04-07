@@ -26,11 +26,13 @@
 
 #define WANT_READ(x_, ctx) x_.status.fetch_or(CONN_READ); \
 x_.iocancel.reset(ctx);\
+x_.iocancel.ask_cancel_callback();\
 x_.iocancel.handle_ready([&] () -> void { x_.iomutex.unlock(); unlock.disable(); lk.call(); }); \
 co_await async::read_ready (this->site.async_context(), x_.id, x_.iocancel); \
 x_.status.fetch_xor(CONN_READ);
 #define WANT_WRITE(x_, ctx) x_.status.fetch_or(CONN_WRITE); \
 x_.iocancel.reset(ctx);\
+x_.iocancel.ask_cancel_callback();\
 x_.iocancel.handle_ready([&] () -> void { x_.iomutex.unlock(); unlock.disable(); lk.call();  }); \
 co_await async::write_ready (this->site.async_context(), x_.id, x_.iocancel); \
 x_.status.fetch_xor(CONN_WRITE);
@@ -194,7 +196,7 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
         connection.iocancel = nullptr;
     }
 
-    if ((false && false == connection.status & CONN_CLOSED)) {
+    if ((false == connection.status & CONN_CLOSED)) {
         if (clean_disconnect) {
             bool flag = true;
 
@@ -214,13 +216,19 @@ manapi::future<void> manapi::net::worker::OpenSSL_TLS::connection_close(std::sha
                 }
                 switch (ssl_errno) {
                     case SSL_ERROR_WANT_READ:
+                        connection.iocancel.reset(this->site.async_context());
+                        connection.iocancel.ask_cancel_callback();
                         co_await async::read_ready(this->site.async_context(), connection.id, connection.iocancel);
                     break;
                     case SSL_ERROR_WANT_WRITE:
+                        connection.iocancel.reset(this->site.async_context());
+                        connection.iocancel.ask_cancel_callback();
                         co_await async::write_ready(this->site.async_context(), connection.id, connection.iocancel);
                     break;
                     case SSL_ERROR_SYSCALL: {
                         if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                            connection.iocancel.reset(this->site.async_context());
+                            connection.iocancel.ask_cancel_callback();
                             co_await async::read_ready(this->site.async_context(), connection.id, connection.iocancel);
                             break;
                         }
@@ -271,7 +279,7 @@ void manapi::net::worker::OpenSSL_TLS::connection_interface_eraser(void *ptr) {
             //MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
             SSL_free(ssl);
         }
-            //MANAPIHTTP_LOG("SSL CLOSED: {}", connection->id);
+        std::cerr << "SSL CLOSED: " << connection->id <<"\n";
 #ifdef _WIN32
         ::closesocket(connection->id);
 #else
@@ -335,13 +343,29 @@ SSL_CTX * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &ver
         unsigned int inlen, void *arg) -> int {
         auto worker = static_cast<OpenSSL_TLS *> (arg);
         std::vector <std::string> wishs;
-        switch (worker->config->get_http_version()) {
-            case http::versions::HTTP_v1_1:
-                wishs.emplace_back("http/1.1");
-            break;
-            case http::versions::HTTP_v2:
-                wishs.emplace_back("h2");
-            break;
+        {
+            auto b = worker->config->http_versions().get();
+            for (const auto &version : *b) {
+                switch (version) {
+                    case http::versions::HTTP_v1_0:
+                        wishs.emplace_back("http/1.0");
+                    break;
+                    case http::versions::HTTP_v0_9:
+                        wishs.emplace_back("http/0.9");
+                    break;
+                    case http::versions::HTTP_v1_1:
+                        wishs.emplace_back("http/1.1");
+                    break;
+                    case http::versions::HTTP_v2:
+                        wishs.emplace_back("h2");
+                    break;
+                    case http::versions::HTTP_v3:
+                        wishs.emplace_back("h3");
+                    break;
+                    default:
+                        break;
+                }
+            }
         }
 
         std::map <std::string_view, int > exists;
