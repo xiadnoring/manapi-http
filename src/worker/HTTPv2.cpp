@@ -357,7 +357,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
         co_await this->close_connection (HTTP2_ERROR_NO_ERROR, "shutdown", 0);
     }
     this->new_dependency = nullptr;
-    std::cerr<<"http request has been completed\n";
+    //std::cerr<<"http request has been completed\n";
 }
 
 void manapi::net::worker::http_v2::init_settings() {

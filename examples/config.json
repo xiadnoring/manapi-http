@@ -2,7 +2,7 @@
   "pools": [
     {
       "address": "127.0.0.1",
-      "http_version": "1.1",
+      "http_versions": ["1.1"],
       "transport": "tcp",
       "implementation": "default",
       "partial_data_min_size": 0,
