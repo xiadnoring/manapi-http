@@ -45,7 +45,7 @@ int main (int argc, char *argv[]) {
 
 
     {
-        auto ctx = manapi::async::context::create(0, 0.01);
+        auto ctx = manapi::async::context::create(16, 0.01);
         ctx->eventloop()->setup_handle_interrupt();
 
 
@@ -195,7 +195,7 @@ int main (int argc, char *argv[]) {
                 {"method", "POST"},
                 {"verbose", true},
                 {"headers", {
-                        // {"content-length", fio.total_size()},
+                        {"content-length", fio.total_size()},
                     {"content-type", manapi::mime::types.TEXT_PLAIN}
                 }}
             }, [fio, &ff] (char *buffer, ssize_t size) mutable
@@ -398,6 +398,21 @@ int main (int argc, char *argv[]) {
             resp.compress("gzip");
             resp.file("/home/Timur/Music/Death By Glamour.mp3");
             co_return;
+        });
+
+        server.GET("/pproxy", [&ctx](http::server::req &req, http::server::resp &resp) -> manapi::future<> {
+            auto fetch = co_await manapi::net::fetch2::fetch (ctx, "https://localhost:8888", {
+                {"ssl_verify", false},
+                {"alpn", false},
+                {"method", "GET"},
+                {"http1_1", true}
+            });
+
+            if (!fetch->ok()) {
+                co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
+            }
+
+            co_return resp.text(co_await fetch->text());
         });
 
         server.GET("/cat/[id]", [&ctx](http::server::req &req, http::server::resp &resp) -> manapi::future<> {

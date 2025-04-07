@@ -218,9 +218,9 @@ void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
             async::run(this->site.async_context(), manapi::async::invoke([this, fd, conn = std::move(conn)] () mutable
                 -> future<void> {
                     auto &connection = conn->as<connection_interface>();
-                MANAPIHTTP_LOG("finish {} {}", fd, connection.status.load());
+                //MANAPIHTTP_LOG("finish {} {}", fd, connection.status.load());
                 if ((connection.status & (CONN_READ|CONN_WRITE))) {
-                    printf("123\n");
+                    //printf("123\n");
                 }
                 co_await this->connection_close(conn, true);
                 co_await this->site.async_context()->eventloop()->custom_callback([this, conn = std::move(conn)] (event_loop *ev) mutable
@@ -260,7 +260,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
         return {};
     }
 
-    MANAPIHTTP_LOG("NEW FD: {}", fd);
+    //MANAPIHTTP_LOG("NEW FD: {}", fd);
 
     this->cnt_conns.fetch_add(1);
     manapi::async::set_non_blocking(fd);
@@ -351,7 +351,7 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage) {
     }
 
     if (flag) {
-        MANAPIHTTP_LOG("TIMEOUT {} t:{}", conn.id, storage.use_count());
+        //MANAPIHTTP_LOG("TIMEOUT {} t:{}", conn.id, storage.use_count());
         conn.t.sync_stop(this->site.async_context());
         async::run(this->site.async_context(), this->connection_close(storage, false));
         return;

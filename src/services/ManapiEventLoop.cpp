@@ -89,10 +89,10 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : pre
     this->curl_watcher.adding_curl_multi_async->start();
 
     /* curl fetch timeout */
-    this->curl_watcher.timeout_watcher = create_watcher_timer(0.5, 0.0, [this] (ev::timer &w, int revents) -> void {
+    this->curl_watcher.timeout_watcher = create_watcher_timer(5, 0.0, [this] (ev::timer &w, int revents) -> void {
         this->curl_watcher.adding_curl_multi_async->send();
 
-        w.repeat = 0.5;
+        w.repeat = 5;
         w.again();
     });
 
@@ -345,12 +345,7 @@ void manapi::event_loop::custom_watcher_curl_async(ev::async &w, int revents) {
         this->curl_watcher.curl_multi_mx->unlock();
     }
     //
-    int running_handles = 0;
-    auto mcode = curl_multi_perform(this->curl_watcher.curl_multi.get(), &running_handles);
 
-    if (mcode != CURLM_OK) {
-        return;
-    }
     //
     // fd_set fd_read;
     // fd_set fd_write;
@@ -393,6 +388,13 @@ void manapi::event_loop::custom_watcher_curl_async(ev::async &w, int revents) {
 }
 
 void manapi::event_loop::handle_curl_check_connections() {
+    int running_handles = 0;
+    auto mcode = curl_multi_perform(this->curl_watcher.curl_multi.get(), &running_handles);
+
+    if (mcode != CURLM_OK) {
+        return;
+    }
+
     int msgs_left;
     CURLMsg *msg;
     while (true) {
@@ -493,13 +495,32 @@ void manapi::event_loop::handle_tasks_do_event(ev::prepare &w, int revents) {
     }
 }
 #if MANAPIHTTP_CURL_DEPENDENCY
+std::shared_ptr<ev::io> manapi::event_loop::handle_curl_watcher_gen (manapi::event_loop * data, manapi::sd_t fd, int flags) {
+    return data->create_watcher_fd(fd, flags, [data, fd] (ev::io &w, int revents)
+            -> void {
+        auto data2 = data;
+        //MANAPIHTTP_LOG("CURL EV: {} {}", revents, (int)fd);
+        int cnt; auto rhs = curl_multi_socket_action(data->curl_watcher.curl_multi.get(), fd, (revents & 0b11), &cnt);
+        if (rhs != CURLM_OK) { MANAPIHTTP_LOG("curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs)); }
+        data2->handle_curl_check_connections();
+    });
+}
 curl_socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, curlsocktype type, curl_sockaddr *addr) {
     auto data = static_cast<event_loop *>(cbp);
+
+    sd_t fd;
+
     try {
-        return manapi::async::create_socket(addr->family, addr->protocol, addr->socktype, &addr->addr, addr->addrlen);
+        fd = manapi::async::create_socket(addr->family, addr->protocol, addr->socktype, &addr->addr, addr->addrlen);
     }
-    catch (...) { }
-    return -1;
+    catch (...) {
+        return -1;
+    }
+
+    auto watcher = handle_curl_watcher_gen(data, fd, ev::READ|ev::WRITE);
+    watcher->start();
+    data->curl_watcher.watchers.insert({fd, std::move(watcher)});
+    return fd;
 }
 
 int manapi::event_loop::handle_curl_socket(CURL *curl, curl_socket_t fd, int revents, void *userp, void *) {
@@ -512,17 +533,8 @@ int manapi::event_loop::handle_curl_socket(CURL *curl, curl_socket_t fd, int rev
             it->second->events = revents;
         }
         else {
-            auto watcher = data->create_watcher_fd(fd, revents & 0b11, [data, fd] (ev::io &w, int revents)
-                    -> void {
-                auto data2 = data;
-                //MANAPIHTTP_LOG("CURL EV: {} {}", revents, (int)fd);
-                int cnt; auto rhs = curl_multi_socket_action(data->curl_watcher.curl_multi.get(), fd, (revents & 0b11), &cnt);
-                if (rhs != CURLM_OK) { MANAPIHTTP_LOG("curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs)); }
-                data2->handle_curl_check_connections();
-            });
-
+            auto watcher = handle_curl_watcher_gen(data, fd, revents & 0b11);
             watcher->start();
-
             data->curl_watcher.watchers.insert({fd, std::move(watcher)});
         }
     }
@@ -554,7 +566,7 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
         /* add */
         curl_easy_setopt (data->curl.get(), CURLOPT_OPENSOCKETFUNCTION, handle_curl_open_socket);
         curl_easy_setopt (data->curl.get(), CURLOPT_OPENSOCKETDATA, this);
-
+        //
         curl_easy_setopt (data->curl.get(), CURLOPT_CLOSESOCKETFUNCTION, handle_curl_close_socket);
         curl_easy_setopt (data->curl.get(), CURLOPT_CLOSESOCKETDATA, this);
 

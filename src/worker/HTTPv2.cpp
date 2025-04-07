@@ -965,12 +965,12 @@ void manapi::net::worker::http_v2::timer_watcher(const std::shared_ptr<manapi::n
 
     this->protocol.current_timeout.fetch_sub(this->config->speed_check_delay());
     if (flg || this->protocol.current_timeout <= 0) {
-        MANAPIHTTP_LOG2("TIMEOUT HTTP2");
+        //MANAPIHTTP_LOG2("TIMEOUT HTTP2");
         this->ping_interval.sync_stop(this->site.async_context());
-        MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
+        //MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
         async::run(this->site.async_context(), this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout", 0), [dep] ()
             -> void {});
-        MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
+        //MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
     }
 }
 

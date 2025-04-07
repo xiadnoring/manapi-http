@@ -209,6 +209,7 @@ namespace manapi {
     private:
         void handle_tasks_do_event (ev::prepare &w, int revents);
 #if MANAPIHTTP_CURL_DEPENDENCY
+        static std::shared_ptr<ev::io> handle_curl_watcher_gen(event_loop *data, sd_t fd,  int flags);
         static curl_socket_t handle_curl_open_socket (void *cbp, curlsocktype type, curl_sockaddr *addr);
         static_assert(ev::READ == CURL_POLL_IN && ev::WRITE == CURL_POLL_OUT, "need for review");
         static int handle_curl_socket (CURL *curl, curl_socket_t fd, int revents, void *userp, void *);
