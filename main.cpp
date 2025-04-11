@@ -32,6 +32,7 @@
 #include "services/ManapiFetch2.hpp"
 #include <memory.h>
 
+#include "ManapiHash.hpp"
 #include "ManapiMath.hpp"
 
 using namespace manapi::net;
@@ -209,6 +210,27 @@ int main (int argc, char *argv[]) {
         //
         //     resp.file("/home/Timur/Downloads/Фотосессия Иглино.zip");
         // });
+
+        server.POST("/sha256sum", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+            manapi::net::hash::SHA256 sha256;
+
+            ssize_t s = 0;
+            sha256.init();
+            co_await req.callback_sync([&sha256, &s] (const void *buffer, ssize_t size)
+                -> ssize_t {
+
+                sha256.update(static_cast<const uint8_t *>(buffer), size);
+
+                s += size;
+                return size;
+            });
+
+            std::string diggest;
+            diggest.resize(32);
+            sha256.final(reinterpret_cast <uint8_t *>(diggest.data()));
+            auto a = manapi::crypto::strdec2strhex(std::move(diggest));
+            resp.text(std::format("hex={} size={}", a, s));
+        });
 
         server.GET("/proxy", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
             manapi::json jp = {

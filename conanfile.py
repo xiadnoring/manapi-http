@@ -24,7 +24,7 @@ class ManapiHttpConan(ConanFile):
         "lib": [True, False]
     }
 
-    default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": True, "openssl_dependency": False, "quiche_dependency": False,
+    default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": False, "openssl_dependency": True, "quiche_dependency": False,
                        "tquic_dependency": False, "lib": True, "curl_dependency": True, "gmp_dependency": True, "zlib_dependency": True}
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
