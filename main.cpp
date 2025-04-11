@@ -26,8 +26,8 @@
 #include "components/ManapiChain.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "crypto/ManapiAES.hpp"
-#include "extensions/pq/AsyncPostgreClient.hpp"
-#include "extensions/pq/AsyncPostgreValue.hpp"
+// #include "extensions/pq/AsyncPostgreClient.hpp"
+// #include "extensions/pq/AsyncPostgreValue.hpp"
 #include "services/ManapiEventLoop.hpp"
 #include "services/ManapiFetch2.hpp"
 #include <memory.h>
@@ -37,8 +37,6 @@
 using namespace manapi::net;
 
 using namespace std;
-
-
 
 int main (int argc, char *argv[]) {
     manapi::debug::debug_print_memory("start");
@@ -57,18 +55,12 @@ int main (int argc, char *argv[]) {
         server.config("./config.json");
 
         server.GET ("/", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-            std::string msg;
-            if (req.contains_get_param("hello")) {
-                msg = req.get ("hello");
-            }
-            //resp.compress_enabled(true);
-            resp.header(http::HEADER.ALT_SVC, http::stringify_header_value({{"", {{"h3", "\":8888\""}, {"ma", "86400"}}}}));
-            if (msg.empty()) {
-                resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
-            }
-            else {
-                resp.text(std::format("You wrote: {}", msg));
-            }
+            resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
+            co_return;
+        }, nullptr, nullptr);
+
+        server.GET ("/http-test", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
+            resp.text("hello world");
             co_return;
         }, nullptr, nullptr);
 

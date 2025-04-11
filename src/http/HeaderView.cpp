@@ -21,7 +21,7 @@ manapi::net::http::HeaderView::HeaderView(std::shared_ptr<worker::connection> co
     : worker(std::move(worker)), config(std::move(config)), site(site), request_data({}) {
     this->connection = std::move(connection);
     this->parse_vars = nullptr;
-    this->buffer = this->site.bufferpool().get();
+    this->buffer = this->site.bufferpool()->get();
 }
 
 manapi::net::http::HeaderView::~HeaderView() = default;

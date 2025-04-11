@@ -28,34 +28,25 @@
 #include "ManapiInitTools.hpp"
 #include "async/ManapiAsyncSocket.hpp"
 
+manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(net::site &site) : TLS (site) {
+    this->ssl_error_none_ = WOLFSSL_ERROR_NONE;
+    this->ssl_error_syscall_ = WOLFSSL_ERROR_SYSCALL;
+    this->ssl_error_want_read_ = WOLFSSL_ERROR_WANT_READ;
+    this->ssl_error_want_write_ = WOLFSSL_ERROR_WANT_WRITE;
+    this->ssl_error_zero_return_ = WOLFSSL_ERROR_ZERO_RETURN;
+    this->ssl_error_ssl_ = WOLFSSL_ERROR_SSL;
+    this->ssl_recv_shutdown_ = WOLFSSL_RECEIVED_SHUTDOWN;
+    this->ssl_send_shutdown_ = WOLFSSL_SENT_SHUTDOWN;
 
-#define WANT_READ(x_, ctx) x_.status.fetch_or(CONN_READ); \
-x_.iocancel.reset(ctx);\
-x_.iocancel.ask_cancel_callback();\
-x_.iocancel.handle_ready([&] () -> void { x_.iomutex.unlock(); unlock.disable(); lk.call(); }); \
-co_await async::read_ready (this->site.async_context(), x_.id, x_.iocancel); \
-x_.status.fetch_xor(CONN_READ);
-#define WANT_WRITE(x_, ctx) x_.status.fetch_or(CONN_WRITE); \
-x_.iocancel.reset(ctx);\
-x_.iocancel.ask_cancel_callback();\
-x_.iocancel.handle_ready([&] () -> void { x_.iomutex.unlock(); unlock.disable(); lk.call();  }); \
-co_await async::write_ready (this->site.async_context(), x_.id, x_.iocancel); \
-x_.status.fetch_xor(CONN_WRITE);
-
-manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(net::site &site) : TCP (site) {
     init_tools::ssl_library_init();
 }
 
 manapi::net::worker::WolfSSL_TLS::~WolfSSL_TLS() {
-    wolfSSL_CTX_free(this->ctx);
-}
-
-bool manapi::net::worker::WolfSSL_TLS::is_valid_connection(worker::connection &connection) {
-    return connection.as<connection_interface>().id >= 0;
+    wolfSSL_CTX_free(static_cast<WOLFSSL_CTX *>(this->ctx));
 }
 
 void manapi::net::worker::WolfSSL_TLS::init() {
-    TCP::init();
+    TLS::init();
 
     auto sslconfig = config->get_ssl_config();
     if (sslconfig->enabled) {
@@ -72,115 +63,30 @@ void manapi::net::worker::WolfSSL_TLS::init() {
     }
 
     this->alpn_protocol_list = "";
-    switch (this->config->get_http_version()) {
-        case http::versions::HTTP_v0_9:
-            this->alpn_protocol_list += "http/0.9";
-        break;
-        case http::versions::HTTP_v1_0:
-            this->alpn_protocol_list += "http/1.0";
-        break;
-        case http::versions::HTTP_v1_1:
-            this->alpn_protocol_list += "http/1.1";
-        break;
-        case http::versions::HTTP_v2:
-            this->alpn_protocol_list += "h2";
-        break;
-        case http::versions::HTTP_v3:
-            this->alpn_protocol_list += "h3";
-        break;
-    }
-}
-
-manapi::future<bool> manapi::net::worker::WolfSSL_TLS::configure_connection(std::shared_ptr<connection> connection) {
-    auto &conn = connection->as<connection_interface>();
-
-    if (conn.configured) {
-        co_return true;
-    }
-
-    if (!wolfSSL_is_init_finished(conn.ssl)) {
-        conn.mustly.fetch_xor(CONN_READ | CONN_WRITE);
-
-        auto lk = co_await conn.mx->lock_guard();
-
-        if (!conn.iomutex.try_to_lock()) {
-            co_return -1;
+    auto http_versions = this->config->http_versions().get();
+    auto it = http_versions->begin();
+    goto skip;
+    for (; it != http_versions->end(); ++it) {
+        this->alpn_protocol_list += ",";
+        skip:
+        switch (*it) {
+            case http::versions::HTTP_v0_9:
+                this->alpn_protocol_list += "http/0.9";
+            break;
+            case http::versions::HTTP_v1_0:
+                this->alpn_protocol_list += "http/1.0";
+            break;
+            case http::versions::HTTP_v1_1:
+                this->alpn_protocol_list += "http/1.1";
+            break;
+            case http::versions::HTTP_v2:
+                this->alpn_protocol_list += "h2";
+            break;
+            case http::versions::HTTP_v3:
+                this->alpn_protocol_list += "h3";
+            break;
         }
-
-        auto unlock = before_delete ([&] ()
-            -> void { conn.iomutex.unlock(); });
-
-        while (true) {
-            if (conn.status & CONN_CLOSED) {
-                co_await conn.accept_timer.async_stop(this->site.async_context());
-                co_return false;
-            }
-
-            int rhs = wolfSSL_accept(conn.ssl);
-            rhs = wolfSSL_get_error(conn.ssl, rhs);
-
-            if (rhs != SSL_ERROR_NONE) {
-                switch (rhs) {
-                    case SSL_ERROR_WANT_READ: {
-                        WANT_READ(conn, this->site.async_context());
-                        goto cont;
-                    }
-                    case SSL_ERROR_WANT_WRITE: {
-                        WANT_WRITE(conn, this->site.async_context());
-                        goto cont;
-                    }
-                    case SSL_ERROR_ZERO_RETURN: {
-                        conn.iomutex.unlock();
-                        unlock.disable();
-
-                        co_await conn.accept_timer.async_stop(this->site.async_context());
-                        co_await this->connection_close(std::move(connection), true);
-                        co_return false;
-                    }
-                    case SSL_ERROR_SSL:
-                    case SSL_ERROR_SYSCALL:
-                    default:
-                    error: {
-                        conn.iomutex.unlock();
-                        unlock.disable();
-
-                        co_await conn.accept_timer.async_stop(this->site.async_context());
-                        co_await this->connection_close(std::move(connection), false);
-                        co_return false;
-                    }
-                }
-cont:
-                lk = co_await conn.mx->lock_guard();
-                if (!conn.iomutex.try_to_lock()) {
-                    co_return false;
-                }
-
-                unlock.enable();
-            }
-
-            if (wolfSSL_is_init_finished(conn.ssl)) {
-                break;
-            }
-        }
-
-        co_await conn.accept_timer.async_stop(this->site.async_context());
-        conn.mustly.fetch_or(CONN_READ | CONN_WRITE);
     }
-
-    conn.status.fetch_xor(CONN_IDLE);
-    conn.configured = true;
-
-    co_return true;
-}
-
-manapi::net::worker::WolfSSL_TLS & manapi::net::worker::WolfSSL_TLS::operator=(WolfSSL_TLS &&n) noexcept {
-    TCP::operator=(std::forward<worker::TCP>(n));
-    return *this;
-}
-
-void manapi::net::worker::WolfSSL_TLS::disable_watcher_for_status(connection &conn, const connection_status &status) {
-    auto &conn_data = conn.as<connection_interface>();
-    conn_data.mustly.fetch_xor(status);
 }
 
 std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(net::site &site, std::shared_ptr<manapi::net::http::config> config) {
@@ -189,138 +95,50 @@ std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_T
     return std::move(worker);
 }
 
-std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::WolfSSL_TLS::accept() {
-    auto connection = TCP::accept([this] () {
-        auto ms = std::make_shared<worker::connection> (new connection_interface {this->site.async_context()}, connection_interface_eraser);
-        auto &connection = ms->as<connection_interface>();
-        connection.ssl = this->config->get_ssl_config()->enabled ? wolfSSL_new(this->ctx) : nullptr;
-#if MANAPIHTTP_WOLFSSL_WITH_ALPN
-        wolfSSL_UseALPN(connection.ssl, this->alpn_protocol_list.data(),
-            this->alpn_protocol_list.size(), WOLFSSL_ALPN_FAILED_ON_MISMATCH);
-#endif
-        connection.mx = std::make_unique<async::mutex>(this->site.async_context());
-        connection.accept_timer = this->site.async_context()->timerpool()->append_timer_sync(8000, [this, ms] (manapi::timer t)
-            -> void {
-            async::run(this->site.async_context(), this->connection_close(ms, false));
-        });
-        return std::move(ms);
-    });
-
-    return std::move(connection);
+bool manapi::net::worker::WolfSSL_TLS::ssl_is_init_fininshed_(void *ssl) {
+    return wolfSSL_is_init_finished(static_cast<WOLFSSL *>(ssl));
 }
 
-manapi::future<void> manapi::net::worker::WolfSSL_TLS::connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) {
-    if (!conn) {
-        co_return;
-    }
-
-
-    auto &connection = conn->as<connection_interface>();
-    auto lk = co_await connection.iomutex.lock_guard();
-
-
-    if (connection.iocancel) {
-        co_await connection.iocancel.cancel();
-        connection.iocancel = nullptr;
-    }
-
-    if ((false && false == connection.status & CONN_CLOSED)) {
-        if (clean_disconnect) {
-            bool flag = true;
-
-            auto timer = co_await this->site.async_context()->timerpool()->async_append_timer_sync(1000, [&] (manapi::timer t)
-                -> void {
-                /* libev loop */
-                if (connection.iocancel) {
-                    connection.iocancel.sync_cancel();
-                }
-            });
-
-            do {
-                auto rhs = wolfSSL_shutdown(connection.ssl);
-                int ssl_errno = wolfSSL_get_error(connection.ssl, rhs);
-                if (ssl_errno == SSL_ERROR_NONE) {
-                    break;
-                }
-                switch (ssl_errno) {
-                    case SSL_ERROR_WANT_READ:
-                        co_await async::read_ready(this->site.async_context(), connection.id, connection.iocancel);
-                    break;
-                    case SSL_ERROR_WANT_WRITE:
-                        co_await async::write_ready(this->site.async_context(), connection.id, connection.iocancel);
-                    break;
-                    case SSL_ERROR_SYSCALL: {
-                        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                            co_await async::read_ready(this->site.async_context(), connection.id, connection.iocancel);
-                            break;
-                        }
-                        flag=false;
-                        break;
-                    }
-                    default:
-                        flag = false;
-                    break;
-                }
-            }
-            while (flag);
-
-            co_await timer.async_stop(this->site.async_context()->eventloop());
-        }
-        else {
-            wolfSSL_set_shutdown(connection.ssl, SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN);
-        }
-    }
-
-    this->_connection_close(conn, connection);
+int manapi::net::worker::WolfSSL_TLS::ssl_get_error_(void *ssl, int rhs) {
+    return wolfSSL_get_error(static_cast<WOLFSSL *>(ssl), rhs);
 }
 
-void manapi::net::worker::WolfSSL_TLS::_recv_setup_connection(manapi::net::worker::connection &storage) {
+int manapi::net::worker::WolfSSL_TLS::ssl_accept_(void *ssl) {
+    return wolfSSL_accept(static_cast<WOLFSSL *>(ssl));
+}
+
+void * manapi::net::worker::WolfSSL_TLS::ssl_new_(void *ctx) {
+    return wolfSSL_new(static_cast<WOLFSSL_CTX *>(ctx));
+}
+
+int manapi::net::worker::WolfSSL_TLS::ssl_write_(void *ssl, const void *buff, int size) {
+    return wolfSSL_write(static_cast<WOLFSSL *>(ssl), buff, size);
+}
+
+int manapi::net::worker::WolfSSL_TLS::ssl_read_(void *ssl, void *buff, int size) {
+    return wolfSSL_read(static_cast<WOLFSSL *>(ssl), buff, size);
+}
+
+int manapi::net::worker::WolfSSL_TLS::ssl_shutdown_(void *ssl) {
+    return wolfSSL_shutdown(static_cast<WOLFSSL *>(ssl));
+}
+
+void manapi::net::worker::WolfSSL_TLS::ssl_set_shutdown_(void *ssl, int flags) {
+    return wolfSSL_set_shutdown(static_cast<WOLFSSL *>(ssl), flags);
+}
+
+void manapi::net::worker::WolfSSL_TLS::ssl_free_(void *ssl) {
+    return wolfSSL_free(static_cast<WOLFSSL *>(ssl));
+}
+
+void manapi::net::worker::WolfSSL_TLS::recv_setup_connection(manapi::net::worker::connection &storage) {
     auto &conn_data = storage.as<connection_interface>();
-    wolfSSL_set_fd(conn_data.ssl, conn_data.id);
+    wolfSSL_set_fd(static_cast<WOLFSSL*>(conn_data.ssl), conn_data.id);
     conn_data.status.fetch_or(CONN_IDLE);
-    //wolfSSL_set_accept_state(conn_data.ssl);
-}
-
-void manapi::net::worker::WolfSSL_TLS::update_limit_rate_connection(connection &conn) {
-    auto &conn_data = conn.as<connection_interface>();
-    conn_data.stats.transfared_last_second.store(0);
-    async::run(this->site.async_context(), this->limit_rate_cv->notify_all());
 }
 
 
-void manapi::net::worker::WolfSSL_TLS::connection_interface_eraser(void *ptr) {
-    auto connection = static_cast<connection_interface *> (ptr);
-    async::run(connection->worker->site.async_context(), [connection] () mutable -> future<void> {
-        TCP::_connection_interface_eraser (connection);
-        auto prev = connection;
-        if (connection->ssl) {
-            auto ssl = std::exchange(connection->ssl, nullptr);
-            //MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
-            wolfSSL_free(ssl);
-        }
-            //MANAPIHTTP_LOG("SSL CLOSED: {}", connection->id);
-#ifdef _WIN32
-        ::closesocket(connection->id);
-#else
-        ::close(connection->id);
-#endif
-        delete connection;
-        co_return;
-    });
-}
-
-int manapi::net::worker::WolfSSL_TLS::_gl_wolfssl_async_callback(WOLFSSL *ssl, void *argp) {
-    auto &storage = *static_cast<connection *> (argp);
-    auto &conn_data = storage.as<connection_interface>();
-    return dynamic_cast<WolfSSL_TLS*> (conn_data.worker.get())->wolfssl_async_callback(storage);
-}
-
-int manapi::net::worker::WolfSSL_TLS::wolfssl_async_callback(connection &storage) {
-    auto &conn_data = storage.as<connection_interface>();
-    return 0;
-}
-
-WOLFSSL_CTX * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &version) {
+void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &version) {
     WOLFSSL_METHOD *method;
     WOLFSSL_CTX *ctx;
 
@@ -359,198 +177,22 @@ WOLFSSL_CTX * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t 
 
 void manapi::net::worker::WolfSSL_TLS::ssl_configure_context() {
     auto sslconfig = this->config->get_ssl_config();
-    if (wolfSSL_CTX_use_certificate_file(this->ctx, sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
+    if (wolfSSL_CTX_use_certificate_file(static_cast<WOLFSSL_CTX *>(this->ctx), sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use cert file openssl");
     }
 
-    if (wolfSSL_CTX_use_PrivateKey_file(this->ctx, sslconfig->key.data(), SSL_FILETYPE_PEM) <= 0)
+    if (wolfSSL_CTX_use_PrivateKey_file(static_cast<WOLFSSL_CTX *>(this->ctx), sslconfig->key.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use private key file openssl");
     }
 
-    if (!wolfSSL_CTX_check_private_key(this->ctx)) {
+    if (!wolfSSL_CTX_check_private_key(static_cast<WOLFSSL_CTX *>(this->ctx))) {
         MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
     }
 
-    wolfSSL_CTX_set_verify(this->ctx, this->config->get_verify_peer().load() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
-    wolfSSL_CTX_set_verify_depth(this->ctx, 1);
+    wolfSSL_CTX_set_verify(static_cast<WOLFSSL_CTX *>(this->ctx), this->config->get_verify_peer().load() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
+    wolfSSL_CTX_set_verify_depth(static_cast<WOLFSSL_CTX *>(this->ctx), 1);
 }
 
-int manapi::net::worker::WolfSSL_TLS::status(connection &conn) {
-    return conn.as<connection_interface>().status;
-}
-
-manapi::future<ssize_t> manapi::net::worker::WolfSSL_TLS::ssl_write(connection &conn, const void *buff, ssize_t size) {
-    auto &connection = conn.as<connection_interface>();
-
-
-    auto lk = co_await connection.mx->lock_guard();
-
-    if (!connection.iomutex.try_to_lock()) {
-        co_return -1;
-    }
-    auto unlock = before_delete ([&] ()
-        -> void { connection.iomutex.unlock(); });
-
-    const auto limit_rate = this->config->speed_limit_rate().load();
-
-    while (true) {
-        int rhs;
-        int ssl_errno = SSL_ERROR_NONE;
-
-        if (connection.status & CONN_CLOSED) {
-            break;
-        }
-
-        if (connection.stats.transfared_last_second >= limit_rate) {
-            unlock.disable();
-            connection.iomutex.unlock();
-            lk.call();
-            connection.status.fetch_or(CONN_LIMIT_RATE);
-            co_await this->limit_rate_cv->wait([&] ()
-                -> bool { return connection.status & CONN_CLOSED || connection.stats.transfared_last_second < limit_rate; });
-            lk = co_await connection.mx->lock_guard();
-            connection.status.fetch_xor(CONN_LIMIT_RATE);
-            if (!connection.iomutex.try_to_lock()) {
-                co_return -1;
-            }
-
-            unlock.enable();
-        }
-
-        size = std::min(limit_rate - connection.stats.transfared_last_second.load(), size);
-        connection.stats.transfared_last_second.fetch_add(size);
-
-        rhs = wolfSSL_write(connection.ssl, buff, static_cast<int>(size));
-        ssl_errno = wolfSSL_get_error(connection.ssl, static_cast<int>(rhs));
-
-        if (rhs < 0) {
-            // if((err = SSL_get_error(SSL*,err)) == SSL_ERROR_ZERO_RETURN)
-
-
-            if (ssl_errno != SSL_ERROR_NONE) {
-                switch (ssl_errno) {
-                    case SSL_ERROR_SYSCALL: {
-                        int err = errno;
-                        co_return -1;
-                    }
-                    case SSL_ERROR_WANT_READ: {
-                        WANT_READ(connection, this->site.async_context());
-                        goto cont;
-                    }
-                    case SSL_ERROR_WANT_WRITE: {
-                        WANT_WRITE(connection, this->site.async_context());
-                        goto cont;
-                    }
-                    default:
-                        co_return -1;
-                }
-
-                break;
-cont:
-                lk = co_await connection.mx->lock_guard();
-                if (!connection.iomutex.try_to_lock()) {
-                    co_return -1;
-                }
-
-                unlock.enable();
-                continue;
-            }
-        }
-        connection.stats.total_write.fetch_add(rhs);
-        co_return rhs;
-    }
-    co_return -1;
-}
-
-manapi::future<ssize_t> manapi::net::worker::WolfSSL_TLS::ssl_read(connection &conn, void *buff, ssize_t size) {
-    auto &connection = conn.as<connection_interface>();
-
-    auto lk = co_await connection.mx->lock_guard();
-
-    if (!connection.iomutex.try_to_lock()) {
-        co_return -1;
-    }
-    auto unlock = before_delete ([&] ()
-        -> void { connection.iomutex.unlock(); });
-
-    const auto limit_rate = this->config->speed_limit_rate().load();
-
-    while (true) {
-        int rhs;
-        int ssl_errno = SSL_ERROR_NONE;
-
-        if (connection.status & CONN_CLOSED) {
-            break;
-        }
-
-        if (connection.stats.transfared_last_second >= limit_rate) {
-            unlock.disable();
-            connection.iomutex.unlock();
-            lk.call();
-
-            connection.status.fetch_or(CONN_LIMIT_RATE);
-            co_await this->limit_rate_cv->wait([&] ()
-                -> bool { return connection.status & CONN_CLOSED || connection.stats.transfared_last_second < limit_rate; });
-
-            lk = co_await connection.mx->lock_guard();
-            connection.status.fetch_xor(CONN_LIMIT_RATE);
-
-            if (!connection.iomutex.try_to_lock()) {
-                co_return -1;
-            }
-
-            unlock.enable();
-        }
-
-        size = std::min(limit_rate - connection.stats.transfared_last_second.load(), size);
-        connection.stats.transfared_last_second.fetch_add(size);
-
-        // if(SSL_get_shutdown(SSL*) & SSL_RECEIVED_SHUTDOWN)
-        rhs = wolfSSL_read(connection.ssl, buff, static_cast<int>(size));
-        ssl_errno = wolfSSL_get_error(connection.ssl, static_cast<int>(rhs));
-
-        if (rhs < 0) {
-
-            if (ssl_errno != SSL_ERROR_NONE) {
-                switch (ssl_errno) {
-                    case SSL_ERROR_SYSCALL: {
-                        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                            WANT_READ(connection, this->site.async_context());
-                            goto cont;
-                        }
-                        co_return -1;
-                    }
-                    case SSL_ERROR_WANT_READ: {
-                        WANT_READ(connection, this->site.async_context());
-                        goto cont;
-                    }
-                    case SSL_ERROR_WANT_WRITE: {
-                        WANT_WRITE(connection, this->site.async_context());
-                        goto cont;
-                    }
-                    default:
-                        co_return -1;
-                }
-
-                break;
-cont:
-                lk = co_await connection.mx->lock_guard();
-
-                if (!connection.iomutex.try_to_lock()) {
-                    co_return -1;
-                }
-
-                unlock.enable();
-                continue;
-            }
-        }
-
-        connection.stats.total_read.fetch_add(rhs);
-        co_return rhs;
-    }
-    co_return -1;
-}
-
-#endif // MANAPIHTTP_OPENSSL_DEPENDENCY
+#endif // MANAPIHTTP_WOLFSSL_DEPENDENCY

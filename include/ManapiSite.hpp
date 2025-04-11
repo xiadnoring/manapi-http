@@ -82,7 +82,7 @@ namespace manapi::net {
             http_uri_part handlers;
             std::map <std::string, std::function<future<bool>(const std::string &src, const std::string &dest)>> compressors{};
             std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers{};
-            object_pool<bytebuffer, std::false_type, std::size_t> bufferpool_{};
+            std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> bufferpool_;
             std::mutex loopmx{};
         };
     public:
@@ -115,7 +115,7 @@ namespace manapi::net {
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
 
         [[nodiscard]] const std::shared_ptr<async::context>& async_context ();
-        object_pool<bytebuffer, std::false_type, std::size_t> &bufferpool();
+        const std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> &bufferpool();
 
         [[nodiscard]] const std::string &config_cache_dir();
         [[nodiscard]] async::mutex &cache_config_mx();

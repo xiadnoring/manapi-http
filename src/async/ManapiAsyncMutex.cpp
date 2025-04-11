@@ -20,6 +20,19 @@ manapi::async::mutex::mutex(std::shared_ptr<manapi::threadpool<task>> taskpool_)
 
 manapi::async::mutex::mutex(const std::shared_ptr<manapi::async::context> &ctx) : taskpool(ctx->taskpool()) {}
 
+manapi::async::mutex::mutex(mutex &&n) noexcept {
+    this->own = std::exchange(n.own, false);
+    this->stack = std::move(n.stack);
+    this->taskpool = n.taskpool;
+}
+
+manapi::async::mutex & manapi::async::mutex::operator=(mutex &&n) noexcept {
+    this->own = std::exchange(n.own, false);
+    this->stack = std::move(n.stack);
+    this->taskpool = n.taskpool;
+    return *this;
+}
+
 manapi::future<void> manapi::async::mutex::lock(){
     co_await async::mutex::promise {this->mx, this->stack, this->own};
     co_return;

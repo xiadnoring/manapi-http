@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ManapiUtils.hpp"
+#include "./TLS.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 
@@ -11,45 +12,26 @@
 #include "./base_worker.hpp"
 #include "./TCP.hpp"
 
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-
 namespace manapi::net::worker {
-    class OpenSSL_TLS : public worker::TCP {
+    class OpenSSL_TLS : public worker::TLS {
     public:
-        struct connection_interface : TCP::connection_interface {
-            SSL *ssl{};
-            std::unique_ptr<async::mutex> mx;
-            manapi::timer accept_timer;
-        };
-
         OpenSSL_TLS (net::site &site);
         ~OpenSSL_TLS ();
-        bool is_valid_connection(worker::connection &connection) override;
-        void init () override;
-        future<bool> configure_connection(std::shared_ptr<connection> conn) override;
-        OpenSSL_TLS &operator=(OpenSSL_TLS &&n) noexcept;
-        void disable_watcher_for_status(connection &conn, const connection_status &status) override;
         static std::shared_ptr<worker::OpenSSL_TLS> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
-        std::optional<std::shared_ptr<manapi::net::worker::connection>> accept () override;
-        future<void> connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
-        int status (connection &conn) override;
     protected:
-        void _recv_setup_connection(manapi::net::worker::connection &storage) override;
-        void update_limit_rate_connection(connection &conn) override;
-    private:
-        static void connection_interface_eraser (void *ptr);
-        static int _gl_openssl_async_callback (SSL *ssl, void *argp);
-        int openssl_async_callback (connection &storage);
-        SSL_CTX* ssl_create_context (const size_t &version = http::versions::TLS_v1_3);
-        void ssl_configure_context ();
-        void ssl_get_error ();
+        bool ssl_is_init_fininshed_ (void *ssl) override;
+        int ssl_get_error_ (void *ssl, int rhs) override;
+        int ssl_accept_ (void *ssl) override;
+        void *ssl_new_ (void *ctx) override;
+        int ssl_write_ (void *ssl, const void *buff, int size) override;
+        int ssl_read_ (void *ssl, void *buff, int size) override;
+        int ssl_shutdown_ (void *ssl) override;
+        void ssl_set_shutdown_(void *ssl, int flags) override;
+        void ssl_free_(void *ssl) override;
 
-        future<ssize_t> ssl_write (connection &conn, const void *buff, ssize_t size);
-        future<ssize_t> ssl_read (connection &conn, void *buff, ssize_t size);
-
-        SSL_CTX *ctx = nullptr;
-        int ssl_session_ctx_id{1};
+        void recv_setup_connection(manapi::net::worker::connection &storage) override;
+        void* ssl_create_context (const size_t &version) override;
+        void ssl_configure_context () override;
     };
 }
 #endif

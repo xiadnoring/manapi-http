@@ -190,9 +190,9 @@ manapi::future<void> manapi::net::fetch::async_doit() {
 
     CURLcode resp;
 
-    curl_easy_setopt(this->data_->curl.get(), CURLOPT_MAXLIFETIME_CONN, 1L);
-    curl_easy_setopt(this->data_->curl.get(), CURLOPT_MAXAGE_CONN, 0);
-    curl_easy_setopt(this->data_->curl.get(), CURLOPT_TCP_KEEPALIVE, 0L);
+    // curl_easy_setopt(this->data_->curl.get(), CURLOPT_MAXLIFETIME_CONN, 1L);
+    // curl_easy_setopt(this->data_->curl.get(), CURLOPT_MAXAGE_CONN, 0);
+    // curl_easy_setopt(this->data_->curl.get(), CURLOPT_TCP_KEEPALIVE, 0L);
     curl_easy_setopt(this->data_->curl.get(), CURLOPT_URL, this->url_.data());
     curl_easy_setopt(this->data_->curl.get(), CURLOPT_HEADERFUNCTION, curl_header_handler);
     curl_easy_setopt(this->data_->curl.get(), CURLOPT_HEADERDATA, &data);

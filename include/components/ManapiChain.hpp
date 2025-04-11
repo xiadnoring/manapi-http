@@ -72,6 +72,19 @@ namespace manapi {
             this->clear();
         }
 
+        chain (chain &&n) noexcept {
+            this->_src = std::move(n._src);
+            this->_last = std::move(n._last);
+            this->_s = std::exchange(n._s, 0);
+        }
+
+        chain &operator=(chain &&n) noexcept {
+            this->_src = std::move(n._src);
+            this->_last = std::move(n._last);
+            this->_s = std::exchange(n._s, 0);
+            return *this;
+        }
+
         void push_back (value_type &&n) {
             auto _n = std::make_shared<chain_item<value_type>>( std::move(n), nullptr, nullptr);
             this->push_back(std::move(_n));

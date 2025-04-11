@@ -56,7 +56,7 @@ const std::map<std::string, std::function<std::shared_ptr<manapi::net::worker::b
     return this->data->transport_protocol_workers[type];
 }
 
-manapi::object_pool<manapi::bytebuffer, std::false_type, long unsigned int> & manapi::net::site::bufferpool() {
+const std::shared_ptr<manapi::object_pool<manapi::bytebuffer, std::false_type, long unsigned int>> & manapi::net::site::bufferpool() {
     return this->data->bufferpool_;
 }
 
@@ -347,6 +347,7 @@ manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &
 manapi::net::site::site(const std::shared_ptr<async::context> &ctx) {
     this->data = std::make_shared<data_t>(ctx, ctx, manapi::json{},
         manapi::json{}, std::string{}, std::string{}, false, http_uri_part{nullptr, nullptr, nullptr, nullptr, nullptr,nullptr,nullptr});
+    this->data->bufferpool_ = std::make_shared<decltype(this->data->bufferpool_)::element_type>();
 }
 
 manapi::net::site::~site() = default;

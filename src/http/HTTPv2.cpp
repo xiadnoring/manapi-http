@@ -22,7 +22,7 @@ manapi::future<bool> manapi::net::http::http_v2::parse_request(ssize_t j, ssize_
     net::http::url_decode_stream url_decode;
 
     if (!this->request_data.buffer) {
-        this->request_data.buffer = this->site.bufferpool().get();
+        this->request_data.buffer = this->site.bufferpool()->get();
     }
 
     this->request_data.buffer->resize(this->config->buffer_size());

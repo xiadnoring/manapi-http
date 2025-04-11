@@ -25,11 +25,8 @@ manapi::net::http::config::config(const json &config) {
     {
         this->partial_data_min_size.store(config["partial_data_min_size"].as_integer());
     }
-
-    /* socket block size */
-    if (config.contains("socket_block_size"))
-    {
-        this->socket_block_size.store(config["socket_block_size"].as_integer());
+    else {
+        this->partial_data_min_size.store(0UL);
     }
 
     /* http versions */
@@ -56,15 +53,24 @@ manapi::net::http::config::config(const json &config) {
     if (config.contains("port")){
         this->port = config["port"].as_string();
     }
+    else {
+        this->port = "8888";
+    }
 
     /* address */
     if (config.contains("address")){
         this->address = config["address"].as_string();
     }
+    else {
+        this->address = "0.0.0.0";
+    }
 
     /* speed limit rate */
     if (config.contains("speed_limit_rate")) {
         this->speed_limit_rate_ = config["speed_limit_rate"].as_integer();
+    }
+    else {
+        this->speed_limit_rate_.store(2097152000);
     }
 
     /* ssl */
@@ -81,15 +87,24 @@ manapi::net::http::config::config(const json &config) {
     {
         this->max_header_block_size.store(config["max_header_block_size"].as_integer());
     }
+    else {
+        this->max_header_block_size.store(4096UL);
+    }
 
     /* buffer_size */
     if (config.contains("buffer_size")) {
         this->buffer_size_.store(config["buffer_size"].as_integer());
     }
+    else {
+        this->buffer_size_.store(65536);
+    }
 
     /* max_backlog */
     if (config.contains("max_backlog")) {
         this->max_backlog_.store(config["max_backlog"].as_integer());
+    }
+    else {
+        this->max_backlog().store(200);
     }
 
     /* keep_alive */
@@ -97,17 +112,8 @@ manapi::net::http::config::config(const json &config) {
     {
         this->keep_alive.store(config["keep_alive"].as_integer());
     }
-
-    /* recv_timeout */
-    if (config.contains("recv_timeout"))
-    {
-        this->recv_timeout.store(config["recv_timeout"].as_integer());
-    }
-
-    /* send_timeout */
-    if (config.contains("send_timeout"))
-    {
-        this->send_timeout.store(config["send_timeout"].as_integer());
+    else {
+        this->keep_alive.store(2UL);
     }
 
     /* implementation */
@@ -115,11 +121,17 @@ manapi::net::http::config::config(const json &config) {
     {
         this->implementation = config["implementation"].as_string();
     }
+    else {
+        this->implementation = "default";
+    }
 
     /* transport */
     if (config.contains("transport"))
     {
         this->transport = config["transport"].as_string();
+    }
+    else {
+        this->transport = "tcp";
     }
 
     /* tls version */
@@ -145,6 +157,9 @@ manapi::net::http::config::config(const json &config) {
         else {
             THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid tls_version in config: {}", tls_version_string);
         }
+    }
+    else {
+        this->tls_version.store(versions::TLS_v1_3);
     }
 
     /* quic cc algo */
@@ -175,15 +190,24 @@ manapi::net::http::config::config(const json &config) {
             THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo param in the config: {}", quic_cc_algo_string);
         }
     }
+    else {
+        this->quic_cc_algo = versions::QUIC_CC_RENO;
+    }
 
     /* max connections */
     if (config.contains("max_connections")) {
         this->max_connections_.store(config["max_connections"].as_integer());
     }
+    else {
+        this->max_connections_.store(1000);
+    }
 
     /* max_rst_cnt */
     if (config.contains("max_rst_cnt")) {
         this->max_rst_cnt_.store(config["max_rst_cnt"].as_integer());
+    }
+    else {
+        this->max_rst_cnt_.store(5);
     }
 
     /* quic debug */
@@ -191,25 +215,40 @@ manapi::net::http::config::config(const json &config) {
     {
         this->quic_debug.store(config["quic_debug"].as_bool());
     }
+    else {
+        this->quic_debug.store(false);
+    }
 
     /* tcp no delay */
     if (config.contains("tcp_no_delay")) {
         this->tcp_no_delay.store(config["tcp_no_delay"].as_bool());
+    }
+    else {
+        this->tcp_no_delay.store(false);
     }
 
     /* verify peer */
     if (config.contains("verify_peer")) {
         this->verify_peer.store(config["verify_peer"].as_bool());
     }
+    else {
+        this->verify_peer.store(true);
+    }
 
     /* speed_check_delay */
     if (config.contains("speed_check_delay")) {
         this->speed_check_delay_.store(config["speed_check_delay"].as_integer());
     }
+    else {
+        this->speed_check_delay_.store(5000);
+    }
 
     /* speed_check_bytes */
     if (config.contains("speed_check_bytes")) {
         this->speed_check_bytes_.store(config["speed_check_bytes"].as_integer());
+    }
+    else {
+        this->speed_check_bytes_.store(1048576);
     }
 }
 
@@ -217,13 +256,6 @@ manapi::net::http::config::~config() = default;
 
 // ======================[ configs funcs]==========================
 
-void manapi::net::http::config::set_socket_block_size(const size_t &s) {
-    this->socket_block_size.store(s);
-}
-
-std::atomic<size_t> &manapi::net::http::config::get_socket_block_size() {
-    return this->socket_block_size;
-}
 
 void manapi::net::http::config::set_max_header_block_size(const size_t &s) {
     this->max_header_block_size.store(s);
@@ -274,14 +306,6 @@ void manapi::net::http::config::set_keep_alive(const long int &seconds) {
 
 std::atomic<size_t> &manapi::net::http::config::get_keep_alive() {
     return this->keep_alive;
-}
-
-std::atomic<ssize_t> &manapi::net::http::config::get_recv_timeout() {
-    return this->recv_timeout;
-}
-
-std::atomic<ssize_t> &manapi::net::http::config::get_send_timeout() {
-    return this->send_timeout;
 }
 
 std::atomic<size_t> & manapi::net::http::config::max_connections() {

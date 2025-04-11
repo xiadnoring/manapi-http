@@ -81,32 +81,28 @@ namespace manapi::net::worker {
         HTTP2_CONN_CLOSED = 6
     };
 
-    struct http_v2_session_t {
-        int id;
-        bool body;
-        std::map <std::string, std::string> headers;
-        http2_conn_type type = HTTP2_CONN_IDLE;
+    enum http2_thread_flags {
+        HTTP2_THREAD_RECV_EOS   = 0b1,
+        HTTP2_THREAD_SEND_EOS   = 0b10,
+        HTTP2_THREAD_HAS_BODY   = 0b100,
+        HTTP2_THREAD_EOS = 0b1000
     };
 
-    struct http_v2_callbacks_t {
-        std::function<manapi::future<void>(int id, std::map <std::string, std::string> headers)> headers;
-        std::function<void(int id)> data;
-        std::function<void(int last_stream_id, int errnum, std::string errmsg)> goaway;
-        std::function<void(int id, int prioritized_id, std::string prioritized_value)> priority_update;
-        std::function<void(int id, int errnum)> rst_stream;
-        std::function<void(int id)> finished;
-    };
-
-    struct http_v2_thread_data_t {
-        int id;
-        std::map <std::string, std::string> headers;
-        bool rst = false;
-
-        std::shared_ptr<smart_w_buffer> write;
-        std::shared_ptr<smart_r_buffer> read;
+    enum http2_thread_atomic_flags {
+        HTTP2_THREAD_ATOMIC_RST        = 0b1,
+        HTTP2_THREAD_ATOMIC_RECV_EOS   = 0b10,
+        HTTP2_THREAD_ATOMIC_SEND_EOS   = 0b100,
+        HTTP2_THREAD_ATOMIC_WANT_READ  = 0b1000,
+        HTTP2_THREAD_ATOMIC_WANT_WRITE = 0b10000,
+        HTTP2_THREAD_ATOMIC_HEADERS    = 0b100000
     };
 
     class http_v2 : public worker::base {
+        struct http_v2_write_buffers {
+            manapi::object_item_pool<bytebuffer, std::size_t> buffer;
+            std::unique_ptr<http_v2_write_buffers> next;
+        };
+
         struct parse_vars_t {
             bool next_line_state = false;
             std::string buffer{};
@@ -125,49 +121,83 @@ namespace manapi::net::worker {
         };
 
         struct protocol_http2_window_t {
-            std::shared_ptr<async::condition_variable> write_cv{};
+            ssize_t read = 0;
+            ssize_t write = 0;
 
-            std::atomic<ssize_t> read = 0;
-            std::atomic<ssize_t> write = 0;
+            ssize_t stream_window = 0;
+            ssize_t conn_window = 0;
         };
 
         struct protocol_http2_t {
-            async::mutex mx; // multithread
             ssize_t length = 9 + 8; // 9 must-have octets in the header + 8 metadata
             ssize_t type = 0;
             int stream_id = 0;
             uint8_t flag = 0;
-            bool initial_frame = true;
-            std::map <int, std::pair <std::atomic<int>, std::function <void(int value, bool self)>>> settings;
+            std::map <int, std::pair <int, std::function <void(int value, bool self)>>> settings;
             ssize_t padding = 0;
             std::chrono::system_clock::time_point prev_ping_time_point = std::chrono::system_clock::now();
             std::chrono::milliseconds ping_delay {200};
-            std::atomic<int> conn_type = 0;
+            int conn_type = 0;
             std::set <std::string> pings;
 
             protocol_http2_window_t window{};
             std::optional<protocol_http2_error_t> error{};
 
             int value = -1;
-            std::atomic<int> rst_cnt = 0;
+            int rst_cnt = 0;
             ssize_t timeout = 1000;
-            std::atomic<ssize_t> current_timeout = timeout;
+            ssize_t current_timeout = timeout;
             std::queue <manapi::timer> setting_timeout{};
-            manapi::future<> parse_exception{nullptr};
             manapi::compress::hpack::decoder_t decoder{};
             manapi::compress::hpack::encoder_t encoder{};
 
-            std::shared_ptr<async::mutex> setting_param_acks_mx{nullptr};
-            std::atomic<size_t> setting_param_acks = 0;
-            std::atomic<size_t> payload_read = 0;
+            int current_stream_id = 0;
+            size_t setting_param_acks = 0;
+            size_t payload_read = 0;
             size_t prev_payload_read = 0;
             std::atomic<int> want_read = 0;
         };
+
     public:
+        struct http_v2_thread_data_t {
+            int id;
+            int conn_flags;
+            std::atomic<int> atomic_flags;
+
+            http2_conn_type type;
+
+            ssize_t write_window;
+            ssize_t read_window;
+
+            ssize_t write_cursor;
+
+            std::map <std::string, std::string> headers;
+
+            manapi::object_item_pool<bytebuffer, std::size_t> write_buffer;
+            manapi::object_item_pool<bytebuffer, std::size_t> read_buffer;
+
+            std::unique_ptr<http_v2_write_buffers> read_storage_buffer;
+            ssize_t read_storage_size;
+            http_v2_write_buffers*read_storage_last;
+            ssize_t read_freed;
+
+            manapi::async::mutex mx;
+        };
+
+        struct http_v2_callbacks_t {
+            std::function<void(int id)> headers;
+            std::function<void(int id)> data;
+            std::function<void(int last_stream_id, int errnum, std::string errmsg)> goaway;
+            std::function<void(int id, int prioritized_id, std::string prioritized_value)> priority_update;
+            std::function<void(std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator, int errnum)> rst_stream;
+            std::function<void(int id)> finished;
+        };
+
         http_v2 (const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~http_v2() override;
 
         future<void> parse_request(ssize_t j, ssize_t size);
+        void handle_callback_watcher ();
         void init_settings();
         void init_callbacks();
         void set_callbacks(const http_v2_callbacks_t &callbacks);
@@ -179,8 +209,9 @@ namespace manapi::net::worker {
         std::function<std::shared_ptr<manapi::net::worker::http_v2>()> new_dependency;
         std::chrono::steady_clock::time_point start;
     private:
-        future<void> empty_setting_timeouts ();
-        future<void> generate_error (http2_error_type errnum, std::string errmsg, int last_stream_id = 0) noexcept(false);
+        ssize_t buffer_size ();
+        void empty_setting_timeouts ();
+        void generate_error (http2_error_type errnum, std::string errmsg, int last_stream_id = 0) noexcept(false);
 
         void _skip_sm_msg (char &c);
         void _next_line (char &c);
@@ -213,28 +244,34 @@ namespace manapi::net::worker {
 
         void _parse_number (char &c, ssize_t &num, ssize_t &length);
 
-        future<void> send_frame (http2_frame_type frame, uint8_t flag, int stream_id, std::string_view data);
-        future<void> send_empty_frame (http2_frame_type frame, char flag, int stream_id);
+        void flush_write_buffer ();
+        void init_write_buffer ();
+        void send_frame (http2_frame_type frame, uint8_t flag, int stream_id, std::string_view data);
+        void send_empty_frame (http2_frame_type frame, char flag, int stream_id);
         void timer_watcher (const std::shared_ptr<manapi::net::worker::base> &dep);
-        future<void> send_ping_frame (std::string data={});
-        future<void> close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "", int last_stream_id = 0);
+        void send_ping_frame (std::string data={});
+        void close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "", int last_stream_id = 0);
 
-        future<void> send_settings (const std::vector <std::pair <short, int>> &options);
-        future<ssize_t> send_data (int stream_id, const void *buf, ssize_t size, bool finish, std::atomic<int> &flags);
-        future<void> send_window_frame (int stream_id, int size);
+        void send_settings (const std::vector <std::pair <short, int>> &options);
+        ssize_t send_data (std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator stream, const void *buf, ssize_t size, bool finish);
+        void send_window_frame (int stream_id, int size);
         void resolve_timeout_timer ();
 
-        future<void> default_ev_headers (int id, std::map <std::string, std::string> headers);
+        void default_ev_headers (int id);
         void default_ev_data (int id);
         void default_ev_goaway (int last_stream_id, int errnum, std::string errmsg);
         void default_ev_finished (int id);
         void default_ev_priopity_update (int id, int prioritized_id, std::string prioritized_value);
-        void default_ev_rst_stream (int id, int errnum);
-        future<void> unlimit_all_streams ();
-        future<void> reset_all_streams ();
-        future<void> delete_stream_id (const int &id);
-        future<void> reset_stream (int id, int errnum);
-        void session_worker (int id, bool body, std::shared_ptr<smart_w_buffer> write, std::shared_ptr<smart_r_buffer> read);
+        void default_ev_rst_stream (std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator, int errnum);
+        void unlimit_all_streams ();
+        void reset_all_streams ();
+        void delete_stream_id (int id);
+        void reset_stream (int id, int errnum);
+        void session_worker (std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator it);
+        std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator flush_io_stream (std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator it);
+        void flush_io_streams ();
+        void io_call_callback (ev::async &w, int revents);
+        void send_headers (http_v2_thread_data_t &stream);
 
         future<ssize_t> default_read (worker::connection &connection, void *buff, ssize_t size);
         future<ssize_t> default_write (worker::connection &connection, const void *buff, ssize_t size, bool flag);
@@ -247,7 +284,7 @@ namespace manapi::net::worker {
         void setting_value_valid (const http2_setting_type &type, const int &value) noexcept(false);
 
         template <typename T>
-        std::string stringify_number (T n) {
+        static std::string stringify_number (T n) {
             std::string result;
             result.reserve(sizeof (n));
             for (int i = sizeof (n) - 1; i >= 0; i--) {
@@ -257,23 +294,26 @@ namespace manapi::net::worker {
         }
 
         std::string headerbuffer{};
-        std::optional<parse_vars_t> parse_vars;
+        parse_vars_t parse_vars;
+
+        std::shared_ptr<ev::async> io_call_watcher;
+
+        ssize_t write_buffer_current;
+        ssize_t write_buffer_cursor;
+        std::unique_ptr<http_v2_write_buffers> write_buffer;
+        http_v2_write_buffers *write_buffer_last;
 
         protocol_http2_t protocol;
-
-        std::map <int, http_v2_session_t> sessions;
 
         std::function<void(char&)> current, next;
         http_v2_callbacks_t callbacks{};
         std::shared_ptr<worker::base> worker;
 
-        async::mutex threads_mutex;
-        std::map <int, http_v2_thread_data_t> threads;
-        std::atomic<size_t> thread_cnt{0};
+        async::promise<void, std::false_type>::resolve_t http2_resolve_;
 
-        async::condition_variable finishcv;
+        std::map <int, std::unique_ptr<http_v2_thread_data_t>> threads;
+
         manapi::timer ping_interval{};
-
         static std::map <int, json_mask> allow_settings;
     };
 }

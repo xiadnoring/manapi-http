@@ -54,8 +54,8 @@ namespace manapi::net::worker {
         virtual void init ();
         virtual void set_config (std::shared_ptr<manapi::net::http::config> config);
         virtual future<void> connection_close (std::shared_ptr<connection> conn, bool clean_disconnect);
-        virtual void disable_watcher_for_status (connection &conn, const connection_status &status);
         virtual manapi::future<void> connection_shutdown (std::shared_ptr<connection> conn, bool connection_status);
+        virtual manapi::future<> connection_cancel (std::shared_ptr<connection> conn);
 
         virtual future<bool> configure_connection (std::shared_ptr<connection> conn);
 
@@ -74,6 +74,12 @@ namespace manapi::net::worker {
         virtual void _timeout (std::shared_ptr<connection> storage);
         virtual void stop ();
         virtual int status (connection &conn);
+
+        virtual ssize_t sync_write (worker::connection *conn, const void *buff, ssize_t size);
+        virtual ssize_t sync_read (worker::connection *conn, void *buff, ssize_t size);
+
+        virtual std::shared_ptr<ev::io> sync_watch_io (worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)>);
+        virtual manapi::future<std::shared_ptr<ev::io>> async_watch_io (worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)>);
 
         std::function<future<ssize_t>(connection &conn, const void *buff, ssize_t size, bool finish)> write;
         std::function<future<ssize_t>(connection &conn, void *buff, ssize_t size)> read;

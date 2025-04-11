@@ -57,9 +57,6 @@ namespace manapi::net::http {
         config (const json &config);
         ~config ();
 
-        void set_socket_block_size (const size_t &s);
-        [[nodiscard]] std::atomic<size_t> &get_socket_block_size ();
-
         void set_max_header_block_size (const size_t &s);
         [[nodiscard]] std::atomic<size_t> &get_max_header_block_size ();
 
@@ -73,9 +70,6 @@ namespace manapi::net::http {
 
         void set_keep_alive (const long int &seconds);
         [[nodiscard]] std::atomic<size_t> &get_keep_alive ();
-
-        [[nodiscard]] std::atomic<ssize_t> &get_recv_timeout ();
-        [[nodiscard]] std::atomic<ssize_t> &get_send_timeout ();
 
         std::atomic<size_t> &max_connections ();
         std::atomic<int> &max_backlog();
@@ -132,41 +126,38 @@ namespace manapi::net::http {
         std::atomic<ssize_t> &buffer_size ();
     private:
         // settings
-        std::atomic<bool> quic_debug = false;
-        std::atomic<size_t> quic_cc_algo = versions::QUIC_CC_RENO;
-        std::atomic<size_t> tls_version = versions::TLS_v1_3;
-        std::atomic<size_t> max_header_block_size = 4096UL;
-        std::atomic<size_t> socket_block_size = 1350UL;
-        std::atomic<size_t> partial_data_min_size = 0UL;
+        std::atomic<bool> quic_debug;
+        std::atomic<size_t> quic_cc_algo;
+        std::atomic<size_t> tls_version;
+        std::atomic<size_t> max_header_block_size;
+        std::atomic<size_t> partial_data_min_size;
         Atomic<std::set<int>> http_versions_ = {};
-        Atomic<std::string> address = "0.0.0.0";
-        Atomic<std::string> port = "8888";// settings
-        Atomic<std::string> implementation = "default";
-        Atomic<std::string> transport = "tcp";
-        std::atomic<size_t> keep_alive = 2UL;
+        Atomic<std::string> address;
+        Atomic<std::string> port;// settings
+        Atomic<std::string> implementation;
+        Atomic<std::string> transport;
+        std::atomic<size_t> keep_alive;
         Atomic<sockaddr> server_addr;
         std::atomic<socklen_t> server_len;
         std::atomic<size_t> max_plain_param_length  = 16000UL;
         std::atomic<size_t> max_file_param_length   = 2147483648UL;
-        std::atomic<size_t> max_connections_{1000};
-        std::atomic<int> max_backlog_{200};
-        std::atomic<ssize_t> buffer_size_{65536};
-        std::atomic<ssize_t> max_rst_cnt_{5};
-        std::atomic<ssize_t> speed_check_delay_ {200};
+        std::atomic<size_t> max_connections_;
+        std::atomic<int> max_backlog_;
+        std::atomic<ssize_t> buffer_size_;
+        std::atomic<ssize_t> max_rst_cnt_;
+        std::atomic<ssize_t> speed_check_delay_;
         /* 80KB */
-        std::atomic<ssize_t> speed_check_bytes_ {81920};
+        std::atomic<ssize_t> speed_check_bytes_;
         /* 2000 MB */
-        std::atomic<ssize_t> speed_limit_rate_ {2097152000};
+        std::atomic<ssize_t> speed_limit_rate_;
 #ifdef _WIN32
         std::atomic<SOCKET> sock_fd{0};
 #else
         std::atomic<int> sock_fd{0};
 #endif
-        std::atomic<ssize_t> recv_timeout = 1000;
-        std::atomic<ssize_t> send_timeout = 1000;
         Atomic<ssl_config_t> ssl_config;
-        std::atomic<bool> tcp_no_delay = false;
-        std::atomic<bool> verify_peer = true;
+        std::atomic<bool> tcp_no_delay;
+        std::atomic<bool> verify_peer;
         std::function<bool(const std::string &name)> function_contains_compressor = nullptr;
     };
 }

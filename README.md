@@ -122,8 +122,8 @@ int main () {
 
     router.GET("/cat", [&ctx](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
         auto fetch = co_await manapi::net::fetch2::fetch (ctx, "https://dragonball-api.com/api/planets/7", {
-            {"enable_ssl_verify", false},
-            {"enable_alpn", true},
+            {"ssl_verify", false},
+            {"alpn", true},
             {"method", "GET"}
         });
 
@@ -156,7 +156,7 @@ int main () {
     });
 
     router.GET("/video", [](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
-        resp.partial_status(true);
+        resp.partial_enabled(true);
         resp.compress_enabled(false);
         co_return resp.file("video.mp4");
     });

@@ -169,6 +169,11 @@ namespace manapi {
             std::deque<async_watcher_data_cached_t> watcher_data_cached{};
         };
 #if MANAPIHTTP_CURL_DEPENDENCY
+        struct curl_res_value_t {
+            std::shared_ptr<CURL> self;
+            std::move_only_function<void(CURLcode result)> finish;
+            std::shared_ptr<ev::io> watcher;
+        };
         struct curl_watcher_t {
             std::unique_ptr<CURLM, curl_multi_deleter> curl_multi{nullptr};
             std::shared_ptr<async::mutex> curl_multi_mx{nullptr};
@@ -177,7 +182,7 @@ namespace manapi {
 
             std::move_only_function<void()> adding_curl_async_cb{nullptr};
             std::queue<std::shared_ptr<ev::io>> curl_fds{};
-            std::map<CURL*, std::pair<std::shared_ptr<CURL>, std::move_only_function<void(CURLcode result)>>> curl_res{};
+            std::map<CURL*, curl_res_value_t> curl_res{};
             std::shared_ptr<ev::timer> timeout_watcher{nullptr};
             std::deque<curl_watcher_data_cached_t> watcher_data_cached{};
             std::map<sd_t, std::shared_ptr<ev::io>> watchers;
@@ -202,6 +207,7 @@ namespace manapi {
         void custom_watcher_fd_async (ev::async &w, int revents);
 #if MANAPIHTTP_CURL_DEPENDENCY
         void custom_watcher_curl_async (ev::async &w, int revents);
+        void handle_curl_exec_connections ();
         void handle_curl_check_connections ();
 #endif
         void custom_watcher_timer_async (ev::async &w, int revents);

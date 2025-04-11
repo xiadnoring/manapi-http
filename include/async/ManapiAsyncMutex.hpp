@@ -44,6 +44,9 @@ namespace manapi::async {
         mutex (std::shared_ptr<manapi::threadpool<task>> taskpool_);
         mutex (const std::shared_ptr<manapi::async::context> &ctx);
 
+        mutex (mutex &&n) noexcept;
+        mutex &operator=(mutex &&n) noexcept;
+
         manapi::future<void> lock ();
 
         bool try_to_lock ();

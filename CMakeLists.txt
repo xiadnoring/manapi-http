@@ -322,6 +322,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiHttpTypes.cpp
         src/encoding/ManapiURL.cpp
         include/ManapiVersions.hpp
+        src/worker/TLS.cpp
+        include/worker/TLS.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

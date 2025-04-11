@@ -22,42 +22,24 @@ namespace manapi::net::worker {
             std::atomic<ssize_t> transfared_last_second = 0;
             size_t last_total_write = 0;
             size_t last_total_read = 0;
-
             size_t time_ms = 0;
+            std::shared_ptr<ev::io> watcher;
         };
 #pragma pack(pop)
 
 #pragma pack(push,16)
-#ifdef _WIN32
         struct connection_interface {
             manapi::async::mutex iomutex;
-            SOCKET id{};
-            std::shared_ptr <ev::io> watcher;
-            ev_timer timer;
-            net::site *site;
-            std::shared_ptr<worker::base> worker;
-            connection_stat_interface stats;
-            bool configured = false;
-            std::atomic<int> status = 0x0;
-            std::atomic<int> mustly = 0b11111111;
-            std::function<void()> iohandle;
-
-            std::function<void(std::shared_ptr<connection> connection, int revents)> handle;
-        };
-#else
-        struct connection_interface {
-            manapi::async::mutex iomutex;
-            int id{};
+            sd_t id{};
             manapi::timer t;
             net::site *site;
             std::shared_ptr<worker::base> worker;
             connection_stat_interface stats;
             bool configured = false;
             std::atomic<int> status = 0x0;
-            std::atomic<int> mustly = 0b11111111;
             async::cancellation_action iocancel;
+            std::shared_ptr<ev::io> watcher;
         };
-#endif
 #pragma pack(pop)
 
         struct connection_io_await {
@@ -85,14 +67,11 @@ namespace manapi::net::worker {
         };
 
         TCP (net::site &site);
-        TCP (TCP && n) noexcept;
-        ~TCP ();
+        ~TCP () override;
         bool is_valid_connection(worker::connection &connection) override;
-        void init ();
-        future<bool> configure_connection (std::shared_ptr<worker::connection> connection);
+        void init () override;
+        future<bool> configure_connection (std::shared_ptr<worker::connection> connection) override;
         future<ssize_t> response(worker::connection &connection, http::response &resp, bool finish) override;
-        TCP &operator=(TCP &&n) noexcept;
-        void disable_watcher_for_status(connection &conn, const connection_status &status) override;
         void onrecv(ev::io &watcher, int revents) override;
         static std::shared_ptr<worker::TCP> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
@@ -101,8 +80,13 @@ namespace manapi::net::worker {
         void stop() override;
         int status (connection &conn) override;
         manapi::future<> connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) override;
+        manapi::future<> connection_cancel(std::shared_ptr<connection> conn) override;
+        ssize_t sync_read(worker::connection *conn, void *buff, ssize_t size) override;
+        ssize_t sync_write(worker::connection *conn, const void *buff, ssize_t size) override;
+        manapi::future<std::shared_ptr<ev::io>> async_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)> callback) override;
+        std::shared_ptr<ev::io> sync_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)> callback) override;
     protected:
-        virtual void _recv_setup_connection (manapi::net::worker::connection &storage);
+        virtual void recv_setup_connection (manapi::net::worker::connection &storage);
         void update_limit_rate ();
         void _timeout (std::shared_ptr<connection> storage) override;
         void _ev_watcher_stop (connection_interface & conn);

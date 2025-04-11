@@ -15,23 +15,7 @@ manapi::net::worker::connection::connection(connection &&n)  noexcept : ptr (std
     memset(&n.client, 0, sizeof (n.client)); n.len = 0;
 }
 
-manapi::net::worker::connection & manapi::net::worker::connection::operator=(connection &&n) noexcept {
-    this->ptr = std::move(n.ptr);
-    this->client = n.client;
-    this->len = n.len;
-
-    memset(&n.client, 0, sizeof (n.client)); n.len = 0;
-    return *this;
-}
-
 manapi::net::worker::base::base(net::site &site) :site(site) {}
-
-manapi::net::worker::base::base(base &&n) noexcept : site(n.site) {
-    this->config = std::move(n.config);
-    this->read = std::move(n.read);
-    this->write = std::move(n.write);
-    this->le = std::move(n.le);
-}
 
 manapi::net::worker::base::~base() = default;
 
@@ -45,9 +29,9 @@ void manapi::net::worker::base::set_config(std::shared_ptr<manapi::net::http::co
 
 manapi::future<void> manapi::net::worker::base::connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) { co_return; }
 
-void manapi::net::worker::base::disable_watcher_for_status(connection &conn, const connection_status &status) {}
-
 manapi::future<void> manapi::net::worker::base::connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) { co_return; }
+
+manapi::future<> manapi::net::worker::base::connection_cancel(std::shared_ptr<connection> conn) { co_return; }
 
 manapi::future<bool> manapi::net::worker::base::configure_connection(std::shared_ptr<connection> conn) { co_return false; }
 
@@ -59,13 +43,6 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
 std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept() { return this->accept([] () -> std::shared_ptr<connection> { return {nullptr, [] (void *ptr) -> void { }}; }); }
 
 void manapi::net::worker::base::onrecv(ev::io &watcher, int revents) {}
-
-manapi::net::worker::base & manapi::net::worker::base::operator=(base &&n) noexcept {
-    this->config = std::move(n.config);
-    this->read = std::move(n.read);
-    this->write = std::move(n.write);
-    return *this;
-}
 
 manapi::future<ssize_t> manapi::net::worker::base::fwrite(connection &conn,const void *buff, ssize_t size, bool finish) {
     ssize_t total = 0;
@@ -111,5 +88,22 @@ void manapi::net::worker::base::stop() {}
 int manapi::net::worker::base::status(connection &conn) {
     return 0;
 }
+
+ssize_t manapi::net::worker::base::sync_write(worker::connection *conn, const void *buff, ssize_t size) {
+    return -1;
+}
+
+ssize_t manapi::net::worker::base::sync_read(worker::connection *conn, void *buff, ssize_t size) {
+    return -1;
+}
+
+std::shared_ptr<ev::io> manapi::net::worker::base::sync_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)>) {
+    THROW_MANAPIHTTP_EXCEPTION2 (ERR_ALGORITHM_NO_SUPPORT, "This class doesn't support sync_watch_io(...)");
+}
+
+manapi::future<std::shared_ptr<ev::io>> manapi::net::worker::base::async_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)>) {
+    THROW_MANAPIHTTP_EXCEPTION2 (ERR_ALGORITHM_NO_SUPPORT, "This class doesn't support async_watch_io(...)"); co_return nullptr;
+}
+
 
 void manapi::net::worker::base::init() {}

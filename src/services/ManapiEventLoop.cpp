@@ -89,10 +89,9 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : pre
     this->curl_watcher.adding_curl_multi_async->start();
 
     /* curl fetch timeout */
-    this->curl_watcher.timeout_watcher = create_watcher_timer(5, 0.0, [this] (ev::timer &w, int revents) -> void {
+    this->curl_watcher.timeout_watcher = create_watcher_timer(0.05, 0.0, [this] (ev::timer &w, int revents) -> void {
         this->curl_watcher.adding_curl_multi_async->send();
-
-        w.repeat = 5;
+        w.repeat = 0.05;
         w.again();
     });
 
@@ -365,6 +364,7 @@ void manapi::event_loop::custom_watcher_curl_async(ev::async &w, int revents) {
     //     }
     // }
     //
+    this->handle_curl_exec_connections();
     this->handle_curl_check_connections();
     //
     // for (int i = 0; i <= maxfd; i++) {
@@ -387,13 +387,16 @@ void manapi::event_loop::custom_watcher_curl_async(ev::async &w, int revents) {
     // }
 }
 
-void manapi::event_loop::handle_curl_check_connections() {
+void manapi::event_loop::handle_curl_exec_connections() {
     int running_handles = 0;
     auto mcode = curl_multi_perform(this->curl_watcher.curl_multi.get(), &running_handles);
 
     if (mcode != CURLM_OK) {
         return;
     }
+}
+
+void manapi::event_loop::handle_curl_check_connections() {
 
     int msgs_left;
     CURLMsg *msg;
@@ -410,7 +413,10 @@ void manapi::event_loop::handle_curl_check_connections() {
             if(data.empty()) {
                 continue;
             }
-            data.mapped().second(msg->data.result);
+            if (data.mapped().watcher) {
+                this->stop_watcher(data.mapped().watcher);
+            }
+            data.mapped().finish(msg->data.result);
         }
     }
 }
@@ -501,8 +507,10 @@ std::shared_ptr<ev::io> manapi::event_loop::handle_curl_watcher_gen (manapi::eve
         auto data2 = data;
         //MANAPIHTTP_LOG("CURL EV: {} {}", revents, (int)fd);
         int cnt; auto rhs = curl_multi_socket_action(data->curl_watcher.curl_multi.get(), fd, (revents & 0b11), &cnt);
-        if (rhs != CURLM_OK) { MANAPIHTTP_LOG("curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs)); }
-        data2->handle_curl_check_connections();
+        if (rhs != CURLM_OK) {
+            MANAPIHTTP_LOG("curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs));
+        }
+        data->handle_curl_check_connections();
     });
 }
 curl_socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, curlsocktype type, curl_sockaddr *addr) {
@@ -517,9 +525,7 @@ curl_socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, curlsocktyp
         return -1;
     }
 
-    auto watcher = handle_curl_watcher_gen(data, fd, ev::READ|ev::WRITE);
-    watcher->start();
-    data->curl_watcher.watchers.insert({fd, std::move(watcher)});
+    MANAPIHTTP_LOG("curl open {}",(int)fd);
     return fd;
 }
 
@@ -536,13 +542,20 @@ int manapi::event_loop::handle_curl_socket(CURL *curl, curl_socket_t fd, int rev
             auto watcher = handle_curl_watcher_gen(data, fd, revents & 0b11);
             watcher->start();
             data->curl_watcher.watchers.insert({fd, std::move(watcher)});
+
+            auto self = data->curl_watcher.curl_res.find(curl);
+            if (self != data->curl_watcher.curl_res.end()) {
+                self->second.watcher = watcher;
+            }
         }
     }
     else if ((revents & CURL_POLL_REMOVE)) {
+        // auto it = data->curl_watcher.watchers.find(fd);
+        // it->second->events = ev::READ;
         //MANAPIHTTP_LOG("curl ev shutdown: {}",(int) fd);
         auto mapped = data->curl_watcher.watchers.extract(fd);
         if (!mapped.empty() && mapped.mapped()) {
-            mapped.mapped()->stop();
+            data->stop_watcher(mapped.mapped());
         }
     }
 
@@ -553,8 +566,9 @@ int manapi::event_loop::handle_curl_close_socket(void *cbp, curl_socket_t socket
     auto data = static_cast<event_loop *>(cbp);
     auto watcher_data = data->curl_watcher.watchers.extract(static_cast<sd_t>(socket));
     if (!watcher_data.empty() && watcher_data.mapped()) {
-        watcher_data.mapped()->stop();
+        data->stop_watcher(watcher_data.mapped());
     }
+    MANAPIHTTP_LOG("curl close {}",(int)socket);
     async::close_descriptor(static_cast<sd_t>(socket));
     return 0;
 }
@@ -579,7 +593,7 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
 
         }
         else {
-            this->curl_watcher.curl_res.insert({data->curl.get(), {data->curl, std::move(data->finish)}});
+            this->curl_watcher.curl_res.insert({data->curl.get(), {data->curl, std::move(data->finish), nullptr}});
 
             data->resolve();
         }
@@ -604,7 +618,10 @@ void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<adding_curl_da
             data->resolve();
         }
 
-        curl_data.mapped().second(CURLE_ABORTED_BY_CALLBACK);
+        if (curl_data.mapped().watcher) {
+            this->stop_watcher(curl_data.mapped().watcher);
+        }
+        curl_data.mapped().finish(CURLE_ABORTED_BY_CALLBACK);
     }
     else if (data->flag==2) {
         /* pause */

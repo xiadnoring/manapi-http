@@ -69,7 +69,12 @@ void manapi::bytebuffer::resize(std::size_t s) {
         return;
     }
 
-    this->src = manapi::memory::realloc(this->src, s);
+    if (this->src) {
+        this->src = manapi::memory::realloc(this->src, s);
+    }
+    else {
+        this->src = manapi::memory::alloc<uint8_t>(s);
+    }
     this->reserved = s;
     this->s = s;
 }
