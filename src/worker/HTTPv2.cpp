@@ -1203,9 +1203,11 @@ void manapi::net::worker::http_v2::init_write_buffer() {
 }
 
 void manapi::net::worker::http_v2::send_frame(http2_frame_type frame, uint8_t flag, int stream_id, std::string_view data) {
-    const std::string id = stringify_stream_id(stream_id);
-    const std::string len = stringify_number <int> (static_cast<int>(data.size()));
-    std::string response ({len[1], len[2], len[3], static_cast<char>(frame), static_cast<char> (flag), id[0], id[1], id[2], id[3]});
+    static char response[9];
+    stringify_stream_id(stream_id, response + 5);
+    stringify_number <int> (static_cast<int>(data.size()), response, 3);
+    response[3] = static_cast<char>(frame);
+    response[4] = static_cast<char>(flag);
 
     //std::cout << "SND: " << frame << " len=" << data.size() <<" flg="<<((int)flag)  <<  "\n";
 
@@ -1214,7 +1216,7 @@ void manapi::net::worker::http_v2::send_frame(http2_frame_type frame, uint8_t fl
         rhs = 0;
     }
     else {
-        rhs = this->worker->sync_write(this->connection.get(), response.data(), static_cast<ssize_t>(response.size()));
+        rhs = this->worker->sync_write(this->connection.get(), response, sizeof (response));
     }
 
     if (rhs < 0) {
@@ -1233,10 +1235,10 @@ void manapi::net::worker::http_v2::send_frame(http2_frame_type frame, uint8_t fl
 
         rhs = 0;
     }
-    while (rhs != response.size()) {
+    while (rhs != sizeof (response)) {
         init_write_buffer();
-        const auto copy = std::min(static_cast<ssize_t>(this->write_buffer_last->buffer->size() - this->write_buffer_cursor), static_cast<ssize_t>(response.size()) - rhs);
-        memcpy(this->write_buffer_last->buffer->data() + this->write_buffer_cursor, response.data() + rhs, copy);
+        const auto copy = std::min(static_cast<ssize_t>(this->write_buffer_last->buffer->size() - this->write_buffer_cursor), static_cast<ssize_t>(sizeof (response)) - rhs);
+        memcpy(this->write_buffer_last->buffer->data() + this->write_buffer_cursor, response + rhs, copy);
         this->write_buffer_cursor += copy;
         rhs += copy;
     }
@@ -1277,10 +1279,12 @@ void manapi::net::worker::http_v2::send_frame(http2_frame_type frame, uint8_t fl
     return;
 
     err:
-    auto thread = this->threads.find(stream_id);
-    if (thread != this->threads.end() && !(thread->second->atomic_flags & HTTP2_THREAD_ATOMIC_RST)) {
-        thread->second->atomic_flags.store(HTTP2_THREAD_ATOMIC_RST);
-        thread->second->mx.unlock();
+    if (stream_id) {
+        auto thread = this->threads.find(stream_id);
+        if (thread != this->threads.end()) {
+            thread->second->atomic_flags.store(HTTP2_THREAD_ATOMIC_RST);
+            thread->second->mx.unlock();
+        }
     }
     this->generate_error(HTTP2_ERROR_STREAM_CLOSED, std::format("stream {} closed", stream_id), static_cast<int>(stream_id));
 }
@@ -1350,33 +1354,61 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
     if ((this->protocol.conn_type) & CONN_CLOSED) { return; }
     this->protocol.conn_type |= CONN_CLOSED;
 
-    this->site.async_context()->eventloop()->stop_watcher(this->watcher);
-    this->site.async_context()->eventloop()->stop_watcher(this->io_call_watcher);
-
     this->reset_all_streams();
     this->empty_setting_timeouts();
-    bool clean_disconnect = true;
+
     if (this->ping_interval) {
         this->ping_interval.sync_stop(this->site.async_context());
         this->ping_interval = nullptr;
     }
 
-    if (!(this->protocol.conn_type & CONN_HALF_CLOSED)) {
-        try {
-            std::string data;
-            data += stringify_number<int> (last_stream_id) + stringify_number<int>(errnum) + additional_data;
-            //std::cout << "SEND GOAWAY\n";
-            this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, data);
-            //std::cout << "SEND GOAWAY - SUCCESS\n";
-        }
-        catch (...) {
-            /* skip error messages */
-            clean_disconnect = false;
-        }
-    }
+    /* from now on, ping_interval will be timeout i/o */
+    this->ping_interval = this->site.async_context()->timerpool()->append_timer_sync(1000, [this] (manapi::timer t)
+        -> void {
 
-    async::run(this->site.async_context(),
-        this->worker->connection_close(this->connection, clean_disconnect), std::move(this->http2_resolve_));
+        this->site.async_context()->eventloop()->stop_watcher(std::move(this->watcher));
+        this->http2_resolve_();
+    });
+
+    // this->site.async_context()->eventloop()->stop_watcher(this->watcher);
+    this->site.async_context()->eventloop()->callback_watcher<ev::io>(this->watcher, [this] (ev::io &w, int revents)
+        -> void {
+        this->watcher->set(ev::WRITE);
+        this->flush_write_buffer();
+
+        if (!this->write_buffer) {
+            auto this2 = this;
+
+            this2->ping_interval.sync_stop(this2->site.async_context());
+            this2->site.async_context()->eventloop()->stop_watcher(w);
+            this2->http2_resolve_();
+        }
+    });
+
+    this->site.async_context()->eventloop()->stop_watcher(this->io_call_watcher);
+
+    this->watcher->set(ev::READ|ev::WRITE);
+
+
+    bool clean_disconnect = true;
+
+
+    try {
+        std::string buffer;
+        buffer.resize(8 + additional_data.size());
+
+        stringify_number<int> (last_stream_id, buffer.data());
+        stringify_number<int>(errnum, buffer.data() + 4);
+        memcpy(buffer.data() + 8, additional_data.data(), additional_data.size());
+
+        std::cout << "SEND GOAWAY\n";
+        this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, buffer);
+        //std::cout << "SEND GOAWAY - SUCCESS\n";
+    }
+    catch (...) {
+        /* skip error messages */
+        clean_disconnect = false;
+    }
 }
 
 void manapi::net::worker::http_v2::send_settings(const std::vector<std::pair<short, int>> &options) {
@@ -1389,12 +1421,15 @@ void manapi::net::worker::http_v2::send_settings(const std::vector<std::pair<sho
     this->protocol.setting_timeout.push(this->site.async_context()->timerpool()->append_timer_async(3000, [handle = std::move(handle), worker = std::move(this->new_dependency ())] (manapi::timer t) mutable -> future<void> {
         co_await handle(std::move(worker));
     }));
-    std::string data;
+    char buffer[options.size() * 6];
+    int index = 0;
     for (const auto &option: options) {
         this->update_setting(static_cast<http2_setting_type>(option.first), option.second, true);
-        data+=stringify_number<short>(option.first)+stringify_number<int>(option.second);
+        stringify_number<short>(option.first, buffer + index * 6);
+        stringify_number<int>(option.second, buffer + index * 6 + 2);
+        index++;
     }
-    send_frame (HTTP2_FRAME_SETTINGS, 0x0, 0, data);
+    send_frame (HTTP2_FRAME_SETTINGS, 0x0, 0, {buffer, options.size() * 6});
 }
 
 ssize_t manapi::net::worker::http_v2::send_data(std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator stream, const void *buf, ssize_t size, bool finish) {
@@ -1425,8 +1460,9 @@ ssize_t manapi::net::worker::http_v2::send_data(std::map<int, std::unique_ptr<ht
 }
 
 void manapi::net::worker::http_v2::send_window_frame(int stream_id, int size) {
-    auto nsize = stringify_number <int> (size);
-    send_frame (HTTP2_FRAME_WINDOW_UPDATE, 0x00, stream_id, nsize);
+    static char buffer[4];
+    stringify_number <int> (size, buffer);
+    send_frame (HTTP2_FRAME_WINDOW_UPDATE, 0x00, stream_id, {buffer, sizeof (buffer)});
 }
 
 void manapi::net::worker::http_v2::resolve_timeout_timer() {
@@ -1482,7 +1518,9 @@ void manapi::net::worker::http_v2::delete_stream_id(int id) {
 }
 
 void manapi::net::worker::http_v2::reset_stream(int id, int errnum) {
-    this->send_frame(HTTP2_FRAME_RST_STREAM, 0x0, id, stringify_number<int> (errnum));
+    static char buffer[4];
+    stringify_number<int> (errnum, buffer);
+    this->send_frame(HTTP2_FRAME_RST_STREAM, 0x0, id, {buffer, sizeof (buffer)});
 }
 
 void manapi::net::worker::http_v2::session_worker(std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator it) {
@@ -1753,13 +1791,12 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::default_write(worker::conn
     co_return rhs;
 }
 
-std::string manapi::net::worker::http_v2::stringify_stream_id(int stream_id) {
-    std::string id;
-    id += static_cast<char> ((stream_id >> (8 * 3)) & 0x7F); // 127
+void manapi::net::worker::http_v2::stringify_stream_id(int stream_id, char *buffer) {
+    int index = 0;
+    buffer[index++] = static_cast<char> ((stream_id >> (8 * 3)) & 0x7F); // 127
     for (int i = 2; i >= 0; i--) {
-        id += static_cast<char> ((stream_id >> i * 8) & 0xFF); // 256
+        buffer[index++] = static_cast<char> ((stream_id >> i * 8) & 0xFF); // 256
     }
-    return std::move(id);
 }
 
 void manapi::net::worker::http_v2::setting_param_was_ack(const bool &self) {

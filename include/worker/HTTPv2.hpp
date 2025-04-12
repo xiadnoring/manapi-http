@@ -295,19 +295,17 @@ namespace manapi::net::worker {
         future<ssize_t> default_read (worker::connection &connection, void *buff, ssize_t size);
         future<ssize_t> default_write (worker::connection &connection, const void *buff, ssize_t size, bool flag);
 
-        static std::string stringify_stream_id (int stream_id);
+        static void stringify_stream_id (int stream_id, char *buffer);
         void setting_param_was_ack (const bool &self);
 
         void setting_value_valid (const http2_setting_type &type, const int &value) noexcept(false);
 
         template <typename T>
-        static std::string stringify_number (T n) {
-            std::string result;
-            result.reserve(sizeof (n));
-            for (int i = sizeof (n) - 1; i >= 0; i--) {
-                result += static_cast<char> ((n >> i * 8) & 0xFF);
+        static void stringify_number (T n, char *buffer, int size = sizeof (T)) {
+            int index = 0;
+            for (int i = sizeof (n) - 1 - (sizeof (T) - size); i >= 0; --i) {
+                buffer[index++] = static_cast<char> ((n >> i * 8) & 0xFF);
             }
-            return std::move(result);
         }
 
         std::string headerbuffer{};

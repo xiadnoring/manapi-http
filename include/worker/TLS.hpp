@@ -14,7 +14,6 @@ namespace manapi::net::worker {
     public:
         struct connection_interface : TCP::connection_interface {
             void *ssl;
-            std::unique_ptr<async::mutex> mx;
             manapi::timer accept_timer;
         };
 
@@ -24,7 +23,7 @@ namespace manapi::net::worker {
         void init () override;
         future<bool> configure_connection(std::shared_ptr<connection> conn) override;
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept () override;
-        future<void> connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
+        void connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
         int status (connection &conn) override;
         ssize_t sync_read(worker::connection *conn, void *buff, ssize_t size) override;
         ssize_t sync_write(worker::connection *conn, const void *buff, ssize_t size) override;

@@ -27,11 +27,11 @@ void manapi::net::worker::base::set_config(std::shared_ptr<manapi::net::http::co
     this->config = std::move(config);
 }
 
-manapi::future<void> manapi::net::worker::base::connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) { co_return; }
+void manapi::net::worker::base::connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) { return; }
 
-manapi::future<void> manapi::net::worker::base::connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) { co_return; }
+void manapi::net::worker::base::connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) { return; }
 
-manapi::future<> manapi::net::worker::base::connection_cancel(std::shared_ptr<connection> conn) { co_return; }
+void manapi::net::worker::base::connection_cancel(std::shared_ptr<connection> conn) { return; }
 
 manapi::future<bool> manapi::net::worker::base::configure_connection(std::shared_ptr<connection> conn) { co_return false; }
 

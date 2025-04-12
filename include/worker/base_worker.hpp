@@ -60,9 +60,9 @@ namespace manapi::net::worker {
         virtual bool is_valid_connection (worker::connection &connection);
         virtual void init ();
         virtual void set_config (std::shared_ptr<manapi::net::http::config> config);
-        virtual future<void> connection_close (std::shared_ptr<connection> conn, bool clean_disconnect);
-        virtual manapi::future<void> connection_shutdown (std::shared_ptr<connection> conn, bool connection_status);
-        virtual manapi::future<> connection_cancel (std::shared_ptr<connection> conn);
+        virtual void connection_close (std::shared_ptr<connection> conn, bool clean_disconnect);
+        virtual void connection_shutdown (std::shared_ptr<connection> conn, bool connection_status);
+        virtual void connection_cancel (std::shared_ptr<connection> conn);
 
         virtual future<bool> configure_connection (std::shared_ptr<connection> conn);
 

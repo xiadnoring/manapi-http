@@ -29,7 +29,6 @@ namespace manapi::net::worker {
 
 #pragma pack(push,16)
         struct connection_interface {
-            manapi::async::mutex iomutex;
             sd_t id{};
             manapi::timer t;
             net::site *site;
@@ -76,11 +75,11 @@ namespace manapi::net::worker {
         static std::shared_ptr<worker::TCP> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
-        future<void> connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
+        void connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
         void stop() override;
         int status (connection &conn) override;
-        manapi::future<> connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) override;
-        manapi::future<> connection_cancel(std::shared_ptr<connection> conn) override;
+        void connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) override;
+        void connection_cancel(std::shared_ptr<connection> conn) override;
         ssize_t sync_read(worker::connection *conn, void *buff, ssize_t size) override;
         ssize_t sync_write(worker::connection *conn, const void *buff, ssize_t size) override;
         manapi::future<std::shared_ptr<ev::io>> async_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)> callback) override;

@@ -103,6 +103,9 @@ namespace manapi {
         template<typename T>
         void stop_watcher (std::shared_ptr<T> w);
 
+        template<typename T>
+        void callback_watcher (std::shared_ptr<T> w, std::move_only_function<void(T &, int)> cb);
+
         future<std::shared_ptr<ev::io>> watch_fd (int fd, int flags, std::move_only_function<void(ev::io &w, int revents)> callback, int priority = 0);
         future<void> unwatch_fd (std::shared_ptr<ev::io> w);
 
@@ -260,7 +263,7 @@ namespace manapi {
         curl_watcher_t curl_watcher{};
 #endif
         timer_watcher_t timer_watcher{};
-        custom_callback_t callback_watcher{};
+        custom_callback_t callback_watcher_{};
         ev::prepare prepare_watcher;
     };
 }

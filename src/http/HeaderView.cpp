@@ -139,9 +139,6 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
         }
     }
 
-    async::run(this->site.async_context(),
-        this->worker->connection_close(this->connection, true));
-
     co_return;
 }
 
