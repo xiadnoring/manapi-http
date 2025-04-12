@@ -232,13 +232,16 @@ ssize_t manapi::net::worker::TLS::sync_read(worker::connection *conn, void *buff
 
     if (rhs < 0) {
         if (ssl_errno == this->ssl_error_syscall_) {
-            return (errno == EAGAIN || errno == EWOULDBLOCK) ? (0) : (-1);
+            return (errno == EAGAIN || errno == EWOULDBLOCK) ? (IO_WANT_AGAIN) : (-1);
         }
-        if (ssl_errno == this->ssl_error_want_read_ || ssl_errno == ssl_error_want_write_) {
-            return 0;
+        if (ssl_errno == this->ssl_error_want_read_) {
+            return IO_WANT_READ;
+        }
+        if (ssl_errno == this->ssl_error_want_write_) {
+            return IO_WANT_WRITE;
         }
 
-        return -1;
+        return IO_FATAL_ERROR;
     }
 
 
@@ -263,12 +266,15 @@ ssize_t manapi::net::worker::TLS::sync_write(worker::connection *conn, const voi
 
     if (rhs < 0) {
         if (ssl_errno == this->ssl_error_syscall_) {
-            return (errno == EAGAIN || errno == EWOULDBLOCK) ? (0) : (-1);
+            return (errno == EAGAIN || errno == EWOULDBLOCK) ? (IO_WANT_AGAIN) : (-1);
         }
-        if (ssl_errno == this->ssl_error_want_read_ || ssl_errno == this->ssl_error_want_write_) {
-            return 0;
+        if (ssl_errno == this->ssl_error_want_read_) {
+            return IO_WANT_READ;
         }
-        return -1;
+        if (ssl_errno == this->ssl_error_want_write_) {
+            return IO_WANT_WRITE;
+        }
+        return IO_FATAL_ERROR;
     }
 
     connection.stats.transfared_last_second.fetch_add(rhs);

@@ -46,6 +46,13 @@ namespace manapi::net::worker {
             CONN_LIMIT_RATE     = 0b00100000
         };
 
+        enum sync_want_error {
+            IO_FATAL_ERROR = -1,
+            IO_WANT_READ = -10001,
+            IO_WANT_WRITE = -10002,
+            IO_WANT_AGAIN = -10003
+        };
+
         base (net::site &site);
         base (base &&n) noexcept;
         virtual ~base ();

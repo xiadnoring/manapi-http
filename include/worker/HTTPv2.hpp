@@ -103,7 +103,21 @@ namespace manapi::net::worker {
             std::unique_ptr<http_v2_write_buffers> next;
         };
 
+        struct http_v2_settings_t {
+            int header_table_size;
+            int enable_push;
+            int max_concurret_streams;
+            int initial_window_size;
+            int max_frame_size;
+            int max_header_list_size;
+            int settings_enable_connect_protocol;
+            int settings_no_rfc7540_priorities;
+            int tls_reneg_permitted;
+            int settings_enable_metadata;
+        };
+
         struct parse_vars_t {
+            ssize_t *tmp;
             bool next_line_state = false;
             std::string buffer{};
             ssize_t i = 0;
@@ -124,8 +138,8 @@ namespace manapi::net::worker {
             ssize_t read = 0;
             ssize_t write = 0;
 
-            ssize_t stream_window = 0;
-            ssize_t conn_window = 0;
+            int stream_window = 0;
+            int conn_window = 0;
         };
 
         struct protocol_http2_t {
@@ -133,7 +147,8 @@ namespace manapi::net::worker {
             ssize_t type = 0;
             int stream_id = 0;
             uint8_t flag = 0;
-            std::map <int, std::pair <int, std::function <void(int value, bool self)>>> settings;
+            http_v2_settings_t client_settings;
+            http_v2_settings_t server_settings;
             ssize_t padding = 0;
             std::chrono::system_clock::time_point prev_ping_time_point = std::chrono::system_clock::now();
             std::chrono::milliseconds ping_delay {200};
@@ -196,6 +211,9 @@ namespace manapi::net::worker {
         http_v2 (const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~http_v2() override;
 
+        void update_setting (http2_setting_type type, int value, bool self);
+        void set_watcher_event (int revents);
+        void remove_watcher_event (int revents);
         future<void> parse_request(ssize_t j, ssize_t size);
         void handle_callback_watcher ();
         void init_settings();
@@ -238,12 +256,13 @@ namespace manapi::net::worker {
 
         void _parse_body_data (char &c);
 
-        void _parse_skip_n_bytes (char &c, ssize_t &n);
+        void _parse_skip_n_bytes (char &c);
 
         void _parse_field_block (char &c);
 
-        void _parse_number (char &c, ssize_t &num, ssize_t &length);
+        void _parse_number (char &c);
 
+        void exec_callback (char &c);
         void flush_write_buffer ();
         void init_write_buffer ();
         void send_frame (http2_frame_type frame, uint8_t flag, int stream_id, std::string_view data);
@@ -279,8 +298,6 @@ namespace manapi::net::worker {
         static std::string stringify_stream_id (int stream_id);
         void setting_param_was_ack (const bool &self);
 
-        void settings_update_initial_window_size (int value);
-        void settings_update_max_concurrent_streams (int value);
         void setting_value_valid (const http2_setting_type &type, const int &value) noexcept(false);
 
         template <typename T>
@@ -305,7 +322,7 @@ namespace manapi::net::worker {
 
         protocol_http2_t protocol;
 
-        std::function<void(char&)> current, next;
+        int current, next;
         http_v2_callbacks_t callbacks{};
         std::shared_ptr<worker::base> worker;
 
