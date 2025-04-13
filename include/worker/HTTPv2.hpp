@@ -166,7 +166,7 @@ namespace manapi::net::worker {
             manapi::compress::hpack::decoder_t decoder{};
             manapi::compress::hpack::encoder_t encoder{};
 
-            int current_stream_id = 0;
+            int last_stream_id = 0;
             size_t setting_param_acks = 0;
             size_t payload_read = 0;
             size_t prev_payload_read = 0;
@@ -268,8 +268,8 @@ namespace manapi::net::worker {
         void send_frame (http2_frame_type frame, uint8_t flag, int stream_id, std::string_view data);
         void send_empty_frame (http2_frame_type frame, char flag, int stream_id);
         void timer_watcher (const std::shared_ptr<manapi::net::worker::base> &dep);
-        void send_ping_frame (std::string data={});
-        void close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "", int last_stream_id = 0);
+        bool send_ping_frame (std::string data={});
+        void close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "");
 
         void send_settings (const std::vector <std::pair <short, int>> &options);
         ssize_t send_data (std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator stream, const void *buf, ssize_t size, bool finish);

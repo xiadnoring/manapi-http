@@ -10,6 +10,8 @@
 namespace manapi::net {
     class fetch2 {
         struct fetch_data {
+            manapi::net::fetch data;
+            std::shared_ptr<async::context> ctx;
             manapi::async::parallel_run<std::exception_ptr> async_run;
             async::mutex mx;
             bool result {true};
@@ -20,49 +22,65 @@ namespace manapi::net {
 
     public:
         ~fetch2() {
-            this->fetchdata->result = false;
-            this->fetchdata->mx.unlock();
+
         }
 
         fetch2 (std::shared_ptr<async::context> ctx, std::string url) {
-            this->ctx = std::move(ctx);
-            this->data = std::make_shared<manapi::net::fetch>(this->ctx, std::move(url));
-            this->fetchdata = std::make_shared<fetch_data>(this->ctx, this->ctx, true);
+            this->fetchdata = std::make_shared<fetch_data>(manapi::net::fetch{ctx, std::move(url)}, ctx, ctx, ctx, true);
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params = manapi::json::object()) {
+        fetch2 (fetch2 &&n) noexcept {
+            this->fetchdata = std::move(n.fetchdata);
+        }
+
+        fetch2 &operator=(fetch2 &&n) noexcept {
+            this->fetchdata = std::move(n.fetchdata);
+            return *this;
+        }
+
+        fetch2 (const fetch2 &n) {
+            this->fetchdata = n.fetchdata;
+        }
+
+        fetch2 &operator=(const fetch2 &n) {
+            this->fetchdata = n.fetchdata;
+            return *this;
+
+        }
+
+        static manapi::future<fetch2> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params = manapi::json::object()) {
             return fetch_(ctx, std::move(url), std::move(params), std::optional<std::string> {});
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<curlformdata> body) {
+        static manapi::future<fetch2> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<curlformdata> body) {
             return fetch_(ctx, std::move(url), std::move(params), std::move(body));
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<std::string> body) {
+        static manapi::future<fetch2> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<std::string> body) {
             return fetch_(ctx, std::move(url), std::move(params), std::move(body));
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body) {
+        static manapi::future<fetch2> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body) {
             return fetch_(ctx, std::move(url), std::move(params), std::move(body));
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)>> body) {
-            auto response = std::make_shared<fetch2>(ctx, std::move(url));
+        static manapi::future<fetch2> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)>> body) {
+            fetch2 response (ctx, std::move(url));
             if (body.has_value()) {
-                response->data->async_body(std::move(body.value()));
+                response.fetchdata->data.async_body(std::move(body.value()));
             }
-            response->setup_fetch(std::move(params));
-            co_await response->response();
+            response.setup_fetch(std::move(params));
+            co_await response.response();
             co_return std::move(response);
         }
 
-        static manapi::future<std::shared_ptr<fetch2>> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<file_transfer_info> body) {
-            auto response = std::make_shared<fetch2>(ctx, std::move(url));
+        static manapi::future<fetch2> fetch (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, std::optional<file_transfer_info> body) {
+            fetch2 response (ctx, std::move(url));
             if (body.has_value()) {
-                co_await response->data->body(std::move(body.value()));
+                co_await response.fetchdata->data.body(std::move(body.value()));
             }
-            response->setup_fetch(std::move(params));
-            co_await response->response();
+            response.setup_fetch(std::move(params));
+            co_await response.response();
             co_return std::move(response);
         }
 
@@ -72,22 +90,22 @@ namespace manapi::net {
         }
 
         [[nodiscard]] size_t status () const {
-            return this->data->status_code();
+            return this->fetchdata->data.status_code();
         }
 
         std::map<std::string, std::string> headers () {
-            return this->data->headers();
+            return this->fetchdata->data.headers();
         }
 
         manapi::future<> callback_async (std::function<manapi::future<ssize_t>(char *buffer, ssize_t size)> cb) {
             if (!this->fetchdata->setup) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "fetch2 must be initialized fetch2::fetch(...) only"); }
-            this->data->handle_async_body(std::move(cb));
+            this->fetchdata->data.handle_async_body(std::move(cb));
             co_await continue_receiving();
         }
 
         manapi::future<> callback_sync (std::function<ssize_t(char *buffer, ssize_t size)> cb) {
             if (!this->fetchdata->setup) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "fetch2 must be initialized fetch2::fetch(...) only"); }
-            this->data->handle_body(std::move(cb));
+            this->fetchdata->data.handle_body(std::move(cb));
             co_await continue_receiving();
         }
 
@@ -116,18 +134,18 @@ namespace manapi::net {
         }
     private:
         template<typename T>
-        static manapi::future<std::shared_ptr<fetch2>> fetch_ (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, T body) {
-            auto response = std::make_shared<fetch2>(ctx, std::move(url));
+        static manapi::future<fetch2> fetch_ (const std::shared_ptr<async::context> &ctx, std::string url, manapi::json params, T body) {
+            fetch2 response (ctx, std::move(url));
             if (body.has_value()) {
-                response->data->body(std::move(body.value()));
+                response.fetchdata->data.body(std::move(body.value()));
             }
-            response->setup_fetch(std::move(params));
-            co_await response->response();
+            response.setup_fetch(std::move(params));
+            co_await response.response();
             co_return std::move(response);
         }
 
         void setup_send_body (std::string &&data) {
-            this->data->body(std::forward<decltype(data)>(data));
+            this->fetchdata->data.body(std::forward<decltype(data)>(data));
         }
 
         manapi::future<> continue_receiving () {
@@ -137,49 +155,49 @@ namespace manapi::net {
         }
         void setup_fetch (manapi::json params) {
             if (params.contains("method")) {
-                this->data->method(std::move(params["method"].as_string()));
+                this->fetchdata->data.method(std::move(params["method"].as_string()));
             }
             if (params.contains("ssl_verify")) {
-                this->data->enable_ssl_verify(params["ssl_verify"].as_bool());
+                this->fetchdata->data.enable_ssl_verify(params["ssl_verify"].as_bool());
             }
             if (params.contains("verbose")) {
-                this->data->verbose(params["verbose"].as_bool());
+                this->fetchdata->data.verbose(params["verbose"].as_bool());
             }
             if (params.contains("alpn")) {
-                this->data->enable_alpn(params["alpn"].as_bool());
+                this->fetchdata->data.enable_alpn(params["alpn"].as_bool());
             }
             if (params.contains("http1_1")&&params["http1_1"].as_bool()) {
-                this->data->enable_http1_1();
+                this->fetchdata->data.enable_http1_1();
             }
             if (params.contains("http2")&&params["http2"].as_bool()) {
-                this->data->enable_http2();
+                this->fetchdata->data.enable_http2();
             }
             if (params.contains("http3")&&params["http3"].as_bool()) {
-                this->data->enable_http3();
+                this->fetchdata->data.enable_http3();
             }
 
             if (params.contains("headers") && params["headers"].is_object()) {
-                this->data->json_headers(std::move(params["headers"]));
+                this->fetchdata->data.json_headers(std::move(params["headers"]));
             }
 
             this->fetchdata->setup = true;
 
-            this->data->handle_body([fetchdata = this->fetchdata] (char *buffer, ssize_t size)
+            this->fetchdata->data.handle_body([fetchdata = this->fetchdata] (char *buffer, ssize_t size)
                 -> ssize_t { return size; });
         }
         manapi::future<> response () {
             co_await this->fetchdata->mx.lock();
-            co_await async::promise<void> (this->ctx, [this] (manapi::async::promise<void>::resolve_t resolve, manapi::async::promise<void>::reject_t reject) -> manapi::future<> {
-                this->data->handle_async_headers([fetchdata = this->fetchdata, resolve = std::move(resolve)] (std::map<std::string, std::string> headers) -> manapi::future<bool> {
+            co_await async::promise<void> (this->fetchdata->ctx, [this] (manapi::async::promise<void>::resolve_t resolve, manapi::async::promise<void>::reject_t reject) -> manapi::future<> {
+                this->fetchdata->data.handle_async_headers([fetchdata = this->fetchdata, resolve = std::move(resolve)] (std::map<std::string, std::string> headers) -> manapi::future<bool> {
                     fetchdata->received = true;
                     resolve ();
                     auto lk = co_await fetchdata->mx.lock_guard();
                     co_return fetchdata->result;
                 });
 
-                this->fetchdata->async_run.run(manapi::async::invoke([reject, data = this->data, fetchdata = this->fetchdata] () -> manapi::future<std::exception_ptr> {
+                this->fetchdata->async_run.run(manapi::async::invoke([reject, fetchdata = this->fetchdata] () -> manapi::future<std::exception_ptr> {
                     try {
-                        co_await data->async_doit();
+                        co_await fetchdata->data.async_doit();
                     }
                     catch (...) {
                         if (!fetchdata->received) {
@@ -197,8 +215,6 @@ namespace manapi::net {
                 co_return;
             });
         }
-        std::shared_ptr<async::context> ctx;
-        std::shared_ptr<manapi::net::fetch> data;
         std::shared_ptr<fetch_data> fetchdata;
     };
 }

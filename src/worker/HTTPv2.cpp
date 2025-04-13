@@ -260,7 +260,9 @@ void manapi::net::worker::http_v2::handle_callback_watcher() {
                         }
                     }
                     else {
-                        this->send_ping_frame(std::move(buffer));
+                        if (!this->send_ping_frame(std::move(buffer))) {
+                            return;
+                        }
                     }
                     buffer.clear();
                 }
@@ -289,7 +291,7 @@ void manapi::net::worker::http_v2::handle_callback_watcher() {
                         case HTTP2_FRAME_PRIORITY: {
                             auto thread = this->threads.find(this->protocol.stream_id);
                             if (thread == this->threads.end()) {
-                                if (this->protocol.current_stream_id < this->protocol.stream_id) {
+                                if (this->protocol.last_stream_id < this->protocol.stream_id) {
                                     this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "stream doesn't exists");
                                 }
                                 break;
@@ -377,7 +379,7 @@ void manapi::net::worker::http_v2::handle_callback_watcher() {
                             if (err_code >= HTTP2_ERROR_NO_ERROR && err_code <= HTTP2_ERROR_HTTP_1_1_REQUIRED) {
                                 auto thread = this->threads.find(this->protocol.stream_id);
                                 if (thread == this->threads.end()) {
-                                    if (this->protocol.current_stream_id < this->protocol.stream_id) {
+                                    if (this->protocol.last_stream_id < this->protocol.stream_id) {
                                         this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, std::format("stream {} doesn't exists", this->protocol.stream_id));
                                     }
                                     /* already */
@@ -408,7 +410,7 @@ void manapi::net::worker::http_v2::handle_callback_watcher() {
 
                             auto thread = this->threads.find(this->protocol.stream_id);
                             if (thread == this->threads.end()) {
-                                if (this->protocol.current_stream_id < this->protocol.stream_id) {
+                                if (this->protocol.last_stream_id < this->protocol.stream_id) {
                                     this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "stream doesn't exists");
                                 }
                                 /* not exists */
@@ -460,7 +462,7 @@ void manapi::net::worker::http_v2::handle_callback_watcher() {
         unlimit_all_streams();
     }
 
-    this->close_connection (HTTP2_ERROR_NO_ERROR, "shutdown", 0);
+    this->close_connection (HTTP2_ERROR_NO_ERROR, "shutdown");
 }
 
 void manapi::net::worker::http_v2::update_setting(http2_setting_type type, int value, bool self) {
@@ -578,7 +580,7 @@ void manapi::net::worker::http_v2::empty_setting_timeouts() {
 
 void manapi::net::worker::http_v2::generate_error(http2_error_type errnum, std::string errmsg, int last_stream_id) noexcept(false) {
     if (false == (this->protocol.conn_type & CONN_CLOSED)) {
-        this->close_connection(errnum, errmsg, last_stream_id);
+        this->close_connection(errnum, errmsg);
     }
 
     THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, errmsg);
@@ -825,7 +827,7 @@ void manapi::net::worker::http_v2::_parse_header_data(char &c) {
                     this->site.async_context()
                 )}).first;
 
-                this->protocol.current_stream_id = thread->first;
+                this->protocol.last_stream_id = thread->first;
             }
             else {
                 this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "CONTINUATION frame instead of HEADERS Frame");
@@ -1295,7 +1297,16 @@ void manapi::net::worker::http_v2::send_empty_frame(http2_frame_type frame, char
 
 void manapi::net::worker::http_v2::timer_watcher(const std::shared_ptr<manapi::net::worker::base> &dep) {
     if (this->threads.size() == 0 && (this->protocol.conn_type == 0) && std::chrono::system_clock::now() > this->protocol.prev_ping_time_point + this->protocol.ping_delay) {
-        send_ping_frame();
+        /**
+         * PING frames prevent curl from working properly.
+         * since curl doesn't accept packets, it has a
+         * rather small window size.
+         *
+         * There is no space for PING frames in the write window.
+         */
+        // if (!send_ping_frame()) {
+        //     return;
+        // }
         this->protocol.prev_ping_time_point = std::chrono::system_clock::now();
     }
 
@@ -1319,12 +1330,12 @@ void manapi::net::worker::http_v2::timer_watcher(const std::shared_ptr<manapi::n
         //MANAPIHTTP_LOG2("TIMEOUT HTTP2");
         this->ping_interval.sync_stop(this->site.async_context());
         //MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
-        this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout", 0);
+        this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout");
         //MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
     }
 }
 
-void manapi::net::worker::http_v2::send_ping_frame(std::string data) {
+bool manapi::net::worker::http_v2::send_ping_frame(std::string data) {
     char flag = 0x00;
     if (data.size()==8) {
         flag |= HTTP2_FLAG_PING_ACK;
@@ -1335,8 +1346,9 @@ void manapi::net::worker::http_v2::send_ping_frame(std::string data) {
             if (this->protocol.pings.size() > 3) {
                 // timeout
                 MANAPIHTTP_LOG2("PING IGNORE -> close connection");
-                this->close_connection(HTTP2_ERROR_PROTOCOL_ERROR, "ping ignore");
-                return;
+                /* close connection quietly */
+                this->close_connection(HTTP2_ERROR_NO_ERROR, "");
+                return false;
             }
 
             do {
@@ -1349,9 +1361,10 @@ void manapi::net::worker::http_v2::send_ping_frame(std::string data) {
 
         send_frame(HTTP2_FRAME_PING, flag, 0, data);
     }
+    return true;
 }
 
-void manapi::net::worker::http_v2::close_connection(int errnum, std::string additional_data, int last_stream_id ) {
+void manapi::net::worker::http_v2::close_connection(int errnum, std::string additional_data) {
     if ((this->protocol.conn_type) & CONN_CLOSED) { return; }
     this->protocol.conn_type |= CONN_CLOSED;
 
@@ -1363,58 +1376,61 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
         this->ping_interval = nullptr;
     }
 
-    /* from now on, ping_interval will be timeout i/o */
-    this->ping_interval = this->site.async_context()->timerpool()->append_timer_sync(1000, [this] (manapi::timer t)
-        -> void {
-        this->site.async_context()->eventloop()->stop_watcher(std::move(this->watcher));
-        this->http2_resolve_();
-    });
-
-    // this->site.async_context()->eventloop()->stop_watcher(this->watcher);
-    this->site.async_context()->eventloop()->callback_watcher<ev::io>(this->watcher, [this] (ev::io &w, int revents)
-        -> void {
-        this->watcher->set(ev::WRITE);
-
-        try {
-            this->flush_write_buffer();
-        }
-        catch (...) {
-            /* failure */
-            this->write_buffer = nullptr;
-        }
-
-        if (!this->write_buffer) {
-            auto this2 = this;
-
-            this2->ping_interval.sync_stop(this2->site.async_context());
-            this2->site.async_context()->eventloop()->stop_watcher(this2->watcher);
-            this2->http2_resolve_();
-        }
-    });
-
     this->site.async_context()->eventloop()->stop_watcher(this->io_call_watcher);
 
-    this->watcher->set(ev::READ|ev::WRITE);
+    if (errnum >= 0) {
+        /* from now on, ping_interval will be timeout i/o */
+        this->ping_interval = this->site.async_context()->timerpool()->append_timer_sync(1000, [this] (manapi::timer t)
+            -> void {
+            this->site.async_context()->eventloop()->stop_watcher(std::move(this->watcher));
+            this->http2_resolve_();
+        });
 
+        // this->site.async_context()->eventloop()->stop_watcher(this->watcher);
+        this->site.async_context()->eventloop()->callback_watcher<ev::io>(this->watcher, [this] (ev::io &w, int revents)
+            -> void {
+            this->watcher->set(ev::WRITE);
 
-    bool clean_disconnect = true;
+            try {
+                this->flush_write_buffer();
+            }
+            catch (...) {
+                /* failure */
+                this->write_buffer = nullptr;
+            }
 
+            if (!this->write_buffer) {
+                auto this2 = this;
 
-    try {
-        std::string buffer;
-        buffer.resize(8 + additional_data.size());
+                this2->ping_interval.sync_stop(this2->site.async_context());
+                this2->site.async_context()->eventloop()->stop_watcher(this2->watcher);
+                this2->http2_resolve_();
+            }
+        });
 
-        stringify_number<int> (last_stream_id, buffer.data());
-        stringify_number<int>(errnum, buffer.data() + 4);
-        memcpy(buffer.data() + 8, additional_data.data(), additional_data.size());
+        this->watcher->set(ev::READ|ev::WRITE);
 
-        std::cout << "SEND GOAWAY\n";
-        this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, buffer);
-        //std::cout << "SEND GOAWAY - SUCCESS\n";
+        try {
+            std::string buffer;
+            buffer.resize(8 + additional_data.size());
+
+            stringify_number<int> (this->protocol.last_stream_id, buffer.data());
+            stringify_number<int>(errnum, buffer.data() + 4);
+            memcpy(buffer.data() + 8, additional_data.data(), additional_data.size());
+
+            //std::cout << "SEND GOAWAY\n";
+            this->send_frame(HTTP2_FRAME_GOAWAY, 0x00, 0, buffer);
+            //std::cout << "SEND GOAWAY - SUCCESS\n";
+        }
+        catch (...) {
+            /* skip error messages */
+
+        }
     }
-    catch (...) {
-        /* skip error messages */
-        clean_disconnect = false;
+    else {
+        /* close it quietly */
+        this->site.async_context()->eventloop()->stop_watcher(this->watcher);
+        this->http2_resolve_();
     }
 }
 

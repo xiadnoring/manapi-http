@@ -168,7 +168,7 @@ int main (int argc, char *argv[]) {
                 co_return rhs;
             });
             std::cout << "skip\n";
-            co_return resp.text(co_await response->text());
+            co_return resp.text(co_await response.text());
         }, {{"file", "{string|none}"}});
 
         server.GET ("/test-custom-cb", [ctx] (REQ(req), RESP(resp)) -> manapi::future<> {
@@ -201,7 +201,7 @@ int main (int argc, char *argv[]) {
                 co_return rhs;
             });
             std::cout << "skip\n";
-            co_return resp.text(co_await response->text());
+            co_return resp.text(co_await response.text());
         }, {{"file", "{string|none}"}});
 
         // server.GET ("/bigfile", [] (REQ(req), RESP(resp)) {
@@ -279,7 +279,7 @@ int main (int argc, char *argv[]) {
 
         server.POST ("/test_fetch", [&] (REQ(req), RESP(resp)) -> manapi::future<void> {
             auto fetch = co_await manapi::net::fetch2::fetch(ctx, "https://localhost:8888/formdata");
-            resp.text(co_await fetch->text());
+            resp.text(co_await fetch.text());
         });
 
         server.GET ("/text", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
@@ -422,11 +422,11 @@ int main (int argc, char *argv[]) {
                 {"http1_1", true}
             });
 
-            if (!fetch->ok()) {
+            if (!fetch.ok()) {
                 co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
             }
 
-            co_return resp.text(co_await fetch->text());
+            co_return resp.text(co_await fetch.text());
         });
 
         server.GET("/cat/[id]", [&ctx](http::server::req &req, http::server::resp &resp) -> manapi::future<> {
@@ -436,11 +436,11 @@ int main (int argc, char *argv[]) {
                 {"method", "GET"}
             });
 
-            if (!fetch->ok()) {
+            if (!fetch.ok()) {
                 co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
             }
 
-            auto data = co_await fetch->json();
+            auto data = co_await fetch.json();
 
             co_return resp.text(std::move(data["description"].as_string()));
         });

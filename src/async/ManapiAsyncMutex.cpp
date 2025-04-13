@@ -81,8 +81,11 @@ manapi::future<manapi::before_delete> manapi::async::mutex::lock_guard()  {
 }
 
 manapi::async::mutex::~mutex() {
-    std::lock_guard<std::mutex> lk (this->mx);
+    std::unique_lock<std::mutex> lk (this->mx);
+    /* unlock everything ! */
     if (!this->stack.empty()) {
-        std::cerr << "~async::mutex(): i can't work anymore, i'm sorrryyy :(. stack.empty() != true\n";
+        lk.unlock();
+        this->unlock();
+        lk.lock();
     }
 }
