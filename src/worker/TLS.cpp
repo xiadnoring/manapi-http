@@ -68,22 +68,25 @@ manapi::future<bool> manapi::net::worker::TLS::configure_connection(std::shared_
             }
 
             int rhs = this->ssl_accept_(conn.ssl);
-            rhs = this->ssl_get_error_(conn.ssl, rhs);
 
-            if (rhs != this->ssl_error_none_) {
-                if (rhs == this->ssl_error_want_read_) {
-                    WANT_READ(conn, this->site.async_context());
-                }
-                else if (rhs == this->ssl_error_want_read_) {
-                    WANT_WRITE(conn, this->site.async_context());
-                }
-                else if (rhs == this->ssl_error_zero_return_) {
-                    co_await conn.accept_timer.async_stop(this->site.async_context());
-                    co_return false;
-                }
-                else {
-                    co_await conn.accept_timer.async_stop(this->site.async_context());
-                    co_return false;
+            if (rhs != 1) {
+                rhs = this->ssl_get_error_(conn.ssl, rhs);
+
+                if (rhs != this->ssl_error_none_) {
+                    if (rhs == this->ssl_error_want_read_) {
+                        WANT_READ(conn, this->site.async_context());
+                    }
+                    else if (rhs == this->ssl_error_want_write_) {
+                        WANT_WRITE(conn, this->site.async_context());
+                    }
+                    else if (rhs == this->ssl_error_syscall_ && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                        continue;
+                    }
+                    else {
+                        int err = errno;
+                        co_await conn.accept_timer.async_stop(this->site.async_context());
+                        co_return false;
+                    }
                 }
             }
 

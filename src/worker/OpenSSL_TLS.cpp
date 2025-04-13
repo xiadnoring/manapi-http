@@ -53,7 +53,6 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_is_init_fininshed_(void *ssl) {
 }
 
 int manapi::net::worker::OpenSSL_TLS::ssl_get_error_(void *ssl, int rhs) {
-    ERR_clear_error();
     return SSL_get_error(static_cast<SSL*>(ssl), rhs);
 }
 
@@ -91,6 +90,8 @@ void manapi::net::worker::OpenSSL_TLS::ssl_free_(void *ssl) {
 }
 
 void manapi::net::worker::OpenSSL_TLS::recv_setup_connection(manapi::net::worker::connection &storage) {
+    ERR_clear_error();
+
     auto &conn_data = storage.as<connection_interface>();
     SSL_set_fd(static_cast<SSL*>(conn_data.ssl), conn_data.id);
     conn_data.status.fetch_or(CONN_IDLE);
@@ -121,6 +122,7 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     }
 
 
+    ERR_clear_error();
     ctx = SSL_CTX_new(method);
 
     if (!ctx)
@@ -189,6 +191,7 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
 }
 
 void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
+    ERR_clear_error();
     auto sslconfig = this->config->get_ssl_config();
     if (SSL_CTX_use_certificate_file(static_cast<SSL_CTX*>(this->ctx), sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
