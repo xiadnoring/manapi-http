@@ -302,11 +302,7 @@ std::shared_ptr<ev::io> manapi::net::worker::TLS::sync_watch_io(worker::connecti
 void manapi::net::worker::TLS::recv_setup_connection(manapi::net::worker::connection &storage) {}
 
 void manapi::net::worker::TLS::update_limit_rate_connection(connection &conn) {
-    auto &conn_data = conn.as<connection_interface>();
-    conn_data.stats.transfared_last_second.store(0);
-    const auto flag = conn_data.status.load();
-    if (conn_data.watcher && !(flag & CONN_CLOSED)) { conn_data.watcher->start(); }
-    if (flag & CONN_LIMIT_RATE) { conn_data.status.fetch_xor(CONN_LIMIT_RATE); }
+    TCP::update_limit_rate_connection(conn);
 }
 
 void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {

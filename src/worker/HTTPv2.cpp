@@ -1336,6 +1336,7 @@ void manapi::net::worker::http_v2::send_ping_frame(std::string data) {
                 // timeout
                 MANAPIHTTP_LOG2("PING IGNORE -> close connection");
                 this->close_connection(HTTP2_ERROR_PROTOCOL_ERROR, "ping ignore");
+                return;
             }
 
             do {
@@ -1365,7 +1366,6 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
     /* from now on, ping_interval will be timeout i/o */
     this->ping_interval = this->site.async_context()->timerpool()->append_timer_sync(1000, [this] (manapi::timer t)
         -> void {
-
         this->site.async_context()->eventloop()->stop_watcher(std::move(this->watcher));
         this->http2_resolve_();
     });
@@ -1374,13 +1374,20 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
     this->site.async_context()->eventloop()->callback_watcher<ev::io>(this->watcher, [this] (ev::io &w, int revents)
         -> void {
         this->watcher->set(ev::WRITE);
-        this->flush_write_buffer();
+
+        try {
+            this->flush_write_buffer();
+        }
+        catch (...) {
+            /* failure */
+            this->write_buffer = nullptr;
+        }
 
         if (!this->write_buffer) {
             auto this2 = this;
 
             this2->ping_interval.sync_stop(this2->site.async_context());
-            this2->site.async_context()->eventloop()->stop_watcher(w);
+            this2->site.async_context()->eventloop()->stop_watcher(this2->watcher);
             this2->http2_resolve_();
         }
     });

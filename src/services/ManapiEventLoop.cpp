@@ -997,9 +997,9 @@ std::shared_ptr<ev::timer> manapi::event_loop::create_watcher_timer(const float 
 
 template<typename T>
 void manapi::event_loop::event_loop::stop_watcher(T &w) {
-    auto data = static_cast<custom_watcher_data_t<T> *>(std::exchange(w.data, nullptr));
-
     w.stop();
+
+    auto data = static_cast<custom_watcher_data_t<T> *>(std::exchange(w.data, nullptr));
 
     if (data) {
         data->w.reset();

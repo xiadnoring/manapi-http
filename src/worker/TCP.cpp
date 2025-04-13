@@ -400,7 +400,8 @@ void manapi::net::worker::TCP::update_limit_rate_connection(connection &conn) {
     auto &conn_data = conn.as<connection_interface>();
     conn_data.stats.transfared_last_second.store(0);
     const auto flag = conn_data.status.load();
-    if (conn_data.watcher && (!flag & CONN_CLOSED)) { conn_data.watcher->start(); }
+    if (conn_data.watcher && (!flag & CONN_CLOSED)
+        && !conn_data.watcher->is_active() && conn_data.watcher->data) { conn_data.watcher->start(); }
     if (flag & CONN_LIMIT_RATE) { conn_data.status.fetch_xor(CONN_LIMIT_RATE); }
 }
 
