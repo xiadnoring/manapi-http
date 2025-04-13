@@ -127,11 +127,11 @@ int main () {
             {"method", "GET"}
         });
 
-        if (!fetch->ok()) {
+        if (!fetch.ok()) {
             co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
         }
 
-        auto data = co_await fetch->json();
+        auto data = co_await fetch.json();
 
         co_return resp.text(std::move(data["description"].as_string()));
     });
