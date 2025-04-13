@@ -184,5 +184,53 @@ int main () {
 }
 ```
 
+## TODO
+
+- [ ] Async
+  - [x] Mutex, Conditional Variable, Future  
+  - [ ] Default Async Context
+- [ ] Debugging
+  - [x] Error Codes
+  - [ ] Stack Error
+  - [ ] Async I/O Debug
+- [ ] Configuration
+  - [x] limit-rate
+  - [x] minimum speed requirements
+- [ ] HTTP
+  - [x] Default HTTP/1.1 realization
+  - [x] Default HTTP/2 realization
+  - [ ] Default HTTP/3 realization
+  - [x] Support HTTP/1.1
+  - [x] Support HTTP/2
+  - [x] Support HTTP/3
+- [ ] HTTP Features
+  - [x] Chunked Transmission (HTTP/1.1 - 3)
+  - [x] Ranges 
+  - [x] FormData
+  - [x] JSON (chunked transmission)
+  - [ ] Multi-Ranges
+- [ ] TLS
+  - [ ] Default realization
+  - [x] OpenSSL
+  - [x] WolfSSL
+  - [ ] BoringSSL
+- [ ] QUIC
+  - [x] quiche
+  - [ ] tquic
+  - [ ] OpenSSL
+  - [ ] WolfSSL
+  - [ ] BoringSSL
+- [x] Fetch
+  - [x] Async CURL support
+  - [x] Async/sync read callbacks
+  - [x] Async/sync write callbacks
+  - [x] Chunked Transmission (HTTP/1.1 - 3)
+- [ ] Other Protocols
+  - [ ] WebSockets
+- [ ] Cross-Platform Build
+  - [x] Linux
+  - [ ] MacOs
+  - [ ] Windows
+
 ## Tested
 - Tested on Hyprland Arch Linux x86_64 kernel 6.9.3-zen1-1-zen wayland
