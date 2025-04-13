@@ -250,7 +250,7 @@ ssize_t manapi::net::worker::TLS::sync_read(worker::connection *conn, void *buff
 
     return rhs;
 }
-
+#include <openssl/err.h>
 ssize_t manapi::net::worker::TLS::sync_write(worker::connection *conn, const void *buff, ssize_t size) {
     auto &connection = conn->as<connection_interface>();
 
@@ -261,7 +261,7 @@ ssize_t manapi::net::worker::TLS::sync_write(worker::connection *conn, const voi
         return 0;
     }
 
-    rhs = this->ssl_write_(connection.ssl, buff, static_cast<int>(size));
+    rhs = this->ssl_write_(connection.ssl, buff, static_cast<int>(rhs));
     auto ssl_errno = this->ssl_get_error_(connection.ssl, static_cast<int>(rhs));
 
     if (rhs < 0) {
@@ -274,6 +274,7 @@ ssize_t manapi::net::worker::TLS::sync_write(worker::connection *conn, const voi
         if (ssl_errno == this->ssl_error_want_write_) {
             return IO_WANT_WRITE;
         }
+        printf("%s\n", ERR_error_string(ERR_get_error(), NULL));
         return IO_FATAL_ERROR;
     }
 

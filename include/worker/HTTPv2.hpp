@@ -315,6 +315,7 @@ namespace manapi::net::worker {
 
         ssize_t write_buffer_current;
         ssize_t write_buffer_cursor;
+        ssize_t write_buffer_size;
         std::unique_ptr<http_v2_write_buffers> write_buffer;
         http_v2_write_buffers *write_buffer_last;
 

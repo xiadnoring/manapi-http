@@ -255,6 +255,7 @@ void manapi::net::worker::TCP::connection_close(std::shared_ptr<connection> conn
 
     if (connection.t) {
         connection.t.sync_stop(this->site.async_context());
+        connection.t = nullptr;
     }
 
     this->_connection_close(conn, connection);
@@ -454,7 +455,6 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_write(connection &conn
         }
 
         size = std::min(limit_rate - connection.stats.transfared_last_second.load(), size);
-        connection.stats.transfared_last_second.fetch_add(size);
 
         int flg = 0;
         #if defined(__unix__)||defined(__APPLE__)
@@ -475,6 +475,7 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_write(connection &conn
             continue;
         }
         connection.stats.total_write.fetch_add(rhs);
+        connection.stats.transfared_last_second.fetch_add(size);
         co_return rhs;
     }
     co_return -1;
@@ -501,7 +502,6 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_read(connection &conn,
 
         size = std::min(limit_rate - connection.stats.transfared_last_second.load(), size);
 
-        connection.stats.transfared_last_second.fetch_add(size);
 
         int flg = 0;
         #if defined(__unix__)||defined(__APPLE__)
@@ -523,6 +523,7 @@ manapi::future<ssize_t> manapi::net::worker::TCP::default_read(connection &conn,
             }
             break;
         }
+        connection.stats.transfared_last_second.fetch_add(size);
         connection.stats.total_read.fetch_add(rhs);
         co_return rhs;
     }

@@ -129,7 +129,7 @@ manapi::future<> manapi::net::http::request::callback_async(std::move_only_funct
 }
 
 manapi::future<> manapi::net::http::request::file(std::string filepath) {
-    manapi::filesystem::async::fstream f (this->http_task->get_site().async_context(), filepath);
+    manapi::filesystem::fstream f (this->http_task->get_site().async_context(), filepath);
     co_await f.open(f.FILE_WRITE|f.FILE_CREATE|f.FILE_TRUNC);
 
     if (!f.is_open()) {

@@ -11,24 +11,19 @@
 #   include <winsock2.h>
 #endif
 
-namespace manapi::filesystem::async {
-    struct fstream_data_t_ {
-#ifdef _WIN32
-        SOCKET fd;
-#else
-        int fd;
-#endif
-        std::string path;
-        std::shared_ptr<threadpool<task>> taskpool;
-        std::shared_ptr<event_loop> eventloop;
-        std::shared_ptr<ev::io> watcher{nullptr};
-        manapi::async::promise<void>::resolve_t w_resolve{nullptr};
-        manapi::async::promise<void>::resolve_t r_resolve{nullptr};
-
-        std::atomic<int> status{0};
-    };
-
+namespace manapi::filesystem {
     class fstream {
+        struct fstream_data_t_ {
+            fd_t fd;
+            std::string path;
+            std::shared_ptr<threadpool<task>> taskpool;
+            std::shared_ptr<event_loop> eventloop;
+            std::shared_ptr<ev::io> watcher{nullptr};
+            manapi::async::promise<void>::resolve_t w_resolve{nullptr};
+            manapi::async::promise<void>::resolve_t r_resolve{nullptr};
+
+            std::atomic<int> status{0};
+        };
     public:
         enum flags_t {
             FILE_RESERVED = 0b0,

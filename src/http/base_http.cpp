@@ -94,8 +94,8 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
         filepath = res.file();
     }
 
-    filesystem::async::fstream f (this->site.async_context(), filepath);
-    co_await f.open(filesystem::async::fstream::FILE_READ);
+    filesystem::fstream f (this->site.async_context(), filepath);
+    co_await f.open(filesystem::fstream::FILE_READ);
 
     if (!f.is_open()) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to open the file: {}", filepath);
@@ -471,7 +471,7 @@ manapi::future<void> manapi::net::http::base::send_error_response(const size_t &
     co_await handle_request(error, request_data, status);
 }
 
-manapi::future<void> manapi::net::http::base::send_file(manapi::net::http::response &res, filesystem::async::fstream &f, ssize_t size) const {
+manapi::future<void> manapi::net::http::base::send_file(manapi::net::http::response &res, filesystem::fstream &f, ssize_t size) const {
     auto block_size = static_cast<ssize_t>(this->config->buffer_size().load());
 
     std::string write_block, read_block;
@@ -529,7 +529,7 @@ manapi::future<void> manapi::net::http::base::send_file(manapi::net::http::respo
     }
 }
 
-manapi::future<void> manapi::net::http::base::send_file(manapi::net::http::response &res, filesystem::async::fstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const {
+manapi::future<void> manapi::net::http::base::send_file(manapi::net::http::response &res, filesystem::fstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const {
     std::string block;
     auto block_size = static_cast<ssize_t>(this->config->buffer_size());
 

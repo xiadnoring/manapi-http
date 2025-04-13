@@ -12,7 +12,7 @@
 #   include <share.h>
 #endif
 
-manapi::filesystem::async::fstream::fstream(const std::shared_ptr<manapi::async::context> &ctx, std::string_view path) {
+manapi::filesystem::fstream::fstream(const std::shared_ptr<manapi::async::context> &ctx, std::string_view path) {
     this->data = std::make_shared<fstream_data_t_>(
         -1,
         std::string{path},
@@ -21,7 +21,7 @@ manapi::filesystem::async::fstream::fstream(const std::shared_ptr<manapi::async:
     );
 }
 
-manapi::filesystem::async::fstream::fstream(const std::shared_ptr<event_loop> &eventloop, std::string_view path) {
+manapi::filesystem::fstream::fstream(const std::shared_ptr<event_loop> &eventloop, std::string_view path) {
     this->data = std::make_shared<fstream_data_t_>(
         -1,
         std::string{path},
@@ -30,25 +30,25 @@ manapi::filesystem::async::fstream::fstream(const std::shared_ptr<event_loop> &e
     );
 }
 
-manapi::filesystem::async::fstream::fstream(fstream &&n) noexcept {
+manapi::filesystem::fstream::fstream(fstream &&n) noexcept {
     this->data = std::move(n.data);
 }
 
-manapi::filesystem::async::fstream & manapi::filesystem::async::fstream::operator=(fstream &&n) noexcept {
+manapi::filesystem::fstream & manapi::filesystem::fstream::operator=(fstream &&n) noexcept {
     this->data = std::move(n.data);
     return *this;
 }
 
-manapi::filesystem::async::fstream::fstream(const fstream &n) {
+manapi::filesystem::fstream::fstream(const fstream &n) {
     this->data = n.data;
 }
 
-manapi::filesystem::async::fstream & manapi::filesystem::async::fstream::operator=(const fstream &n) {
+manapi::filesystem::fstream & manapi::filesystem::fstream::operator=(const fstream &n) {
     this->data = n.data;
     return *this;
 }
 
-manapi::future<> manapi::filesystem::async::fstream::open(int flags, unsigned int mode) {
+manapi::future<> manapi::filesystem::fstream::open(int flags, unsigned int mode) {
     int o_flags = O_RDWR;
 #ifdef _WIN32
 #else
@@ -81,17 +81,17 @@ manapi::future<> manapi::filesystem::async::fstream::open(int flags, unsigned in
     }
 }
 
-bool manapi::filesystem::async::fstream::is_open() const {
+bool manapi::filesystem::fstream::is_open() const {
     return this->data->fd >= 0;
 }
 
-manapi::filesystem::async::fstream::~fstream() {
+manapi::filesystem::fstream::~fstream() {
     if (this->data) {
         manapi::async::run(this->data->taskpool, this->close());
     }
 }
 
-manapi::future<ssize_t> manapi::filesystem::async::fstream::read(void *buff, ssize_t buff_size) {
+manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t buff_size) {
     while (true) {
         auto rhs = static_cast<ssize_t> (::read(this->data->fd, buff, buff_size));
 
@@ -115,7 +115,7 @@ manapi::future<ssize_t> manapi::filesystem::async::fstream::read(void *buff, ssi
     co_return -1;
 }
 
-manapi::future<ssize_t> manapi::filesystem::async::fstream::write(const void *buff, ssize_t buff_size) {
+manapi::future<ssize_t> manapi::filesystem::fstream::write(const void *buff, ssize_t buff_size) {
     if (this->data->status & FILE_WRITE) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_THREAD_SAFE, "that function isn't thread safe");
     }
@@ -144,7 +144,7 @@ manapi::future<ssize_t> manapi::filesystem::async::fstream::write(const void *bu
     co_return -1;
 }
 
-manapi::future<> manapi::filesystem::async::fstream::fwrite(const void *buff, ssize_t buff_size) {
+manapi::future<> manapi::filesystem::fstream::fwrite(const void *buff, ssize_t buff_size) {
     while (buff_size > 0) {
         auto rhs = co_await this->write(buff, buff_size);
 
@@ -156,7 +156,7 @@ manapi::future<> manapi::filesystem::async::fstream::fwrite(const void *buff, ss
     }
 }
 
-manapi::future<ssize_t> manapi::filesystem::async::fstream::fread(void *buff, ssize_t buff_size) {
+manapi::future<ssize_t> manapi::filesystem::fstream::fread(void *buff, ssize_t buff_size) {
     ssize_t total = 0;
 
     while (total < buff_size) {
@@ -173,15 +173,15 @@ manapi::future<ssize_t> manapi::filesystem::async::fstream::fread(void *buff, ss
     co_return total;
 }
 
-manapi::future<> manapi::filesystem::async::fstream::close() {
+manapi::future<> manapi::filesystem::fstream::close() {
     return fstream::_close(this->data->eventloop, std::move(this->data->watcher), std::exchange(this->data->fd, -1));
 }
 
-void manapi::filesystem::async::fstream::seekg(const ssize_t &pos, const seek_flag_t &flag) {
+void manapi::filesystem::fstream::seekg(const ssize_t &pos, const seek_flag_t &flag) {
     this->_seekg(pos, flag);
 }
 
-ssize_t manapi::filesystem::async::fstream::tellg() const {
+ssize_t manapi::filesystem::fstream::tellg() const {
 #ifdef _WIN32
     return _lseeki64(this->fd, 0, FILE_SEEK_CURRENT);
 #else
@@ -189,7 +189,7 @@ ssize_t manapi::filesystem::async::fstream::tellg() const {
 #endif
 }
 
-ssize_t manapi::filesystem::async::fstream::total_size() const {
+ssize_t manapi::filesystem::fstream::total_size() const {
     auto current = this->tellg();
     this->_seekg(0, FILE_SEEK_END);
     auto size = this->tellg();
@@ -197,7 +197,7 @@ ssize_t manapi::filesystem::async::fstream::total_size() const {
     return size;
 }
 
-bool manapi::filesystem::async::fstream::eof() const {
+bool manapi::filesystem::fstream::eof() const {
     auto current = this->tellg();
     this->_seekg(0, FILE_SEEK_END);
     auto size = this->tellg();
@@ -205,7 +205,7 @@ bool manapi::filesystem::async::fstream::eof() const {
     return current==size;
 }
 
-void manapi::filesystem::async::fstream::_seekg(const ssize_t &pos, const seek_flag_t &flag) const {
+void manapi::filesystem::fstream::_seekg(const ssize_t &pos, const seek_flag_t &flag) const {
 #ifdef _WIN32
     _lseeki64(this->data->fd, pos, static_cast<int>(flag));
 #else
@@ -213,7 +213,7 @@ void manapi::filesystem::async::fstream::_seekg(const ssize_t &pos, const seek_f
 #endif
 }
 
-void manapi::filesystem::async::fstream::_event(ev::io &w, int revents, const std::shared_ptr<fstream_data_t_> &data) {
+void manapi::filesystem::fstream::_event(ev::io &w, int revents, const std::shared_ptr<fstream_data_t_> &data) {
     if ((revents & ev::READ) && (data->status & FILE_READ)) {
         data->status.fetch_xor(FILE_READ);
         data->taskpool->append_task([resolve = std::move(data->r_resolve)] ()
@@ -227,7 +227,7 @@ void manapi::filesystem::async::fstream::_event(ev::io &w, int revents, const st
     }
 }
 #ifdef _WIN32
-manapi::future<> manapi::filesystem::async::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, SOCKET fd) {
+manapi::future<> manapi::filesystem::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, SOCKET fd) {
     if (w) {
         co_await ev->unwatch_fd(std::move(w));
     }
@@ -237,7 +237,7 @@ manapi::future<> manapi::filesystem::async::fstream::_close(std::shared_ptr<even
     }
 }
 #else
-manapi::future<> manapi::filesystem::async::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, int fd) {
+manapi::future<> manapi::filesystem::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, int fd) {
     if (w) {
         co_await ev->unwatch_fd(std::move(w));
     }

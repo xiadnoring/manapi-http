@@ -10,6 +10,7 @@ namespace manapi::async {
             int ask;
             ssize_t timeout_; /* ms */
             manapi::timer timeout_struct_;
+            std::unique_ptr<async::mutex> mx;
             std::unique_ptr<std::move_only_function<manapi::future<>()>> cancel_callback_;
             std::unique_ptr<std::move_only_function<void()>> ready_callback_;
             std::shared_ptr<async::context> ctx;

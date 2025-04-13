@@ -30,8 +30,8 @@ namespace manapi::net::http {
         virtual future<ssize_t> mask_response (manapi::net::http::response &resp, bool finish);
         future<void> handle_request (const http_handler_page *data, http::request_data_t &request_data, const size_t &status = 200);
         future<void> send_error_response (const size_t &status, http::request_data_t &request_data, const http_handler_page *error);
-        future<void> send_file(manapi::net::http::response &res, filesystem::async::fstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const;
-        future<void> send_file(manapi::net::http::response &res, filesystem::async::fstream &f, ssize_t size) const;
+        future<void> send_file(manapi::net::http::response &res, filesystem::fstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const;
+        future<void> send_file(manapi::net::http::response &res, filesystem::fstream &f, ssize_t size) const;
         future<void> send_text(std::string_view text, ssize_t size) const;
         future<bool> expect_header ();
         future<std::string> compress_file(const std::string &file, const std::string &folder, const std::string &compress, const std::function<future<bool>(const std::string &src, const std::string &dest)> &compressor) const;

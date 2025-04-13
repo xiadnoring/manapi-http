@@ -615,7 +615,7 @@ void manapi::net::fetch::body(std::string data) {
 }
 
 manapi::future<> manapi::net::fetch::body(file_transfer_info file_info) {
-    auto file = std::make_shared <manapi::filesystem::async::fstream> (this->data_->ctx, file_info.filelocal());
+    auto file = std::make_shared <manapi::filesystem::fstream> (this->data_->ctx, file_info.filelocal());
     co_await file->open(file->FILE_READ);
     if (!file->is_open()) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to open the file: {}", file_info.filelocal());

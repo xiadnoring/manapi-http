@@ -119,7 +119,7 @@ manapi::future<int> manapi::async::write_ready(std::shared_ptr<context> ctx, fd_
 }
 
 manapi::future<int> manapi::async::custom_ready(std::shared_ptr<context> ctx, int flags, fd_t fd, cancellation_action cancellation) {
-    auto res = co_await promise<bool> (ctx, [ctx, flags, fd, cancellation] (promise<int>::resolve_t resolve, promise<int>::reject_t reject) mutable -> manapi::future<> {
+    auto res = co_await promise<int> (ctx, [ctx, flags, fd, cancellation] (promise<int>::resolve_t resolve, promise<int>::reject_t reject) mutable -> manapi::future<> {
             auto w = pio_ready_mk_(ctx, flags, fd, resolve, std::move(reject));
 
             if (cancellation.contains_cancel_callback()) {

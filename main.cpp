@@ -142,7 +142,7 @@ int main (int argc, char *argv[]) {
             if (!req.contains_get_param("file")) {
                 co_return resp.text("msg: GET parameter 'file' not found in the URL");
             }
-            manapi::filesystem::async::fstream fio (ctx, req.get("file"));
+            manapi::filesystem::fstream fio (ctx, req.get("file"));
             co_await fio.open(fio.FILE_READ);
             if (!fio.is_open()) {
                 co_return resp.text("hnnn");
@@ -171,11 +171,13 @@ int main (int argc, char *argv[]) {
             co_return resp.text(co_await response.text());
         }, {{"file", "{string|none}"}});
 
+        server.GET ("/ansar", "/home/Timur/ansar");
+
         server.GET ("/test-custom-cb", [ctx] (REQ(req), RESP(resp)) -> manapi::future<> {
             if (!req.contains_get_param("file")) {
                 co_return resp.text("msg: GET parameter 'file' not found in the URL");
             }
-            manapi::filesystem::async::fstream fio (ctx, req.get("file"));
+            manapi::filesystem::fstream fio (ctx, req.get("file"));
             co_await fio.open(fio.FILE_READ);
             if (!fio.is_open()) {
                 co_return resp.text("hnnn");
@@ -490,7 +492,7 @@ int main (int argc, char *argv[]) {
 
         server.GET ("/music", [ctx](REQ(req), RESP(resp)) -> manapi::future<void> {
             std::string response;
-            response += manapi::crypto::strdec2strhex(co_await manapi::crypto::random_string_async(ctx, 100)) + "<hr />";
+            response += manapi::crypto::strdec2strhex(co_await manapi::crypto::async_random_string(ctx, 100)) + "<hr />";
             for (const auto &file: std::filesystem::directory_iterator ("/home/Timur/Music")) {
                 std::string filename = file.path().filename().string();
                 response += std::format("<a href=\"/music/{}\">{}</a><br />", manapi::unicode::escape_string(filename), file.path().filename().string());

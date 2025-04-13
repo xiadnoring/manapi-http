@@ -16,7 +16,8 @@ manapi::async::cancellation_action::cancellation_action() {
 
 manapi::async::cancellation_action::cancellation_action(std::shared_ptr<async::context> ctx) {
     if (ctx) {
-        this->data = std::make_shared<data_t>(0, 0, 0, nullptr, nullptr, nullptr, std::move(ctx));
+        this->data = std::make_shared<data_t>(0, 0, 0, nullptr, std::make_unique<async::mutex>(ctx), nullptr, nullptr, ctx);
+        assert((this->data->mx->try_to_lock() && "it must always be True"));
     }
     else {
         this->data = nullptr;
@@ -53,7 +54,8 @@ manapi::async::cancellation_action &manapi::async::cancellation_action::operator
 }
 
 void manapi::async::cancellation_action::reset(std::shared_ptr<async::context> ctx) {
-    this->data = std::make_shared<data_t>(0, 0, 0, nullptr, nullptr, nullptr, std::move(ctx));
+    this->data = std::make_shared<data_t>(0, 0, 0, nullptr, std::make_unique<async::mutex>(ctx), nullptr, nullptr, ctx);
+    assert((this->data->mx->try_to_lock() && "it must always be True"));
 }
 
 void manapi::async::cancellation_action::handle_ready(std::move_only_function<void()> callback) {
@@ -66,9 +68,10 @@ void manapi::async::cancellation_action::set_cancel_callback(std::move_only_func
 
 manapi::future<> manapi::async::cancellation_action::cancel() {
     if ((this->data->status_.fetch_or(FLAG_CANCEL) & FLAG_CANCEL)) {
-        return async::blank_future();
+        co_return;
     }
-    return cancellation_action::cancel_(this->data);
+    co_await this->data->mx->lock();
+    cancellation_action::cancel_(this->data);
 }
 
 void manapi::async::cancellation_action::sync_cancel() {
@@ -84,6 +87,8 @@ void manapi::async::cancellation_action::ready() {
         this->data->ready_callback_->operator()();
         this->data->ready_callback_.reset();
     }
+
+    this->data->mx->unlock();
 }
 
 void manapi::async::cancellation_action::ask_cancel_callback() {

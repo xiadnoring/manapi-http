@@ -66,15 +66,15 @@ namespace manapi::crypto {
 #endif
         return std::move(rnd);
     }
-    inline manapi::future<std::string> random_string_async (const std::shared_ptr<async::context> &ctx, const size_t &len) {
+    inline manapi::future<std::string> async_random_string (const std::shared_ptr<async::context> &ctx, const size_t &len) {
         std::string rnd;
         rnd.resize(len);
 #ifdef _WIN32
 
 #else
         if (std::filesystem::exists("/dev/urandom")) {
-            filesystem::async::fstream input (ctx, "/dev/urandom");
-            co_await input.open(manapi::filesystem::async::fstream::FILE_READ);
+            filesystem::fstream input (ctx, "/dev/urandom");
+            co_await input.open(manapi::filesystem::fstream::FILE_READ);
 
             if (!input.is_open()) {
                 THROW_MANAPIHTTP_EXCEPTION2 (ERR_FILE_IO, "failed to get the random string from the /dev/urandom");
