@@ -274,7 +274,6 @@ ssize_t manapi::net::worker::TLS::sync_write(worker::connection *conn, const voi
         if (ssl_errno == this->ssl_error_want_write_) {
             return IO_WANT_WRITE;
         }
-        printf("%s\n", ERR_error_string(ERR_get_error(), NULL));
         return IO_FATAL_ERROR;
     }
 

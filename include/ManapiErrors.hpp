@@ -54,7 +54,8 @@ namespace manapi {
         ERR_HTTP_GET_PARAMS_MASK_FAILED = 46,
         ERR_SOCKET = 47,
         ERR_FILE_DESCRIPTOR = 48,
-        ERR_INCOMPATIBLE_SETTING = 49
+        ERR_INCOMPATIBLE_SETTING = 49,
+        ERR_CANCELLED = 50
     };
 
     extern const std::map <err_num, std::string> err_msg;

@@ -114,11 +114,11 @@ void manapi::net::site::config(std::string path) {
 
     if (!manapi::filesystem::exists(this->data->config_path))
     {
-        manapi::filesystem::config::write(this->data->config_path, this->data->config_);
+        manapi::filesystem::write(this->data->config_path, this->data->config_.dump(4));
         return;
     }
 
-    this->data->config_ = manapi::filesystem::config::read (this->data->config_path);
+    this->data->config_ = manapi::json(manapi::filesystem::read (this->data->config_path), true);
     this->setup_config ();
 }
 
@@ -153,7 +153,7 @@ void manapi::net::site::setup_config() {
         std::string path = this->data->config_cache_dir + site::default_config_name;
         if (manapi::filesystem::exists(path))
         {
-            this->data->cache_config = manapi::filesystem::config::read(path);
+            this->data->cache_config = manapi::json(manapi::filesystem::read(path), true);
         }
     }
 
@@ -180,7 +180,7 @@ std::string manapi::net::site::get_compressed_cache_file(const std::string &file
     }
 
     auto &file_info = files[file];
-    if (file_info.at("last-write").as_string() == manapi::filesystem::last_time_write(file, true)) {
+    if (file_info.at("last-write").as_string() == std::format("{:%Y-%m-%d-%H-%M-%S}", manapi::filesystem::last_time_write(file))) {
         auto &compressed = file_info.at("compressed").as_string();
 
         if (manapi::filesystem::exists(compressed))
@@ -204,7 +204,7 @@ void manapi::net::site::set_compressed_cache_file(const std::string &file, const
 
     manapi::json file_info = manapi::json::object();
 
-    file_info.insert("last-write", manapi::filesystem::last_time_write(file, true));
+    file_info.insert("last-write", std::format("{:%Y-%m-%d-%H-%M-%S}", manapi::filesystem::last_time_write(file)));
     file_info.insert("compressed", compressed);
 
     this->data->cache_config[algorithm].insert(file, file_info);
@@ -224,10 +224,10 @@ void manapi::net::site::save() {
 void manapi::net::site::save_config() {
     if (!manapi::filesystem::exists(this->data->config_path) && manapi::filesystem::is_file(this->data->config_path)) {
         // main config
-        manapi::filesystem::config::write(this->data->config_path, this->data->config_);
+        manapi::filesystem::write(this->data->config_path, this->data->config_.dump());
     }
     // cache config
-    manapi::filesystem::config::write(this->data->config_cache_dir + site::default_config_name, this->data->cache_config);
+    manapi::filesystem::write(this->data->config_cache_dir + site::default_config_name, this->data->cache_config.dump());
 }
 
 void manapi::net::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {

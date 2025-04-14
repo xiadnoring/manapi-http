@@ -43,6 +43,8 @@ namespace manapi::async {
         [[nodiscard]] const std::shared_ptr<manapi::timerpool> &timerpool();
 
         ~context();
+
+        static std::shared_ptr<context> gctx;
     private:
         std::weak_ptr<context> weak;
         std::shared_ptr<event_loop> watcher_;

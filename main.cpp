@@ -35,9 +35,13 @@
 #include "ManapiHash.hpp"
 #include "ManapiMath.hpp"
 
+using namespace std;
 using namespace manapi::net;
 
-using namespace std;
+
+#define GCTX(...) manapi::async::context::gctx, __VA_ARGS__
+#define GCTX2() manapi::async::context::gctx
+
 
 int main (int argc, char *argv[]) {
     manapi::debug::debug_print_memory("start");

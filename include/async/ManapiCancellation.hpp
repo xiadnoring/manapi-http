@@ -17,6 +17,7 @@ namespace manapi::async {
         };
     public:
         cancellation_action ();
+        cancellation_action (nullptr_t);
         cancellation_action (std::shared_ptr<async::context> ctx);
         cancellation_action (cancellation_action &&n) noexcept;
         cancellation_action &operator=(cancellation_action &&n) noexcept;

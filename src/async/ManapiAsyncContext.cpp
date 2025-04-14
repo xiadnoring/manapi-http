@@ -6,6 +6,8 @@
 
 #include "ManapiInitTools.hpp"
 
+std::shared_ptr<manapi::async::context> manapi::async::context::gctx = nullptr;
+
 manapi::async::context::context(std::shared_ptr<event_loop> watcher, std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool)  {
     this->watcher_ = std::move(watcher);
     this->taskpool_ = std::move(taskpool);
