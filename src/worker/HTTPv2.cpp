@@ -178,7 +178,7 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
                 }
 
                 if (this->watcher) {
-                    if (this->write_buffer) {
+                    if (this->write_buffer_last) {
                         this->set_watcher_event(ev::WRITE);
                     }
                     else {
@@ -1144,7 +1144,7 @@ void manapi::net::worker::http_v2::exec_callback(char &c) {
 
 void manapi::net::worker::http_v2::flush_write_buffer() {
     /* send write buffers */
-    while (this->write_buffer) {
+    while (this->write_buffer_last) {
         auto size = static_cast<ssize_t>(this->write_buffer->buffer->size());
         if (!this->write_buffer->next) { size = std::min(size, this->write_buffer_cursor); }
 
@@ -1202,7 +1202,9 @@ void manapi::net::worker::http_v2::init_write_buffer() {
             this->write_buffer_last = this->write_buffer_last->next.get();
         }
         else {
-            this->write_buffer = std::make_unique<http_v2_write_buffers>(std::move(bwrite), nullptr);
+            if (!this->write_buffer) {
+                this->write_buffer = std::make_unique<http_v2_write_buffers>(std::move(bwrite), nullptr);
+            }
             this->write_buffer_last = this->write_buffer.get();
             this->set_watcher_event(ev::WRITE);
         }
@@ -1224,14 +1226,15 @@ void manapi::net::worker::http_v2::send_frame(http2_frame_type frame, uint8_t fl
         rhs = 0;
     }
     else {
-        rhs = this->worker->sync_write(this->connection.get(), response, sizeof (response));
+        rhs = 0;
+        //rhs = this->worker->sync_write(this->connection.get(), response, sizeof (response));
     }
 
     if (rhs < 0) {
         if (rhs == IO_WANT_AGAIN) {
 
         }
-        else if (rhs ==git ) {
+        else if (rhs == IO_WANT_WRITE) {
             this->write_buffer_size = sizeof (response);
             this->set_watcher_event(ev::WRITE);
         }
@@ -1253,11 +1256,14 @@ void manapi::net::worker::http_v2::send_frame(http2_frame_type frame, uint8_t fl
     }
 
     if (!data.empty()) {
+        bool flg = false;
         if (this->write_buffer_last) {
             rhs = 0;
         }
         else {
-            rhs = this->worker->sync_write(this->connection.get(), data.data(), static_cast<ssize_t>(data.size()));
+            flg = true;
+            rhs = 0;
+            //rhs = this->worker->sync_write(this->connection.get(), data.data(), static_cast<ssize_t>(data.size()));
         }
 
         if (rhs < 0) {
@@ -1283,6 +1289,10 @@ void manapi::net::worker::http_v2::send_frame(http2_frame_type frame, uint8_t fl
             memcpy (this->write_buffer_last->buffer->data() + this->write_buffer_cursor, data.data() + rhs, copy);
             this->write_buffer_cursor += copy;
             rhs += copy;
+        }
+
+        if (flg) {
+            flush_write_buffer();
         }
     }
 
@@ -1408,7 +1418,7 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
                 this->write_buffer_last = nullptr;
             }
 
-            if (!this->write_buffer) {
+            if (!this->write_buffer_last) {
                 auto this2 = this;
 
                 this2->ping_interval.sync_stop(this2->site.async_context());
