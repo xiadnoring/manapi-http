@@ -17,7 +17,6 @@
 #include "./ManapiAsyncContext.hpp"
 
 namespace manapi::async {
-#pragma pack(push,16)
     class mutex {
     public:
 #ifdef _WIN32
@@ -68,5 +67,4 @@ namespace manapi::async {
 #endif
         manapi::chain <std::coroutine_handle<future<>::promise> > stack;
     };
-#pragma pack(pop)
 }

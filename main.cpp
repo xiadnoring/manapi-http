@@ -42,10 +42,10 @@ int main () {
     auto mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ);
     GCTX_OBJ->logger()->callback([mx](manapi::logger_type type, std::string_view service, int error_code, std::string msg)
         -> void {
-        manapi::async::run(GCTX_OBJ, manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
-            auto lk = co_await mx->lock_guard();
-            std::cout << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
-        }, mx, type, service, error_code, std::move(msg)));
+        // manapi::async::run(GCTX_OBJ, manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
+        //     auto lk = co_await mx->lock_guard();
+        //     std::cout << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
+        // }, mx, type, service, error_code, std::move(msg)));
     });
 
     manapi::net::http::server router (GCTX_OBJ);

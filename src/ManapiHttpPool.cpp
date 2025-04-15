@@ -89,7 +89,8 @@ manapi::future<void> manapi::net::http_pool::_pool() {
                     available += it->first;
                 }
             }
-            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "implementation by {} not found in {}. Available: [{}]", *implementation, *transport, available);
+            MANAPIHTTP_LOG(this->site->async_context(), "implementation by {} not found in {}. Available: [{}]", *implementation, *transport, available);
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "implementation not found");
         }
     }
 

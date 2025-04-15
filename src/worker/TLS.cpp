@@ -316,7 +316,7 @@ void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {
         //MANAPIHTTP_LOG("SSL FREE: {}", connection->id);
         (dynamic_cast<TLS*>(connection->worker.get()))->ssl_free_(ssl);
     }
-    std::cerr << "SSL CLOSED: " << connection->id <<"\n";
+    // std::cerr << "SSL CLOSED: " << connection->id <<"\n";
 #ifdef _WIN32
     ::closesocket(connection->id);
 #else

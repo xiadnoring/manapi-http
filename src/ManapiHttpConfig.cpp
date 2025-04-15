@@ -250,6 +250,14 @@ manapi::net::http::config::config(std::shared_ptr<manapi::async::context> ctx, c
     else {
         this->speed_check_bytes_.store(1048576);
     }
+
+    /* cipher list */
+    if (config.contains("cipher_list")) {
+        this->cipher_list_ = config["cipher_list"].as_string();
+    }
+    else {
+        this->cipher_list_ = "TLS_CHACHA20_POLY1305_SHA256:TLS_AES_256_GCM_SHA384";
+    }
 }
 
 manapi::net::http::config::~config() = default;
@@ -335,6 +343,10 @@ manapi::AtomicReference<std::string> manapi::net::http::config::get_transport() 
 
 manapi::AtomicReference<std::string> manapi::net::http::config::get_address() {
     return *this->address;
+}
+
+manapi::AtomicReference<std::string> manapi::net::http::config::cipher_list() {
+    return *this->cipher_list_;
 }
 
 std::atomic<size_t> &manapi::net::http::config::get_tls_version() {

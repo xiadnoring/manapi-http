@@ -82,6 +82,7 @@ namespace manapi::net::http {
         [[nodiscard]] AtomicReference<std::string> get_transport ();
         [[nodiscard]] AtomicReference<std::string> get_address ();
         [[nodiscard]] AtomicReference<std::string> get_quic_implement ();
+        [[nodiscard]] AtomicReference<std::string> cipher_list();
 
         [[nodiscard]] std::atomic<size_t> &get_tls_version ();
 
@@ -160,5 +161,6 @@ namespace manapi::net::http {
         std::atomic<bool> tcp_no_delay;
         std::atomic<bool> verify_peer;
         std::function<bool(const std::string &name)> function_contains_compressor = nullptr;
+        Atomic<std::string> cipher_list_;
     };
 }

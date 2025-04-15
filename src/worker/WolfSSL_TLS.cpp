@@ -165,12 +165,12 @@ void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &versio
 
     // SSL_CTX_set_max_send_fragment(ctx, this->config->buffer_size());
     // SSL_CTX_set_default_read_buffer_len(ctx, this->config->buffer_size());
-
+    auto cipher_list = this->config->cipher_list();
+    wolfSSL_CTX_set_cipher_list(ctx, static_cast<const char *>(cipher_list->data()));
     wolfSSL_CTX_set_options(ctx, WOLFSSL_OP_NO_SSLv2);
 #if MANAPIHTTP_WOLFSSL_WITH_ALPN
     wolfSSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
 #endif
-    wolfSSL_CTX_set_cipher_list(ctx,"TLS_AES_256_GCM_SHA384");
 
     return ctx;
 }
@@ -188,7 +188,7 @@ void manapi::net::worker::WolfSSL_TLS::ssl_configure_context() {
     }
 
     if (!wolfSSL_CTX_check_private_key(static_cast<WOLFSSL_CTX *>(this->ctx))) {
-        MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
+        MANAPIHTTP_LOG(this->site.async_context(), "Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
     }
 
     wolfSSL_CTX_set_verify(static_cast<WOLFSSL_CTX *>(this->ctx), this->config->get_verify_peer().load() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);

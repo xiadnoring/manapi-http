@@ -200,7 +200,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
             conn_data.http3_conn = quiche_h3_conn_new_with_transport(conn_data.conn, this->_quiche_h3_config);
 
             if (!conn_data.http3_conn) {
-                MANAPIHTTP_LOG2("QUICHE: assert(!conn_data.http3_conn) failed");
+                MANAPIHTTP_LOG2(this->site.async_context(), "QUICHE: assert(!conn_data.http3_conn) failed");
                 return;
             }
         }
@@ -242,9 +242,6 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
 
                         quiche_h3_event_for_each_header(event, http_v3_cloudflare_quiche::_grab_headers, client.get());
 
-
-                        MANAPIHTTP_LOG ("new stream {}", client->request_data.headers[":path"]);
-
                         client->request_data.body_index = 0;
                         client->request_data.body_index = 0;
                         client->request_data.uri = client->request_data.headers[":path"];
@@ -273,7 +270,6 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                                 if (co_await client->parse_request(0, 0)) {
                                     co_await client->execute_handler();
                                 }
-                                std::cout << "FINISHED\n";
                                 // auto &conn_data = client->connection->as<connection_t>();
                                 // conn_data.write_watcher.send()
                                 // conn_data.status.fetch_or(CONN_HALF_CLOSED);
@@ -370,7 +366,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     quiche_config_verify_peer(this->_quiche_config, this->config->get_verify_peer());
     if (this->config->is_quic_debug()) {
         quiche_enable_debug_logging([] (const char *line, void *argp)
-            -> void {MANAPIHTTP_LOG("{}", line); }, nullptr);
+            -> void {MANAPIHTTP_LOG((static_cast<http_v3_cloudflare_quiche*>(argp))->site.async_context(), "{}", line); }, this);
     }
 
     if (this->config->get_quic_cc_algo().load() != http::versions::QUIC_CC_NONE) {
@@ -465,7 +461,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response
     }
 
     if (stream_data.status & CONN_IDLE) {
-        MANAPIHTTP_LOG2("BUG: stream status still CONN_IDLE after send a HTTP Response");
+        MANAPIHTTP_LOG2(this->site.async_context(), "BUG: stream status still CONN_IDLE after send a HTTP Response");
     }
 
     co_return static_cast<ssize_t>(1);
