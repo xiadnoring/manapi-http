@@ -18,16 +18,18 @@
 #include "ManapiUtils.hpp"
 #include "ManapiTime.hpp"
 
+#include "async/ManapiAsyncLogger.hpp"
+
 #if _MSC_VER
-#   define MANAPIHTTP_LOG(msg, ...) manapi::debug::_log (__LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
-#   define MANAPIHTTP_LOG2(msg) manapi::debug::_log (__LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg);
+#   define MANAPIHTTP_LOG(ctx, msg, ...) manapi::debug::_log (ctx->logger(), __LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
+#   define MANAPIHTTP_LOG2(ctx, msg) manapi::debug::_log (ctx->logger(), __LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg);
 #   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, -1, msg, __VA_ARGS__)
 #   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, -1, msg)
 #   define RETHROW_MANAPIHTTP_EXCEPTION_WITH_CODE(errnum, code, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, code, msg, __VA_ARGS__)
 #   define RETHROW_MANAPIHTTP_EXCEPTION2_WITH_CODE(errnum, code, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, code, msg)
 #else
-#   define MANAPIHTTP_LOG(msg, ...) manapi::debug::_log (__LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
-#   define MANAPIHTTP_LOG2(msg) manapi::debug::_log (__LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg);
+#   define MANAPIHTTP_LOG(ctx, msg, ...) manapi::debug::_log (ctx->logger(), __LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
+#   define MANAPIHTTP_LOG2(ctx, msg) manapi::debug::_log (ctx->logger(), __LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg);
 #   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, -1, msg, __VA_ARGS__)
 #   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, -1, msg)
 #   define RETHROW_MANAPIHTTP_EXCEPTION_WITH_CODE(errnum, code, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, code, msg, __VA_ARGS__)
@@ -42,47 +44,22 @@
 
 namespace manapi::debug {
     template <class... Args>
-    void _log (size_t line, std::string file_name, std::string func, err_num errnum, std::string format, Args&& ...args)
+    void _log (const std::shared_ptr<manapi::logger> &logger, size_t line, std::string file_name, std::string func, err_num errnum, std::string format, Args&& ...args)
     {
-        const auto head = std::format ("[{:%H:%M:%S}][{}]: {}() ({}:{}): ", time::current_time(true), static_cast<size_t>(errnum), func, file_name, line);
-        const auto information = std::vformat(format, std::make_format_args(args...));
-
-        std::cout << head << information << "\n";
+        auto msg = std::format ("{}() ({}:{}): ", func, file_name, line) + std::vformat(format, std::make_format_args(args...));
+        logger->debug(manapi::logger::default_service, std::move(msg));
     }
 
     template <class... Args>
     manapi::exception _error (size_t line, std::string file_name, std::string func, err_num errnum, int additional_num_data, std::string format, Args&& ...args)
     {
-        const auto head = std::format ("[{:%H:%M:%S}][{}]: {}() ({}:{}): ", time::current_time(true), static_cast<size_t>(errnum), func, file_name, line);
-        const auto information = std::vformat(format, std::make_format_args(args...));
+        //auto msg = std::format ("[{:%H:%M:%S}][{}]: {}() ({}:{}): ", time::current_time(true), static_cast<size_t>(errnum), func, file_name, line);
+        auto information = std::vformat(format, std::make_format_args(args...));
 
-        std::cerr << head << information << "\n";
+        //msg += information;
 
-        return std::move(manapi::exception (errnum, additional_num_data, information));
-    }
+        //logger->error(manapi::logger::default_service, static_cast<int>(errnum), std::move(msg));
 
-    inline size_t debug_print_memory (std::string title = "common")
-    {
-#ifdef _WIN32
-        return 0;
-#else
-        pid_t pid = getpid(); // Get the process ID
-        std::ifstream status_file("/proc/" + std::to_string(pid) + "/status", std::ios::binary | std::ios::in);
-        std::string line;
-        size_t memory_usage = 0;
-        if (status_file.is_open()) {
-            while (std::getline(status_file, line)) {
-                if (line.find("VmRSS:")!= std::string::npos) {
-                    size_t start = line.find(':') + 1;
-                    size_t end = line.find(" kB");
-                    memory_usage = std::stoul(std::string{line.substr(start, end - start)});
-                    break;
-                }
-            }
-            MANAPIHTTP_LOG("Memory usage ({}): {} MB", title, (memory_usage / 1024));
-        }
-
-        return memory_usage;
-#endif
+        return std::move(manapi::exception (errnum, additional_num_data, std::move(information)));
     }
 }

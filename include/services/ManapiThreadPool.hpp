@@ -19,14 +19,14 @@
 #include "../ManapiErrors.hpp"
 #include "../ManapiJson.hpp"
 #include "../ManapiTime.hpp"
-#include "../ManapiDebug.hpp"
 #include "../components/ManapiChain.hpp"
+#include "async/ManapiAsyncLogger.hpp"
 
 namespace manapi {
     template <class T>
     class threadpool {
     public:
-        threadpool(ssize_t thread_num = 20, ssize_t queues_count = 3);
+        threadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num = 20, ssize_t queues_count = 3);
         ~threadpool();
         void resize (ssize_t thread_num);
         bool append_task (std::unique_ptr<T> task, int level = 0);
@@ -39,6 +39,8 @@ namespace manapi {
         void join();
         void for_all_threads (std::function<void()> cb);
         bool try_todo_task ();
+
+        const std::shared_ptr<manapi::logger> &logger();
     private:
         // this vector contains all threads for this thread pool
         std::vector <std::thread> threads;
@@ -55,6 +57,7 @@ namespace manapi {
         std::unique_ptr<T> get_task(ssize_t index);
         std::atomic<bool> is_stop;
         ssize_t threadnum;
+        std::shared_ptr<manapi::logger> logger_;
 
 #if defined(__unix__)||defined(__APPLE__)
         sigset_t blockedSignal{};

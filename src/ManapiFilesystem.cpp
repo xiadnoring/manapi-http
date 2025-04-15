@@ -58,7 +58,7 @@ bool manapi::filesystem::exists(const std::string& path) {
     return std::filesystem::exists(path);
 }
 
-manapi::future<bool> manapi::filesystem::async_exists(const std::shared_ptr<async::context> &ctx, std::string path, manapi::async::cancellation_action cancellation) {
+manapi::future<bool> manapi::filesystem::async_exists(std::shared_ptr<manapi::async::context> ctx, std::string path, manapi::async::cancellation_action cancellation) {
     MANAPIHTTP_FS_MAKE_SYNC_ASYNC(manapi::filesystem::exists(path), bool, "async exists was cancelled", path);
 }
 
@@ -66,7 +66,7 @@ std::filesystem::file_time_type manapi::filesystem::last_time_write (const std::
     return std::filesystem::last_write_time(path);
 }
 
-manapi::future<std::filesystem::file_time_type> manapi::filesystem::async_last_time_write(const std::shared_ptr<async::context> &ctx,
+manapi::future<std::filesystem::file_time_type> manapi::filesystem::async_last_time_write(std::shared_ptr<manapi::async::context> ctx,
     std::string path, manapi::async::cancellation_action cancellation) {
     MANAPIHTTP_FS_MAKE_SYNC_ASYNC(manapi::filesystem::last_time_write(path), std::filesystem::file_time_type, "async last time write was cancenlled", path);
 }
@@ -79,7 +79,7 @@ bool manapi::filesystem::mkdir (const std::string &path, bool recursive) {
     return std::filesystem::create_directory(path);
 }
 
-manapi::future<bool> manapi::filesystem::async_mkdir(const std::shared_ptr<async::context> &ctx, std::string path,
+manapi::future<bool> manapi::filesystem::async_mkdir(std::shared_ptr<manapi::async::context> ctx, std::string path,
     bool recursive, manapi::async::cancellation_action cancellation) {
     MANAPIHTTP_FS_MAKE_SYNC_ASYNC(manapi::filesystem::mkdir(path, recursive), bool, "async mkdir was cancelled", path, recursive);
 }
@@ -103,7 +103,7 @@ ssize_t manapi::filesystem::get_size (const std::string& path) {
     return static_cast<ssize_t>(std::filesystem::file_size(path));
 }
 
-manapi::future<ssize_t> manapi::filesystem::async_get_size(const std::shared_ptr<async::context> &ctx, std::string path,
+manapi::future<ssize_t> manapi::filesystem::async_get_size(std::shared_ptr<manapi::async::context> ctx, std::string path,
     manapi::async::cancellation_action cancellation) {
     MANAPIHTTP_FS_MAKE_SYNC_ASYNC(manapi::filesystem::get_size(path), ssize_t, "async get size was cancelled", path);
 }
@@ -119,7 +119,7 @@ void manapi::filesystem::write (const std::string &path, const std::string &data
     out << data;
 }
 
-manapi::future<> manapi::filesystem::async_write(const std::shared_ptr<async::context> &ctx, std::string_view path, std::function<ssize_t(void *buff, ssize_t buff_size)> cb, const unsigned int &mode, std::function<future<void>()> *cancellation) {
+manapi::future<> manapi::filesystem::async_write(std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::function<ssize_t(void *buff, ssize_t buff_size)> cb, unsigned int mode, std::function<future<void>()> *cancellation) {
 #ifdef _WIN32
     HANDLE h = ::CreateFile(path.data(), GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
     if (h == INVALID_HANDLE_VALUE) {
@@ -207,7 +207,7 @@ manapi::future<> manapi::filesystem::async_write(const std::shared_ptr<async::co
     }
 }
 
-manapi::future<> manapi::filesystem::async_write(const std::shared_ptr<async::context> &ctx, std::string_view path, std::string_view data, const unsigned int &mode, std::function<future<void>()> *cancellation) {
+manapi::future<> manapi::filesystem::async_write(std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::string_view data, unsigned int mode, std::function<future<void>()> *cancellation) {
     auto cb = [data](void *buff, ssize_t buff_size) mutable -> ssize_t {
         if (data.empty()) {
             return -1;
@@ -219,7 +219,7 @@ manapi::future<> manapi::filesystem::async_write(const std::shared_ptr<async::co
         return buff_size;
     };
 
-    return async_write(ctx, path, cb, mode, cancellation);
+    return async_write(std::move(ctx), path, cb, mode, cancellation);
 }
 
 std::string manapi::filesystem::read (const std::string &path) {
@@ -234,7 +234,7 @@ std::string manapi::filesystem::read (const std::string &path) {
 
     // 20 MB
     if (size >= 20 * 1024 * 1024) {
-        MANAPIHTTP_LOG("The size of the file: {} is too large for read with this function.", size);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "The size of the file: {} is too large for read with this function.", size);
     }
 
     std::string content;
@@ -245,7 +245,7 @@ std::string manapi::filesystem::read (const std::string &path) {
     return content;
 }
 
-manapi::future<> manapi::filesystem::async_read(const std::shared_ptr<async::context> &ctx, std::string_view path, std::function<ssize_t(const void *buff, ssize_t buff_size)> cb, std::function<future<void>()> *cancellation) {
+manapi::future<> manapi::filesystem::async_read(std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::function<ssize_t(const void *buff, ssize_t buff_size)> cb, std::function<future<void>()> *cancellation) {
 #ifdef _WIN32
     HANDLE h = ::CreateFile(path.data(), GENERIC_READ, 0, 0, 0, FILE_ATTRIBUTE_NORMAL, 0);
     if (h == INVALID_HANDLE_VALUE) {
@@ -327,7 +327,7 @@ manapi::future<> manapi::filesystem::async_read(const std::shared_ptr<async::con
     }
 }
 
-manapi::future<std::string> manapi::filesystem::async_read(const std::shared_ptr<async::context> &ctx, std::string_view path, std::function<future<void>()> *cancellation) {
+manapi::future<std::string> manapi::filesystem::async_read(std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::function<future<void>()> *cancellation) {
     std::string data;
 
     co_await async_read(ctx, path, [&data] (const void *buff, ssize_t buff_size) -> ssize_t {
@@ -336,7 +336,6 @@ manapi::future<std::string> manapi::filesystem::async_read(const std::shared_ptr
             return buff_size;
         }
         catch (std::exception const &e) {
-            MANAPIHTTP_LOG("read_async(...) failed: {}", e.what());
             return -1;
         }
     }, cancellation);
@@ -485,12 +484,12 @@ bool manapi::filesystem::is_file (const std::string &str) {
     return std::filesystem::is_regular_file(p) || std::filesystem::is_character_file(p) || std::filesystem::is_block_file(p);
 }
 
-manapi::future<bool> manapi::filesystem::async_is_dir(const std::shared_ptr<async::context> &ctx, std::string path,
+manapi::future<bool> manapi::filesystem::async_is_dir(std::shared_ptr<manapi::async::context> ctx, std::string path,
     manapi::async::cancellation_action cancellation) {
     MANAPIHTTP_FS_MAKE_SYNC_ASYNC(manapi::filesystem::is_dir(path), bool, "async is_dir was cancelled", path);
 }
 
-manapi::future<bool> manapi::filesystem::async_is_file(const std::shared_ptr<async::context> &ctx, std::string path,
+manapi::future<bool> manapi::filesystem::async_is_file(std::shared_ptr<manapi::async::context> ctx, std::string path,
     manapi::async::cancellation_action cancellation) {
     MANAPIHTTP_FS_MAKE_SYNC_ASYNC(manapi::filesystem::is_file(path), bool, "async is_file was cancelled", path);
 }

@@ -78,7 +78,7 @@ manapi::net::worker::http_v2::http_v2(const std::shared_ptr<manapi::net::worker:
 }
 
 manapi::net::worker::http_v2::~http_v2() {
-    MANAPIHTTP_LOG2 ("http2 destroyed");
+    MANAPIHTTP_LOG2 (this->site.async_context(), "http2 destroyed");
 }
 
 
@@ -449,10 +449,10 @@ void manapi::net::worker::http_v2::handle_callback_watcher() {
         return;
     }
     catch (manapi::exception const &e) {
-        MANAPIHTTP_LOG("[{}]: HTTP2 Exception: {}", static_cast<size_t>(e.get_err_num()), e.what());
+        MANAPIHTTP_LOG(this->site.async_context(), "[{}]: HTTP2 Exception: {}", static_cast<size_t>(e.get_err_num()), e.what());
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("HTTP2 Exception: {}", e.what());
+        MANAPIHTTP_LOG(this->site.async_context(), "HTTP2 Exception: {}", e.what());
     }
 
     if ((this->protocol.conn_type & (CONN_CLOSED)) == false) {
@@ -626,7 +626,7 @@ void manapi::net::worker::http_v2::_skip_null_octet(char &c) {
     }
     this->current = this->next;
     this->exec_callback(c);
-    MANAPIHTTP_LOG2("Invalid symbol");
+    MANAPIHTTP_LOG2(this->site.async_context(), "Invalid symbol");
 }
 
 void manapi::net::worker::http_v2::_parse_header_octets(char &c) {
@@ -1045,7 +1045,7 @@ void manapi::net::worker::http_v2::_parse_field_block(char &c) {
             break;
         }
         default:
-            MANAPIHTTP_LOG("Undefined frame type: {}", this->protocol.type);
+            MANAPIHTTP_LOG(this->site.async_context(), "Undefined frame type: {}", this->protocol.type);
     }
 
     //MANAPIHTTP_LOG("length: {} {} {} {}", this->protocol.length, this->protocol.flag, this->parse_vars.j, this->parse_vars.size);
@@ -1363,7 +1363,7 @@ bool manapi::net::worker::http_v2::send_ping_frame(std::string data) {
         {
             if (this->protocol.pings.size() > 3) {
                 // timeout
-                MANAPIHTTP_LOG2("PING IGNORE -> close connection");
+                MANAPIHTTP_LOG2(this->site.async_context(), "PING IGNORE -> close connection");
                 /* close connection quietly */
                 this->close_connection(HTTP2_ERROR_NO_ERROR, "");
                 return false;
@@ -1605,7 +1605,7 @@ void manapi::net::worker::http_v2::session_worker(std::map<int, std::unique_ptr<
 
         }
         catch (std::exception const &e) {
-            MANAPIHTTP_LOG("session_worker(...): {}", e.what());
+            MANAPIHTTP_LOG(worker->site.async_context(), "session_worker(...): {}", e.what());
             stream_errnum = HTTP2_ERROR_INTERNAL_ERROR;
         }
 

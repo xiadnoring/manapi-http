@@ -53,7 +53,7 @@ size_t manapi::net::fetch::curl_write_handler (char *buffer, size_t size, size_t
         return static_cast<size_t>(f.fetch->data_->handler_recv_body (buffer, static_cast<ssize_t>(size * nitems)));
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("noexcept curl_write_handler(...): throw exception: {}", e.what());
+        MANAPIHTTP_LOG(f.fetch->data_->ctx, "noexcept curl_write_handler(...): throw exception: {}", e.what());
         return -1;
     }
 }
@@ -64,7 +64,7 @@ std::size_t manapi::net::fetch::curl_read_handler(char *buffer, std::size_t size
         return static_cast<std::size_t>(f.fetch->data_->handler_send_body(buffer, static_cast<ssize_t> (size * nitems)));
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("noexcept curl_read_handler(...): throw exception: {}", e.what());
+        MANAPIHTTP_LOG(f.fetch->data_->ctx, "noexcept curl_read_handler(...): throw exception: {}", e.what());
         return -1;
     }
 }
@@ -278,7 +278,7 @@ manapi::future<void> manapi::net::fetch::async_doit() {
         resp = co_await async_curl_perform();
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("Exception: {}", e.what());
+        MANAPIHTTP_LOG(this->data_->ctx, "Exception: {}", e.what());
         resp = CURLE_AGAIN;
     }
 
@@ -507,7 +507,7 @@ void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::futur
             }
             catch (std::exception const &e) {
                 // DEBUG
-                MANAPIHTTP_LOG("handle_async_body(...) failed: {}", e.what());
+                MANAPIHTTP_LOG(data->ctx, "handle_async_body(...) failed: {}", e.what());
             }
 
             if (rhs < 0) {
@@ -663,7 +663,7 @@ void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize
                 rhs = co_await handler (data->async_buffer->as<char>() + data->async_buffer_cursor, static_cast<ssize_t>(data->async_buffer->size() - data->async_buffer_cursor));
             }
             catch (std::exception const &e) {
-                MANAPIHTTP_LOG("set_async_body(...) failed: {}", e.what());
+                MANAPIHTTP_LOG(data->ctx, "set_async_body(...) failed: {}", e.what());
             }
             if (rhs < 0) {
                 /* error */

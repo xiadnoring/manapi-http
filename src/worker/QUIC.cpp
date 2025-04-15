@@ -562,7 +562,7 @@ std::optional<manapi::net::worker::quic_frame_data_t> manapi::net::worker::quic:
         });
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("An error has occurred: {}", e.what());
+        MANAPIHTTP_LOG(this->site.async_context(), "An error has occurred: {}", e.what());
     }
     return {};
 }

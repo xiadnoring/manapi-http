@@ -30,7 +30,7 @@ void manapi::net::worker::udp::init() {
     this->config->set_server_address(*this->local->ai_addr);
     this->config->set_server_len(this->local->ai_addrlen);
 
-    MANAPIHTTP_LOG("HTTP UDP PORT USED: {}. https://{}:{}", *port, *address, *port);
+    MANAPIHTTP_LOG(this->site.async_context(), "HTTP UDP PORT USED: {}. https://{}:{}", *port, *address, *port);
 
     // for quic
     this->config->set_socket_fd(socket (this->local->ai_family, SOCK_DGRAM, 0));

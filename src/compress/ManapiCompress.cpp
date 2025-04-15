@@ -58,7 +58,7 @@ manapi::future<bool> manapi::compress::deflate_compress_file(const std::shared_p
 
     if(deflateInit(&stream, level) != Z_OK)
     {
-        MANAPIHTTP_LOG("defalte: {}", "deflateInit(...) failed!");
+        MANAPIHTTP_LOG(ctx, "defalte: {}", "deflateInit(...) failed!");
 
         co_return false;
     }
@@ -125,7 +125,7 @@ manapi::future<bool> manapi::compress::deflate_decompress_file(const std::shared
     int result = inflateInit(&stream);
     if(result != Z_OK)
     {
-        MANAPIHTTP_LOG("defalte: {}", "inflateInit(...) failed!");
+        MANAPIHTTP_LOG(ctx, "defalte: {}", "inflateInit(...) failed!");
 
         co_return false;
     }
@@ -150,7 +150,7 @@ manapi::future<bool> manapi::compress::deflate_decompress_file(const std::shared
             if(result == Z_NEED_DICT || result == Z_DATA_ERROR ||
                result == Z_MEM_ERROR)
             {
-                MANAPIHTTP_LOG("deflate(...) failed! deflate() = {}", result);
+                MANAPIHTTP_LOG(ctx, "deflate(...) failed! deflate() = {}", result);
                 inflateEnd(&stream);
                 co_return false;
             }
@@ -345,7 +345,7 @@ manapi::future<bool> manapi::compress::gzip_compress_file(const std::shared_ptr<
 
     if(deflateInit2(&stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK)
     {
-        MANAPIHTTP_LOG("gzip: {}", "deflateInit(...) failed!");
+        //MANAPIHTTP_LOG("gzip: {}", "deflateInit(...) failed!");
         co_return false;
     }
 
@@ -410,7 +410,7 @@ manapi::future<bool> manapi::compress::gzip_decompress_file(const std::shared_pt
     int result = inflateInit2(&stream, 15 | 16);
     if(result != Z_OK)
     {
-        MANAPIHTTP_LOG("gzip: {}", "inflateInit2(...) failed!");
+        //MANAPIHTTP_LOG("gzip: {}", "inflateInit2(...) failed!");
 
         co_return false;
     }

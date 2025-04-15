@@ -324,6 +324,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiVersions.hpp
         src/worker/TLS.cpp
         include/worker/TLS.hpp
+        src/async/ManapiAsyncLogger.cpp
+        include/async/ManapiAsyncLogger.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

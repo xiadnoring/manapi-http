@@ -58,7 +58,7 @@ manapi::future<bool> manapi::net::http::http_v1_1::parse_request(ssize_t j, ssiz
             }
             else {
                 /* brotli, gzip and etc isn't supported yet */
-                MANAPIHTTP_LOG("request was declined with {} status code because the request transfer-encoding header "
+                MANAPIHTTP_LOG(this->site.async_context(), "request was declined with {} status code because the request transfer-encoding header "
                                "contains the unsupported value: {}", static_cast<int>(PRECONDITION_FAILED_412), param.value);
 
                 const auto handler = this->site.handler(this->request_data);

@@ -204,7 +204,7 @@ void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
     }
 
     if (!SSL_CTX_check_private_key(static_cast<SSL_CTX*>(this->ctx))) {
-        MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
+        MANAPIHTTP_LOG(this->site.async_context(), "Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
     }
 
     SSL_CTX_set_verify(static_cast<SSL_CTX*>(this->ctx), this->config->get_verify_peer().load() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);

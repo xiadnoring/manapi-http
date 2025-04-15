@@ -250,7 +250,7 @@ ssize_t manapi::net::worker::TLS::sync_read(worker::connection *conn, void *buff
 
     return rhs;
 }
-#include <openssl/err.h>
+
 ssize_t manapi::net::worker::TLS::sync_write(worker::connection *conn, const void *buff, ssize_t size) {
     auto &connection = conn->as<connection_interface>();
 

@@ -292,7 +292,7 @@ void manapi::timerpool::_async_call_cb(std::map<size_t, timer_task>::iterator ta
                     co_await this->cv->notify_all();
                 }
                 catch (std::exception const &e) {
-                    MANAPIHTTP_LOG("Timer Task Exception: {}", e.what());
+                    //MANAPIHTTP_LOG("Timer Task Exception: {}", e.what());
                 }
             });
         });
@@ -304,7 +304,7 @@ void manapi::timerpool::_async_call_cb(std::map<size_t, timer_task>::iterator ta
                     co_await (*cb)();
                 }
                 catch (std::exception const &e) {
-                    MANAPIHTTP_LOG("Timer Task Exception: {}", e.what());
+                    //MANAPIHTTP_LOG("Timer Task Exception: {}", e.what());
                 }
             });
         });

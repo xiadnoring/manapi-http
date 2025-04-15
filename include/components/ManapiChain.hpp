@@ -4,7 +4,6 @@
 
 #include "../ManapiUtils.hpp"
 namespace manapi {
-#pragma pack(push,16)
     template<typename value_type>
     struct chain_item {
         value_type src;
@@ -12,10 +11,8 @@ namespace manapi {
         std::shared_ptr<chain_item> next;
         std::shared_ptr<chain_item> prev;
     };
-#pragma pack(pop)
 
 
-#pragma pack(push,16)
     template <typename value_type>
     class chain {
     public:
@@ -267,5 +264,4 @@ namespace manapi {
         _chain_item _src;
         _chain_item _last;
     };
-#pragma pack(pop)
 }

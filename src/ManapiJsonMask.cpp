@@ -78,7 +78,7 @@ bool manapi::json_mask::valid(const manapi::json &obj) const
         return recursive_valid (obj, this->information);
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG2(e.what());
+        //MANAPIHTTP_LOG2(e.what());
     }
     return false;
 }
@@ -93,7 +93,7 @@ bool manapi::json_mask::valid(const std::map<std::string, std::string> &obj) con
         return recursive_valid (json{obj}, this->information);
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG2(e.what());
+        //MANAPIHTTP_LOG2(e.what());
     }
     return false;
 }
@@ -559,7 +559,7 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
                 }
             }
             catch (std::exception const &e) {
-                MANAPIHTTP_LOG2(e.what());
+                //MANAPIHTTP_LOG2(e.what());
             }
         }
 

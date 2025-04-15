@@ -22,7 +22,7 @@
 
 manapi::net::http_pool::http_pool(const json &config, class site *site, const size_t &id, std::shared_ptr<event_loop> events) {
     this->events = std::move(events);
-    this->config = std::make_shared <http::config> (config);
+    this->config = std::make_shared <http::config> (site->async_context(), config);
     this->id = id;
     this->site = site;
 
@@ -35,7 +35,7 @@ manapi::net::http_pool::~http_pool() = default;
 
 void manapi::net::http_pool::stop() {
     std::lock_guard<std::mutex> lk (this->mx);
-    MANAPIHTTP_LOG("{}", "shutdown socket");
+    MANAPIHTTP_LOG(this->site->async_context(), "{}", "shutdown socket");
 
     // close socket
 #ifdef _WIN32
@@ -54,11 +54,11 @@ manapi::future<void> manapi::net::http_pool::run() {
 }
 
 manapi::future<void> manapi::net::http_pool::_pool() {
-    MANAPIHTTP_LOG("pool init #{}", id);
+    MANAPIHTTP_LOG(this->site->async_context(), "pool init #{}", id);
 
     std::unique_lock <std::mutex> lock (mx);
 
-    MANAPIHTTP_LOG("pool start #{}", id);
+    MANAPIHTTP_LOG(this->site->async_context(), "pool start #{}", id);
 
 
     this->watcher = std::make_shared <ev::io> (this->events->get_loop());

@@ -155,17 +155,17 @@ void manapi::net::http::server::clean_up() {
 }
 
 manapi::future<> manapi::net::http::server::stop_pool() {
-    MANAPIHTTP_LOG2("cv_stopping -> pass");
+    MANAPIHTTP_LOG2(this->async_context(), "cv_stopping -> pass");
 
     // stop all pools
     for (const auto &pool: this->data2->pools)
     {
-        MANAPIHTTP_LOG ("pool #{} is stopping...", pool.first);
+        MANAPIHTTP_LOG (this->async_context(), "pool #{} is stopping...", pool.first);
         pool.second->stop();
-        MANAPIHTTP_LOG ("pool #{} stopped successfully", pool.first);
+        MANAPIHTTP_LOG (this->async_context(), "pool #{} stopped successfully", pool.first);
     }
 
-    MANAPIHTTP_LOG2("pools(...) -> pass");
+    MANAPIHTTP_LOG2(this->async_context(), "pools(...) -> pass");
 
     this->save();
 

@@ -75,7 +75,7 @@ namespace manapi {
             std::move_only_function<void(ev_ &w, int revents)> cb;
         };
     public:
-        explicit event_loop(std::shared_ptr<threadpool<task>> taskpool);
+        explicit event_loop(std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::logger> logger);
         ~event_loop();
         manapi::future<> start (std::shared_ptr<event_loop> le);
         void sync_start (std::shared_ptr<event_loop> le);
@@ -265,5 +265,6 @@ namespace manapi {
         timer_watcher_t timer_watcher{};
         custom_callback_t callback_watcher_{};
         ev::prepare prepare_watcher;
+        std::shared_ptr<manapi::logger> logger_;
     };
 }

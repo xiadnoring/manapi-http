@@ -107,7 +107,7 @@ namespace manapi::net {
         void transport_protocol_worker (const std::string &type, const std::string &name, const std::function<std::shared_ptr<class worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker);
         const std::map <std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &transport_protocol_worker (const std::string &type);
 
-        void config (std::string path);
+        manapi::future<> config (std::string path);
         void config_object (json config);
         const manapi::json &config ();
 
@@ -122,9 +122,9 @@ namespace manapi::net {
 
     protected:
         void setup ();
-        void setup_config ();
+        manapi::future<> setup_config ();
         void save ();
-        void save_config ();
+        static manapi::future<> save_config (std::shared_ptr<data_t> data);
 
         std::shared_ptr<data_t> data;
     private:

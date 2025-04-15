@@ -8,9 +8,10 @@
 
 std::shared_ptr<manapi::async::context> manapi::async::context::gctx = nullptr;
 
-manapi::async::context::context(std::shared_ptr<event_loop> watcher, std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool)  {
+manapi::async::context::context(std::shared_ptr<event_loop> watcher, std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::logger> logger)  {
     this->watcher_ = std::move(watcher);
     this->taskpool_ = std::move(taskpool);
+    this->logger_ = std::move(logger);
     this->timerpool_ = std::move(timerpool);
 }
 
@@ -19,11 +20,12 @@ std::shared_ptr<manapi::async::context> manapi::async::context::create(const uns
     manapi::init_tools::ev_library_init();
     manapi::init_tools::curl_library_init();
 
-    auto taskpool_ = std::make_shared<manapi::threadpool<task>>(threadnum, 1);
-    auto watcher_ = std::make_shared<manapi::event_loop>(taskpool_);
+    auto logger_ = std::make_shared<manapi::logger>();
+    auto taskpool_ = std::make_shared<manapi::threadpool<task>>(logger_, threadnum, 1);
+    auto watcher_ = std::make_shared<manapi::event_loop>(taskpool_, logger_);
     auto timerpool_ = std::make_shared<manapi::timerpool>(watcher_, timer_delay);
 
-    auto ctx = std::make_shared<context>(std::move(watcher_), std::move(taskpool_), std::move(timerpool_));
+    auto ctx = std::make_shared<context>(std::move(watcher_), std::move(taskpool_), std::move(timerpool_), std::move(logger_));
     ctx->weak = ctx;
 
     return std::move(ctx);
@@ -62,6 +64,10 @@ const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::context
 
 const std::shared_ptr<manapi::timerpool> & manapi::async::context::timerpool() {
     return this->timerpool_;
+}
+
+const std::shared_ptr<manapi::logger> & manapi::async::context::logger() {
+    return this->logger_;
 }
 
 manapi::async::context::~context() = default;

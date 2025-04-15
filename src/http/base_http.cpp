@@ -226,7 +226,7 @@ manapi::future<void> manapi::net::http::base::send_response_text(manapi::net::ht
     if (co_await mask_response(res, false) >= 0) {
         co_await send_text(plaintext, plaintext.size());
     } else {
-        MANAPIHTTP_LOG("{}", "mask_response(...) < 0");
+        MANAPIHTTP_LOG(this->site.async_context(), "{}", "mask_response(...) < 0");
     }
     co_return;
 }
@@ -305,7 +305,7 @@ manapi::future<> manapi::net::http::base::send_response_formdata(manapi::net::ht
             -> future<> { if (co_await this->worker->fwrite(conn_data, buffer, size, false) < 0) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_CONNECTION_WAS_CLOSED, "failed to write"); } });
     }
     else {
-        MANAPIHTTP_LOG2 ("mask_response < 0");
+        MANAPIHTTP_LOG2 (this->site.async_context(), "mask_response < 0");
     }
 
     co_return;
@@ -337,7 +337,7 @@ manapi::future<> manapi::net::http::base::send_response_sync_cb(manapi::net::htt
             co_await this->worker->fwrite(*this->connection, buffer.data(), rhs, finish);
         }
     } else {
-        MANAPIHTTP_LOG("{}", "mask_response(...) < 0");
+        MANAPIHTTP_LOG(this->site.async_context(), "{}", "mask_response(...) < 0");
     }
 }
 
@@ -367,7 +367,7 @@ manapi::future<> manapi::net::http::base::send_response_async_cb(manapi::net::ht
             co_await this->worker->fwrite(*this->connection, buffer.data(), rhs, finish);
         }
     } else {
-        MANAPIHTTP_LOG("{}", "mask_response(...) < 0");
+        MANAPIHTTP_LOG(this->site.async_context(), "{}", "mask_response(...) < 0");
     }
 }
 
@@ -431,7 +431,7 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
                         co_await send_response(res);
                         co_return;
                     } catch (const std::exception &e) {
-                        MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+                        MANAPIHTTP_LOG(this->site.async_context(), "Unexpected error: {}", e.what());
                     }
 
                     co_await send_error_response(503, request_data, data->error.get());
@@ -452,11 +452,11 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
             case ERR_HTTP_CONNECTION_WAS_CLOSED:
                 co_return;
             default:
-                MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+                MANAPIHTTP_LOG(this->site.async_context(), "Unexpected error: {}", e.what());
         }
     }
     catch (const std::exception &e) {
-        MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+        MANAPIHTTP_LOG(this->site.async_context(), "Unexpected error: {}", e.what());
     }
     co_await send_error_response(503, request_data, data->error.get());
     co_return;

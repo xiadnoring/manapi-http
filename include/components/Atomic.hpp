@@ -177,7 +177,7 @@ namespace manapi {
     template<typename T>
     void AtomicReference<T>::_expect_nullptr() {
         if (this->ref == nullptr) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_STORAGE_OBJECT_IS_NULL, "AtomicReference's storage is null");
+            throw std::runtime_error("AtomicReference's storage is null");
         }
     }
 

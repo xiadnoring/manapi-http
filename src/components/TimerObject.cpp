@@ -27,7 +27,7 @@ manapi::timer::timer(std::move_only_function<manapi::future<>(manapi::timer t)> 
             co_await cb (timer{data});
         }
         catch (std::exception const &e) {
-            MANAPIHTTP_LOG("timer: User Callback Error: {}", e.what());
+            taskpool->logger()->debug(manapi::logger::default_service, "timer: User Callback Error: {}", e.what());
         }
         co_await eventloop->update_state_interval(manapi::timer::_id(data));
     };
@@ -76,7 +76,7 @@ void manapi::timer::_call(const std::shared_ptr<event_loop> &eventloop, const st
             this->data->sync_cb.value()(this->data, eventloop, taskpool);
         }
         catch (std::exception const &e) {
-            MANAPIHTTP_LOG("timer: User Callback Error: {}", e.what());
+            taskpool->logger()->debug(manapi::logger::default_service, "timer: User Callback Error: {}", e.what());
         }
     }
 

@@ -109,16 +109,15 @@ void manapi::net::site::setup() {
 
 }
 
-void manapi::net::site::config(std::string path) {
+manapi::future<> manapi::net::site::config(std::string path) {
     this->data->config_path = std::move(path);
 
-    if (!manapi::filesystem::exists(this->data->config_path))
+    if (!co_await manapi::filesystem::async_exists(this->async_context(), this->data->config_path))
     {
-        manapi::filesystem::write(this->data->config_path, this->data->config_.dump(4));
-        return;
+        manapi::filesystem::async_write(this->async_context(), this->data->config_path, this->data->config_.dump(4));
     }
 
-    this->data->config_ = manapi::json(manapi::filesystem::read (this->data->config_path), true);
+    this->data->config_ = manapi::json(co_await manapi::filesystem::async_read (this->async_context(), this->data->config_path), true);
     this->setup_config ();
 }
 
@@ -131,7 +130,7 @@ const manapi::json &manapi::net::site::config() {
     return this->data->config_;
 }
 
-void manapi::net::site::setup_config() {
+manapi::future<> manapi::net::site::setup_config() {
     if (this->data->config_.contains("cache_dir"))
     {
         const auto b = this->data->config_.at("cache_dir");
@@ -144,16 +143,16 @@ void manapi::net::site::setup_config() {
 
     manapi::filesystem::append_delimiter(this->data->config_cache_dir);
 
-    if (!manapi::filesystem::exists(this->data->config_cache_dir))
+    if (!co_await manapi::filesystem::async_exists(this->async_context(), this->data->config_cache_dir))
     {
-        manapi::filesystem::mkdir(this->data->config_cache_dir);
+        co_await manapi::filesystem::async_mkdir(this->async_context(), this->data->config_cache_dir);
     }
     else
     {
         std::string path = this->data->config_cache_dir + site::default_config_name;
-        if (manapi::filesystem::exists(path))
+        if (co_await manapi::filesystem::async_exists(this->async_context(), path))
         {
-            this->data->cache_config = manapi::json(manapi::filesystem::read(path), true);
+            this->data->cache_config = manapi::json(co_await manapi::filesystem::async_read(this->async_context(), path), true);
         }
     }
 
@@ -217,17 +216,17 @@ const std::shared_ptr<manapi::async::context> & manapi::net::site::async_context
 void manapi::net::site::save() {
     if (this->data->enabled_save_config)
     {
-        this->save_config();
+        manapi::async::run(this->async_context(), this->save_config(this->data));
     }
 }
 
-void manapi::net::site::save_config() {
-    if (!manapi::filesystem::exists(this->data->config_path) && manapi::filesystem::is_file(this->data->config_path)) {
+manapi::future<> manapi::net::site::save_config(std::shared_ptr<data_t> data) {
+    if (!co_await manapi::filesystem::async_exists(data->ctx, data->config_path) && co_await manapi::filesystem::async_is_file(data->ctx, data->config_path)) {
         // main config
-        manapi::filesystem::write(this->data->config_path, this->data->config_.dump());
+        co_await manapi::filesystem::async_write(data->ctx, data->config_path, data->config_.dump());
     }
     // cache config
-    manapi::filesystem::write(this->data->config_cache_dir + site::default_config_name, this->data->cache_config.dump());
+    co_await manapi::filesystem::async_write(data->ctx, data->config_cache_dir + site::default_config_name, data->cache_config.dump());
 }
 
 void manapi::net::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {
@@ -289,7 +288,7 @@ manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &
                             if (cur->params == nullptr) {
                                 // bug
 
-                                MANAPIHTTP_LOG("{}", "cur->regexes_title (params) is null.");
+                                MANAPIHTTP_LOG(this->data->ctx,"{}", "cur->regexes_title (params) is null.");
                                 return handler_page;
                             }
 
@@ -297,7 +296,7 @@ manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &
                             if (cur->params->size() != expected_size) {
                                 // bug
 
-                                MANAPIHTTP_LOG("The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
+                                MANAPIHTTP_LOG(this->data->ctx,"The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
                                            cur->params->size(), expected_size, request_data.path.at(i));
                                 return handler_page;
                             }
@@ -493,7 +492,7 @@ manapi::net::http_uri_part *manapi::net::site::build_uri_part(const std::string 
                                 {
                                     if (std::find(past_params->get()->begin(), past_params->get()->end(), param) !=
                                         past_params->get()->end())
-                                        MANAPIHTTP_LOG("Warning: a param with a title '{}' is already in use. ({})",
+                                        MANAPIHTTP_LOG(this->data->ctx,"Warning: a param with a title '{}' is already in use. ({})",
                                                    param, uri);
                                 }
                             }
@@ -521,7 +520,7 @@ manapi::net::http_uri_part *manapi::net::site::build_uri_part(const std::string 
                     {
                         if (buff == "+error") { type = URI_PAGE_ERROR; }
                         else if (buff == "+layer") { type = URI_PAGE_LAYER; }
-                        else { MANAPIHTTP_LOG("The first char '{}' is reserved for special pages in {}", '+', buff); }
+                        else { MANAPIHTTP_LOG(this->data->ctx,"The first char '{}' is reserved for special pages in {}", '+', buff); }
 
                         break;
                     }

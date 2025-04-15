@@ -5,13 +5,14 @@
 #include <future>
 #include <stacktrace>
 
+#include "ManapiDebug.hpp"
 #include "services/ManapiTask.hpp"
 #include "services/ManapiTaskFunction.hpp"
 #include "ManapiUtils.hpp"
 
 namespace manapi {
     template<class T>
-    threadpool<T>::threadpool(ssize_t thread_num, ssize_t queues_count): is_stop(true) {
+    threadpool<T>::threadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num, ssize_t queues_count): is_stop(true) {
 #if defined(__unix__)||defined(__APPLE__)
         sigemptyset(&this->blockedSignal);
         sigaddset(&this->blockedSignal, SIGPIPE);
@@ -20,6 +21,7 @@ namespace manapi {
         this->task_queues.resize(queues_count);
         this->threadnum = thread_num;
         this->tasks_by_thread.resize(this->threadnum);
+        this->logger_ = std::move(logger);
     }
 
     template<class T>
@@ -95,6 +97,11 @@ namespace manapi {
             }
         }
         return false;
+    }
+
+    template<class T>
+    const std::shared_ptr<manapi::logger> & threadpool<T>::logger() {
+        return this->logger_;
     }
 
     template<class T>
@@ -200,11 +207,13 @@ namespace manapi {
             task->doit();
         }
         catch (const manapi::exception &e) {
-            MANAPIHTTP_LOG ("Task Manapi Exception: {}", e.what());
+            this->logger_->warning(manapi::logger::default_service,
+                std::format("unexpected exception in the task with error code {}: {}", static_cast<int>(e.get_err_num()), e.what()));
         }
-        // catch (const std::exception &e) {
-        //     MANAPIHTTP_LOG ("Task Default Exception: {}", e.what());
-        // }
+        catch (const std::exception &e) {
+            this->logger_->warning(manapi::logger::default_service,
+                std::format("unexpected exception in the task: {}", e.what()));
+        }
     }
 
     template class threadpool<task>;

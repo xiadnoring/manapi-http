@@ -19,7 +19,7 @@ const std::map <std::string, manapi::net::http::versions::http> http_version_to_
     {"3.0", manapi::net::http::versions::HTTP_v3}
 };
 
-manapi::net::http::config::config(const json &config) {
+manapi::net::http::config::config(std::shared_ptr<manapi::async::context> ctx, const json &config) {
     /* partial data min size */
     if (config.contains("partial_data_min_size"))
     {
@@ -39,7 +39,7 @@ manapi::net::http::config::config(const json &config) {
             else if (version == "2")        num = versions::HTTP_v2;
             else if (version == "3")        num = versions::HTTP_v3;
             else {
-                MANAPIHTTP_LOG("http version '{}' is invalid in the config", version.as_string());
+                MANAPIHTTP_LOG(ctx, "http version '{}' is invalid in the config", version.as_string());
             }
 
             if (-1 != num) {

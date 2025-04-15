@@ -29,8 +29,9 @@ void handler_interrupt (int sig) {
     manapi::event_loop::interrupt();
 }
 
-manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool) : prepare_watcher(this->loop) {
+manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::logger> logger) : prepare_watcher(this->loop) {
     this->mx = std::make_shared<async::mutex>(taskpool);
+    this->logger_ = std::move(logger);
     this->async_watcher.adding_watcher_mx = std::make_shared<async::mutex>(taskpool);
     this->timer_watcher.adding_timer_mx = std::make_shared<async::mutex>(taskpool);
     this->callback_watcher_.adding_mx = std::make_shared<async::mutex>(taskpool);
@@ -508,7 +509,7 @@ std::shared_ptr<ev::io> manapi::event_loop::handle_curl_watcher_gen (manapi::eve
         //MANAPIHTTP_LOG("CURL EV: {} {}", revents, (int)fd);
         int cnt; auto rhs = curl_multi_socket_action(data->curl_watcher.curl_multi.get(), fd, (revents & 0b11), &cnt);
         if (rhs != CURLM_OK) {
-            MANAPIHTTP_LOG("curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs));
+            data->logger_->debug(manapi::logger::default_service, std::format("curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs)));
         }
         data2->handle_curl_check_connections();
     });
@@ -525,7 +526,7 @@ curl_socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, curlsocktyp
         return -1;
     }
 
-    MANAPIHTTP_LOG("curl open {}",(int)fd);
+    data->logger_->debug(manapi::logger::default_service, std::format("curl open {}",(int)fd));
     return fd;
 }
 
@@ -568,7 +569,7 @@ int manapi::event_loop::handle_curl_close_socket(void *cbp, curl_socket_t socket
     if (!watcher_data.empty() && watcher_data.mapped()) {
         data->stop_watcher(watcher_data.mapped());
     }
-    MANAPIHTTP_LOG("curl close {}",(int)socket);
+    data->logger_->debug(manapi::logger::default_service, std::format("curl close {}",(int)socket));
     async::close_descriptor(static_cast<sd_t>(socket));
     return 0;
 }
