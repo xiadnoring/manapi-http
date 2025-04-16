@@ -188,13 +188,15 @@ int main () {
 
 - [ ] Async
   - [x] Mutex, Conditional Variable, Future  
-  - [ ] Default Async Context
+  - [x] Default Async Context
+  - [ ] ⭐ Some improvements
 - [ ] Debugging
   - [x] Error Codes
   - [ ] Stack Error
-  - [ ] Async I/O Debug
+  - [x] Async I/O Debug
 - [ ] Configuration
-  - [x] limit-rate
+  - [x] limit-rate (TCP: HTTP/1.1, HTTP/2)
+  - [ ] limit-rate (UDP: HTTP/3)
   - [x] minimum speed requirements
 - [ ] HTTP
   - [x] Default HTTP/1.1 realization
@@ -215,6 +217,7 @@ int main () {
   - [x] WolfSSL
   - [ ] BoringSSL
 - [ ] QUIC
+  - [ ] Default realization 
   - [x] quiche
   - [ ] tquic
   - [ ] OpenSSL

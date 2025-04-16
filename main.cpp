@@ -31,9 +31,12 @@
 #include "services/ManapiEventLoop.hpp"
 #include "services/ManapiFetch2.hpp"
 #include <memory.h>
+#include <pg_config.h>
+#include <libpq/libpq-fs.h>
 
 #include "ManapiHash.hpp"
 #include "ManapiMath.hpp"
+#include "extensions/pq/AsyncPostgreClient.hpp"
 
 int main () {
     GCTX_OBJ = manapi::async::context::create(16);
@@ -42,11 +45,14 @@ int main () {
     auto mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ);
     GCTX_OBJ->logger()->callback([mx](manapi::logger_type type, std::string_view service, int error_code, std::string msg)
         -> void {
-        // manapi::async::run(GCTX_OBJ, manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
-        //     auto lk = co_await mx->lock_guard();
-        //     std::cout << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
-        // }, mx, type, service, error_code, std::move(msg)));
+        manapi::async::run(GCTX_OBJ, manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
+            //auto lk = co_await mx->lock_guard();
+            std::cout << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
+            co_return;
+        }, mx, type, service, error_code, std::move(msg)));
     });
+
+    auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
 
     manapi::net::http::server router (GCTX_OBJ);
 
@@ -60,7 +66,12 @@ int main () {
         co_return resp.text(std::to_string(cnt->fetch_add(1)));
     });
 
+    router.GET("/aa", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+        co_return resp.text(std::format("{} {}", resp.status_code(), resp.status_message()));
+    });
+
     router.GET("/+error", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+        resp.status(200);
         co_return resp.text(std::format("{} {}", resp.status_code(), resp.status_message()));
     });
 
@@ -68,11 +79,11 @@ int main () {
         co_return resp.json({{"errnum", resp.status_code()}, {"errmsg", resp.status_message()}});
     });
 
-    router.GET ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+    router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
         ssize_t result = 0;
         co_await req.callback_sync([&result] (const char *buffer, ssize_t size)
-            -> ssize_t { return size; });
+            -> ssize_t { result += size; return size; });
         co_return resp.text(std::to_string(result));
     });
 
@@ -88,7 +99,30 @@ int main () {
         co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
     });
 
-    manapi::async::run(GCTX([router] () mutable -> manapi::future<> {
+    router.GET("/pq/[id]", [db, mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ)](manapi::net::http::request& req, manapi::net::http::response& resp) -> manapi::future<> {
+        auto lk = co_await mx->lock_guard();
+        /* The pool of database connections here / This example is so slow */
+        try {
+            auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
+        }
+        catch (...) {
+
+        }
+
+        auto res = co_await db->exec("SELECT * FROM for_test;");
+        lk.call();
+
+        std::string content = "b";
+        for (const auto &row: res) {
+            content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+        }
+
+        co_return resp.text(std::move(content));
+    });
+
+    manapi::async::run(GCTX([router, db] () mutable -> manapi::future<> {
+        co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
+
         co_await router.config("./config.json");
         co_await router.start();
     }));

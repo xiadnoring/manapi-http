@@ -38,9 +38,9 @@ namespace manapi::async {
         [[nodiscard]] bool contains_cancel_callback () const;
         [[nodiscard]] bool contains_timeout () const;
         [[nodiscard]] ssize_t timeout () const;
-        void timeout_struct (manapi::timer timeout_struct_);
+        void timeout_struct (std::move_only_function<void()> timeout_struct_);
+        manapi::future<> cancel_on_timeout ();
         manapi::timer timeout_struct ();
-        void timeout_received ();
         void disable_cancellation ();
     private:
         static manapi::future<> stop_timeout_ (std::shared_ptr<data_t> data);

@@ -21,21 +21,21 @@ std::shared_ptr<ev::io> pio_ready_mk_(std::shared_ptr<manapi::async::context> ct
             auto _resolve = std::move(resolve);
             auto ctx_ = ctx;
             ctx_->eventloop()->stop_watcher(w);
-            ctx_->taskpool()->append_task([revents, resolve = std::move(_resolve)] ()
-                -> void { resolve(revents); });
+            _resolve(revents);
         }
     });
 
     return std::move(w);
 }
 
-manapi::future<> pio_ready (std::shared_ptr<manapi::async::context> ctx, std::shared_ptr<ev::io> w, manapi::async::cancellation_action cancellation) {
-    return ctx->eventloop()->custom_callback([ctx, w, cancellation] (manapi::event_loop *ev) mutable -> void {
+manapi::future<> pio_ready (std::shared_ptr<manapi::async::context> ctx, std::shared_ptr<ev::io> w, manapi::async::promise<int>::resolve_t resolve, manapi::async::cancellation_action cancellation) {
+    return ctx->eventloop()->custom_callback([ctx, resolve = std::move(resolve), w, cancellation] (manapi::event_loop *ev) mutable -> void {
         if (cancellation.contains_timeout()) {
-            cancellation.timeout_struct (ctx->timerpool()->append_timer_sync(cancellation.timeout(), [cancellation] (manapi::timer t) mutable
+            cancellation.timeout_struct ([resolve = std::move(resolve), ctx, w] () mutable
                 -> void {
-                cancellation.timeout_received();
-            }));
+                ctx->eventloop()->stop_watcher(std::move(w));
+                resolve(-1);
+            });
         }
 
         /** bind watcher */
@@ -129,7 +129,7 @@ manapi::future<int> manapi::async::custom_ready(std::shared_ptr<context> ctx, in
                 });
             }
 
-            co_await pio_ready(ctx, std::move(w), cancellation);
+            co_await pio_ready(ctx, std::move(w), std::move(resolve), cancellation);
 
             cancellation.ready();
             co_return;

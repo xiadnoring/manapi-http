@@ -119,21 +119,25 @@ ssize_t manapi::async::cancellation_action::timeout() const {
     return this->data->timeout_;
 }
 
-void manapi::async::cancellation_action::timeout_struct(manapi::timer timeout_struct_) {
-    this->data->timeout_struct_ = std::move(timeout_struct_);
+void manapi::async::cancellation_action::timeout_struct(std::move_only_function<void()> timeout_struct_) {
+    this->data->timeout_struct_ = this->data->ctx->timerpool()->append_timer_sync(this->timeout(), [data = this->data, callback = std::move(timeout_struct_)] (manapi::timer t) mutable
+        -> void {
+        if ((data->status_.fetch_or(FLAG_CANCEL) & FLAG_CANCEL)) {
+            return;
+        }
+
+        data->timeout_struct_ = nullptr;
+
+        callback();
+    });
+}
+
+manapi::future<> manapi::async::cancellation_action::cancel_on_timeout() {
+    return cancellation_action::cancel_(this->data);
 }
 
 manapi::timer manapi::async::cancellation_action::timeout_struct() {
     return this->data->timeout_struct_;
-}
-
-void manapi::async::cancellation_action::timeout_received() {
-    if ((this->data->status_.fetch_or(FLAG_CANCEL) & FLAG_CANCEL)) {
-        return;
-    }
-
-    this->data->timeout_struct_ = nullptr;
-    manapi::async::run(this->data->ctx, cancellation_action::cancel_(this->data));
 }
 
 void manapi::async::cancellation_action::disable_cancellation() {

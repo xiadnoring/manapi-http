@@ -46,15 +46,17 @@ namespace manapi::debug {
     template <class... Args>
     void _log (const std::shared_ptr<manapi::logger> &logger, size_t line, std::string file_name, std::string func, err_num errnum, std::string format, Args&& ...args)
     {
-        auto msg = std::format ("{}() ({}:{}): ", func, file_name, line) + std::vformat(format, std::make_format_args(args...));
+        const std::size_t n = sizeof...(Args);
+        auto msg = std::format ("{}() ({}:{}): ", func, file_name, line) + (n ? std::vformat(format, std::make_format_args(args...)) : format);
         logger->debug(manapi::logger::default_service, std::move(msg));
     }
 
     template <class... Args>
     manapi::exception _error (size_t line, std::string file_name, std::string func, err_num errnum, int additional_num_data, std::string format, Args&& ...args)
     {
+        const std::size_t n = sizeof...(Args);
         //auto msg = std::format ("[{:%H:%M:%S}][{}]: {}() ({}:{}): ", time::current_time(true), static_cast<size_t>(errnum), func, file_name, line);
-        auto information = std::vformat(format, std::make_format_args(args...));
+        auto information = n ? std::vformat(format, std::make_format_args(args...)) : std::move(format);
 
         //msg += information;
 

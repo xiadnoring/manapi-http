@@ -20,7 +20,7 @@
 #include "../ManapiJson.hpp"
 #include "../ManapiTime.hpp"
 #include "../components/ManapiChain.hpp"
-#include "async/ManapiAsyncLogger.hpp"
+#include "../async/ManapiAsyncLogger.hpp"
 
 namespace manapi {
     template <class T>

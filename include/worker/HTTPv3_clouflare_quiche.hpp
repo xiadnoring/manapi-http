@@ -11,25 +11,27 @@
 namespace manapi::net::worker {
     class http_v3_cloudflare_quiche : public udp {
     public:
-        struct connection_stream_t {
-            int64_t stream_id;
-            std::shared_ptr<worker::connection> connection;
-            std::atomic<int> status;
-            std::function<void()> handle_io;
+        struct buffer_stack_t {
+            manapi::object_item_pool<bytebuffer, std::size_t> buffer;
+            std::unique_ptr<buffer_stack_t> next;
+        };
 
-            int rbuff_pos;
-            int wbuff_pos;
-            int rbuff_caret;
-            int wbuff_caret;
+        enum stream_atomic_status {
+            STREAM_ATOMIC_CONN_CLOSED = 0b1,
+            STREAM_ATOMIC_CONN_HEADERS = 0b10,
+            STREAM_ATOMIC_CONN_WRITE = 0b100,
+            STREAM_ATOMIC_CONN_READ = 0b1000,
+            STREAM_ATOMIC_CONN_RECV_END = 0b10000,
+            STREAM_ATOMIC_CONN_SEND_END = 0b100000
+        };
 
-            std::weak_ptr<http::http_v2> client;
-            bool finished;
-            quiche_h3_header *headers;
-            size_t headers_size;
-            size_t header_cursor;
+        enum stream_status {
+            STREAM_CONN_RECV_END = 0b1,
+            STREAM_CONN_SEND_END = 0b10
+        };
 
-            uint8_t rbuff[65000];
-            uint8_t wbuff[65000];
+        enum connection_flags {
+            CONN_REVIEW_STREAMS = 0b1
         };
 
         struct connection_t {
@@ -42,15 +44,41 @@ namespace manapi::net::worker {
             quiche_h3_conn *http3_conn;
             std::map <int64_t, std::shared_ptr<worker::connection>> streams;
             std::shared_ptr<worker::base> worker;
-            std::atomic<int> status;
+            int status;
             size_t write_total;
             size_t read_total;
             size_t write_total_prev;
             size_t read_total_prev;
-            std::atomic<size_t> stream_read_cnt;
-            std::atomic<size_t> stream_write_cnt;
-            std::atomic<ssize_t> transfared_last_second;
-            std::shared_ptr<async::condition_variable> limit_rate_cv;
+            size_t transfared_last_second;
+            int flags;
+            std::vector<uint64_t> closed_streams;
+        };
+
+        struct connection_stream_t {
+            int64_t stream_id;
+            std::shared_ptr<worker::connection> connection;
+            async::mutex mx;
+            int status;
+            int status2;
+            std::atomic<int> atomic_status;
+
+            std::unique_ptr<std::map<std::string, std::string>> headers;
+            std::unique_ptr<quiche_h3_header> quiche_headers;
+            int headers_size;
+            int header_cursor;
+
+            std::unique_ptr<buffer_stack_t> flush_write_buffer;
+
+            buffer_stack_t *flush_write_last;
+            int flush_write_total_size;
+
+            int flush_write_cursor;
+            int flush_write_current;
+
+            int flush_read_cursor;
+
+            manapi::object_item_pool<bytebuffer, std::size_t> write_buffer, read_buffer, write_buffer2, read_buffer2;
+            int write_cursor, read_cursor;
         };
 
         struct connection_io_await {
@@ -95,14 +123,17 @@ namespace manapi::net::worker {
         void update_limit_rate ();
         virtual void update_limit_rate_connection (connection &conn);
         static http_v3_cloudflare_quiche *_get_dynamic_worker (const std::shared_ptr<worker::base> &w);
-        static bool _flush_write_stream (connection_t &conn_data, std::map<int64_t, std::shared_ptr<worker::connection>>::iterator &stream_it);
-        static void _flush_write (connection_t &conn_data);
+        static void _flush_write_stream (connection_t &conn_data, std::map<int64_t, std::shared_ptr<worker::connection>>::iterator &stream_it, bool app);
+        static void _flush_read_stream (connection_t &conn_data, std::map<int64_t, std::shared_ptr<worker::connection>>::iterator &stream_it);
+        static void _flush_write (connection_t &conn_data, bool app);
         static void _flush_read (connection_t &conn_data);
         static void _quiche_set_header (quiche_h3_header &header, std::string_view key, std::string_view value);
         static void _write_watcher_cb (EV_P_ ev_async *w, int revents);
         static void _force_close (connection_t &conn_data);
         static void _flush_connection_closed (connection_t &conn_data);
-        static void _clean_connection (connection_t *conn_data);
+        static void _clean_connection (void *conn_data);
+        static void init_write_buffer(connection_stream_t &s);
+        ssize_t buffer_size();
         void _stream_close (connection_stream_t &stream);
         void _reset_all_streams (connection_t &conn_data);
         void _io_timeout (connection_t &conn_data);
@@ -117,8 +148,8 @@ namespace manapi::net::worker {
         std::map <std::string, std::shared_ptr<worker::connection>> connections;
         std::function<std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche>()> new_dependency;
 
-        static future<ssize_t> default_write (connection &conn, const void *buf, size_t size, bool flag);
-        static future<ssize_t> default_read (connection &conn, void *buf, size_t size);
+        static future<ssize_t> default_write (connection &conn, const void *buf, ssize_t size, bool flag);
+        static future<ssize_t> default_read (connection &conn, void *buf, ssize_t size);
 
         quiche_config *_quiche_config{nullptr};
         quiche_h3_config *_quiche_h3_config{nullptr};
