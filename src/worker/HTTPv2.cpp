@@ -1648,11 +1648,15 @@ std::map<int, std::unique_ptr<manapi::net::worker::http_v2::http_v2_thread_data_
             freed += it->second->read_buffer->size();
         }
 
-        if (freed || it->second->conn_flags & HTTP2_THREAD_RECV_EOS) {
+        if ((it->second->conn_flags & HTTP2_THREAD_RECV_EOS) && (!it->second->read_storage_last)) {
+            it->second->atomic_flags.fetch_or(HTTP2_THREAD_ATOMIC_RECV_EOS);
             it->second->atomic_flags.fetch_xor(HTTP2_THREAD_ATOMIC_WANT_READ);
-            if (it->second->conn_flags & HTTP2_THREAD_RECV_EOS) {
-                it->second->atomic_flags.fetch_or(HTTP2_THREAD_ATOMIC_RECV_EOS);
-            }
+
+            it->second->read_freed += freed;
+            it->second->mx.unlock();
+        }
+        else if (freed) {
+            it->second->atomic_flags.fetch_xor(HTTP2_THREAD_ATOMIC_WANT_READ);
             it->second->read_freed += freed;
             it->second->mx.unlock();
 
@@ -1770,11 +1774,13 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::default_read(worker::conne
             conn.read_buffer = std::move(conn.original->read_buffer);
             conn.read_cursor = 0;
 
-            conn.original->atomic_flags.fetch_or(HTTP2_THREAD_ATOMIC_WANT_READ);
-            this->io_call_watcher->send();
-
             if (conn.original->atomic_flags & HTTP2_THREAD_ATOMIC_RECV_EOS) {
                 conn.flags |= HTTP2_THREAD_RECV_EOS;
+                conn.original->mx.unlock();
+            }
+            else {
+                conn.original->atomic_flags.fetch_or(HTTP2_THREAD_ATOMIC_WANT_READ);
+                this->io_call_watcher->send();
             }
 
             continue;

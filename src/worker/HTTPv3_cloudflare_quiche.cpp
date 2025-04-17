@@ -304,8 +304,17 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
                         break;
                     }
                     case QUICHE_H3_EVENT_FINISHED: {
-                        //conn_data.status.fetch_or(CONN_HALF_CLOSED);
+                        auto stream_it = conn_data.streams.find(stream_id);
+                        if (stream_it == conn_data.streams.end()) {
+                            break;
+                        }
 
+                        auto &stream_connection = stream_it->second;
+                        auto &stream = stream_connection->as<connection_stream_t>();
+
+                        stream.status2 |= STREAM_CONN_RECV_END;
+
+                        _flush_read_stream(stream.connection->as<connection_t>(), stream_it);
                         break;
                     }
                     case QUICHE_H3_EVENT_RESET: {
@@ -457,7 +466,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response
     status_header = std::to_string(resp.status_code());
     http_v3_cloudflare_quiche::_quiche_set_header(stream_data.quiche_headers.get()[i++], ":status", status_header);
 
-    if (stream_data.status & STREAM_ATOMIC_CONN_CLOSED) {
+    if (stream_data.atomic_status & STREAM_ATOMIC_CONN_CLOSED) {
         co_return -1;
     }
 
@@ -692,15 +701,14 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read_stream(connecti
             s.flush_read_cursor = 0;
         }
 
-        std::cout << "READ\n";
+       // std::cout << "READ\n";
 
-        bool flg = false;
-
+        bool done = false;
         while(s.read_buffer2->size() != s.flush_read_cursor) {
             ssize_t rhs = ::quiche_h3_recv_body(conn_data.http3_conn, conn_data.conn, s.stream_id, reinterpret_cast <uint8_t *>(s.read_buffer2->data()) + s.flush_read_cursor, s.read_buffer2->size() - s.flush_read_cursor);
-
             if (rhs < 0) {
                 if (rhs == QUICHE_ERR_DONE) {
+                    done = true;
                     break;
                 }
                 else {
@@ -712,20 +720,24 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read_stream(connecti
             }
 
             if (rhs == 0) {
-                flg = true;
-                s.atomic_status.fetch_or(STREAM_ATOMIC_CONN_RECV_END);
                 break;
             }
 
             s.flush_read_cursor += rhs;
             conn_data.read_total += rhs;
 
-            printf("DATA %zi\n", rhs);
+            //printf("DATA %zi\n", rhs);
 
             http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_quiche_flush_egress(conn_data);
         }
 
-        if (s.flush_read_cursor || flg) {
+        if ((done && (s.status2 & STREAM_CONN_RECV_END))) {
+            s.atomic_status.fetch_or(STREAM_ATOMIC_CONN_RECV_END);
+
+            s.atomic_status.fetch_xor(STREAM_ATOMIC_CONN_READ);
+            s.mx.unlock();
+        }
+        else if (s.flush_read_cursor == s.read_buffer2->size()) {
             s.atomic_status.fetch_xor(STREAM_ATOMIC_CONN_READ);
             s.mx.unlock();
         }
@@ -733,6 +745,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read_stream(connecti
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::_flush_write(connection_t &conn_data, bool app) {
+    http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_quiche_flush_egress(conn_data);
     /* send data */
     int64_t stream_id;
     quiche_stream_iter *stream = quiche_conn_writable(conn_data.conn);
@@ -747,6 +760,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_write(connection_t &
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read(connection_t &conn_data) {
+    http_v3_cloudflare_quiche::_get_dynamic_worker(conn_data.worker)->_quiche_flush_egress(conn_data);
+
     /* recv data */
     int64_t stream_id;
     quiche_stream_iter *stream = quiche_conn_readable(conn_data.conn);
@@ -1072,14 +1087,21 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::default_
             co_await stream_data.mx.lock();
 
             stream_data.read_buffer = std::move(stream_data.read_buffer2);
+            if (stream_data.read_buffer) {
+                stream_data.read_buffer->resize(stream_data.flush_read_cursor);
+            }
             stream_data.read_cursor = 0;
+            stream_data.flush_read_cursor = 0;
 
-            std::cout << "WANT READ\n";
-            stream_data.atomic_status.fetch_or(STREAM_ATOMIC_CONN_READ);
-            stream_data.connection->as<connection_t>().write_watcher.send();
+            //std::cout << "WANT READ\n";
 
             if (stream_data.atomic_status & STREAM_ATOMIC_CONN_RECV_END) {
                 stream_data.status |= STREAM_CONN_RECV_END;
+                stream_data.mx.unlock();
+            }
+            else {
+                stream_data.atomic_status.fetch_or(STREAM_ATOMIC_CONN_READ);
+                stream_data.connection->as<connection_t>().write_watcher.send();
             }
 
             continue;
