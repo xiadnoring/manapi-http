@@ -268,8 +268,6 @@ void manapi::net::worker::http_v2::handle_callback_watcher() {
                     buffer.clear();
                 }
                 else {
-                    this->protocol.current_timeout = (this->protocol.timeout);
-
                     // if (this->protocol.type != HTTP2_FRAME_WINDOW_UPDATE && !this->protocol.setting_timeout.empty()) {
                     //     // We expected to get only the SETTINGS frame
                     //     co_await this->generate_error(HTTP2_ERROR_PROTOCOL_ERROR, "SETTINGS frame was expected");
@@ -828,6 +826,7 @@ void manapi::net::worker::http_v2::_parse_header_data(char &c) {
                     this->site.async_context()
                 )}).first;
 
+                this->resolve_timeout_timer();
                 this->protocol.last_stream_id = thread->first;
             }
             else {
@@ -878,8 +877,6 @@ void manapi::net::worker::http_v2::_parse_body_data(char &c) {
     auto buffer = std::string_view(this->buffer->data() + this->parse_vars.j, cutsize);
 
     {
-        this->protocol.payload_read += (buffer.size());
-
         auto len = static_cast<ssize_t>(buffer.size());
 
         //MANAPIHTTP_LOG("RECV DATA {}", len);
@@ -1314,42 +1311,45 @@ void manapi::net::worker::http_v2::send_empty_frame(http2_frame_type frame, char
 }
 
 void manapi::net::worker::http_v2::timer_watcher(const std::shared_ptr<manapi::net::worker::base> &dep) {
-    if (this->threads.size() == 0 && (this->protocol.conn_type == 0) && std::chrono::system_clock::now() > this->protocol.prev_ping_time_point + this->protocol.ping_delay) {
-        /**
-         * PING frames prevent curl from working properly.
-         * since curl doesn't accept packets, it has a
-         * rather small window size.
-         *
-         * There is no space for PING frames in the write window.
-         */
-        // if (!send_ping_frame()) {
-        //     return;
-        // }
-        this->protocol.prev_ping_time_point = std::chrono::system_clock::now();
-    }
+    if (this->threads.empty()) {
+        this->protocol.current_timeout -= (this->config->speed_check_delay());
+        if (this->protocol.current_timeout <= 0) {
+            //MANAPIHTTP_LOG2("TIMEOUT HTTP2");
+            this->ping_interval.sync_stop(this->site.async_context());
+            //MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
+            this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout");
+            //MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
+            return;
+        }
 
-    const auto status = this->worker->status(*this->connection);
-    bool flg = false;
-
-    if ((this->protocol.want_read > 0) && this->protocol.payload_read - this->protocol.prev_payload_read < this->config->speed_check_bytes()) {
-        flg = true;
+        if (!this->protocol.conn_type
+            && std::chrono::system_clock::now() > this->protocol.prev_ping_time_point + this->protocol.ping_delay) {
+            /**
+             * PING frames prevent curl from working properly.
+             * since curl doesn't accept packets, it has a
+             * rather small window size.
+             *
+             * There is no space for PING frames in the write window.
+             */
+            // if (!send_ping_frame()) {
+            //     return;
+            // }
+            this->protocol.prev_ping_time_point = std::chrono::system_clock::now();
+        }
     }
     else {
-        this->protocol.prev_payload_read = this->protocol.payload_read;
-        //
-        // if ((status & CONN_LIMIT_RATE || ((this->protocol.conn_type | CONN_HALF_CLOSED) == CONN_HALF_CLOSED) && this->threads.size() > 0)) {
-        //     return;
-        // }
-    }
+        for (const auto &thread : this->threads) {
+            if (thread.second->conn_flags & HTTP2_THREAD_IO) {
+                if (thread.second->transfered_last_delay < this->config->speed_check_bytes()) {
+                    thread.second->conn_flags ^= HTTP2_THREAD_IO;
+                    thread.second->atomic_flags.store(HTTP2_THREAD_ATOMIC_RST);
+                    this->reset_stream(thread.second->id, HTTP2_ERROR_CANCEL);
+                    thread.second->mx.unlock();
+                }
 
-
-    this->protocol.current_timeout -= (this->config->speed_check_delay());
-    if (flg || this->protocol.current_timeout <= 0) {
-        //MANAPIHTTP_LOG2("TIMEOUT HTTP2");
-        this->ping_interval.sync_stop(this->site.async_context());
-        //MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
-        this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout");
-        //MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
+                thread.second->transfered_last_delay = 0;
+            }
+        }
     }
 }
 
@@ -1648,7 +1648,10 @@ std::map<int, std::unique_ptr<manapi::net::worker::http_v2::http_v2_thread_data_
             freed += it->second->read_buffer->size();
         }
 
+        it->second->transfered_last_delay += freed;
+
         if ((it->second->conn_flags & HTTP2_THREAD_RECV_EOS) && (!it->second->read_storage_last)) {
+            this->disable_status_io(*it->second);
             it->second->atomic_flags.fetch_or(HTTP2_THREAD_ATOMIC_RECV_EOS);
             it->second->atomic_flags.fetch_xor(HTTP2_THREAD_ATOMIC_WANT_READ);
 
@@ -1656,6 +1659,7 @@ std::map<int, std::unique_ptr<manapi::net::worker::http_v2::http_v2_thread_data_
             it->second->mx.unlock();
         }
         else if (freed) {
+            this->disable_status_io(*it->second);
             it->second->atomic_flags.fetch_xor(HTTP2_THREAD_ATOMIC_WANT_READ);
             it->second->read_freed += freed;
             it->second->mx.unlock();
@@ -1678,17 +1682,26 @@ std::map<int, std::unique_ptr<manapi::net::worker::http_v2::http_v2_thread_data_
                 }
             }
         }
+        else {
+            this->enable_status_io(*it->second);
+        }
     }
     if (flag & HTTP2_THREAD_ATOMIC_WANT_WRITE) {
         const auto rhs = this->send_data(it, it->second->write_buffer->data() + it->second->write_cursor,
             static_cast<ssize_t>(it->second->write_buffer->size()) - it->second->write_cursor, flag & HTTP2_THREAD_ATOMIC_SEND_EOS);
+
+        it->second->transfered_last_delay += rhs;
+
         if (rhs + it->second->write_cursor == it->second->write_buffer->size()) {
             it->second->write_buffer = {};
             it->second->write_cursor = 0;
+
+            this->disable_status_io(*it->second);
             it->second->atomic_flags.fetch_xor(HTTP2_THREAD_ATOMIC_WANT_WRITE);
             it->second->mx.unlock();
         }
         else {
+            this->enable_status_io(*it->second);
             it->second->write_cursor += rhs;
         }
     }
@@ -1754,6 +1767,16 @@ void manapi::net::worker::http_v2::send_headers(http_v2_thread_data_t &stream) {
         send_frame(ft, cflag, stream.id, std::string_view(data.data() + cnt, left));
         cflag = 0;
         cnt += left;
+    }
+}
+
+void manapi::net::worker::http_v2::enable_status_io(http_v2_thread_data_t &stream) {
+    stream.conn_flags |= HTTP2_THREAD_IO;
+}
+
+void manapi::net::worker::http_v2::disable_status_io(http_v2_thread_data_t &stream) {
+    if (stream.conn_flags & HTTP2_THREAD_IO) {
+        stream.conn_flags ^= HTTP2_THREAD_IO;
     }
 }
 

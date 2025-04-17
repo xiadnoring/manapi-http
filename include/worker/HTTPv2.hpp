@@ -85,7 +85,8 @@ namespace manapi::net::worker {
         HTTP2_THREAD_RECV_EOS   = 0b1,
         HTTP2_THREAD_SEND_EOS   = 0b10,
         HTTP2_THREAD_HAS_BODY   = 0b100,
-        HTTP2_THREAD_EOS = 0b1000
+        HTTP2_THREAD_EOS = 0b1000,
+        HTTP2_THREAD_IO = 0b10000
     };
 
     enum http2_thread_atomic_flags {
@@ -168,9 +169,6 @@ namespace manapi::net::worker {
 
             int last_stream_id = 0;
             size_t setting_param_acks = 0;
-            size_t payload_read = 0;
-            size_t prev_payload_read = 0;
-            std::atomic<int> want_read = 0;
         };
 
     public:
@@ -197,6 +195,7 @@ namespace manapi::net::worker {
             ssize_t read_freed;
 
             manapi::async::mutex mx;
+            int transfered_last_delay;
         };
 
         struct http_v2_callbacks_t {
@@ -291,6 +290,8 @@ namespace manapi::net::worker {
         void flush_io_streams ();
         void io_call_callback (ev::async &w, int revents);
         void send_headers (http_v2_thread_data_t &stream);
+        void enable_status_io (http_v2_thread_data_t &stream);
+        void disable_status_io (http_v2_thread_data_t &stream);
 
         future<ssize_t> default_read (worker::connection &connection, void *buff, ssize_t size);
         future<ssize_t> default_write (worker::connection &connection, const void *buff, ssize_t size, bool flag);
