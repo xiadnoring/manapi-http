@@ -27,7 +27,8 @@ namespace manapi::net::worker {
 
         enum stream_status {
             STREAM_CONN_RECV_END = 0b1,
-            STREAM_CONN_SEND_END = 0b10
+            STREAM_CONN_SEND_END = 0b10,
+            STREAM_CONN_IO = 0b100,
         };
 
         enum connection_flags {
@@ -45,13 +46,9 @@ namespace manapi::net::worker {
             std::map <int64_t, std::shared_ptr<worker::connection>> streams;
             std::shared_ptr<worker::base> worker;
             int status;
-            size_t write_total;
-            size_t read_total;
-            size_t write_total_prev;
-            size_t read_total_prev;
-            size_t transfared_last_second;
             int flags;
             std::vector<uint64_t> closed_streams;
+            size_t transfared_last_second;
         };
 
         struct connection_stream_t {
@@ -79,36 +76,9 @@ namespace manapi::net::worker {
 
             manapi::object_item_pool<bytebuffer, std::size_t> write_buffer, read_buffer, write_buffer2, read_buffer2;
             int write_cursor, read_cursor;
-        };
 
-        struct connection_io_await {
-            std::function<void()> &iohandle;
-            std::atomic<int> &iostatus;
-            int status{0};
-            ev::async *async_watcher{nullptr};
-            std::atomic<size_t> *cnt{nullptr};
-
-            void await_resume () noexcept {}
-            bool await_ready () noexcept { return this->iostatus & CONN_CLOSED; }
-            template<typename T>
-            requires(std::is_base_of_v<promise_base, T>)
-            void await_suspend (std::coroutine_handle<T> handle) {
-                if (this->iostatus & CONN_CLOSED) {
-                    future<>::resume_promise(handle);
-                }
-                else {
-                    if (this->cnt) { this->cnt->fetch_add(1); }
-                    this->iohandle = [cnt = this->cnt, handle = std::exchange(handle, nullptr)]() -> void {
-                        if (cnt) { cnt->fetch_sub(1); }
-                        future<>::resume_promise(handle);
-                    };
-                    this->iostatus.fetch_or(this->status);
-
-                    if (this->async_watcher) {
-                        this->async_watcher->send();
-                    }
-                }
-            }
+            size_t transfared_last_second;
+            int current_delay;
         };
 
         explicit http_v3_cloudflare_quiche(net::site &site);
@@ -133,6 +103,8 @@ namespace manapi::net::worker {
         static void _flush_connection_closed (connection_t &conn_data);
         static void _clean_connection (void *conn_data);
         static void init_write_buffer(connection_stream_t &s);
+        static void disable_status_io (connection_stream_t &s);
+        static void enable_status_io(connection_stream_t &s);
         ssize_t buffer_size();
         void _stream_close (connection_stream_t &stream);
         void _reset_all_streams (connection_t &conn_data);

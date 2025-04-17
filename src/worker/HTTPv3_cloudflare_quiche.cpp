@@ -149,8 +149,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(ev::io &watcher, int
 
             connection = std::make_shared<worker::connection>(new connection_t{
                 .cid = dcid, .conn = _quiche_conn, .quiche_timer = this->le->get_loop(), .io_timer = {}, .write_watcher = this->le->get_loop(), .http3_conn = {nullptr},
-                .streams = {}, .worker = std::shared_ptr (this->worker), .status = 0, .write_total = 0, .read_total = 0, .write_total_prev = 0, .read_total_prev = 0,
-                .transfared_last_second = 0}, http_v3_cloudflare_quiche::_clean_connection
+                .streams = {}, .worker = std::shared_ptr (this->worker), .status = 0,
+                }, http_v3_cloudflare_quiche::_clean_connection
             );
 
             auto &conn_data = connection->as<connection_t>();
@@ -531,13 +531,13 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
                     }
 
                     if (rhs == 0) {
-                        conn_data.write_total += std::exchange(current_headers_size, 0);
                         s.header_cursor = i;
                     }
                     else if (rhs == QUICHE_H3_ERR_STREAM_BLOCKED) {
                         break;
                     }
                     else {
+                        http_v3_cloudflare_quiche::disable_status_io(s);
                         s.atomic_status.store(STREAM_ATOMIC_CONN_CLOSED);
                         s.mx.unlock();
 
@@ -561,6 +561,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
                     s.headers_size = 0;
 
                     //std::cout << "HEADERS " << (finish ? "YES\n" : "NO\n");
+                    http_v3_cloudflare_quiche::disable_status_io(s);
                     s.atomic_status.fetch_xor(STREAM_ATOMIC_CONN_HEADERS);
                     s.mx.unlock();
                     //quiche_conn_stream_shutdown(conn_data.conn, s.stream_id, QUICHE_SHUTDOWN_READ, 0);
@@ -603,6 +604,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
                             }
                             else {
                                 /* error */
+                                http_v3_cloudflare_quiche::disable_status_io(s);
                                 s.atomic_status.store(STREAM_ATOMIC_CONN_CLOSED);
                                 s.mx.unlock();
 
@@ -610,6 +612,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
                             }
                         }
                         else {
+                            s.transfared_last_second += rhs;
                             conn_data.transfared_last_second += rhs;
                         }
 
@@ -625,8 +628,12 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
                         rhs += copy;
                     }
 
+                    http_v3_cloudflare_quiche::disable_status_io(s);
                     s.atomic_status.fetch_xor(STREAM_ATOMIC_CONN_WRITE);
                     s.mx.unlock();
+                }
+                else {
+                    http_v3_cloudflare_quiche::enable_status_io(s);
                 }
             }
         }
@@ -669,6 +676,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
                         }
                         else {
                             /* error */
+                            http_v3_cloudflare_quiche::disable_status_io(s);
                             s.atomic_status.store(STREAM_ATOMIC_CONN_CLOSED);
                             s.mx.unlock();
                             return;
@@ -682,6 +690,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_write_stream(connect
                     repeat = 0;
 
                     /* great ! */
+                    s.transfared_last_second += rhs;
                     conn_data.transfared_last_second += rhs;
                     s.flush_write_current += rhs;
                     s.flush_write_total_size -= rhs;
@@ -730,7 +739,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read_stream(connecti
 
         bool done = false;
         while(s.read_buffer2->size() != s.flush_read_cursor) {
-            auto copy = std::min(static_cast<ssize_t>(s.read_buffer2->size() - s.flush_read_cursor), static_cast<ssize_t>(worker->config->speed_limit_rate().load() - conn.transfared_last_second));
+            auto copy = std::min(static_cast<ssize_t>(s.read_buffer2->size() - s.flush_read_cursor), static_cast<ssize_t>(worker->config->speed_limit_rate().load() - conn_data.transfared_last_second));
             ssize_t rhs;
 
             if (copy > 0) {
@@ -747,6 +756,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read_stream(connecti
                 }
                 else {
                     /* error */
+                    http_v3_cloudflare_quiche::disable_status_io(s);
                     s.atomic_status.store(STREAM_ATOMIC_CONN_CLOSED);
                     s.mx.unlock();
                     return;
@@ -758,9 +768,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read_stream(connecti
             }
 
 
-            conn.transfared_last_second += rhs;
+            s.transfared_last_second += rhs;
+            conn_data.transfared_last_second += rhs;
             s.flush_read_cursor += rhs;
-            conn_data.read_total += rhs;
 
             //printf("DATA %zi\n", rhs);
 
@@ -768,14 +778,19 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_flush_read_stream(connecti
         }
 
         if ((done && (s.status2 & STREAM_CONN_RECV_END))) {
+            http_v3_cloudflare_quiche::disable_status_io(s);
             s.atomic_status.fetch_or(STREAM_ATOMIC_CONN_RECV_END);
 
             s.atomic_status.fetch_xor(STREAM_ATOMIC_CONN_READ);
             s.mx.unlock();
         }
         else if (s.flush_read_cursor == s.read_buffer2->size()) {
+            http_v3_cloudflare_quiche::disable_status_io(s);
             s.atomic_status.fetch_xor(STREAM_ATOMIC_CONN_READ);
             s.mx.unlock();
+        }
+        else {
+            http_v3_cloudflare_quiche::enable_status_io(s);
         }
     }
 }
@@ -946,6 +961,18 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init_write_buffer(connectio
     }
 }
 
+void manapi::net::worker::http_v3_cloudflare_quiche::disable_status_io(connection_stream_t &s) {
+    if (s.status2 & STREAM_CONN_IO) {
+        s.current_delay = 0;
+        s.status2 ^= STREAM_CONN_IO;
+    }
+}
+
+void manapi::net::worker::http_v3_cloudflare_quiche::enable_status_io(connection_stream_t &s) {
+    s.status2 |= STREAM_CONN_IO;
+    s.current_delay = 0;
+}
+
 ssize_t manapi::net::worker::http_v3_cloudflare_quiche::buffer_size() {
     return this->config->buffer_size();
 }
@@ -972,9 +999,6 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_io_timeout(connection_t &c
     //         return;
     //     }
     // }
-
-    conn_data.read_total_prev = conn_data.read_total;
-    conn_data.write_total_prev = conn_data.write_total;
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::_quiche_timeout(struct ev_loop *loop, ev_timer *w, int revents) {
@@ -1059,6 +1083,25 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate() {
 
 void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_connection(connection &conn) {
     auto &conn_data = conn.as<connection_t>();
+
+    auto delay = this->config->speed_check_delay().load();
+    auto size = this->config->speed_check_bytes().load();
+
+    for (const auto &it : conn_data.streams) {
+        auto &stream = it.second->as<connection_stream_t>();
+        if (stream.status2 & STREAM_CONN_IO) {
+            if ((stream.current_delay += 1000 /* 1 sec */) <= delay) {
+                if (stream.transfared_last_second < size) {
+                    disable_status_io(stream);
+                    stream.atomic_status.store(STREAM_ATOMIC_CONN_CLOSED);
+                    stream.mx.unlock();
+                }
+                stream.transfared_last_second = 0;
+                stream.current_delay = 0;
+            }
+        }
+    }
+
     conn_data.transfared_last_second = 0;
 
     _flush_write(conn_data, false);
