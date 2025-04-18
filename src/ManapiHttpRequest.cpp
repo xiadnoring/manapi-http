@@ -261,6 +261,8 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
 
         break;
     }
+
+    handler(nullptr, 0);
 }
 
 manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t)> handler) {
@@ -304,4 +306,6 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
 
         break;
     }
+
+    co_await handler (nullptr, 0);
 }

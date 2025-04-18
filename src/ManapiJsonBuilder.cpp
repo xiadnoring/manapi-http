@@ -4,6 +4,16 @@
 #include "../include/encoding/ManapiUnicode.hpp"
 #include "ManapiUtils.hpp"
 
+enum json_builder_callbacks {
+    JSON_CALLBACK_CHECK_TYPE,
+    JSON_CALLBACL_BUILD_STRING,
+    JSON_CALLBACK_BUILD_NUMERIC,
+    JSON_CALLBACK_BUILD_NUMERIC_STRING,
+    JSON_CALLBACK_BUILD_OBJECT,
+    JSON_CALLBACK_BUILD_ARRAY,
+    JSON_CALLBACK_CHECK_END
+};
+
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
 manapi::json_builder::json_builder(const json_mask &mask, bool use_bigint, size_t bigint_precision)  {
     this->start_cut = 0;
@@ -13,7 +23,7 @@ manapi::json_builder::json_builder(const json_mask &mask, bool use_bigint, size_
     this->current_types = mask.get_api_tree().is_null() ? nullptr : &mask.get_api_tree()["obj"];
     this->current_type = 0;
 
-    this->action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
+    this->action = JSON_CALLBACK_CHECK_TYPE;
 }
 
 manapi::json_builder::
@@ -25,7 +35,7 @@ json_builder(const json &mask, bool use_bigint, size_t bigint_precision) {
     this->current_types = mask == nullptr ? nullptr : &mask;
     this->current_type = 0;
 
-    this->action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
+    this->action = JSON_CALLBACK_CHECK_TYPE;
 }
 #endif
 
@@ -39,7 +49,7 @@ manapi::json_builder::json_builder(const json_mask &mask) {
     this->current_types = mask.get_api_tree().is_null() ? nullptr : &mask.get_api_tree()["obj"];
     this->current_type = 0;
 
-    this->action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
+    this->action = JSON_CALLBACK_CHECK_TYPE;
 }
 
 manapi::json_builder::json_builder(const json &mask) {
@@ -52,7 +62,7 @@ manapi::json_builder::json_builder(const json &mask) {
     this->current_types = mask == nullptr ? nullptr : &mask;
     this->current_type = 0;
 
-    this->action = std::bind(&json_builder::_check_type, this, std::placeholders::_1, std::placeholders::_2);
+    this->action = JSON_CALLBACK_CHECK_TYPE;
 }
 
 manapi::json_builder::~json_builder() = default;
@@ -73,7 +83,7 @@ manapi::json manapi::json_builder::get() {
     if (!this->ready)
     {
         size_t j = 0;
-        this->action("", j);
+        this->call_action_({}, j);
     }
     if (this->object.is_null()) {
         // maybe no content provided
@@ -107,7 +117,7 @@ void manapi::json_builder::_parse(std::string_view plain_text, size_t &j, bool r
 
     while (i < this->end_cut) {
         // yo
-        this->action (plain_text, j);
+        this->call_action_ (plain_text, j);
     }
 
     if (root)
@@ -132,20 +142,20 @@ void manapi::json_builder::_check_type(std::string_view plain_text, size_t &j) {
             case '{':
                 this->type = json::type_object;
                 this->object = json::object();
-                this->action = std::bind(&json_builder::_build_object, this, std::placeholders::_1, std::placeholders::_2);
+                this->action = JSON_CALLBACK_BUILD_OBJECT;
                 goto finish;
             case '[':
                 this->type = json::type_array;
                 this->object = json::array();
-                this->action = std::bind(&json_builder::_build_array, this, std::placeholders::_1, std::placeholders::_2);
+                this->action = JSON_CALLBACK_BUILD_ARRAY;
                 goto finish;
             case '"':
                 this->type = json::type_string;
-                this->action = std::bind(&json_builder::_build_string, this, std::placeholders::_1, std::placeholders::_2);
+                this->action = JSON_CALLBACL_BUILD_STRING;
                 goto finish;
             default:
                 this->type = json::type_number;
-                this->action = std::bind(&json_builder::_build_numeric, this, std::placeholders::_1, std::placeholders::_2);
+                this->action = JSON_CALLBACK_BUILD_NUMERIC;
                 goto finish;
         }
     }
@@ -346,7 +356,7 @@ void manapi::json_builder::_build_numeric(std::string_view plain_text, size_t &j
             if (this->buffer.empty())
             {
                 // its true or false or null
-                this->action = std::bind(&json_builder::_build_numeric_string, this, std::placeholders::_1, std::placeholders::_2);
+                this->action = JSON_CALLBACK_BUILD_NUMERIC_STRING;
 
                 return;
             }
@@ -989,6 +999,34 @@ void manapi::json_builder::_check_part_object() {
     }
 }
 
+void manapi::json_builder::call_action_(const std::string_view &plain_text, size_t &j) {
+    switch (this->action) {
+        case JSON_CALLBACK_CHECK_TYPE:
+            this->_check_type((plain_text), j);
+            break;
+        case JSON_CALLBACL_BUILD_STRING:
+            this->_build_string((plain_text), j);
+            break;
+        case JSON_CALLBACK_BUILD_NUMERIC:
+            this->_build_numeric((plain_text), j);
+            break;
+        case JSON_CALLBACK_BUILD_NUMERIC_STRING:
+            this->_build_numeric_string((plain_text), j);
+            break;
+        case JSON_CALLBACK_BUILD_OBJECT:
+            this->_build_object((plain_text), j);
+            break;
+        case JSON_CALLBACK_BUILD_ARRAY:
+            this->_build_array((plain_text), j);
+            break;
+        case JSON_CALLBACK_CHECK_END:
+            this->_check_end((plain_text), j);
+            break;
+        default:
+            throw std::runtime_error("manapi::json_builder bug in call_action_(...)");
+    }
+}
+
 const manapi::json & manapi::json_builder::get_current_type() {
     if (this->current_types->is_array()) { return this->current_types->at(this->current_type); }
     return *this->current_types;
@@ -1049,5 +1087,5 @@ void manapi::json_builder::_reset() {
 
     this->_reset_type();
 
-    this->action = [this](std::string_view && PH1, size_t & PH2) -> void { _check_type(std::forward<decltype(PH1)>(PH1), PH2); };
+    this->action = JSON_CALLBACK_CHECK_TYPE;
 }

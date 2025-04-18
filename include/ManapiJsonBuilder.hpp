@@ -58,6 +58,7 @@ namespace manapi {
         void _check_array ();
 
         void _check_part_object ();
+        void call_action_(const std::string_view &plain_text, size_t &j);
 
         [[nodiscard]] const json &get_current_type ();
 
@@ -66,7 +67,7 @@ namespace manapi {
         json object;
         //json_mask mask;
         size_t i = 0;
-        std::function<void(std::string_view , size_t &j)> action;
+        int action;
 
         const json *current_types;
         size_t current_type;
