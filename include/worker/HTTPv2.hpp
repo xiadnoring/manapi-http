@@ -288,7 +288,7 @@ namespace manapi::net::worker {
         void session_worker (std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator it);
         std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator flush_io_stream (std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator it);
         void flush_io_streams ();
-        void io_call_callback (ev::async &w, int revents);
+        void io_call_callback (std::shared_ptr<ev::async> &w);
         void send_headers (http_v2_thread_data_t &stream);
         void enable_status_io (http_v2_thread_data_t &stream);
         void disable_status_io (http_v2_thread_data_t &stream);

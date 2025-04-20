@@ -96,7 +96,7 @@ void manapi::net::worker::TCP::init() {
 
     this->config->set_socket_fd(socket(this->local->ai_family, SOCK_STREAM, 0));
 
-    auto &fd = config->get_socket_fd();
+    auto &fd = this->config->get_socket_fd();
     if (fd < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "SOCKET ERROR");
     }
@@ -148,14 +148,9 @@ manapi::future<ssize_t> manapi::net::worker::TCP::response(worker::connection &c
     co_return rhs;
 }
 
-void manapi::net::worker::TCP::onrecv(ev::io &watcher, int revents) {
+void manapi::net::worker::TCP::onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) {
     if (this->config->max_connections() <= this->stacks.size()) {
-        watcher.priority = priority::lowcapacity;
         return;
-    }
-
-    if (watcher.priority != priority::onaccept) {
-        watcher.priority = priority::onaccept;
     }
 
     auto connection_optional = this->accept();
@@ -322,21 +317,21 @@ ssize_t manapi::net::worker::TCP::sync_write(worker::connection *conn, const voi
     return rhs;
 }
 
-manapi::future<std::shared_ptr<ev::io>> manapi::net::worker::TCP::async_watch_io(worker::connection *conn, int revents,
-    std::move_only_function<void(ev::io &w, int revents)> callback) {
+manapi::future<std::shared_ptr<manapi::ev::io>> manapi::net::worker::TCP::async_watch_io(worker::connection *conn, int revents,
+    manapi::ev::io_cb callback) {
     auto &connection = conn->as<connection_interface>();
     if (!connection.watcher) {
-        connection.watcher = co_await this->site.async_context()->eventloop()->watch_fd(conn->as<connection_interface>().id, revents, std::move(callback));
+        connection.watcher = co_await this->site.async_context()->eventloop()->watch_poll(conn->as<connection_interface>().id, revents, std::move(callback));
     }
     co_return connection.watcher;
 }
 
-std::shared_ptr<ev::io> manapi::net::worker::TCP::sync_watch_io(worker::connection *conn, int revents,
-    std::move_only_function<void(ev::io &w, int revents)> callback) {
+std::shared_ptr<manapi::ev::io> manapi::net::worker::TCP::sync_watch_io(worker::connection *conn, int revents,
+    ev::io_cb callback) {
     auto &connection = conn->as<connection_interface>();
     if (!connection.watcher) {
-        connection.watcher = this->site.async_context()->eventloop()->create_watcher_fd(connection.id, revents, std::move(callback));
-        connection.watcher->start();
+        connection.watcher = this->site.async_context()->eventloop()->create_watcher_socket(connection.id, std::move(callback));
+        connection.watcher->start(revents);
     }
     return connection.watcher;
 }
@@ -402,7 +397,7 @@ void manapi::net::worker::TCP::update_limit_rate_connection(connection &conn) {
     conn_data.stats.transfared_last_second.store(0);
     const auto flag = conn_data.status.load();
     if (conn_data.watcher && (!flag & CONN_CLOSED)
-        && !conn_data.watcher->is_active() && conn_data.watcher->data) { conn_data.watcher->start(); }
+        && !conn_data.watcher->is_active() && conn_data.watcher->data()) { conn_data.watcher->start(); }
     if (flag & CONN_LIMIT_RATE) { conn_data.status.fetch_xor(CONN_LIMIT_RATE); }
 }
 

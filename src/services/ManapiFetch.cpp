@@ -1,3 +1,5 @@
+#include "string.h"
+
 #include "services/ManapiFetch.hpp"
 
 #if MANAPIHTTP_CURL_DEPENDENCY
@@ -403,7 +405,7 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
     CURLcode res;
 
     try {
-        res = co_await async::promise<CURLcode> (this->data_->ctx->eventloop()->get_task_pool(), [this] (async::promise<CURLcode>::resolve_t resolve, async::promise<CURLcode>::reject_t reject) -> future<> {
+        res = co_await async::promise<CURLcode> (this->data_->ctx->eventloop()->taskpool(), [this] (async::promise<CURLcode>::resolve_t resolve, async::promise<CURLcode>::reject_t reject) -> future<> {
             try {
                 co_await this->data_->ctx->eventloop()->watch_curl(this->data_->curl, [resolve = std::move(resolve)] (CURLcode result)
                     -> void {

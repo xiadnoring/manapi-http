@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../ManapiUtils.hpp"
-#include "../extensions/ev++.h"
 #include <set>
 #include <stack>
 #include "../ManapiInt.hpp"
@@ -12,76 +11,60 @@
 #include "../async/ManapiAsyncPromise.hpp"
 #include "../components/Atomic.hpp"
 #include "../components/TimerObject.hpp"
+#include "../components/ManapiEventStructures.hpp"
+
 
 #if MANAPIHTTP_CURL_DEPENDENCY
 #   include <curl/curl.h>
 #endif
 
-namespace manapi {
-    namespace priority {
-        constexpr int important = 2;
-        constexpr int necessary = 1;
-        constexpr int irrevelant = 0;
-        constexpr int lowcapacity = -1;
-        constexpr int noneed = -2;
+namespace manapi::ev {
+    typedef std::move_only_function<void(std::shared_ptr<ev::async> &)> async_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::tcp> &w, int status)> tcp_accept_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::timer> &)> timer_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::prepare> &)> prepare_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::check> &)> check_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::idle> &)> idle_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::io> &, int status, int revents)> io_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::tcp> &, ssize_t nread, const uv_buf_t *buf)> tcp_connection_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::udp> &, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags)> udp_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::udp_send> &, int status)> udp_send_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::write> &, int status)> write_cb;
+}
 
-        constexpr int onaccept = important;
-        constexpr int timeout_timer = noneed;
-        constexpr int oncurl = irrevelant;
-    }
-
-    struct adding_watcher_data_t {
-        int flag{0};
-        int type{EV_IO};
-        std::shared_ptr<ev::io> w_io{nullptr};
-        std::shared_ptr<ev::async> w_async{nullptr};
-        std::shared_ptr<ev::timer> w_timer{nullptr};
-        async::promise<void>::resolve_t resolve{nullptr};
-    };
+namespace manapi::ev::internal {
 #if MANAPIHTTP_CURL_DEPENDENCY
-    struct adding_curl_data_t {
-        int flag{0};
-        std::shared_ptr<CURL> curl{nullptr};
-        std::move_only_function<void(CURLcode result)> finish{nullptr};
-        async::promise<void>::resolve_t resolve{nullptr};
-        async::promise<void>::reject_t reject{nullptr};
-    };
+    struct curl_watcher_data_cached_t;
 #endif
-    struct adding_timer_data_t {
+    struct async_watcher_t;
+#if MANAPIHTTP_CURL_DEPENDENCY
+    struct curl_res_value_t;
+    struct curl_watcher_t;
+    struct adding_curl_data_t;
+#endif
+    struct timer_watcher_t;
+    struct io_watcher_t;
+    struct custom_callback_t;
+    struct timerloop_t;
+
+    struct adding_timerloop_data_t {
         int flag{0};
         size_t data{0};
         std::move_only_function<void(manapi::timer t)> sync_cb{nullptr};
         std::move_only_function<manapi::future<>(manapi::timer t)> async_cb{nullptr};
-        async::promise<std::optional<manapi::timer>>::resolve_t resolve{nullptr};
-        async::promise<std::optional<manapi::timer>>::reject_t reject{nullptr};
+        manapi::async::promise<std::optional<manapi::timer>>::resolve_t resolve{nullptr};
+        manapi::async::promise<std::optional<manapi::timer>>::reject_t reject{nullptr};
     };
-    struct adding_custom_callback_data_t {
-        std::move_only_function<void(event_loop *ev)> cb;
-        async::promise<void, std::false_type>::resolve_t resolve{nullptr};
-        async::promise<void, std::false_type>::reject_t reject{nullptr};
-    };
+}
 
+namespace manapi {
     class event_loop {
-#if MANAPIHTTP_CURL_DEPENDENCY
-        struct curl_multi_deleter {
-            void operator()(CURLM *curl_multi) noexcept {
-                curl_multi_cleanup(curl_multi);
-            }
-        };
-#endif
-        template<class ev_>
-        struct custom_watcher_data_t {
-            std::shared_ptr<ev_> w;
-            std::move_only_function<void(ev_ &w, int revents)> cb;
-        };
     public:
         explicit event_loop(std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::logger> logger);
         ~event_loop();
         manapi::future<> start (std::shared_ptr<event_loop> le);
         void sync_start (std::shared_ptr<event_loop> le);
         void setup_handle_interrupt ();
-        template<typename T1, typename T2>
-        static void _ev_custom_watcher(EV_P_ T1 *w, int revents);
 
         manapi::future<> stop ();
 
@@ -91,35 +74,36 @@ namespace manapi {
         manapi::future<std::size_t> subscribe_clean_up (std::move_only_function<void()> cb);
         manapi::future<> unsubscribe_clean_up (std::size_t id);
 
-        ev::loop_ref get_loop();
+        manapi::ev::loop_ref loop();
 
-        std::shared_ptr<ev::io> create_watcher_fd (int fd, int flags, std::move_only_function<void(ev::io &w, int revents)> callback, int priority = 0);
-        std::shared_ptr<ev::async> create_watcher_async (std::move_only_function<void(ev::async &w, int revents)> callback);
-        std::shared_ptr<ev::timer> create_watcher_timer (const float &after, const int &repeat, std::move_only_function<void(ev::timer &w, int revents)> callback);
+        std::shared_ptr<ev::tcp> create_watcher_tcp_accept (ev::tcp_accept_cb callback);
+        std::shared_ptr<ev::tcp> create_watcher_tcp_connection (ev::tcp_connection_cb read);
+        std::shared_ptr<ev::udp> create_watcher_udp (ev::udp_cb recv);
+        std::shared_ptr<ev::io> create_watcher_fd (fd_t fd, ev::io_cb callback);
+        std::shared_ptr<ev::io> create_watcher_socket (socket_t sock, ev::io_cb callback);
+        std::shared_ptr<ev::async> create_watcher_async (ev::async_cb callback);
+        std::shared_ptr<ev::timer> create_watcher_timer (ev::timer_cb callback);
+        std::shared_ptr<ev::prepare> create_watcher_prepare (ev::prepare_cb callback);
 
         template<typename T>
-        void stop_watcher (T &w);
+        void stop_watcher (T *w) { perror("not implemented"); }
 
         template<typename T>
         void stop_watcher (std::shared_ptr<T> w);
 
-        template<typename T>
-        void callback_watcher (std::shared_ptr<T> w, std::move_only_function<void(T &, int)> cb);
+        void stop_watcher_tcp_accept (std::shared_ptr<ev::tcp> s);
+        void stop_watcher_tcp_connection (std::shared_ptr<ev::tcp> s);
 
-        future<std::shared_ptr<ev::io>> watch_fd (int fd, int flags, std::move_only_function<void(ev::io &w, int revents)> callback, int priority = 0);
-        future<void> unwatch_fd (std::shared_ptr<ev::io> w);
-
-        future<std::shared_ptr<ev::async>> watch_async (std::move_only_function<void(ev::async &w, int revents)> callback);
+        future<std::shared_ptr<ev::io>> watch_poll (fd_t fd, int flags, ev::io_cb callback);
+        future<void> unwatch_poll (std::shared_ptr<ev::io> w);
+        future<std::shared_ptr<ev::io>> watch_poll_socket (socket_t sock, int flags, ev::io_cb callback);
+        future<std::shared_ptr<ev::async>> watch_async (ev::async_cb callback);
         future<void> unwatch_async (std::shared_ptr<ev::async> w);
+        future<std::shared_ptr<ev::timer>> watch_timer (uint64_t delay, uint64_t repeat, ev::timer_cb cb);
         future<void> unwatch_timer (std::shared_ptr<ev::timer> w);
+        future<void> again_timer (uint64_t repeat, std::shared_ptr<ev::timer> w);
 
-        future<void> watch_fd (std::shared_ptr<ev::io> w);
-        future<void> watch_async (std::shared_ptr<ev::async> w);
-        future<void> watch_timer (std::shared_ptr<ev::timer> w);
-
-        future<void> again_timer (std::shared_ptr<ev::timer> w);
-
-        [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
+        [[nodiscard]] std::shared_ptr<threadpool<task>> taskpool () const;
 #if MANAPIHTTP_CURL_DEPENDENCY
         future<void> watch_curl (std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb);
         future<void> unwatch_curl (std::shared_ptr<CURL> curl);
@@ -136,135 +120,65 @@ namespace manapi {
         future<void> update_state_interval (size_t id);
         future<void> remove_timer (size_t id);
 
-        void set_timer_callback (std::move_only_function<std::optional<manapi::timer>(adding_timer_data_t data)> cb);
+        void callback_io_watcher (std::shared_ptr<ev::io> w, ev::io_cb cb);
+
+        void timer_callback (std::move_only_function<std::optional<manapi::timer>(ev::internal::adding_timerloop_data_t *data)> cb);
 
         static void interrupt ();
     protected:
-        enum watcher_status {
-            WATCHER_STATUS_WAIT = 0x0,
-            WATCHER_STATUS_PREPARE = 0b01,
-            WATCHER_STATUS_READY = 0b10
-        };
-        struct async_watcher_data_cached_t {
-            std::atomic<int> status{0};
-            std::unique_ptr<adding_watcher_data_t> data{nullptr};
-        };
-        struct timer_watcher_data_cached_t {
-            std::atomic<int> status{0};
-            std::unique_ptr<adding_timer_data_t> data{nullptr};
-        };
-
-        struct callback_watcher_data_cached_t {
-            std::atomic<int> status{0};
-            std::unique_ptr<adding_custom_callback_data_t> data{nullptr};
-        };
+        void custom_watcher_async_async (std::shared_ptr<ev::async>  &w);
+        void custom_watcher_timer_async (std::shared_ptr<ev::async>  &w);
+        void custom_watcher_poll_async (std::shared_ptr<ev::async>  &w);
 #if MANAPIHTTP_CURL_DEPENDENCY
-        struct curl_watcher_data_cached_t {
-            std::atomic<int> status{0};
-            std::unique_ptr<adding_curl_data_t> data{nullptr};
-        };
-#endif
-        struct async_watcher_t {
-            manapi::chain<std::unique_ptr<adding_watcher_data_t>> adding_watcher_data{};
-            std::shared_ptr<async::mutex> adding_watcher_mx;
-            std::shared_ptr <ev::async> adding_watcher_async;
-            std::move_only_function<void()> adding_watcher_async_cb{nullptr};
-            std::deque<async_watcher_data_cached_t> watcher_data_cached{};
-        };
-#if MANAPIHTTP_CURL_DEPENDENCY
-        struct curl_res_value_t {
-            std::shared_ptr<CURL> self;
-            std::move_only_function<void(CURLcode result)> finish;
-            std::shared_ptr<ev::io> watcher;
-        };
-        struct curl_watcher_t {
-            std::unique_ptr<CURLM, curl_multi_deleter> curl_multi{nullptr};
-            std::shared_ptr<async::mutex> curl_multi_mx{nullptr};
-            std::shared_ptr<ev::async> adding_curl_multi_async{nullptr};
-            manapi::chain<std::unique_ptr<adding_curl_data_t>> adding_curl_data{};
-
-            std::move_only_function<void()> adding_curl_async_cb{nullptr};
-            std::queue<std::shared_ptr<ev::io>> curl_fds{};
-            std::map<CURL*, curl_res_value_t> curl_res{};
-            std::shared_ptr<ev::timer> timeout_watcher{nullptr};
-            std::deque<curl_watcher_data_cached_t> watcher_data_cached{};
-            std::map<sd_t, std::shared_ptr<ev::io>> watchers;
-        };
-#endif
-        struct timer_watcher_t {
-            manapi::chain<std::unique_ptr<adding_timer_data_t>> adding_timer_data{};
-            std::shared_ptr<async::mutex> adding_timer_mx;
-            std::shared_ptr <ev::async> adding_timer_async;
-            std::move_only_function<void()> adding_timer_async_cb{nullptr};
-            std::move_only_function<std::optional<manapi::timer>(adding_timer_data_t data)> external_cb;
-            std::deque<timer_watcher_data_cached_t> watcher_data_cached{};
-        };
-        struct custom_callback_t {
-            manapi::chain<std::unique_ptr<adding_custom_callback_data_t>> callback_data{};
-            std::shared_ptr<async::mutex> adding_mx;
-            std::shared_ptr <ev::async> adding_async;
-            std::move_only_function<void()> adding_async_cb{nullptr};
-            std::deque<callback_watcher_data_cached_t> watcher_data_cached{};
-        };
-
-        void custom_watcher_fd_async (ev::async &w, int revents);
-#if MANAPIHTTP_CURL_DEPENDENCY
-        void custom_watcher_curl_async (ev::async &w, int revents);
+        void custom_watcher_curl_async (std::shared_ptr<ev::async>  &w);
         void handle_curl_exec_connections ();
         void handle_curl_check_connections ();
 #endif
-        void custom_watcher_timer_async (ev::async &w, int revents);
-        void custom_watcher_callback_async (ev::async &w, int revents);
+        void custom_watcher_timerloop_async (std::shared_ptr<ev::async> &w);
+        void custom_watcher_callback_async (std::shared_ptr<ev::async>  &w);
     private:
-        void handle_tasks_do_event (ev::prepare &w, int revents);
+        void handle_tasks_do_event (std::shared_ptr<ev::prepare> &w);
 #if MANAPIHTTP_CURL_DEPENDENCY
-        static std::shared_ptr<ev::io> handle_curl_watcher_gen(event_loop *data, sd_t fd,  int flags);
+        static std::shared_ptr<ev::io> handle_curl_watcher_gen(event_loop *data, socket_t fd);
         static curl_socket_t handle_curl_open_socket (void *cbp, curlsocktype type, curl_sockaddr *addr);
         static_assert(ev::READ == CURL_POLL_IN && ev::WRITE == CURL_POLL_OUT, "need for review");
         static int handle_curl_socket (CURL *curl, curl_socket_t fd, int revents, void *userp, void *);
         static int handle_curl_close_socket (void *cbp, curl_socket_t socket);
-        void handle_curl_watcher_data (std::unique_ptr<adding_curl_data_t> data);
+        void handle_curl_watcher_data(std::unique_ptr<ev::internal::adding_curl_data_t> data);
 #endif
-        void handle_async_watcher_data (std::unique_ptr<adding_watcher_data_t> data);
-        future<void> _template_cmd_watcher (std::unique_ptr<adding_watcher_data_t> data);
-#if MANAPIHTTP_CURL_DEPENDENCY
-        future<void> _template_cmd_curl (int flag, std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb = nullptr);
-#endif
-        future<std::optional<manapi::timer>> _template_cmd_timer (int flag, size_t data, std::move_only_function<manapi::future<>(manapi::timer t)> cb_async, std::move_only_function<void(manapi::timer t)> cb_sync);
+        future<std::optional<manapi::timer>> template_cmd_timer_ (int flag, size_t data, std::move_only_function<manapi::future<>(manapi::timer t)> cb_async, std::move_only_function<void(manapi::timer t)> cb_sync);
         static std::atomic<bool> interrupted;
         static std::map <size_t, std::shared_ptr<event_loop>> events;
         static std::mutex stop_mx;
 
-        void _pool(manapi::before_delete lk2, std::shared_ptr<event_loop> le);
+        void pool_(manapi::before_delete lk2, std::shared_ptr<event_loop> le);
         manapi::future<> _call_on_finish_cb ();
-        void _free_on_finish_cb ();
+        void free_on_finish_cb_ ();
         void stop_pool (async::promise<void>::resolve_t resolve);
-        void _async_break_loop (ev::async &watcher, int revents);
+        void async_break_loop_ (std::shared_ptr<ev::async> watcher);
 
         bool status;
         std::shared_ptr<async::mutex> mx;
         std::shared_ptr<async::mutex> map_finish_cb_mx;
         std::shared_ptr<async::mutex> map_clean_up_cb_mx;
-        ev::dynamic_loop loop;
-#ifdef _WIN32
-        uint32_t loop_thread_id{0};
-#else
-        std::thread::id loop_thread_id{0};
-#endif
-        std::shared_ptr<threadpool<task>> taskpool;
+        uv_loop_t loop_;
+        std::shared_ptr<threadpool<task>> taskpool_;
         std::map <size_t, std::move_only_function<manapi::future<void>()>> map_finish_cb;
         std::map <size_t, std::move_only_function<void()>> map_clean_up_cb;
         std::shared_ptr<ev::async> interrupted_watcher_{nullptr};
         std::shared_ptr<ev::async> stop_watcher_{nullptr};
         async::promise<void>::resolve_t resolve_stop{nullptr};
-        std::atomic<bool> loop_interrupte1d;
-        async_watcher_t async_watcher{};
+        std::atomic<bool> loop_interrupted;
+
+        std::unique_ptr<ev::internal::io_watcher_t> io_watcher;
+        std::unique_ptr<ev::internal::async_watcher_t> async_watcher;
+        std::unique_ptr<ev::internal::timer_watcher_t> timer_watcher;
 #if MANAPIHTTP_CURL_DEPENDENCY
-        curl_watcher_t curl_watcher{};
+        std::unique_ptr<ev::internal::curl_watcher_t> curl_watcher;
 #endif
-        timer_watcher_t timer_watcher{};
-        custom_callback_t callback_watcher_{};
-        ev::prepare prepare_watcher;
+        std::unique_ptr<ev::internal::timerloop_t> timerloop;
+        std::unique_ptr<ev::internal::custom_callback_t> callback_watcher_{};
+        std::shared_ptr<ev::prepare> do_tasks_watcher;
         std::shared_ptr<manapi::logger> logger_;
     };
 }

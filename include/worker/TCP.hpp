@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../ManapiUtils.hpp"
-#include "../extensions/ev++.h"
 
 #if defined(__unix__)||defined(__APPLE__)
 #   include <netdb.h>
@@ -15,7 +14,6 @@
 namespace manapi::net::worker {
     class TCP : public worker::base {
     public:
-#pragma pack(push,16)
         struct connection_stat_interface {
             std::atomic<ssize_t> total_write = 0;
             std::atomic<ssize_t> total_read = 0;
@@ -25,11 +23,8 @@ namespace manapi::net::worker {
             size_t time_ms = 0;
             std::shared_ptr<ev::io> watcher;
         };
-#pragma pack(pop)
-
-#pragma pack(push,16)
         struct connection_interface {
-            sd_t id{};
+            socket_t id;
             manapi::timer t;
             net::site *site;
             std::shared_ptr<worker::base> worker;
@@ -39,7 +34,6 @@ namespace manapi::net::worker {
             async::cancellation_action iocancel;
             std::shared_ptr<ev::io> watcher;
         };
-#pragma pack(pop)
 
         struct connection_io_await {
             std::function<void()> &iohandle;
@@ -71,7 +65,7 @@ namespace manapi::net::worker {
         void init () override;
         future<bool> configure_connection (std::shared_ptr<worker::connection> connection) override;
         future<ssize_t> response(worker::connection &connection, http::response &resp, bool finish) override;
-        void onrecv(ev::io &watcher, int revents) override;
+        void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) override;
         static std::shared_ptr<worker::TCP> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
@@ -82,8 +76,8 @@ namespace manapi::net::worker {
         void connection_cancel(std::shared_ptr<connection> conn) override;
         ssize_t sync_read(worker::connection *conn, void *buff, ssize_t size) override;
         ssize_t sync_write(worker::connection *conn, const void *buff, ssize_t size) override;
-        manapi::future<std::shared_ptr<ev::io>> async_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)> callback) override;
-        std::shared_ptr<ev::io> sync_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)> callback) override;
+        manapi::future<std::shared_ptr<ev::io>> async_watch_io(worker::connection *conn, int revents, manapi::ev::io_cb callback) override;
+        std::shared_ptr<ev::io> sync_watch_io(worker::connection *conn, int revents, manapi::ev::io_cb callback) override;
     protected:
         virtual void recv_setup_connection (manapi::net::worker::connection &storage);
         void update_limit_rate ();

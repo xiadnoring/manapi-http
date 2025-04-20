@@ -78,7 +78,7 @@ namespace manapi::net::worker {
 
         explicit http_v3_tquic(net::site &site);
         ~http_v3_tquic() override;
-        void onrecv(ev::io &watcher, int revents) override;
+        void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) override;
         void init() override;
         static std::shared_ptr<http_v3_tquic> create(net::site &site, std::shared_ptr<manapi::net::http::config> config);
         future<ssize_t> response(worker::connection &connection, http::response &resp, bool finish) override;

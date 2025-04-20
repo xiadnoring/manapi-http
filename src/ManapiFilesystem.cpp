@@ -18,6 +18,7 @@
 #endif
 
 #include <fcntl.h>
+#include <cstring>
 
 #include "ManapiBeforeDelete.hpp"
 
@@ -145,10 +146,11 @@ manapi::future<> manapi::filesystem::async_write(std::shared_ptr<manapi::async::
             std::string_view data (buffer.data(), written);
 
             co_await async::promise<void> (ctx, [cancellation, &buffer, fd, ctx, &data, cb = std::move(cb)](async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) mutable -> future<> {
-                auto watcher = co_await ctx->eventloop()->watch_fd(fd, ev::WRITE, [&buffer, &data, resolve = std::move(resolve), reject = std::move(reject), ctx, cb = std::move(cb)] (ev::io &w, int revents) mutable  -> void {
+                auto watcher = co_await ctx->eventloop()->watch_poll(fd, ev::WRITE, [&buffer, &data, resolve = std::move(resolve), reject = std::move(reject), ctx, cb = std::move(cb)]
+                    (std::shared_ptr<ev::io> &w, int status, int revents) mutable  -> void {
                     if (revents & ev::WRITE) {
                         if (!data.empty()) {
-                            auto rhs = ::write(w.fd, data.data(), data.size());
+                            auto rhs = ::write(w->custom()->io_watcher.fd, data.data(), data.size());
 
                             if (rhs <= 0) {
                                 auto _reject = std::move(reject);
@@ -185,7 +187,7 @@ manapi::future<> manapi::filesystem::async_write(std::shared_ptr<manapi::async::
 
                 if (cancellation) {
                     (*cancellation) = [ctx, watcher]() -> future<void> {
-                        co_await ctx->eventloop()->unwatch_fd(watcher);
+                        co_await ctx->eventloop()->unwatch_poll(watcher);
                     };
                 }
             });
@@ -266,9 +268,10 @@ manapi::future<> manapi::filesystem::async_read(std::shared_ptr<manapi::async::c
         buffer.reserve(BUFSIZ);
 
         co_await async::promise<void> (ctx, [cancellation, fd, ctx, &buffer, cb = std::move(cb)] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
-            auto watcher = co_await ctx->eventloop()->watch_fd(fd, ev::READ, [&buffer, resolve = std::move(resolve), reject = std::move(reject), ctx, cb = std::move(cb)] (ev::io &w, int revents) mutable  -> void {
+            auto watcher = co_await ctx->eventloop()->watch_poll(fd, ev::READ, [&buffer, resolve = std::move(resolve), reject = std::move(reject), ctx, cb = std::move(cb)]
+                (std::shared_ptr<ev::io> &w, int status, int revents) mutable  -> void {
                 if (revents & ev::READ) {
-                    auto rhs = ::read(w.fd, buffer.data(), BUFSIZ);
+                    auto rhs = ::read(w->custom()->io_watcher.fd, buffer.data(), BUFSIZ);
 
                     if (rhs < 0) {
                         auto _reject = std::move(reject);
@@ -313,7 +316,7 @@ manapi::future<> manapi::filesystem::async_read(std::shared_ptr<manapi::async::c
 
             if (cancellation) {
                 (*cancellation) = [ctx, watcher]() -> future<void> {
-                    co_await ctx->eventloop()->unwatch_fd(watcher);
+                    co_await ctx->eventloop()->unwatch_poll(watcher);
                 };
             }
         });

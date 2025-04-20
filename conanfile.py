@@ -98,7 +98,7 @@ class ManapiHttpConan(ConanFile):
         fix_apple_shared_install_name(self)
 
     def requirements(self):
-        self.requires("libev/4.33")
+        self.requires("libuv/1.49.2")
 
         if not self.options.get_safe('lib', False):
             self.requires("libpq/15.5")
@@ -120,7 +120,7 @@ class ManapiHttpConan(ConanFile):
             self.requires("wolfssl/[>=5.0.0]")
 
         if self.options.get_safe('quiche_dependency', False):
-            self.requires("quiche/[>=0.23.4]")
+            self.requires("quiche/[>=0.24.0]")
 
         if self.options.get_safe('tquic_dependency', False):
             self.requires("tquic/[>=1.6.0]")

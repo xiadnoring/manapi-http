@@ -60,12 +60,9 @@ namespace manapi::filesystem {
         [[nodiscard]] bool eof () const;
     private:
         void _seekg (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START) const;
-        static void _event (ev::io &w, int revents, const std::shared_ptr<fstream_data_t_> &data);
-#ifdef _WIN32
-        static future<> _close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, SOCKET fd);
-#else
-        static future<> _close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, int fd);
-#endif
+        static void _event (std::shared_ptr<ev::io> &w, int status, int revents, const std::shared_ptr<fstream_data_t_> &data);
+
+        static future<> _close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, fd_t fd);
 
         std::shared_ptr<fstream_data_t_> data;
     };

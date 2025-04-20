@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <functional>
-#include "../extensions/ev++.h"
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiHttpConfig.hpp"
@@ -69,7 +68,7 @@ namespace manapi::net::worker {
         virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
         virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
 
-        virtual void onrecv (ev::io &watcher, int revents);
+        virtual void onrecv (std::shared_ptr<ev::io> &watcher, int status, int revents);
 
         base &operator= (base &&n) noexcept;
 
@@ -85,8 +84,8 @@ namespace manapi::net::worker {
         virtual ssize_t sync_write (worker::connection *conn, const void *buff, ssize_t size);
         virtual ssize_t sync_read (worker::connection *conn, void *buff, ssize_t size);
 
-        virtual std::shared_ptr<ev::io> sync_watch_io (worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)>);
-        virtual manapi::future<std::shared_ptr<ev::io>> async_watch_io (worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)>);
+        virtual std::shared_ptr<ev::io> sync_watch_io (worker::connection *conn, int revents, ev::io_cb callback);
+        virtual manapi::future<std::shared_ptr<ev::io>> async_watch_io (worker::connection *conn, int revents, ev::io_cb callback);
 
         std::function<future<ssize_t>(connection &conn, const void *buff, ssize_t size, bool finish)> write;
         std::function<future<ssize_t>(connection &conn, void *buff, ssize_t size)> read;

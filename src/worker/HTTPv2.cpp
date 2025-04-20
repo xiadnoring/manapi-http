@@ -83,14 +83,14 @@ manapi::net::worker::http_v2::~http_v2() {
 
 
 void manapi::net::worker::http_v2::set_watcher_event(int revents) {
-    if (!(this->watcher->events & revents)) {
-        this->watcher->set(this->watcher->events | revents);
+    if (!(this->watcher->events() & revents)) {
+        this->watcher->restart(this->watcher->events() | revents);
     }
 }
 
 void manapi::net::worker::http_v2::remove_watcher_event(int revents) {
-    if ((this->watcher->events & revents)) {
-        this->watcher->set(this->watcher->events ^ revents);
+    if ((this->watcher->events() & revents)) {
+        this->watcher->restart(this->watcher->events() ^ revents);
     }
 }
 
@@ -127,11 +127,10 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
             this->ping_interval = this->site.async_context()->timerpool()->append_interval_sync(this->config->speed_check_delay(), [this, dep = this->new_dependency()] (manapi::timer t)
             -> void { this->timer_watcher(dep); });
 
-            this->io_call_watcher = this->site.async_context()->eventloop()->create_watcher_async([this] (ev::async &w, int &&revents)
-                -> void { io_call_callback(w, std::forward<decltype(revents)>(revents)); });
-            this->io_call_watcher->start();
+            this->io_call_watcher = this->site.async_context()->eventloop()->create_watcher_async([this] (std::shared_ptr<ev::async> &w)
+                -> void { io_call_callback(w); });
 
-            this->watcher = this->worker->sync_watch_io (this->connection.get(), ev::READ, [this] (ev::io &w, int revents)
+            this->watcher = this->worker->sync_watch_io (this->connection.get(), ev::READ, [this] (std::shared_ptr<ev::io> &w, int status, int revents)
                 -> void {
                 try {
                     if (revents & ev::WRITE) {
@@ -169,12 +168,12 @@ manapi::future<void> manapi::net::worker::http_v2::parse_request(ssize_t j, ssiz
 
                             handle_callback_watcher ();
 
-                            if (!w.data) { return; }
+                            if (!w->data()) { return; }
                         }
                     }
                 }
                 catch (...) {
-                    if (!w.data) { return; }
+                    if (!w->data()) { return; }
                 }
 
                 if (this->watcher) {
@@ -1405,9 +1404,9 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
         });
 
         // this->site.async_context()->eventloop()->stop_watcher(this->watcher);
-        this->site.async_context()->eventloop()->callback_watcher<ev::io>(this->watcher, [this] (ev::io &w, int revents)
+        this->site.async_context()->eventloop()->callback_io_watcher (this->watcher, [this] (std::shared_ptr<ev::io> &w, int status, int revents)
             -> void {
-            this->watcher->set(ev::WRITE);
+            this->watcher->restart(ev::WRITE);
 
             try {
                 this->flush_write_buffer();
@@ -1427,7 +1426,7 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
             }
         });
 
-        this->watcher->set(ev::READ|ev::WRITE);
+        this->watcher->restart(ev::READ|ev::WRITE);
 
         try {
             std::string buffer;
@@ -1741,7 +1740,7 @@ void manapi::net::worker::http_v2::flush_io_streams() {
     }
 }
 
-void manapi::net::worker::http_v2::io_call_callback(ev::async &w, int revents) {
+void manapi::net::worker::http_v2::io_call_callback(std::shared_ptr<ev::async> &w) {
     this->flush_io_streams();
 }
 

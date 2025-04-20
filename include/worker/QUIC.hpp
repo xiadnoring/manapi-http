@@ -23,7 +23,7 @@ namespace manapi::net::worker {
         quic (net::site &site);
         ~quic ();
         void init ();
-        void onrecv(ev::io &watcher, int revents) override;
+        void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) override;
         static std::shared_ptr<worker::quic> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
 
 

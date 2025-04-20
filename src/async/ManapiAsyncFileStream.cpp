@@ -25,7 +25,7 @@ manapi::filesystem::fstream::fstream(const std::shared_ptr<event_loop> &eventloo
     this->data = std::make_shared<fstream_data_t_>(
         -1,
         std::string{path},
-        eventloop->get_task_pool(),
+        eventloop->taskpool(),
         eventloop
     );
 }
@@ -76,8 +76,8 @@ manapi::future<> manapi::filesystem::fstream::open(int flags, unsigned int mode)
     }
 
     if (this->data->fd >= 0) {
-        this->data->watcher = co_await this->data->eventloop->watch_fd(this->data->fd, ev_flags, [data = this->data] (ev::io &w, int revents)
-            -> void { fstream::_event(w, revents, data); }, -1);
+        this->data->watcher = co_await this->data->eventloop->watch_poll(this->data->fd, ev_flags, [data = this->data] (std::shared_ptr<ev::io> &w, int status, int revents)
+            -> void { fstream::_event(w, status, revents, data); });
     }
 }
 
@@ -213,7 +213,7 @@ void manapi::filesystem::fstream::_seekg(const ssize_t &pos, const seek_flag_t &
 #endif
 }
 
-void manapi::filesystem::fstream::_event(ev::io &w, int revents, const std::shared_ptr<fstream_data_t_> &data) {
+void manapi::filesystem::fstream::_event(std::shared_ptr<ev::io> &w, int status, int revents, const std::shared_ptr<fstream_data_t_> &data) {
     if ((revents & ev::READ) && (data->status & FILE_READ)) {
         data->status.fetch_xor(FILE_READ);
         data->taskpool->append_task([resolve = std::move(data->r_resolve)] ()
@@ -227,9 +227,9 @@ void manapi::filesystem::fstream::_event(ev::io &w, int revents, const std::shar
     }
 }
 #ifdef _WIN32
-manapi::future<> manapi::filesystem::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, SOCKET fd) {
+manapi::future<> manapi::filesystem::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, fd_t fd) {
     if (w) {
-        co_await ev->unwatch_fd(std::move(w));
+        co_await ev->unwatch_poll(std::move(w));
     }
 
     if (fd >= 0) {
@@ -237,9 +237,9 @@ manapi::future<> manapi::filesystem::fstream::_close(std::shared_ptr<event_loop>
     }
 }
 #else
-manapi::future<> manapi::filesystem::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, int fd) {
+manapi::future<> manapi::filesystem::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, fd_t fd) {
     if (w) {
-        co_await ev->unwatch_fd(std::move(w));
+        co_await ev->unwatch_poll(std::move(w));
     }
 
     if (fd >= 0) {

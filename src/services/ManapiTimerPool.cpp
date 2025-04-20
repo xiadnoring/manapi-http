@@ -6,17 +6,17 @@
 #include "services/ManapiTaskFunction.hpp"
 
 manapi::timerpool::timerpool(std::shared_ptr<event_loop> events, const double &delay) {
-    this->cv = std::make_shared<async::condition_variable>(events->get_task_pool());
-    this->smx = std::make_shared<async::mutex>(events->get_task_pool());
-    this->taskpool = events->get_task_pool();
+    this->cv = std::make_shared<async::condition_variable>(events->taskpool());
+    this->smx = std::make_shared<async::mutex>(events->taskpool());
+    this->taskpool = events->taskpool();
     this->events = std::move(events);
     this->delay = delay;
     this->deps.store(0);
     this->_stop.store(true);
     this->timer = nullptr;
 
-    this->events->set_timer_callback([this] (adding_timer_data_t &&data)
-        -> std::optional<manapi::timer> { return this->_cb_event(std::forward<decltype(data)>(data)); });
+    this->events->timer_callback([this] (manapi::ev::internal::adding_timerloop_data_t *data)
+        -> std::optional<manapi::timer> { return this->_cb_event(data); });
 }
 
 manapi::timerpool::~timerpool() {
@@ -82,12 +82,11 @@ manapi::future<void> manapi::timerpool::start(std::shared_ptr<timerpool> tp) {
     this->finish_event = co_await this->events->subscribe_finish([tp] ()
         -> future<> { co_await tp->stop_(true); });
 
-    this->timer = this->events->create_watcher_timer(0, 0, [this, tp] (ev::timer &w, int revents)
-        -> void { this->_start(); w.repeat = this->delay; w.again(); });
+
+    this->timer = co_await this->events->watch_timer(0, 0, [this, tp] (std::shared_ptr<ev::timer> &w)
+        -> void { this->_start(); w->repeat(this->delay); w->again(); });
 
     this->deps.fetch_add(1);
-
-    co_await this->events->watch_timer(this->timer);
 }
 
 manapi::future<void> manapi::timerpool::stop () {
@@ -202,32 +201,33 @@ std::shared_ptr<manapi::threadpool<manapi::task>> manapi::timerpool::get_task_po
     return this->taskpool;
 }
 
-std::optional<manapi::timer> manapi::timerpool::_cb_event(adding_timer_data_t data) {
-    switch (data.flag) {
+std::optional<manapi::timer> manapi::timerpool::_cb_event(void *data1) {
+    auto data = static_cast<manapi::ev::internal::adding_timerloop_data_t *> (data1);
+    switch (data->flag) {
         case 0: {
-            if (data.async_cb) {
-                return this->append_timer_async(data.data, std::move(data.async_cb));
+            if (data->async_cb) {
+                return this->append_timer_async(data->data, std::move(data->async_cb));
             }
-            if (data.sync_cb) {
-                return this->append_timer_sync(data.data, std::move(data.sync_cb));
+            if (data->sync_cb) {
+                return this->append_timer_sync(data->data, std::move(data->sync_cb));
             }
             break;
         }
         case 1: {
-            if (data.async_cb) {
-                return this->append_interval_async(data.data, std::move(data.async_cb));
+            if (data->async_cb) {
+                return this->append_interval_async(data->data, std::move(data->async_cb));
             }
-            if (data.sync_cb) {
-                return this->append_interval_sync(data.data, std::move(data.sync_cb));
+            if (data->sync_cb) {
+                return this->append_interval_sync(data->data, std::move(data->sync_cb));
             }
             break;
         }
         case 2: {
-            this->remove_timer(data.data);
+            this->remove_timer(data->data);
             break;
         }
         case 3: {
-            this->_update_interval_state(data.data);
+            this->_update_interval_state(data->data);
             break;
         }
         default:

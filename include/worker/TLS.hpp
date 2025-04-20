@@ -27,8 +27,8 @@ namespace manapi::net::worker {
         int status (connection &conn) override;
         ssize_t sync_read(worker::connection *conn, void *buff, ssize_t size) override;
         ssize_t sync_write(worker::connection *conn, const void *buff, ssize_t size) override;
-        manapi::future<std::shared_ptr<ev::io>> async_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)> callback) override;
-        std::shared_ptr<ev::io> sync_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)>) override;
+        manapi::future<std::shared_ptr<ev::io>> async_watch_io(worker::connection *conn, int revents, ev::io_cb callback) override;
+        std::shared_ptr<ev::io> sync_watch_io(worker::connection *conn, int revents, ev::io_cb callback) override;
     protected:
         int  ssl_error_none_, ssl_error_want_read_,
         ssl_error_want_write_, ssl_error_zero_return_,

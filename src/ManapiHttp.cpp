@@ -139,8 +139,8 @@ manapi::future<> manapi::net::http::server::_init_pool() {
 }
 
 manapi::future<void> manapi::net::http::server::_pool(const std::function<void()> &cb) {
-    this->data2->init_watcher = co_await this->data->ctx->eventloop()->watch_async([cb] (ev::async &w, int revents) -> void {
-        w.stop();
+    this->data2->init_watcher = co_await this->data->ctx->eventloop()->watch_async([cb] (std::shared_ptr<ev::async> &w) -> void {
+        w->unbind();
         cb();
     });
 

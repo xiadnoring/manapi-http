@@ -2,7 +2,6 @@
 #include <memory>
 
 #include "ManapiInitTools.hpp"
-#include "extensions/ev++.h"
 
 static std::atomic<bool> openssl_gl_init = false;
 
@@ -30,14 +29,14 @@ void manapi::init_tools::ssl_library_init() {
     }
 }
 void manapi::init_tools::ev_library_init() {
-    ev::set_allocator([] (void *ptr, long size) noexcept
-        -> void * {
-        if (ptr) {
-            return ::realloc(ptr, size);
-        }
-
-        return ::malloc(size);
-    });
+    // ev::set_allocator([] (void *ptr, long size) noexcept
+    //     -> void * {
+    //     if (ptr) {
+    //         return ::realloc(ptr, size);
+    //     }
+    //
+    //     return ::malloc(size);
+    // });
 }
 
 void manapi::init_tools::curl_library_init() {

@@ -5,6 +5,7 @@
 #include <set>
 #include <map>
 
+#include "../components/ManapiEventStructures.hpp"
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
 #include "./ManapiEventLoop.hpp"
@@ -51,7 +52,7 @@ namespace manapi {
         [[nodiscard]] std::shared_ptr<threadpool<task>> get_task_pool () const;
     protected:
         future<void> stop_ (bool evloop);
-        std::optional<manapi::timer> _cb_event (struct adding_timer_data_t data);
+        std::optional<manapi::timer> _cb_event (void *data);
         void _erase_task (const size_t &id);
         storage::iterator _erase_task (storage::iterator task);
         sorted_storage::iterator _erase_task (sorted_storage::iterator sorted_task);
@@ -72,7 +73,7 @@ namespace manapi {
         std::shared_ptr<threadpool<task>> taskpool{nullptr};
         std::shared_ptr<async::mutex> smx;
         std::atomic<bool> _stop = false;
-        double delay{};
+        uint64_t delay{};
         std::shared_ptr<ev::timer> timer;
         size_t finish_event{0};
         bool timer_loop_running = false;

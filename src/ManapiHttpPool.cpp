@@ -60,45 +60,42 @@ manapi::future<void> manapi::net::http_pool::_pool() {
 
     MANAPIHTTP_LOG(this->site->async_context(), "pool start #{}", id);
 
-
-    this->watcher = std::make_shared <ev::io> (this->events->get_loop());
-
-    {
-        auto implementation = config->get_implementation();
-        auto transport = config->get_transport();
-        auto implementations = site->transport_protocol_worker(*transport);
-
-        if (implementations.contains(*implementation))
+    co_await this->events->custom_callback([&] (event_loop *ev) -> void {
         {
-            auto generate = implementations[*implementation];
-            this->worker = generate (this->config);
-            this->worker->watcher = this->watcher;
-            this->worker->le = this->events;
-            this->worker->worker = std::weak_ptr<worker::base> (this->worker);
-            this->worker->init();
-        }
-        else
-        {
-            std::string available;
-            if (!implementations.empty()) {
-                auto it = implementations.begin();
-                goto skip;
-                for (; it != implementations.end(); ++it) {
-                    available += ',';
-                    skip:
-                    available += it->first;
-                }
+            auto implementation = config->get_implementation();
+            auto transport = config->get_transport();
+            auto implementations = site->transport_protocol_worker(*transport);
+
+            if (implementations.contains(*implementation))
+            {
+                auto generate = implementations[*implementation];
+                this->worker = generate (this->config);
+                this->worker->watcher = nullptr;
+                this->worker->le = this->events;
+                this->worker->worker = std::weak_ptr<worker::base> (this->worker);
+                this->worker->init();
             }
-            MANAPIHTTP_LOG(this->site->async_context(), "implementation by {} not found in {}. Available: [{}]", *implementation, *transport, available);
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "implementation not found");
+            else
+            {
+                std::string available;
+                if (!implementations.empty()) {
+                    auto it = implementations.begin();
+                    goto skip;
+                    for (; it != implementations.end(); ++it) {
+                        available += ',';
+                        skip:
+                        available += it->first;
+                    }
+                }
+                MANAPIHTTP_LOG(this->site->async_context(), "implementation by {} not found in {}. Available: [{}]", *implementation, *transport, available);
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "implementation not found");
+            }
         }
-    }
 
-    this->watcher->set <worker::base, &worker::base::onrecv> (this->worker.get());
-    this->watcher->priority = priority::onaccept;
-    this->watcher->set(config->get_socket_fd(), ev::READ);
-
-    co_await this->events->watch_fd(this->watcher);
+        this->watcher = ev->create_watcher_socket(this->config->get_socket_fd(), [this] (std::shared_ptr<ev::io> &w, int status, int revents)
+            -> void { this->worker->onrecv(w, status, revents); });
+        this->watcher->start(ev::READ);
+    });
 }
 
 manapi::net::site & manapi::net::http_pool::get_site() const {

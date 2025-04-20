@@ -22,7 +22,7 @@ namespace manapi::net::worker {
         ~openssl_quic() override;
         void init() override;
         static std::shared_ptr<worker::openssl_quic> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
-        void onrecv(ev::io &watcher, int revents) override;
+        void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) override;
     private:
         SSL_CTX *ctx{nullptr};
     };

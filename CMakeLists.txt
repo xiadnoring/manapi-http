@@ -42,7 +42,7 @@ endif ()
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     message(STATUS "Build method: conan")
 
-    find_package(libev REQUIRED)
+    find_package(libuv REQUIRED)
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
         find_package(gmp REQUIRED)
@@ -84,7 +84,9 @@ else ()
     find_package(PkgConfig REQUIRED)
 
     # include finders
-    include(./cmake/FindLibev.cmake)
+    # include(./cmake/FindLibev.cmake)
+
+    pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv)
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
         pkg_check_modules(GMP gmp)
@@ -326,6 +328,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/worker/TLS.hpp
         src/async/ManapiAsyncLogger.cpp
         include/async/ManapiAsyncLogger.hpp
+        include/components/ManapiEventStructures.hpp
+        src/components/ManapiEventStructures.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
@@ -361,7 +365,7 @@ find_package(Threads)
 target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
-    target_link_libraries (${PROJECT_NAME} PUBLIC libev::libev)
+    target_link_libraries (${PROJECT_NAME} PUBLIC uv)
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
         target_link_libraries(${PROJECT_NAME} PUBLIC PostgreSQL::PostgreSQL cpptrace::cpptrace)
@@ -397,8 +401,8 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
 
     add_compile_definitions(MANAPIHTTP_CPPTRACE_DEPENDENCY=True)
 else ()
-    target_link_libraries       (${PROJECT_NAME} PUBLIC ${LIBEV_LIBRARIES})
-    target_include_directories  (${PROJECT_NAME} PUBLIC ${LIBEV_INCLUDE_DIRS})
+    target_link_libraries       (${PROJECT_NAME} PUBLIC PkgConfig::LIBUV)
+    target_include_directories  (${PROJECT_NAME} PUBLIC ${LIBUV_INCLUDE_DIRS})
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES})

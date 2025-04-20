@@ -24,12 +24,12 @@ std::shared_ptr<manapi::net::worker::openssl_quic> manapi::net::worker::openssl_
     return std::move(worker);
 }
 
-void manapi::net::worker::openssl_quic::onrecv(ev::io &watcher, int revents) {
-    if (revents & EV_READ) {
+void manapi::net::worker::openssl_quic::onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) {
+    if (revents & ev::READ) {
 
     }
 
-    if (revents & EV_WRITE) {
+    if (revents & ev::WRITE) {
 
     }
 }

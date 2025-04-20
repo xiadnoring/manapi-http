@@ -1,3 +1,5 @@
+#include "memory.h"
+#include "string.h"
 #include "components/SmartBuffer.hpp"
 
 #include "ManapiUtils.hpp"

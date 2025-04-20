@@ -45,12 +45,12 @@ void manapi::net::worker::quic::init() {
     // std::cout << crypto::strdec2strhex(_stringify_length_number (1073741824)) << " "  << (crypto::strdec2strhex(_stringify_length_number (1073741824)) == "C000000040000000") << "\n";
 }
 
-void manapi::net::worker::quic::onrecv(ev::io &watcher, int revents) {
+void manapi::net::worker::quic::onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) {
     while (true) {
         sockaddr_storage sockaddr_src{};
         socklen_t sockaddr_len = sizeof (sockaddr_src);
         memset(&sockaddr_src, '\0', sockaddr_len);
-        ssize_t rhs = ::recvfrom(watcher.fd, this->gbuffer.data(), this->gbuffer_size, 0, reinterpret_cast <sockaddr *>(&sockaddr_src), &sockaddr_len);
+        ssize_t rhs = ::recvfrom(watcher->custom()->io_watcher.fd, this->gbuffer.data(), this->gbuffer_size, 0, reinterpret_cast <sockaddr *>(&sockaddr_src), &sockaddr_len);
         if (rhs < 0) {
             return;
         }
@@ -59,7 +59,7 @@ void manapi::net::worker::quic::onrecv(ev::io &watcher, int revents) {
 
         if (frame_data.has_value()) {
             async::run(this->site.async_context(),
-                this->_work(watcher.fd, sockaddr_src, sockaddr_len, std::move(frame_data.value())));
+                this->_work(watcher->custom()->io_watcher.fd, sockaddr_src, sockaddr_len, std::move(frame_data.value())));
         }
     }
 }

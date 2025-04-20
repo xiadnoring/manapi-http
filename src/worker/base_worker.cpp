@@ -42,7 +42,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
 
 std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::accept() { return this->accept([] () -> std::shared_ptr<connection> { return {nullptr, [] (void *ptr) -> void { }}; }); }
 
-void manapi::net::worker::base::onrecv(ev::io &watcher, int revents) {}
+void manapi::net::worker::base::onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) {}
 
 manapi::future<ssize_t> manapi::net::worker::base::fwrite(connection &conn,const void *buff, ssize_t size, bool finish) {
     ssize_t total = 0;
@@ -97,11 +97,11 @@ ssize_t manapi::net::worker::base::sync_read(worker::connection *conn, void *buf
     return -1;
 }
 
-std::shared_ptr<ev::io> manapi::net::worker::base::sync_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)>) {
+std::shared_ptr<manapi::ev::io> manapi::net::worker::base::sync_watch_io(worker::connection *conn, int revents, ev::io_cb callback) {
     THROW_MANAPIHTTP_EXCEPTION2 (ERR_ALGORITHM_NO_SUPPORT, "This class doesn't support sync_watch_io(...)");
 }
 
-manapi::future<std::shared_ptr<ev::io>> manapi::net::worker::base::async_watch_io(worker::connection *conn, int revents, std::move_only_function<void(ev::io &w, int revents)>) {
+manapi::future<std::shared_ptr<manapi::ev::io>> manapi::net::worker::base::async_watch_io(worker::connection *conn, int revents, ev::io_cb callback) {
     THROW_MANAPIHTTP_EXCEPTION2 (ERR_ALGORITHM_NO_SUPPORT, "This class doesn't support async_watch_io(...)"); co_return nullptr;
 }
 

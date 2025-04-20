@@ -34,7 +34,7 @@ manapi::net::worker::http_v3_tquic::~http_v3_tquic() {
     http3_config_free(this->_quic_h3_config);
 }
 
-void manapi::net::worker::http_v3_tquic::onrecv(ev::io &watcher, int revents) {
+void manapi::net::worker::http_v3_tquic::onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) {
     sockaddr_storage sockaddr_src{};
     socklen_t sockaddr_len = sizeof (sockaddr_src);
     memset(&sockaddr_src, '\0', sockaddr_len);

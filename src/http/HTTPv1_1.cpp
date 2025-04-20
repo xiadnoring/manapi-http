@@ -1,3 +1,5 @@
+#include "string.h"
+
 #include "http/HTTPv1_1.hpp"
 
 #include "ManapiFilesystem.hpp"

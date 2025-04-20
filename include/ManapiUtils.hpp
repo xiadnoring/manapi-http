@@ -28,16 +28,6 @@
 #   define MANAPIHTTP_NONUNIX false
 #endif
 
-namespace manapi {
-#if MANAPIHTTP_NONUNIX
-    typedef FILE fd_t;
-    typedef SOCKET sd_t;
-#else
-    typedef int fd_t;
-    typedef int sd_t;
-#endif
-}
-
 namespace manapi::sockets {
     enum ip_version {
         IP_VERSION_4 = 4,

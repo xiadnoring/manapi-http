@@ -160,7 +160,7 @@ void manapi::net::worker::TLS::connection_close(std::shared_ptr<connection> conn
             this2->_connection_close(std::move(conn2), connection);
         });
 
-        connection.watcher = this->site.async_context()->eventloop()->create_watcher_fd(connection.id, ev::READ|ev::WRITE, [this, conn] (ev::io &w, int revents) mutable
+        connection.watcher = this->site.async_context()->eventloop()->create_watcher_socket(connection.id, [this, conn] (std::shared_ptr<ev::io> &w, int status, int revents) mutable
             -> void {
             auto &connection = conn->as<connection_interface>();
             bool flag = true;
@@ -171,16 +171,16 @@ void manapi::net::worker::TLS::connection_close(std::shared_ptr<connection> conn
                     break;
                 }
                 if (ssl_errno == this->ssl_error_want_read_) {
-                    w.set(ev::READ);
+                    w->restart(ev::READ);
                     break;
                 }
                 if (ssl_errno == ssl_error_want_write_) {
-                    w.set(ev::WRITE);
+                    w->restart(ev::WRITE);
                     break;
                 }
                 if (ssl_errno == this->ssl_error_syscall_) {
                     if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        w.set(ev::READ);
+                        w->restart(ev::READ);
                         break;
                     }
 
@@ -203,7 +203,7 @@ void manapi::net::worker::TLS::connection_close(std::shared_ptr<connection> conn
             }
         });
 
-        connection.watcher->start();
+        connection.watcher->start(ev::READ|ev::WRITE);
 
         return;
     }
@@ -283,21 +283,19 @@ ssize_t manapi::net::worker::TLS::sync_write(worker::connection *conn, const voi
     return rhs;
 }
 
-manapi::future<std::shared_ptr<ev::io>> manapi::net::worker::TLS::async_watch_io(worker::connection *conn, int revents,
-    std::move_only_function<void(ev::io &w, int revents)> callback) {
+manapi::future<std::shared_ptr<manapi::ev::io>> manapi::net::worker::TLS::async_watch_io(worker::connection *conn, int revents, ev::io_cb callback) {
     auto &connection = conn->as<connection_interface>();
     if (!connection.watcher) {
-        connection.watcher = co_await this->site.async_context()->eventloop()->watch_fd(conn->as<connection_interface>().id, revents, std::move(callback));
+        connection.watcher = co_await this->site.async_context()->eventloop()->watch_poll(conn->as<connection_interface>().id, revents, std::move(callback));
     }
     co_return connection.watcher;
 }
 
-std::shared_ptr<ev::io> manapi::net::worker::TLS::sync_watch_io(worker::connection *conn, int revents,
-    std::move_only_function<void(ev::io &w, int revents)> move_only_function) {
+std::shared_ptr<manapi::ev::io> manapi::net::worker::TLS::sync_watch_io(worker::connection *conn, int revents, ev::io_cb callback) {
     auto &connection = conn->as<connection_interface>();
     if (!connection.watcher) {
-        connection.watcher = this->site.async_context()->eventloop()->create_watcher_fd(connection.id, revents, std::move(move_only_function));
-        connection.watcher->start();
+        connection.watcher = this->site.async_context()->eventloop()->create_watcher_socket(connection.id, std::move(callback));
+        connection.watcher->start(revents);
     }
     return connection.watcher;
 }
