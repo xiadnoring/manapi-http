@@ -21,6 +21,7 @@
 #include <cstring>
 
 #include "ManapiBeforeDelete.hpp"
+#include "async/ManapiAsyncFileStream.hpp"
 
 static const std::string folder_configs;
 
@@ -120,108 +121,20 @@ void manapi::filesystem::write (const std::string &path, const std::string &data
     out << data;
 }
 
-manapi::future<> manapi::filesystem::async_write(std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::function<ssize_t(void *buff, ssize_t buff_size)> cb, unsigned int mode, std::function<future<void>()> *cancellation) {
-#ifdef _WIN32
-    HANDLE h = ::CreateFile(path.data(), GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
-    if (h == INVALID_HANDLE_VALUE) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_FILE_IO, "Failed to open file: handle = INVALID_HANDLE_VALUE");
-    }
-    auto fd = _open_osfhandle((intptr_t)h, _O_CREAT|_O_RDWR|_O_TRUNC);
-    u_long arg = 1;
-    ioctlsocket(fd, FIONBIO, &arg);
-#else
-    auto fd = ::open(path.data(), O_NONBLOCK|O_CREAT|O_RDWR|O_TRUNC, mode);
-#endif
-    if (fd < 0) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_FILE_IO, "Failed to open file: fd < 0");
+
+manapi::future<> manapi::filesystem::async_write(std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::string_view data, unsigned int mode, manapi::async::cancellation_action cancellation) {
+    manapi::filesystem::fstream f (ctx, path);
+    co_await f.open(f.FILE_WRITE|f.FILE_CREATE, mode);
+
+    if (!f.is_open()) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "{} failed to open", path);
     }
 
-    try {
-        std::string buffer;
-        buffer.reserve(BUFSIZ);
-
-        auto written = cb (buffer.data(), static_cast<ssize_t>(BUFSIZ));
-
-        if (written >= 0) {
-            std::string_view data (buffer.data(), written);
-
-            co_await async::promise<void> (ctx, [cancellation, &buffer, fd, ctx, &data, cb = std::move(cb)](async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) mutable -> future<> {
-                auto watcher = co_await ctx->eventloop()->watch_poll(fd, ev::WRITE, [&buffer, &data, resolve = std::move(resolve), reject = std::move(reject), ctx, cb = std::move(cb)]
-                    (std::shared_ptr<ev::io> &w, int status, int revents) mutable  -> void {
-                    if (revents & ev::WRITE) {
-                        if (!data.empty()) {
-                            auto rhs = ::write(w->custom()->io_watcher.fd, data.data(), data.size());
-
-                            if (rhs <= 0) {
-                                auto _reject = std::move(reject);
-                                auto _ctx = ctx;
-                                auto err = std::make_exception_ptr(manapi::exception (ERR_FILE_IO,
-                                    "write_async(...): Failed to write file"));
-
-                                _ctx->eventloop()->stop_watcher(w);
-                                _ctx->taskpool()->append_task([reject = std::move(_reject), err = std::move(err)] () mutable
-                                    -> void { reject(std::move(err)); });
-
-                                return;
-                            }
-
-                            data = data.substr(rhs);
-                        }
-
-                        if (data.empty()) {
-                            auto written = cb (buffer.data(), static_cast<ssize_t>(BUFSIZ));
-
-                            if (written < 0) {
-                                auto _resolve = std::move(resolve);
-                                auto _ctx = ctx;
-                                _ctx->eventloop()->stop_watcher(w);
-                                _ctx->taskpool()->append_task([resolve = std::move(_resolve)] ()
-                                    -> void { resolve(); });
-                                return;
-                            }
-
-                            data = std::string_view(buffer.data(), written);
-                        }
-                    }
-                });
-
-                if (cancellation) {
-                    (*cancellation) = [ctx, watcher]() -> future<void> {
-                        co_await ctx->eventloop()->unwatch_poll(watcher);
-                    };
-                }
-            });
-        }
-#ifdef _WIN32
-        ::closesocket(fd);
-#else
-        ::close(fd);
-#endif
+    if (cancellation && cancellation.contains_cancel_callback()) {
+        cancellation.set_cancel_callback([f] () mutable
+            -> manapi::future<> { co_await f.close(); });
     }
-    catch (...) {
-#ifdef _WIN32
-        ::closesocket(fd);
-#else
-        ::close(fd);
-#endif
 
-        std::rethrow_exception(std::current_exception());
-    }
-}
-
-manapi::future<> manapi::filesystem::async_write(std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::string_view data, unsigned int mode, std::function<future<void>()> *cancellation) {
-    auto cb = [data](void *buff, ssize_t buff_size) mutable -> ssize_t {
-        if (data.empty()) {
-            return -1;
-        }
-
-        buff_size = std::min(buff_size, static_cast<ssize_t>(data.size()));
-        memcpy(buff, data.data(), buff_size);
-        data = data.substr(buff_size);
-        return buff_size;
-    };
-
-    return async_write(std::move(ctx), path, cb, mode, cancellation);
 }
 
 std::string manapi::filesystem::read (const std::string &path) {
@@ -247,101 +160,58 @@ std::string manapi::filesystem::read (const std::string &path) {
     return content;
 }
 
-manapi::future<> manapi::filesystem::async_read(std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::function<ssize_t(const void *buff, ssize_t buff_size)> cb, std::function<future<void>()> *cancellation) {
-#ifdef _WIN32
-    HANDLE h = ::CreateFile(path.data(), GENERIC_READ, 0, 0, 0, FILE_ATTRIBUTE_NORMAL, 0);
-    if (h == INVALID_HANDLE_VALUE) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_FILE_IO, "Failed to open file: handle = INVALID_HANDLE_VALUE");
-    }
-    auto fd = _open_osfhandle((intptr_t)h, _O_CREAT|_O_RDWR|_O_TRUNC);
-    u_long arg = 1;
-    ioctlsocket(fd, FIONBIO, &arg);
-#else
-    auto fd = ::open(path.data(), O_RDWR|O_NONBLOCK);
-#endif
-    if (fd < 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read: fd = {}", fd);
+manapi::future<std::string> manapi::filesystem::async_read(std::shared_ptr<manapi::async::context> ctx, std::string_view path, manapi::async::cancellation_action cancellation) {
+    manapi::filesystem::fstream f (ctx, path);
+    co_await f.open(f.FILE_READ);
+
+    if (!f.is_open()) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "{} failed to open", path);
     }
 
-    try {
-        std::string buffer;
-        buffer.reserve(BUFSIZ);
+    if (cancellation) {
+        if (cancellation.contains_cancel_callback()) {
+            cancellation.set_cancel_callback([f] () mutable
+                -> manapi::future<> { co_await f.close(); });
+        }
 
-        co_await async::promise<void> (ctx, [cancellation, fd, ctx, &buffer, cb = std::move(cb)] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<void> {
-            auto watcher = co_await ctx->eventloop()->watch_poll(fd, ev::READ, [&buffer, resolve = std::move(resolve), reject = std::move(reject), ctx, cb = std::move(cb)]
-                (std::shared_ptr<ev::io> &w, int status, int revents) mutable  -> void {
-                if (revents & ev::READ) {
-                    auto rhs = ::read(w->custom()->io_watcher.fd, buffer.data(), BUFSIZ);
-
-                    if (rhs < 0) {
-                        auto _reject = std::move(reject);
-                        auto _ctx = ctx;
-                        auto err = std::make_exception_ptr(
-                            manapi::exception (ERR_FILE_IO, "read_async(...): Failed to read a file"));
-                        _ctx->eventloop()->stop_watcher(w);
-                        _ctx->taskpool()->append_task([reject = std::move(_reject), err = std::move(err)] () mutable
-                            -> void { reject(std::move(err)); });
-                        return;
-                    }
-
-                    if (rhs == 0) {
-                        auto _resolve = std::move(resolve);
-                        auto _ctx = ctx;
-                        _ctx->eventloop()->stop_watcher(w);
-                        _ctx->taskpool()->append_task([resolve = std::move(_resolve)] ()
-                            -> void { resolve(); });
-                        return;
-                    }
-
-                    while (rhs) {
-                        auto written = cb (buffer.data(), rhs);
-
-                        if (written < 0) {
-                            auto _reject = std::move(reject);
-                            auto _ctx = ctx;
-                            auto err = std::make_exception_ptr(manapi::exception (
-                                ERR_FILE_IO, std::format("read_async(...): cb returned {}", written)));
-
-                            _ctx->eventloop()->stop_watcher(w);
-                            _ctx->taskpool()->append_task([reject = std::move(_reject), err = std::move(err)] () mutable
-                                -> void { reject(std::move(err)); });
-
-                            return;
-                        }
-
-                        rhs -= written;
-                    }
-                }
+        if (cancellation.contains_timeout()) {
+            cancellation.timeout_struct([f] () mutable
+                -> void {
+                    /* event thread */
+                    f.sync_close();
             });
-
-            if (cancellation) {
-                (*cancellation) = [ctx, watcher]() -> future<void> {
-                    co_await ctx->eventloop()->unwatch_poll(watcher);
-                };
-            }
-        });
-
-        ::close(fd);
+        }
     }
-    catch (...) {
-        ::close(fd);
 
-        std::rethrow_exception(std::current_exception());
-    }
-}
-
-manapi::future<std::string> manapi::filesystem::async_read(std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::function<future<void>()> *cancellation) {
     std::string data;
+    data.resize(f.total_size());
 
-    co_await async_read(ctx, path, [&data] (const void *buff, ssize_t buff_size) -> ssize_t {
-        try {
-            data.append(static_cast<const char *>(buff), buff_size);
-            return buff_size;
+    ssize_t size = 0;
+
+    while (true) {
+        auto rhs = static_cast<ssize_t>(data.size() - size);
+
+        if (!rhs && !f.eof()) {
+            data.resize(f.total_size());
+            continue;
         }
-        catch (std::exception const &e) {
-            return -1;
+
+        if (rhs) {
+            rhs = co_await f.read(data.data() + size, rhs);
         }
-    }, cancellation);
+
+        if (rhs < 0) {
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "{} failed to read", path);
+        }
+
+        if (!rhs) {
+            break;
+        }
+
+        size += rhs;
+    }
+
+    data.resize(size);
 
     co_return std::move(data);
 }

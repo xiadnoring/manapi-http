@@ -30,6 +30,7 @@ namespace manapi::ev {
     typedef std::move_only_function<void(std::shared_ptr<ev::udp> &, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags)> udp_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::udp_send> &, int status)> udp_send_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::write> &, int status)> write_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::fs> &)> fs_cb;
 }
 
 namespace manapi::ev::internal {
@@ -43,6 +44,7 @@ namespace manapi::ev::internal {
     struct adding_curl_data_t;
 #endif
     struct timer_watcher_t;
+    struct fs_watcher_t;
     struct io_watcher_t;
     struct custom_callback_t;
     struct timerloop_t;
@@ -84,6 +86,7 @@ namespace manapi {
         std::shared_ptr<ev::async> create_watcher_async (ev::async_cb callback);
         std::shared_ptr<ev::timer> create_watcher_timer (ev::timer_cb callback);
         std::shared_ptr<ev::prepare> create_watcher_prepare (ev::prepare_cb callback);
+        std::shared_ptr<ev::fs> create_watcher_fs (ev::fs_cb callback);
 
         template<typename T>
         void stop_watcher (T *w) { perror("not implemented"); }
@@ -93,6 +96,44 @@ namespace manapi {
 
         void stop_watcher_tcp_accept (std::shared_ptr<ev::tcp> s);
         void stop_watcher_tcp_connection (std::shared_ptr<ev::tcp> s);
+
+        future<std::shared_ptr<ev::fs>> fs_open (std::string path, int flags, int mode, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_write (ev::file file, const void *data, ssize_t size, ev::fs_cb callback, int64_t offset = -1);
+        future<std::shared_ptr<ev::fs>> fs_read (ev::file file, void *data, ssize_t size, ev::fs_cb callback, int64_t offset = -1);
+        future<std::shared_ptr<ev::fs>> fs_close (ev::file file, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_fstat (ev::file file, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_unlink (std::string path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_mkdir (std::string path, int mode, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_mkdtemp (std::string path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_mkstemp (std::string path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_rmdir (std::string path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_opendir (std::string path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_closedir (ev::dir_t *dir, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_readdir (ev::dir_t *dir, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_scandir (std::string path, int flags, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_scandir_next (ev::dirent_t *dirent, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_stat (std::string path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_lstat (std::string path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_statfs (std::string path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_rename (std::string path, std::string new_path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_fsync (ev::file file, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_fdatasync (ev::file file, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_ftruncate (ev::file file, int64_t offset, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_copyfile (std::string path, std::string new_path, int flags, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_sendfile (ev::file outfd, ev::file infd, int64_t offset, size_t length, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_access (std::string path, int mode, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_chmod (std::string path, int mode, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_fchmod (ev::file, int mode, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_utime (std::string path, double atime, double mtime, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_futime (ev::file, double atime, double mtime, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_lutime (std::string path, double atime, double mtime, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_link (std::string path, std::string new_path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_symlink (std::string path, std::string new_path, int flags, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_readlink (std::string path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_realpath (std::string path, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_chown (std::string path, ev::uid_t uid, ev::gid_t gid, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_fchown (ev::file file, ev::uid_t uid, ev::gid_t gid, ev::fs_cb callback);
+        future<std::shared_ptr<ev::fs>> fs_lchown (std::string path, ev::uid_t uid, ev::gid_t gid, ev::fs_cb callback);
 
         future<std::shared_ptr<ev::io>> watch_poll (fd_t fd, int flags, ev::io_cb callback);
         future<void> unwatch_poll (std::shared_ptr<ev::io> w);
@@ -126,6 +167,7 @@ namespace manapi {
 
         static void interrupt ();
     protected:
+        void custom_watcher_fs_async (std::shared_ptr<ev::async> &w);
         void custom_watcher_async_async (std::shared_ptr<ev::async>  &w);
         void custom_watcher_timer_async (std::shared_ptr<ev::async>  &w);
         void custom_watcher_poll_async (std::shared_ptr<ev::async>  &w);
@@ -170,6 +212,7 @@ namespace manapi {
         async::promise<void>::resolve_t resolve_stop{nullptr};
         std::atomic<bool> loop_interrupted;
 
+        std::unique_ptr<ev::internal::fs_watcher_t> fs_watcher;
         std::unique_ptr<ev::internal::io_watcher_t> io_watcher;
         std::unique_ptr<ev::internal::async_watcher_t> async_watcher;
         std::unique_ptr<ev::internal::timer_watcher_t> timer_watcher;

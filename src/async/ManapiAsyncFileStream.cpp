@@ -14,7 +14,6 @@
 
 manapi::filesystem::fstream::fstream(const std::shared_ptr<manapi::async::context> &ctx, std::string_view path) {
     this->data = std::make_shared<fstream_data_t_>(
-        -1,
         std::string{path},
         ctx->taskpool(),
         ctx->eventloop()
@@ -23,7 +22,6 @@ manapi::filesystem::fstream::fstream(const std::shared_ptr<manapi::async::contex
 
 manapi::filesystem::fstream::fstream(const std::shared_ptr<event_loop> &eventloop, std::string_view path) {
     this->data = std::make_shared<fstream_data_t_>(
-        -1,
         std::string{path},
         eventloop->taskpool(),
         eventloop
@@ -48,37 +46,11 @@ manapi::filesystem::fstream & manapi::filesystem::fstream::operator=(const fstre
     return *this;
 }
 
-manapi::future<> manapi::filesystem::fstream::open(int flags, unsigned int mode) {
-    int o_flags = O_RDWR;
-#ifdef _WIN32
-#else
-    o_flags |= O_NONBLOCK;
-#endif
-    if (flags&FILE_TRUNC) {
-        o_flags |= O_TRUNC;
-    }
-    if (flags&FILE_APPEND) {
-        o_flags |= O_APPEND;
-    }
-    if (flags&FILE_CREATE) {
-        o_flags |= O_CREAT;
-    }
+manapi::future<> manapi::filesystem::fstream::open(int flags, int mode) {
 
-    this->data->fd = ::open(this->data->path.data(), o_flags, mode);
+    this->data->eventloop->fs_open(this->data->path, flags, mode, [] (std::shared_ptr<ev::fs> &w) -> void {
 
-    int ev_flags = 0;
-
-    if (flags&FILE_READ) {
-        ev_flags|=ev::READ;
-    }
-    if (flags&FILE_WRITE) {
-        ev_flags|=ev::WRITE;
-    }
-
-    if (this->data->fd >= 0) {
-        this->data->watcher = co_await this->data->eventloop->watch_poll(this->data->fd, ev_flags, [data = this->data] (std::shared_ptr<ev::io> &w, int status, int revents)
-            -> void { fstream::_event(w, status, revents, data); });
-    }
+    });
 }
 
 bool manapi::filesystem::fstream::is_open() const {
@@ -174,46 +146,44 @@ manapi::future<ssize_t> manapi::filesystem::fstream::fread(void *buff, ssize_t b
 }
 
 manapi::future<> manapi::filesystem::fstream::close() {
-    return fstream::_close(this->data->eventloop, std::move(this->data->watcher), std::exchange(this->data->fd, -1));
+    if (this->data->status.fetch_or(FILE_CLOSED) & FILE_CLOSED) {
+        return async::blank_future();
+    }
+    return fstream::close_(this->data);
 }
 
-void manapi::filesystem::fstream::seekg(const ssize_t &pos, const seek_flag_t &flag) {
-    this->_seekg(pos, flag);
+void manapi::filesystem::fstream::sync_close() {
+    if (!(this->data->status.fetch_or(FILE_CLOSED) & FILE_CLOSED)) {
+        this->sync_close_(this->data);
+    }
+}
+
+ssize_t manapi::filesystem::fstream::seekg(const ssize_t &pos, const seek_flag_t &flag) {
+    return this->seekg_(pos, flag);
 }
 
 ssize_t manapi::filesystem::fstream::tellg() const {
-#ifdef _WIN32
-    return _lseeki64(this->fd, 0, FILE_SEEK_CURRENT);
-#else
-    return lseek64(this->data->fd, 0, FILE_SEEK_CURRENT);
-#endif
+    return this->data->off_;
 }
 
-ssize_t manapi::filesystem::fstream::total_size() const {
-    auto current = this->tellg();
-    this->_seekg(0, FILE_SEEK_END);
-    auto size = this->tellg();
-    this->_seekg(current, FILE_SEEK_START);
-    return size;
+manapi::future<ssize_t> manapi::filesystem::fstream::total_size() const {
+
 }
 
 bool manapi::filesystem::fstream::eof() const {
-    auto current = this->tellg();
-    this->_seekg(0, FILE_SEEK_END);
-    auto size = this->tellg();
-    this->_seekg(current, FILE_SEEK_START);
-    return current==size;
+    return this->data->status & FILE_EOF;
 }
 
-void manapi::filesystem::fstream::_seekg(const ssize_t &pos, const seek_flag_t &flag) const {
-#ifdef _WIN32
-    _lseeki64(this->data->fd, pos, static_cast<int>(flag));
-#else
-    lseek64(this->data->fd, pos, static_cast<int>(flag));
-#endif
+ssize_t manapi::filesystem::fstream::seekg_(const ssize_t &pos, const seek_flag_t &flag) const {
+    auto prev = this->data->off_;
+    switch (flag) {
+        case FILE_SEEK_START: this->data->off_ = pos; break;
+        case FILE_SEEK_CURRENT: this->data->off_ += pos; break;
+    }
+    return prev;
 }
 
-void manapi::filesystem::fstream::_event(std::shared_ptr<ev::io> &w, int status, int revents, const std::shared_ptr<fstream_data_t_> &data) {
+void manapi::filesystem::fstream::event_(std::shared_ptr<ev::io> &w, int status, int revents, const std::shared_ptr<fstream_data_t_> &data) {
     if ((revents & ev::READ) && (data->status & FILE_READ)) {
         data->status.fetch_xor(FILE_READ);
         data->taskpool->append_task([resolve = std::move(data->r_resolve)] ()
@@ -226,25 +196,29 @@ void manapi::filesystem::fstream::_event(std::shared_ptr<ev::io> &w, int status,
             -> void { resolve(); });
     }
 }
-#ifdef _WIN32
-manapi::future<> manapi::filesystem::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, fd_t fd) {
-    if (w) {
-        co_await ev->unwatch_poll(std::move(w));
+
+void manapi::filesystem::fstream::sync_close_(std::shared_ptr<fstream_data_t_> data) {
+    if (data->watcher) {
+        data->eventloop->stop_watcher(data->watcher);
     }
 
-    if (fd >= 0) {
-        ::closesocket(fd);
+    if (data->fd >= 0) {
+        ::close(data->fd);
     }
+
+    if (data->r_resolve) {
+        data->r_resolve();
+        data->r_resolve = nullptr;
+    }
+
+    if (data->w_resolve) {
+        data->w_resolve();
+        data->w_resolve = nullptr;
+    }
+
 }
-#else
-manapi::future<> manapi::filesystem::fstream::_close(std::shared_ptr<event_loop> ev, std::shared_ptr<ev::io> w, fd_t fd) {
-    if (w) {
-        co_await ev->unwatch_poll(std::move(w));
-    }
 
-    if (fd >= 0) {
-        ::close(fd);
-    }
+manapi::future<> manapi::filesystem::fstream::close_(std::shared_ptr<fstream_data_t_> data) {
+    return data->eventloop->custom_callback([data] (event_loop *ev1) mutable
+        -> void { return fstream::sync_close_(std::move(data)); });
 }
-#endif
-

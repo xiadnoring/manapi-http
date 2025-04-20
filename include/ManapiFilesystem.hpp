@@ -33,14 +33,12 @@ namespace manapi::filesystem {
 
     void write (const std::string &path, const std::string &data);
 
-    future<void> async_write (std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::function<ssize_t(void *buff, ssize_t buff_size)> cb, unsigned int mode = 0644, std::function<future<void>()> *cancellation = nullptr);
-    future<void> async_write (std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::string_view data, unsigned int mode = 0644, std::function<future<void>()> *cancellation = nullptr);
+    future<void> async_write (std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::string_view data, unsigned int mode = 0644, manapi::async::cancellation_action cancellation = nullptr);
 
 
     std::string read (const std::string &path);
 
-    future<void> async_read (std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::function<ssize_t(const void *buff, ssize_t buff_size)> cb, std::function<future<void>()> *cancellation = nullptr);
-    future<std::string> async_read (std::shared_ptr<manapi::async::context> ctx, std::string_view path, std::function<future<void>()> *cancellation = nullptr);
+    future<std::string> async_read (std::shared_ptr<manapi::async::context> ctx, std::string_view path, manapi::async::cancellation_action cancellation = nullptr);
 
     void copy (std::ifstream &f, const ssize_t &start, const ssize_t &back, std::ofstream &o);
 

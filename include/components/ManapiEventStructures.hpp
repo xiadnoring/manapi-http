@@ -2,12 +2,6 @@
 
 #include "uv.h"
 
-#ifdef __linux__
-#   include "uv/linux.h"
-#endif
-
-#include "uv/errno.h"
-
 #include "ManapiDebug.hpp"
 
 #define MANAPI_EV_NODISCARD [[nodiscard]]
@@ -53,8 +47,37 @@ namespace manapi::ev {
         DISCONNECT = UV_DISCONNECT,
         PRIORITIZED = UV_PRIORITIZED
     };
+    enum fs_o_flags {
+        FS_O_APPEND = UV_FS_O_APPEND,
+        FS_O_CREAT = UV_FS_O_CREAT,
+        FS_O_DIRECT = UV_FS_O_DIRECT,
+        FS_O_DIRECTORY = UV_FS_O_DIRECTORY,
+        FS_O_DSYNC = UV_FS_O_DSYNC,
+        FS_O_EXCL = UV_FS_O_EXCL,
+        FS_O_EXLOCK = UV_FS_O_EXLOCK,
+        FS_O_FILEMAP = UV_FS_O_FILEMAP,
+        FS_O_NOATIME = UV_FS_O_NOATIME,
+        FS_O_NOCTTY = UV_FS_O_NOCTTY,
+        FS_O_NOFOLLOW = UV_FS_O_NOFOLLOW,
+        FS_O_NONBLOCK = UV_FS_O_NONBLOCK,
+        FS_O_RANDOM = UV_FS_O_RANDOM,
+        FS_O_RDONLY = UV_FS_O_RDONLY,
+        FS_O_RDWR = UV_FS_O_RDWR,
+        FS_O_SEQUENTIAL = UV_FS_O_SEQUENTIAL,
+        FS_O_SHORT_LIVED = UV_FS_O_SHORT_LIVED,
+        FS_O_SYMLINK = UV_FS_O_SYMLINK,
+        FS_O_SYNC = UV_FS_O_SYNC,
+        FS_O_TEMPORARY = UV_FS_O_TEMPORARY,
+        FS_O_TRUNC = UV_FS_O_TRUNC,
+        FS_O_WRONLY = UV_FS_O_WRONLY
+    };
 
+    typedef uv_dir_t dir_t;
+    typedef uv_file file;
     typedef uv_loop_t *loop_ref;
+    typedef uv_uid_t uid_t;
+    typedef uv_gid_t gid_t;
+    typedef uv_dirent_t dirent_t;
 
     void callback_watcher_alloc (uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
     void callback_watcher_async (uv_async_t *s);
@@ -68,6 +91,7 @@ namespace manapi::ev {
     void callback_watcher_udp_recv (uv_udp_t *s, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags);
     void callback_watcher_udp_send (uv_udp_send_t *s, int status);
     void callback_watcher_write (uv_write_t *s, int status);
+    void callback_watcher_fs (uv_fs_t *req);
 
     class async {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(async, uv_async_t)
@@ -127,16 +151,8 @@ namespace manapi::ev {
             MANAPI_EV_CHECK(uv_poll_init_socket(loop, &this->s_, fd));
         }
 
-        template<typename T1 = manapi::fd_t>
-        requires(sizeof (manapi::fd_t) != sizeof (manapi::socket_t))
-        io (loop_ref loop, T1 fd) : s_() {
+        io (loop_ref loop, manapi::fd_t fd) : s_() {
             MANAPI_EV_CHECK(uv_poll_init(loop, &this->s_, fd));
-        }
-
-        template<typename T1 = manapi::fd_t>
-        requires(sizeof (manapi::fd_t) == sizeof (manapi::socket_t))
-        io (loop_ref loop, T1 fd) : s_() {
-            MANAPI_EV_CHECK(uv_poll_init_socket(loop, &this->s_, fd));
         }
 
         int start (int revents, uv_poll_cb cb) MANAPI_EV_NOEXPECT;
@@ -196,8 +212,6 @@ namespace manapi::ev {
         int recv_stop () MANAPI_EV_NOEXPECT;
 
         int try_send (const uv_buf_t *buf, uint32_t nbuf, sockaddr *addr) MANAPI_EV_NOEXPECT;
-
-        int try_send (int count, uv_buf_t **buf, uint32_t *nbuf, sockaddr **addr, int flags) MANAPI_EV_NOEXPECT;
     private:
         uv_udp_t s_;
     };
@@ -249,6 +263,129 @@ namespace manapi::ev {
         MANAPI_EV_NODISCARD uint64_t due_in () const MANAPI_EV_NOEXPECT;
     private:
         uv_timer_t s_;
+    };
+
+    class fs {
+        MANAPI_EV_DEFAULT_PRIVATE_VAR(fs, uv_fs_t)
+    public:
+        MANAPI_EV_DEFAULT(fs, uv_fs_t)
+
+        fs (loop_ref loop);
+
+        int open (const char *path, int flags, int mode, uv_fs_cb open_cb) MANAPI_EV_NOEXPECT;
+        int open (const char *path, int flags, int mode) MANAPI_EV_NOEXPECT;
+
+        int read (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb read_cb) MANAPI_EV_NOEXPECT;
+        int read (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
+
+        int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb write_cb) MANAPI_EV_NOEXPECT;
+        int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
+
+        int close (ev::file fileno, uv_fs_cb close_cb) MANAPI_EV_NOEXPECT;
+        int close (ev::file fileno) MANAPI_EV_NOEXPECT;
+
+        int unlink (const char *path, uv_fs_cb unlink_cb) MANAPI_EV_NOEXPECT;
+        int unlink (const char *path) MANAPI_EV_NOEXPECT;
+
+        int mkdir (const char *path, int mode, uv_fs_cb mkdir_cb) MANAPI_EV_NOEXPECT;
+        int mkdir (const char *path, int mode) MANAPI_EV_NOEXPECT;
+
+        int mkdtemp (const char *path, uv_fs_cb mkdtemp_cb) MANAPI_EV_NOEXPECT;
+        int mkdtemp (const char *path) MANAPI_EV_NOEXPECT;
+
+        int mkstemp (const char *path, uv_fs_cb mkstemp_cb) MANAPI_EV_NOEXPECT;
+        int mkstemp (const char *path) MANAPI_EV_NOEXPECT;
+
+        int rmdir (const char *path, uv_fs_cb rmdir_cb) MANAPI_EV_NOEXPECT;
+        int rmdir (const char *path) MANAPI_EV_NOEXPECT;
+
+        int opendir (const char *path, uv_fs_cb opendir) MANAPI_EV_NOEXPECT;
+        int opendir (const char *path) MANAPI_EV_NOEXPECT;
+
+        int closedir (ev::dir_t * dir, uv_fs_cb closedir_cb) MANAPI_EV_NOEXPECT;
+        int closedir (ev::dir_t * dir) MANAPI_EV_NOEXPECT;
+
+        int readdir (ev::dir_t * dir, uv_fs_cb readdir_cb) MANAPI_EV_NOEXPECT;
+        int readdir (ev::dir_t * dir) MANAPI_EV_NOEXPECT;
+
+        int scandir (const char *path, int flags, uv_fs_cb scandir_cb) MANAPI_EV_NOEXPECT;
+        int scandir (const char *path, int flags) MANAPI_EV_NOEXPECT;
+
+        int scandir_next (ev::dirent_t *dir) MANAPI_EV_NOEXPECT;
+
+        int stat (const char *path, uv_fs_cb stat_cb) MANAPI_EV_NOEXPECT;
+        int stat (const char *path) MANAPI_EV_NOEXPECT;
+
+        int fstat (ev::file file, uv_fs_cb fstat_cb) MANAPI_EV_NOEXPECT;
+        int fstat (ev::file file) MANAPI_EV_NOEXPECT;
+
+        int lstat (const char *path, uv_fs_cb lstat_cb) MANAPI_EV_NOEXPECT;
+        int lstat (const char *path) MANAPI_EV_NOEXPECT;
+
+        int statfs (const char *path, uv_fs_cb statfs_cb) MANAPI_EV_NOEXPECT;
+        int statfs (const char *path) MANAPI_EV_NOEXPECT;
+
+        int rename (const char *path, const char *new_path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int rename (const char *path, const char *new_path) MANAPI_EV_NOEXPECT;
+
+        int fsync (ev::file file, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int fsync (ev::file file) MANAPI_EV_NOEXPECT;
+
+        int fdatasync (ev::file file, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int fdatasync (ev::file file) MANAPI_EV_NOEXPECT;
+
+        int ftruncate (ev::file file, int64_t off, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int ftruncate (ev::file file, int64_t off) MANAPI_EV_NOEXPECT;
+
+        int copyfile (const char *path1, const char *path2, int flags, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int copyfile (const char *path1, const char *path2, int flags) MANAPI_EV_NOEXPECT;
+
+        int sendfile (ev::file outfd, ev::file infd, int64_t off, size_t length, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int sendfile (ev::file outfd, ev::file infd, int64_t off, size_t length) MANAPI_EV_NOEXPECT;
+
+        int access (const char *path, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int access (const char *path, int mode) MANAPI_EV_NOEXPECT;
+
+        int chmod (const char *path, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int chmod (const char *path, int mode) MANAPI_EV_NOEXPECT;
+
+        int fchmod (ev::file file, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int fchmod (ev::file file, int mode) MANAPI_EV_NOEXPECT;
+
+        int utime (const char *path, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int utime (const char *path, double atime, double mtime) MANAPI_EV_NOEXPECT;
+
+        int futime (ev::file file, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int futime (ev::file file, double atime, double mtime) MANAPI_EV_NOEXPECT;
+
+        int lutime (const char *path, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int lutime (const char *path, double atime, double mtime) MANAPI_EV_NOEXPECT;
+
+        int link (const char *path, const char *new_path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int link (const char *path, const char *new_path) MANAPI_EV_NOEXPECT;
+
+        int symlink (const char *path, const char *new_path, int flags, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int symlink (const char *path, const char *new_path, int flags) MANAPI_EV_NOEXPECT;
+
+        int readlink (const char *path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int readlink (const char *path) MANAPI_EV_NOEXPECT;
+
+        int realpath (const char *path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int realpath (const char *path) MANAPI_EV_NOEXPECT;
+
+        int chown (const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int chown (const char *path, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT;
+
+        int fchown (ev::file file, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int fchown (ev::file file, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT;
+
+        int lchown (const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int lchown (const char *path, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT;
+        
+        MANAPI_EV_NODISCARD ssize_t result () const MANAPI_EV_NOEXPECT;
+    private:
+        loop_ref loop_;
+        uv_fs_t s_;
     };
 }
 

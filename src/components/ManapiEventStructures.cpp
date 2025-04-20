@@ -20,7 +20,6 @@ int manapi::ev::name_class::ip6_addr (const char *ip, int port, sockaddr_in6 *ad
 
 MANAPI_EV_DEFAULT(async, uv_async_t)
 
-
 MANAPI_EV_DEFAULT(timer, uv_timer_t)
 
 MANAPI_EV_DEFAULT(io, uv_poll_t)
@@ -31,6 +30,7 @@ MANAPI_EV_DEFAULT(tcp, uv_tcp_t)
 MANAPI_EV_DEFAULT(udp, uv_udp_t)
 MANAPI_EV_DEFAULT(write, uv_write_t)
 MANAPI_EV_DEFAULT(udp_send, uv_udp_send_t)
+MANAPI_EV_DEFAULT(fs, uv_fs_t)
 
 MANAPI_EV_STREAM(udp, uv_udp_t)
 MANAPI_EV_STREAM(tcp, uv_tcp_t)
@@ -175,10 +175,6 @@ int manapi::ev::udp::try_send(const uv_buf_t *buf, uint32_t nbuf, sockaddr *addr
     return uv_udp_try_send(&this->s_, buf, nbuf, addr);
 }
 
-int manapi::ev::udp::try_send(int count, uv_buf_t **buf, uint32_t *nbuf, sockaddr **addr, int flags) MANAPI_EV_NOEXPECT {
-    return uv_udp_try_send2(&this->s_, count, buf, nbuf, addr, flags);
-}
-
 manapi::ev::udp_send::udp_send(uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_udp_send_cb cb, const sockaddr *addr) : s_() {
     MANAPI_EV_CHECK(uv_udp_send(&this->s_, stream, buf, nbufs, addr, cb));
 }
@@ -232,4 +228,302 @@ uint64_t manapi::ev::timer::repeat() const MANAPI_EV_NOEXPECT {
 
 uint64_t manapi::ev::timer::due_in() const MANAPI_EV_NOEXPECT {
     return uv_timer_get_due_in(&this->s_);
+}
+
+manapi::ev::fs::fs(loop_ref loop) : s_(), loop_(loop) {}
+
+int manapi::ev::fs::open(const char *path, int flags, int mode, uv_fs_cb open_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_open(this->loop_, &this->s_, path, flags, mode, open_cb);
+}
+
+int manapi::ev::fs::open(const char *path, int flags, int mode) MANAPI_EV_NOEXPECT {
+    return this->open(path, flags, mode, callback_watcher_fs);
+}
+
+int manapi::ev::fs::read(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb read_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_read(this->loop_, &this->s_, fileno, buff, nbuff, offset, read_cb);
+}
+
+int manapi::ev::fs::read(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT {
+    return this->read(fileno, buff, nbuff, offset, callback_watcher_fs);
+}
+
+int manapi::ev::fs::write(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb write_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_write(this->loop_, &this->s_, fileno, buff, nbuff, offset, write_cb);
+}
+
+int manapi::ev::fs::write(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT {
+    return this->read(fileno, buff, nbuff, offset, callback_watcher_fs);
+}
+
+int manapi::ev::fs::close(ev::file fileno, uv_fs_cb close_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_close(this->loop_, &this->s_, fileno, close_cb);
+}
+
+int manapi::ev::fs::close(ev::file fileno) MANAPI_EV_NOEXPECT {
+    return this->close(fileno, callback_watcher_fs);
+}
+
+int manapi::ev::fs::unlink(const char *path, uv_fs_cb unlink_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_unlink(this->loop_, &this->s_, path, unlink_cb);
+}
+
+int manapi::ev::fs::unlink(const char *path) MANAPI_EV_NOEXPECT {
+    return this->unlink(path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::mkdir(const char *path, int mode, uv_fs_cb mkdir_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_mkdir(this->loop_, &this->s_, path, mode, mkdir_cb);
+}
+
+int manapi::ev::fs::mkdir(const char *path, int mode) MANAPI_EV_NOEXPECT {
+    return this->mkdir(path, mode, callback_watcher_fs);
+}
+
+int manapi::ev::fs::mkdtemp(const char *path, uv_fs_cb mkdtemp_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_mkdtemp(this->loop_, &this->s_, path, mkdtemp_cb);
+}
+
+int manapi::ev::fs::mkdtemp(const char *path) MANAPI_EV_NOEXPECT {
+    return this->mkdtemp(path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::mkstemp(const char *path, uv_fs_cb mkstemp_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_mkstemp(this->loop_, &this->s_, path, mkstemp_cb);
+}
+
+int manapi::ev::fs::mkstemp(const char *path) MANAPI_EV_NOEXPECT {
+    return this->mkstemp(path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::rmdir(const char *path, uv_fs_cb rmdir_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_rmdir(this->loop_, &this->s_, path, rmdir_cb);
+}
+
+int manapi::ev::fs::rmdir(const char *path) MANAPI_EV_NOEXPECT {
+    return this->rmdir(path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::opendir(const char *path, uv_fs_cb opendir) MANAPI_EV_NOEXPECT {
+    return uv_fs_opendir(this->loop_, &this->s_, path, opendir);
+}
+
+int manapi::ev::fs::opendir(const char *path) MANAPI_EV_NOEXPECT {
+    return this->opendir(path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::closedir(ev::dir_t * dir, uv_fs_cb closedir_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_closedir(this->loop_, &this->s_, dir, closedir_cb);
+}
+
+int manapi::ev::fs::closedir(ev::dir_t * dir) MANAPI_EV_NOEXPECT {
+    return this->closedir(dir, callback_watcher_fs);
+}
+
+int manapi::ev::fs::readdir(ev::dir_t * dir, uv_fs_cb readdir_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_readdir(this->loop_, &this->s_, dir, readdir_cb);
+}
+
+int manapi::ev::fs::readdir(ev::dir_t * dir) MANAPI_EV_NOEXPECT {
+    return this->readdir(dir, callback_watcher_fs);
+}
+
+int manapi::ev::fs::scandir(const char *path, int flags, uv_fs_cb scandir_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_scandir(this->loop_, &this->s_, path, flags, scandir_cb);
+}
+
+int manapi::ev::fs::scandir(const char *path, int flags) MANAPI_EV_NOEXPECT {
+    return this->scandir(path, flags, callback_watcher_fs);
+}
+
+int manapi::ev::fs::scandir_next(ev::dirent_t *dir) MANAPI_EV_NOEXPECT {
+    return uv_fs_scandir_next(&this->s_, dir);
+}
+
+int manapi::ev::fs::stat(const char *path, uv_fs_cb stat_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_stat(this->loop_, &this->s_, path, stat_cb);
+}
+
+int manapi::ev::fs::stat(const char *path) MANAPI_EV_NOEXPECT {
+    return this->stat(path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::fstat(ev::file file, uv_fs_cb fstat_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_fstat(this->loop_, &this->s_, file, fstat_cb);
+}
+
+int manapi::ev::fs::fstat(ev::file file) MANAPI_EV_NOEXPECT {
+    return this->fstat(file, callback_watcher_fs);
+}
+
+int manapi::ev::fs::lstat(const char *path, uv_fs_cb lstat_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_lstat(this->loop_, &this->s_, path, lstat_cb);
+}
+
+int manapi::ev::fs::lstat(const char *path) MANAPI_EV_NOEXPECT {
+    return this->lstat(path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::statfs(const char *path, uv_fs_cb statfs_cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_statfs(this->loop_, &this->s_, path, statfs_cb);
+}
+
+int manapi::ev::fs::statfs(const char *path) MANAPI_EV_NOEXPECT {
+    return this->statfs(path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::rename(const char *path, const char *new_path, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_rename(this->loop_, &this->s_, path, new_path, cb);
+}
+
+int manapi::ev::fs::rename(const char *path, const char *new_path) MANAPI_EV_NOEXPECT {
+    return this->rename(path, new_path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::fsync(ev::file file, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_fsync(this->loop_, &this->s_, file, cb);
+}
+
+int manapi::ev::fs::fsync(ev::file file) MANAPI_EV_NOEXPECT {
+    return this->fsync(file, callback_watcher_fs);
+}
+
+int manapi::ev::fs::fdatasync(ev::file file, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_fdatasync(this->loop_, &this->s_, file, cb);
+}
+
+int manapi::ev::fs::fdatasync(ev::file file) MANAPI_EV_NOEXPECT {
+    return this->fdatasync(file, callback_watcher_fs);
+}
+
+int manapi::ev::fs::ftruncate(ev::file file, int64_t off, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_ftruncate(this->loop_, &this->s_, file, off, cb);
+}
+
+int manapi::ev::fs::ftruncate(ev::file file, int64_t off) MANAPI_EV_NOEXPECT {
+    return this->ftruncate(file, off, callback_watcher_fs);
+}
+
+int manapi::ev::fs::copyfile(const char *path1, const char *path2, int flags, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_copyfile(this->loop_, &this->s_, path1, path2, flags, cb);
+}
+
+int manapi::ev::fs::copyfile(const char *path1, const char *path2, int flags) MANAPI_EV_NOEXPECT {
+    return this->copyfile(path1, path2, flags, callback_watcher_fs);
+}
+
+int manapi::ev::fs::sendfile(ev::file outfd, ev::file infd, int64_t off, size_t length, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_sendfile(this->loop_, &this->s_, outfd, infd, off, length, cb);
+}
+
+int manapi::ev::fs::sendfile(ev::file outfd, ev::file infd, int64_t off, size_t length) MANAPI_EV_NOEXPECT {
+    return this->sendfile(outfd, infd, off, length, callback_watcher_fs);
+}
+
+int manapi::ev::fs::access(const char *path, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_access(this->loop_, &this->s_, path, mode, cb);
+}
+
+int manapi::ev::fs::access(const char *path, int mode) MANAPI_EV_NOEXPECT {
+    return this->access(path, mode, callback_watcher_fs);
+}
+
+int manapi::ev::fs::chmod(const char *path, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_chmod(this->loop_, &this->s_, path, mode, cb);
+}
+
+int manapi::ev::fs::chmod(const char *path, int mode) MANAPI_EV_NOEXPECT {
+    return this->chmod(path, mode, callback_watcher_fs);
+}
+
+int manapi::ev::fs::fchmod(ev::file file, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_fchmod(this->loop_, &this->s_, file, mode, cb);
+}
+
+int manapi::ev::fs::fchmod(ev::file file, int mode) MANAPI_EV_NOEXPECT {
+    return this->fchmod(file, mode, callback_watcher_fs);
+}
+
+int manapi::ev::fs::utime(const char *path, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_utime(this->loop_, &this->s_, path, atime, mtime, cb);
+}
+
+int manapi::ev::fs::utime(const char *path, double atime, double mtime) MANAPI_EV_NOEXPECT {
+    return this->utime(path, atime, mtime, callback_watcher_fs);
+}
+
+int manapi::ev::fs::futime(ev::file file, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_futime(this->loop_, &this->s_, file, atime, mtime, cb);
+}
+
+int manapi::ev::fs::futime(ev::file file, double atime, double mtime) MANAPI_EV_NOEXPECT {
+    return this->futime(file, atime, mtime, callback_watcher_fs);
+}
+
+int manapi::ev::fs::lutime(const char *path, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_lutime(this->loop_, &this->s_, path, atime, mtime, cb);
+}
+
+int manapi::ev::fs::lutime(const char *path, double atime, double mtime) MANAPI_EV_NOEXPECT {
+    return this->lutime(path, atime, mtime, callback_watcher_fs);
+}
+
+int manapi::ev::fs::link(const char *path, const char *new_path, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_link(this->loop_, &this->s_, path, new_path, cb);
+}
+
+int manapi::ev::fs::link(const char *path, const char *new_path) MANAPI_EV_NOEXPECT {
+    return this->link(path, new_path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::symlink(const char *path, const char *new_path, int flags, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_symlink(this->loop_, &this->s_, path, new_path, flags, cb);
+}
+
+int manapi::ev::fs::symlink(const char *path, const char *new_path, int flags) MANAPI_EV_NOEXPECT {
+    return this->symlink(path, new_path, flags, callback_watcher_fs);
+}
+
+int manapi::ev::fs::readlink(const char *path, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_readlink(this->loop_, &this->s_, path, cb);
+}
+
+int manapi::ev::fs::readlink(const char *path) MANAPI_EV_NOEXPECT {
+    return this->readlink(path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::realpath(const char *path, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_realpath(this->loop_, &this->s_, path, cb);
+}
+
+int manapi::ev::fs::realpath(const char *path) MANAPI_EV_NOEXPECT {
+    return this->realpath(path, callback_watcher_fs);
+}
+
+int manapi::ev::fs::chown(const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_chown(this->loop_, &this->s_, path, uid, gid, cb);
+}
+
+int manapi::ev::fs::chown(const char *path, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT {
+    return this->chown(path, uid, gid, callback_watcher_fs);
+}
+
+int manapi::ev::fs::fchown(ev::file file, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_fchown(this->loop_, &this->s_, file, uid, gid, cb);
+}
+
+int manapi::ev::fs::fchown(ev::file file, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT {
+    return this->fchown(file, uid, gid, callback_watcher_fs);
+}
+
+int manapi::ev::fs::lchown(const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_fs_lchown(this->loop_, &this->s_, path, uid, gid, cb);
+}
+
+int manapi::ev::fs::lchown(const char *path, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT {
+    return this->lchown(path, uid, gid, callback_watcher_fs);
+}
+
+ssize_t manapi::ev::fs::result() const MANAPI_EV_NOEXPECT {
+    return this->s_.result;
 }
