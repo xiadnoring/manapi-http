@@ -446,7 +446,7 @@ void manapi::net::worker::http_v2::handle_callback_watcher() {
         return;
     }
     catch (manapi::exception const &e) {
-        MANAPIHTTP_LOG(this->site.async_context(), "[{}]: HTTP2 Exception: {}", static_cast<size_t>(e.get_err_num()), e.what());
+        MANAPIHTTP_LOG(this->site.async_context(), "[{}]: HTTP2 Exception: {}", static_cast<size_t>(e.err_num()), e.what());
     }
     catch (std::exception const &e) {
         MANAPIHTTP_LOG(this->site.async_context(), "HTTP2 Exception: {}", e.what());

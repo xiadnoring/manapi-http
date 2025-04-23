@@ -55,7 +55,10 @@ namespace manapi {
         ERR_SOCKET = 47,
         ERR_FILE_DESCRIPTOR = 48,
         ERR_INCOMPATIBLE_SETTING = 49,
-        ERR_CANCELLED = 50
+        ERR_CANCELLED = 50,
+        ERR_CANCELLATION_FAILED = 51,
+        ERR_FS_IO = 52,
+        ERR_FS_IO_RESULT = 53
     };
 
     extern const std::map <err_num, std::string> err_msg;
@@ -73,10 +76,10 @@ namespace manapi {
         explicit exception (const err_num &errnum, std::string message_);
         explicit exception (const err_num &errnum, int addititonal_num_data, std::string message_);
         [[nodiscard]] const char * what() const noexcept override;
-        [[nodiscard]] const err_num &get_err_num () const;
+        [[nodiscard]] const manapi::err_num &err_num () const;
         [[nodiscard]] const int &get_additional_num_data () const;
     private:
-        err_num errnum;
+        manapi::err_num errnum_;
         int addititonal_num_data = -1;
         std::string message;
     };

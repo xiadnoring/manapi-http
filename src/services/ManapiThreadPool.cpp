@@ -208,7 +208,7 @@ namespace manapi {
         }
         catch (const manapi::exception &e) {
             this->logger_->warning(manapi::logger::default_service,
-                std::format("unexpected exception in the task with error code {}: {}", static_cast<int>(e.get_err_num()), e.what()));
+                std::format("unexpected exception in the task with error code {}: {}", static_cast<int>(e.err_num()), e.what()));
         }
         catch (const std::exception &e) {
             this->logger_->warning(manapi::logger::default_service,

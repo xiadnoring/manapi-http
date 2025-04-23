@@ -211,7 +211,7 @@ manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net
 
     // find replacers
     filesystem::fstream f (ctx, path);
-    co_await f.open(filesystem::fstream::FILE_READ);
+    co_await f.open(ev::FS_O_RDONLY);
     if (!f.is_open())
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Could not open the following file for finding replacers ({})", path);
@@ -219,7 +219,7 @@ manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net
 
     f.seekg(start);
 
-    ssize_t fsize = f.total_size();
+    ssize_t fsize = co_await f.size();
 
     std::string buffer;
     size_t buffer_size = BUFSIZ;

@@ -448,7 +448,7 @@ manapi::future<> manapi::net::formdata_recv::get_async_file(std::function<manapi
 
 manapi::future<void> manapi::net::formdata_recv::save_file (std::string filepath) {
     manapi::filesystem::fstream out (this->ctx, filepath);
-    co_await out.open(out.FILE_WRITE|out.FILE_CREATE|out.FILE_TRUNC);
+    co_await out.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_TRUNC);
     if (!out.is_open())
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Cannot open a file to write: {}", filepath);
@@ -567,7 +567,7 @@ manapi::net::formdata_send & manapi::net::formdata_send::operator=(formdata_send
 }
 
 void manapi::net::formdata_send::append_file(const std::string &name, std::string filepath) {
-    auto filename = manapi::filesystem::basename(filepath);
+    auto filename = manapi::filesystem::path::basename(filepath);
     auto filemime = manapi::mime::mime_by_file_path(filename);
 
     this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::move(filemime)}}});
@@ -589,12 +589,12 @@ bool manapi::net::formdata_send::contains(const std::string &name) const {
     return this->data.contains(name);
 }
 
-ssize_t manapi::net::formdata_send::payload_size() const {
+manapi::future<ssize_t> manapi::net::formdata_send::payload_size() const {
     ssize_t s = 0;
     for (const auto &param : this->data) {
         switch (param.second.type) {
             case DATA_FILE:
-                s += manapi::filesystem::get_size(param.second.data);
+                s += co_await manapi::filesystem::async_file_size(this->ctx, param.second.data);
             break;
             case DATA_PLAIN:
                 s += static_cast<ssize_t>(param.second.data.size());
@@ -603,7 +603,7 @@ ssize_t manapi::net::formdata_send::payload_size() const {
                 break;
         }
     }
-    return s;
+    co_return s;
 }
 
 ssize_t manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const {
@@ -675,7 +675,7 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
             co_await write (nline, sizeof (nline) - 1);
 
             manapi::filesystem::fstream f (this->ctx, param.second.data);
-            co_await f.open(f.FILE_READ);
+            co_await f.open(ev::FS_O_RDONLY);
 
             if (!f.is_open()) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read file ({}) to send it as form data parameter", param.second.data);
@@ -687,7 +687,7 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
             buffer.reserve(buffer_size);
 
             try {
-                auto fsize = f.total_size();
+                auto fsize = co_await f.size();
 
                 while (fsize) {
                     auto rhs = co_await f.read(buffer.data(), buffer_size);

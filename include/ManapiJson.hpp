@@ -28,7 +28,7 @@ namespace manapi {
         // json_parse_exception (json_parse_exception &&n) noexcept ;
         // json_parse_exception &operator=(json_parse_exception &&n) noexcept;
         [[nodiscard]] const char *what () const noexcept override;
-        [[nodiscard]] const json_err_num &get_err_num () const;
+        [[nodiscard]] const json_err_num &err_num () const;
     private:
         std::string message;
         json_err_num errnum;

@@ -55,7 +55,7 @@ bool manapi::mime::mime_partitial_data(const std::string &mime) {
 }
 
 const std::string & manapi::mime::mime_by_file_path(const std::string &path) {
-    const std::string extension = manapi::filesystem::extension(path);
+    const std::string extension = manapi::filesystem::path::extension(path);
 
     if (manapi::mime::mime_by_extension.contains(extension))
     {

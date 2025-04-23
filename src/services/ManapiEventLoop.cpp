@@ -1538,125 +1538,133 @@ void manapi::event_loop::custom_watcher_fs_async(std::shared_ptr<ev::async> &w) 
             this->fs_watcher->adding_watcher_data.pop_front();
 
             std::shared_ptr<ev::fs> s = this->create_watcher_fs(std::move(data->cb));
+            int rhs = 0;
 
             switch (data->flag) {
                 case ADD_FS_EVENT_OPEN:
-                    s->open(data->path1.data(), static_cast<int>(data->s1), static_cast<int>(data->s2));
+                    rhs = s->open(data->path1.data(), static_cast<int>(data->s1), static_cast<int>(data->s2));
                     break;
 
                 case ADD_FS_EVENT_READ: {
                     const uv_buf_t buf[] = {{.base = (char*)(data->data), .len = static_cast<std::size_t>(data->s1)}};
-                    s->read(data->file, buf, 1, data->s2);
+                    rhs = s->read(data->file, buf, 1, data->s2);
                     break;
                 }
                 case ADD_FS_EVENT_WRITE: {
                     const uv_buf_t buf[] = {{.base = (char*)(data->data), .len = static_cast<std::size_t>(data->s1)}};
-                    s->write(data->file, buf, 1, data->s2);
+                    rhs = s->write(data->file, buf, 1, data->s2);
                     break;
                 }
                 case ADD_FS_EVENT_CLOSE: {
-                    s->close(data->file);
+                    rhs = s->close(data->file);
                     break;
                 }
                 case ADD_FS_EVENT_UNLINK:
-                    s->unlink(data->path1.data());
+                    rhs = s->unlink(data->path1.data());
                     break;
                 case ADD_FS_EVENT_MKDIR:
-                    s->mkdir(data->path1.data(), static_cast<int>(data->s1));
+                    rhs = s->mkdir(data->path1.data(), static_cast<int>(data->s1));
                     break;
                 case ADD_FS_EVENT_MKDTEMP:
-                    s->mkdtemp(data->path1.data());
+                    rhs = s->mkdtemp(data->path1.data());
                     break;
                 case ADD_FS_EVENT_MKSTEMP:
-                    s->mkstemp(data->path1.data());
+                    rhs = s->mkstemp(data->path1.data());
                     break;
                 case ADD_FS_EVENT_RMDIR:
-                    s->rmdir(data->path1.data());
+                    rhs = s->rmdir(data->path1.data());
                     break;
                 case ADD_FS_EVENT_OPENDIR:
-                    s->opendir(data->path1.data());
+                    rhs = s->opendir(data->path1.data());
                     break;
                 case ADD_FS_EVENT_READDIR:
-                    s->readdir(reinterpret_cast<ev::dir_t *>(data->s1));
+                    rhs = s->readdir(reinterpret_cast<ev::dir_t *>(data->s1));
                     break;
                 case ADD_FS_EVENT_CLOSEDIR:
-                    s->closedir(reinterpret_cast<ev::dir_t *>(data->s1));
+                    rhs = s->closedir(reinterpret_cast<ev::dir_t *>(data->s1));
                     break;
                 case ADD_FS_EVENT_SCANDIR:
-                    s->scandir(data->path1.data(), static_cast<int>(data->s1));
+                    rhs = s->scandir(data->path1.data(), static_cast<int>(data->s1));
                     break;
                 case ADD_FS_EVENT_SCANDIR_NEXT:
-                    s->scandir_next(reinterpret_cast<ev::dirent_t *>(data->s1));
+                    rhs = s->scandir_next(reinterpret_cast<ev::dirent_t *>(data->s1));
                     break;
                 case ADD_FS_EVENT_STAT:
-                    s->stat(data->path1.data());
+                    rhs = s->stat(data->path1.data());
                     break;
                 case ADD_FS_EVENT_FSTAT:
-                    s->fstat(data->file);
+                    rhs = s->fstat(data->file);
                     break;
                 case ADD_FS_EVENT_LSTAT:
-                    s->lstat(data->path1.data());
+                    rhs = s->lstat(data->path1.data());
                     break;
                 case ADD_FS_EVENT_STATFS:
-                    s->statfs(data->path1.data());
+                    rhs = s->statfs(data->path1.data());
                     break;
                 case ADD_FS_EVENT_RENAME:
-                    s->rename(data->path1.data(), data->path2.data());
+                    rhs = s->rename(data->path1.data(), data->path2.data());
                     break;
                 case ADD_FS_EVENT_FSYNC:
-                    s->fsync(data->file);
+                    rhs = s->fsync(data->file);
                     break;
                 case ADD_FS_EVENT_FDATASYNC:
-                    s->fdatasync(data->file);
+                    rhs = s->fdatasync(data->file);
                     break;
                 case ADD_FS_EVENT_FTRUNCATE:
-                    s->ftruncate(data->file, data->s1);
+                    rhs = s->ftruncate(data->file, data->s1);
                     break;
                 case ADD_FS_EVENT_COPYFILE:
-                    s->copyfile(data->path1.data(), data->path2.data(), data->s1);
+                    rhs = s->copyfile(data->path1.data(), data->path2.data(), data->s1);
                     break;
                 case ADD_FS_EVENT_SENDFILE:
-                    s->sendfile(data->file, data->file2, data->s1, (size_t)(data->s2));
+                    rhs = s->sendfile(data->file, data->file2, data->s1, (size_t)(data->s2));
                     break;
                 case ADD_FS_EVENT_ACCESS:
-                    s->access(data->path1.data(), static_cast<int>(data->s1));
+                    rhs = s->access(data->path1.data(), static_cast<int>(data->s1));
                     break;
                 case ADD_FS_EVENT_CHMOD:
-                    s->chmod(data->path1.data(), static_cast<int>(data->s1));
+                    rhs = s->chmod(data->path1.data(), static_cast<int>(data->s1));
                     break;
                 case ADD_FS_EVENT_FCHMOD:
-                    s->fchmod(data->file, static_cast<int>(data->s1));
+                    rhs = s->fchmod(data->file, static_cast<int>(data->s1));
                     break;
                 case ADD_FS_EVENT_UTIME:
-                    s->utime(data->path1.data(), ssize_store_in_double(data->s1), ssize_store_in_double(data->s2));
+                    rhs = s->utime(data->path1.data(), ssize_store_in_double(data->s1), ssize_store_in_double(data->s2));
                     break;
                 case ADD_FS_EVENT_FUTIME:
-                    s->futime(data->file, ssize_store_in_double(data->s1), ssize_store_in_double(data->s2));
+                    rhs = s->futime(data->file, ssize_store_in_double(data->s1), ssize_store_in_double(data->s2));
                     break;
                 case ADD_FS_EVENT_LUTIME:
-                    s->lutime(data->path1.data(), ssize_store_in_double(data->s1), ssize_store_in_double(data->s2));
+                    rhs = s->lutime(data->path1.data(), ssize_store_in_double(data->s1), ssize_store_in_double(data->s2));
                     break;
                 case ADD_FS_EVENT_SYMLINK:
-                    s->symlink(data->path1.data(), data->path2.data(), static_cast<int>(data->s1));
+                    rhs = s->symlink(data->path1.data(), data->path2.data(), static_cast<int>(data->s1));
                     break;
                 case ADD_FS_EVENT_READLINK:
-                    s->readlink(data->path1.data());
+                    rhs = s->readlink(data->path1.data());
                     break;
                 case ADD_FS_EVENT_REALPATH:
-                    s->realpath(data->path1.data());
+                    rhs = s->realpath(data->path1.data());
                     break;
                 case ADD_FS_EVENT_CHOWN:
-                    s->chown(data->path1.data(), data->s1, data->s2);
+                    rhs = s->chown(data->path1.data(), data->s1, data->s2);
                     break;
                 case ADD_FS_EVENT_FCHOWN:
-                    s->fchown(data->file, data->s1, data->s2);
+                    rhs = s->fchown(data->file, data->s1, data->s2);
                     break;
                 case ADD_FS_EVENT_LCHOWN:
-                    s->lchown(data->path1.data(), data->s1, data->s2);
+                    rhs = s->lchown(data->path1.data(), data->s1, data->s2);
                     break;
                 case ADD_FS_EVENT_LINK:
-                    s->link(data->path1.data(), data->path2.data());
+                    rhs = s->link(data->path1.data(), data->path2.data());
                     break;
+            }
+
+            if (rhs) {
+                /* error */
+                data->reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "fs command({}) failed with error: {}",
+                    static_cast<int>(data->flag), rhs)));
+                return;
             }
 
             data->resolve(std::move(s));

@@ -1554,7 +1554,7 @@ manapi::json_parse_exception::json_parse_exception(const json_err_num &errnum, c
     this->errnum = errnum;
 }
 
-const manapi::json_err_num &manapi::json_parse_exception::get_err_num () const {
+const manapi::json_err_num &manapi::json_parse_exception::err_num () const {
     return this->errnum;
 }
 

@@ -15,35 +15,33 @@
 #   include <ws2tcpip.h>
 #endif
 
-manapi::ev::io_cb pio_ready_mk_(std::shared_ptr<manapi::async::context> ctx, int flags, const int &fd,manapi::async::promise<int>::resolve_t resolve, manapi::async::promise<int>::reject_t reject) {
-    return [flags, ctx, resolve = std::move(resolve), reject = std::move(reject)] (std::shared_ptr<manapi::ev::io> &w, int status, int revents) mutable -> void {
-        if ((revents & flags)) {
-            auto _resolve = std::move(resolve);
-            auto ctx_ = ctx;
-            ctx_->eventloop()->stop_watcher(w);
-            _resolve(revents);
-        }
-    };
+manapi::ev::io_cb pio_ready_mk_(std::shared_ptr<manapi::async::context> ctx, int flags, const int &fd,manapi::async::promise<int>::resolve_t resolve, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
+    return [flags, ctx, resolve = std::move(resolve), reject = std::move(reject), cancellation = std::move(cancellation)]
+        (std::shared_ptr<manapi::ev::io> &w, int status, int revents) mutable
+            -> void {
+            if ((revents & flags)) {
+                auto resolve_ = std::move(resolve);
+                auto ctx_ = std::move(ctx);
+
+                cancellation.disable_cancellation();
+                ctx_->eventloop()->stop_watcher(w);
+
+                resolve_(revents);
+            }
+        };
 }
 
-manapi::future<> pio_ready (std::shared_ptr<manapi::async::context> ctx, manapi::fd_t fd, int flags, manapi::ev::io_cb cb, manapi::async::promise<int>::resolve_t resolve, manapi::async::cancellation_action cancellation) {
-    return ctx->eventloop()->custom_callback([ctx, fd, flags, resolve = std::move(resolve), cb = std::move(cb), cancellation] (manapi::event_loop *ev) mutable
+manapi::future<> pio_ready (std::shared_ptr<manapi::async::context> ctx, manapi::fd_t fd, int flags, manapi::ev::io_cb cb, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
+    return ctx->eventloop()->custom_callback([ctx, fd, flags, reject = std::move(reject), cb = std::move(cb), cancellation] (manapi::event_loop *ev) mutable
         -> void {
         auto w = ctx->eventloop()->create_watcher_fd(fd, std::move(cb));
 
         if (cancellation.contains_cancel_callback()) {
-            cancellation.set_cancel_callback([ctx, w, resolve] () mutable -> manapi::future<> {
-                co_await ctx->eventloop()->unwatch_poll(std::move(w));
-                resolve (-1);
-            });
-        }
-
-        if (cancellation.contains_timeout()) {
-            cancellation.timeout_struct ([resolve = std::move(resolve), ctx, w] () mutable
+            cancellation.cancel_callback([w, reject] (std::shared_ptr<manapi::async::context> ctx) mutable
                 -> void {
-                ctx->eventloop()->stop_watcher(std::move(w));
-                resolve(-1);
-            });
+                    ctx->eventloop()->stop_watcher(std::move(w));
+                    reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_CANCELLED, "socket i/o operation has been cancelled")));
+                });
         }
 
         /** bind watcher */
@@ -113,7 +111,7 @@ void manapi::async::close_descriptor(socket_t fd) {
 
 manapi::future<int> manapi::async::custom_ready(std::shared_ptr<context> ctx, fd_t flags, fd_t fd) {
     co_return co_await promise<int> (ctx, [ctx, flags, fd] (promise<int>::resolve_t resolve, promise<int>::reject_t reject) -> future<> {
-        auto cb = pio_ready_mk_(ctx, flags, fd, std::move(resolve), std::move(reject));
+        auto cb = pio_ready_mk_(ctx, flags, fd, std::move(resolve), std::move(reject), nullptr);
         co_await ctx->eventloop()->watch_poll(fd, flags, std::move(cb));
     });
 }
@@ -128,17 +126,13 @@ manapi::future<int> manapi::async::write_ready(std::shared_ptr<context> ctx, fd_
 
 manapi::future<int> manapi::async::custom_ready(std::shared_ptr<context> ctx, int flags, fd_t fd, cancellation_action cancellation) {
     auto res = co_await promise<int> (ctx, [ctx, flags, fd, cancellation] (promise<int>::resolve_t resolve, promise<int>::reject_t reject) mutable -> manapi::future<> {
-            auto cb = pio_ready_mk_(ctx, flags, fd, resolve, std::move(reject));
-
-            co_await pio_ready(ctx, fd, flags, std::move(cb), std::move(resolve), cancellation);
-
-            cancellation.ready();
+            auto cb = pio_ready_mk_(ctx, flags, fd, resolve, reject, cancellation);
+            co_await pio_ready(ctx, fd, flags, std::move(cb), std::move(reject), cancellation);
             co_return;
         });
 
     /** already */
-    cancellation.disable_cancellation();
-    cancellation.ready();
+    cancellation.cancel();
     co_return res;
 }
 

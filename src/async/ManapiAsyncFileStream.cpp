@@ -1,6 +1,8 @@
 #include "async/ManapiAsyncFileStream.hpp"
 
 #include <fcntl.h>
+
+#include "ManapiFilesystem.hpp"
 #ifdef _WIN32
 #   define NOMINMAX
 #   define WIN32_LEAN_AND_MEAN
@@ -12,19 +14,14 @@
 #   include <share.h>
 #endif
 
-manapi::filesystem::fstream::fstream(const std::shared_ptr<manapi::async::context> &ctx, std::string_view path) {
+manapi::filesystem::fstream::fstream(const std::shared_ptr<manapi::async::context> &ctx, std::string path, async::cancellation_action cancellation) {
     this->data = std::make_shared<fstream_data_t_>(
-        std::string{path},
-        ctx->taskpool(),
-        ctx->eventloop()
-    );
-}
-
-manapi::filesystem::fstream::fstream(const std::shared_ptr<event_loop> &eventloop, std::string_view path) {
-    this->data = std::make_shared<fstream_data_t_>(
-        std::string{path},
-        eventloop->taskpool(),
-        eventloop
+        ctx,
+        std::move(path),
+        std::move(cancellation),
+        -1,
+        0,
+        0
     );
 }
 
@@ -47,38 +44,50 @@ manapi::filesystem::fstream & manapi::filesystem::fstream::operator=(const fstre
 }
 
 manapi::future<> manapi::filesystem::fstream::open(int flags, int mode) {
+    if ((mode & ev::FS_O_WRONLY) && !(mode & (ev::FS_O_RDONLY|ev::FS_O_RDWR))) {
+        this->data->off_ = -1;
+    }
+    else {
+        this->data->off_ = 0;
+    }
 
-    this->data->eventloop->fs_open(this->data->path, flags, mode, [] (std::shared_ptr<ev::fs> &w) -> void {
-
-    });
+    this->data->file = co_await manapi::filesystem::async_open(this->data->ctx, this->data->path, flags, mode,
+        async::cancellation_action(this->data->ctx, this->data->cancellation));
 }
 
 bool manapi::filesystem::fstream::is_open() const {
-    return this->data->fd >= 0;
+    return (this->data->file >= 0) && !(this->data->status & FILE_CLOSED);
 }
 
 manapi::filesystem::fstream::~fstream() {
     if (this->data) {
-        manapi::async::run(this->data->taskpool, this->close());
+        sync_close_(this->data);
     }
 }
 
 manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t buff_size) {
     while (true) {
-        auto rhs = static_cast<ssize_t> (::read(this->data->fd, buff, buff_size));
+        ssize_t rhs;
+        //auto rhs = static_cast<ssize_t> (::read(this->data->file, buff, buff_size));
+
+        // if (rhs < 0) {
+        //     if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        //
+        //
+        //         continue;
+        //     }
+        //     break;
+        // }
+
+        rhs = co_await manapi::filesystem::async_read(this->data->ctx, this->data->file, buff, buff_size, this->data->off_,
+            manapi::async::cancellation_action(this->data->ctx, this->data->cancellation));
 
         if (rhs < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                co_await manapi::async::promise<void> (this->data->taskpool, [this] (manapi::async::promise<void>::resolve_t resolve, manapi::async::promise<void>::reject_t reject) -> future<> {
-                    this->data->r_resolve = std::move(resolve);
-                    this->data->status.fetch_or(FILE_READ);
-
-                    co_return;
-                });
-
-                continue;
-            }
             break;
+        }
+
+        if (this->data->off_ >= 0) {
+            this->data->off_ += rhs;
         }
 
         co_return rhs;
@@ -88,26 +97,24 @@ manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t bu
 }
 
 manapi::future<ssize_t> manapi::filesystem::fstream::write(const void *buff, ssize_t buff_size) {
-    if (this->data->status & FILE_WRITE) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_THREAD_SAFE, "that function isn't thread safe");
-    }
-
     while (true) {
-        auto rhs = static_cast<ssize_t> (::write(this->data->fd, buff, buff_size));
+        ssize_t rhs;
+        // auto rhs = static_cast<ssize_t> (::write(this->data->file, buff, buff_size));
+        //
+        // if (rhs < 0) {
+        //     if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        //
+        //
+        //         continue;
+        //     }
+        //
+        //     break;
+        // }
+        rhs = co_await manapi::filesystem::async_write(this->data->ctx, this->data->file, buff, buff_size, this->data->off_,
+            manapi::async::cancellation_action(this->data->ctx, this->data->cancellation));
 
-        if (rhs < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                co_await manapi::async::promise<void> (this->data->taskpool, [this] (manapi::async::promise<void>::resolve_t resolve, manapi::async::promise<void>::reject_t reject) -> future<> {
-                    this->data->w_resolve = std::move(resolve);
-                    this->data->status.fetch_or(FILE_WRITE);
-
-                    co_return;
-                });
-
-                continue;
-            }
-
-            break;
+        if (this->data->off_ >= 0) {
+            this->data->off_ += rhs;
         }
 
         co_return rhs;
@@ -152,22 +159,21 @@ manapi::future<> manapi::filesystem::fstream::close() {
     return fstream::close_(this->data);
 }
 
-void manapi::filesystem::fstream::sync_close() {
-    if (!(this->data->status.fetch_or(FILE_CLOSED) & FILE_CLOSED)) {
-        this->sync_close_(this->data);
-    }
+ssize_t manapi::filesystem::fstream::tellg() const {
+    return this->data->off_;
 }
 
 ssize_t manapi::filesystem::fstream::seekg(const ssize_t &pos, const seek_flag_t &flag) {
     return this->seekg_(pos, flag);
 }
 
-ssize_t manapi::filesystem::fstream::tellg() const {
-    return this->data->off_;
-}
-
-manapi::future<ssize_t> manapi::filesystem::fstream::total_size() const {
-
+manapi::future<ssize_t> manapi::filesystem::fstream::size() const {
+    ssize_t size;
+    co_await manapi::filesystem::async_fstat(this->data->ctx, this->data->file, [&size] (ev::stat_t *data)
+        -> void {
+        size = static_cast<ssize_t>(data->st_size);
+    }, async::cancellation_action(this->data->ctx, this->data->cancellation));
+    co_return size;
 }
 
 bool manapi::filesystem::fstream::eof() const {
@@ -175,6 +181,10 @@ bool manapi::filesystem::fstream::eof() const {
 }
 
 ssize_t manapi::filesystem::fstream::seekg_(const ssize_t &pos, const seek_flag_t &flag) const {
+    if (this->data->off_ < 0) {
+        this->data->off_ = 0;
+    }
+
     auto prev = this->data->off_;
     switch (flag) {
         case FILE_SEEK_START: this->data->off_ = pos; break;
@@ -183,42 +193,14 @@ ssize_t manapi::filesystem::fstream::seekg_(const ssize_t &pos, const seek_flag_
     return prev;
 }
 
-void manapi::filesystem::fstream::event_(std::shared_ptr<ev::io> &w, int status, int revents, const std::shared_ptr<fstream_data_t_> &data) {
-    if ((revents & ev::READ) && (data->status & FILE_READ)) {
-        data->status.fetch_xor(FILE_READ);
-        data->taskpool->append_task([resolve = std::move(data->r_resolve)] ()
-            -> void { resolve(); });
-    }
-
-    if ((revents & ev::WRITE) && (data->status & FILE_WRITE)) {
-        data->status.fetch_xor(FILE_WRITE);
-        data->taskpool->append_task([resolve = std::move(data->w_resolve)] ()
-            -> void { resolve(); });
-    }
-}
-
 void manapi::filesystem::fstream::sync_close_(std::shared_ptr<fstream_data_t_> data) {
-    if (data->watcher) {
-        data->eventloop->stop_watcher(data->watcher);
+    if (!(data->status.fetch_or(FILE_CLOSED) & FILE_CLOSED)) {
+        manapi::async::run(data->ctx, fstream::close_(data));
     }
-
-    if (data->fd >= 0) {
-        ::close(data->fd);
-    }
-
-    if (data->r_resolve) {
-        data->r_resolve();
-        data->r_resolve = nullptr;
-    }
-
-    if (data->w_resolve) {
-        data->w_resolve();
-        data->w_resolve = nullptr;
-    }
-
 }
 
 manapi::future<> manapi::filesystem::fstream::close_(std::shared_ptr<fstream_data_t_> data) {
-    return data->eventloop->custom_callback([data] (event_loop *ev1) mutable
-        -> void { return fstream::sync_close_(std::move(data)); });
+    if (data && data->file > 0) {
+        co_await manapi::filesystem::async_close(data->ctx, data->file);
+    }
 }

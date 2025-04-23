@@ -23,12 +23,12 @@ const std::map <manapi::err_num, std::string> manapi::err_msg {
     {ERR_INCOMPATIBLE_SETTING, "Incompatible setting"}
 };
 
-manapi::exception::exception(const err_num &errnum, std::string message_): message(std::move(message_)) {
-    this->errnum = errnum;
+manapi::exception::exception(const manapi::err_num &errnum, std::string message_): message(std::move(message_)) {
+    this->errnum_ = errnum;
 }
 
-manapi::exception::exception(const err_num &errnum, int addititonal_num_data, std::string message_) {
-    this->errnum = errnum;
+manapi::exception::exception(const manapi::err_num &errnum, int addititonal_num_data, std::string message_) {
+    this->errnum_ = errnum;
     this->addititonal_num_data = addititonal_num_data;
     this->message = std::move(message_);
 }
@@ -37,8 +37,8 @@ const char *manapi::exception::what() const noexcept {
     return this->message.data();
 }
 
-const manapi::err_num & manapi::exception::get_err_num() const {
-    return this->errnum;
+const manapi::err_num & manapi::exception::err_num() const {
+    return this->errnum_;
 }
 
 const int & manapi::exception::get_additional_num_data() const {

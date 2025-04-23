@@ -37,7 +37,7 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http::r
     if (!compress.empty()) {
         if (!res.is_file() ||
             !res.partial_enabled() ||
-            manapi::filesystem::get_size(res.file()) < config->get_partial_data_min_size()
+            co_await manapi::filesystem::async_file_size(this->site.async_context(), res.file()) < config->get_partial_data_min_size()
         ) {
             compressor = site.get_compressor(compress);
 
@@ -95,7 +95,7 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
     }
 
     filesystem::fstream f (this->site.async_context(), filepath);
-    co_await f.open(filesystem::fstream::FILE_READ);
+    co_await f.open(ev::FS_O_RDONLY);
 
     if (!f.is_open()) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to open the file: {}", filepath);
@@ -118,7 +118,7 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
         std::vector<replace_founded_item> replacers;
 
         // get file size
-        ssize_t fileSize = manapi::filesystem::get_size(filepath);
+        ssize_t fileSize = co_await manapi::filesystem::async_file_size(this->site.async_context(), filepath);
         ssize_t dynamicFileSize = fileSize;
 
         // replacers
@@ -292,7 +292,7 @@ manapi::future<> manapi::net::http::base::send_response_formdata(manapi::net::ht
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "formdata: Replacers isn't supported");
     }
 
-    auto size = formdata.payload_size();
+    auto size = co_await formdata.payload_size();
     auto boundary = formdata.generate_boundary();
     size += formdata.multipart_size(static_cast<ssize_t>(boundary.size()));
 
@@ -411,13 +411,13 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
                 std::string path;
 
                 for (size_t i = data->statics_parts_len; i < request_data.path.size(); i++) {
-                    path += manapi::filesystem::delimiter + request_data.path[i];
+                    path += manapi::filesystem::path::delimiter + request_data.path[i];
                 }
 
-                path = manapi::filesystem::join(*data->statics, path);
+                path = manapi::filesystem::path::join(*data->statics, path);
 
-                if (manapi::filesystem::exists(path) && manapi::filesystem::is_file(path)) {
-                    const auto ext = manapi::filesystem::extension(path);
+                //if (co_await manapi::filesystem::async_exists(this->site.async_context(), path) && manapi::filesystem::is_file(path)) {
+                    const auto ext = manapi::filesystem::path::extension(path);
                     auto mime = mime::mime_by_extension.find(ext);
                     bool binary = false;
                     if (mime != mime::mime_by_extension.end()) {
@@ -436,7 +436,7 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
 
                     co_await send_error_response(503, request_data, data->error.get());
                     co_return;
-                }
+                //}
             }
 
             co_await send_error_response(404, request_data, data->error.get());
@@ -448,7 +448,7 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
         co_await send_response(res);
         co_return;
     } catch (const manapi::exception &e) {
-        switch (e.get_err_num()) {
+        switch (e.err_num()) {
             case ERR_HTTP_CONNECTION_WAS_CLOSED:
                 co_return;
             default:
@@ -749,7 +749,7 @@ manapi::future<bool> manapi::net::http::base::expect_header() {
 }
 
 std::string generate_cache_name(const std::string &file, const std::string &ext) {
-    std::string name = std::format("{}-{:%Y_%m_%d_%H_%M_%S}-{}.{}", manapi::filesystem::basename(std::forward<const std::string&> (file)),
+    std::string name = std::format("{}-{:%Y_%m_%d_%H_%M_%S}-{}.{}", manapi::filesystem::path::basename(std::forward<const std::string&> (file)),
         manapi::time::current_time (true), manapi::string::random(25), ext);
 
     return std::move(name);
@@ -763,7 +763,7 @@ manapi::future<std::string> manapi::net::http::base::compress_file(const std::st
     auto cached = this->site.get_compressed_cache_file(file, compress);
 
     if (cached.empty()) {
-        filesystem::mkdir(folder, true);
+        co_await filesystem::async_mkdir(this->site.async_context(), folder, ev::IRUSR|ev::IWUSR);
         filepath = folder + generate_cache_name(file, "deflate");
 
         if (!co_await compressor(file, filepath)) {

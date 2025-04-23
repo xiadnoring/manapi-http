@@ -32,7 +32,7 @@ void manapi::compress::throw_file_exists (const std::string &name, const std::st
 
 manapi::future<bool> manapi::compress::deflate_compress_file(const std::shared_ptr<async::context> &ctx, const std::string &src, const std::string &dest, int level, int strategy)
 {
-    if (filesystem::exists (dest))
+    if (co_await filesystem::async_exists (ctx, dest))
     {
         throw_file_exists ("deflate", dest);
     }
@@ -40,13 +40,13 @@ manapi::future<bool> manapi::compress::deflate_compress_file(const std::shared_p
     filesystem::fstream input (ctx, src);
     filesystem::fstream output (ctx, dest);
 
-    co_await input.open(manapi::filesystem::fstream::FILE_READ);
+    co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
     {
         throw_could_not_open_file("deflate", src);
     }
 
-    co_await output.open(manapi::filesystem::fstream::FILE_WRITE|manapi::filesystem::fstream::FILE_CREATE);
+    co_await output.open(ev::FS_O_CREAT|ev::FS_O_WRONLY);
     if (!output.is_open())
     {
         throw_could_not_open_file("deflate", dest);
@@ -97,7 +97,7 @@ manapi::future<bool> manapi::compress::deflate_compress_file(const std::shared_p
 /* decompress */
 manapi::future<bool> manapi::compress::deflate_decompress_file(const std::shared_ptr<async::context> &ctx, const std::string &src, const std::string &dest)
 {
-    if (filesystem::exists (dest))
+    if (co_await filesystem::async_exists (ctx, dest))
     {
         throw_file_exists ("deflate", dest);
     }
@@ -105,13 +105,13 @@ manapi::future<bool> manapi::compress::deflate_decompress_file(const std::shared
     filesystem::fstream input (ctx, src);
     filesystem::fstream output (ctx, dest);
 
-    co_await input.open(manapi::filesystem::fstream::FILE_READ);
+    co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
     {
         throw_could_not_open_file("deflate", src);
     }
 
-    co_await output.open(manapi::filesystem::fstream::FILE_WRITE|manapi::filesystem::fstream::FILE_CREATE);
+    co_await output.open(ev::FS_O_WRONLY|ev::FS_O_CREAT);
     if (!output.is_open())
     {
         throw_could_not_open_file("deflate", src);
@@ -319,7 +319,7 @@ std::string manapi::compress::gzip_decompress_string(const std::string &compress
 
 manapi::future<bool> manapi::compress::gzip_compress_file(const std::shared_ptr<async::context> &ctx, const std::string &src, const std::string &dest, int level, int strategy)
 {
-    if (filesystem::exists (dest))
+    if (co_await filesystem::async_exists (ctx, dest))
     {
         throw_file_exists ("gzip", dest);
     }
@@ -327,13 +327,13 @@ manapi::future<bool> manapi::compress::gzip_compress_file(const std::shared_ptr<
     filesystem::fstream input (ctx, src);
     filesystem::fstream output (ctx, dest);
 
-    co_await input.open(manapi::filesystem::fstream::FILE_READ);
+    co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
     {
         throw_could_not_open_file("gzip", src);
     }
 
-    co_await output.open(manapi::filesystem::fstream::FILE_WRITE|manapi::filesystem::fstream::FILE_CREATE);
+    co_await output.open(ev::FS_O_WRONLY|ev::FS_O_CREAT);
     if (!output.is_open())
     {
         throw_could_not_open_file("gzip", dest);
@@ -382,7 +382,7 @@ manapi::future<bool> manapi::compress::gzip_compress_file(const std::shared_ptr<
 }
 
 manapi::future<bool> manapi::compress::gzip_decompress_file(const std::shared_ptr<async::context> &ctx, const std::string &src, const std::string &dest) {
-    if (filesystem::exists (dest))
+    if (co_await filesystem::async_exists (ctx, dest))
     {
         throw_file_exists ("gzip", dest);
     }
@@ -390,13 +390,13 @@ manapi::future<bool> manapi::compress::gzip_decompress_file(const std::shared_pt
     filesystem::fstream input (ctx, src);
     filesystem::fstream output (ctx, dest);
 
-    co_await input.open(manapi::filesystem::fstream::FILE_READ);
+    co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
     {
         throw_could_not_open_file("gzip", src);
     }
 
-    co_await output.open(manapi::filesystem::fstream::FILE_WRITE|manapi::filesystem::fstream::FILE_CREATE);
+    co_await output.open(ev::FS_O_WRONLY|ev::FS_O_CREAT);
     if (!output.is_open())
     {
         throw_could_not_open_file("gzip", src);

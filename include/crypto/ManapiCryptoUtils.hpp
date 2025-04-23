@@ -74,7 +74,7 @@ namespace manapi::crypto {
 #else
         if (std::filesystem::exists("/dev/urandom")) {
             filesystem::fstream input (ctx, "/dev/urandom");
-            co_await input.open(manapi::filesystem::fstream::FILE_READ);
+            co_await input.open(ev::FS_O_RDONLY);
 
             if (!input.is_open()) {
                 THROW_MANAPIHTTP_EXCEPTION2 (ERR_FILE_IO, "failed to get the random string from the /dev/urandom");

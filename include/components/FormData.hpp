@@ -97,7 +97,7 @@ namespace manapi::net {
         void erase (const std::string &name);
         [[nodiscard]] bool contains (const std::string &name) const;
 
-        [[nodiscard]] ssize_t payload_size () const;
+        [[nodiscard]] manapi::future<ssize_t> payload_size () const;
         [[nodiscard]] ssize_t multipart_size (ssize_t boundary_size) const;
 
         [[nodiscard]] std::string generate_boundary () const;

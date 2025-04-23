@@ -1,4 +1,5 @@
 #pragma once
+#include "ManapiCancellation.hpp"
 #include "../ManapiUtils.hpp"
 #include "../services/ManapiEventLoop.hpp"
 #include "../services/ManapiTask.hpp"
@@ -20,14 +21,10 @@ namespace manapi::filesystem {
             FILE_EOF = 0b1000
         };
         struct fstream_data_t_ {
+            std::shared_ptr<async::context> ctx;
             std::string path;
-            std::shared_ptr<threadpool<task>> taskpool;
-            std::shared_ptr<event_loop> eventloop;
-            std::shared_ptr<ev::io> watcher{nullptr};
-            manapi::async::promise<void>::resolve_t w_resolve{nullptr};
-            manapi::async::promise<void>::resolve_t r_resolve{nullptr};
-            std::shared_ptr<ev::fs> open;
-            std::shared_ptr<ev::fs> io;
+            async::cancellation_action cancellation;
+            ev::file file;
             std::atomic<int> status{0};
             off_t off_;
         };
@@ -37,8 +34,7 @@ namespace manapi::filesystem {
             FILE_SEEK_CURRENT
         };
 
-        fstream (const std::shared_ptr<manapi::async::context> &ctx, std::string_view path);
-        fstream (const std::shared_ptr<event_loop> &eventloop, std::string_view path);
+        fstream (const std::shared_ptr<manapi::async::context> &ctx, std::string path, async::cancellation_action cancellation = nullptr);
         fstream (fstream &&n) noexcept;
         fstream &operator=(fstream &&n) noexcept;
         fstream (const fstream &n);
@@ -51,14 +47,12 @@ namespace manapi::filesystem {
         future<> fwrite (const void *buff, ssize_t buff_size);
         future<ssize_t> fread (void *buff, ssize_t buff_size);
         future<> close ();
-        void sync_close ();
+        [[nodiscard]] ssize_t tellg() const;
         ssize_t seekg (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START);
-        [[nodiscard]] ssize_t tellg () const;
-        [[nodiscard]] manapi::future<ssize_t> total_size () const;
+        [[nodiscard]] manapi::future<ssize_t> size () const;
         [[nodiscard]] bool eof () const;
     private:
         ssize_t seekg_ (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START) const;
-        static void event_ (std::shared_ptr<ev::io> &w, int status, int revents, const std::shared_ptr<fstream_data_t_> &data);
 
         static future<> close_(std::shared_ptr<fstream_data_t_> data);
         static void sync_close_ (std::shared_ptr<fstream_data_t_> data);

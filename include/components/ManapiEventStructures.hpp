@@ -72,12 +72,50 @@ namespace manapi::ev {
         FS_O_WRONLY = UV_FS_O_WRONLY
     };
 
+#if defined(_WIN32)
+    enum fs_o_modes {
+        IRUSR = 0,
+        IWUSR = 0,
+        IXUSR = 0,
+        IRWXU = 0,
+
+        IRGRP = 0,
+        IWGRP = 0,
+        IXGRP = 0,
+        IRWXG = 0,
+
+        IROTH = 0,
+        IWOTH = 0,
+        IXOTH = 0,
+        IRWXO = 0
+    };
+#else
+    enum fs_o_modes {
+        IRUSR = S_IRUSR,
+        IWUSR = S_IWUSR,
+        IXUSR = S_IXUSR,
+        IRWXU = S_IRWXU,
+
+        IRGRP = S_IRGRP,
+        IWGRP = S_IWGRP,
+        IXGRP = S_IXGRP,
+        IRWXG = S_IRWXG,
+
+        IROTH = S_IROTH,
+        IWOTH = S_IWOTH,
+        IXOTH = S_IXOTH,
+        IRWXO = S_IRWXO
+    };
+#endif
+
     typedef uv_dir_t dir_t;
     typedef uv_file file;
     typedef uv_loop_t *loop_ref;
     typedef uv_uid_t uid_t;
     typedef uv_gid_t gid_t;
     typedef uv_dirent_t dirent_t;
+    typedef uv_statfs_t statfs_t;
+    typedef uv_stat_t stat_t;
 
     void callback_watcher_alloc (uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
     void callback_watcher_async (uv_async_t *s);
