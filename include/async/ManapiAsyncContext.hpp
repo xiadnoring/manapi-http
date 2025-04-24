@@ -34,7 +34,7 @@ namespace manapi::async {
     public:
         context (std::shared_ptr<event_loop> watcher, std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::logger> logger);
 
-        static std::shared_ptr<context> create (const unsigned int &threadnum = std::thread::hardware_concurrency(), const double &timer_delay = 0.2);
+        static std::shared_ptr<context> create (const unsigned int &threadnum = std::thread::hardware_concurrency(), const ssize_t &timer_delay = 60);
 
         manapi::future<void> start ();
         void sync_start();

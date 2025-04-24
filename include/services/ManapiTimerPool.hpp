@@ -33,7 +33,7 @@ namespace manapi {
 
         typedef std::map<size_t, timer_task> storage;
         typedef std::set <std::pair <std::chrono::steady_clock::time_point, size_t>, sorted_tasks_compare_t> sorted_storage;
-        explicit timerpool(std::shared_ptr<event_loop> events, const double &delay = 0.01);
+        explicit timerpool(std::shared_ptr<event_loop> events, ssize_t delay = 0.01);
         ~timerpool();
         future<manapi::timer> async_append_timer_sync (size_t ms, std::move_only_function<void(manapi::timer t)> task);
         future<manapi::timer> async_append_timer_async (size_t ms, std::move_only_function<future<void>(manapi::timer t)> task);

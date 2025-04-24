@@ -59,7 +59,9 @@ namespace manapi {
         ERR_CANCELLATION_FAILED = 51,
         ERR_FS_IO = 52,
         ERR_FS_IO_RESULT = 53,
-        ERR_FILE_NOT_FOUND = 54
+        ERR_FILE_NOT_FOUND = 54,
+        ERR_TIMER_ERROR = 55,
+        ERR_WATCHER_ERROR = 56
     };
 
     extern const std::map <err_num, std::string> err_msg;
@@ -97,7 +99,8 @@ namespace manapi::error {
         ERRMSG_FS_FAILURE_FS_IO_OPERATIONS,
         ERRMSG_FS_FAILURE_CALLBACK,
         ERRMSG_FS_CANCELLED,
-        ERRMSG_FS_FAILURE_INIT
+        ERRMSG_FS_FAILURE_INIT,
+        ERRMSG_WATCHER_COMMAND_FAILED
     };
 
     extern const char *default_msgs[];

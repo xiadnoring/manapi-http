@@ -33,7 +33,8 @@ namespace manapi::error {
         "failure of fs i/o operations: {}",
         "failure of fs callback: {}",
         "fs i/o operation has been cancelled",
-        "fs i/o init watcher failure"
+        "fs i/o init watcher failure",
+        "watcher command failed"
     };
 }
 

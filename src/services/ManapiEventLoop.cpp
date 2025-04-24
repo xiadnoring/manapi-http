@@ -734,9 +734,11 @@ void handle_async_watcher_data(manapi::event_loop *ev, std::unique_ptr<manapi::e
 }
 
 void handle_timer_watcher_data(manapi::event_loop *ev, std::unique_ptr<manapi::ev::internal::adding_watcher_timer_data_t> data) {
+    int rhs = 0;
     switch (data->flag) {
         case ADD_TIMER_EVENT_INIT: {
             auto s = ev->create_watcher_timer(std::move(data->payload.cb));
+            rhs = s->start(data->delay, data->repeat);
             data->payload.s=(std::move(s));
             break;
         }
@@ -745,21 +747,25 @@ void handle_timer_watcher_data(manapi::event_loop *ev, std::unique_ptr<manapi::e
             break;
         }
         case ADD_TIMER_EVENT_STOP: {
-            data->payload.s->stop();
+            rhs = data->payload.s->stop();
             break;
         }
         case ADD_TIMER_EVENT_START: {
-            data->payload.s->start(data->delay, data->repeat);
+            rhs = data->payload.s->start(data->delay, data->repeat);
             break;
         }
         case ADD_TIMER_EVENT_AGAIN: {
             data->payload.s->repeat(data->repeat);
-            data->payload.s->again();
+            rhs = data->payload.s->again();
             break;
         }
     }
-
-    data->resolve(std::move(data->payload.s));
+    if (rhs) {
+        data->resolve(nullptr);
+    }
+    else {
+        data->resolve(std::move(data->payload.s));
+    }
 }
 
 void manapi::event_loop::custom_watcher_poll_async(std::shared_ptr<ev::async> &w) {
@@ -1126,7 +1132,7 @@ manapi::future<std::shared_ptr<manapi::ev::timer>> template_timer_watcher_(std::
     manapi::ev::internal::timer_watcher_t *w, std::unique_ptr<manapi::ev::internal::adding_watcher_timer_data_t> data) {
 
     typedef std::shared_ptr<manapi::ev::timer> ret;
-    co_return co_await manapi::async::promise<ret> (taskpool_,
+    auto res =  co_await manapi::async::promise<ret> (taskpool_,
         [&] (manapi::async::promise<ret>::resolve_t resolve, manapi::async::promise<ret>::reject_t reject) mutable
         -> manapi::future<> {
             data->resolve = std::move(resolve);
@@ -1136,6 +1142,11 @@ manapi::future<std::shared_ptr<manapi::ev::timer>> template_timer_watcher_(std::
             lk.call();
             w_->adding_watcher_async_cb();
     });
+    if (res) {
+        co_return std::move(res);
+    }
+
+    THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_WATCHER_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_WATCHER_COMMAND_FAILED]);
 }
 
 manapi::future<std::shared_ptr<manapi::ev::io>> _template_async_watcher(std::shared_ptr<manapi::threadpool<manapi::task>> taskpool_,
@@ -1460,6 +1471,13 @@ manapi::future<> manapi::event_loop::again_timer(uint64_t repeat, std::shared_pt
     auto data = std::make_unique<ev::internal::adding_watcher_timer_data_t>(ADD_TIMER_EVENT_AGAIN, 0, repeat, ev::internal::adding_watcher_timer_data_payload_t{}, nullptr);
     data->payload.s=(std::move(w));
     co_await template_timer_watcher_(this->taskpool_, this->timer_watcher.get(), std::move(data));
+}
+
+manapi::future<> manapi::event_loop::stop_poll(std::shared_ptr<ev::io> w) {
+    ev::internal::adding_watcher_io_data_payload_t payload;
+    payload.s = std::move(w);
+    auto data = std::make_unique<ev::internal::adding_watcher_io_data_t>(ADD_IO_EVENT_STOP, 0, std::move(payload), nullptr);
+    co_await template_io_watcher_(this->taskpool_, this->io_watcher.get(), std::move(data));
 }
 
 std::shared_ptr<manapi::threadpool<manapi::task>> manapi::event_loop::taskpool() const {

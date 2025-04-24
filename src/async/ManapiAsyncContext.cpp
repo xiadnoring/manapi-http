@@ -15,7 +15,7 @@ manapi::async::context::context(std::shared_ptr<event_loop> watcher, std::shared
     this->timerpool_ = std::move(timerpool);
 }
 
-std::shared_ptr<manapi::async::context> manapi::async::context::create(const unsigned int &threadnum, const double &timer_delay) {
+std::shared_ptr<manapi::async::context> manapi::async::context::create(const unsigned int &threadnum, const ssize_t &timer_delay) {
     manapi::init_tools::ssl_library_init();
     manapi::init_tools::ev_library_init();
     manapi::init_tools::curl_library_init();

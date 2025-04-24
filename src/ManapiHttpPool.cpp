@@ -25,6 +25,7 @@ manapi::net::http_pool::http_pool(const json &config, class site *site, const si
     this->config = std::make_shared <http::config> (site->async_context(), config);
     this->id = id;
     this->site = site;
+    this->mx = std::make_shared<async::mutex>(this->site->async_context());
 
     this->config->set_function_contains_compressor([site] (const std::string &name) -> bool {
         return site->contains_compressor(name);
@@ -33,20 +34,17 @@ manapi::net::http_pool::http_pool(const json &config, class site *site, const si
 
 manapi::net::http_pool::~http_pool() = default;
 
-void manapi::net::http_pool::stop() {
-    std::lock_guard<std::mutex> lk (this->mx);
+manapi::future<> manapi::net::http_pool::stop() {
+    auto lk = co_await this->mx->lock_guard();
     MANAPIHTTP_LOG(this->site->async_context(), "{}", "shutdown socket");
 
-    // close socket
-#ifdef _WIN32
-    shutdown(this->config->get_socket_fd(), SD_BOTH);
-#else
-    shutdown(this->config->get_socket_fd(), SHUT_RDWR);
-#endif
-
     // stop watcher
-    this->worker->stop();
-    this->watcher->stop();
+    co_await this->site->async_context()->eventloop()->stop_poll(this->watcher);
+    co_await this->site->async_context()->eventloop()->custom_callback([this] (event_loop *ev)
+        -> void {
+        this->worker->stop();
+        this->watcher->stop();
+    });
 }
 
 manapi::future<void> manapi::net::http_pool::run() {
@@ -54,11 +52,11 @@ manapi::future<void> manapi::net::http_pool::run() {
 }
 
 manapi::future<void> manapi::net::http_pool::_pool() {
-    MANAPIHTTP_LOG(this->site->async_context(), "pool init #{}", id);
+    MANAPIHTTP_LOG(this->site->async_context(), "pool init #{}", this->id);
 
-    std::unique_lock <std::mutex> lock (mx);
+    auto lk = co_await this->mx->lock_guard();
 
-    MANAPIHTTP_LOG(this->site->async_context(), "pool start #{}", id);
+    MANAPIHTTP_LOG(this->site->async_context(), "pool start #{}", this->id);
 
     co_await this->events->custom_callback([&] (event_loop *ev) -> void {
         {

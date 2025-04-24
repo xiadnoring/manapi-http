@@ -147,6 +147,8 @@ namespace manapi {
         future<void> unwatch_timer (std::shared_ptr<ev::timer> w);
         future<void> again_timer (uint64_t repeat, std::shared_ptr<ev::timer> w);
 
+        future<> stop_poll (std::shared_ptr<ev::io> w);
+
         [[nodiscard]] std::shared_ptr<threadpool<task>> taskpool () const;
 #if MANAPIHTTP_CURL_DEPENDENCY
         future<void> watch_curl (std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb);

@@ -5,7 +5,7 @@
 #include "ManapiUtils.hpp"
 #include "services/ManapiTaskFunction.hpp"
 
-manapi::timerpool::timerpool(std::shared_ptr<event_loop> events, const double &delay) {
+manapi::timerpool::timerpool(std::shared_ptr<event_loop> events, ssize_t delay) {
     this->cv = std::make_shared<async::condition_variable>(events->taskpool());
     this->smx = std::make_shared<async::mutex>(events->taskpool());
     this->taskpool = events->taskpool();
@@ -83,8 +83,14 @@ manapi::future<void> manapi::timerpool::start(std::shared_ptr<timerpool> tp) {
         -> future<> { co_await tp->stop_(true); });
 
 
-    this->timer = co_await this->events->watch_timer(0, 0, [this, tp] (std::shared_ptr<ev::timer> &w)
-        -> void { this->_start(); w->repeat(this->delay); w->again(); });
+    this->timer = co_await this->events->watch_timer(0, this->delay, [this, tp] (std::shared_ptr<ev::timer> &w)
+        -> void {
+        this->_start();
+        w->repeat(this->delay);
+        if (w->again()) {
+            this->taskpool->logger()->debug(manapi::logger::default_service, "timerpool again failed");
+        }
+    });
 
     this->deps.fetch_add(1);
 }
