@@ -124,7 +124,7 @@ void manapi::async::cancellation_action::cancel_callback(cancellation_action can
     if (this->data && cancellation) {
         this->ask_cancel_callback();
         if (this->data->want_to_unit) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_CANCELLATION_FAILED, "Already want to unit with {:#010x}", reinterpret_cast <std::uintptr_t> (this->data->want_to_unit.get));
+            THROW_MANAPIHTTP_EXCEPTION2 (ERR_CANCELLATION_FAILED, "Already want to unit");
         }
 
         this->data->want_to_unit = std::make_unique<cancellation_action>(std::move(cancellation));
@@ -228,7 +228,7 @@ void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) {
                 it.cancel();
             }
             catch (manapi::exception const &e) {
-                MANAPIHTTP_LOG(data->ctx, "cancellation failed by error({}): {}", e.err_num(), e.what());
+                MANAPIHTTP_LOG(data->ctx, "cancellation failed by error({}): {}", static_cast<int>(e.err_num()), e.what());
             }
             catch (std::exception const &e) {
                 MANAPIHTTP_LOG(data->ctx, "cancellation failed by error {}", e.what());

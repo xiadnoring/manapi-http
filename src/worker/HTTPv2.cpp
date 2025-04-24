@@ -84,7 +84,8 @@ manapi::net::worker::http_v2::~http_v2() {
 
 void manapi::net::worker::http_v2::set_watcher_event(int revents) {
     if (!(this->watcher->events() & revents)) {
-        this->watcher->restart(this->watcher->events() | revents);
+        revents = this->watcher->events() | revents;
+        this->watcher->restart(revents);
     }
 }
 

@@ -117,7 +117,7 @@ int manapi::ev::io::stop() MANAPI_EV_NOEXPECT {
 }
 
 int manapi::ev::io::events() MANAPI_EV_NOEXPECT {
-    return this->custom()->io_watcher.pevents;
+    return this->custom()->io_watcher.pevents & (ev::WRITE|ev::READ);
 }
 
 manapi::ev::write::write(uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_write_cb cb) : s_() {

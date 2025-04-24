@@ -107,11 +107,11 @@ namespace manapi::net {
         const std::map <std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &transport_protocol_worker (const std::string &type);
 
         manapi::future<> config (std::string path);
-        void config_object (json config);
+        manapi::future<> config_object (json config);
         const manapi::json &config ();
 
-        std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm);
-        void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm);
+        std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm, std::filesystem::file_time_type filetime);
+        void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm, std::filesystem::file_time_type filetime);
 
         [[nodiscard]] const std::shared_ptr<async::context>& async_context ();
         const std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> &bufferpool();

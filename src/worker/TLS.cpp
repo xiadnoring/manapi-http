@@ -120,7 +120,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
                 auto &connection = conn->as<connection_interface>();
                 connection.status.fetch_or(CONN_CLOSED);
                 if (connection.iocancel) {
-                    connection.iocancel.sync_cancel();
+                    connection.iocancel.cancel();
                     connection.iocancel = nullptr;
                 }
         });
@@ -134,7 +134,7 @@ void manapi::net::worker::TLS::connection_close(std::shared_ptr<connection> conn
     auto &connection = conn->as<connection_interface>();
 
     if (connection.iocancel) {
-        connection.iocancel.sync_cancel();
+        connection.iocancel.cancel();
         connection.iocancel = nullptr;
     }
 

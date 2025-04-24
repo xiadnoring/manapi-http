@@ -618,13 +618,13 @@ void manapi::net::fetch::body(std::string data) {
 
 manapi::future<> manapi::net::fetch::body(file_transfer_info file_info) {
     auto file = std::make_shared <manapi::filesystem::fstream> (this->data_->ctx, file_info.filelocal());
-    co_await file->open(file->FILE_READ);
+    co_await file->open(ev::FS_O_RDONLY);
     if (!file->is_open()) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to open the file: {}", file_info.filelocal());
     }
 
     curl_easy_setopt(this->data_->curl.get(), CURLOPT_POSTFIELDS, nullptr);
-    curl_easy_setopt(this->data_->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, file->total_size());
+    curl_easy_setopt(this->data_->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, co_await file->size());
 
     this->async_body([file = std::move(file), file_info = std::move(file_info)] (char *buffer, ssize_t size) mutable
         -> manapi::future<ssize_t> {

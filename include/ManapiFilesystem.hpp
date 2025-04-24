@@ -22,7 +22,11 @@ namespace manapi::filesystem {
 
     future<ssize_t> async_write (std::shared_ptr<manapi::async::context> ctx, ev::file file, const void *data, ssize_t size, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
 
-    future<ssize_t> async_read (std::shared_ptr<manapi::async::context> ctx, ev::file file, const void *data, ssize_t size, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<ssize_t> async_read (std::shared_ptr<manapi::async::context> ctx, ev::file file, void *data, ssize_t size, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+
+    future<void> async_write (std::shared_ptr<manapi::async::context> ctx, std::string path, std::string data, int mode, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+
+    future<std::string> async_read (std::shared_ptr<manapi::async::context> ctx, std::string path, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
 
     future<ssize_t> async_file_size (std::shared_ptr<manapi::async::context> ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
 

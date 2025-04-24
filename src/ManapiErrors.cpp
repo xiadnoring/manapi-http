@@ -23,6 +23,20 @@ const std::map <manapi::err_num, std::string> manapi::err_msg {
     {ERR_INCOMPATIBLE_SETTING, "Incompatible setting"}
 };
 
+namespace manapi::error {
+    const char *default_msgs[] = {
+        "file not found",
+        "file exists",
+        "size isn't the same",
+        "by error: {}",
+        "error when receiving additional data",
+        "failure of fs i/o operations: {}",
+        "failure of fs callback: {}",
+        "fs i/o operation has been cancelled",
+        "fs i/o init watcher failure"
+    };
+}
+
 manapi::exception::exception(const manapi::err_num &errnum, std::string message_): message(std::move(message_)) {
     this->errnum_ = errnum;
 }

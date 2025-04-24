@@ -58,7 +58,8 @@ namespace manapi {
         ERR_CANCELLED = 50,
         ERR_CANCELLATION_FAILED = 51,
         ERR_FS_IO = 52,
-        ERR_FS_IO_RESULT = 53
+        ERR_FS_IO_RESULT = 53,
+        ERR_FILE_NOT_FOUND = 54
     };
 
     extern const std::map <err_num, std::string> err_msg;
@@ -83,4 +84,21 @@ namespace manapi {
         int addititonal_num_data = -1;
         std::string message;
     };
+}
+
+namespace manapi::error {
+    enum default_msgs_types {
+        ERRMSG_FILE_NOT_FOUND = 0,
+        ERRMSG_FILE_EXISTS,
+        ERRMSG_SIZE_NOT_SAME,
+        /* 1 param */
+        ERRMSG_BY_ERROR,
+        ERRMSG_WHEN_RECV_ADDITIONAL,
+        ERRMSG_FS_FAILURE_FS_IO_OPERATIONS,
+        ERRMSG_FS_FAILURE_CALLBACK,
+        ERRMSG_FS_CANCELLED,
+        ERRMSG_FS_FAILURE_INIT
+    };
+
+    extern const char *default_msgs[];
 }

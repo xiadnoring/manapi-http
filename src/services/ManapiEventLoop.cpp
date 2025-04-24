@@ -1721,12 +1721,6 @@ MANAPI_EV_UNWATCHER(udp_send, udp_send_ctx);
 MANAPI_EV_UNWATCHER(prepare, prepare_ctx);
 MANAPI_EV_UNWATCHER(fs, fs_ctx);
 
-template<typename T>
-void manapi::event_loop::event_loop::stop_watcher(std::shared_ptr<T> w) {
-    if (!w) { return; }
-    this->stop_watcher(w.get());
-}
-
 void manapi::event_loop::pool_(manapi::before_delete lk2, std::shared_ptr<event_loop> le) {
     {
         std::lock_guard<std::mutex> lk (event_loop::stop_mx);

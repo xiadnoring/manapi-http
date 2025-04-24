@@ -92,7 +92,10 @@ namespace manapi {
         void stop_watcher (T *w) { perror("not implemented"); }
 
         template<typename T>
-        void stop_watcher (std::shared_ptr<T> w);
+        void stop_watcher (std::shared_ptr<T> w) {
+            if (!w) { return; }
+            this->stop_watcher(w.get());
+        }
 
         void stop_watcher_tcp_accept (std::shared_ptr<ev::tcp> s);
         void stop_watcher_tcp_connection (std::shared_ptr<ev::tcp> s);

@@ -757,10 +757,10 @@ std::string generate_cache_name(const std::string &file, const std::string &ext)
 
 manapi::future<std::string> manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, const std::function<future<bool>(const std::string &src, const std::string &dest)> & compressor) const {
     std::string filepath;
-
+    auto filetime = co_await manapi::filesystem::async_last_time_write(this->site.async_context(), file);
     // compressor
     auto lk = co_await this->site.cache_config_mx().lock_guard();
-    auto cached = this->site.get_compressed_cache_file(file, compress);
+    auto cached = this->site.get_compressed_cache_file(file, compress, filetime);
 
     if (cached.empty()) {
         co_await filesystem::async_mkdir(this->site.async_context(), folder, ev::IRUSR|ev::IWUSR);
@@ -770,7 +770,7 @@ manapi::future<std::string> manapi::net::http::base::compress_file(const std::st
             co_return file;
         }
 
-        this->site.set_compressed_cache_file(file, filepath, compress);
+        this->site.set_compressed_cache_file(file, filepath, compress, filetime);
     }
     else {
         filepath = std::move(cached);

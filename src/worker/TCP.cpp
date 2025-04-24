@@ -244,7 +244,7 @@ void manapi::net::worker::TCP::connection_close(std::shared_ptr<connection> conn
     auto &connection = conn->as<connection_interface>();
 
     if (connection.iocancel) {
-        connection.iocancel.sync_cancel();
+        connection.iocancel.cancel();
         connection.iocancel = nullptr;
     }
 
@@ -281,7 +281,7 @@ void manapi::net::worker::TCP::connection_cancel(std::shared_ptr<connection> con
     auto &connection = conn->as<connection_interface>();
 
     if (connection.iocancel) {
-        connection.iocancel.sync_cancel();
+        connection.iocancel.cancel();
         connection.iocancel = nullptr;
     }
 }
@@ -372,7 +372,7 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage) {
         conn.t.sync_stop(this->site.async_context());
         conn.status.fetch_or(CONN_CLOSED);
         if (conn.iocancel) {
-            conn.iocancel.sync_cancel();
+            conn.iocancel.cancel();
             conn.iocancel = nullptr;
         }
         // async::run(this->site.async_context(), this->connection_close(storage, false));
