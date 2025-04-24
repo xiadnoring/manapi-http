@@ -146,7 +146,7 @@ manapi::future<> manapi::net::site::setup_config() {
 
     if (!co_await manapi::filesystem::async_exists(this->async_context(), this->data->config_cache_dir))
     {
-        co_await manapi::filesystem::async_mkdir(this->async_context(), this->data->config_cache_dir);
+        co_await manapi::filesystem::async_mkdir(this->async_context(), this->data->config_cache_dir, ev::IRWXU|ev::IRWXG);
     }
     else
     {

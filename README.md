@@ -16,7 +16,7 @@ For compile this project, you need to install below projects:
 - OpenSSL 3.3.1 or greater \[optional\]
 - zlib 1.3.1 or greater \[optional\]
 - gmp 6.3.0 or greater \[optional\]
-- **libev 4.33-3 or greater \[required\]**
+- **libuv 1.49.2 or greater \[required\]**
 - curl 8.8.0-1 or greater \[optional\]
 - wolfssl 5.5.0 or greater \[optional\]
 - quiche 0.22.0 or greater \[optional\]
@@ -24,22 +24,22 @@ For compile this project, you need to install below projects:
 
 ### For Arch Linux
 ```bash
-pacman -Sy libev
+pacman -Sy libuv
 ```
 
 ```bash
 # optinal
-pacman -Sy gmp openssl zlib libevdev curl
+pacman -Sy gmp openssl zlib curl
 ```
 
 or 
 
 ```bash
-paru -Sy libev
+paru -Sy libuv
 ```
 
 ```bash
-paru -Sy gmp openssl zlib libevdev curl
+paru -Sy gmp openssl zlib curl
 ```
 
 ### For Windows
