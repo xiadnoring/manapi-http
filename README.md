@@ -196,7 +196,7 @@ int main () {
   - [x] Async I/O Debug
 - [ ] Configuration
   - [x] limit-rate (TCP: HTTP/1.1, HTTP/2)
-  - [ ] limit-rate (UDP: HTTP/3)
+  - [x] limit-rate (UDP: HTTP/3)
   - [x] minimum speed requirements
 - [ ] HTTP
   - [x] Default HTTP/1.1 realization
