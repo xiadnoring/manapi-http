@@ -203,7 +203,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/http/HeaderView.hpp
         include/compress/ManapiHPack.hpp
         include/worker/HTTPv2.hpp
-        include/components/SmartBuffer.hpp
         include/ManapiHttpMime.hpp
         include/components/Atomic.hpp
         include/worker/QUIC.hpp
@@ -239,7 +238,6 @@ set(MANAPIHTTP_HTTP_FILES
         src/http/HTTPv2.cpp
         src/http/HeaderView.cpp
         src/worker/HTTPv2.cpp
-        src/components/SmartBuffer.cpp
         src/ManapiHttpMime.cpp
         src/worker/QUIC.cpp
         src/worker/TCP.cpp

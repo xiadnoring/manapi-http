@@ -133,7 +133,7 @@ void manapi::async::cancellation_action::cancel_callback(cancellation_action can
 
 void manapi::async::cancellation_action::cancel() {
     if (this->data) {
-        if ((this->data->status_.fetch_or(FLAG_CANCEL) & FLAG_CANCEL)) {
+        if ((this->data->status_.fetch_or(FLAG_CANCEL) & (FLAG_CANCEL|FLAG_DISABLED))) {
             return;
         }
 
@@ -160,7 +160,7 @@ void manapi::async::cancellation_action::ready() {
 
 void manapi::async::cancellation_action::ask_cancel_callback() {
     if (this->data) {
-        this->data->ask |= (FLAG_ASK_CANCEL|FLAG_ASK_TIMEOUT);
+        this->data->ask |= (FLAG_ASK_CANCEL);
     }
 }
 

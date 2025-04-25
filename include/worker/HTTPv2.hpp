@@ -4,7 +4,6 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiSite.hpp"
-#include "../components/SmartBuffer.hpp"
 #include "./base_worker.hpp"
 #include "../compress/ManapiHPack.hpp"
 #include "components/Buffer.hpp"
