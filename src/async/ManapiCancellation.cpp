@@ -208,7 +208,7 @@ void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) {
     cancellation_action::stop_timeout_(data);
 
     if (data->watcher) {
-        data->ctx->eventloop()->stop_watcher(std::move(data->watcher));
+        data->ctx->eventloop()->stop_watcher(data->watcher);
     }
 
     if (data->cancel_sync_callback_) {

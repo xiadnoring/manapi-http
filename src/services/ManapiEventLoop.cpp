@@ -16,8 +16,10 @@
 #endif
 
 #define MANAPI_EV_UNWATCHER(classname, ctxname) template<> void manapi::event_loop::event_loop::stop_watcher(ev::classname *w) { \
-    w->unbind(); auto data = static_cast<ev::internal::ctxname *>(w->data()); \
-    w->data(nullptr); if (data) { data->s_.reset(); delete data; } }
+    if (w->is_active()) { \
+        w->unbind(+[](uv_handle_t *handle) -> void { auto data = static_cast<ev::internal::ctxname *>(handle->data); \
+        handle->data = nullptr; if (data) { data->s_.reset(); delete data; } }); \
+    } }
 
 enum add_watcher_io_events {
     ADD_IO_EVENT_INIT_FD = 0,

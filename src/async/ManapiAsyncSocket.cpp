@@ -24,6 +24,8 @@ manapi::ev::io_cb pio_ready_mk_(std::shared_ptr<manapi::async::context> ctx, int
                 auto ctx_ = std::move(ctx);
 
                 cancellation.disable_cancellation();
+
+                assert(!w->stop());
                 ctx_->eventloop()->stop_watcher(w);
 
                 resolve_(revents);
@@ -39,7 +41,8 @@ manapi::future<> pio_ready (std::shared_ptr<manapi::async::context> ctx, manapi:
         if (cancellation.contains_cancel_callback()) {
             cancellation.cancel_callback([w, reject] (std::shared_ptr<manapi::async::context> ctx) mutable
                 -> void {
-                    ctx->eventloop()->stop_watcher(std::move(w));
+                    assert(!w->stop());
+                    ctx->eventloop()->stop_watcher(w);
                     reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_CANCELLED, "socket i/o operation has been cancelled")));
                 });
         }
