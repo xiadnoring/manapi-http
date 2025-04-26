@@ -256,6 +256,170 @@ int manapi::ev::fs::write(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff,
     return this->read(fileno, buff, nbuff, offset, callback_watcher_fs);
 }
 
+ssize_t manapi::ev::fs::try_write(ev::file fileno, const void *buff, ssize_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT {
+    ssize_t r;
+
+#if defined(_WIN32)
+    HANDLE handle;
+    OVERLAPPED overlapped, *overlapped_ptr;
+    LARGE_INTEGER offset_;
+    DWORD bytes;
+    DWORD error;
+    int result;
+    unsigned int index;
+    LARGE_INTEGER original_position;
+    LARGE_INTEGER zero_offset;
+    int restore_position;
+
+    handle = (HANDLE) ::_get_osfhandle(fileno);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return FS_EBADF;
+    }
+
+    if (offset != -1) {
+        memset(&overlapped, 0, sizeof overlapped);
+        overlapped_ptr = &overlapped;
+        if (SetFilePointerEx(handle, zero_offset, &original_position, FILE_CURRENT)) {
+            restore_position = 1;
+        }
+    }
+    else {
+        overlapped_ptr = NULL;
+    }
+
+    index = 0;
+    bytes = 0;
+
+    do {
+        DWORD incremental_bytes;
+
+        if (offset != -1) {
+            offset_.QuadPart = offset + bytes;
+            overlapped.Offset = offset_.LowPart;
+            overlapped.OffsetHigh = offset_.HighPart;
+        }
+
+        result = WriteFile(handle,
+                           buff,
+                           nbuff,
+                           &incremental_bytes,
+                           overlapped_ptr);
+        bytes += incremental_bytes;
+        ++index;
+    }
+    while (0);
+
+    if (restore_position) {
+        SetFilePointerEx(handle, original_position, NULL, FILE_BEGIN);
+    }
+
+    if (result || bytes > 0) {
+        r = bytes;
+    }
+    else {
+        error = GetLastError();
+        /* error */
+        if (error == ERROR_ACCESS_DENIED) {
+            error = ERROR_INVALID_FLAGS;
+        }
+        r = uv_translate_write_sys_error(error);
+    }
+#else
+    if (offset < 0) {
+        r = ::write(fileno, buff, nbuff);
+    }
+    else {
+        r = ::pwrite(fileno, buff, nbuff, offset);
+    }
+#endif
+    return r;
+}
+
+ssize_t manapi::ev::fs::try_read(ev::file fileno, void *buff, ssize_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT {
+    ssize_t r;
+#if defined(_WIN32)
+    HANDLE handle;
+    OVERLAPPED overlapped, *overlapped_ptr;
+    LARGE_INTEGER offset_;
+    DWORD bytes;
+    DWORD error;
+    int result;
+    unsigned int index;
+    LARGE_INTEGER original_position;
+    LARGE_INTEGER zero_offset;
+    int restore_position;
+
+    zero_offset.QuadPart = 0;
+    restore_position = 0;
+    handle = (HANDLE) ::_get_osfhandle(fileno);
+
+    if (handle == INVALID_HANDLE_VALUE) {
+        return FS_EBADF;
+    }
+
+    if (offset != -1) {
+        memset(&overlapped, 0, sizeof overlapped);
+        overlapped_ptr = &overlapped;
+        if (SetFilePointerEx(handle, zero_offset, &original_position, FILE_CURRENT)) {
+            restore_position = 1;
+        }
+    }
+    else {
+        overlapped_ptr = NULL;
+    }
+
+    index = 0;
+    bytes = 0;
+    do {
+        DWORD incremental_bytes;
+
+        if (offset != -1) {
+            offset_.QuadPart = offset + bytes;
+            overlapped.Offset = offset_.LowPart;
+            overlapped.OffsetHigh = offset_.HighPart;
+        }
+
+        result = ReadFile(handle,
+                          buff,
+                          nbuff,
+                          &incremental_bytes,
+                          overlapped_ptr);
+        bytes += incremental_bytes;
+        ++index;
+    }
+    while (0);
+
+    if (restore_position) {
+        SetFilePointerEx(handle, original_position, NULL, FILE_BEGIN);
+    }
+
+    if (result || bytes > 0) {
+        r = bytes;
+    }
+    else {
+        error = GetLastError();
+        if (error == ERROR_ACCESS_DENIED) {
+            error = ERROR_INVALID_FLAGS;
+        }
+
+        if (error == ERROR_HANDLE_EOF || error == ERROR_BROKEN_PIPE) {
+            r = bytes;
+        }
+        else {
+            r = uv_translate_sys_error(error);
+        }
+    }
+#else
+    if (offset < 0) {
+        r = ::read(fileno, buff, nbuff);
+    }
+    else {
+        r = ::pread(fileno, buff, nbuff, offset);
+    }
+#endif
+    return r;
+}
+
 int manapi::ev::fs::close(ev::file fileno, uv_fs_cb close_cb) MANAPI_EV_NOEXPECT {
     return uv_fs_close(this->loop_, &this->s_, fileno, close_cb);
 }

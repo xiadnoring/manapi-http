@@ -82,8 +82,15 @@ int main () {
     router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
         ssize_t result = 0;
-        co_await req.callback_sync([&result] (const char *buffer, ssize_t size)
-            -> ssize_t { result += size; return result; });
+        std::cout << "start\n";
+        try {
+            co_await req.callback_sync([&result] (const char *buffer, ssize_t size)
+                -> ssize_t { result += size; return result; });
+        }
+        catch (std::exception const &e) {
+            std::cout << e.what() << "\n";
+        }
+        std::cout << "end\n";
         co_return resp.text(std::format("{} : {}", result, result));
     });
 

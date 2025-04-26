@@ -567,6 +567,27 @@ manapi::future<void> manapi::filesystem::async_close(std::shared_ptr<manapi::asy
 manapi::future<ssize_t> manapi::filesystem::async_write(std::shared_ptr<manapi::async::context> ctx, ev::file file, const void *data, ssize_t size, int64_t offset, manapi::async::cancellation_action cancellation) {
     using promise = manapi::async::promise<ssize_t>;
 
+    if (!size) {
+        co_return size;
+    }
+
+    ssize_t rhs = ev::fs::try_write(file, data, size, offset);
+    if (rhs > 0) {
+        data = (static_cast<const char*>(data) + rhs);
+        size -= rhs;
+
+        if (offset >= 0) {
+            offset += rhs;
+        }
+
+        if (!size) {
+            co_return rhs;
+        }
+    }
+    else {
+        rhs = 0;
+    }
+
     struct async_write_data_t {
         ssize_t result;
         uv_buf_t buff[1];
@@ -575,7 +596,7 @@ manapi::future<ssize_t> manapi::filesystem::async_write(std::shared_ptr<manapi::
         async::context *ctx;
         async_fs_operation_event_cb<ssize_t> event_cb;
     } dd {
-        0,
+        rhs,
         {{(char *)data, static_cast<std::size_t>(size)}},
         file,
         offset,
@@ -632,7 +653,7 @@ manapi::future<ssize_t> manapi::filesystem::async_write(std::shared_ptr<manapi::
         }
     };
 
-    auto rhs = co_await async_fs_operation<ssize_t>(ctx,
+    rhs = co_await async_fs_operation<ssize_t>(ctx,
         [&dd] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->write(dd.file, dd.buff, 1, dd.offset);
@@ -646,6 +667,26 @@ manapi::future<ssize_t> manapi::filesystem::async_write(std::shared_ptr<manapi::
 manapi::future<ssize_t> manapi::filesystem::async_read(std::shared_ptr<manapi::async::context> ctx, ev::file file, void *data, ssize_t size, int64_t offset, manapi::async::cancellation_action cancellation) {
     using promise = manapi::async::promise<ssize_t>;
 
+    if (!size) {
+        co_return size;
+    }
+
+    ssize_t rhs = ev::fs::try_read(file, data, size, offset);
+    if (rhs > 0) {
+        data = (static_cast<char*>(data) + rhs);
+        size -= rhs;
+
+        if (offset >= 0) {
+            offset += rhs;
+        }
+        if (!size) {
+            co_return rhs;
+        }
+    }
+    else {
+        rhs = 0;
+    }
+
     struct async_read_data_t {
         ssize_t result;
         uv_buf_t buff[1];
@@ -654,7 +695,7 @@ manapi::future<ssize_t> manapi::filesystem::async_read(std::shared_ptr<manapi::a
         async::context *ctx;
         async_fs_operation_event_cb<ssize_t> event_cb;
     } dd {
-            0,
+            rhs,
             {{(char *)data, static_cast<std::size_t>(size)}},
             file,
             offset,
@@ -711,7 +752,7 @@ manapi::future<ssize_t> manapi::filesystem::async_read(std::shared_ptr<manapi::a
         }
     };
 
-    auto rhs = co_await async_fs_operation<ssize_t>(ctx,
+    rhs = co_await async_fs_operation<ssize_t>(ctx,
         [&dd] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->read(dd.file, dd.buff, 1, dd.offset);

@@ -68,16 +68,6 @@ manapi::filesystem::fstream::~fstream() {
 manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t buff_size) {
     while (true) {
         ssize_t rhs;
-        //auto rhs = static_cast<ssize_t> (::read(this->data->file, buff, buff_size));
-
-        // if (rhs < 0) {
-        //     if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        //
-        //
-        //         continue;
-        //     }
-        //     break;
-        // }
 
         rhs = co_await manapi::filesystem::async_read(this->data->ctx, this->data->file, buff, buff_size, this->data->off_,
             manapi::async::cancellation_action(this->data->ctx, this->data->cancellation));

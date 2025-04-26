@@ -407,6 +407,9 @@ namespace manapi::ev {
         int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb write_cb) MANAPI_EV_NOEXPECT;
         int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
 
+        static ssize_t try_write (ev::file fileno, const void *buff, ssize_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
+        static ssize_t try_read (ev::file fileno, void *buff, ssize_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
+
         int close (ev::file fileno, uv_fs_cb close_cb) MANAPI_EV_NOEXPECT;
         int close (ev::file fileno) MANAPI_EV_NOEXPECT;
 
