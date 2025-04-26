@@ -58,16 +58,15 @@ namespace manapi::async {
         std::shared_ptr<manapi::logger> logger_;
     };
 
-    inline std::mutex async_tasks_mx;
 
     struct async_task_t {
         manapi::future<void> task;
-        std::string stacktrace;
     };
-
-    inline std::map <size_t, std::shared_ptr<async_task_t>> async_tasks;
-
-    size_t _run_prepare (const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::move_only_function<void()> onfinish);
+#if defined(MANAPIHTTP_ASYNC_DEBUG)
+    inline std::mutex async_tasks_mx;
+    inline std::map <size_t, async_task_t*> async_tasks;
+#endif
+    void run_prepare_ (const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::unique_ptr<async_task_t> task_data, std::move_only_function<void()> onfinish);
     manapi::future<> blank_future();
 
     template<typename T>

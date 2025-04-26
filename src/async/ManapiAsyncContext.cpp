@@ -72,18 +72,21 @@ const std::shared_ptr<manapi::logger> & manapi::async::context::logger() {
 
 manapi::async::context::~context() = default;
 
-size_t manapi::async::_run_prepare(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::move_only_function<void()> onfinish)  {
+void manapi::async::run_prepare_(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::unique_ptr<async_task_t> task_data, std::move_only_function<void()> onfinish)  {
+#if defined(MANAPIHTTP_ASYNC_DEBUG)
     auto index = reinterpret_cast <size_t> (task.get_handle().address());
-
     task.on_finish([index, taskpool=taskpool, onfinish = std::move(onfinish)] () mutable -> void {
         auto index_ = index;
-        auto taskpool_ = std::move(taskpool);
-
+#else
+    task.on_finish([task_data = std::move(task_data), onfinish = std::move(onfinish)] () mutable -> void {
+#endif
         if (onfinish) {
-            taskpool_->append_task([finish = std::move(onfinish)] () mutable
-                -> void { finish(); });
+            try { onfinish(); }
+            catch (std::exception const &e) {
+                std::cerr << e.what() << "\n";
+            }
         }
-
+#if defined(MANAPIHTTP_ASYNC_DEBUG)
         decltype(async_tasks)::node_type data;
         {
             std::lock_guard<std::mutex> lk (async_tasks_mx);
@@ -92,11 +95,13 @@ size_t manapi::async::_run_prepare(const std::shared_ptr<threadpool<task>> &task
                 data = std::move(async_tasks.extract(it));
             }
         }
+#else
+
+#endif
+
     }, taskpool);
 
     task();
-
-    return index;
 }
 
 manapi::future<> manapi::async::blank_future () {
@@ -109,15 +114,20 @@ void manapi::async::run(const std::shared_ptr<context> &ctx, manapi::future<> ta
 
 void manapi::async::run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::move_only_function<void()> onfinish) {
     auto handle = task.release();
+
+    auto task_data = std::make_unique<async_task_t>(manapi::future<>{handle});
+
+#if defined(MANAPIHTTP_ASYNC_DEBUG)
     {
         auto index = reinterpret_cast <size_t> (handle.address());
         std::lock_guard<std::mutex> lk (async_tasks_mx);
-        auto status = async_tasks.insert({index, std::make_shared<async_task_t>(std::move(manapi::future<>{handle}), "")});
+        auto status = async_tasks.insert({index, task_data.get()});
         assert(status.second);
     }
+#endif
 
     task = manapi::future<>{handle};
-    async::_run_prepare(taskpool, task, std::move(onfinish));
+    async::run_prepare_(taskpool, task, std::move(task_data), std::move(onfinish));
 
     task.release();
 }

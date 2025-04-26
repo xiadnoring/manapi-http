@@ -39,9 +39,9 @@ namespace manapi::net::worker {
             std::string cid;
             quiche_conn *conn;
             // ev::timer timer;
-            ev::timer quiche_timer;
+            std::shared_ptr<ev::timer> quiche_timer;
             manapi::timer io_timer;
-            ev::async write_watcher;
+            std::shared_ptr<ev::async> write_watcher;
             quiche_h3_conn *http3_conn;
             std::map <int64_t, std::shared_ptr<worker::connection>> streams;
             std::shared_ptr<worker::base> worker;
@@ -49,6 +49,7 @@ namespace manapi::net::worker {
             int flags;
             std::vector<uint64_t> closed_streams;
             size_t transfared_last_second;
+            std::shared_ptr<connection> self;
         };
 
         struct connection_stream_t {
@@ -92,16 +93,16 @@ namespace manapi::net::worker {
     private:
         void update_limit_rate ();
         virtual void update_limit_rate_connection (connection &conn);
-        static http_v3_cloudflare_quiche *_get_dynamic_worker (const std::shared_ptr<worker::base> &w);
-        static void _flush_write_stream (connection_t &conn_data, std::map<int64_t, std::shared_ptr<worker::connection>>::iterator &stream_it, bool app);
-        static void _flush_read_stream (connection_t &conn_data, std::map<int64_t, std::shared_ptr<worker::connection>>::iterator &stream_it);
-        static void _flush_write (connection_t &conn_data, bool app);
-        static void _flush_read (connection_t &conn_data);
-        static void _quiche_set_header (quiche_h3_header &header, std::string_view key, std::string_view value);
-        static void _write_watcher_cb (EV_P_ ev_async *w, int revents);
-        static void _force_close (connection_t &conn_data);
-        static void _flush_connection_closed (connection_t &conn_data);
-        static void _clean_connection (void *conn_data);
+        static http_v3_cloudflare_quiche *get_dynamic_worker_ (const std::shared_ptr<worker::base> &w);
+        static void flush_write_stream_ (connection_t &conn_data, std::map<int64_t, std::shared_ptr<worker::connection>>::iterator &stream_it, bool app);
+        static void flush_read_stream_ (connection_t &conn_data, std::map<int64_t, std::shared_ptr<worker::connection>>::iterator &stream_it);
+        static void flush_write_ (connection_t &conn_data, bool app);
+        static void flush_read_ (connection_t &conn_data);
+        static void quiche_set_header_ (quiche_h3_header &header, std::string_view key, std::string_view value);
+        static void write_watcher_cb_ (std::shared_ptr<ev::async> handle, std::shared_ptr<worker::connection> connection);
+        static void force_close_ (connection_t &conn_data);
+        static void flush_connection_closed_ (connection_t &conn_data);
+        static void clean_connection_ (void *conn_data);
         static void init_write_buffer(connection_stream_t &s);
         static void disable_status_io (connection_stream_t &s);
         static void enable_status_io(connection_stream_t &s);
@@ -109,7 +110,7 @@ namespace manapi::net::worker {
         void _stream_close (connection_stream_t &stream);
         void _reset_all_streams (connection_t &conn_data);
         void _io_timeout (connection_t &conn_data);
-        static void _quiche_timeout (EV_P_ ev_timer *w, int revents);
+        static void _quiche_timeout (std::shared_ptr<ev::timer> t, std::shared_ptr<worker::connection> connection);
         static int _grab_headers (uint8_t *name, size_t name_len, uint8_t *value, size_t value_len, void *argp);
         static bool _validate_token (std::string_view token, std::string &odcid, const sockaddr_storage &sockaddr_src, const socklen_t &sockaddr_len);
         static std::string _gen_mint_token (std::string_view dcid, const sockaddr_storage &sockaddr_src, const socklen_t &sockaddr_len);
