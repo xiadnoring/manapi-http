@@ -84,24 +84,24 @@ manapi::future<void> manapi::net::worker::quic_openssl_tls::client_init(quic_fra
     auto max_size = static_cast<ssize_t>(frame.data.size());
     ssize_t i = 8;
 
-    data += quic::_parse_string(frame.data, i, 2); // TLS version
-    data += quic::_parse_string(frame.data, i, 32); // Client Random
-    data += quic::_parse_string(frame.data, i, 1); // session id
+    data += quic::parse_string_(frame.data, i, 2); // TLS version
+    data += quic::parse_string_(frame.data, i, 32); // Client Random
+    data += quic::parse_string_(frame.data, i, 1); // session id
     //data += crypto::strhex2strdec(std::string{"20e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"});
-    auto cipher_suites_len = quic::_parse_number<uint16_t>(frame.data, i);
+    auto cipher_suites_len = quic::parse_number_<uint16_t>(frame.data, i);
     data += crypto::number2bytes<uint16_t>(cipher_suites_len);
-    data += quic::_parse_string(frame.data, i, cipher_suites_len); // cipher suites
-    data += quic::_parse_string(frame.data, i, 2); // compression method
-    auto extensions_length = quic::_parse_number<uint16_t>(frame.data, i);
+    data += quic::parse_string_(frame.data, i, cipher_suites_len); // cipher suites
+    data += quic::parse_string_(frame.data, i, 2); // compression method
+    auto extensions_length = quic::parse_number_<uint16_t>(frame.data, i);
 
     auto rvalue = i + extensions_length;
     std::string extensions;
     extensions.reserve(extensions_length);
 
     for (; i < rvalue;) {
-        auto ext_type = quic::_parse_string(frame.data, i, 2);
-        auto ext_len = quic::_parse_number<uint16_t>(frame.data, i);
-        auto ext_data = quic::_parse_string(frame.data, i, ext_len);
+        auto ext_type = quic::parse_string_(frame.data, i, 2);
+        auto ext_len = quic::parse_number_<uint16_t>(frame.data, i);
+        auto ext_data = quic::parse_string_(frame.data, i, ext_len);
 
         extensions += ext_type;
         extensions += crypto::number2bytes<uint16_t>(ext_len);

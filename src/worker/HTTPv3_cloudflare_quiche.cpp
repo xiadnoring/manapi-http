@@ -479,6 +479,29 @@ void manapi::net::worker::http_v3_cloudflare_quiche::stop() {
     this->limit_rate_timer.sync_stop(this->site.async_context());
 }
 
+manapi::future<bool> manapi::net::worker::http_v3_cloudflare_quiche::configure_connection(
+    std::shared_ptr<connection> conn) {
+    co_return true;
+}
+
+void manapi::net::worker::http_v3_cloudflare_quiche::connection_close(std::shared_ptr<connection> conn,
+    bool clean_disconnect) {
+
+}
+
+bool manapi::net::worker::http_v3_cloudflare_quiche::is_valid_connection(worker::connection &connection) {
+    return true;
+}
+
+ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_read(worker::connection *conn, void *buff, ssize_t size) {
+    return -1;
+}
+
+ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write(worker::connection *conn, const void *buff,
+    ssize_t size) {
+    return -1;
+}
+
 manapi::net::worker::http_v3_cloudflare_quiche * manapi::net::worker::http_v3_cloudflare_quiche::get_dynamic_worker_(
     const std::shared_ptr<worker::base> &w) {
     return dynamic_cast<http_v3_cloudflare_quiche *> (w.get());

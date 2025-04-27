@@ -24,7 +24,6 @@ namespace manapi::net::worker {
         future<bool> configure_connection(std::shared_ptr<connection> conn) override;
         std::optional<std::shared_ptr<manapi::net::worker::connection>> accept () override;
         void connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
-        int status (connection &conn) override;
         ssize_t sync_read(worker::connection *conn, void *buff, ssize_t size) override;
         ssize_t sync_write(worker::connection *conn, const void *buff, ssize_t size) override;
         manapi::future<std::shared_ptr<ev::io>> async_watch_io(worker::connection *conn, int revents, ev::io_cb callback) override;

@@ -53,39 +53,27 @@ namespace manapi::net::worker {
         };
 
         base (net::site &site);
-        base (base &&n) noexcept;
+
         virtual ~base ();
 
-        virtual bool is_valid_connection (worker::connection &connection);
-        virtual void init ();
+        virtual bool is_valid_connection (worker::connection &connection) = 0;
+        virtual void init () = 0;
         virtual void set_config (std::shared_ptr<manapi::net::http::config> config);
-        virtual void connection_close (std::shared_ptr<connection> conn, bool clean_disconnect);
-        virtual void connection_shutdown (std::shared_ptr<connection> conn, bool connection_status);
-        virtual void connection_cancel (std::shared_ptr<connection> conn);
+        virtual void connection_close (std::shared_ptr<connection> conn, bool clean_disconnect) = 0;
 
-        virtual future<bool> configure_connection (std::shared_ptr<connection> conn);
+        virtual future<bool> configure_connection (std::shared_ptr<connection> conn) = 0;
 
-        virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
-        virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
-
-        virtual void onrecv (std::shared_ptr<ev::io> &watcher, int status, int revents);
-
-        base &operator= (base &&n) noexcept;
+        virtual void onrecv (std::shared_ptr<ev::io> &watcher, int status, int revents) = 0;
 
         manapi::future<ssize_t> fwrite (connection &conn, const void *buff, ssize_t size, bool finish);
         manapi::future<ssize_t> fread (connection &conn, void *buff, ssize_t size);
 
         virtual future<ssize_t> response (worker::connection &connection, http::response &resp, bool finish);
-        static std::shared_ptr<base> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
-        virtual void _timeout (std::shared_ptr<connection> storage);
-        virtual void stop ();
-        virtual int status (connection &conn);
 
-        virtual ssize_t sync_write (worker::connection *conn, const void *buff, ssize_t size);
-        virtual ssize_t sync_read (worker::connection *conn, void *buff, ssize_t size);
+        virtual void stop () = 0;
 
-        virtual std::shared_ptr<ev::io> sync_watch_io (worker::connection *conn, int revents, ev::io_cb callback);
-        virtual manapi::future<std::shared_ptr<ev::io>> async_watch_io (worker::connection *conn, int revents, ev::io_cb callback);
+        virtual ssize_t sync_write (worker::connection *conn, const void *buff, ssize_t size) = 0;
+        virtual ssize_t sync_read (worker::connection *conn, void *buff, ssize_t size) = 0;
 
         std::function<future<ssize_t>(connection &conn, const void *buff, ssize_t size, bool finish)> write;
         std::function<future<ssize_t>(connection &conn, void *buff, ssize_t size)> read;
@@ -96,7 +84,7 @@ namespace manapi::net::worker {
         std::weak_ptr<worker::base> worker;
         net::site &site;
         std::shared_ptr<manapi::net::http::config> config;
-        std::atomic<int> cnt_conns = 0;
+        ssize_t count;
     };
 #pragma pack(pop)
 

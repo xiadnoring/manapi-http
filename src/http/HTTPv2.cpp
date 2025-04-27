@@ -10,7 +10,7 @@ manapi::net::http::http_v2::http_v2(std::shared_ptr<manapi::net::worker::base> w
 
 }
 
-std::shared_ptr<manapi::net::worker::http_v2> manapi::net::http::http_v2::create(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config,manapi::net::site &site) {
+std::shared_ptr<manapi::net::worker::http_v2> manapi::net::http::http_v2::create(std::shared_ptr<manapi::net::worker::TCP> worker, std::shared_ptr<manapi::net::http::config> config,manapi::net::site &site) {
     std::shared_ptr<manapi::net::worker::http_v2> w = std::make_shared <manapi::net::worker::http_v2> (std::move(worker), std::move(config), site);
     w->new_dependency = [w = std::weak_ptr<manapi::net::worker::http_v2> (w)] () {
         return std::shared_ptr<manapi::net::worker::http_v2> (w);

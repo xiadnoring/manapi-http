@@ -13,7 +13,6 @@
 #include "services/ManapiThreadPool.hpp"
 #include "worker/HTTPv3_clouflare_quiche.hpp"
 #include "worker/HTTPv3_tquic.hpp"
-#include "worker/OpenSSL_QUIC.hpp"
 #include "worker/WolfSSL_TLS.hpp"
 
 namespace manapi::net {

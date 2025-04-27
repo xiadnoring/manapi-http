@@ -260,8 +260,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/worker/QUIC_CB_Base.hpp
         src/worker/QUIC_CB_Base.cpp
         src/worker/QUIC_CB_Base.cpp
-        src/worker/OpenSSL_QUIC.cpp
-        include/worker/OpenSSL_QUIC.hpp
         src/worker/UDP.cpp
         include/worker/UDP.hpp
         include/ManapiInitTools.hpp

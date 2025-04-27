@@ -117,7 +117,7 @@ manapi::future<void> manapi::net::http::HeaderView::doit() {
                     break;
                 }
                 case versions::HTTP_v2: {
-                    auto client = http::http_v2::create(this->worker, this->config, this->site);
+                    auto client = http::http_v2::create(dynamic_pointer_cast<worker::TCP>(this->worker), this->config, this->site);
                     client->connection = this->connection;
                     client->start = start;
                     client->buffer = std::move(this->buffer);

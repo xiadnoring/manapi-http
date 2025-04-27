@@ -176,8 +176,8 @@ void manapi::net::worker::TCP::onrecv(std::shared_ptr<ev::io> &watcher, int stat
                     -> void {
                     auto &connection = conn->as<connection_interface>();
                     connection.t.sync_stop(this->site.async_context());
-                    this->_ev_watcher_stop(connection);
-                    this->cnt_conns.fetch_sub(1);
+                    this->ev_watcher_stop_(connection);
+                    this->count--;
 
                     this->connection_close(conn, true);
                 }));
@@ -213,7 +213,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
 
     //MANAPIHTTP_LOG("NEW FD: {}", fd);
 
-    this->cnt_conns.fetch_add(1);
+    this->count += 1;
     manapi::async::set_non_blocking(fd);
 
     auto connection = init();
@@ -226,7 +226,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     conn.t = this->site.async_context()->timerpool()->append_interval_sync(this->config->speed_check_delay(),
         [weak_connection = std::weak_ptr (connection)] (manapi::timer t) mutable -> void {
             auto connection = weak_connection.lock();
-            connection->as<connection_interface>().worker->_timeout(std::move(connection));
+            dynamic_cast<TCP*>(connection->as<connection_interface>().worker.get())->timeout_(std::move(connection));
         });
 
     return std::move(connection);
@@ -253,37 +253,12 @@ void manapi::net::worker::TCP::connection_close(std::shared_ptr<connection> conn
         connection.t = nullptr;
     }
 
-    this->_connection_close(conn, connection);
+    this->connection_close_(conn, connection);
 }
 
 void manapi::net::worker::TCP::stop() {
     /* in the libev main loop */
     this->limit_rate_timer.sync_stop(this->site.async_context());
-}
-
-int manapi::net::worker::TCP::status(connection &conn) {
-    return conn.as<connection_io_await>().iostatus;
-}
-
-void manapi::net::worker::TCP::
-connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) {
-    auto &connection = conn->as<connection_interface>();
-    int flags = 0;
-    if (connection_status & CONN_READ) { flags = SHUT_RD; }
-    if (connection_status & CONN_WRITE) {
-        if (connection_status & CONN_READ) { flags = SHUT_RDWR; }
-        else { flags = SHUT_WR; }
-    }
-    ::shutdown(connection.id, flags);
-}
-
-void manapi::net::worker::TCP::connection_cancel(std::shared_ptr<connection> conn) {
-    auto &connection = conn->as<connection_interface>();
-
-    if (connection.iocancel) {
-        connection.iocancel.cancel();
-        connection.iocancel = nullptr;
-    }
 }
 
 ssize_t manapi::net::worker::TCP::sync_read(worker::connection *conn, void *buff, ssize_t size) {
@@ -347,7 +322,7 @@ void manapi::net::worker::TCP::update_limit_rate() {
     async::run(this->site.async_context(), this->limit_rate_cv->notify_all());
 }
 
-void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage) {
+void manapi::net::worker::TCP::timeout_(std::shared_ptr<connection> storage) {
     auto &conn = storage->as<connection_interface>();
 
     bool flag = false;
@@ -384,12 +359,11 @@ void manapi::net::worker::TCP::_timeout(std::shared_ptr<connection> storage) {
     conn.stats.last_total_write = conn.stats.total_write;
 }
 
-void manapi::net::worker::TCP::_ev_watcher_stop(connection_interface &conn) {
+void manapi::net::worker::TCP::ev_watcher_stop_(connection_interface &conn) {
     this->stacks.erase(conn.id);
 }
 
-void manapi::net::worker::TCP::_connection_close(std::shared_ptr<connection> conn, connection_interface &connection) {
-
+void manapi::net::worker::TCP::connection_close_(std::shared_ptr<connection> conn, connection_interface &connection) {
 }
 
 void manapi::net::worker::TCP::update_limit_rate_connection(connection &conn) {

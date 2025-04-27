@@ -12,7 +12,7 @@ namespace manapi::net::http {
     public:
         http_v2 (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
 
-        static std::shared_ptr<worker::http_v2> create (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
+        static std::shared_ptr<worker::http_v2> create (std::shared_ptr<manapi::net::worker::TCP> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         manapi::future<bool> parse_request(ssize_t j, ssize_t size) override;
         manapi::future<void> execute_handler() override;
     };

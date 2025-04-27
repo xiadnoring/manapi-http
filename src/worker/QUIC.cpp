@@ -36,13 +36,13 @@ void manapi::net::worker::quic::init() {
     // ssize_t size = 12312312312312;
     // auto data = std::string{"04"};
     // data = crypto::strhex2strdec(data);
-    // std::cout << "1073741824 " << (this->_parse_length_number(data, i, size)) << "\n";
+    // std::cout << "1073741824 " << (this->parse_length_number_(data, i, size)) << "\n";
     //
-    // std::cout << crypto::strdec2strhex(_stringify_length_number (4611686018427387903)) << " "  << (crypto::strdec2strhex(_stringify_length_number (4611686018427387903)) == "FFFFFFFFFFFFFFFF") << "\n";
-    // std::cout << crypto::strdec2strhex(_stringify_length_number (63)) << " "  << (crypto::strdec2strhex(_stringify_length_number (63)) == "3F") << "\n";
-    // std::cout << crypto::strdec2strhex(_stringify_length_number (16383)) << " "  << (crypto::strdec2strhex(_stringify_length_number (16383)) == "7FFF") << "\n";
-    // std::cout << crypto::strdec2strhex(_stringify_length_number (1073741823)) << " "  << (crypto::strdec2strhex(_stringify_length_number (1073741823)) == "BFFFFFFF") << "\n";
-    // std::cout << crypto::strdec2strhex(_stringify_length_number (1073741824)) << " "  << (crypto::strdec2strhex(_stringify_length_number (1073741824)) == "C000000040000000") << "\n";
+    // std::cout << crypto::strdec2strhex(stringify_length_number_ (4611686018427387903)) << " "  << (crypto::strdec2strhex(stringify_length_number_ (4611686018427387903)) == "FFFFFFFFFFFFFFFF") << "\n";
+    // std::cout << crypto::strdec2strhex(stringify_length_number_ (63)) << " "  << (crypto::strdec2strhex(stringify_length_number_ (63)) == "3F") << "\n";
+    // std::cout << crypto::strdec2strhex(stringify_length_number_ (16383)) << " "  << (crypto::strdec2strhex(stringify_length_number_ (16383)) == "7FFF") << "\n";
+    // std::cout << crypto::strdec2strhex(stringify_length_number_ (1073741823)) << " "  << (crypto::strdec2strhex(stringify_length_number_ (1073741823)) == "BFFFFFFF") << "\n";
+    // std::cout << crypto::strdec2strhex(stringify_length_number_ (1073741824)) << " "  << (crypto::strdec2strhex(stringify_length_number_ (1073741824)) == "C000000040000000") << "\n";
 }
 
 void manapi::net::worker::quic::onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) {
@@ -55,11 +55,11 @@ void manapi::net::worker::quic::onrecv(std::shared_ptr<ev::io> &watcher, int sta
             return;
         }
 
-        auto frame_data = this->_parse_frame(this->gbuffer, rhs, sockaddr_src, sockaddr_len);
+        auto frame_data = this->parse_frame_(this->gbuffer, rhs, sockaddr_src, sockaddr_len);
 
         if (frame_data.has_value()) {
             async::run(this->site.async_context(),
-                this->_work(watcher->custom()->io_watcher.fd, sockaddr_src, sockaddr_len, std::move(frame_data.value())));
+                this->work_(watcher->custom()->io_watcher.fd, sockaddr_src, sockaddr_len, std::move(frame_data.value())));
         }
     }
 }
@@ -70,7 +70,7 @@ std::shared_ptr<manapi::net::worker::quic> manapi::net::worker::quic::create(net
     return std::move(worker);
 }
 
-std::shared_ptr<manapi::net::worker::connection> manapi::net::worker::quic::_registry_new_connection(std::string_view initial_key, std::string dcid, sockaddr_storage sockaddr_src, socklen_t sockaddr_len) {
+std::shared_ptr<manapi::net::worker::connection> manapi::net::worker::quic::registry_new_connection_(std::string_view initial_key, std::string dcid, sockaddr_storage sockaddr_src, socklen_t sockaddr_len) {
     std::string scid;
 
     do {
@@ -86,8 +86,8 @@ std::shared_ptr<manapi::net::worker::connection> manapi::net::worker::quic::_reg
         .scid = scid,
         .dcid = std::move(dcid),
         .token = {},
-        .server_keys = this->_gen_keys(initial_key, "server in"),
-        .client_keys = this->_gen_keys(initial_key, "client in"),
+        .server_keys = this->gen_keys_(initial_key, "server in"),
+        .client_keys = this->gen_keys_(initial_key, "client in"),
         .sockaddr_src = sockaddr_src,
         .sockaddr_len = sockaddr_len,
         .step = QUIC_STEP_CLIENT_HELLO,
@@ -112,7 +112,7 @@ std::shared_ptr<manapi::net::worker::connection> manapi::net::worker::quic::_reg
     return std::move(connection);
 }
 
-std::shared_ptr<manapi::net::worker::connection> manapi::net::worker::quic::_get_connection(const std::string &scid) {
+std::shared_ptr<manapi::net::worker::connection> manapi::net::worker::quic::get_connection_(const std::string &scid) {
     auto it = this->connections.find(scid);
     if (it == this->connections.end()) {
         return {nullptr};
@@ -120,7 +120,7 @@ std::shared_ptr<manapi::net::worker::connection> manapi::net::worker::quic::_get
     return it->second;
 }
 
-manapi::future<void> manapi::net::worker::quic::_work(int fd, sockaddr_storage sockaddr_src, socklen_t sockaddr_len, quic_frame_data_t frame_data) {
+manapi::future<void> manapi::net::worker::quic::work_(int fd, sockaddr_storage sockaddr_src, socklen_t sockaddr_len, quic_frame_data_t frame_data) {
     auto tp = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::steady_clock::now());
 
     auto connection = frame_data.connection;
@@ -138,8 +138,8 @@ manapi::future<void> manapi::net::worker::quic::_work(int fd, sockaddr_storage s
                     std::cout << "TLS_1.3 server handshake : " << crypto::strdec2strhex(server_handshake) << "\n";
 
                     /* inital server */
-                    auto frames = this->_make_ack_frame(connection, tp)
-                        + this->_make_crypto_frame(connection, server_hello);
+                    auto frames = this->make_ack_frame_(connection, tp)
+                        + this->make_crypto_frame_(connection, server_hello);
                     co_await this->send_frame(connection, frames, true, QUIC_PACKET_INITIAL);
 
                     /* handshake */
@@ -172,7 +172,7 @@ manapi::future<void> manapi::net::worker::quic::_work(int fd, sockaddr_storage s
     co_return;
 }
 
-std::string manapi::net::worker::quic::_make_ack_frame(std::shared_ptr<connection> &connection, std::chrono::time_point<std::chrono::steady_clock, std::chrono::microseconds> tp) {
+std::string manapi::net::worker::quic::make_ack_frame_(std::shared_ptr<connection> &connection, std::chrono::time_point<std::chrono::steady_clock, std::chrono::microseconds> tp) {
     auto &conn_data = connection->as<quic_cb_base::quic_connection_t>();
     std::string data;
     data.reserve(16);
@@ -182,17 +182,17 @@ std::string manapi::net::worker::quic::_make_ack_frame(std::shared_ptr<connectio
         data += '\000';
     }
     else {
-        data += quic::_stringify_length_number(conn_data.acks.rbegin()->second);
+        data += quic::stringify_length_number_(conn_data.acks.rbegin()->second);
     }
 
     auto delay = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()) - tp;
-    data += quic::_stringify_length_number(crypto::binpow(2, conn_data.settings[QUIC_SETTING_ACK_DELAY_EXPONENT]) * delay.count());
+    data += quic::stringify_length_number_(crypto::binpow(2, conn_data.settings[QUIC_SETTING_ACK_DELAY_EXPONENT]) * delay.count());
 
     if (conn_data.acks.empty()) {
         data += '\000';
     }
     else {
-        data += quic::_stringify_length_number(conn_data.acks.size() - 1);
+        data += quic::stringify_length_number_(conn_data.acks.size() - 1);
     }
 
     if (conn_data.acks.empty()) {
@@ -200,11 +200,11 @@ std::string manapi::net::worker::quic::_make_ack_frame(std::shared_ptr<connectio
     }
     else {
         auto rit = conn_data.acks.rbegin();
-        data += quic::_stringify_length_number(rit->second - rit->first + 1);
+        data += quic::stringify_length_number_(rit->second - rit->first + 1);
 
         for (auto it = std::next(rit); it != conn_data.acks.rend(); ++it) {
-            data += quic::_stringify_length_number(it->first - rit->second - 1);
-            data += quic::_stringify_length_number(it->second - rit->first + 1);
+            data += quic::stringify_length_number_(it->first - rit->second - 1);
+            data += quic::stringify_length_number_(it->second - rit->first + 1);
             rit = it;
         }
     }
@@ -212,7 +212,7 @@ std::string manapi::net::worker::quic::_make_ack_frame(std::shared_ptr<connectio
     return std::move(data);
 }
 
-std::string manapi::net::worker::quic::_make_crypto_frame(std::shared_ptr<connection> &connection, std::string_view crypto_data) {
+std::string manapi::net::worker::quic::make_crypto_frame_(std::shared_ptr<connection> &connection, std::string_view crypto_data) {
     std::string frame;
     /* 32 bytes for header */
     frame.reserve(crypto_data.size() + 32);
@@ -221,39 +221,39 @@ std::string manapi::net::worker::quic::_make_crypto_frame(std::shared_ptr<connec
     /* data offset */
     frame += '\0';
     /* data size */
-    frame += quic::_stringify_length_number(crypto_data.size());
+    frame += quic::stringify_length_number_(crypto_data.size());
     /* data */
     frame += crypto_data;
     return std::move(frame);
 }
 
-std::string manapi::net::worker::quic::_hkdf_expand_label(std::string_view salt, std::string_view label, std::string_view ctx, const int &length) {
+std::string manapi::net::worker::quic::hkdf_expand_label_(std::string_view salt, std::string_view label, std::string_view ctx, const int &length) {
     std::string blabel = "tls13 ";
     blabel+=label;
 
     // length
-    std::string info = this->_number_to_bytes <uint16_t> (length);
+    std::string info = this->number_to_bytes_ <uint16_t> (length);
 
     // label
-    info += this->_number_to_bytes <uint8_t> (blabel.size());
+    info += this->number_to_bytes_ <uint8_t> (blabel.size());
     info += blabel;
 
     // context
-    info += this->_number_to_bytes<uint8_t>(ctx.size());
+    info += this->number_to_bytes_<uint8_t>(ctx.size());
     info += ctx;
 
     return std::move(crypto::hkdf_expand(salt, info, length));
 }
 
-manapi::net::worker::quic_initial_keys_t manapi::net::worker::quic::_gen_keys(std::string_view dcid, std::string_view type) {
+manapi::net::worker::quic_initial_keys_t manapi::net::worker::quic::gen_keys_(std::string_view dcid, std::string_view type) {
     quic_initial_keys_t keys;
 
     std::string salt = crypto::strhex2strdec(std::string({SHA1_FIRST_COLLISION, sizeof (SHA1_FIRST_COLLISION) - 1}));
     auto init_secret = crypto::hkdf_extract(salt, dcid, crypto::SHA_256);
-    auto secret = this->_hkdf_expand_label(init_secret, type, "", 32);
-    keys.iv = this->_hkdf_expand_label(secret, "quic iv", "", 12);
-    keys.key = this->_hkdf_expand_label(secret, "quic key", "", 16);
-    keys.hp_key = this->_hkdf_expand_label(secret, "quic hp", "", 16);
+    auto secret = this->hkdf_expand_label_(init_secret, type, "", 32);
+    keys.iv = this->hkdf_expand_label_(secret, "quic iv", "", 12);
+    keys.key = this->hkdf_expand_label_(secret, "quic key", "", 16);
+    keys.hp_key = this->hkdf_expand_label_(secret, "quic hp", "", 16);
     keys.iv_cnt = 0;
 
     return std::move(keys);
@@ -267,7 +267,7 @@ std::string manapi::net::worker::quic::build_iv(std::string iv, const uint64_t &
     return std::move(iv);
 }
 
-std::string_view manapi::net::worker::quic::_parse_string(std::string_view buffer, ssize_t &i, const ssize_t &len) {
+std::string_view manapi::net::worker::quic::parse_string_(std::string_view buffer, ssize_t &i, const ssize_t &len) {
     if (len + i > buffer.size()) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "No enough left space");
     }
@@ -276,7 +276,29 @@ std::string_view manapi::net::worker::quic::_parse_string(std::string_view buffe
     return {buffer.data() + j, static_cast<size_t>(len)};
 }
 
-void manapi::net::worker::quic::_init_connection_settings(quic_cb_base::quic_connection_t &connection) {
+void manapi::net::worker::quic::stop() {
+}
+
+void manapi::net::worker::quic::connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) {
+}
+
+manapi::future<bool> manapi::net::worker::quic::configure_connection(std::shared_ptr<connection> conn) {
+    co_return false;
+}
+
+ssize_t manapi::net::worker::quic::sync_read(worker::connection *conn, void *buff, ssize_t size) {
+    return -1;
+}
+
+ssize_t manapi::net::worker::quic::sync_write(worker::connection *conn, const void *buff, ssize_t size) {
+    return -1;
+}
+
+bool manapi::net::worker::quic::is_valid_connection(worker::connection &connection) {
+    return true;
+}
+
+void manapi::net::worker::quic::init_connection_settings_(quic_cb_base::quic_connection_t &connection) {
     connection.settings[QUIC_SETTING_ORIGINAL_DESTINATION_CONNECTION_ID].store(0);
     connection.settings[QUIC_SETTING_MAX_IDLE_TIMEOUT].store(0);
     connection.settings[QUIC_SETTING_STATELESS_RESET_TOKEN].store(0);
@@ -367,7 +389,7 @@ manapi::future<> manapi::net::worker::quic::send_frame(const std::shared_ptr<con
 
     {
         /* packet length */
-        packet += quic::_stringify_length_number(data.size() + packet_number_len + quic::aead_token_size);
+        packet += quic::stringify_length_number_(data.size() + packet_number_len + quic::aead_token_size);
     }
 
     const int packet_number_pos = static_cast<int>(packet.size());
@@ -411,7 +433,7 @@ manapi::future<> manapi::net::worker::quic::send_frame(const std::shared_ptr<con
     co_return;
 }
 
-uint64_t manapi::net::worker::quic::_parse_length_number(std::string_view buffer, ssize_t &i, const ssize_t &size) {
+uint64_t manapi::net::worker::quic::parse_length_number_(std::string_view buffer, ssize_t &i, const ssize_t &size) {
     uint8_t c = buffer[i++];
     int len = (c >> 6);
     uint64_t n = c xor (len << 6);
@@ -423,11 +445,11 @@ uint64_t manapi::net::worker::quic::_parse_length_number(std::string_view buffer
     return n;
 }
 
-std::string manapi::net::worker::quic::_stringify_length_number(uint64_t n) {
+std::string manapi::net::worker::quic::stringify_length_number_(uint64_t n) {
     int slen;
     uint8_t nlen;
 
-    quic::_calculate_length_number_len (n, slen, nlen);
+    quic::calculate_length_number_len_ (n, slen, nlen);
 
     std::string str;
     str.resize(slen);
@@ -442,7 +464,7 @@ std::string manapi::net::worker::quic::_stringify_length_number(uint64_t n) {
     return std::move(str);
 }
 
-void manapi::net::worker::quic::_calculate_length_number_len(const uint64_t &n, int &slen, uint8_t &nlen) {
+void manapi::net::worker::quic::calculate_length_number_len_(const uint64_t &n, int &slen, uint8_t &nlen) {
     if (n < 64) {
         slen = 1;
         nlen = 0;
@@ -471,31 +493,31 @@ manapi::net::worker::quic_packet_header_byte_t manapi::net::worker::quic::parse_
     };
 }
 
-std::optional<manapi::net::worker::quic_frame_data_t> manapi::net::worker::quic::_parse_frame(std::string &buffer, ssize_t &size, sockaddr_storage &sockaddr_src, socklen_t &sockaddr_len) {
+std::optional<manapi::net::worker::quic_frame_data_t> manapi::net::worker::quic::parse_frame_(std::string &buffer, ssize_t &size, sockaddr_storage &sockaddr_src, socklen_t &sockaddr_len) {
     try {
         ssize_t i = 0;
-        auto hb = quic::_parse_number<uint8_t>(buffer, i); // Header Byte
-        auto quic_version = quic::_parse_number<uint32_t>(buffer, i);
+        auto hb = quic::parse_number_<uint8_t>(buffer, i); // Header Byte
+        auto quic_version = quic::parse_number_<uint32_t>(buffer, i);
 
-        auto des_id_len = quic::_parse_number<uint8_t>(buffer, i);
-        std::string des_id = std::string{quic::_parse_string(buffer, i, des_id_len)};
+        auto des_id_len = quic::parse_number_<uint8_t>(buffer, i);
+        std::string des_id = std::string{quic::parse_string_(buffer, i, des_id_len)};
 
-        auto src_id_len = quic::_parse_number<uint8_t>(buffer, i);
-        std::string src_id = std::string{quic::_parse_string(buffer, i, src_id_len)};
+        auto src_id_len = quic::parse_number_<uint8_t>(buffer, i);
+        std::string src_id = std::string{quic::parse_string_(buffer, i, src_id_len)};
 
-        auto token_id_len = quic::_parse_number<uint8_t>(buffer, i);
-        auto token_id = std::string{quic::_parse_string(buffer, i, token_id_len)};
+        auto token_id_len = quic::parse_number_<uint8_t>(buffer, i);
+        auto token_id = std::string{quic::parse_string_(buffer, i, token_id_len)};
 
         /* payload data length */
-        auto len = this->_parse_length_number(buffer, i, size);
+        auto len = this->parse_length_number_(buffer, i, size);
 
         std::shared_ptr<connection> connection;
 
         if (!this->connections.contains(des_id)) {
-            connection = this->_registry_new_connection(des_id, src_id, sockaddr_src, sockaddr_len);
+            connection = this->registry_new_connection_(des_id, src_id, sockaddr_src, sockaddr_len);
         }
         else {
-            connection = this->_get_connection(des_id);
+            connection = this->get_connection_(des_id);
         }
 
         if (!connection) {
@@ -522,9 +544,9 @@ std::optional<manapi::net::worker::quic_frame_data_t> manapi::net::worker::quic:
         {
             uint8_t mj = header_byte_data.packet_number_length+1;
             for (uint8_t j = 1; j <= mj; j++) {
-                auto c_pnum = static_cast<uint8_t>(quic::_parse_number<uint8_t>(buffer, i) xor static_cast<uint8_t>(header_protection_key[j]));
+                auto c_pnum = static_cast<uint8_t>(quic::parse_number_<uint8_t>(buffer, i) xor static_cast<uint8_t>(header_protection_key[j]));
                 pnum = (pnum << 8) | c_pnum;
-                this->_replace_prev_byte_with(buffer, i, size, c_pnum);
+                this->replace_prev_byte_with_(buffer, i, size, c_pnum);
             }
 
             len-=mj;
@@ -537,7 +559,7 @@ std::optional<manapi::net::worker::quic_frame_data_t> manapi::net::worker::quic:
         std::cout << crypto::strdec2strhex(buffer) << "\n";
 
         std::string_view aad (buffer.data(), aad_len);
-        std::string_view data = std::string_view{quic::_parse_string(buffer, i, static_cast<ssize_t>(len))};
+        std::string_view data = std::string_view{quic::parse_string_(buffer, i, static_cast<ssize_t>(len))};
         std::string_view encrypted (data.data(), data.size() - 16);
         std::string_view auth_tag (data.data() + encrypted.size(), 16);
 
@@ -567,7 +589,7 @@ std::optional<manapi::net::worker::quic_frame_data_t> manapi::net::worker::quic:
     return {};
 }
 
-void manapi::net::worker::quic::_replace_prev_byte_with(std::string &buffer, ssize_t &i, ssize_t &size, uint8_t c) {
+void manapi::net::worker::quic::replace_prev_byte_with_(std::string &buffer, ssize_t &i, ssize_t &size, uint8_t c) {
     if (i < 1 || i > size) {
         return;
     }

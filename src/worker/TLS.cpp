@@ -157,7 +157,7 @@ void manapi::net::worker::TLS::connection_close(std::shared_ptr<connection> conn
             auto &connection = conn2->as<connection_interface>();
 
             this2->site.async_context()->eventloop()->stop_watcher(connection.watcher);
-            this2->_connection_close(std::move(conn2), connection);
+            this2->connection_close_(std::move(conn2), connection);
         });
 
         connection.watcher = this->site.async_context()->eventloop()->create_watcher_socket(connection.id, [this, conn] (std::shared_ptr<ev::io> &w, int status, int revents) mutable
@@ -199,7 +199,7 @@ void manapi::net::worker::TLS::connection_close(std::shared_ptr<connection> conn
 
                 connection.t.sync_stop(this2->site.async_context());
                 this2->site.async_context()->eventloop()->stop_watcher(connection.watcher);
-                this2->_connection_close(std::move(conn2), connection);
+                this2->connection_close_(std::move(conn2), connection);
             }
         });
 
@@ -209,11 +209,7 @@ void manapi::net::worker::TLS::connection_close(std::shared_ptr<connection> conn
     }
 
     this->ssl_set_shutdown_(connection.ssl, this->ssl_send_shutdown_|this->ssl_recv_shutdown_);
-    this->_connection_close(conn, connection);
-}
-
-int manapi::net::worker::TLS::status(connection &conn) {
-    return conn.as<connection_interface>().status;
+    this->connection_close_(conn, connection);
 }
 
 ssize_t manapi::net::worker::TLS::sync_read(worker::connection *conn, void *buff, ssize_t size) {

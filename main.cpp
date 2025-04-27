@@ -58,7 +58,9 @@ int main () {
 
     router.GET ("/", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
-        co_return resp.text(R"(hello world! resp.text <a href="/http-test">http test</a>)");
+        resp.compress_enabled(true);
+        //co_return resp.text(R"(hello world! resp.text <a href="/http-test">http test</a>)");
+        co_return resp.text(R"(h)");
     });
 
     router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable

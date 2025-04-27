@@ -64,26 +64,29 @@ namespace manapi::net::worker {
         bool is_valid_connection(worker::connection &connection) override;
         void init () override;
         future<bool> configure_connection (std::shared_ptr<worker::connection> connection) override;
-        future<ssize_t> response(worker::connection &connection, http::response &resp, bool finish) override;
         void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) override;
         static std::shared_ptr<worker::TCP> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
-        std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
-        std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
+
+        virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
+        virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
+
+        future<ssize_t> response(worker::connection &connection, http::response &resp, bool finish) override;
+
         void connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
+
         void stop() override;
-        int status (connection &conn) override;
-        void connection_shutdown(std::shared_ptr<connection> conn, bool connection_status) override;
-        void connection_cancel(std::shared_ptr<connection> conn) override;
+
         ssize_t sync_read(worker::connection *conn, void *buff, ssize_t size) override;
         ssize_t sync_write(worker::connection *conn, const void *buff, ssize_t size) override;
-        manapi::future<std::shared_ptr<ev::io>> async_watch_io(worker::connection *conn, int revents, manapi::ev::io_cb callback) override;
-        std::shared_ptr<ev::io> sync_watch_io(worker::connection *conn, int revents, manapi::ev::io_cb callback) override;
+
+        virtual std::shared_ptr<ev::io> sync_watch_io (worker::connection *conn, int revents, ev::io_cb callback);
+        virtual manapi::future<std::shared_ptr<ev::io>> async_watch_io (worker::connection *conn, int revents, ev::io_cb callback);
     protected:
         virtual void recv_setup_connection (manapi::net::worker::connection &storage);
         void update_limit_rate ();
-        void _timeout (std::shared_ptr<connection> storage) override;
-        void _ev_watcher_stop (connection_interface & conn);
-        void _connection_close (std::shared_ptr<connection> conn, connection_interface &connection);
+        void timeout_ (std::shared_ptr<connection> storage);
+        void ev_watcher_stop_ (connection_interface & conn);
+        void connection_close_ (std::shared_ptr<connection> conn, connection_interface &connection);
         struct async_stack_storage {
             std::shared_ptr<future<void>> stack;
             std::shared_ptr<http::HeaderView> storage;

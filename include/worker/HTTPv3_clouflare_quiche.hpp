@@ -90,6 +90,12 @@ namespace manapi::net::worker {
         future<ssize_t> response(worker::connection &connection, http::response &resp, bool finish) override;
         void stop() override;
 
+        future<bool> configure_connection(std::shared_ptr<connection> conn) override;
+        void connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
+        bool is_valid_connection(worker::connection &connection) override;
+        ssize_t sync_read(worker::connection *conn, void *buff, ssize_t size) override;
+        ssize_t sync_write(worker::connection *conn, const void *buff, ssize_t size) override;
+
     private:
         void update_limit_rate ();
         virtual void update_limit_rate_connection (connection &conn);

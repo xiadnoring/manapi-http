@@ -60,7 +60,7 @@ std::map <int, manapi::json_mask> manapi::net::worker::http_v2::allow_settings {
     {HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL, manapi::json{"{integer(>=0 <=1)}"}}
 };
 
-manapi::net::worker::http_v2::http_v2(const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
+manapi::net::worker::http_v2::http_v2(const std::shared_ptr<manapi::net::worker::TCP> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site)
     : base(site), worker(worker) {
     this->config = std::move(config);
     this->buffer = {};
@@ -83,14 +83,14 @@ manapi::net::worker::http_v2::~http_v2() {
 
 
 void manapi::net::worker::http_v2::set_watcher_event(int revents) {
-    if (!(this->watcher->events() & revents)) {
+    if (!(this->watcher->events() & revents) && this->watcher->is_active()) {
         revents = this->watcher->events() | revents;
         this->watcher->restart(revents);
     }
 }
 
 void manapi::net::worker::http_v2::remove_watcher_event(int revents) {
-    if ((this->watcher->events() & revents)) {
+    if ((this->watcher->events() & revents) && this->watcher->is_active()) {
         this->watcher->restart(this->watcher->events() ^ revents);
     }
 }
@@ -461,7 +461,7 @@ void manapi::net::worker::http_v2::handle_callback_watcher() {
         unlimit_all_streams();
     }
 
-    this->close_connection (HTTP2_ERROR_NO_ERROR, "shutdown");
+    this->close_http2_connection (HTTP2_ERROR_NO_ERROR, "shutdown");
 }
 
 void manapi::net::worker::http_v2::update_setting(http2_setting_type type, int value, bool self) {
@@ -550,6 +550,43 @@ void manapi::net::worker::http_v2::set_callbacks(const http_v2_callbacks_t &call
     this->callbacks = callbacks;
 }
 
+ssize_t manapi::net::worker::http_v2::sync_read(worker::connection *conn, void *buff, ssize_t size) {
+    /* TODO: sync http2 read */
+    perror("http2 sync_read error");
+    return -1;
+}
+
+ssize_t manapi::net::worker::http_v2::sync_write(worker::connection *conn, const void *buff, ssize_t size) {
+    /* TODO: sync http2 write */
+    perror("http2 sync_write error");
+    return -1;
+}
+
+void manapi::net::worker::http_v2::stop() {}
+
+manapi::future<bool> manapi::net::worker::http_v2::configure_connection(std::shared_ptr<worker::connection> conn) {
+    co_return true;
+}
+
+void manapi::net::worker::http_v2::connection_close(std::shared_ptr<worker::connection> conn, bool clean_disconnect) {
+    /* nothing to do */
+}
+
+void manapi::net::worker::http_v2::init() {
+
+}
+
+bool manapi::net::worker::http_v2::is_valid_connection(worker::connection &connection) {
+    /* verify connection */
+    return true;
+}
+
+void manapi::net::worker::http_v2::onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) {
+    /* nothing to do */
+    return;
+}
+
+
 manapi::future<ssize_t> manapi::net::worker::http_v2::response(worker::connection &connection, http::response &resp, bool finish) {
     auto &conn = connection.as<manapi_http_2_connection_t>();
 
@@ -579,7 +616,7 @@ void manapi::net::worker::http_v2::empty_setting_timeouts() {
 
 void manapi::net::worker::http_v2::generate_error(http2_error_type errnum, std::string errmsg, int last_stream_id) noexcept(false) {
     if (false == (this->protocol.conn_type & CONN_CLOSED)) {
-        this->close_connection(errnum, errmsg);
+        this->close_http2_connection(errnum, errmsg);
     }
 
     THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, errmsg);
@@ -1317,7 +1354,7 @@ void manapi::net::worker::http_v2::timer_watcher(const std::shared_ptr<manapi::n
             //MANAPIHTTP_LOG2("TIMEOUT HTTP2");
             this->ping_interval.sync_stop(this->site.async_context());
             //MANAPIHTTP_LOG2("TIMEOUT HTTP2 2");
-            this->close_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout");
+            this->close_http2_connection(HTTP2_ERROR_STREAM_CLOSED, "timeout");
             //MANAPIHTTP_LOG2("TIMEOUT HTTP2 3");
             return;
         }
@@ -1365,7 +1402,7 @@ bool manapi::net::worker::http_v2::send_ping_frame(std::string data) {
                 // timeout
                 MANAPIHTTP_LOG2(this->site.async_context(), "PING IGNORE -> close connection");
                 /* close connection quietly */
-                this->close_connection(HTTP2_ERROR_NO_ERROR, "");
+                this->close_http2_connection(HTTP2_ERROR_NO_ERROR, "");
                 return false;
             }
 
@@ -1382,7 +1419,7 @@ bool manapi::net::worker::http_v2::send_ping_frame(std::string data) {
     return true;
 }
 
-void manapi::net::worker::http_v2::close_connection(int errnum, std::string additional_data) {
+void manapi::net::worker::http_v2::close_http2_connection(int errnum, std::string additional_data) {
     if ((this->protocol.conn_type) & CONN_CLOSED) { return; }
     this->protocol.conn_type |= CONN_CLOSED;
 
@@ -1407,7 +1444,9 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
         // this->site.async_context()->eventloop()->stop_watcher(this->watcher);
         this->site.async_context()->eventloop()->callback_io_watcher (this->watcher, [this] (std::shared_ptr<ev::io> &w, int status, int revents)
             -> void {
-            this->watcher->restart(ev::WRITE);
+            if (this->watcher->is_active()) {
+                this->watcher->restart(ev::WRITE);
+            }
 
             try {
                 this->flush_write_buffer();
@@ -1427,7 +1466,9 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
             }
         });
 
-        this->watcher->restart(ev::READ|ev::WRITE);
+        if (this->watcher->is_active()) {
+            this->watcher->restart(ev::READ|ev::WRITE);
+        }
 
         try {
             std::string buffer;
@@ -1448,6 +1489,7 @@ void manapi::net::worker::http_v2::close_connection(int errnum, std::string addi
     }
     else {
         /* close it quietly */
+        std::cout << "close watcher\n";
         this->site.async_context()->eventloop()->stop_watcher(this->watcher);
         this->http2_resolve_();
     }

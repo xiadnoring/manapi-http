@@ -5,6 +5,7 @@
 #include "../ManapiUtils.hpp"
 #include "../ManapiSite.hpp"
 #include "./base_worker.hpp"
+#include "TCP.hpp"
 #include "../compress/ManapiHPack.hpp"
 #include "components/Buffer.hpp"
 
@@ -206,7 +207,7 @@ namespace manapi::net::worker {
             std::function<void(int id)> finished;
         };
 
-        http_v2 (const std::shared_ptr<manapi::net::worker::base> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
+        http_v2 (const std::shared_ptr<manapi::net::worker::TCP> &worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
         ~http_v2() override;
 
         void update_setting (http2_setting_type type, int value, bool self);
@@ -217,6 +218,15 @@ namespace manapi::net::worker {
         void init_settings();
         void init_callbacks();
         void set_callbacks(const http_v2_callbacks_t &callbacks);
+
+        ssize_t sync_read(worker::connection *conn, void *buff, ssize_t size) override;
+        ssize_t sync_write(worker::connection *conn, const void *buff, ssize_t size) override;
+        void stop() override;
+        future<bool> configure_connection(std::shared_ptr<connection> conn) override;
+        void connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
+        void init() override;
+        bool is_valid_connection(worker::connection &connection) override;
+        void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) override;
 
         future<ssize_t> response (worker::connection &connection, http::response &resp, bool finish) override;
 
@@ -267,7 +277,7 @@ namespace manapi::net::worker {
         void send_empty_frame (http2_frame_type frame, char flag, int stream_id);
         void timer_watcher (const std::shared_ptr<manapi::net::worker::base> &dep);
         bool send_ping_frame (std::string data={});
-        void close_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "");
+        void close_http2_connection (int errnum = HTTP2_ERROR_NO_ERROR, std::string additional_data = "");
 
         void send_settings (const std::vector <std::pair <short, int>> &options);
         ssize_t send_data (std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator stream, const void *buf, ssize_t size, bool finish);
@@ -323,7 +333,7 @@ namespace manapi::net::worker {
 
         int current, next;
         http_v2_callbacks_t callbacks{};
-        std::shared_ptr<worker::base> worker;
+        std::shared_ptr<worker::TCP> worker;
 
         async::promise<void, std::false_type>::resolve_t http2_resolve_;
 
