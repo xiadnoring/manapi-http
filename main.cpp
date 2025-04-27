@@ -59,8 +59,7 @@ int main () {
     router.GET ("/", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
         resp.compress_enabled(true);
-        //co_return resp.text(R"(hello world! resp.text <a href="/http-test">http test</a>)");
-        co_return resp.text(R"(h)");
+        co_return resp.text(R"(hello world! resp.text <a href="/http-test">http test</a>)");
     });
 
     router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable
@@ -70,15 +69,6 @@ int main () {
 
     router.GET("/aa", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
         co_return resp.text(std::format("{} {}", resp.status_code(), resp.status_message()));
-    });
-
-    router.GET("/+error", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-        resp.status(200);
-        co_return resp.text(std::format("{} {}", resp.status_code(), resp.status_message()));
-    });
-
-    router.POST("/+error", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-        co_return resp.json({{"errnum", resp.status_code()}, {"errmsg", resp.status_message()}});
     });
 
     router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
@@ -107,6 +97,8 @@ int main () {
         resp.partial_enabled(true);
         co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
     });
+
+    router.GET("/folder", "/home/Timur/Downloads/VideoDownloader");
 
     // router.GET("/pq/[id]", [db, mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ)](manapi::net::http::request& req, manapi::net::http::response& resp) -> manapi::future<> {
     //     auto lk = co_await mx->lock_guard();

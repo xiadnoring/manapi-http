@@ -13,7 +13,7 @@
 constexpr static size_t _quiche_token_max_len = sizeof ("quiche") - 1 + sizeof (struct sockaddr_storage) + QUICHE_MAX_CONN_ID_LEN;
 
 template<typename T>
-requires(version_greater_or_equals(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+requires(version_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 bool manapi_quiche_h3_event_headers_has_more_frames_ (T event) {
     return quiche_h3_event_headers_has_more_frames(static_cast<T>(event));
 }
@@ -25,7 +25,7 @@ bool manapi_quiche_h3_event_headers_has_more_frames_ (T event) {
 }
 
 template<typename ...Args>
-requires(version_greater_or_equals(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+requires(version_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 ssize_t manapi_quiche_h3_send_additional_headers_(Args...args) {
     return quiche_h3_send_additional_headers(args...);
 }
@@ -162,6 +162,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
 
             conn_data.io_timer = this->site.async_context()->timerpool()->append_interval_sync(this->config->speed_check_delay(),
                 [this, connection] (manapi::timer t) -> void { this->_io_timeout(connection.get()->as<connection_t>()); });
+
+            conn_data.quiche_timer->start(0, 1);
 
             conn_data.self = connection;
 
@@ -469,7 +471,9 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response
 
     co_await stream_data.mx.lock();
 
-    stream_data.atomic_status.fetch_or(STREAM_ATOMIC_CONN_HEADERS);
+    int flag = STREAM_ATOMIC_CONN_HEADERS;
+    if (finish) { flag |= STREAM_ATOMIC_CONN_SEND_END;  }
+    stream_data.atomic_status.fetch_or(flag);
     stream_data.connection->as<connection_t>().write_watcher->send();
 
     co_return static_cast<ssize_t>(1);
@@ -539,7 +543,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::flush_write_stream_(connect
                     int rhs;
                     auto headers = s.quiche_headers.get() + s.header_cursor;
                     if (s.header_cursor != 0) {
-                        if constexpr (version_greater_or_equals(MANAPIHTTP_QUICHE_VERSION, "0.23.0")) {
+                        if constexpr (version_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0")) {
                             rhs = manapi_quiche_h3_send_additional_headers_(conn_data.http3_conn, conn_data.conn, s.stream_id, headers, i - s.header_cursor, false, finish && i == s.headers_size);
                         }
                         else {
@@ -1091,7 +1095,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::_quiche_flush_egress(connec
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::_quiche_timeout_again(connection_t &connection) {
-    connection.quiche_timer->repeat(quiche_conn_timeout_as_millis(connection.conn));
+    auto repeat = quiche_conn_timeout_as_millis(connection.conn);
+
+    connection.quiche_timer->repeat(repeat);
     connection.quiche_timer->again();
 }
 

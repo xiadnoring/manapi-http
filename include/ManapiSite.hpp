@@ -132,6 +132,7 @@ namespace manapi::net {
 
         std::shared_ptr<data_t> data;
     private:
+        static http_handler_functions default_error_handler;
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);

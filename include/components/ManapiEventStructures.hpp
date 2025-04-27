@@ -104,7 +104,15 @@ namespace manapi::ev {
         IROTH = S_IROTH,
         IWOTH = S_IWOTH,
         IXOTH = S_IXOTH,
-        IRWXO = S_IRWXO
+        IRWXO = S_IRWXO,
+
+        IFREG = S_IFREG,
+        IFSOCK = S_IFSOCK,
+        IFLNK = S_IFLNK,
+        IFBLK = S_IFBLK,
+        IFDIR = S_IFDIR,
+        IFCHR = S_IFCHR,
+        IFIFO = S_IFIFO
     };
 #endif
 

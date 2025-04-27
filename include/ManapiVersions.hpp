@@ -142,7 +142,7 @@ constexpr int version_compare(const char (& str1)[Size1], const char (& str2)[Si
 }
 
 template<size_t Size1, size_t Size2>
-constexpr bool version_equals(const char (& str1)[Size1], const char (& str2)[Size2]) {
+constexpr bool version_equal(const char (& str1)[Size1], const char (& str2)[Size2]) {
     return version_compare<Size1, Size2>(str1, str2) == 0;
 }
 
@@ -157,11 +157,11 @@ constexpr bool version_greater(const char (& str1)[Size1], const char (& str2)[S
 }
 
 template<size_t Size1, size_t Size2>
-constexpr bool version_less_or_equals(const char (& str1)[Size1], const char (& str2)[Size2]) {
+constexpr bool version_less_or_equal(const char (& str1)[Size1], const char (& str2)[Size2]) {
     return version_compare<Size1, Size2>(str1, str2) != -1;
 }
 
 template<size_t Size1, size_t Size2>
-constexpr bool version_greater_or_equals(const char (& str1)[Size1], const char (& str2)[Size2]) {
+constexpr bool version_greater_or_equal(const char (& str1)[Size1], const char (& str2)[Size2]) {
     return version_compare<Size1, Size2>(str1, str2) != 1;
 }

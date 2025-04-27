@@ -24,6 +24,20 @@ namespace manapi::net {
     };
 }
 
+manapi::net::http_handler_functions manapi::net::site::default_error_handler
+    = {
+    .handler = [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+        co_return resp.text(std::format("<html><head>"
+                            "<title>{0} {1}</title></head><body><center>"
+                            "<h1>{0} {1}</h1></center><hr>"
+                            "<center>manapihttp/{2}</center>"
+                            "</body></html>", resp.status_code(),
+                            resp.status_message(), MANAPIHTTP_VERSION));
+    },
+    .post_mask = nullptr,
+    .get_mask = nullptr,
+};
+
 std::string manapi::net::site::default_config_name      = "config_.json";
 
 // ======================[ configs funcs]==========================
@@ -257,6 +271,8 @@ void manapi::net::site::check_exists_method_on_url(const std::string &url,
 manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &request_data) const {
     http_handler_page handler_page;
     handler_page.error = std::make_unique<http_handler_page>();
+    handler_page.error->handler = &site::default_error_handler;
+
     // how much we will take the layers from handler_page.layers at the start to the handler_page.error.layer
     size_t error_layer_depth = 0;
     bool not_found = false;

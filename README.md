@@ -81,27 +81,6 @@ int main () {
 
     ctx->eventloop()->setup_handle_interrupt();
 
-    router.config_object({
-        {"pools", manapi::json::array({
-            {
-                {"address", "127.0.0.1"},
-                {"http_versions", manapi::json::array({"2", "1.1"})},
-                {"transport", "tls"},
-                {"partial_data_min_size", 0},
-                {"tls_version", "1.3"},
-                {"implementation", "openssl"},
-                {"port", "8888"},
-                {"ssl", {
-                    {"cert", "../examples/self-signed-ssl/cert.crt"},
-                    {"key", "../examples/self-signed-ssl/cert.key"},
-                    {"enabled", true}
-                }},
-                {"tcp_no_delay", true}
-            }
-        })},
-        {"save_config", false}
-    });
-
     router.GET ("/", [cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::req req, decltype(router)::resp resp) mutable -> manapi::future<> {
         co_return resp.text(std::format("Hello World! Count: {}", cnt->fetch_add(1)));
     });
@@ -175,6 +154,26 @@ int main () {
 
     manapi::async::run(ctx, [router, db] () -> manapi::future<> {
         co_await db->connect("address", "port", "username", "password", "db");
+        co_await router.config_object({
+            {"pools", manapi::json::array({
+                {
+                    {"address", "127.0.0.1"},
+                    {"http_versions", manapi::json::array({"2", "1.1"})},
+                    {"transport", "tls"},
+                    {"partial_data_min_size", 0},
+                    {"tls_version", "1.3"},
+                        {"implementation", "openssl"},
+                        {"port", "8888"},
+                    {"ssl", {
+                        {"cert", "../examples/self-signed-ssl/cert.crt"},
+                        {"key", "../examples/self-signed-ssl/cert.key"},
+                        {"enabled", true}
+                    }},
+                    {"tcp_no_delay", true}
+                }
+            })},
+            {"save_config", false}
+        });
         co_await router.start();
     });
 

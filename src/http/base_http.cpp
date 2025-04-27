@@ -168,11 +168,13 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
                 res.header(HEADER.CONTENT_LENGTH, std::to_string(size));
                 res.header(HEADER.CONTENT_RANGE, "bytes " + std::to_string(start) + '-' + std::to_string(back) + '/' + std::to_string(fileSize));
 
-                if (co_await mask_response(res, false) >= 0) {
+                if (co_await mask_response(res, size == 0) >= 0) {
                     // set start position
                     f.seekg(start);
                     // set size and send
-                    co_await send_file(res, f, size);
+                    if (size) {
+                        co_await send_file(res, f, size);
+                    }
                 }
 
 
@@ -185,14 +187,16 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
         else {
             res.header(HEADER.CONTENT_LENGTH, std::to_string(dynamicFileSize));
 
-            if (co_await mask_response(res, false) >= 0) {
-                if (replacers.empty()) {
-                    // without replacers
-                    co_await send_file(res, f, fileSize);
-                }
-                else {
-                    // with replacers
-                    co_await send_file(res, f, fileSize, replacers);
+            if (co_await mask_response(res, fileSize == 0) >= 0) {
+                if (fileSize) {
+                    if (replacers.empty()) {
+                        // without replacers
+                        co_await send_file(res, f, fileSize);
+                    }
+                    else {
+                        // with replacers
+                        co_await send_file(res, f, fileSize, replacers);
+                    }
                 }
             }
         }
@@ -224,8 +228,10 @@ manapi::future<void> manapi::net::http::base::send_response_text(manapi::net::ht
         res.header(HEADER.CONTENT_TYPE, "text/html; charset=UTF-8");
     }
 
-    if (co_await mask_response(res, false) >= 0) {
-        co_await send_text(plaintext, plaintext.size());
+    if (co_await mask_response(res, plaintext.empty()) >= 0) {
+        if (!plaintext.empty()) {
+            co_await send_text(plaintext, plaintext.size());
+        }
     } else {
         MANAPIHTTP_LOG(this->site.async_context(), "{}", "mask_response(...) < 0");
     }
@@ -417,27 +423,49 @@ manapi::future<void> manapi::net::http::base::handle_request(const http_handler_
 
                 path = manapi::filesystem::path::join(*data->statics, path);
 
-                //if (co_await manapi::filesystem::async_exists(this->site.async_context(), path) && manapi::filesystem::is_file(path)) {
-                    const auto ext = manapi::filesystem::path::extension(path);
-                    auto mime = mime::mime_by_extension.find(ext);
-                    bool binary = false;
-                    if (mime != mime::mime_by_extension.end()) {
-                        binary = mime::mime_partitial_data(mime->second);
-                    }
-                    res.compress_enabled(!binary);
-                    res.partial_enabled(binary);
-                    res.file(path);
+                bool exists = true;
+                uint64_t st_mode;
 
-                    try {
-                        co_await send_response(res);
+                co_await manapi::filesystem::async_stat(this->site.async_context(), path, [&exists, &st_mode] (ev::stat_t *stat)
+                    -> void {
+                    if (stat) {
+                        st_mode = stat->st_mode;
+                    }
+                    else {
+                        exists = false;
+                    }
+                });
+
+                if (exists) {
+                    if (st_mode & ev::IFREG) {
+                        const auto ext = manapi::filesystem::path::extension(path);
+                        auto mime = mime::mime_by_extension.find(ext);
+                        bool binary = false;
+                        if (mime != mime::mime_by_extension.end()) {
+                            binary = mime::mime_partitial_data(mime->second);
+                        }
+                        res.compress_enabled(!binary);
+                        res.partial_enabled(binary);
+                        res.file(path);
+
+                        try {
+                            co_await send_response(res);
+                            co_return;
+                        } catch (const std::exception &e) {
+                            MANAPIHTTP_LOG(this->site.async_context(), "Unexpected error: {}", e.what());
+                        }
+
+                        co_await send_error_response(503, request_data, data->error.get());
                         co_return;
-                    } catch (const std::exception &e) {
-                        MANAPIHTTP_LOG(this->site.async_context(), "Unexpected error: {}", e.what());
                     }
 
-                    co_await send_error_response(503, request_data, data->error.get());
+                    if (st_mode & ev::IFDIR) {
+
+                    }
+
+                    co_await send_error_response(http::FORBIDDEN_403, request_data, data->error.get());
                     co_return;
-                //}
+                }
             }
 
             co_await send_error_response(404, request_data, data->error.get());

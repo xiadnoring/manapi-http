@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(manapihttp VERSION 0.0.1 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
+project(manapihttp VERSION 0.0.2 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
 
 cmake_policy(SET CMP0070 NEW)
 
@@ -154,6 +154,7 @@ endif ()
 include(CheckLibraryExists)
 
 file(READ preprocess/ManapiParams.hpp TEXT)
+string(REPLACE "{{ VAR_MANAPIHTTP_VERSION }}" "\"${CMAKE_PROJECT_VERSION}\"" TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_JSON_DEBUG }}" $<BOOL:${MANAPIHTTP_JSON_DEBUG}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_OPENSSL_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_OPENSSL_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_WOLFSSL_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_WOLFSSL_DEPENDENCY}> TEXT "${TEXT}")
