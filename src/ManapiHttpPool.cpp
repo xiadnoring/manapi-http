@@ -28,7 +28,8 @@ manapi::net::http_pool::http_pool(const json &config, class site *site, const si
     this->mx = std::make_shared<async::mutex>(this->site->async_context());
 
     this->config->set_function_contains_compressor([site] (const std::string &name) -> bool {
-        return site->contains_compressor(name);
+        return site->contains_compressor_for_file(name)
+            || site->contains_compressor_for_string(name);
     });
 }
 

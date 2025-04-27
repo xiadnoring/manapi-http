@@ -13,7 +13,8 @@
 namespace manapi::net::http {
     struct response_features_t {
         const std::string &compress;
-        std::function<future<bool>(const std::string &src, const std::string &dest)> compressor = nullptr;
+        std::move_only_function<future<bool>(std::string src, std::string dest)> *compressor_for_file = nullptr;
+        std::move_only_function<std::string(std::string_view data)> *compressor_for_string = nullptr;
         std::optional<std::map <std::string, std::string>> replacers;
     };
 

@@ -79,7 +79,8 @@ namespace manapi::net {
             std::string config_cache_dir;
             bool enabled_save_config;
             http_uri_part handlers;
-            std::map <std::string, std::function<future<bool>(const std::string &src, const std::string &dest)>> compressors{};
+            std::map <std::string, std::move_only_function<future<bool>(std::string src, std::string dest)>> compressors_for_file{};
+            std::map <std::string, std::move_only_function<std::string(std::string_view data)>> compressors_for_string{};
             std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers{};
             std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> bufferpool_;
             std::mutex loopmx{};
@@ -98,10 +99,14 @@ namespace manapi::net {
 
         http_handler_page handler (http::request_data_t &request_data) const;
 
-        void compressor (const std::string &name, const std::function<future<bool>(const std::string &src, const std::string &dest)> &handler);
-        const std::function<future<bool>(const std::string &src, const std::string &dest)> &get_compressor (const std::string &name);
+        void compressor_for_file (const std::string &name, std::move_only_function<future<bool>(std::string src, std::string dest)> handler);
+        void compressor_for_string (const std::string &name, std::move_only_function<std::string(std::string_view data)> handler);
 
-        [[nodiscard]] bool contains_compressor (const std::string &name) const;
+        std::move_only_function<future<bool>(std::string src, std::string dest)> &compressor_for_file (const std::string &name);
+        std::move_only_function<std::string(std::string_view)> &compressor_for_string (const std::string &name);
+
+        [[nodiscard]] bool contains_compressor_for_file (const std::string &name) const;
+        [[nodiscard]] bool contains_compressor_for_string (const std::string &name) const;
 
         void transport_protocol_worker (const std::string &type, const std::string &name, const std::function<std::shared_ptr<class worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker);
         const std::map <std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &transport_protocol_worker (const std::string &type);

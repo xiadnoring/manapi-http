@@ -30,28 +30,28 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http::r
     std::string response;
     std::string compressed;
 
-    std::function<future<bool>(const std::string &src, const std::string &dest)> compressor = nullptr;
-
     auto &compress = res.compress();
-
-    if (!compress.empty()) {
-        if (!res.is_file() ||
-            !res.partial_enabled() ||
-            co_await manapi::filesystem::async_file_size(this->site.async_context(), res.file()) < config->get_partial_data_min_size()
-        ) {
-            compressor = site.get_compressor(compress);
-
-            if (compressor) {
-                res.header(HEADER.CONTENT_ENCODING, compress);
-            }
-        }
-    }
 
     response_features_t features = {
         .compress = compress,
-        .compressor = compressor,
+        .compressor_for_file = nullptr,
+        .compressor_for_string = nullptr,
         .replacers = res.replacers()
     };
+
+    if (!compress.empty() && !res.partial_enabled()) {
+        if (res.is_text()) {
+            features.compressor_for_string = &this->site.compressor_for_string(compress);
+        }
+        else if (res.is_file()) {
+            features.compressor_for_file = &this->site.compressor_for_file(compress);
+        }
+
+        if (features.compressor_for_file || features.compressor_for_string) {
+            res.header(HEADER.CONTENT_ENCODING, compress);
+        }
+    }
+
 
     // set time
     res.header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", manapi::time::current_time(false)));
@@ -83,12 +83,12 @@ manapi::future<void> manapi::net::http::base::execute_handler() {
 manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::http::response &res, response_features_t &features) {
     std::string filepath;
 
-    if (features.compressor) {
+    if (features.compressor_for_file) {
         if (features.replacers) {
             THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
         }
 
-        filepath = co_await this->compress_file(res.file(), this->site.config_cache_dir(), features.compress, features.compressor);
+        filepath = co_await this->compress_file(res.file(), this->site.config_cache_dir(), features.compress, features.compressor_for_file);
     }
     else {
         filepath = res.file();
@@ -133,7 +133,7 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
 
         // partial enabled
         if (res.partial_enabled() && config->get_partial_data_min_size() <= fileSize) {
-            if (features.compressor) {
+            if (features.compressor_for_file) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
                                        "the compress '{}' with the partial content is not supported.",
                                        res.compress());
@@ -212,9 +212,10 @@ manapi::future<void> manapi::net::http::base::send_response_text(manapi::net::ht
     // may contains decoded / encoded body
     std::string plaintext = std::move(res.body());
 
-    if (false || features.compressor) {
+    if (features.compressor_for_string) {
         // encode content !
-        //plaintext = co_await features.compressor(res.get_body(), {});
+        auto r = (*features.compressor_for_string)(plaintext);
+        plaintext = std::move(r);
     }
 
     res.header(HEADER.CONTENT_LENGTH, std::to_string(plaintext.size()));
@@ -284,7 +285,7 @@ manapi::future<void> manapi::net::http::base::send_response_proxy(manapi::net::h
 manapi::future<> manapi::net::http::base::send_response_formdata(manapi::net::http::response &res, response_features_t &features) {
     auto formdata = res.formdata();
 
-    if (features.compressor) {
+    if (features.compressor_for_file || features.compressor_for_string) {
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "formdata: Compression isn't supported");
     }
 
@@ -312,7 +313,7 @@ manapi::future<> manapi::net::http::base::send_response_formdata(manapi::net::ht
 }
 
 manapi::future<> manapi::net::http::base::send_response_sync_cb(manapi::net::http::response &res, response_features_t &features) {
-    if (features.compressor) {
+    if (features.compressor_for_file || features.compressor_for_string) {
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Compression isn't supported");
     }
 
@@ -342,7 +343,7 @@ manapi::future<> manapi::net::http::base::send_response_sync_cb(manapi::net::htt
 }
 
 manapi::future<> manapi::net::http::base::send_response_async_cb(manapi::net::http::response &res,response_features_t &features) {
-    if (features.compressor) {
+    if (features.compressor_for_file || features.compressor_for_string) {
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Compression isn't supported");
     }
 
@@ -755,7 +756,7 @@ std::string generate_cache_name(const std::string &file, const std::string &ext)
     return std::move(name);
 }
 
-manapi::future<std::string> manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, const std::function<future<bool>(const std::string &src, const std::string &dest)> & compressor) const {
+manapi::future<std::string> manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, std::move_only_function<future<bool>(std::string src, std::string dest)> *compressor) const {
     std::string filepath;
     auto filetime = co_await manapi::filesystem::async_last_time_write(this->site.async_context(), file);
     // compressor
@@ -766,7 +767,7 @@ manapi::future<std::string> manapi::net::http::base::compress_file(const std::st
         co_await filesystem::async_mkdir(this->site.async_context(), folder, ev::IRUSR|ev::IWUSR);
         filepath = folder + generate_cache_name(file, "deflate");
 
-        if (!co_await compressor(file, filepath)) {
+        if (!co_await (*compressor)(file, filepath)) {
             co_return file;
         }
 

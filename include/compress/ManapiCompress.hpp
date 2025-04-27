@@ -16,17 +16,17 @@
 #endif
 
 namespace manapi::compress {
-    future<bool> deflate_compress_file(const std::shared_ptr<manapi::async::context> &ctx, const std::string &src, const std::string &dest, int level = Z_DEFAULT_COMPRESSION, int strategy = Z_DEFAULT_STRATEGY);
-    future<bool> deflate_decompress_file(const std::shared_ptr<manapi::async::context> &ctx, const std::string &src, const std::string &dest);
+    future<bool> deflate_compress_file(const std::shared_ptr<manapi::async::context> &ctx, std::string src, std::string dest, int level = Z_DEFAULT_COMPRESSION, int strategy = Z_DEFAULT_STRATEGY);
+    future<bool> deflate_decompress_file(const std::shared_ptr<manapi::async::context> &ctx, std::string src, std::string dest);
 
-    std::string deflate_compress_string (const std::string &original, int level = Z_DEFAULT_COMPRESSION, int strategy = Z_DEFAULT_STRATEGY);
-    std::string deflate_decompress_string (const std::string &compressed);
+    std::string deflate_compress_string (std::string_view original, int level = Z_DEFAULT_COMPRESSION, int strategy = Z_DEFAULT_STRATEGY);
+    std::string deflate_decompress_string (std::string_view compressed);
 
-    std::string gzip_compress_string (const std::string &original, int level = Z_DEFAULT_COMPRESSION, int strategy = Z_DEFAULT_STRATEGY);
-    std::string gzip_decompress_string (const std::string &compressed);
+    std::string gzip_compress_string (std::string_view original, int level = Z_DEFAULT_COMPRESSION, int strategy = Z_DEFAULT_STRATEGY);
+    std::string gzip_decompress_string (std::string_view compressed);
 
-    future<bool> gzip_compress_file(const std::shared_ptr<manapi::async::context> &ctx, const std::string &src, const std::string &dest, int level = Z_DEFAULT_COMPRESSION, int strategy = Z_DEFAULT_STRATEGY);
-    future<bool> gzip_decompress_file(const std::shared_ptr<manapi::async::context> &ctx, const std::string &src, const std::string &dest);
+    future<bool> gzip_compress_file(const std::shared_ptr<manapi::async::context> &ctx, std::string src, std::string dest, int level = Z_DEFAULT_COMPRESSION, int strategy = Z_DEFAULT_STRATEGY);
+    future<bool> gzip_decompress_file(const std::shared_ptr<manapi::async::context> &ctx, std::string src, std::string dest);
 
     void throw_could_not_compress_file (const std::string &name, const std::string &src, const std::string &dest);
     void throw_could_not_open_file (const std::string &name, const std::string &path);

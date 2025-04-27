@@ -28,21 +28,37 @@ std::string manapi::net::site::default_config_name      = "config_.json";
 
 // ======================[ configs funcs]==========================
 
-void manapi::net::site::compressor(const std::string &name, const std::function<future<bool>(const std::string &src, const std::string &dest)> &handler) {
-    this->data->compressors[name] = handler;
+void manapi::net::site::compressor_for_file(const std::string &name, std::move_only_function<future<bool>(std::string src, std::string dest)> handler) {
+    this->data->compressors_for_file[name] = std::move(handler);
 }
 
-const std::function<manapi::future<bool>(const std::string &src, const std::string &dest)> & manapi::net::site::get_compressor(const std::string &name) {
-    if (!contains_compressor(name))
-    {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FUNCTION_IS_NULL, "That compress doesn't exists: {}", name);
+void manapi::net::site::compressor_for_string(const std::string &name, std::move_only_function<std::string(std::string_view data)> handler) {
+    this->data->compressors_for_string[name] = std::move(handler);
+}
+
+std::move_only_function<manapi::future<bool>(std::string src, std::string dest)> & manapi::net::site::compressor_for_file(const std::string &name) {
+    auto it = this->data->compressors_for_file.find(name);
+    if (it == this->data->compressors_for_file.end()) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FUNCTION_IS_NULL, "The compressor {} doesn't exists", name);
     }
 
-    return this->data->compressors.at(name);
+    return it->second;
 }
 
-bool manapi::net::site::contains_compressor(const std::string &name) const {
-    return this->data->compressors.contains(name);
+bool manapi::net::site::contains_compressor_for_file(const std::string &name) const {
+    return this->data->compressors_for_file.contains(name);
+}
+
+std::move_only_function<std::string(std::string_view)> & manapi::net::site::compressor_for_string(const std::string &name) {
+    auto it = this->data->compressors_for_string.find(name);
+    if (it == this->data->compressors_for_string.end()) {
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FUNCTION_IS_NULL, "The compress {} doesn't exists", name);
+    }
+    return it->second;
+}
+
+bool manapi::net::site::contains_compressor_for_string(const std::string &name) const {
+    return this->data->compressors_for_string.contains(name);
 }
 
 void manapi::net::site::transport_protocol_worker(const std::string &type, const std::string &name, const std::function<std::shared_ptr<worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker) {
@@ -76,10 +92,17 @@ void manapi::net::site::setup() {
     this->data->cache_config = manapi::json::object();
 
 #if MANAPIHTTP_ZLIB_DEPENDENCY
-    this->compressor("deflate", [this] (const std::string &src, const std::string &dest)
-        -> future<bool> { return manapi::compress::deflate_compress_file(this->data->ctx, src, dest); });
-    this->compressor("gzip", [this] (const std::string &src, const std::string &dest)
-        -> future<bool> { return manapi::compress::gzip_compress_file(this->data->ctx, src, dest); });
+    std::string deflate_ = "deflate";
+    std::string gzip_ = "gzip";
+    this->compressor_for_file(deflate_, [this] (std::string src, std::string dest)
+        -> future<bool> { return manapi::compress::deflate_compress_file(this->data->ctx, std::move(src), std::move(dest)); });
+    this->compressor_for_file(gzip_, [this] (std::string src, std::string dest)
+        -> future<bool> { return manapi::compress::gzip_compress_file(this->data->ctx, std::move(src), std::move(dest)); });
+
+    this->compressor_for_string(deflate_, [this] (std::string_view data)
+        -> std::string { return compress::deflate_compress_string(data); });
+    this->compressor_for_string(gzip_, [this] (std::string_view data)
+        -> std::string { return compress::gzip_compress_string(data); });
 #endif
 
     this->transport_protocol_worker("tcp", "default", worker::TCP::create);
