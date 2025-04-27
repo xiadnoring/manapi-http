@@ -54,7 +54,7 @@ manapi::future<void> manapi::net::http::base::send_response(manapi::net::http::r
 
 
     // set time
-    res.header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", manapi::time::current_time(false)));
+    res.header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
     if (this->request_data.http < versions::HTTP_v2) { res.header(HEADER.CONNECTION, "close"); }
 
     if (res.is_file()) {
