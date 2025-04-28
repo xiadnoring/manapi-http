@@ -3,16 +3,7 @@
 #include <fcntl.h>
 
 #include "ManapiFilesystem.hpp"
-#ifdef _WIN32
-#   define NOMINMAX
-#   define WIN32_LEAN_AND_MEAN
-#   include <windows.h>
-#   include <io.h>
-#   include <fcntl.h>
-#   include <stdlib.h>
-#   include <stdio.h>
-#   include <share.h>
-#endif
+#include "../include/ManapiWindows.hpp"
 
 manapi::filesystem::fstream::fstream(const std::shared_ptr<manapi::async::context> &ctx, std::string path, async::cancellation_action cancellation) {
     this->data = std::make_shared<fstream_data_t_>(

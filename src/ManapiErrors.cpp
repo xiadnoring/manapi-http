@@ -34,28 +34,32 @@ namespace manapi::error {
         "failure of fs callback: {}",
         "fs i/o operation has been cancelled",
         "fs i/o init watcher failure",
-        "watcher command failed"
+        "watcher command failed",
+        "fs watcher bind failed",
+        "random string failed"
     };
 }
 
-manapi::exception::exception(const manapi::err_num &errnum, std::string message_): message(std::move(message_)) {
+manapi::exception::exception(manapi::err_num errnum, std::string message): message(std::move(message)) {
     this->errnum_ = errnum;
+    this->data_ = nullptr;
 }
 
-manapi::exception::exception(const manapi::err_num &errnum, int addititonal_num_data, std::string message_) {
+manapi::exception::exception(manapi::err_num errnum, std::string message, std::shared_ptr<manapi::json> data) {
     this->errnum_ = errnum;
-    this->addititonal_num_data = addititonal_num_data;
-    this->message = std::move(message_);
+    this->message = std::move(message);
+    this->data_ = std::move(data);
 }
 
 const char *manapi::exception::what() const noexcept {
     return this->message.data();
 }
 
-const manapi::err_num & manapi::exception::err_num() const {
+int manapi::exception::err_num() const {
     return this->errnum_;
 }
 
-const int & manapi::exception::get_additional_num_data() const {
-    return this->addititonal_num_data;
+std::shared_ptr<manapi::json> manapi::exception::data() {
+    return this->data_;
 }
+

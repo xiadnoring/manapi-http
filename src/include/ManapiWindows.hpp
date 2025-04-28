@@ -1,8 +1,13 @@
-//
-// Created by Timur on 4/27/25.
-//
+#pragma once
 
-#ifndef MANAPIWINDOWS_HPP
-#define MANAPIWINDOWS_HPP
-
-#endif //MANAPIWINDOWS_HPP
+#ifdef _WIN32
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
+#   include <windows.h>
+#   include <processthreadsapi.h>
+#   include <io.h>
+#   include <fcntl.h>
+#   include <stdlib.h>
+#   include <stdio.h>
+#   include <share.h>
+#endif

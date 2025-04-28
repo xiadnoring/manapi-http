@@ -41,11 +41,7 @@ manapi::future<void> manapi::async::mutex::lock(){
 bool manapi::async::mutex::try_to_lock() {
     std::lock_guard<std::mutex> lk (this->mx);
     if (this->own) { return false; }
-#ifdef _WIN32
-    this->own = ::GetCurrentThreadId();
-#else
     this->own = true;
-#endif
     return true;
 }
 

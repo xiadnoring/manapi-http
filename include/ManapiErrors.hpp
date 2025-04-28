@@ -2,6 +2,7 @@
 
 #include <map>
 #include <string>
+#include <memory>
 #include "ManapiUtils.hpp"
 
 namespace manapi {
@@ -61,7 +62,8 @@ namespace manapi {
         ERR_FS_IO_RESULT = 53,
         ERR_FILE_NOT_FOUND = 54,
         ERR_TIMER_ERROR = 55,
-        ERR_WATCHER_ERROR = 56
+        ERR_WATCHER_ERROR = 56,
+        ERR_WATCHER_BIND = 57
     };
 
     extern const std::map <err_num, std::string> err_msg;
@@ -76,15 +78,15 @@ namespace manapi {
 
     class exception : public std::exception {
     public:
-        explicit exception (const err_num &errnum, std::string message_);
-        explicit exception (const err_num &errnum, int addititonal_num_data, std::string message_);
+        exception (manapi::err_num errnum, std::string message);
+        exception (manapi::err_num errnum, std::string message, std::shared_ptr<class json> data);
         [[nodiscard]] const char * what() const noexcept override;
-        [[nodiscard]] const manapi::err_num &err_num () const;
-        [[nodiscard]] const int &get_additional_num_data () const;
+        [[nodiscard]] int err_num () const;
+        [[nodiscard]] std::shared_ptr<manapi::json> data();
     private:
         manapi::err_num errnum_;
-        int addititonal_num_data = -1;
         std::string message;
+        std::shared_ptr<json> data_;
     };
 }
 
@@ -100,7 +102,9 @@ namespace manapi::error {
         ERRMSG_FS_FAILURE_CALLBACK,
         ERRMSG_FS_CANCELLED,
         ERRMSG_FS_FAILURE_INIT,
-        ERRMSG_WATCHER_COMMAND_FAILED
+        ERRMSG_WATCHER_COMMAND_FAILED,
+        ERRMSG_WATCHER_BIND_FAILED,
+        ERRMSG_RANDOM_STRING_FAILED
     };
 
     extern const char *default_msgs[];

@@ -58,17 +58,29 @@ int main () {
 
     router.GET ("/", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
-        resp.compress_enabled(true);
+        resp.compress_enabled(false);
         co_return resp.text(R"(hello world! resp.text <a href="/http-test">http test</a>)");
     });
 
     router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable
         -> manapi::future<> {
-        co_return resp.text(std::to_string(cnt->fetch_add(1)));
+        resp.compress_enabled(false);
+        co_return resp.text("ok");
     });
 
-    router.GET("/aa", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-        co_return resp.text(std::format("{} {}", resp.status_code(), resp.status_message()));
+    router.GET("/random", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+        try {
+            std::string data;
+            data.resize(64);
+            manapi::async::cancellation_action cancellation (GCTX_OBJ);
+            cancellation.timeout(5000);
+            co_await manapi::crypto::async_random_string(GCTX(data.data(), data.size(), std::move(cancellation)));
+            data = manapi::crypto::strdec2strhex(std::move(data));
+            co_return resp.text(std::move(data));
+        }
+        catch (...) {
+            co_return resp.text("error");
+        }
     });
 
     router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)

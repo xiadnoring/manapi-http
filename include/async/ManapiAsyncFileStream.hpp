@@ -5,13 +5,6 @@
 #include "../services/ManapiTask.hpp"
 #include "../services/ManapiThreadPool.hpp"
 
-#ifdef _WIN32
-#   define NOMINMAX
-#   define WIN32_LEAN_AND_MEAN
-#   include <windows.h>
-#   include <winsock2.h>
-#endif
-
 namespace manapi::filesystem {
     class fstream {
         enum fstream_status_flags {

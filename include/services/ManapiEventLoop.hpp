@@ -31,6 +31,7 @@ namespace manapi::ev {
     typedef std::move_only_function<void(std::shared_ptr<ev::udp_send> &, int status)> udp_send_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::write> &, int status)> write_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::fs> &)> fs_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size)> random_cb;
 }
 
 namespace manapi::ev::internal {
@@ -78,15 +79,78 @@ namespace manapi {
 
         manapi::ev::loop_ref loop();
 
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
         std::shared_ptr<ev::tcp> create_watcher_tcp_accept (ev::tcp_accept_cb callback);
+        /**
+         *
+         * @param read Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
         std::shared_ptr<ev::tcp> create_watcher_tcp_connection (ev::tcp_connection_cb read);
+        /**
+         *
+         * @param recv Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
         std::shared_ptr<ev::udp> create_watcher_udp (ev::udp_cb recv);
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
         std::shared_ptr<ev::io> create_watcher_fd (fd_t fd, ev::io_cb callback);
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
         std::shared_ptr<ev::io> create_watcher_socket (socket_t sock, ev::io_cb callback);
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
         std::shared_ptr<ev::async> create_watcher_async (ev::async_cb callback);
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
         std::shared_ptr<ev::timer> create_watcher_timer (ev::timer_cb callback);
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
         std::shared_ptr<ev::prepare> create_watcher_prepare (ev::prepare_cb callback);
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
         std::shared_ptr<ev::fs> create_watcher_fs (ev::fs_cb callback);
+
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
+        std::shared_ptr<ev::random> create_watcher_random (ev::random_cb callback, char *buff, std::size_t size);
+
 
         template<typename T>
         void stop_watcher (T *w) { perror("not implemented"); }

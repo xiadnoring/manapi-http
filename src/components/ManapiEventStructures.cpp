@@ -19,9 +19,7 @@ int manapi::ev::name_class::ip6_addr (const char *ip, int port, sockaddr_in6 *ad
 #define MANAPI_EV_CHECK(expr) { auto rhs = expr; if (rhs) { std::cout << rhs << "\n"; THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_EXTERNAL_LIB_CRASH, #expr); } }
 
 MANAPI_EV_DEFAULT(async, uv_async_t)
-
 MANAPI_EV_DEFAULT(timer, uv_timer_t)
-
 MANAPI_EV_DEFAULT(io, uv_poll_t)
 MANAPI_EV_DEFAULT(check, uv_check_t)
 MANAPI_EV_DEFAULT(prepare, uv_prepare_t)
@@ -29,37 +27,42 @@ MANAPI_EV_DEFAULT(idle, uv_idle_t)
 MANAPI_EV_DEFAULT(tcp, uv_tcp_t)
 MANAPI_EV_DEFAULT(udp, uv_udp_t)
 MANAPI_EV_DEFAULT(write, uv_write_t)
+MANAPI_EV_DEFAULT(random, uv_random_t)
 MANAPI_EV_DEFAULT(udp_send, uv_udp_send_t)
 MANAPI_EV_DEFAULT(fs, uv_fs_t)
 
 MANAPI_EV_STREAM(udp, uv_udp_t)
 MANAPI_EV_STREAM(tcp, uv_tcp_t)
 
-manapi::ev::async::async(loop_ref loop) : async(loop, manapi::ev::callback_watcher_async) {}
+manapi::ev::async::async() : s_() {}
 
-manapi::ev::async::async(loop_ref loop, uv_async_cb cb) : s_() {
-    MANAPI_EV_CHECK(uv_async_init(loop, &this->s_, cb));
+int manapi::ev::async::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
+    return this->bind(loop, callback_watcher_async);
+}
+
+int manapi::ev::async::bind(loop_ref loop, uv_async_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_async_init(loop, &this->s_, cb);
 }
 
 int manapi::ev::async::send() MANAPI_EV_NOEXPECT {
     return uv_async_send(&this->s_);
 }
 
-void manapi::ev::async::set(uv_async_cb cb) MANAPI_EV_NOEXPECT {
+int manapi::ev::async::set(uv_async_cb cb) MANAPI_EV_NOEXPECT {
     auto data = this->data();
     auto loop = this->loop();
 
     this->unbind();
 
-    MANAPI_EV_CHECK(uv_async_init(loop, &this->s_, cb));
+    if (auto rhs = uv_async_init(loop, &this->s_, cb)) {
+        return rhs;
+    }
+
     this->data(data);
+    return 0;
 }
 
-manapi::ev::idle::idle(loop_ref loop) : s_() {
-    MANAPI_EV_CHECK(this->init(loop));
-}
-
-int manapi::ev::idle::init(loop_ref loop) MANAPI_EV_NOEXPECT {
+int manapi::ev::idle::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
     return uv_idle_init(loop, &this->s_);
 }
 
@@ -75,11 +78,10 @@ int manapi::ev::idle::stop() MANAPI_EV_NOEXPECT {
     return uv_idle_stop(&this->s_);
 }
 
-manapi::ev::check::check(loop_ref loop) : s_() {
-    MANAPI_EV_CHECK(this->init(loop));
+manapi::ev::check::check() : s_() {
 }
 
-int manapi::ev::check::init(loop_ref loop) MANAPI_EV_NOEXPECT {
+int manapi::ev::check::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
     return uv_check_init(loop, &this->s_);
 }
 
@@ -120,15 +122,24 @@ int manapi::ev::io::events() MANAPI_EV_NOEXPECT {
     return this->custom()->io_watcher.pevents & (ev::WRITE|ev::READ);
 }
 
-manapi::ev::write::write(uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_write_cb cb) : s_() {
-    MANAPI_EV_CHECK(uv_write(&this->s_, stream, buf, nbufs, cb));
+manapi::ev::write::write() : s_() {
+
 }
 
-manapi::ev::write::write(uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs)
-    : write(stream, buf, nbufs, ev::callback_watcher_write) {}
+int manapi::ev::write::bind(uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_write_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_write(&this->s_, stream, buf, nbufs, cb);
+}
 
-manapi::ev::tcp::tcp(loop_ref loop) : s_() {
-    MANAPI_EV_CHECK(uv_tcp_init(loop, &this->s_));
+int manapi::ev::write::bind(uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs) MANAPI_EV_NOEXPECT {
+    return this->bind(stream, buf, nbufs, callback_watcher_write);
+}
+
+manapi::ev::tcp::tcp() : s_() {
+
+}
+
+int manapi::ev::tcp::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
+    return uv_tcp_init(loop, &this->s_);
 }
 
 int manapi::ev::tcp::accept(tcp *parent) MANAPI_EV_NOEXPECT {
@@ -147,15 +158,19 @@ int manapi::ev::tcp::read_stop() MANAPI_EV_NOEXPECT {
     return uv_read_stop(MANAPI_EV_CAST_STREAM(&this->s_));
 }
 
-int manapi::ev::tcp::bind(sockaddr *addr, int flags) MANAPI_EV_NOEXPECT {
+int manapi::ev::tcp::s_bind(sockaddr *addr, int flags) MANAPI_EV_NOEXPECT {
     return uv_tcp_bind(&this->s_, addr, flags);
 }
 
-manapi::ev::udp::udp(loop_ref loop) : s_() {
-    MANAPI_EV_CHECK(uv_udp_init(loop, &this->s_));
+manapi::ev::udp::udp() : s_() {
+
 }
 
-int manapi::ev::udp::bind(sockaddr *addr, int flags) MANAPI_EV_NOEXPECT{
+int manapi::ev::udp::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
+    return uv_udp_init(loop, &this->s_);
+}
+
+int manapi::ev::udp::s_bind(sockaddr *addr, int flags) MANAPI_EV_NOEXPECT{
     return uv_udp_bind(&this->s_, addr, flags);
 }
 
@@ -175,15 +190,25 @@ int manapi::ev::udp::try_send(const uv_buf_t *buf, uint32_t nbuf, sockaddr *addr
     return uv_udp_try_send(&this->s_, buf, nbuf, addr);
 }
 
-manapi::ev::udp_send::udp_send(uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_udp_send_cb cb, const sockaddr *addr) : s_() {
-    MANAPI_EV_CHECK(uv_udp_send(&this->s_, stream, buf, nbufs, addr, cb));
+manapi::ev::udp_send::udp_send() : s_() {
+
 }
 
-manapi::ev::udp_send::udp_send(uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, const sockaddr *addr)
-    : udp_send(stream, buf, nbufs, callback_watcher_udp_send, addr) {}
+int manapi::ev::udp_send::bind(uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_udp_send_cb cb,
+    const sockaddr *addr) MANAPI_EV_NOEXPECT {
+    return uv_udp_send(&this->s_, stream, buf, nbufs, addr, cb);
+}
 
-manapi::ev::prepare::prepare(loop_ref loop) : s_() {
-    MANAPI_EV_CHECK(uv_prepare_init(loop, &this->s_));
+int manapi::ev::udp_send::bind(uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, const sockaddr *addr) MANAPI_EV_NOEXPECT {
+    return this->bind(stream, buf, nbufs, callback_watcher_udp_send, addr);
+}
+
+manapi::ev::prepare::prepare() : s_() {
+
+}
+
+int manapi::ev::prepare::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
+    return uv_prepare_init(loop, &this->s_);
 }
 
 int manapi::ev::prepare::start() MANAPI_EV_NOEXPECT {
@@ -198,8 +223,12 @@ int manapi::ev::prepare::stop() MANAPI_EV_NOEXPECT {
     return uv_prepare_stop(&this->s_);
 }
 
-manapi::ev::timer::timer(loop_ref loop) : s_() {
-    uv_timer_init(loop, &this->s_);
+manapi::ev::timer::timer() : s_() {
+
+}
+
+int manapi::ev::timer::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
+    return uv_timer_init(loop, &this->s_);
 }
 
 int manapi::ev::timer::start(uint64_t timeout, uint64_t repeat) MANAPI_EV_NOEXPECT {
@@ -690,4 +719,14 @@ int manapi::ev::fs::lchown(const char *path, uid_t uid, gid_t gid) MANAPI_EV_NOE
 
 ssize_t manapi::ev::fs::result() const MANAPI_EV_NOEXPECT {
     return this->s_.result;
+}
+
+manapi::ev::random::random() : s_() {}
+
+int manapi::ev::random::bind(loop_ref loop, char *buff, std::size_t size, uv_random_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_random(loop, &this->s_, buff, size, /* flags */ 0, cb);
+}
+
+int manapi::ev::random::bind (loop_ref loop, char *buff, std::size_t size) MANAPI_EV_NOEXPECT {
+    return this->bind(loop, buff, size, callback_watcher_random);
 }

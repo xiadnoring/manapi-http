@@ -283,22 +283,32 @@ manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &
         for (size_t i = 0; i <= path_size; i++)
         {
 
-            if (cur->statics != nullptr && cur->statics->contains(request_data.method))
+            if (cur->statics)
             {
-                handler_page.statics = &cur->statics->at(request_data.method);
-                handler_page.statics_parts_len = i;
+                auto static_it = cur->statics->find(request_data.method);
+                if (static_it != cur->statics->end()) {
+                    handler_page.statics = &static_it->second;
+                    handler_page.statics_parts_len = i;
+                }
             }
 
-            if (cur->layers != nullptr && cur->layers->contains(request_data.method))
+
+            if (cur->layers)
             {
-                handler_page.layer.push_back(&cur->layers->at(request_data.method));
+                auto shared_it = cur->layers->find(request_data.method);
+                if (shared_it != cur->layers->end()) {
+                    handler_page.layer.push_back(&shared_it->second);
+                }
             }
 
-            if (cur->errors != nullptr && cur->errors->contains(request_data.method))
+            if (cur->errors)
             {
-                // find errors handlers for method!
-                handler_page.error->handler = &cur->errors->at(request_data.method);
-                error_layer_depth = handler_page.layer.size();
+                auto error_it = cur->errors->find(request_data.method);
+                if (error_it != cur->errors->end()) {
+                    // find errors handlers for method!
+                    handler_page.error->handler = &error_it->second;
+                    error_layer_depth = handler_page.layer.size();
+                }
             }
 
             if (i == path_size)

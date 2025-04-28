@@ -5,15 +5,6 @@
 #include <iostream>
 #include <fstream>
 
-#ifdef _WIN32
-#   define NOMINMAX
-#   define WIN32_LEAN_AND_MEAN
-#   include <windows.h>
-#   include <unistd.h>
-#else
-#   include <unistd.h>
-#endif
-
 #include "ManapiErrors.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiTime.hpp"
@@ -23,24 +14,17 @@
 #if _MSC_VER
 #   define MANAPIHTTP_LOG(ctx, msg, ...) manapi::debug::_log (ctx->logger(), __LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
 #   define MANAPIHTTP_LOG2(ctx, msg) manapi::debug::_log (ctx->logger(), __LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg);
-#   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, -1, msg, __VA_ARGS__)
-#   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, -1, msg)
-#   define RETHROW_MANAPIHTTP_EXCEPTION_WITH_CODE(errnum, code, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, code, msg, __VA_ARGS__)
-#   define RETHROW_MANAPIHTTP_EXCEPTION2_WITH_CODE(errnum, code, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, code, msg)
+#   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, msg, __VA_ARGS__)
+#   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, msg)
 #else
 #   define MANAPIHTTP_LOG(ctx, msg, ...) manapi::debug::_log (ctx->logger(), __LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
 #   define MANAPIHTTP_LOG2(ctx, msg) manapi::debug::_log (ctx->logger(), __LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg);
-#   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, -1, msg, __VA_ARGS__)
-#   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, -1, msg)
-#   define RETHROW_MANAPIHTTP_EXCEPTION_WITH_CODE(errnum, code, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, code, msg, __VA_ARGS__)
-#   define RETHROW_MANAPIHTTP_EXCEPTION2_WITH_CODE(errnum, code, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, code, msg)
+#   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg, __VA_ARGS__)
+#   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg)
 #endif
 
 #define THROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) throw RETHROW_MANAPIHTTP_EXCEPTION (errnum, msg, __VA_ARGS__)
 #define THROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) throw RETHROW_MANAPIHTTP_EXCEPTION2 (errnum, msg)
-#define THROW_MANAPIHTTP_EXCEPTION_WITH_CODE(errnum, code, msg, ...) throw RETHROW_MANAPIHTTP_EXCEPTION_WITH_CODE (errnum, code, msg, __VA_ARGS__)
-#define THROW_MANAPIHTTP_EXCEPTION2_WITH_CODE(errnum, code, msg, ...) throw RETHROW_MANAPIHTTP_EXCEPTION2_WITH_CODE (errnum, code, msg)
-
 
 namespace manapi::debug {
     template <class... Args>
@@ -52,7 +36,7 @@ namespace manapi::debug {
     }
 
     template <class... Args>
-    manapi::exception _error (size_t line, std::string file_name, std::string func, err_num errnum, int additional_num_data, std::string format, Args&& ...args)
+    manapi::exception _error (size_t line, std::string file_name, std::string func, err_num errnum, std::string format, Args&& ...args)
     {
         const std::size_t n = sizeof...(Args);
         //auto msg = std::format ("[{:%H:%M:%S}][{}]: {}() ({}:{}): ", time::current_time(true), static_cast<size_t>(errnum), func, file_name, line);
@@ -62,6 +46,6 @@ namespace manapi::debug {
 
         //logger->error(manapi::logger::default_service, static_cast<int>(errnum), std::move(msg));
 
-        return std::move(manapi::exception (errnum, additional_num_data, std::move(information)));
+        return std::move(manapi::exception (errnum, std::move(information)));
     }
 }

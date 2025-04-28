@@ -3,6 +3,8 @@ project(manapihttp VERSION 0.0.2 DESCRIPTION "Fast HTTP Server/Client Library fo
 
 cmake_policy(SET CMP0070 NEW)
 
+add_compile_options(-fmerge-all-constants -fuse-ld=gold)
+
 if (NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     message(STATUS "This project has a top-level one called [${CMAKE_PROJECT_NAME}]")
 else ()
@@ -327,6 +329,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/async/ManapiAsyncLogger.hpp
         include/components/ManapiEventStructures.hpp
         src/components/ManapiEventStructures.cpp
+        src/include/ManapiWindows.hpp
+        src/crypto/ManapiCryptoUtils.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

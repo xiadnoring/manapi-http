@@ -226,18 +226,21 @@ namespace manapi::ev {
     void callback_watcher_udp_send (uv_udp_send_t *s, int status);
     void callback_watcher_write (uv_write_t *s, int status);
     void callback_watcher_fs (uv_fs_t *req);
+    void callback_watcher_random (uv_random_t *s, int status, void *buf, size_t buflen);
 
     class async {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(async, uv_async_t)
     public:
         MANAPI_EV_DEFAULT(async, uv_async_t)
 
-        async (loop_ref loop);
-        async (loop_ref loop, uv_async_cb cb);
+        async ();
+
+        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, uv_async_cb cb) MANAPI_EV_NOEXPECT;
 
         int send () MANAPI_EV_NOEXPECT;
 
-        void set (uv_async_cb cb = callback_watcher_async) MANAPI_EV_NOEXPECT;
+        int set (uv_async_cb cb = callback_watcher_async) MANAPI_EV_NOEXPECT;
     private:
 
         uv_async_t s_;
@@ -247,9 +250,8 @@ namespace manapi::ev {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(idle, uv_idle_t)
     public:
         MANAPI_EV_DEFAULT(idle, uv_idle_t)
-        idle (loop_ref loop);
-
-        int init (loop_ref loop) MANAPI_EV_NOEXPECT;
+        idle ();
+        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
 
         int start () MANAPI_EV_NOEXPECT;
         int start (uv_idle_cb cb) MANAPI_EV_NOEXPECT;
@@ -263,9 +265,9 @@ namespace manapi::ev {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(check, uv_check_t)
     public:
         MANAPI_EV_DEFAULT(check, uv_check_t)
-        check (loop_ref loop);
+        check ();
 
-        int init (loop_ref loop) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
         int start () MANAPI_EV_NOEXPECT;
         int start (uv_check_cb cb) MANAPI_EV_NOEXPECT;
 
@@ -304,8 +306,10 @@ namespace manapi::ev {
     public:
         MANAPI_EV_DEFAULT(write, uv_write_t)
 
-        write (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_write_cb cb);
-        write (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs);
+        write ();
+
+        int bind (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_write_cb cb) MANAPI_EV_NOEXPECT;
+        int bind (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs) MANAPI_EV_NOEXPECT;
     private:
         uv_write_t s_{};
     };
@@ -316,8 +320,9 @@ namespace manapi::ev {
         MANAPI_EV_DEFAULT(tcp, uv_tcp_t)
         MANAPI_EV_STREAM(tcp, uv_tcp_t)
 
-        tcp (loop_ref loop);
+        tcp ();
 
+        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
         int accept (tcp *parent) MANAPI_EV_NOEXPECT;
 
         int read_start () MANAPI_EV_NOEXPECT;
@@ -325,7 +330,7 @@ namespace manapi::ev {
 
         int read_stop () MANAPI_EV_NOEXPECT;
 
-        int bind (sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
+        int s_bind (sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
     private:
         uv_tcp_t s_;
     };
@@ -336,9 +341,10 @@ namespace manapi::ev {
         MANAPI_EV_DEFAULT(udp, uv_udp_t)
         MANAPI_EV_STREAM(udp, uv_udp_t)
 
-        udp (loop_ref loop);
+        udp ();
 
-        int bind (sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+        int s_bind (sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
 
         int recv_start () MANAPI_EV_NOEXPECT;
         int recv_start (uv_alloc_cb alloc, uv_udp_recv_cb cb) MANAPI_EV_NOEXPECT;
@@ -355,8 +361,10 @@ namespace manapi::ev {
     public:
         MANAPI_EV_DEFAULT(udp_send, uv_udp_send_t)
 
-        udp_send (uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_udp_send_cb cb, const sockaddr *addr);
-        udp_send (uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, const sockaddr *addr);
+        udp_send ();
+
+        int bind (uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_udp_send_cb cb, const sockaddr *addr) MANAPI_EV_NOEXPECT;
+        int bind (uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, const sockaddr *addr) MANAPI_EV_NOEXPECT;
     private:
         uv_udp_send_t s_;
     };
@@ -366,7 +374,9 @@ namespace manapi::ev {
     public:
         MANAPI_EV_DEFAULT(prepare, uv_prepare_t)
 
-        prepare (loop_ref loop);
+        prepare ();
+
+        int bind(loop_ref loop) MANAPI_EV_NOEXPECT;
 
         int start () MANAPI_EV_NOEXPECT;
         int start (uv_prepare_cb cb) MANAPI_EV_NOEXPECT;
@@ -381,7 +391,9 @@ namespace manapi::ev {
     public:
         MANAPI_EV_DEFAULT(timer, uv_timer_t)
 
-        timer (loop_ref loop);
+        timer ();
+
+        int bind(loop_ref loop) MANAPI_EV_NOEXPECT;
 
         int start (uint64_t timeout, uint64_t repeat) MANAPI_EV_NOEXPECT;
         int start (uint64_t timeout, uint64_t repeat, uv_timer_cb cb) MANAPI_EV_NOEXPECT;
@@ -523,6 +535,17 @@ namespace manapi::ev {
     private:
         loop_ref loop_;
         uv_fs_t s_;
+    };
+
+    class random {
+        MANAPI_EV_DEFAULT_PRIVATE_VAR(fs, uv_fs_t)
+    public:
+        MANAPI_EV_DEFAULT(random, uv_random_t)
+        random ();
+        int bind (loop_ref loop, char *buff, std::size_t size, uv_random_cb cb) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, char *buff, std::size_t size) MANAPI_EV_NOEXPECT;
+    private:
+        uv_random_t s_;
     };
 }
 

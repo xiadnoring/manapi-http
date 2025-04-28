@@ -151,6 +151,11 @@ namespace manapi::ev::internal {
         fs_cb cb;
     };
 
+    struct random_ctx {
+        std::shared_ptr<ev::random> s_;
+        random_cb cb;
+    };
+
     struct adding_watcher_io_data_init_t {
         union {
             manapi::fd_t fd = 0;
@@ -393,6 +398,11 @@ void manapi::ev::callback_watcher_fs(uv_fs_t *req) {
         ->cb(static_cast<manapi::ev::internal::fs_ctx *> (req->data)->s_);
 }
 
+void manapi::ev::callback_watcher_random(uv_random_t *s, int status, void *buff, std::size_t size) {
+    static_cast<manapi::ev::internal::random_ctx *> (s->data)
+        ->cb(static_cast<manapi::ev::internal::random_ctx *> (s->data)->s_, status, buff, size);
+}
+
 
 void manapi::ev::callback_watcher_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
 
@@ -611,19 +621,33 @@ manapi::ev::loop_ref manapi::event_loop::loop() {
 }
 
 std::shared_ptr<manapi::ev::tcp> manapi::event_loop::create_watcher_tcp_accept( ev::tcp_accept_cb callback) {
-    auto w = std::make_shared<ev::tcp>(&this->loop_);
+    auto w = std::make_shared<ev::tcp>();
+
+    if (auto rhs = w->bind(&this->loop_)) {
+        throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
+            std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
+    }
+
     w->data(new ev::internal::tcp_accept_ctx  {.s_ = w, .connection = std::move(callback)});
     return std::move(w);
 }
 
 std::shared_ptr<manapi::ev::tcp> manapi::event_loop::create_watcher_tcp_connection( ev::tcp_connection_cb read) {
-    auto w = std::make_shared<ev::tcp>(&this->loop_);
+    auto w = std::make_shared<ev::tcp>();
+    if (auto rhs = w->bind(&this->loop_)) {
+        throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
+            std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
+    }
     w->data(new ev::internal::tcp_connection_ctx  {.s_ = w, .read = std::move(read)});
     return std::move(w);
 }
 
 std::shared_ptr<manapi::ev::udp> manapi::event_loop::create_watcher_udp(ev::udp_cb recv) {
-    auto w = std::make_shared<ev::udp>(&this->loop_);
+    auto w = std::make_shared<ev::udp>();
+    if (auto rhs = w->bind(&this->loop_)) {
+        throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
+            std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
+    }
     w->data(new ev::internal::udp_ctx {.s_ = w, .recv = std::move(recv)});
     return std::move(w);
 }
@@ -1707,19 +1731,31 @@ std::shared_ptr<manapi::ev::io> manapi::event_loop::create_watcher_socket(socket
 }
 
 std::shared_ptr<manapi::ev::async> manapi::event_loop::create_watcher_async(ev::async_cb callback) {
-    auto w = std::make_shared<ev::async>(&this->loop_);
+    auto w = std::make_shared<ev::async>();
+    if (auto rhs = w->bind(&this->loop_)) {
+        throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
+            std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
+    }
     w->data(new ev::internal::async_ctx { .s_ = w, .cb = std::move(callback) });
     return std::move(w);
 }
 
 std::shared_ptr<manapi::ev::timer> manapi::event_loop::create_watcher_timer(ev::timer_cb callback) {
-    auto w = std::make_shared<ev::timer>(&this->loop_);
+    auto w = std::make_shared<ev::timer>();
+    if (auto rhs = w->bind(&this->loop_)) {
+        throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
+            std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
+    }
     w->data(new ev::internal::timer_ctx {.s_ = w, .cb = std::move(callback)});
     return std::move(w);
 }
 
 std::shared_ptr<manapi::ev::prepare> manapi::event_loop::create_watcher_prepare(ev::prepare_cb callback) {
-    auto w = std::make_shared<ev::prepare>(&this->loop_);
+    auto w = std::make_shared<ev::prepare>();
+    if (auto rhs = w->bind(&this->loop_)) {
+        throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
+            std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
+    }
     w->data(new ev::internal::prepare_ctx {.s_ = w, .cb = std::move(callback)});
     return std::move(w);
 }
@@ -1727,6 +1763,16 @@ std::shared_ptr<manapi::ev::prepare> manapi::event_loop::create_watcher_prepare(
 std::shared_ptr<manapi::ev::fs> manapi::event_loop::create_watcher_fs(ev::fs_cb callback) {
     auto w = std::make_shared<ev::fs>(&this->loop_);
     w->data(new ev::internal::fs_ctx{ .s_ = w, .cb = std::move(callback) });
+    return std::move(w);
+}
+
+std::shared_ptr<manapi::ev::random> manapi::event_loop::create_watcher_random(ev::random_cb callback, char *buff, std::size_t size) {
+    auto w = std::make_shared<ev::random>();
+    if (auto rhs = w->bind(&this->loop_, buff, size)) {
+        throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
+            std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
+    }
+    w->data(new ev::internal::random_ctx{ .s_ = w, .cb = std::move(callback) });
     return std::move(w);
 }
 
