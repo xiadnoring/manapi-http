@@ -41,7 +41,7 @@ manapi::net::http::server & manapi::net::http::server::operator=(const server &n
     return *this;
 }
 
-manapi::net::http::server::server(const std::shared_ptr<manapi::async::context> &ctx)
+manapi::net::http::server::server(const async::shared_ctx &ctx)
         : site(ctx) {
     this->data2 = std::make_shared<data2_t>(ctx, true, std::map<size_t, std::unique_ptr<http_pool>>(), 0UL, 0UL, 0UL, nullptr, nullptr);
     this->setup ();

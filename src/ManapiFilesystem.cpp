@@ -427,7 +427,7 @@ struct async_fs_operation_deleter {
 };
 
 template<typename T>
-manapi::future<T> async_fs_operation (std::shared_ptr<manapi::async::context> ctx, std::move_only_function<bool(std::shared_ptr<manapi::ev::fs> w)> start_cb,
+manapi::future<T> async_fs_operation (manapi::async::shared_ctx ctx, std::move_only_function<bool(std::shared_ptr<manapi::ev::fs> w)> start_cb,
       async_fs_operation_event_cb<T> event_cb,  manapi::async::cancellation_action cancellation) {
     using promise = manapi::async::promise<T>;
     async_fs_operation_deleter t {cancellation};
@@ -447,7 +447,7 @@ manapi::future<T> async_fs_operation (std::shared_ptr<manapi::async::context> ct
             }
 
             if (cancellation.contains_cancel_callback()) {
-                cancellation.cancel_callback([watcher = std::move(watcher), reject = std::move(reject)] (std::shared_ptr<manapi::async::context> ctx) mutable
+                cancellation.cancel_callback([watcher = std::move(watcher), reject = std::move(reject)] (manapi::async::shared_ctx ctx) mutable
                     -> void {
                     ctx->eventloop()->stop_watcher<manapi::ev::fs>(std::move(watcher));
                     reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_CANCELLED, manapi::error::default_msgs[manapi::error::ERRMSG_FS_CANCELLED])));
@@ -457,23 +457,36 @@ manapi::future<T> async_fs_operation (std::shared_ptr<manapi::async::context> ct
     });
 }
 
-manapi::future<bool> manapi::filesystem::async_exists(std::shared_ptr<manapi::async::context> ctx, std::string path, manapi::async::cancellation_action cancellation) {
-    bool result = false;
-    co_await filesystem::async_stat(std::move(ctx), std::move(path), [&result] (ev::stat_t *stat)
-        -> void { result = stat != nullptr; }, std::move(cancellation));
-    co_return result;
+manapi::future<> async_fs_simple_operation (manapi::async::shared_ctx ctx, std::move_only_function<bool()> start_cb, manapi::async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<void>;
+
+    co_return co_await async_fs_operation<void>(ctx, std::move(start_cb),
+        [](manapi::async::context *ctx, std::shared_ptr<manapi::ev::fs> w,
+            promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) mutable
+        -> void {
+            cancel.disable_cancellation();
+
+            if (async_fs_operation_result_error<void>(w, ctx, reject, cancel)) {
+                return;
+            }
+
+            resolve();
+        }, std::move(cancellation));
 }
 
-manapi::future<std::filesystem::file_time_type> manapi::filesystem::async_last_time_write(std::shared_ptr<manapi::async::context> ctx, std::string path, manapi::async::cancellation_action cancellation) {
+manapi::future<bool> manapi::filesystem::async_exists(async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation) {
+    co_return co_await filesystem::async_stat(std::move(ctx), std::move(path), nullptr, std::move(cancellation));
+}
+
+manapi::future<std::filesystem::file_time_type> manapi::filesystem::async_last_time_write(async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation) {
     uv_timespec_t mtime;
-    bool exists = false;
-    co_await filesystem::async_stat(std::move(ctx), std::move(path), [&mtime, &exists] (ev::stat_t *stat)
-        -> void { if (stat) { mtime = stat->st_mtim; exists = true; } }, std::move(cancellation));
+    bool exists = co_await filesystem::async_stat(std::move(ctx), std::move(path), [&mtime, &exists] (ev::stat_t *stat)
+        -> void { mtime = stat->st_mtim; }, std::move(cancellation));
     if (!exists) { THROW_MANAPIHTTP_EXCEPTION2(ERR_FS_IO, manapi::error::default_msgs[manapi::error::ERRMSG_FILE_NOT_FOUND]); }
     co_return std::filesystem::file_time_type (std::chrono::seconds(mtime.tv_sec) + std::chrono::milliseconds(mtime.tv_nsec));
 }
 
-manapi::future<void> manapi::filesystem::async_mkdir(std::shared_ptr<manapi::async::context> ctx, std::string path, int mode, bool recursive, manapi::async::cancellation_action cancellation) {
+manapi::future<void> manapi::filesystem::async_mkdir(async::shared_ctx ctx, std::string path, int mode, bool recursive, manapi::async::cancellation_action cancellation) {
     using promise = manapi::async::promise<void>;
 
     if (recursive) {
@@ -527,7 +540,7 @@ manapi::future<void> manapi::filesystem::async_mkdir(std::shared_ptr<manapi::asy
     }
 }
 
-manapi::future<manapi::ev::file> manapi::filesystem::async_open(std::shared_ptr<manapi::async::context> ctx, std::string path, int flags, int mode, manapi::async::cancellation_action cancellation) {
+manapi::future<manapi::ev::file> manapi::filesystem::async_open(async::shared_ctx ctx, std::string path, int flags, int mode, manapi::async::cancellation_action cancellation) {
     using promise = manapi::async::promise<ev::file>;
 
     auto fileno = co_await async_fs_operation<ev::file>(ctx,
@@ -546,8 +559,7 @@ manapi::future<manapi::ev::file> manapi::filesystem::async_open(std::shared_ptr<
     co_return fileno;
 }
 
-manapi::future<void> manapi::filesystem::async_close(std::shared_ptr<manapi::async::context> ctx, ev::file file,
-    async::cancellation_action cancellation) {
+manapi::future<void> manapi::filesystem::async_close(async::shared_ctx ctx, ev::file file, async::cancellation_action cancellation) {
     using promise = manapi::async::promise<void>;
 
     co_await async_fs_operation<void>(ctx,
@@ -564,7 +576,7 @@ manapi::future<void> manapi::filesystem::async_close(std::shared_ptr<manapi::asy
         }, std::move(cancellation));
 }
 
-manapi::future<ssize_t> manapi::filesystem::async_write(std::shared_ptr<manapi::async::context> ctx, ev::file file, const void *data, ssize_t size, int64_t offset, manapi::async::cancellation_action cancellation) {
+manapi::future<ssize_t> manapi::filesystem::async_write(async::shared_ctx ctx, ev::file file, const void *data, ssize_t size, int64_t offset, manapi::async::cancellation_action cancellation) {
     using promise = manapi::async::promise<ssize_t>;
 
     if (!size) {
@@ -643,7 +655,7 @@ manapi::future<ssize_t> manapi::filesystem::async_write(std::shared_ptr<manapi::
             }
 
             if (cancel.contains_cancel_callback()) {
-                cancel.cancel_callback([w = std::move(w)] (std::shared_ptr<async::context> ctx) mutable
+                cancel.cancel_callback([w = std::move(w)] (async::shared_ctx ctx) mutable
                     -> void { ctx->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
             }
         }
@@ -664,7 +676,7 @@ manapi::future<ssize_t> manapi::filesystem::async_write(std::shared_ptr<manapi::
     co_return rhs;
 }
 
-manapi::future<ssize_t> manapi::filesystem::async_read(std::shared_ptr<manapi::async::context> ctx, ev::file file, void *data, ssize_t size, int64_t offset, manapi::async::cancellation_action cancellation) {
+manapi::future<ssize_t> manapi::filesystem::async_read(async::shared_ctx ctx, ev::file file, void *data, ssize_t size, int64_t offset, manapi::async::cancellation_action cancellation) {
     using promise = manapi::async::promise<ssize_t>;
 
     if (!size) {
@@ -742,7 +754,7 @@ manapi::future<ssize_t> manapi::filesystem::async_read(std::shared_ptr<manapi::a
             }
 
             if (cancel.contains_cancel_callback()) {
-                cancel.cancel_callback([w = std::move(w)] (std::shared_ptr<async::context> ctx) mutable
+                cancel.cancel_callback([w = std::move(w)] (async::shared_ctx ctx) mutable
                     -> void { ctx->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
             }
         }
@@ -764,7 +776,7 @@ manapi::future<ssize_t> manapi::filesystem::async_read(std::shared_ptr<manapi::a
     co_return rhs;
 }
 
-manapi::future<> manapi::filesystem::async_write(std::shared_ptr<manapi::async::context> ctx, std::string path, std::string data, int mode, int64_t offset, manapi::async::cancellation_action cancellation) {
+manapi::future<> manapi::filesystem::async_write(async::shared_ctx ctx, std::string path, std::string data, int mode, int64_t offset, manapi::async::cancellation_action cancellation) {
     std::exception_ptr err;
     ev::file fileno = 0;
 
@@ -789,7 +801,7 @@ manapi::future<> manapi::filesystem::async_write(std::shared_ptr<manapi::async::
     }
 }
 
-manapi::future<std::string> manapi::filesystem::async_read(std::shared_ptr<manapi::async::context> ctx, std::string path, int64_t offset, manapi::async::cancellation_action cancellation) {
+manapi::future<std::string> manapi::filesystem::async_read(async::shared_ctx ctx, std::string path, int64_t offset, manapi::async::cancellation_action cancellation) {
     std::exception_ptr err;
     ev::file fileno = 0;
     std::string data;
@@ -824,7 +836,7 @@ manapi::future<std::string> manapi::filesystem::async_read(std::shared_ptr<manap
     co_return std::move(data);
 }
 
-manapi::future<ssize_t> manapi::filesystem::async_file_size(std::shared_ptr<manapi::async::context> ctx, std::string path, manapi::async::cancellation_action cancellation) {
+manapi::future<ssize_t> manapi::filesystem::async_file_size(async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation) {
     ssize_t size;
 
     co_await filesystem::async_stat(std::move(ctx), std::move(path), [&size] (ev::stat_t *stat)
@@ -844,10 +856,10 @@ manapi::future<ssize_t> manapi::filesystem::async_file_size(std::shared_ptr<mana
     co_return size;
 }
 
-manapi::future<> manapi::filesystem::async_stat(std::shared_ptr<async::context> ctx, std::string path, std::move_only_function<void(ev::stat_t *data)> callback, async::cancellation_action cancellation) {
-    using promise = manapi::async::promise<void>;
+manapi::future<bool> manapi::filesystem::async_stat(async::shared_ctx ctx, std::string path, std::move_only_function<void(ev::stat_t *data)> callback, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<bool>;
 
-    co_await async_fs_operation<void>(ctx,
+    co_return co_await async_fs_operation<bool>(ctx,
         [path = std::move(path)] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->stat(path.data());
@@ -856,20 +868,21 @@ manapi::future<> manapi::filesystem::async_stat(std::shared_ptr<async::context> 
             cancel.disable_cancellation();
 
             if (w->result()) {
-                callback(nullptr);
-            }
-            else {
-                callback(&w->custom()->statbuf);
+                resolve(false);
+                return;
             }
 
-            resolve();
+            if (callback) {
+                callback(&w->custom()->statbuf);
+            }
+            resolve(true);
         }, cancellation);
 }
 
-manapi::future<> manapi::filesystem::async_fstat(std::shared_ptr<async::context> ctx, ev::file file, std::move_only_function<void(ev::stat_t *data)> callback, async::cancellation_action cancellation) {
-    using promise = manapi::async::promise<void>;
+manapi::future<bool> manapi::filesystem::async_fstat(async::shared_ctx ctx, ev::file file, std::move_only_function<void(ev::stat_t *data)> callback, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<bool>;
 
-    co_await async_fs_operation<void>(ctx,
+    co_return co_await async_fs_operation<bool>(ctx,
         [file] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->fstat(file);
@@ -878,13 +891,14 @@ manapi::future<> manapi::filesystem::async_fstat(std::shared_ptr<async::context>
             cancel.disable_cancellation();
 
             if (w->result()) {
-                callback(nullptr);
-            }
-            else {
-                callback(&w->custom()->statbuf);
+                resolve(false);
+                return;
             }
 
-            resolve();
+            if (callback) {
+                callback(&w->custom()->statbuf);
+            }
+            resolve(true);
         }, cancellation);
 }
 
@@ -992,4 +1006,239 @@ std::string manapi::filesystem::path::clean (const std::string &str) {
     }
 
     return cleaned;
+}
+
+manapi::future<void> manapi::filesystem::async_unlink (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [path = std::move(path)] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->unlink(path.data()); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_rmdir (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [path = std::move(path)] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->rmdir(path.data()); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_closedir (manapi::async::shared_ctx ctx, manapi::ev::dir_t *directory, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [directory] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->closedir(directory); }, std::move(cancellation));
+}
+
+manapi::future<bool> manapi::filesystem::async_statfs (manapi::async::shared_ctx ctx, std::string path, std::move_only_function<void(ev::statfs_t *data)> callback, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<bool>;
+
+    co_return co_await async_fs_operation<bool>(ctx,
+        [path = std::move(path)] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->statfs(path.data());
+        }, [callback = std::move(callback)](async::context *ctx, std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) mutable
+        -> void {
+            cancel.disable_cancellation();
+
+            if (w->result()) {
+                resolve(false);
+                return;
+            }
+
+            if (callback) {
+                callback(static_cast<ev::statfs_t*>(w->custom()->ptr));
+            }
+            resolve(true);
+        }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_rename (manapi::async::shared_ctx ctx, std::string oldpath, std::string newpath, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [oldpath = std::move(oldpath), newpath = std::move(newpath)] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->rename(oldpath.data(), newpath.data()); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_copyfile (manapi::async::shared_ctx ctx, std::string src, std::string dest, int flags, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [src = std::move(src), dest = std::move(dest), flags] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->copyfile(src.data(), dest.data(), flags); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_chmod (manapi::async::shared_ctx ctx, std::string path, int mode, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [path = std::move(path), mode] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->chmod(path.data(), mode); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_fchmod (manapi::async::shared_ctx ctx, ev::file file, int mode, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [file, mode] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->fchmod(file, mode); }, std::move(cancellation));
+}
+
+manapi::future<int> manapi::filesystem::async_access (async::shared_ctx ctx, std::string path, int mode, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<bool>;
+
+    co_return co_await async_fs_operation<bool>(ctx,
+        [path = std::move(path), mode] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->access(path.data(), mode);
+        }, +[](async::context *ctx, std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) mutable
+        -> void {
+            cancel.disable_cancellation();
+            resolve(w->result());
+        }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_utime (async::shared_ctx ctx, std::string path, double atime, double mtime, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [path = std::move(path), atime, mtime] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->utime(path.data(), atime, mtime); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_futime (async::shared_ctx ctx, ev::file file, double atime, double mtime, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [file, atime, mtime] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->futime(file, atime, mtime); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_link (manapi::async::shared_ctx ctx, std::string path, std::string newpath, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [path = std::move(path), newpath = std::move(newpath)] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->link(path.data(), newpath.data()); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_symlink (manapi::async::shared_ctx ctx, std::string path, std::string newpath, int flags, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [path = std::move(path), newpath = std::move(newpath), flags] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->symlink(path.data(), newpath.data(), flags); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_fsync (manapi::async::shared_ctx ctx, ev::file file, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [file] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->fsync(file); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_fdatasync(manapi::async::shared_ctx ctx, ev::file file, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [file] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->fdatasync(file); }, std::move(cancellation));
+}
+
+manapi::future<manapi::ev::dir_t *> manapi::filesystem::async_opendir(manapi::async::shared_ctx ctx, std::string path, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<manapi::ev::dir_t *>;
+
+    co_return co_await async_fs_operation<manapi::ev::dir_t *>(ctx,
+        [path = std::move(path)] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->opendir(path.data());
+        }, +[](async::context *ctx, std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) mutable
+        -> void {
+            cancel.disable_cancellation();
+            if (async_fs_operation_result_error<void>(w, ctx, reject, cancel)) {
+                return;
+            }
+            resolve(static_cast<ev::dir_t *> (w->custom()->ptr));
+        }, std::move(cancellation));
+}
+
+manapi::future<std::string> manapi::filesystem::async_readlink (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<std::string>;
+
+    co_return co_await async_fs_operation<std::string>(ctx,
+        [path = std::move(path)] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->readlink(path.data());
+        }, +[](async::context *ctx, std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) mutable
+        -> void {
+            cancel.disable_cancellation();
+            if (async_fs_operation_result_error<void>(w, ctx, reject, cancel)) {
+                return;
+            }
+            resolve(static_cast<const char *> (w->custom()->ptr));
+        }, std::move(cancellation));
+}
+
+manapi::future<std::string> manapi::filesystem::async_readlink (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<std::string>;
+
+    co_return co_await async_fs_operation<std::string>(ctx,
+        [path = std::move(path)] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->realpath(path.data());
+        }, +[](async::context *ctx, std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) mutable
+        -> void {
+            cancel.disable_cancellation();
+            if (async_fs_operation_result_error<void>(w, ctx, reject, cancel)) {
+                return;
+            }
+            resolve(static_cast<const char *> (w->custom()->ptr));
+        }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_chown(manapi::async::shared_ctx ctx, std::string path, ev::uid_t uid, ev::gid_t gid, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [path=std::move(path), uid, gid] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->chown(path.data(), uid, gid); }, std::move(cancellation));
+}
+
+manapi::future<void> manapi::filesystem::async_fchown(manapi::async::shared_ctx ctx, ev::file file, ev::uid_t uid, ev::gid_t gid, async::cancellation_action cancellation) {
+    co_await async_fs_simple_operation (std::move(ctx), [file, uid, gid] (std::shared_ptr<ev::fs> w)
+        -> bool { return !w->fchown(file, uid, gid); }, std::move(cancellation));
+}
+
+manapi::future<std::string> manapi::filesystem::async_mkdtemp(manapi::async::shared_ctx ctx, std::string tpl, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<std::string>;
+
+    co_return co_await async_fs_operation<std::string>(ctx,
+        [tpl = std::move(tpl)] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->mkdtemp(tpl.data());
+        }, +[](async::context *ctx, std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) mutable
+        -> void {
+            cancel.disable_cancellation();
+            if (async_fs_operation_result_error<void>(w, ctx, reject, cancel)) {
+                return;
+            }
+            resolve(static_cast<const char *> (w->custom()->ptr));
+        }, std::move(cancellation));
+}
+
+manapi::future<std::pair<std::string, manapi::ev::file>> manapi::filesystem::async_mkstemp(manapi::async::shared_ctx ctx, std::string tpl, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<std::pair<std::string, manapi::ev::file>>;
+
+    co_return co_await async_fs_operation<std::pair<std::string, manapi::ev::file>>(ctx,
+        [tpl = std::move(tpl)] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->mkstemp(tpl.data());
+        }, +[](async::context *ctx, std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) mutable
+        -> void {
+            cancel.disable_cancellation();
+            if (async_fs_operation_result_error<void>(w, ctx, reject, cancel)) {
+                return;
+            }
+            resolve(std::make_pair(static_cast<const char *> (w->custom()->ptr), static_cast<ev::file>(w->custom()->result)));
+        }, std::move(cancellation));
+}
+
+manapi::future<ssize_t> manapi::filesystem::async_scandir (async::shared_ctx ctx, std::string path, int flags, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<ssize_t>;
+
+    co_return co_await async_fs_operation<ssize_t>(ctx,
+        [path = std::move(path), flags] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->scandir(path.data(), flags);
+        }, [callback = std::move(callback)](async::context *ctx, std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) mutable
+        -> void {
+            cancel.disable_cancellation();
+            if (async_fs_operation_result_error<void>(w, ctx, reject, cancel)) {
+                return;
+            }
+            auto ptr = static_cast<ev::dir_t *> (w->custom()->ptr);
+            callback(ptr);
+            resolve(ptr->nentries);
+        }, std::move(cancellation));
+}
+
+manapi::future<ssize_t> manapi::filesystem::async_readdir (async::shared_ctx ctx, ev::dir_t *dir, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<ssize_t>;
+
+    co_return co_await async_fs_operation<ssize_t>(ctx,
+        [dir] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->readdir(dir);
+        }, [callback = std::move(callback)](async::context *ctx, std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) mutable
+        -> void {
+            cancel.disable_cancellation();
+            if (async_fs_operation_result_error<void>(w, ctx, reject, cancel)) {
+                return;
+            }
+            auto ptr = static_cast<ev::dir_t *> (w->custom()->ptr);
+            callback(ptr);
+            resolve(ptr->nentries);
+        }, std::move(cancellation));
 }

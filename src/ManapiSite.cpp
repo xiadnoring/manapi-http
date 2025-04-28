@@ -239,7 +239,7 @@ void manapi::net::site::set_compressed_cache_file(const std::string &file, const
     this->data->cache_config[algorithm].insert(file, file_info);
 }
 
-const std::shared_ptr<manapi::async::context> & manapi::net::site::async_context() {
+const async::shared_ctx & manapi::net::site::async_context() {
     return this->data->ctx;
 }
 
@@ -385,7 +385,7 @@ manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &
     }
 }
 
-manapi::net::site::site(const std::shared_ptr<async::context> &ctx) {
+manapi::net::site::site(const async::shared_ctx &ctx) {
     this->data = std::make_shared<data_t>(ctx, ctx, manapi::json{},
         manapi::json{}, std::string{}, std::string{}, false, http_uri_part{nullptr, nullptr, nullptr, nullptr, nullptr,nullptr,nullptr});
     this->data->bufferpool_ = std::make_shared<decltype(this->data->bufferpool_)::element_type>();

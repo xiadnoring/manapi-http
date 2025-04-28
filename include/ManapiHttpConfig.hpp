@@ -55,7 +55,7 @@ namespace manapi::net::http {
 
     class config {
     public:
-        config (std::shared_ptr<manapi::async::context> ctx, const json &config);
+        config (async::shared_ctx ctx, const json &config);
         ~config ();
 
         void set_max_header_block_size (const size_t &s);

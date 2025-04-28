@@ -18,7 +18,7 @@ namespace manapi::net {
 
     class formdata_recv {
     public:
-        formdata_recv (std::shared_ptr<async::context> ctx, size_t buffer_size,
+        formdata_recv (async::shared_ctx ctx, size_t buffer_size,
             ssize_t &body_buffer_size, char *buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read);
         ~formdata_recv ();
 
@@ -69,7 +69,7 @@ namespace manapi::net {
         file_data_t file_data;
         std::pair <std::string, std::string> param_data;
 
-        std::shared_ptr<async::context> ctx;
+        async::shared_ctx ctx;
 
         bool first_line = true;
 
@@ -84,7 +84,7 @@ namespace manapi::net {
 
     class formdata_send {
     public:
-        formdata_send (std::shared_ptr<async::context> ctx);
+        formdata_send (async::shared_ctx ctx);
         ~formdata_send ();
 
         formdata_send (formdata_send &&n) noexcept;
@@ -122,6 +122,6 @@ namespace manapi::net {
         };
 
         std::map<std::string, data_storage> data{};
-        std::shared_ptr<async::context> ctx;
+        async::shared_ctx ctx;
     };
 }

@@ -137,7 +137,7 @@ manapi::net::curlformdata::tdata::iterator manapi::net::curlformdata::end() {
 }
 
 
-manapi::net::fetch::fetch(const std::shared_ptr<async::context> &ctx, std::string url) {
+manapi::net::fetch::fetch(const async::shared_ctx &ctx, std::string url) {
     this->data_ = std::make_shared<shared_data>(0, ctx);
     this->url_ = std::move(url);
     this->method_ = "GET";

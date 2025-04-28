@@ -14,7 +14,7 @@
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 constexpr ssize_t line_max_size = 500;
 
-manapi::net::formdata_recv::formdata_recv(std::shared_ptr<async::context> ctx, size_t buffer_size,
+manapi::net::formdata_recv::formdata_recv(async::shared_ctx ctx, size_t buffer_size,
             ssize_t &body_buffer_size, char *buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read) : ctx(std::move(ctx)) {
     this->body_index = &body_index;
     this->body_buffer = buffer;
@@ -551,7 +551,7 @@ constexpr int boundary_payload_size = 32;
 constexpr char boundary_end_symbols[] = "--";
 constexpr char nline[] = "\r\n";
 
-manapi::net::formdata_send::formdata_send(std::shared_ptr<async::context> ctx) : ctx(std::move(ctx)) {}
+manapi::net::formdata_send::formdata_send(async::shared_ctx ctx) : ctx(std::move(ctx)) {}
 
 manapi::net::formdata_send::~formdata_send() {
 }

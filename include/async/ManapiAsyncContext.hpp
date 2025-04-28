@@ -30,6 +30,7 @@ namespace manapi {
 #include "./ManapiAsyncLogger.hpp"
 
 namespace manapi::async {
+    typedef async::shared_ctx shared_ctx;
     class context {
     public:
         context (std::shared_ptr<event_loop> watcher, std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::logger> logger);

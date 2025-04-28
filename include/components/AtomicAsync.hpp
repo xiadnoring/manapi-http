@@ -26,14 +26,14 @@ namespace manapi {
     template <typename T>
     class AtomicAsync {
     public:
-        AtomicAsync (const std::shared_ptr<async::context> &ctx);
+        AtomicAsync (const async::shared_ctx &ctx);
 
         template<typename T1 = T>
-        AtomicAsync (const std::shared_ptr<async::context> &ctx, T1 v);
+        AtomicAsync (const async::shared_ctx &ctx, T1 v);
 
         template<typename T1>
         requires(std::is_same_v<T1, std::string>)
-        AtomicAsync (const std::shared_ptr<async::context> &ctx, const char *n);
+        AtomicAsync (const async::shared_ctx &ctx, const char *n);
 
         ~AtomicAsync ();
 
@@ -115,14 +115,14 @@ namespace manapi {
     }
 
     template<typename T>
-    AtomicAsync<T>::AtomicAsync(const std::shared_ptr<async::context> &ctx) : gmx(ctx), mx(ctx) {
+    AtomicAsync<T>::AtomicAsync(const async::shared_ctx &ctx) : gmx(ctx), mx(ctx) {
         this->deps = std::make_shared<std::atomic<size_t>>(0);
         this->cv = std::make_shared<async::condition_variable>(ctx);
     }
 
     template<typename T>
     template<typename T1>
-    AtomicAsync<T>::AtomicAsync(const std::shared_ptr<async::context> &ctx, T1 v) : gmx(ctx), mx(ctx) {
+    AtomicAsync<T>::AtomicAsync(const async::shared_ctx &ctx, T1 v) : gmx(ctx), mx(ctx) {
         this->deps = std::make_shared<std::atomic<size_t>>(0);
         this->cv = std::make_shared<async::condition_variable>(ctx);
 
@@ -132,7 +132,7 @@ namespace manapi {
     template<typename T>
     template<typename T1>
     requires(std::is_same_v<T1, std::string>)
-    AtomicAsync<T>::AtomicAsync(const std::shared_ptr<async::context> &ctx, const char *n) : gmx(ctx), mx(ctx) {
+    AtomicAsync<T>::AtomicAsync(const async::shared_ctx &ctx, const char *n) : gmx(ctx), mx(ctx) {
         this->deps = std::make_shared<std::atomic<size_t>>(0);
         this->cv = std::make_shared<async::condition_variable>(ctx);
 

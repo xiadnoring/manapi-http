@@ -19,7 +19,7 @@ const std::map <std::string, manapi::net::http::versions::http> http_version_to_
     {"3.0", manapi::net::http::versions::HTTP_v3}
 };
 
-manapi::net::http::config::config(std::shared_ptr<manapi::async::context> ctx, const json &config) {
+manapi::net::http::config::config(async::shared_ctx ctx, const json &config) {
     /* partial data min size */
     if (config.contains("partial_data_min_size"))
     {

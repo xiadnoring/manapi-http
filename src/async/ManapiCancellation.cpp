@@ -21,7 +21,7 @@ manapi::async::cancellation_action::cancellation_action(nullptr_t) {
     this->data = nullptr;
 }
 
-manapi::async::cancellation_action::cancellation_action(std::shared_ptr<async::context> ctx) {
+manapi::async::cancellation_action::cancellation_action(async::shared_ctx ctx) {
     if (ctx) {
         this->data = std::make_shared<data_t>(0, 0, 0,
             nullptr, nullptr, nullptr, ctx);
@@ -31,7 +31,7 @@ manapi::async::cancellation_action::cancellation_action(std::shared_ptr<async::c
     }
 }
 
-manapi::async::cancellation_action::cancellation_action(std::shared_ptr<async::context> ctx, cancellation_action cancellation) {
+manapi::async::cancellation_action::cancellation_action(async::shared_ctx ctx, cancellation_action cancellation) {
     if (cancellation) {
         cancellation_action(std::move(ctx));
         this->ask_cancel_callback();
@@ -71,7 +71,7 @@ manapi::async::cancellation_action &manapi::async::cancellation_action::operator
     return *this;
 }
 
-void manapi::async::cancellation_action::reset(std::shared_ptr<async::context> ctx) {
+void manapi::async::cancellation_action::reset(async::shared_ctx ctx) {
     this->data = std::make_shared<data_t>(0, 0, 0, nullptr,
         nullptr, nullptr, ctx);
 }
@@ -82,7 +82,7 @@ void manapi::async::cancellation_action::handle_ready(std::move_only_function<vo
     }
 }
 
-void manapi::async::cancellation_action::cancel_callback (std::move_only_function<void(std::shared_ptr<async::context> ctx)> callback) {
+void manapi::async::cancellation_action::cancel_callback (std::move_only_function<void(async::shared_ctx ctx)> callback) {
     if (this->data) {
         if (this->data->want_to_unit) {
             auto cancellation = std::move(*this->data->want_to_unit);

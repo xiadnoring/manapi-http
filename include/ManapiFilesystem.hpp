@@ -10,25 +10,35 @@
 #include "async/ManapiCancellation.hpp"
 
 namespace manapi::filesystem {
-    manapi::future<bool> async_exists (std::shared_ptr<manapi::async::context> ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
+    manapi::future<bool> async_exists (async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
 
-    manapi::future<std::filesystem::file_time_type> async_last_time_write (std::shared_ptr<manapi::async::context> ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
+    manapi::future<std::filesystem::file_time_type> async_last_time_write (async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
 
-    manapi::future<void> async_mkdir (std::shared_ptr<manapi::async::context> ctx, std::string path, int mode = 0644, bool recursive = true, manapi::async::cancellation_action cancellation = nullptr);
+    manapi::future<void> async_mkdir (async::shared_ctx ctx, std::string path, int mode = 0644, bool recursive = true, manapi::async::cancellation_action cancellation = nullptr);
 
-    future<ev::file> async_open (std::shared_ptr<manapi::async::context> ctx, std::string path, int flags, int mode, manapi::async::cancellation_action cancellation = nullptr);
+    future<ev::file> async_open (async::shared_ctx ctx, std::string path, int flags, int mode, manapi::async::cancellation_action cancellation = nullptr);
 
-    future<void> async_close (std::shared_ptr<manapi::async::context> ctx, ev::file file, async::cancellation_action cancellation = nullptr);
+    future<void> async_close (async::shared_ctx ctx, ev::file file, async::cancellation_action cancellation = nullptr);
 
-    future<ssize_t> async_write (std::shared_ptr<manapi::async::context> ctx, ev::file file, const void *data, ssize_t size, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<ssize_t> async_write (async::shared_ctx ctx, ev::file file, const void *data, ssize_t size, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
 
-    future<ssize_t> async_read (std::shared_ptr<manapi::async::context> ctx, ev::file file, void *data, ssize_t size, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<ssize_t> async_read (async::shared_ctx ctx, ev::file file, void *data, ssize_t size, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
 
-    future<void> async_write (std::shared_ptr<manapi::async::context> ctx, std::string path, std::string data, int mode, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<void> async_write (async::shared_ctx ctx, std::string path, std::string data, int mode, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
 
-    future<std::string> async_read (std::shared_ptr<manapi::async::context> ctx, std::string path, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<std::string> async_read (async::shared_ctx ctx, std::string path, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
 
-    future<ssize_t> async_file_size (std::shared_ptr<manapi::async::context> ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
+    future<ssize_t> async_file_size (async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
+
+    future<void> async_unlink (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_rmdir (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation = nullptr);
+
+    future<ev::dir_t *> async_opendir (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation_action = nullptr);
+
+    future<void> async_closedir (async::shared_ctx ctx, ev::dir_t *directory, async::cancellation_action cancellation = nullptr);
+
+    future<bool> async_statfs (async::shared_ctx ctx, std::string path, std::move_only_function<void(ev::statfs_t *data)> callback, async::cancellation_action cancellation = nullptr);
 
     /**
      * stat
@@ -39,7 +49,7 @@ namespace manapi::filesystem {
      * @param cancellation Cancellation Token
      * @return
      */
-    future<void> async_stat (std::shared_ptr<async::context> ctx, std::string path, std::move_only_function<void(ev::stat_t *data)> callback, async::cancellation_action cancellation = nullptr);
+    future<bool> async_stat (async::shared_ctx ctx, std::string path, std::move_only_function<void(ev::stat_t *data)> callback, async::cancellation_action cancellation = nullptr);
 
     /**
      * fstat
@@ -50,7 +60,47 @@ namespace manapi::filesystem {
      * @param cancellation Cancellation token
      * @return
      */
-    future<void> async_fstat (std::shared_ptr<async::context> ctx, ev::file file, std::move_only_function<void(ev::stat_t *data)> callback, async::cancellation_action cancellation = nullptr);
+    future<bool> async_fstat (async::shared_ctx ctx, ev::file file, std::move_only_function<void(ev::stat_t *data)> callback, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_rename (async::shared_ctx ctx, std::string oldpath, std::string newpath, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_copyfile (async::shared_ctx ctx, std::string src, std::string dest, int flags, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_chmod (async::shared_ctx ctx, std::string path, int mode, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_fchmod (async::shared_ctx ctx, ev::file file, int mode, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_utime (async::shared_ctx ctx, std::string path, double atime, double mtime, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_futime (async::shared_ctx ctx, ev::file file, double atime, double mtime, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_link (async::shared_ctx ctx, std::string path, std::string newpath, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_symlink (async::shared_ctx ctx, std::string path, std::string newpath, int flags, async::cancellation_action cancellation = nullptr);
+
+    future<std::string> async_readlink (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation = nullptr);
+
+    future<std::string> async_realpath (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_chown (async::shared_ctx ctx, std::string path, ev::uid_t uid, ev::gid_t gid, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_fchown (async::shared_ctx ctx, ev::file file, ev::uid_t uid, ev::gid_t gid, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_fsync (async::shared_ctx ctx, ev::file file, async::cancellation_action cancellation = nullptr);
+
+    future<std::string> async_mkdtemp (async::shared_ctx ctx, std::string tpl, async::cancellation_action cancellation = nullptr);
+
+    future<std::pair<std::string, ev::file>> async_mkstemp (async::shared_ctx ctx, std::string tpl, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_fdatasync (async::shared_ctx ctx, ev::file file, async::cancellation_action cancellation = nullptr);
+
+    future<void> async_ftruncate (async::shared_ctx ctx, ev::file file, int64_t offset, async::cancellation_action cancellation = nullptr);
+
+    future<int> async_access (async::shared_ctx ctx, std::string path, int mode, async::cancellation_action cancellation = nullptr);
+
+    future<ssize_t> async_scandir (async::shared_ctx ctx, std::string path, int flags, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation = nullptr);
+
+    future<ssize_t> async_readdir (async::shared_ctx ctx, ev::dir_t *dir, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation = nullptr);
 }
 
 

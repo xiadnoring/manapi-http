@@ -51,7 +51,7 @@ namespace manapi::ext::pq {
             }
         };
 
-        connection (std::shared_ptr<async::context> ctx) {
+        connection (async::shared_ctx ctx) {
             this->ctx = std::move(ctx);
             this->conn = nullptr;
         }
@@ -308,6 +308,6 @@ namespace manapi::ext::pq {
         bool init_{true};
         int fd_{-1};
         std::unique_ptr<PGconn, pgconn_deleter> conn{nullptr};
-        std::shared_ptr<async::context> ctx;
+        async::shared_ctx ctx;
     };
 };

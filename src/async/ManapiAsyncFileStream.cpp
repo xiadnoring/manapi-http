@@ -5,7 +5,7 @@
 #include "ManapiFilesystem.hpp"
 #include "../include/ManapiWindows.hpp"
 
-manapi::filesystem::fstream::fstream(const std::shared_ptr<manapi::async::context> &ctx, std::string path, async::cancellation_action cancellation) {
+manapi::filesystem::fstream::fstream(const async::shared_ctx &ctx, std::string path, async::cancellation_action cancellation) {
     this->data = std::make_shared<fstream_data_t_>(
         ctx,
         std::move(path),

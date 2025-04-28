@@ -92,7 +92,7 @@ namespace manapi::net {
             std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)> async_handler_recv_body{nullptr};
             std::move_only_function <manapi::future<bool>(std::shared_ptr<shared_data> data, std::map <std::string, std::string>)> async_handler_headers{nullptr};
             std::move_only_function <bool(std::map <std::string, std::string>)> handler_headers{nullptr};
-            std::shared_ptr<async::context> ctx;
+            async::shared_ctx ctx;
             std::shared_ptr<CURL> curl {nullptr};
             std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
             std::map<std::string, std::string> headers{};
@@ -105,7 +105,7 @@ namespace manapi::net {
         };
     public:
 
-        explicit fetch(const std::shared_ptr<async::context> &ctx, std::string url);
+        explicit fetch(const async::shared_ctx &ctx, std::string url);
         fetch(fetch &&n) noexcept;
         ~fetch() override;
 

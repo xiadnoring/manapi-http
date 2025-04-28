@@ -30,7 +30,7 @@ void manapi::compress::throw_file_exists (const std::string &name, const std::st
 }
 
 
-manapi::future<bool> manapi::compress::deflate_compress_file(const std::shared_ptr<async::context> &ctx, std::string src, std::string dest, int level, int strategy)
+manapi::future<bool> manapi::compress::deflate_compress_file(const async::shared_ctx &ctx, std::string src, std::string dest, int level, int strategy)
 {
     if (co_await filesystem::async_exists (ctx, dest))
     {
@@ -95,7 +95,7 @@ manapi::future<bool> manapi::compress::deflate_compress_file(const std::shared_p
 }
 
 /* decompress */
-manapi::future<bool> manapi::compress::deflate_decompress_file(const std::shared_ptr<async::context> &ctx, std::string src, std::string dest)
+manapi::future<bool> manapi::compress::deflate_decompress_file(const async::shared_ctx &ctx, std::string src, std::string dest)
 {
     if (co_await filesystem::async_exists (ctx, dest))
     {
@@ -317,7 +317,7 @@ std::string manapi::compress::gzip_decompress_string(std::string_view compressed
     return std::move(buff);
 }
 
-manapi::future<bool> manapi::compress::gzip_compress_file(const std::shared_ptr<async::context> &ctx, std::string src, std::string dest, int level, int strategy)
+manapi::future<bool> manapi::compress::gzip_compress_file(const async::shared_ctx &ctx, std::string src, std::string dest, int level, int strategy)
 {
     if (co_await filesystem::async_exists (ctx, dest))
     {
@@ -381,7 +381,7 @@ manapi::future<bool> manapi::compress::gzip_compress_file(const std::shared_ptr<
     co_return true;
 }
 
-manapi::future<bool> manapi::compress::gzip_decompress_file(const std::shared_ptr<async::context> &ctx, std::string src, std::string dest) {
+manapi::future<bool> manapi::compress::gzip_decompress_file(const async::shared_ctx &ctx, std::string src, std::string dest) {
     if (co_await filesystem::async_exists (ctx, dest))
     {
         throw_file_exists ("gzip", dest);

@@ -7,7 +7,7 @@ void manapi::async::condition_variable::promise::await_suspend(std::coroutine_ha
     });
 }
 
-manapi::async::condition_variable::condition_variable(const std::shared_ptr<async::context> &ctx) : taskpool(ctx->taskpool()) {
+manapi::async::condition_variable::condition_variable(const async::shared_ctx &ctx) : taskpool(ctx->taskpool()) {
     this->mx = std::make_shared<async::mutex>(ctx);
 }
 

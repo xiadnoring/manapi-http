@@ -37,7 +37,7 @@ namespace manapi::net::http {
         using resp = manapi::net::http::response &;
         using req = manapi::net::http::request &;
 
-        server(const std::shared_ptr<async::context> &ctx);
+        server(const async::shared_ctx &ctx);
         ~server() final;
 
         server(server &&n) noexcept;

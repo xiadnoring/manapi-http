@@ -53,7 +53,7 @@ namespace manapi::async {
     private:
         std::shared_ptr<value_t> value{nullptr};
         std::shared_ptr<async::mutex> mx;
-        std::shared_ptr<async::context> ctx;
+        async::shared_ctx ctx;
     };
 
     template<>

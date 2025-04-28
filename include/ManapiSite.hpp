@@ -71,7 +71,7 @@ namespace manapi::net {
 
     class site {
         struct data_t {
-            std::shared_ptr<async::context> ctx;
+            async::shared_ctx ctx;
             async::mutex cache_config_mx;
             manapi::json cache_config;
             manapi::json config_;
@@ -86,7 +86,7 @@ namespace manapi::net {
             std::mutex loopmx{};
         };
     public:
-        site (const std::shared_ptr<async::context> &ctx);
+        site (const async::shared_ctx &ctx);
         virtual ~site();
 
         site (site &&n) noexcept;
@@ -118,7 +118,7 @@ namespace manapi::net {
         std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm, std::filesystem::file_time_type filetime);
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm, std::filesystem::file_time_type filetime);
 
-        [[nodiscard]] const std::shared_ptr<async::context>& async_context ();
+        [[nodiscard]] const async::shared_ctx& async_context ();
         const std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> &bufferpool();
 
         [[nodiscard]] const std::string &config_cache_dir();

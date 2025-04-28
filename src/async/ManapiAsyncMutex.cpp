@@ -18,7 +18,7 @@ void manapi::async::mutex::promise::await_suspend(std::coroutine_handle<future<>
 
 manapi::async::mutex::mutex(std::shared_ptr<manapi::threadpool<task>> taskpool_)  : taskpool(std::move(taskpool_)) {}
 
-manapi::async::mutex::mutex(const std::shared_ptr<manapi::async::context> &ctx) : taskpool(ctx->taskpool()) {}
+manapi::async::mutex::mutex(const async::shared_ctx &ctx) : taskpool(ctx->taskpool()) {}
 
 manapi::async::mutex::mutex(mutex &&n) noexcept {
     this->own = std::exchange(n.own, false);
