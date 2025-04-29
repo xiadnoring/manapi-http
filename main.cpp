@@ -46,8 +46,12 @@ int main () {
     GCTX_OBJ->logger()->callback([mx](manapi::logger_type type, std::string_view service, int error_code, std::string msg)
         -> void {
         manapi::async::run(GCTX_OBJ, manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
-            //auto lk = co_await mx->lock_guard();
-            std::cout << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
+            if (type == manapi::logger_type::LOGGER_ERROR) {
+                std::cerr << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
+            }
+            else {
+                std::cout << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
+            }
             co_return;
         }, mx, type, service, error_code, std::move(msg)));
     });
@@ -58,8 +62,8 @@ int main () {
 
     router.GET ("/", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
-        resp.compress_enabled(false);
-        co_return resp.text(R"(hello world! resp.text <a href="/http-test">http test</a>)");
+        resp.compress_enabled(true);
+        co_return resp.file("./test.html");
     });
 
     router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable

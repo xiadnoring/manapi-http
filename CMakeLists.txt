@@ -156,6 +156,7 @@ endif ()
 include(CheckLibraryExists)
 
 file(READ preprocess/ManapiParams.hpp TEXT)
+string(REPLACE "{{ VAR_MANAPIHTTP_NAME }}" "\"manapihttp\"" TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_VERSION }}" "\"${CMAKE_PROJECT_VERSION}\"" TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_JSON_DEBUG }}" $<BOOL:${MANAPIHTTP_JSON_DEBUG}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_OPENSSL_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_OPENSSL_DEPENDENCY}> TEXT "${TEXT}")

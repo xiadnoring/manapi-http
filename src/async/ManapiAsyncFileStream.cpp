@@ -63,8 +63,13 @@ manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t bu
         rhs = co_await manapi::filesystem::async_read(this->data->ctx, this->data->file, buff, buff_size, this->data->off_,
             manapi::async::cancellation_action(this->data->ctx, this->data->cancellation));
 
+
         if (rhs < 0) {
             break;
+        }
+
+        if (rhs == 0) {
+            this->data->status |= FILE_EOF;
         }
 
         if (this->data->off_ >= 0) {
@@ -164,6 +169,10 @@ bool manapi::filesystem::fstream::eof() const {
 ssize_t manapi::filesystem::fstream::seekg_(const ssize_t &pos, const seek_flag_t &flag) const {
     if (this->data->off_ < 0) {
         this->data->off_ = 0;
+    }
+
+    if ((this->data->status & FILE_EOF)) {
+        this->data->status ^= FILE_EOF;
     }
 
     auto prev = this->data->off_;

@@ -22,7 +22,7 @@ namespace manapi::async {
             void await_suspend (std::coroutine_handle<future<>::promise> handle);
         };
         mutex (std::shared_ptr<manapi::threadpool<task>> taskpool_);
-        mutex (const async::shared_ctx &ctx);
+        mutex (const manapi::async::shared_ctx &ctx);
 
         mutex (mutex &&n) noexcept;
         mutex &operator=(mutex &&n) noexcept;

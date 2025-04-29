@@ -30,9 +30,9 @@ manapi::net::http_handler_functions manapi::net::site::default_error_handler
         co_return resp.text(std::format("<html><head>"
                             "<title>{0} {1}</title></head><body><center>"
                             "<h1>{0} {1}</h1></center><hr>"
-                            "<center>manapihttp/{2}</center>"
+                            "<center>{3}/{2}</center>"
                             "</body></html>", resp.status_code(),
-                            resp.status_message(), MANAPIHTTP_VERSION));
+                            resp.status_message(), MANAPIHTTP_VERSION, MANAPIHTTP_NAME));
     },
     .post_mask = nullptr,
     .get_mask = nullptr,
@@ -173,31 +173,30 @@ manapi::future<> manapi::net::site::setup_config() {
         const auto b = this->data->config_.at("cache_dir");
         this->data->config_cache_dir = b.as_string();
     }
-    else
-    {
-        this->data->config_cache_dir = manapi::filesystem::path::join(std::filesystem::temp_directory_path(), "manapi_http", "cache");
-    }
-
-    manapi::filesystem::path::append_delimiter(this->data->config_cache_dir);
-
-    if (!co_await manapi::filesystem::async_exists(this->async_context(), this->data->config_cache_dir))
-    {
-        co_await manapi::filesystem::async_mkdir(this->async_context(), this->data->config_cache_dir, ev::IRWXU|ev::IRWXG);
-    }
-    else
-    {
-        std::string path = this->data->config_cache_dir + site::default_config_name;
-        if (co_await manapi::filesystem::async_exists(this->async_context(), path))
-        {
-            this->data->cache_config = manapi::json(co_await manapi::filesystem::async_read(this->async_context(), path), true);
-        }
-    }
 
     if (this->data->config_.contains("save_config")) {
         if (this->data->config_["save_config"].is_bool())
         {
             this->data->enabled_save_config = this->data->config_["save_config"].as_bool();
         }
+    }
+
+    try {
+        if (this->data->config_cache_dir.empty()) {
+            this->data->config_cache_dir = manapi::filesystem::path::join(std::filesystem::temp_directory_path(), MANAPIHTTP_NAME, "cache");
+        }
+
+        co_await manapi::filesystem::async_mkdir(this->async_context(), this->data->config_cache_dir, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
+
+        manapi::filesystem::path::append_delimiter(this->data->config_cache_dir);
+        auto path = this->data->config_cache_dir + site::default_config_name;
+        if (co_await manapi::filesystem::async_exists(this->async_context(), path))
+        {
+            this->data->cache_config = manapi::json(co_await manapi::filesystem::async_read(this->async_context(), path), true);
+        }
+    }
+    catch (manapi::exception const &e) {
+        this->async_context()->logger()->error(manapi::logger::default_service, e.err_num(), "The configuration directory couldn't be created due to {}.", e.what());
     }
 }
 
@@ -239,7 +238,7 @@ void manapi::net::site::set_compressed_cache_file(const std::string &file, const
     this->data->cache_config[algorithm].insert(file, file_info);
 }
 
-const async::shared_ctx & manapi::net::site::async_context() {
+const manapi::async::shared_ctx & manapi::net::site::async_context() {
     return this->data->ctx;
 }
 

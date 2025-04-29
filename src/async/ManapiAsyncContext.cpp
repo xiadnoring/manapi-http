@@ -6,7 +6,7 @@
 
 #include "ManapiInitTools.hpp"
 
-async::shared_ctx manapi::async::context::gctx = nullptr;
+manapi::async::shared_ctx manapi::async::context::gctx = nullptr;
 
 manapi::async::context::context(std::shared_ptr<event_loop> watcher, std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::logger> logger)  {
     this->watcher_ = std::move(watcher);
@@ -15,7 +15,7 @@ manapi::async::context::context(std::shared_ptr<event_loop> watcher, std::shared
     this->timerpool_ = std::move(timerpool);
 }
 
-async::shared_ctx manapi::async::context::create(const unsigned int &threadnum, const ssize_t &timer_delay) {
+manapi::async::shared_ctx manapi::async::context::create(const unsigned int &threadnum, const ssize_t &timer_delay) {
     manapi::init_tools::ssl_library_init();
     manapi::init_tools::ev_library_init();
     manapi::init_tools::curl_library_init();

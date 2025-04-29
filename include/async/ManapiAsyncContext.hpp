@@ -10,6 +10,8 @@ namespace manapi::async {
     class mutex;
     class condition_variable;
 
+    typedef std::shared_ptr<context> shared_ctx;
+
     void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::move_only_function<void()> onfinish = nullptr);
     void run (const std::shared_ptr<context> &ctx, manapi::future<> task,  std::move_only_function<void()> onfinish = nullptr);
     void run (const std::shared_ptr<context> &ctx, auto && executor,  std::move_only_function<void()> onfinish = nullptr);
@@ -30,7 +32,6 @@ namespace manapi {
 #include "./ManapiAsyncLogger.hpp"
 
 namespace manapi::async {
-    typedef async::shared_ctx shared_ctx;
     class context {
     public:
         context (std::shared_ptr<event_loop> watcher, std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::logger> logger);

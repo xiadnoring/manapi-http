@@ -37,9 +37,9 @@ namespace manapi {
         void _call (const std::shared_ptr<event_loop> &eventloop, const std::shared_ptr<threadpool<task>> &taskpool);
         void _clear ();
         manapi::future<> async_stop (const std::shared_ptr<manapi::event_loop> &events);
-        manapi::future<> async_stop (const async::shared_ctx &ctx);
+        manapi::future<> async_stop (const std::shared_ptr<async::context> &ctx);
         void sync_stop (const std::shared_ptr<manapi::timerpool> &timerpool);
-        void sync_stop (const async::shared_ctx &ctx);
+        void sync_stop (const std::shared_ptr<async::context> &ctx);
         [[nodiscard]] bool is_async () const;
         [[nodiscard]] bool is_sync () const;
         [[nodiscard]] bool enabled () const;

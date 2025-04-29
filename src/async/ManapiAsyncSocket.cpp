@@ -15,7 +15,7 @@
 #   include <ws2tcpip.h>
 #endif
 
-manapi::ev::io_cb pio_ready_mk_(async::shared_ctx ctx, int flags, const int &fd,manapi::async::promise<int>::resolve_t resolve, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
+manapi::ev::io_cb pio_ready_mk_(manapi::async::shared_ctx ctx, int flags, const int &fd,manapi::async::promise<int>::resolve_t resolve, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
     return [flags, ctx, resolve = std::move(resolve), reject = std::move(reject), cancellation = std::move(cancellation)]
         (std::shared_ptr<manapi::ev::io> &w, int status, int revents) mutable
             -> void {
@@ -33,13 +33,13 @@ manapi::ev::io_cb pio_ready_mk_(async::shared_ctx ctx, int flags, const int &fd,
         };
 }
 
-manapi::future<> pio_ready (async::shared_ctx ctx, manapi::fd_t fd, int flags, manapi::ev::io_cb cb, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
+manapi::future<> pio_ready (manapi::async::shared_ctx ctx, manapi::fd_t fd, int flags, manapi::ev::io_cb cb, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
     return ctx->eventloop()->custom_callback([ctx, fd, flags, reject = std::move(reject), cb = std::move(cb), cancellation] (manapi::event_loop *ev) mutable
         -> void {
         auto w = ctx->eventloop()->create_watcher_fd(fd, std::move(cb));
 
         if (cancellation.contains_cancel_callback()) {
-            cancellation.cancel_callback([w, reject] (async::shared_ctx ctx) mutable
+            cancellation.cancel_callback([w, reject] (manapi::async::shared_ctx ctx) mutable
                 -> void {
                     assert(!w->stop());
                     ctx->eventloop()->stop_watcher(w);

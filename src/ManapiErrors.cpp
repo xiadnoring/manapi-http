@@ -30,10 +30,10 @@ namespace manapi::error {
         "size isn't the same",
         "by error: {}",
         "error when receiving additional data",
-        "failure of fs i/o operations: {}",
-        "failure of fs callback: {}",
+        "fs i/o operations failed: {}",
+        "fs callback failed: {}",
         "fs i/o operation has been cancelled",
-        "fs i/o init watcher failure",
+        "fs i/o init watcher failed",
         "watcher command failed",
         "fs watcher bind failed",
         "random string failed"

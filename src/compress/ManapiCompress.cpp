@@ -64,18 +64,28 @@ manapi::future<bool> manapi::compress::deflate_compress_file(const async::shared
     }
 
     int flush;
+    ssize_t rhs;
     do {
-        auto rhs = co_await input.read(in_buff, CHUNK_SIZE);
-        if (rhs < 0) {
-            co_return false;
+        try {
+            rhs = co_await input.read(in_buff, CHUNK_SIZE);
         }
+        catch (std::exception const &e) {
+            MANAPIHTTP_LOG(ctx, "deflate compress failed by {}", e.what());
+            goto err;
+        }
+
+        if (rhs < 0) {
+            goto err;
+        }
+
         if (rhs == 0) {
-            break;
+            flush = Z_FINISH;
+        }
+        else {
+            flush =  Z_NO_FLUSH;
         }
 
         stream.avail_in = rhs;
-
-        flush           = input.eof() ? Z_FINISH : Z_NO_FLUSH;
         stream.next_in  = reinterpret_cast<Byte*>(in_buff);
 
         do {
@@ -85,13 +95,22 @@ manapi::future<bool> manapi::compress::deflate_compress_file(const async::shared
             deflate(&stream, flush);
             ssize_t bytes = CHUNK_SIZE - stream.avail_out;
 
-            co_await output.fwrite(out_buff, bytes);
+            try {
+                co_await output.fwrite(out_buff, bytes);
+            }
+            catch (std::exception const &e) {
+                MANAPIHTTP_LOG(ctx, "deflate compress failed by {}", e.what());
+                goto err;
+            }
         } while (stream.avail_out == 0);
     } while (flush != Z_FINISH);
 
     deflateEnd(&stream);
 
     co_return true;
+err:
+    deflateEnd(&stream);
+    co_return false;
 }
 
 /* decompress */
@@ -130,8 +149,17 @@ manapi::future<bool> manapi::compress::deflate_decompress_file(const async::shar
         co_return false;
     }
 
+    ssize_t rhs;
+
     do {
-        auto rhs = co_await input.read(inbuff, CHUNK_SIZE);
+        try {
+            rhs = co_await input.read(inbuff, CHUNK_SIZE);
+        }
+        catch (std::exception const &e) {
+            MANAPIHTTP_LOG(ctx, "deflate decompress failed by {}", e.what());
+            goto err;
+        }
+
         if (rhs < 0) {
             co_return false;
         }
@@ -156,14 +184,22 @@ manapi::future<bool> manapi::compress::deflate_decompress_file(const async::shar
             }
 
             uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
-
-            co_await output.fwrite(outbuff, nbytes);
+            try {
+                co_await output.fwrite(outbuff, nbytes);
+            }
+            catch (std::exception const &e) {
+                MANAPIHTTP_LOG(ctx, "deflate decompress failed by {}", e.what());
+                goto err;
+            }
         } while (stream.avail_out == 0);
     } while (result != Z_STREAM_END);
 
     inflateEnd(&stream);
 
     co_return result == Z_STREAM_END;
+err:
+    inflateEnd(&stream);
+    co_return false;
 }
 
 std::string manapi::compress::deflate_compress_string(std::string_view original, int level, int strategy) {
@@ -350,18 +386,28 @@ manapi::future<bool> manapi::compress::gzip_compress_file(const async::shared_ct
     }
 
     int flush;
+    ssize_t rhs;
     do {
-        auto rhs = co_await input.read(in_buff, CHUNK_SIZE);
-        if (rhs < 0) {
-            co_return false;
+        try {
+            rhs = co_await input.read(in_buff, CHUNK_SIZE);
         }
+        catch (std::exception const &e) {
+            MANAPIHTTP_LOG(ctx, "gzip compress failed by {}", e.what());
+            goto err;
+        }
+
+        if (rhs < 0) {
+            goto err;
+        }
+
         if (rhs == 0) {
-            break;
+            flush = Z_FINISH;
+        }
+        else {
+            flush = Z_NO_FLUSH;
         }
 
         stream.avail_in = rhs;
-
-        flush           = input.eof() ? Z_FINISH : Z_NO_FLUSH;
         stream.next_in  = reinterpret_cast<Byte*>(in_buff);
 
         do {
@@ -371,7 +417,13 @@ manapi::future<bool> manapi::compress::gzip_compress_file(const async::shared_ct
             deflate(&stream, flush);
             ssize_t bytes = CHUNK_SIZE - stream.avail_out;
 
-            co_await output.fwrite(out_buff, bytes);
+            try {
+                co_await output.fwrite(out_buff, bytes);
+            }
+            catch (std::exception const &e) {
+                MANAPIHTTP_LOG(ctx, "gzip compress failed by {}", e.what());
+                goto err;
+            }
         } while (stream.avail_out == 0);
     } while (flush != Z_FINISH);
 
@@ -379,6 +431,9 @@ manapi::future<bool> manapi::compress::gzip_compress_file(const async::shared_ct
 
 
     co_return true;
+err:
+    deflateEnd(&stream);
+    co_return false;
 }
 
 manapi::future<bool> manapi::compress::gzip_decompress_file(const async::shared_ctx &ctx, std::string src, std::string dest) {
@@ -415,8 +470,15 @@ manapi::future<bool> manapi::compress::gzip_decompress_file(const async::shared_
         co_return false;
     }
 
+    ssize_t rhs;
     do {
-        auto rhs = co_await input.read(inbuff, CHUNK_SIZE);
+        try {
+            rhs = co_await input.read(inbuff, CHUNK_SIZE);
+        }
+        catch (std::exception const &e) {
+            MANAPIHTTP_LOG(ctx, "gzip decompress failed by {}", e.what());
+            goto err;
+        }
         if (rhs < 0) {
             co_return false;
         }
@@ -440,8 +502,13 @@ manapi::future<bool> manapi::compress::gzip_decompress_file(const async::shared_
             }
 
             uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
-
-            co_await output.fwrite(outbuff, nbytes);
+            try {
+                co_await output.fwrite(outbuff, nbytes);
+            }
+            catch (std::exception const &e) {
+                MANAPIHTTP_LOG(ctx, "gzip decompress failed by {}", e.what());
+                goto err;
+            }
         } while (stream.avail_out == 0);
     } while (result != Z_STREAM_END);
 
@@ -450,6 +517,9 @@ manapi::future<bool> manapi::compress::gzip_decompress_file(const async::shared_
     if (result != Z_STREAM_END) { co_return false; }
 
     co_return true;
+err:
+    inflateEnd(&stream);
+    co_return false;
 }
 
 #endif

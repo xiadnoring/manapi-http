@@ -116,6 +116,15 @@ XX(EUNATCH, "protocol driver not attached")
 
 const char *fserr2msg (int num) {
     switch (num) {
+        case manapi::ev::FS_E2BIG:
+            return EV_FS_E2BIG_MSG;
+
+        case manapi::ev::FS_EACCES:
+            return EV_FS_EACCES_MSG;
+
+        case manapi::ev::FS_EADDRINUSE:
+            return EV_FS_EADDRINUSE_MSG;
+
         case manapi::ev::FS_EADDRNOTAVAIL:
             return EV_FS_EADDRNOTAVAIL_MSG;
 
@@ -457,7 +466,7 @@ manapi::future<T> async_fs_operation (manapi::async::shared_ctx ctx, std::move_o
     });
 }
 
-manapi::future<> async_fs_simple_operation (manapi::async::shared_ctx ctx, std::move_only_function<bool()> start_cb, manapi::async::cancellation_action cancellation) {
+manapi::future<> async_fs_simple_operation (manapi::async::shared_ctx ctx, std::move_only_function<bool(std::shared_ptr<manapi::ev::fs> w)> start_cb, manapi::async::cancellation_action cancellation) {
     using promise = manapi::async::promise<void>;
 
     co_return co_await async_fs_operation<void>(ctx, std::move(start_cb),
@@ -585,20 +594,9 @@ manapi::future<ssize_t> manapi::filesystem::async_write(async::shared_ctx ctx, e
 
     ssize_t rhs = ev::fs::try_write(file, data, size, offset);
     if (rhs > 0) {
-        data = (static_cast<const char*>(data) + rhs);
-        size -= rhs;
-
-        if (offset >= 0) {
-            offset += rhs;
-        }
-
-        if (!size) {
-            co_return rhs;
-        }
+        co_return rhs;
     }
-    else {
-        rhs = 0;
-    }
+    rhs = 0;
 
     struct async_write_data_t {
         ssize_t result;
@@ -685,19 +683,10 @@ manapi::future<ssize_t> manapi::filesystem::async_read(async::shared_ctx ctx, ev
 
     ssize_t rhs = ev::fs::try_read(file, data, size, offset);
     if (rhs > 0) {
-        data = (static_cast<char*>(data) + rhs);
-        size -= rhs;
+        co_return rhs;
+    }
 
-        if (offset >= 0) {
-            offset += rhs;
-        }
-        if (!size) {
-            co_return rhs;
-        }
-    }
-    else {
-        rhs = 0;
-    }
+    rhs = 0;
 
     struct async_read_data_t {
         ssize_t result;
@@ -734,7 +723,7 @@ manapi::future<ssize_t> manapi::filesystem::async_read(async::shared_ctx ctx, ev
 
         dd.result += rhs;
 
-        if (rhs < dd.buff->len) {
+        if (rhs && rhs < dd.buff->len) {
             /* retry */
             auto w = dd.ctx->eventloop()->create_watcher_fs([&dd, resolve, reject, cancel] (std::shared_ptr<ev::fs> w) mutable
                 -> void {
@@ -1144,7 +1133,7 @@ manapi::future<std::string> manapi::filesystem::async_readlink (async::shared_ct
         }, std::move(cancellation));
 }
 
-manapi::future<std::string> manapi::filesystem::async_readlink (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation) {
+manapi::future<std::string> manapi::filesystem::async_realpath (async::shared_ctx ctx, std::string path, async::cancellation_action cancellation) {
     using promise = manapi::async::promise<std::string>;
 
     co_return co_await async_fs_operation<std::string>(ctx,
@@ -1184,7 +1173,7 @@ manapi::future<std::string> manapi::filesystem::async_mkdtemp(manapi::async::sha
             if (async_fs_operation_result_error<void>(w, ctx, reject, cancel)) {
                 return;
             }
-            resolve(static_cast<const char *> (w->custom()->ptr));
+            resolve(std::string{w->custom()->path});
         }, std::move(cancellation));
 }
 
@@ -1201,7 +1190,7 @@ manapi::future<std::pair<std::string, manapi::ev::file>> manapi::filesystem::asy
             if (async_fs_operation_result_error<void>(w, ctx, reject, cancel)) {
                 return;
             }
-            resolve(std::make_pair(static_cast<const char *> (w->custom()->ptr), static_cast<ev::file>(w->custom()->result)));
+            resolve(std::make_pair(std::string{w->custom()->path}, static_cast<ev::file>(w->custom()->result)));
         }, std::move(cancellation));
 }
 

@@ -90,7 +90,7 @@ namespace manapi::ev {
         IRWXO = 0
     };
 #else
-    enum fs_o_modes {
+    enum fs_o_stat {
         IRUSR = S_IRUSR,
         IWUSR = S_IWUSR,
         IXUSR = S_IXUSR,
