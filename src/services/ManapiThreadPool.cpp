@@ -12,13 +12,12 @@
 
 namespace manapi {
     template<class T>
-    threadpool<T>::threadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num, ssize_t queues_count): is_stop(true) {
+    threadpool<T>::threadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num): is_stop(true) {
 #if defined(__unix__)||defined(__APPLE__)
         sigemptyset(&this->blockedSignal);
         sigaddset(&this->blockedSignal, SIGPIPE);
         pthread_sigmask(SIG_BLOCK, &this->blockedSignal, nullptr);
 #endif
-        this->task_queues.resize(queues_count);
         this->threadnum = thread_num;
         this->tasks_by_thread.resize(this->threadnum);
         this->logger_ = std::move(logger);
@@ -60,9 +59,7 @@ namespace manapi {
     template<class T>
     void threadpool<T>::clear() {
         if (this->is_stop) {
-            for (auto &queue: this->task_queues) {
-                queue.clear();
-            }
+            this->tasks.clear();
         }
     }
 
@@ -118,7 +115,7 @@ namespace manapi {
     }
 
     template<class T>
-    bool threadpool<T>::append_task(std::unique_ptr<T> task, int level) {
+    bool threadpool<T>::append_task(std::unique_ptr<T> task) {
         if (!task) {
             return false;
         }
@@ -129,7 +126,7 @@ namespace manapi {
 
             try {
                 // add into the queue
-                this->task_queues[level].push_back (std::move(task));
+                this->tasks.push_back (std::move(task));
             }
             catch (...) {
                 std::cout << std::stacktrace::current() << "\n";
@@ -159,14 +156,11 @@ namespace manapi {
 
         if (index == -1 || this->tasks_by_thread[index].empty()) {
             // from n ... 0 by level
-            for (auto task_queue = this->task_queues.rbegin(); task_queue != this->task_queues.rend(); ++task_queue)
+
+            if (!this->tasks.empty())
             {
-                if (!task_queue->empty())
-                {
-                    task = std::move(*task_queue->rbegin());
-                    task_queue->pop_back ();
-                    break;
-                }
+                task = std::move(*this->tasks.rbegin());
+                this->tasks.pop_back ();
             }
         }
         else {

@@ -10,8 +10,6 @@ namespace manapi::async {
     class mutex;
     class condition_variable;
 
-    typedef std::shared_ptr<context> shared_ctx;
-
     void run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::move_only_function<void()> onfinish = nullptr);
     void run (const std::shared_ptr<context> &ctx, manapi::future<> task,  std::move_only_function<void()> onfinish = nullptr);
     void run (const std::shared_ptr<context> &ctx, auto && executor,  std::move_only_function<void()> onfinish = nullptr);
@@ -24,6 +22,14 @@ namespace manapi {
     class timerpool;
 }
 
+namespace manapi::async {
+    typedef std::shared_ptr<context> shared_ctx;
+    typedef std::shared_ptr<threadpool<task>> shared_taskpool;
+    typedef std::shared_ptr<timerpool> shared_timerpool;
+    typedef std::shared_ptr<event_loop> shared_eventloop;
+    typedef std::shared_ptr<logger> shared_logger;
+}
+
 #define GCTX(...) manapi::async::context::gctx, __VA_ARGS__
 #define GCTX_OBJ manapi::async::context::gctx
 
@@ -34,9 +40,10 @@ namespace manapi {
 namespace manapi::async {
     class context {
     public:
-        context (std::shared_ptr<event_loop> watcher, std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::timerpool> timerpool, std::shared_ptr<manapi::logger> logger);
+        context (shared_eventloop watcher, shared_taskpool taskpool, shared_timerpool timerpool, shared_logger logger);
 
-        static std::shared_ptr<context> create (const unsigned int &threadnum = std::thread::hardware_concurrency(), const ssize_t &timer_delay = 60);
+        static std::shared_ptr<context> create (unsigned int threadnum = std::thread::hardware_concurrency(), unsigned int threadnum_fs = std::thread::hardware_concurrency(), ssize_t timer_delay = 60);
+        static void threadpoolfs (std::size_t cnt = 4);
 
         manapi::future<void> start ();
         void sync_start();

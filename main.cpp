@@ -39,7 +39,9 @@
 //#include "extensions/pq/AsyncPostgreClient.hpp"
 
 int main () {
-    GCTX_OBJ = manapi::async::context::create(16);
+    manapi::async::context::threadpoolfs(8);
+
+    GCTX_OBJ = manapi::async::context::create(7);
     GCTX_OBJ->eventloop()->setup_handle_interrupt();
 
     auto mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ);
@@ -83,7 +85,7 @@ int main () {
     router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable
         -> manapi::future<> {
         resp.compress_enabled(false);
-        co_return resp.text("ok");
+        co_return resp.text(std::to_string(cnt->fetch_add(1)));
     });
 
     router.GET("/random", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {

@@ -26,10 +26,10 @@ namespace manapi {
     template <class T>
     class threadpool {
     public:
-        threadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num = 20, ssize_t queues_count = 3);
+        threadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num = 20);
         ~threadpool();
         void resize (ssize_t thread_num);
-        bool append_task (std::unique_ptr<T> task, int level = 0);
+        bool append_task (std::unique_ptr<T> task);
         void append_task (T task);
         void append_task (std::move_only_function<void()> cb);
         void start();
@@ -45,7 +45,7 @@ namespace manapi {
         // this vector contains all threads for this thread pool
         std::vector <std::thread> threads;
         // this vector of queue which contains tasks
-        std::vector <chain <std::unique_ptr<T> > > task_queues;
+        chain <std::unique_ptr<T> > tasks;
         // queue mutex
         std::mutex queue_mutex;
         // the function that the thread runs. Execute run() function

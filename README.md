@@ -75,6 +75,8 @@ cmake ... -DMANAPIHTTP_BUILD_METHOD=conan
 
 ```c++
 int main () {
+    manapi::async::context::threadpoolfs(8);
+    
     auto ctx = manapi::async::context::create();
     auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
     manapi::net::http::server router (ctx) 
