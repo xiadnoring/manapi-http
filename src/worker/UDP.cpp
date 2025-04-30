@@ -10,6 +10,7 @@ manapi::net::worker::udp::udp(net::site &site) : worker::base(site) {
 }
 
 manapi::net::worker::udp::~udp() {
+    async::close_descriptor(this->fd);
     freeaddrinfo(this->local);
 }
 
@@ -20,33 +21,36 @@ void manapi::net::worker::udp::init() {
         .ai_protocol = IPPROTO_UDP
     };
 
-    auto address = this->config->get_address();
-    auto port = this->config->get_port();
+    auto address = this->config->address();
+    auto port = this->config->port();
 
     if (getaddrinfo(address->data(), port->data(), &this->hints, &this->local) != 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
     }
 
-    this->config->set_server_address(*this->local->ai_addr);
-    this->config->set_server_len(this->local->ai_addrlen);
+    this->config->server_address(*this->local->ai_addr);
+    this->config->server_len(this->local->ai_addrlen);
 
     MANAPIHTTP_LOG(this->site.async_context(), "HTTP UDP PORT USED: {}. https://{}:{}", *port, *address, *port);
 
     // for quic
-    this->config->set_socket_fd(socket (this->local->ai_family, SOCK_DGRAM, 0));
-    auto &fd = this->config->get_socket_fd();
+    auto fd = socket (this->local->ai_family, SOCK_DGRAM, 0);
 
     if (fd < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "SOCKET ERROR");
     }
 
+    this->fd = fd;
+
     setsockopt((fd), SOL_SOCKET, SO_REUSEADDR, &this->socket_param_true, sizeof(this->socket_param_true));
 
     manapi::async::set_non_blocking(fd);
 
-    if (bind(fd.load(), this->local->ai_addr, this->local->ai_addrlen) < 0) {
+    if (bind(fd, this->local->ai_addr, this->local->ai_addrlen) < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);
     }
 
-    this->fd = fd;
+    this->watcher = this->site.async_context()->eventloop()->create_watcher_socket(fd, [this] (std::shared_ptr<ev::io> &w, int status, int revents)
+            -> void { this->onrecv(w, status, revents); });
+    this->watcher->start(ev::READ);
 }

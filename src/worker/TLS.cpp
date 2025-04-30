@@ -39,10 +39,10 @@ bool manapi::net::worker::TLS::is_valid_connection(worker::connection &connectio
 void manapi::net::worker::TLS::init() {
     TCP::init();
 
-    auto sslconfig = this->config->get_ssl_config();
+    auto sslconfig = this->config->ssl_config();
     if (sslconfig->enabled) {
         // init
-        this->ctx = ssl_create_context(this->config->get_tls_version());
+        this->ctx = ssl_create_context(this->config->tls_version());
         // setup ctx (load certs)
         ssl_configure_context();
 
@@ -112,7 +112,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     auto connection = TCP::accept([this] () {
         auto ms = std::make_shared<net::worker::connection>(new connection_interface {}, connection_interface_eraser);
         auto &connection = ms->as<connection_interface>();
-        connection.ssl = this->config->get_ssl_config()->enabled ? this->ssl_new_(this->ctx) : nullptr;
+        connection.ssl = this->config->ssl_config()->enabled ? this->ssl_new_(this->ctx) : nullptr;
         connection.accept_timer = this->site.async_context()->timerpool()->append_timer_sync(8000,
             [this, ms = std::weak_ptr<net::worker::connection>(ms)] (manapi::timer t) mutable
             -> void {

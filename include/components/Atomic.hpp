@@ -14,7 +14,7 @@ namespace manapi {
     class AtomicReference {
     public:
         AtomicReference ();
-        AtomicReference (const T &, std::shared_ptr<size_t> deps, std::shared_ptr<std::mutex> mdeps, std::shared_ptr<std::condition_variable> cv);
+        AtomicReference (std::shared_ptr<T> value);
         AtomicReference (AtomicReference &&n) noexcept;
         ~AtomicReference ();
         AtomicReference &operator=(AtomicReference &&n) noexcept;
@@ -22,10 +22,7 @@ namespace manapi {
         const T &operator*();
     private:
         void _expect_nullptr ();
-        const T* ref;
-        std::shared_ptr<size_t> deps;
-        std::shared_ptr<std::mutex> mdeps;
-        std::shared_ptr<std::condition_variable> cv;
+        std::shared_ptr<T> value;
     };
     template <typename T>
     class Atomic {
@@ -41,327 +38,109 @@ namespace manapi {
 
         ~Atomic ();
 
-        std::pair<T &, before_delete> edit ();
         AtomicReference <T> get ();
 
-        void update (std::move_only_function<void(T &v)> func);
-
-        Atomic& operator=(const T &n);
+        Atomic& operator=(T n);
 
         template<typename T1 = T>
         requires(std::is_same_v<T1, std::string>)
         Atomic& operator=(const char *n);
 
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        Atomic &operator++();
-
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        Atomic &operator--();
-
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        bool operator>(const T &n);
-
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        bool operator<(const T &n);
-
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        bool operator>=(const T &n);
-
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        bool operator<=(const T &n);
-
-        template<typename T1>
-        bool operator==(const T1 &n);
-
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        bool operator!=(const T &n);
-
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        Atomic operator-(const T &n);
-
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        Atomic operator+(const T &n);
-
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        Atomic &operator-=(const T &n);
-
-        template<typename T1 = T>
-        requires(std::is_integral_v<T1>)
-        Atomic &operator+=(const T &n);
-
         AtomicReference<T> operator*();
     private:
-        std::shared_ptr<std::unique_lock<std::mutex>> read_lock ();
-        before_delete readwrite_lock ();
-        std::mutex gmx;             // global mutex
-        std::mutex mx;              // default mutex
-        std::shared_ptr<std::mutex> mdeps;           // deps mutex
-        std::shared_ptr<std::condition_variable> cv; // deps cv
-        std::shared_ptr<size_t> deps;                // deps count
-        T value;                    // value
+        std::atomic<std::uintptr_t> value;
     };
 
     template<typename T>
     AtomicReference<T>::AtomicReference() {
-        this->cv = nullptr;
-        this->deps = nullptr;
-        this->mdeps = nullptr;
-        this->ref = nullptr;
+        this->value = nullptr;
     }
 
     template<typename T>
-    AtomicReference<T>::AtomicReference(const T &n, std::shared_ptr<size_t> deps, std::shared_ptr<std::mutex> mdeps, std::shared_ptr<std::condition_variable> cv) {
-        this->ref = &n;
-        this->deps = std::move(deps);
-        this->mdeps = std::move(mdeps);
-        this->cv = std::move(cv);
-
-        std::lock_guard<std::mutex> lk (*this->mdeps);
-        ++(*this->deps);
-        this->cv->notify_all();
+    AtomicReference<T>::AtomicReference(std::shared_ptr<T> value) {
+        this->value = std::move(value);
     }
 
     template<typename T>
     AtomicReference<T>::AtomicReference(AtomicReference &&n) noexcept {
-        this->operator=(std::forward<decltype(n)>(n));
-
-        n.cv = nullptr;
-        n.deps = nullptr;
-        n.mdeps = nullptr;
-        n.ref = nullptr;
+        this->value = std::move(n.value);
     }
 
     template<typename T>
-    AtomicReference<T>::~AtomicReference() {
-        if (this->mdeps && this->deps && this->cv) {
-            std::lock_guard<std::mutex> lk (*this->mdeps);
-            --(*this->deps);
-            this->cv->notify_all();
-        }
-    }
+    AtomicReference<T>::~AtomicReference() = default;
 
     template<typename T>
     AtomicReference<T> & AtomicReference<T>::operator=(AtomicReference &&n) noexcept {
-        this->cv = n.cv;
-        this->deps = n.deps;
-        this->mdeps = n.mdeps;
-        this->ref = n.ref;
-
-        n.cv = nullptr;
-        n.deps = nullptr;
-        n.mdeps = nullptr;
-        n.ref = nullptr;
+        this->value = std::move(n.value);
         return *this;
     }
 
     template<typename T>
     const T *AtomicReference<T>::operator->() {
-        return this->ref;
+        return this->value.get();
     }
 
     template<typename T>
     const T &AtomicReference<T>::operator*() {
-        return *this->ref;
+        return *this->value;
     }
 
     template<typename T>
     void AtomicReference<T>::_expect_nullptr() {
-        if (this->ref == nullptr) {
+        if (!this->value) {
             throw std::runtime_error("AtomicReference's storage is null");
         }
     }
 
     template<typename T>
     Atomic<T>::Atomic() {
-        this->mdeps = std::make_shared<std::mutex>();
-        this->deps = std::make_shared<size_t>(0);
-        this->cv = std::make_shared<std::condition_variable>();
+        auto n = std::make_shared<T>();
+        this->value.exchange(reinterpret_cast<uintptr_t>(new decltype(n)(std::move(n))));
     }
 
     template<typename T>
     template<typename T1>
     Atomic<T>::Atomic(T1 v) {
-        this->mdeps = std::make_shared<std::mutex>();
-        this->deps = std::make_shared<size_t>(0);
-        this->cv = std::make_shared<std::condition_variable>();
-
-        std::lock_guard<std::mutex> lk (*this->mdeps);
-        this->value = v;
+        auto n = std::make_shared<T>(std::move(v));
+        this->value.exchange(reinterpret_cast<uintptr_t>(new decltype(n)(std::move(n))));
     }
 
     template<typename T>
     template<typename T1>
     requires(std::is_same_v<T1, std::string>)
     Atomic<T>::Atomic(const char *n) {
-        this->mdeps = std::make_shared<std::mutex>();
-        this->deps = std::make_shared<size_t>(0);
-        this->cv = std::make_shared<std::condition_variable>();
-
-        operator=(n);
+        this->operator=(n);
     }
 
     template<typename T>
     Atomic<T>::~Atomic() {
-        auto lk = this->readwrite_lock();
-    }
-
-    template<typename T>
-    std::pair<T &, before_delete> Atomic<T>::edit() {
-        return {this->value, this->readwrite_lock()};
+        delete reinterpret_cast<std::shared_ptr<T> *>(this->value.exchange(0));
     }
 
     template<typename T>
     AtomicReference <T> Atomic<T>::get() {
-        auto lk = this->read_lock();
-
-        return std::move(AtomicReference<T> (this->value, this->deps, this->mdeps, this->cv));
+        return AtomicReference<T>(*reinterpret_cast<std::shared_ptr<T>*>(this->value.load()));
     }
 
     template<typename T>
-    void Atomic<T>::update(std::move_only_function<void(T &v)> func) {
-        auto lk = this->readwrite_lock();
-        func (this->value);
-    }
-
-    template<typename T>
-    Atomic<T> & Atomic<T>::operator=(const T &n) {
-        auto lk = this->readwrite_lock();
-        this->value = n;
+    Atomic<T> & Atomic<T>::operator=(T n) {
+        auto nv = std::make_shared<T>(std::move(n));
+        auto v = this->value.exchange(reinterpret_cast<uintptr_t>(new decltype(nv)(std::move(nv))));
+        delete reinterpret_cast<decltype(nv) *> (v);
         return *this;
     }
 
     template<typename T>
     template<typename T1> requires (std::is_same_v<T1, std::string>)
     Atomic<T> & Atomic<T>::operator=(const char *n) {
-        auto lk = this->readwrite_lock();
-        this->value = n;
-        return *this;
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    Atomic<T> & Atomic<T>::operator++() {
-        auto lk = this->readwrite_lock();
-        ++this->value;
-        return *this;
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    Atomic<T> & Atomic<T>::operator--() {
-        auto lk = this->readwrite_lock();
-        --this->value;
-        return *this;
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    bool Atomic<T>::operator>(const T &n) {
-        auto lk = this->read_lock();
-        return this->value > n;
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    bool Atomic<T>::operator<(const T &n) {
-        auto lk = this->read_lock();
-        return this->value < n;
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    bool Atomic<T>::operator>=(const T &n) {
-        auto lk = this->read_lock();
-        return this->value >= n;
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    bool Atomic<T>::operator<=(const T &n) {
-        auto lk = this->read_lock();
-        return this->value <= n;
-    }
-
-    template<typename T>
-    template<typename T1>
-    bool Atomic<T>::operator==(const T1 &n) {
-        auto lk = this->read_lock();
-        return this->value == n;
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    bool Atomic<T>::operator!=(const T &n) {
-        return this->operator==(n) == false;
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    Atomic<T> Atomic<T>::operator-(const T &n) {
-        auto lk = this->readwrite_lock();
-        return {this->value - n};
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    Atomic<T> Atomic<T>::operator+(const T &n) {
-        auto lk = this->readwrite_lock();
-        return {this->value + n};
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    Atomic<T> & Atomic<T>::operator-=(const T &n) {
-        auto lk = this->readwrite_lock();
-        this->value -= n;
-        return *this;
-    }
-
-    template<typename T>
-    template<typename T1> requires (std::is_integral_v<T1>)
-    Atomic<T> & Atomic<T>::operator+=(const T &n) {
-        auto lk = this->readwrite_lock();
-        this->value += n;
+        auto nv = std::make_shared<T>(n);
+        auto v = this->value.exchange(reinterpret_cast<uintptr_t>(new decltype(nv)(std::move(nv))));
+        delete reinterpret_cast<decltype(nv) *> (v);
         return *this;
     }
 
     template<typename T>
     AtomicReference<T> Atomic<T>::operator*() {
         return this->get();
-    }
-
-    template<typename T>
-    std::shared_ptr<std::unique_lock<std::mutex>> Atomic<T>::read_lock() {
-        auto lk = std::make_shared<std::unique_lock<std::mutex>> (this->gmx, std::try_to_lock);
-        if (!lk->owns_lock()) {
-            lk->lock();
-        }
-
-        return lk;
-    }
-
-    template<typename T>
-    before_delete Atomic<T>::readwrite_lock() {
-        auto lk = this->read_lock();
-        auto lkdeps = std::make_shared <std::unique_lock<std::mutex>> (*this->mdeps, std::try_to_lock);
-        if (!lkdeps->owns_lock()) {
-            lkdeps->lock();
-        }
-
-        this->cv->wait(*lkdeps, [this] () -> bool {
-            return *this->deps == 0;
-        });
-
-        return std::move(before_delete{[lk = std::move(lk), lkdeps = std::move(lkdeps)] () -> void {}});
     }
 }

@@ -45,11 +45,13 @@ manapi::net::worker::TCP::TCP(net::site &site) : base (site) {
 
 manapi::net::worker::TCP::~TCP() {
 #if defined(_WIN32)
-    ::closesocket(config->get_socket_fd());
+    ::closesocket(this->fd);
 #else
-    ::close (config->get_socket_fd());
+    ::close (this->fd);
 #endif
-    if (local != nullptr) { freeaddrinfo(local); }
+    if (this->local) {
+        freeaddrinfo(this->local);
+    }
 }
 
 bool manapi::net::worker::TCP::is_valid_connection(worker::connection &connection) {
@@ -77,8 +79,8 @@ void manapi::net::worker::TCP::init() {
         .ai_protocol    = IPPROTO_TCP
     };
 
-    auto address = *this->config->get_address();
-    auto port = *this->config->get_port();
+    auto address = *this->config->address();
+    auto port = *this->config->port();
     const int version = get_ip_version(address);
 
     if (!version) {
@@ -89,32 +91,34 @@ void manapi::net::worker::TCP::init() {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
     }
 
-    this->config->set_server_address(*this->local->ai_addr);
-    this->config->set_server_len(this->local->ai_addrlen);
+    this->config->server_address(*this->local->ai_addr);
+    this->config->server_len(this->local->ai_addrlen);
 
     MANAPIHTTP_LOG(this->site.async_context(), "HTTP TCP PORT USED: {}. {}:{}", port, address, port);
 
-    this->config->set_socket_fd(socket(this->local->ai_family, SOCK_STREAM, 0));
+    auto fd = socket(this->local->ai_family, SOCK_STREAM, 0);
 
-    auto &fd = this->config->get_socket_fd();
     if (fd < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "SOCKET ERROR");
     }
+
+    this->fd = fd;
+
     // REUSE PARAM
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &socket_param_true, sizeof(this->socket_param_true));
 
-    if (this->config->get_tcp_no_delay()) {
+    if (this->config->tcp_no_delay()) {
         setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &socket_param_true, sizeof (this->socket_param_true));
     }
 
     manapi::async::set_non_blocking(fd);
 
-    if (bind(fd.load(), local->ai_addr, local->ai_addrlen) < 0) {
+    if (bind(fd, local->ai_addr, local->ai_addrlen) < 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", port);
     }
 
     if (listen(fd, this->config->max_backlog()) < 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "LISTEN ERROR. sock_fd: {}", fd.load());
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "LISTEN ERROR. sock_fd: {}", fd);
     }
 
     this->write = [this](auto &PH1, auto PH2, auto PH3, auto PH4) -> future<ssize_t> {
@@ -129,6 +133,10 @@ void manapi::net::worker::TCP::init() {
     this->limit_rate_timer = this->site.async_context()->timerpool()->append_interval_sync(1000,
         [this] (manapi::timer t) -> void { this->update_limit_rate(); });
     this->limit_rate_cv = std::make_shared<async::condition_variable>(this->site.async_context());
+
+    this->watcher = this->site.async_context()->eventloop()->create_watcher_socket(fd, [this] (std::shared_ptr<ev::io> &w, int status, int revents)
+            -> void { this->onrecv(w, status, revents); });
+    this->watcher->start(ev::READ);
 }
 
 manapi::future<bool> manapi::net::worker::TCP::configure_connection(std::shared_ptr<worker::connection> connection) {
@@ -201,7 +209,7 @@ std::optional<std::shared_ptr<manapi::net::worker::connection>> manapi::net::wor
     socklen_t len = sizeof (client);
     memset(&client, '\0', sizeof (sockaddr_storage));
 
-    int fd = ::accept(this->config->get_socket_fd(), reinterpret_cast<struct sockaddr *>(&client), &len);
+    socket_t fd = ::accept(this->fd, reinterpret_cast<struct sockaddr *>(&client), &len);
     if (fd < 0) {
         return {};
     }

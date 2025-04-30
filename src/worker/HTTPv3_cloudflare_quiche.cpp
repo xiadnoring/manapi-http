@@ -140,7 +140,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
             }
 
             auto _quiche_conn = quiche_accept(reinterpret_cast<uint8_t *> (dcid.data()), dcid.size(),
-                reinterpret_cast<uint8_t *>(odcid.data()), odcid.size(), &*config->get_server_address(), config->get_server_len(),
+                reinterpret_cast<uint8_t *>(odcid.data()), odcid.size(), &*this->config->server_address(), this->config->server_len(),
                 reinterpret_cast<sockaddr *>(&sockaddr_src), sockaddr_len, this->_quiche_config);
 
             if (!_quiche_conn) {
@@ -181,8 +181,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
         quiche_recv_info recv_info {
             reinterpret_cast <sockaddr *>(&sockaddr_src),
             sockaddr_len,
-            (sockaddr *)&*this->config->get_server_address(),
-            this->config->get_server_len()
+            (sockaddr *)&*this->config->server_address(),
+            this->config->server_len()
         };
 
         ssize_t done = quiche_conn_recv(conn_data.conn, reinterpret_cast<uint8_t*>(this->gbuffer.data()), rhs, &recv_info);
@@ -357,7 +357,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     this->_quiche_config = quiche_config_new(QUICHE_PROTOCOL_VERSION);
     this->_quiche_h3_config = quiche_h3_config_new();
 
-    auto ssl_config = this->config->get_ssl_config();
+    auto ssl_config = this->config->ssl_config();
 
     if (!ssl_config->enabled) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "QUICHE: QUIC requires SSL be enabled");
@@ -382,7 +382,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     quiche_config_set_initial_max_streams_bidi (this->_quiche_config, 100);
     quiche_config_set_initial_max_streams_uni (this->_quiche_config, 100);
     //quiche_config_set_disable_active_migration (this->_quiche_config, true);
-    quiche_config_verify_peer(this->_quiche_config, this->config->get_verify_peer());
+    quiche_config_verify_peer(this->_quiche_config, this->config->verify_peer());
     if (this->config->is_quic_debug()) {
         quiche_enable_debug_logging([] (const char *line, void *argp)
             -> void {
@@ -390,17 +390,17 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         }, this);
     }
 
-    if (this->config->get_quic_cc_algo().load() != http::versions::QUIC_CC_NONE) {
+    if (this->config->quic_cc_algo().load() != http::versions::QUIC_CC_NONE) {
         quiche_cc_algorithm algo = QUICHE_CC_RENO;
 
-        switch (this->config->get_quic_cc_algo().load())
+        switch (this->config->quic_cc_algo().load())
         {
             case http::versions::QUIC_CC_CUBIC:   algo = QUICHE_CC_CUBIC;     break;
             case http::versions::QUIC_CC_RENO:    algo = QUICHE_CC_RENO;      break;
             case http::versions::QUIC_CC_BBR:     algo = QUICHE_CC_BBR;       break;
             case http::versions::QUIC_CC_BBR2:    algo = QUICHE_CC_BBR2;      break;
             default: THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo: {}",
-                    static_cast<int>(this->config->get_quic_cc_algo().load()));
+                    static_cast<int>(this->config->quic_cc_algo().load()));
         }
 
         quiche_config_set_cc_algorithm (this->_quiche_config, algo);

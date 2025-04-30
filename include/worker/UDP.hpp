@@ -24,7 +24,7 @@ namespace manapi::net::worker {
         addrinfo *local;
         timeval recv_timeout{}, send_timeout{};
         addrinfo hints{};
-        int fd{0};
+        socket_t fd{0};
     private:
     };
 }

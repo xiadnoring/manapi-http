@@ -132,7 +132,7 @@ manapi::future<void> manapi::net::http::base::send_response_file(manapi::net::ht
         }
 
         // partial enabled
-        if (res.partial_enabled() && config->get_partial_data_min_size() <= fileSize) {
+        if (res.partial_enabled() && config->partial_data_min_size() <= fileSize) {
             if (features.compressor_for_file) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
                                        "the compress '{}' with the partial content is not supported.",

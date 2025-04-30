@@ -118,5 +118,6 @@ namespace manapi::net::worker {
 #endif
         timeval recv_timeout{}, send_timeout{};
         addrinfo hints{};
+        socket_t fd;
     };
 }

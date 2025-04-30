@@ -27,7 +27,7 @@ manapi::net::http_pool::http_pool(const json &config, class site *site, const si
     this->site = site;
     this->mx = std::make_shared<async::mutex>(this->site->async_context());
 
-    this->config->set_function_contains_compressor([site] (const std::string &name) -> bool {
+    this->config->function_contains_compressor([site] (const std::string &name) -> bool {
         return site->contains_compressor_for_file(name)
             || site->contains_compressor_for_string(name);
     });
@@ -61,9 +61,9 @@ manapi::future<void> manapi::net::http_pool::_pool() {
 
     co_await this->events->custom_callback([&] (event_loop *ev) -> void {
         {
-            auto implementation = config->get_implementation();
-            auto transport = config->get_transport();
-            auto implementations = site->transport_protocol_worker(*transport);
+            auto implementation = this->config->implementation();
+            auto transport = this->config->transport();
+            auto implementations = this->site->transport_protocol_worker(*transport);
 
             if (implementations.contains(*implementation))
             {
@@ -90,11 +90,9 @@ manapi::future<void> manapi::net::http_pool::_pool() {
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "implementation not found");
             }
         }
-
-        this->watcher = ev->create_watcher_socket(this->config->get_socket_fd(), [this] (std::shared_ptr<ev::io> &w, int status, int revents)
-            -> void { this->worker->onrecv(w, status, revents); });
-        this->watcher->start(ev::READ);
     });
+
+    this->watcher = this->worker->watcher;
 }
 
 manapi::net::site & manapi::net::http_pool::get_site() const {

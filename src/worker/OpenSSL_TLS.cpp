@@ -193,7 +193,7 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
 
 void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
     ERR_clear_error();
-    auto sslconfig = this->config->get_ssl_config();
+    auto sslconfig = this->config->ssl_config();
     if (SSL_CTX_use_certificate_file(static_cast<SSL_CTX*>(this->ctx), sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use cert file openssl");
@@ -208,7 +208,7 @@ void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
         MANAPIHTTP_LOG(this->site.async_context(), "Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
     }
 
-    SSL_CTX_set_verify(static_cast<SSL_CTX*>(this->ctx), this->config->get_verify_peer().load() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
+    SSL_CTX_set_verify(static_cast<SSL_CTX*>(this->ctx), this->config->verify_peer().load() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
     SSL_CTX_set_verify_depth(static_cast<SSL_CTX*>(this->ctx), 1);
 }
 

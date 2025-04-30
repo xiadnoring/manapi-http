@@ -56,8 +56,8 @@ void manapi::net::worker::http_v3_tquic::onrecv(std::shared_ptr<ev::io> &watcher
     quic_packet_info_t packet_info {
         .src = reinterpret_cast<const sockaddr *> (&sockaddr_src),
         .src_len = sockaddr_len,
-        .dst = reinterpret_cast<const sockaddr *>(&*this->config->get_server_address()),
-        .dst_len = this->config->get_server_len()
+        .dst = reinterpret_cast<const sockaddr *>(&*this->config->server_address()),
+        .dst_len = this->config->server_len()
     };
 
     auto done = quic_endpoint_recv(this->_quic_server, reinterpret_cast<uint8_t *>(this->gbuffer.data()), this->gbuffer_size, &packet_info);
@@ -77,7 +77,7 @@ void manapi::net::worker::http_v3_tquic::init() {
     this->_quic_h3_config = http3_config_new();
     this->_quic_tls_config = quic_tls_config_new();
 
-    auto ssl_config = this->config->get_ssl_config();
+    auto ssl_config = this->config->ssl_config();
 
     if (!ssl_config->enabled) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "QUICHE: QUIC requires SSL be enabled");
@@ -121,15 +121,15 @@ void manapi::net::worker::http_v3_tquic::init() {
     //     MANAPIHTTP_LOG("quiche: {}", line);
     // }, nullptr);
 
-    if (this->config->get_quic_cc_algo().load() != http::versions::QUIC_CC_NONE) {
+    if (this->config->quic_cc_algo().load() != http::versions::QUIC_CC_NONE) {
         quic_congestion_control_algorithm algo;
 
-        switch (this->config->get_quic_cc_algo().load())
+        switch (this->config->quic_cc_algo().load())
         {
             case http::versions::QUIC_CC_CUBIC:   algo = QUIC_CONGESTION_CONTROL_ALGORITHM_CUBIC;     break;
             case http::versions::QUIC_CC_BBR:     algo = QUIC_CONGESTION_CONTROL_ALGORITHM_BBR;       break;
             default: THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo: {}",
-                    static_cast<int>(this->config->get_quic_cc_algo().load()));
+                    static_cast<int>(this->config->quic_cc_algo().load()));
         }
 
         quic_config_set_congestion_control_algorithm (this->_quic_config, algo);
@@ -161,7 +161,7 @@ void manapi::net::worker::http_v3_tquic::init() {
     this->_quic_server = quic_endpoint_new(this->_quic_config, true,
         &this->handler_methods, this, &this->sender_methods, this);
 
-    this->timeout = std::make_shared<ev::timer> (this->le->get_loop());
+    this->timeout = std::make_shared<ev::timer> (this->le->loop());
     this->timeout->repeat = 0.2;
     this->timeout->set<http_v3_tquic, &http_v3_tquic::_quic_timeout>(this);
     this->timeout->start();
@@ -610,7 +610,7 @@ void manapi::net::worker::http_v3_tquic::_quic_try_new_connection(quic_conn_t *c
     }
     else {
         conn_shared = std::make_shared<worker::connection>(worker::connection{new connection_t{
-            .conn = {nullptr}, .timer = this->le->get_loop(), .write_watcher = this->le->get_loop(), .http3_conn = {nullptr},
+            .conn = {nullptr}, .timer = this->le->loop(), .write_watcher = this->le->loop(), .http3_conn = {nullptr},
             .streams = {}, .worker = this, .status = 0, .write_total = 0, .read_total = 0, .write_total_prev = 0, .read_total_prev = 0,
             .stream_read_cnt = 0, .stream_write_cnt = 0}, [] (void *ptr) -> void {
                 MANAPIHTTP_LOG2("CONNECTION CLOSED");
