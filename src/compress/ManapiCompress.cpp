@@ -1,6 +1,5 @@
 #include "compress/ManapiCompress.hpp"
 
-#if MANAPIHTTP_ZLIB_DEPENDENCY
 
 #include <fstream>
 #include <format>
@@ -13,7 +12,8 @@
 #include "ManapiString.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
 
-#define CHUNK_SIZE 4096
+#define CHUNK_SIZE 1024
+
 
 void manapi::compress::throw_could_not_compress_file (const std::string &name, const std::string &src, const std::string &dest)
 {
@@ -29,16 +29,393 @@ void manapi::compress::throw_file_exists (const std::string &name, const std::st
     THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_EXISTS, "{}: File by following path exists: {}", name, path);
 }
 
+#ifdef MANAPIHTTP_BROTLI_DEPENDENCY
 
-manapi::future<bool> manapi::compress::deflate_compress_file(const async::shared_ctx &ctx, std::string src, std::string dest, int level, int strategy)
-{
-    if (co_await filesystem::async_exists (ctx, dest))
-    {
-        throw_file_exists ("deflate", dest);
+#   include <brotli/encode.h>
+#   include <brotli/decode.h>
+
+std::string manapi::compress::brotli_decompress_string(std::string_view src) {
+    std::string output;
+    output.resize(src.size() * 2);
+    std::size_t output_size = output.size();
+    BROTLI_BOOL rhs = BrotliDecoderDecompress(src.size(), reinterpret_cast<const uint8_t *>(src.data()),
+        &output_size, reinterpret_cast<uint8_t *>(output.data()));
+    if (!rhs) {
+        goto err;
+    }
+    output.resize(output_size);
+    return std::move(output);
+err:
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "brotli: decompress failed");
+}
+
+std::string manapi::compress::brotli_compress_string(std::string_view src, int quality, int window, int mode) {
+    std::string output;
+    output.resize(src.size() * 2);
+
+    if (mode > 2 || mode < 0) {
+        goto err;
     }
 
-    filesystem::fstream input (ctx, src);
-    filesystem::fstream output (ctx, dest);
+    do {
+        std::size_t output_size = output.size();
+        BROTLI_BOOL rhs = BrotliEncoderCompress(
+            quality, window, static_cast<BrotliEncoderMode>(mode), src.size(), reinterpret_cast<const uint8_t *>(src.data()), &output_size, reinterpret_cast<uint8_t *>(output.data()));
+
+        if (!rhs) {
+            goto err;
+        }
+
+        output.resize(output_size);
+
+        return std::move(output);
+    } while (0);
+err:
+    THROW_MANAPIHTTP_EXCEPTION2 (ERR_COMPRESS_DATA, "brotli: compress failed");
+}
+
+manapi::future<void> manapi::compress::brotli_compress_file(async::shared_ctx ctx, std::string src, std::string dest, int quality, int window, int mode, manapi::async::cancellation_action cancellation) {
+    filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
+    filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
+
+    co_await input.open(ev::FS_O_RDONLY);
+    if (!input.is_open())
+    {
+        throw_could_not_open_file("brotli", src);
+    }
+
+    co_await output.open(ev::FS_O_CREAT|ev::FS_O_WRONLY);
+    if (!output.is_open())
+    {
+        throw_could_not_open_file("brotli", dest);
+    }
+
+    BrotliEncoderState* const cctx = BrotliEncoderCreateInstance(nullptr, nullptr, nullptr);
+    if (!cctx) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "brotli: BrotliEncoderCreateInstance(...) failed");
+    }
+
+    if (!BrotliEncoderSetParameter(cctx, BROTLI_PARAM_MODE, mode)) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "brotli: couldn't set the mode param");
+    }
+
+    if (!BrotliEncoderSetParameter(cctx, BROTLI_PARAM_QUALITY, quality)) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "brotli: couldn't set the quality param");
+    }
+
+    if (!BrotliEncoderSetParameter(cctx, BROTLI_PARAM_LGWIN, window)) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "brotli: couldn't set the window param");
+    }
+
+    std::size_t buffInSize = BUFSIZ, buffOutSize = BUFSIZ;
+    uint8_t buffIn[BUFSIZ], buffOut[BUFSIZ];
+
+    std::size_t const toRead = buffInSize;
+    for (;;) {
+        const uint8_t *buffInNext = buffIn;
+        uint8_t* buffOutNext = buffOut;
+
+        buffOutSize = BUFSIZ;
+
+        auto read = co_await input.read(buffIn, static_cast<ssize_t>(toRead));
+
+        if (read < 0) {
+            goto err;
+        }
+
+        buffInSize = static_cast<std::size_t>(read);
+
+        /* Select the flush mode.
+         * If the read may not be finished (read == toRead) we use
+         * BROTLI_OPERATION_PROCESS. If this is the last chunk, we use BROTLI_OPERATION_FINISH.
+         * brotli optimizes the case where the first flush mode is BROTLI_OPERATION_FINISH,
+         * since it knows it is compressing the entire source in one pass.
+         */
+        int const lastChunk = read == 0;
+        BrotliEncoderOperation const mode = lastChunk ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS;
+
+        do {
+            /* Compress into the output buffer and write all of the output to
+             * the file so we can reuse the buffer next iteration.
+             */
+            int const remaining = BrotliEncoderCompressStream(cctx, mode, &buffInSize, &buffInNext, &buffOutSize, &buffOutNext, nullptr);
+            if (!remaining) {
+                goto err;
+            }
+            auto written = BUFSIZ - buffOutSize;
+            if (written) {
+                co_await output.fwrite(buffOut, static_cast<ssize_t>(written));
+                buffOutNext = buffOut;
+            }
+        }
+        while (buffInSize);
+
+        if (lastChunk) {
+            break;
+        }
+    }
+    BrotliEncoderDestroyInstance(cctx);
+    co_return;
+err:
+    BrotliEncoderDestroyInstance(cctx);
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: compress failed");
+}
+
+manapi::future<void> manapi::compress::brotli_decompress_file(async::shared_ctx ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
+    filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
+    filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
+
+    co_await input.open(ev::FS_O_RDONLY);
+    if (!input.is_open())
+    {
+        throw_could_not_open_file("brotli", src);
+    }
+
+    co_await output.open(ev::FS_O_CREAT|ev::FS_O_WRONLY);
+    if (!output.is_open())
+    {
+        throw_could_not_open_file("brotli", dest);
+    }
+
+    perror("brotli_decompress_file(...) not supported");
+}
+
+
+
+#endif
+
+#ifdef MANAPIHTTP_ZSTD_DEPENDENCY
+
+#   include <zstd.h>
+
+/**
+ * Check the result
+ * @param result result
+ * @param is_compress compress/uncompress
+ * @throws manapi::exception with @code ERR_COMPRESS_DATA@endcode
+ */
+void zstd_error_check (std::size_t result, bool is_compress) {
+    if (auto rhs = ZSTD_isError(result)) {
+        throw manapi::exception (manapi::ERR_COMPRESS_DATA, std::format("zstd {}compress failed due to rhs = {}", is_compress ? "" : "un", rhs),
+            std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
+    }
+}
+
+std::string manapi::compress::zstd_decompress_string(std::string_view src) {
+    std::string dest;
+    dest.resize(ZSTD_compressBound(src.size()));
+
+    std::size_t const size = ZSTD_decompress(dest.data(), dest.size(), src.data(), src.size());
+
+    zstd_error_check(size, false);
+
+    dest.resize(size);
+    return std::move(dest);
+}
+
+std::string manapi::compress::zstd_compress_string(std::string_view src, int level) {
+    std::string dest;
+    dest.resize(ZSTD_compressBound(src.size()));
+
+    std::size_t const size = ZSTD_compress(dest.data(), dest.size(), src.data(), src.size(), level);
+
+    zstd_error_check(size, false);
+
+    dest.resize(size);
+    return std::move(dest);
+}
+
+manapi::future<> manapi::compress::zstd_compress_file(async::shared_ctx ctx, std::string src, std::string dest, int level, int additional_threads, manapi::async::cancellation_action cancellation) {
+    filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
+    filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
+
+    co_await input.open(ev::FS_O_RDONLY);
+    if (!input.is_open())
+    {
+        throw_could_not_open_file("zstd", src);
+    }
+
+    co_await output.open(ev::FS_O_CREAT|ev::FS_O_WRONLY);
+    if (!output.is_open())
+    {
+        throw_could_not_open_file("zstd", dest);
+    }
+
+    size_t const buffInSize = ZSTD_CStreamInSize();
+    size_t const buffOutSize = ZSTD_CStreamOutSize();
+    std::string buffIn, buffOut;
+    buffIn.reserve(buffInSize);
+    buffOut.reserve(buffOutSize);
+
+    ZSTD_CCtx* const cctx = ZSTD_createCCtx();
+    if (!cctx) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: ZSTD_createCCtx(...) failed");
+    }
+
+    if (!ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, level)) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: couldn't set the compression level");
+    }
+
+    if (!ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 1)) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: couldn't set the checksum flag");
+    }
+
+    if (additional_threads) {
+        std::size_t const r = ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers, additional_threads + 1);
+        if (ZSTD_isError(r)) {
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: additional threads aren't supported");
+        }
+    }
+
+    std::size_t const toRead = buffInSize;
+    for (;;) {
+        auto read = co_await input.read(buffIn.data(), static_cast<ssize_t>(toRead));
+        if (read < 0) {
+            goto err;
+        }
+        /* Select the flush mode.
+         * If the read may not be finished (read == toRead) we use
+         * ZSTD_e_continue. If this is the last chunk, we use ZSTD_e_end.
+         * Zstd optimizes the case where the first flush mode is ZSTD_e_end,
+         * since it knows it is compressing the entire source in one pass.
+         */
+        int const lastChunk = read == 0;
+        ZSTD_EndDirective const mode = lastChunk ? ZSTD_e_end : ZSTD_e_continue;
+        /* Set the input buffer to what we just read.
+         * We compress until the input buffer is empty, each time flushing the
+         * output.
+         */
+        ZSTD_inBuffer input_buffer = {buffIn.data(), static_cast<std::size_t>(read), 0};
+        int finished;
+        do {
+            /* Compress into the output buffer and write all of the output to
+             * the file so we can reuse the buffer next iteration.
+             */
+            ZSTD_outBuffer output_buffer = {buffOut.data(), buffOutSize, 0};
+            std::size_t const remaining = ZSTD_compressStream2(cctx, &output_buffer, &input_buffer, mode);
+            if (ZSTD_isError(remaining)) {
+                goto err;
+            }
+            co_await output.fwrite(buffOut.data(), output_buffer.pos);
+            /* If we're on the last chunk we're finished when zstd returns 0,
+             * which means its consumed all the input AND finished the frame.
+             * Otherwise, we're finished when we've consumed all the input.
+             */
+            finished = lastChunk ? (remaining == 0) : (input_buffer.pos == input_buffer.size);
+        }
+        while (!finished);
+
+        if (lastChunk) {
+            break;
+        }
+    }
+    ZSTD_freeCCtx(cctx);
+    co_return;
+err:
+    ZSTD_freeCCtx(cctx);
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: compress failed");
+}
+
+manapi::future<> manapi::compress::zstd_decompress_file(async::shared_ctx ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
+filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
+    filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
+
+    co_await input.open(ev::FS_O_RDONLY);
+    if (!input.is_open())
+    {
+        throw_could_not_open_file("zstd", src);
+    }
+
+    co_await output.open(ev::FS_O_CREAT|ev::FS_O_WRONLY);
+    if (!output.is_open())
+    {
+        throw_could_not_open_file("zstd", dest);
+    }
+
+    size_t const buffInSize = ZSTD_CStreamInSize();
+    size_t const buffOutSize = ZSTD_CStreamOutSize();
+    std::string buffIn, buffOut;
+    buffIn.reserve(buffInSize);
+    buffOut.reserve(buffOutSize);
+
+    ZSTD_DCtx* const dctx = ZSTD_createDCtx();
+    if (!dctx) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: ZSTD_createDCtx(...) failed");
+    }
+    /* This loop assumes that the input file is one or more concatenated zstd
+     * streams. This example won't work if there is trailing non-zstd data at
+     * the end, but streaming decompression in general handles this case.
+     * ZSTD_decompressStream() returns 0 exactly when the frame is completed,
+     * and doesn't consume input after the frame.
+     */
+
+    std::size_t const toRead = buffInSize;
+    ssize_t read;
+    std::size_t lastRet = 0;
+    int isEmpty = 1;
+
+    while (true) {
+        read = co_await input.read(buffIn.data(), toRead);
+
+        if (read < 0) {
+            goto err;
+        }
+
+        if (!read) {
+            break;
+        }
+
+        isEmpty = 0;
+        ZSTD_inBuffer input_buffer = {buffIn.data(), static_cast<std::size_t>(read), 0};
+        /* Given a valid frame, zstd won't consume the last byte of the frame
+         * until it has flushed all of the decompressed data of the frame.
+         * Therefore, instead of checking if the return code is 0, we can
+         * decompress just check if input.pos < input.size.
+         */
+        while (input_buffer.pos < input_buffer.size) {
+            ZSTD_outBuffer output_buffer = {buffOut.data(), buffOutSize, 0};
+            /* The return code is zero if the frame is complete, but there may
+             * be multiple frames concatenated together. Zstd will automatically
+             * reset the context when a frame is complete. Still, calling
+             * ZSTD_DCtx_reset() can be useful to reset the context to a clean
+             * state, for instance if the last decompression call returned an
+             * error.
+             */
+            std::size_t const ret = ZSTD_decompressStream(dctx, &output_buffer, &input_buffer);
+            if (ZSTD_isError(ret)) {
+                goto err;
+            }
+            co_await output.fwrite(buffOut.data(), output_buffer.pos);
+            lastRet = ret;
+        }
+    }
+
+    if (isEmpty) {
+        goto err;
+    }
+
+    if (lastRet) {
+        /* The last return value from ZSTD_decompressStream did not end on a
+         * frame, but we reached the end of the file! We assume this is an
+         * error, and the input was truncated.
+         */
+        goto err;
+    }
+
+    ZSTD_freeDCtx(dctx);
+    co_return;
+err:
+    ZSTD_freeDCtx(dctx);
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: decompress failed");
+}
+
+#endif
+
+#if MANAPIHTTP_ZLIB_DEPENDENCY
+
+manapi::future<void> manapi::compress::deflate_compress_file(async::shared_ctx ctx, std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation) {
+    filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
+    filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -59,8 +436,7 @@ manapi::future<bool> manapi::compress::deflate_compress_file(const async::shared
     if(deflateInit(&stream, level) != Z_OK)
     {
         MANAPIHTTP_LOG(ctx, "defalte: {}", "deflateInit(...) failed!");
-
-        co_return false;
+        goto excep;
     }
 
     int flush;
@@ -107,22 +483,17 @@ manapi::future<bool> manapi::compress::deflate_compress_file(const async::shared
 
     deflateEnd(&stream);
 
-    co_return true;
+    co_return;
 err:
     deflateEnd(&stream);
-    co_return false;
+excep:
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "deflate compress failed");
 }
 
 /* decompress */
-manapi::future<bool> manapi::compress::deflate_decompress_file(const async::shared_ctx &ctx, std::string src, std::string dest)
-{
-    if (co_await filesystem::async_exists (ctx, dest))
-    {
-        throw_file_exists ("deflate", dest);
-    }
-
-    filesystem::fstream input (ctx, src);
-    filesystem::fstream output (ctx, dest);
+manapi::future<void> manapi::compress::deflate_decompress_file(async::shared_ctx ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation){
+    filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
+    filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -145,8 +516,7 @@ manapi::future<bool> manapi::compress::deflate_decompress_file(const async::shar
     if(result != Z_OK)
     {
         MANAPIHTTP_LOG(ctx, "defalte: {}", "inflateInit(...) failed!");
-
-        co_return false;
+        goto excep;
     }
 
     ssize_t rhs;
@@ -161,7 +531,7 @@ manapi::future<bool> manapi::compress::deflate_decompress_file(const async::shar
         }
 
         if (rhs < 0) {
-            co_return false;
+            goto err;
         }
         if (rhs == 0) {
             break;
@@ -179,8 +549,7 @@ manapi::future<bool> manapi::compress::deflate_decompress_file(const async::shar
                result == Z_MEM_ERROR)
             {
                 MANAPIHTTP_LOG(ctx, "deflate(...) failed! deflate() = {}", result);
-                inflateEnd(&stream);
-                co_return false;
+                goto err;
             }
 
             uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
@@ -196,10 +565,15 @@ manapi::future<bool> manapi::compress::deflate_decompress_file(const async::shar
 
     inflateEnd(&stream);
 
-    co_return result == Z_STREAM_END;
+    if (result != Z_STREAM_END) {
+        goto excep;
+    }
+
+    co_return;
 err:
     inflateEnd(&stream);
-    co_return false;
+excep:
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "deflate decompress failed");
 }
 
 std::string manapi::compress::deflate_compress_string(std::string_view original, int level, int strategy) {
@@ -260,7 +634,9 @@ std::string manapi::compress::deflate_decompress_string(std::string_view compres
 
     inflateEnd(&stream);
 
-    if (result != Z_STREAM_END) { THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "defalte: {}", "result != Z_STREAM_END"); }
+    if (result != Z_STREAM_END) {
+        THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "defalte: {}", "result != Z_STREAM_END");
+    }
 
     return std::move(buff);
 }
@@ -348,20 +724,17 @@ std::string manapi::compress::gzip_decompress_string(std::string_view compressed
 
     inflateEnd(&stream);
 
-    if (result != Z_STREAM_END) { THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "result != Z_STREAM_END"); }
+    if (result != Z_STREAM_END) {
+        THROW_MANAPIHTTP_EXCEPTION (ERR_COMPRESS_DATA, "gzip: {}", "result != Z_STREAM_END");
+    }
 
     return std::move(buff);
 }
 
-manapi::future<bool> manapi::compress::gzip_compress_file(const async::shared_ctx &ctx, std::string src, std::string dest, int level, int strategy)
+manapi::future<void> manapi::compress::gzip_compress_file(async::shared_ctx ctx, std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation)
 {
-    if (co_await filesystem::async_exists (ctx, dest))
-    {
-        throw_file_exists ("gzip", dest);
-    }
-
-    filesystem::fstream input (ctx, src);
-    filesystem::fstream output (ctx, dest);
+    filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
+    filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -382,7 +755,7 @@ manapi::future<bool> manapi::compress::gzip_compress_file(const async::shared_ct
     if(deflateInit2(&stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK)
     {
         //MANAPIHTTP_LOG("gzip: {}", "deflateInit(...) failed!");
-        co_return false;
+        goto excep;
     }
 
     int flush;
@@ -430,20 +803,16 @@ manapi::future<bool> manapi::compress::gzip_compress_file(const async::shared_ct
     deflateEnd(&stream);
 
 
-    co_return true;
+    co_return;
 err:
     deflateEnd(&stream);
-    co_return false;
+excep:
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "gzip compress failed");
 }
 
-manapi::future<bool> manapi::compress::gzip_decompress_file(const async::shared_ctx &ctx, std::string src, std::string dest) {
-    if (co_await filesystem::async_exists (ctx, dest))
-    {
-        throw_file_exists ("gzip", dest);
-    }
-
-    filesystem::fstream input (ctx, src);
-    filesystem::fstream output (ctx, dest);
+manapi::future<void> manapi::compress::gzip_decompress_file(async::shared_ctx ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
+    filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
+    filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -467,7 +836,7 @@ manapi::future<bool> manapi::compress::gzip_decompress_file(const async::shared_
     {
         //MANAPIHTTP_LOG("gzip: {}", "inflateInit2(...) failed!");
 
-        co_return false;
+        goto excep;
     }
 
     ssize_t rhs;
@@ -480,7 +849,7 @@ manapi::future<bool> manapi::compress::gzip_decompress_file(const async::shared_
             goto err;
         }
         if (rhs < 0) {
-            co_return false;
+            goto err;
         }
         if (rhs == 0) {
             break;
@@ -514,12 +883,16 @@ manapi::future<bool> manapi::compress::gzip_decompress_file(const async::shared_
 
     inflateEnd(&stream);
 
-    if (result != Z_STREAM_END) { co_return false; }
+    if (result != Z_STREAM_END) {
+        goto excep;
+    }
 
-    co_return true;
+    co_return;
 err:
     inflateEnd(&stream);
-    co_return false;
+excep:
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "gzip decompress failed");
 }
 
 #endif
+

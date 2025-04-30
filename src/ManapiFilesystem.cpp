@@ -487,12 +487,12 @@ manapi::future<bool> manapi::filesystem::async_exists(async::shared_ctx ctx, std
     co_return co_await filesystem::async_stat(std::move(ctx), std::move(path), nullptr, std::move(cancellation));
 }
 
-manapi::future<std::filesystem::file_time_type> manapi::filesystem::async_last_time_write(async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation) {
-    uv_timespec_t mtime;
+manapi::future<std::chrono::system_clock::time_point> manapi::filesystem::async_last_time_write(async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation) {
+    uv_timespec64_t mtime;
     bool exists = co_await filesystem::async_stat(std::move(ctx), std::move(path), [&mtime, &exists] (ev::stat_t *stat)
-        -> void { mtime = stat->st_mtim; }, std::move(cancellation));
+        -> void { mtime.tv_nsec = stat->st_mtim.tv_nsec; mtime.tv_sec = stat->st_mtim.tv_sec; }, std::move(cancellation));
     if (!exists) { THROW_MANAPIHTTP_EXCEPTION2(ERR_FS_IO, manapi::error::default_msgs[manapi::error::ERRMSG_FILE_NOT_FOUND]); }
-    co_return std::filesystem::file_time_type (std::chrono::seconds(mtime.tv_sec) + std::chrono::milliseconds(mtime.tv_nsec));
+    co_return std::chrono::system_clock::time_point (std::chrono::seconds{mtime.tv_sec} + std::chrono::nanoseconds{mtime.tv_nsec});
 }
 
 manapi::future<void> manapi::filesystem::async_mkdir(async::shared_ctx ctx, std::string path, int mode, bool recursive, manapi::async::cancellation_action cancellation) {
@@ -765,12 +765,12 @@ manapi::future<ssize_t> manapi::filesystem::async_read(async::shared_ctx ctx, ev
     co_return rhs;
 }
 
-manapi::future<> manapi::filesystem::async_write(async::shared_ctx ctx, std::string path, std::string data, int mode, int64_t offset, manapi::async::cancellation_action cancellation) {
+manapi::future<> manapi::filesystem::async_write(async::shared_ctx ctx, std::string path, std::string data, int mode, int flags, int64_t offset, manapi::async::cancellation_action cancellation) {
     std::exception_ptr err;
     ev::file fileno = 0;
 
     try {
-        fileno = co_await async_open(ctx, path, ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_APPEND, mode, manapi::async::cancellation_action(ctx, cancellation));
+        fileno = co_await async_open(ctx, path, flags, mode, manapi::async::cancellation_action(ctx, cancellation));
         auto rhs = co_await async_write(ctx, fileno, data.data(), data.size(), offset, manapi::async::cancellation_action(ctx, cancellation));
         if (rhs != data.size()) {
             err = std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(ERR_FS_IO, manapi::error::default_msgs[manapi::error::ERRMSG_SIZE_NOT_SAME]));
@@ -790,14 +790,14 @@ manapi::future<> manapi::filesystem::async_write(async::shared_ctx ctx, std::str
     }
 }
 
-manapi::future<std::string> manapi::filesystem::async_read(async::shared_ctx ctx, std::string path, int64_t offset, manapi::async::cancellation_action cancellation) {
+manapi::future<std::string> manapi::filesystem::async_read(async::shared_ctx ctx, std::string path, int flags, int64_t offset, manapi::async::cancellation_action cancellation) {
     std::exception_ptr err;
     ev::file fileno = 0;
     std::string data;
     ssize_t len = 0;
 
     try {
-        fileno = co_await async_open(ctx, path, ev::FS_O_RDONLY, 0, manapi::async::cancellation_action(ctx, cancellation));
+        fileno = co_await async_open(ctx, path, flags, 0, manapi::async::cancellation_action(ctx, cancellation));
         co_await async_fstat(ctx, fileno, [&len] (ev::stat_t *stat)
             -> void {
             len = stat ? static_cast<ssize_t>(stat->st_size) : -1;

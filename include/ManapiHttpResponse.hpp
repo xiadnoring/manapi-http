@@ -34,8 +34,8 @@ namespace manapi::net::http {
         response (manapi::net::http::request_data_t &request_data, const size_t &_status, http::config &config);
         ~response ();
 
-        void compress (const  std::string &name);
-        void compress_enabled (const bool &status);
+        void compress (std::string name);
+        void compress_enabled (bool status);
 
         void text (std::string plain_text);
         void json (manapi::json data, const size_t &spaces = 0);

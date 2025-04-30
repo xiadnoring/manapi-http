@@ -79,7 +79,7 @@ namespace manapi::net {
             std::string config_cache_dir;
             bool enabled_save_config;
             http_uri_part handlers;
-            std::map <std::string, std::move_only_function<future<bool>(std::string src, std::string dest)>> compressors_for_file{};
+            std::map <std::string, std::move_only_function<future<void>(std::string src, std::string dest)>> compressors_for_file{};
             std::map <std::string, std::move_only_function<std::string(std::string_view data)>> compressors_for_string{};
             std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers{};
             std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> bufferpool_;
@@ -99,10 +99,10 @@ namespace manapi::net {
 
         http_handler_page handler (http::request_data_t &request_data) const;
 
-        void compressor_for_file (const std::string &name, std::move_only_function<future<bool>(std::string src, std::string dest)> handler);
+        void compressor_for_file (const std::string &name, std::move_only_function<future<void>(std::string src, std::string dest)> handler);
         void compressor_for_string (const std::string &name, std::move_only_function<std::string(std::string_view data)> handler);
 
-        std::move_only_function<future<bool>(std::string src, std::string dest)> &compressor_for_file (const std::string &name);
+        std::move_only_function<future<void>(std::string src, std::string dest)> &compressor_for_file (const std::string &name);
         std::move_only_function<std::string(std::string_view)> &compressor_for_string (const std::string &name);
 
         [[nodiscard]] bool contains_compressor_for_file (const std::string &name) const;
@@ -115,8 +115,8 @@ namespace manapi::net {
         manapi::future<> config_object (json config);
         const manapi::json &config ();
 
-        std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm, std::filesystem::file_time_type filetime);
-        void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm, std::filesystem::file_time_type filetime);
+        std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm, std::chrono::system_clock::time_point filetime);
+        void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm, std::chrono::system_clock::time_point filetime);
 
         [[nodiscard]] const async::shared_ctx& async_context ();
         const std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> &bufferpool();
@@ -131,12 +131,12 @@ namespace manapi::net {
         static manapi::future<> save_config (std::shared_ptr<data_t> data);
 
         std::shared_ptr<data_t> data;
+        static std::string default_config_name;
     private:
         static http_handler_functions default_error_handler;
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);
 
-        static std::string default_config_name;
     };
 }

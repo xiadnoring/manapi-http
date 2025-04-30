@@ -784,7 +784,7 @@ std::string generate_cache_name(const std::string &file, const std::string &ext)
     return std::move(name);
 }
 
-manapi::future<std::string> manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, std::move_only_function<future<bool>(std::string src, std::string dest)> *compressor) const {
+manapi::future<std::string> manapi::net::http::base::compress_file(const std::string &file, const std::string &folder, const std::string &compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor) const {
     std::string filepath;
     auto filetime = co_await manapi::filesystem::async_last_time_write(this->site.async_context(), file);
     // compressor
@@ -792,14 +792,18 @@ manapi::future<std::string> manapi::net::http::base::compress_file(const std::st
     auto cached = this->site.get_compressed_cache_file(file, compress, filetime);
 
     if (cached.empty()) {
-        co_await filesystem::async_mkdir(this->site.async_context(), folder, ev::IRUSR|ev::IWUSR);
-        filepath = folder + generate_cache_name(file, "deflate");
+        try {
+            co_await filesystem::async_mkdir(this->site.async_context(), folder, ev::IRUSR|ev::IWUSR);
+            filepath = folder + generate_cache_name(file, compress);
 
-        if (!co_await (*compressor)(file, filepath)) {
+            co_await (*compressor)(file, filepath);
+
+            this->site.set_compressed_cache_file(file, filepath, compress, filetime);
+        }
+        catch (std::exception const &e) {
+            this->site.async_context()->logger()->error(manapi::logger::default_service, ERR_COMPRESS_DATA, "file compress failed due to {}", e.what());
             co_return file;
         }
-
-        this->site.set_compressed_cache_file(file, filepath, compress, filetime);
     }
     else {
         filepath = std::move(cached);

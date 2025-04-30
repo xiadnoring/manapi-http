@@ -21,6 +21,8 @@ OPTION(MANAPIHTTP_TQUIC_DEPENDENCY "The QUIC Implementation by Tencent" ON)
 OPTION(MANAPIHTTP_MSQUIC_DEPENDENCY "The QUIC Implementation by Microsoft" ON)
 OPTION(MANAPIHTTP_OPENSSL_DEPENDENCY "TLS, QUIC and etc implementations by OpenSSL" ON)
 OPTION(MANAPIHTTP_WOLFSSL_DEPENDENCY "TLS, QUIC and etc implementations by WolfSSL" ON)
+OPTION(MANAPIHTTP_BROTLI_DEPENDENCY "Brotli Enabled" OFF)
+OPTION(MANAPIHTTP_ZSTD_DEPENDENCY "ZSTD Enabled" "")
 OPTION(MANAPIHTTP_BUILD_METHOD "Build method" "default")
 OPTION(MANAPIHTTP_WOLFSSL_WITH_ALPN "WolfSSL with ALPN" ON)
 
@@ -73,6 +75,14 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
 
     if (MANAPIHTTP_OPENSSL_DEPENDENCY)
         find_package(OpenSSL REQUIRED)
+    endif ()
+
+    if (MANAPIHTTP_BROTLI_DEPENDENCY)
+        find_package(brotli)
+    endif ()
+
+    if (MANAPIHTTP_ZSTD_DEPENDENCY)
+        find_package(zstd)
     endif ()
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
@@ -150,6 +160,20 @@ else ()
             set(MANAPIHTTP_MSQUIC_DEPENDENCY OFF)
         endif ()
     endif ()
+
+    if (MANAPIHTTP_BROTLI_DEPENDENCY)
+        include(./cmake/FindBrotli.cmake)
+        if (NOT Brotli_FOUND)
+            set(MANAPIHTTP_BROTLI_DEPENDENCY OFF)
+        endif ()
+    endif ()
+
+    if (MANAPIHTTP_ZSTD_DEPENDENCY)
+        include(./cmake/FindZSTD.cmake)
+        if (NOT ZSTD_FOUND)
+            set(MANAPIHTTP_ZSTD_DEPENDENCY "")
+        endif ()
+    endif ()
 endif ()
 
 
@@ -168,6 +192,11 @@ string(REPLACE "{{ VAR_MANAPIHTTP_CURL_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_CURL_D
 string(REPLACE "{{ VAR_MANAPIHTTP_GMP_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_GMP_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_MSQUIC_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_MSQUIC_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_WOLFSSL_WITH_ALPN }}" $<BOOL:${MANAPIHTTP_WOLFSSL_WITH_ALPN}> TEXT "${TEXT}")
+string(REPLACE "{{ VAR_MANAPIHTTP_WOLFSSL_WITH_ALPN }}" $<BOOL:${MANAPIHTTP_WOLFSSL_WITH_ALPN}> TEXT "${TEXT}")
+string(REPLACE "{{ VAR_MANAPIHTTP_WOLFSSL_WITH_ALPN }}" $<BOOL:${MANAPIHTTP_WOLFSSL_WITH_ALPN}> TEXT "${TEXT}")
+string(REPLACE "{{ VAR_MANAPIHTTP_BROTLI_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_BROTLI_DEPENDENCY}> TEXT "${TEXT}")
+string(REPLACE "{{ VAR_MANAPIHTTP_ZSTD_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_ZSTD_DEPENDENCY}> TEXT "${TEXT}")
+
 file(GENERATE OUTPUT include/ManapiParams.hpp CONTENT "${TEXT}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS include/ManapiParams.hpp)
 
@@ -401,6 +430,19 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
         target_link_libraries(${PROJECT_NAME} PUBLIC tquic::tquic)
     endif ()
 
+    if (MANAPIHTTP_BROTLI_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC brotli::brotli)
+    endif ()
+
+    if (MANAPIHTTP_ZSTD_DEPENDENCY)
+        message(STATUS "ZSTD build type: ${MANAPIHTTP_ZSTD_DEPENDENCY}")
+        if (MANAPIHTTP_ZSTD_DEPENDENCY STREQUAL "shared")
+            target_link_libraries(${PROJECT_NAME} PUBLIC zstd::libzstd_shared)
+        else ()
+            target_link_libraries(${PROJECT_NAME} PUBLIC zstd::libzstd_static)
+        endif ()
+    endif ()
+
     add_compile_definitions(MANAPIHTTP_CPPTRACE_DEPENDENCY=True)
 else ()
     target_link_libraries       (${PROJECT_NAME} PUBLIC PkgConfig::LIBUV)
@@ -445,6 +487,16 @@ else ()
     if (MANAPIHTTP_TQUIC_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${TQUIC_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${TQUIC_INCLUDE_DIRS})
+    endif ()
+
+    if (MANAPIHTTP_BROTLI_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${Brotli_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${Brotli_INCLUDE_DIRS})
+    endif ()
+
+    if (MANAPIHTTP_ZSTD_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${ZSTD_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${ZSTD_INCLUDE_DIRS})
     endif ()
 
 endif ()

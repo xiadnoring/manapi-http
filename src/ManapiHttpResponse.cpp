@@ -139,16 +139,12 @@ const std::map<std::string, std::string> & manapi::net::http::response::ref_head
     return this->headers_;
 }
 
-void manapi::net::http::response::compress(const std::string &name) {
-    if (this->compress_enabled_)
-    {
-        this->compress_ = name;
-    }
+void manapi::net::http::response::compress(std::string name) {
+    this->compress_ = std::move(name);
 }
 
-void manapi::net::http::response::compress_enabled (const bool &status) {
+void manapi::net::http::response::compress_enabled (bool status) {
     this->compress_enabled_ = status;
-    this->compress_ = "";
 }
 
 const std::string &manapi::net::http::response::compress() {

@@ -66,6 +66,20 @@ int main () {
         co_return resp.file("./test.html");
     });
 
+    router.GET ("/zstd", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+        -> manapi::future<> {
+        resp.compress("zstd");
+        resp.compress_enabled(true);
+        co_return resp.file("./test.html");
+    });
+
+    router.GET ("/brotli", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+        -> manapi::future<> {
+        resp.compress("br");
+        resp.compress_enabled(true);
+        co_return resp.file("./test.html");
+    });
+
     router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable
         -> manapi::future<> {
         resp.compress_enabled(false);

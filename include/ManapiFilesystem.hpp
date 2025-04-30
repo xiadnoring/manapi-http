@@ -12,7 +12,7 @@
 namespace manapi::filesystem {
     manapi::future<bool> async_exists (async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
 
-    manapi::future<std::filesystem::file_time_type> async_last_time_write (async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
+    manapi::future<std::chrono::system_clock::time_point> async_last_time_write (async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
 
     manapi::future<void> async_mkdir (async::shared_ctx ctx, std::string path, int mode = 0644, bool recursive = true, manapi::async::cancellation_action cancellation = nullptr);
 
@@ -24,9 +24,9 @@ namespace manapi::filesystem {
 
     future<ssize_t> async_read (async::shared_ctx ctx, ev::file file, void *data, ssize_t size, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
 
-    future<void> async_write (async::shared_ctx ctx, std::string path, std::string data, int mode, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<void> async_write (async::shared_ctx ctx, std::string path, std::string data, int mode, int flags = ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_APPEND, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
 
-    future<std::string> async_read (async::shared_ctx ctx, std::string path, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
+    future<std::string> async_read (async::shared_ctx ctx, std::string path, int flags = ev::FS_O_RDONLY, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
 
     future<ssize_t> async_file_size (async::shared_ctx ctx, std::string path, manapi::async::cancellation_action cancellation = nullptr);
 

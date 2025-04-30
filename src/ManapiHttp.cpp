@@ -161,14 +161,22 @@ manapi::future<> manapi::net::http::server::stop_pool() {
     for (const auto &pool: this->data2->pools)
     {
         MANAPIHTTP_LOG (this->async_context(), "pool #{} is stopping...", pool.first);
-        pool.second->stop();
+        co_await pool.second->stop();
         MANAPIHTTP_LOG (this->async_context(), "pool #{} stopped successfully", pool.first);
     }
 
     MANAPIHTTP_LOG2(this->async_context(), "pools(...) -> pass");
 
-    this->save();
+    try {
+        this->save();
 
+        // cache config
+        co_await manapi::filesystem::async_write(this->data->ctx, data->config_cache_dir + site::default_config_name, this->data->cache_config.dump(),
+            ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+    }
+    catch (std::exception const &e) {
+        this->data->ctx->logger()->error(manapi::logger::default_service, ERR_CONFIG_ERROR, "http: couldn't save the configuration file due to {}", e.what());
+    }
     if (this->data2->init_watcher) {
         printf("unwatch_async(this->data2->init_watcher);\n");
         co_await this->data->ctx->eventloop()->unwatch_async(this->data2->init_watcher);
