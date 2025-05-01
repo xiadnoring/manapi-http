@@ -40,11 +40,9 @@ manapi::future<> manapi::net::http_pool::stop() {
     MANAPIHTTP_LOG(this->site->async_context(), "{}", "shutdown socket");
 
     // stop watcher
-    co_await this->site->async_context()->eventloop()->stop_poll(this->watcher);
     co_await this->site->async_context()->eventloop()->custom_callback([this] (event_loop *ev)
         -> void {
         this->worker->stop();
-        this->watcher->stop();
     });
 }
 
@@ -91,8 +89,6 @@ manapi::future<void> manapi::net::http_pool::_pool() {
             }
         }
     });
-
-    this->watcher = this->worker->watcher;
 }
 
 manapi::net::site & manapi::net::http_pool::get_site() const {

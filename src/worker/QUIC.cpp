@@ -45,7 +45,7 @@ void manapi::net::worker::quic::init() {
     // std::cout << crypto::strdec2strhex(stringify_length_number_ (1073741824)) << " "  << (crypto::strdec2strhex(stringify_length_number_ (1073741824)) == "C000000040000000") << "\n";
 }
 
-void manapi::net::worker::quic::onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) {
+void manapi::net::worker::quic::onrecv(std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) {
     while (true) {
         sockaddr_storage sockaddr_src{};
         socklen_t sockaddr_len = sizeof (sockaddr_src);
@@ -428,7 +428,7 @@ manapi::future<> manapi::net::worker::quic::send_frame(const std::shared_ptr<con
     #if defined(__unix__)||defined(__APPLE__)
         flg |= MSG_DONTWAIT;
     #endif
-    ::sendto(this->fd, packet.data(), packet.size(), flg, reinterpret_cast <sockaddr *> (&conn_data.sockaddr_src), conn_data.sockaddr_len);
+    //::sendto(this->fd, packet.data(), packet.size(), flg, reinterpret_cast <sockaddr *> (&conn_data.sockaddr_src), conn_data.sockaddr_len);
 
     co_return;
 }

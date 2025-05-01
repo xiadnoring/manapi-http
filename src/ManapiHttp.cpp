@@ -131,9 +131,20 @@ manapi::future<> manapi::net::http::server::_init_pool() {
     {
         for (auto it = this->data->config_["pools"].begin<json::ARRAY>(); it != this->data->config_["pools"].end<json::ARRAY>(); ++it, this->data2->next_pool_id++)
         {
-            auto p = std::make_unique<http_pool> (*it, this, this->data2->next_pool_id, this->data->ctx->eventloop());
-            co_await p->run();
-            this->data2->pools.insert({this->data2->next_pool_id, std::move(p)});
+            std::unique_ptr<http_pool> p;
+
+            try {
+                p = std::make_unique<http_pool> (*it, this, this->data2->next_pool_id, this->data->ctx->eventloop());
+                co_await p->run();
+                this->data2->pools.insert({this->data2->next_pool_id, std::move(p)});
+            }
+            catch (std::exception const &e) {
+                this->async_context()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "init pool failed due to {}", e.what());
+            }
+
+            if (p) {
+                co_await p->stop();
+            }
         }
     }
 }

@@ -63,6 +63,10 @@ std::size_t manapi::bytebuffer::size() const {
     return this->s;
 }
 
+std::size_t manapi::bytebuffer::realsize() const {
+    return this->reserved;
+}
+
 void manapi::bytebuffer::resize(std::size_t s) {
     if (this->reserved >= s) {
         this->s = s;

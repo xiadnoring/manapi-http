@@ -147,7 +147,7 @@ int manapi::ev::tcp::accept(tcp *parent) MANAPI_EV_NOEXPECT {
 }
 
 int manapi::ev::tcp::read_start() MANAPI_EV_NOEXPECT {
-    return this->read_start(ev::callback_watcher_alloc, ev::callback_watcher_tcp_read);
+    return this->read_start(ev::callback_watcher_tcp_connection_alloc, ev::callback_watcher_tcp_read);
 }
 
 int manapi::ev::tcp::read_start(uv_alloc_cb alloc, uv_read_cb cb) MANAPI_EV_NOEXPECT {
@@ -175,7 +175,7 @@ int manapi::ev::udp::s_bind(sockaddr *addr, int flags) MANAPI_EV_NOEXPECT{
 }
 
 int manapi::ev::udp::recv_start() MANAPI_EV_NOEXPECT {
-    return this->recv_start(ev::callback_watcher_alloc, ev::callback_watcher_udp_recv);
+    return this->recv_start(ev::callback_watcher_udp_alloc, ev::callback_watcher_udp_recv);
 }
 
 int manapi::ev::udp::recv_start(uv_alloc_cb alloc, uv_udp_recv_cb cb) MANAPI_EV_NOEXPECT {

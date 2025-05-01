@@ -2,6 +2,8 @@
 #include "ManapiParams.hpp"
 
 #include <fcntl.h>
+#include <memory>
+#include <memory.h>
 
 #include "async/ManapiAsyncSocket.hpp"
 
@@ -10,7 +12,6 @@ manapi::net::worker::udp::udp(net::site &site) : worker::base(site) {
 }
 
 manapi::net::worker::udp::~udp() {
-    async::close_descriptor(this->fd);
     freeaddrinfo(this->local);
 }
 
@@ -33,24 +34,56 @@ void manapi::net::worker::udp::init() {
 
     MANAPIHTTP_LOG(this->site.async_context(), "HTTP UDP PORT USED: {}. https://{}:{}", *port, *address, *port);
 
-    // for quic
-    auto fd = socket (this->local->ai_family, SOCK_DGRAM, 0);
+    this->udp_accept_ = this->site.async_context()->eventloop()->create_watcher_udp([ptr = (worker::udp*)this] (std::shared_ptr<ev::udp> &w, ssize_t nread, const ev::buff_t *buf, const sockaddr *addr, unsigned flags)
+        -> void {
+        assert (nread >= 0);
 
-    if (fd < 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "SOCKET ERROR");
+        if (addr) {
+            ptr->onrecv(w, buf->base, static_cast<ssize_t>(nread), addr, flags);
+        }
+        else {
+            /* free */
+            auto object = std::make_unique<bytebuffer>(buf->base, buf->len);
+            ptr->site.bufferpool()->ret(std::move(object));
+        }
+    },
+    [&bufferpool = this->site.bufferpool()](std::shared_ptr<ev::udp> &w, ssize_t nread, ev::buff_t *buff)
+        -> void {
+        auto buffer = bufferpool->get();
+        buffer->resize(nread);
+        auto object = buffer.release();
+
+        buff->len = object->realsize();
+        buff->base = static_cast<char *>(object->release());
+    });
+
+    memset(&this->sockaddrin, '\0', sizeof (sockaddr));
+
+    if (this->local->ai_family == ev::IPv4) {
+        if (auto rhs = this->udp_accept_->ip4_addr(this->config->address()->data(), std::stoi(*this->config->port()), reinterpret_cast<sockaddr_in *>(&this->sockaddrin))) {
+            this->site.async_context()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't set ipv4 addr due to result - {}", rhs);
+            goto err;
+        }
+    }
+    else if (this->local->ai_family == ev::IPv6) {
+        if (auto rhs = this->udp_accept_->ip6_addr(this->config->address()->data(), std::stoi(*this->config->port()), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin))) {
+            this->site.async_context()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't set ipv6 addr due to result - {}", rhs);
+            goto err;
+        }
     }
 
-    this->fd = fd;
-
-    setsockopt((fd), SOL_SOCKET, SO_REUSEADDR, &this->socket_param_true, sizeof(this->socket_param_true));
-
-    manapi::async::set_non_blocking(fd);
-
-    if (bind(fd, this->local->ai_addr, this->local->ai_addrlen) < 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "PORT {} IS ALREADY IN USE", *port);
+    if (auto rhs = this->udp_accept_->s_bind(reinterpret_cast<sockaddr *>(&this->sockaddrin), ev::UDP_REUSEPORT|ev::UDP_REUSEADDR)) {
+        this->site.async_context()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't bind socket due to result - {}", rhs);
+        goto err;
     }
 
-    this->watcher = this->site.async_context()->eventloop()->create_watcher_socket(fd, [this] (std::shared_ptr<ev::io> &w, int status, int revents)
-            -> void { this->onrecv(w, status, revents); });
-    this->watcher->start(ev::READ);
+
+    return;
+err:
+    THROW_MANAPIHTTP_EXCEPTION2 (ERR_SOCKET, "couldn't initialize udp connection");
+}
+
+void manapi::net::worker::udp::stop() {
+    this->udp_accept_->recv_stop();
+    this->site.async_context()->eventloop()->stop_watcher(std::move(this->udp_accept_));
 }

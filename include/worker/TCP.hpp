@@ -64,7 +64,7 @@ namespace manapi::net::worker {
         bool is_valid_connection(worker::connection &connection) override;
         void init () override;
         future<bool> configure_connection (std::shared_ptr<worker::connection> connection) override;
-        void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) override;
+        void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents);
         static std::shared_ptr<worker::TCP> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
 
         virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);

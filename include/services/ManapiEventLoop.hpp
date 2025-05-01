@@ -19,6 +19,8 @@
 #endif
 
 namespace manapi::ev {
+    typedef std::move_only_function<void(std::shared_ptr<ev::tcp> &, size_t suggested_size, ev::buff_t* buf)> tcp_alloc_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::udp> &, size_t suggested_size, ev::buff_t* buf)> udp_alloc_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::async> &)> async_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::tcp> &w, int status)> tcp_accept_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::timer> &)> timer_cb;
@@ -92,14 +94,14 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_WATCHER_BIND code
          */
-        std::shared_ptr<ev::tcp> create_watcher_tcp_connection (ev::tcp_connection_cb read);
+        std::shared_ptr<ev::tcp> create_watcher_tcp_connection (ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb);
         /**
          *
          * @param recv Callback
          * @return
          * @throws manapi::exception with ERR_WATCHER_BIND code
          */
-        std::shared_ptr<ev::udp> create_watcher_udp (ev::udp_cb recv);
+        std::shared_ptr<ev::udp> create_watcher_udp (ev::udp_cb recv, ev::udp_alloc_cb alloc_cb);
         /**
          *
          * @param callback Callback

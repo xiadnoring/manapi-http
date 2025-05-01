@@ -13,18 +13,14 @@ namespace manapi::net::worker {
         explicit udp(net::site &site);
         ~udp() override;
         void init() override;
+        void stop() override;
+        virtual void onrecv (std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) = 0;
     protected:
-#ifdef _WIN32
-        char socket_param_true = 1;
-        char socket_param_false = 0;
-#else
-        int socket_param_true = 1;
-        int socket_param_false = 0;
-#endif
+        sockaddr_storage sockaddrin{};
+        std::shared_ptr<ev::udp> udp_accept_;
         addrinfo *local;
         timeval recv_timeout{}, send_timeout{};
         addrinfo hints{};
-        socket_t fd{0};
     private:
     };
 }

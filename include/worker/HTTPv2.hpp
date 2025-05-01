@@ -226,7 +226,6 @@ namespace manapi::net::worker {
         void connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
         void init() override;
         bool is_valid_connection(worker::connection &connection) override;
-        void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) override;
 
         future<ssize_t> response (worker::connection &connection, http::response &resp, bool finish) override;
 

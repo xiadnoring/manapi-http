@@ -54,6 +54,10 @@ namespace manapi {
             return *this->object.get();
         }
 
+        std::unique_ptr<T> release () {
+            return std::move(this->object);
+        }
+
         ~object_item_pool();
 
         static void internal_ret (std::shared_ptr<typename object_item_pool<T, Args...>::data_t> data, std::unique_ptr<T> item) {

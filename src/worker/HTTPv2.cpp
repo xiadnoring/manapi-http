@@ -581,11 +581,6 @@ bool manapi::net::worker::http_v2::is_valid_connection(worker::connection &conne
     return true;
 }
 
-void manapi::net::worker::http_v2::onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) {
-    /* nothing to do */
-    return;
-}
-
 
 manapi::future<ssize_t> manapi::net::worker::http_v2::response(worker::connection &connection, http::response &resp, bool finish) {
     auto &conn = connection.as<manapi_http_2_connection_t>();

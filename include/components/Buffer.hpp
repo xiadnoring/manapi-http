@@ -21,6 +21,7 @@ namespace manapi {
         template<typename T>
         T*as() { return reinterpret_cast<T *> (this->src); }
         [[nodiscard]] std::size_t size () const;
+        [[nodiscard]] std::size_t realsize () const;
         void resize (std::size_t s);
         void clear ();
         void reinit ();

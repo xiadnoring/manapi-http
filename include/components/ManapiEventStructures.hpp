@@ -30,6 +30,29 @@ namespace manapi {
 }
 
 namespace manapi::ev {
+    typedef uv_buf_t buff_t;
+
+    enum pf_ip_types {
+        IPv4 = PF_INET,
+        IPv6 = PF_INET6
+    };
+
+    enum udp_flags {
+        UDP_IPV6ONLY = UV_UDP_IPV6ONLY,
+        UDP_REUSEADDR = UV_UDP_REUSEADDR,
+        UDP_REUSEPORT = UV_UDP_REUSEPORT,
+        UDP_MMSG_CHUNK = UV_UDP_MMSG_CHUNK,
+        UDP_MMSG_FREE = UV_UDP_MMSG_FREE,
+        UDP_PARTIAL = UV_UDP_PARTIAL,
+        UDP_LINUX_RECVERR = UV_UDP_LINUX_RECVERR,
+        UDP_RECVMMSG = UV_UDP_RECVMMSG
+    };
+
+    enum tcp_flags {
+        TCP_IPV6ONLY = UV_TCP_IPV6ONLY,
+        TCP_REUSEPORT = UV_TCP_REUSEPORT
+    };
+
     enum types {
         EV_TIMER = 0,
         EV_WRITE,
@@ -117,91 +140,91 @@ namespace manapi::ev {
 #endif
 
     enum fs_errors {
-        FS_E2BIG = UV_E2BIG,
-        FS_EACCES = UV_EACCES,
-        FS_EADDRINUSE = UV_EADDRINUSE,
-        FS_EADDRNOTAVAIL = UV_EADDRNOTAVAIL,
-        FS_EAFNOSUPPORT = UV_EAFNOSUPPORT,
-        FS_EAGAIN = UV_EAGAIN ,
-        FS_EAI_ADDRFAMILY = UV_EAI_ADDRFAMILY ,
-        FS_EAI_AGAIN = UV_EAI_AGAIN ,
-        FS_EAI_BADFLAGS = UV_EAI_BADFLAGS ,
-        FS_EAI_BADHINTS = UV_EAI_BADHINTS ,
-        FS_EAI_CANCELED = UV_EAI_CANCELED ,
-        FS_EAI_FAIL = UV_EAI_FAIL ,
-        FS_EAI_FAMILY = UV_EAI_FAMILY ,
-        FS_EAI_MEMORY = UV_EAI_MEMORY ,
-        FS_EAI_NODATA = UV_EAI_NODATA ,
-        FS_EAI_NONAME = UV_EAI_NONAME ,
-        FS_EAI_OVERFLOW = UV_EAI_OVERFLOW ,
-        FS_EAI_PROTOCOL = UV_EAI_PROTOCOL ,
-        FS_EAI_SERVICE = UV_EAI_SERVICE ,
-        FS_EAI_SOCKTYPE = UV_EAI_SOCKTYPE ,
-        FS_EALREADY = UV_EALREADY ,
+        FS_ESRCH = UV_ESRCH , /*3*/
+        FS_E2BIG = UV_E2BIG,/*7*/
         FS_EBADF = UV_EBADF ,
-        FS_EBUSY = UV_EBUSY ,
-        FS_ECANCELED = UV_ECANCELED ,
-        FS_ECHARSET = UV_ECHARSET ,
-        FS_ECONNABORTED = UV_ECONNABORTED ,
-        FS_ECONNREFUSED = UV_ECONNREFUSED ,
-        FS_ECONNRESET = UV_ECONNRESET ,
-        FS_EDESTADDRREQ = UV_EDESTADDRREQ ,
-        FS_EEXIST = UV_EEXIST ,
-        FS_EFAULT = UV_EFAULT ,
-        FS_EFBIG = UV_EFBIG ,
-        FS_EHOSTUNREACH = UV_EHOSTUNREACH ,
-        FS_EINTR = UV_EINTR ,
-        FS_EINVAL = UV_EINVAL ,
-        FS_EIO = UV_EIO ,
-        FS_EISCONN = UV_EISCONN ,
-        FS_EISDIR = UV_EISDIR ,
-        FS_ELOOP = UV_ELOOP ,
-        FS_EMFILE = UV_EMFILE ,
-        FS_EMSGSIZE = UV_EMSGSIZE ,
-        FS_ENAMETOOLONG = UV_ENAMETOOLONG ,
-        FS_ENETDOWN = UV_ENETDOWN ,
-        FS_ENETUNREACH = UV_ENETUNREACH ,
-        FS_ENFILE = UV_ENFILE ,
-        FS_ENOBUFS = UV_ENOBUFS ,
-        FS_ENODEV = UV_ENODEV ,
-        FS_ENOENT = UV_ENOENT ,
-        FS_ENOMEM = UV_ENOMEM ,
-        FS_ENONET = UV_ENONET ,
-        FS_ENOPROTOOPT = UV_ENOPROTOOPT ,
-        FS_ENOSPC = UV_ENOSPC ,
-        FS_ENOSYS = UV_ENOSYS ,
-        FS_ENOTCONN = UV_ENOTCONN ,
-        FS_ENOTDIR = UV_ENOTDIR ,
-        FS_ENOTEMPTY = UV_ENOTEMPTY ,
-        FS_ENOTSOCK = UV_ENOTSOCK ,
-        FS_ENOTSUP = UV_ENOTSUP ,
-        FS_EOVERFLOW = UV_EOVERFLOW ,
-        FS_EPERM = UV_EPERM ,
-        FS_EPIPE = UV_EPIPE ,
-        FS_EPROTO = UV_EPROTO ,
-        FS_EPROTONOSUPPORT = UV_EPROTONOSUPPORT ,
-        FS_EPROTOTYPE = UV_EPROTOTYPE ,
-        FS_ERANGE = UV_ERANGE ,
-        FS_EROFS = UV_EROFS ,
-        FS_ESHUTDOWN = UV_ESHUTDOWN ,
-        FS_ESPIPE = UV_ESPIPE ,
-        FS_ESRCH = UV_ESRCH ,
-        FS_ETIMEDOUT = UV_ETIMEDOUT ,
-        FS_ETXTBSY = UV_ETXTBSY ,
-        FS_EXDEV = UV_EXDEV ,
-        FS_UNKNOWN = UV_UNKNOWN ,
-        FS_EOF = UV_EOF ,
-        FS_ENXIO = UV_ENXIO ,
-        FS_EMLINK = UV_EMLINK ,
-        FS_EHOSTDOWN = UV_EHOSTDOWN ,
-        FS_EREMOTEIO = UV_EREMOTEIO ,
-        FS_ENOTTY = UV_ENOTTY ,
-        FS_EFTYPE = UV_EFTYPE ,
-        FS_EILSEQ = UV_EILSEQ ,
-        FS_ESOCKTNOSUPPORT = UV_ESOCKTNOSUPPORT ,
-        FS_ENODATA = UV_ENODATA ,
-        FS_EUNATCH = UV_EUNATCH,
-        FS_ERRNO_MAX = UV_ERRNO_MAX
+        FS_EAGAIN = UV_EAGAIN , /*11*/
+        FS_EACCES = UV_EACCES, /*13*/
+        FS_EAFNOSUPPORT = UV_EAFNOSUPPORT, /*97*/
+        FS_EADDRINUSE = UV_EADDRINUSE, /*98*/
+        FS_EADDRNOTAVAIL = UV_EADDRNOTAVAIL, /*99*/
+        FS_EAI_ADDRFAMILY = UV_EAI_ADDRFAMILY ,/*3000*/
+        FS_EAI_AGAIN = UV_EAI_AGAIN ,/*3001*/
+        FS_EAI_BADFLAGS = UV_EAI_BADFLAGS ,/*3002*/
+        FS_EAI_CANCELED = UV_EAI_CANCELED ,/*3003*/
+        FS_EAI_FAIL = UV_EAI_FAIL ,/*3004*/
+        FS_EAI_FAMILY = UV_EAI_FAMILY ,/*3005*/
+        FS_EAI_MEMORY = UV_EAI_MEMORY ,/*3006*/
+        FS_EAI_NODATA = UV_EAI_NODATA ,/*3007*/
+        FS_EAI_NONAME = UV_EAI_NONAME ,/*3008*/
+        FS_EAI_OVERFLOW = UV_EAI_OVERFLOW ,/*-3009*/
+        FS_EAI_SERVICE = UV_EAI_SERVICE ,/*-3010*/
+        FS_EAI_BADHINTS = UV_EAI_BADHINTS ,/*-3013*/
+        FS_EAI_PROTOCOL = UV_EAI_PROTOCOL , /*-3014*/
+        FS_EAI_SOCKTYPE = UV_EAI_SOCKTYPE ,/*-3011*/
+        FS_EALREADY = UV_EALREADY ,/*-114 */
+        FS_EBUSY = UV_EBUSY ,/*-16 */
+        FS_ECANCELED = UV_ECANCELED ,/*-125 */
+        FS_ECHARSET = UV_ECHARSET ,/* -4080 */
+        FS_ECONNABORTED = UV_ECONNABORTED ,/*-103 */
+        FS_ECONNREFUSED = UV_ECONNREFUSED ,/*-111 */
+        FS_ECONNRESET = UV_ECONNRESET ,/*-104 */
+        FS_EDESTADDRREQ = UV_EDESTADDRREQ ,/*-89 */
+        FS_EEXIST = UV_EEXIST ,/*-17 */
+        FS_EFAULT = UV_EFAULT ,/* -14 */
+        FS_EFBIG = UV_EFBIG ,/*-27 */
+        FS_EHOSTUNREACH = UV_EHOSTUNREACH ,/*-113 */
+        FS_EINTR = UV_EINTR ,/*-4 */
+        FS_EINVAL = UV_EINVAL ,/*-22 */
+        FS_EIO = UV_EIO ,/*-5 */
+        FS_EISCONN = UV_EISCONN ,/*-106 */
+        FS_EISDIR = UV_EISDIR ,/*-21 */
+        FS_ELOOP = UV_ELOOP ,/*-40 */
+        FS_EMFILE = UV_EMFILE ,/*-24 */
+        FS_EMSGSIZE = UV_EMSGSIZE ,/*-90 */
+        FS_ENAMETOOLONG = UV_ENAMETOOLONG ,/*-36 */
+        FS_ENETDOWN = UV_ENETDOWN ,/*-100 */
+        FS_ENETUNREACH = UV_ENETUNREACH ,/*-101 */
+        FS_ENFILE = UV_ENFILE ,/*-23 */
+        FS_ENOBUFS = UV_ENOBUFS ,/*-105 */
+        FS_ENODEV = UV_ENODEV ,/*-19 */
+        FS_ENOENT = UV_ENOENT ,/* -2 */
+        FS_ENOMEM = UV_ENOMEM ,/*-12 */
+        FS_ENONET = UV_ENONET ,/*-64 */
+        FS_ENOPROTOOPT = UV_ENOPROTOOPT ,/*-92 */
+        FS_ENOSPC = UV_ENOSPC ,/*-28 */
+        FS_ENOSYS = UV_ENOSYS ,/* -38 */
+        FS_ENOTCONN = UV_ENOTCONN ,/*-107 */
+        FS_ENOTDIR = UV_ENOTDIR ,/*-20 */
+        FS_ENOTEMPTY = UV_ENOTEMPTY ,/*-39 */
+        FS_ENOTSOCK = UV_ENOTSOCK ,/* -88 */
+        FS_ENOTSUP = UV_ENOTSUP ,/*-95 */
+        FS_EOVERFLOW = UV_EOVERFLOW ,/* -75 */
+        FS_EPERM = UV_EPERM ,/*-1 */
+        FS_EPIPE = UV_EPIPE ,/*-32 */
+        FS_EPROTO = UV_EPROTO ,/* -71 */
+        FS_EPROTONOSUPPORT = UV_EPROTONOSUPPORT ,/* -93 */
+        FS_EPROTOTYPE = UV_EPROTOTYPE ,/* -91 */
+        FS_ERANGE = UV_ERANGE ,/*-34 */
+        FS_EROFS = UV_EROFS ,/* -30 */
+        FS_ESHUTDOWN = UV_ESHUTDOWN ,/* -108 */
+        FS_ESPIPE = UV_ESPIPE ,/*-29 */
+        FS_ETIMEDOUT = UV_ETIMEDOUT ,/*-110 */
+        FS_ETXTBSY = UV_ETXTBSY ,/*-26 */
+        FS_EXDEV = UV_EXDEV ,/*-18 */
+        FS_UNKNOWN = UV_UNKNOWN ,/*-4094 */
+        FS_EOF = UV_EOF ,/* -4095 */
+        FS_ENXIO = UV_ENXIO ,/* -6 */
+        FS_EMLINK = UV_EMLINK ,/*-31 */
+        FS_EHOSTDOWN = UV_EHOSTDOWN ,/* -112 */
+        FS_EREMOTEIO = UV_EREMOTEIO ,/*-121 */
+        FS_ENOTTY = UV_ENOTTY ,/*-25 */
+        FS_EFTYPE = UV_EFTYPE ,/*-4028 */
+        FS_EILSEQ = UV_EILSEQ ,/*-84 */
+        FS_ESOCKTNOSUPPORT = UV_ESOCKTNOSUPPORT ,/*-94 */
+        FS_ENODATA = UV_ENODATA ,/*-61 */
+        FS_EUNATCH = UV_EUNATCH,/*-49 */
+        FS_ERRNO_MAX = UV_ERRNO_MAX/* -4096 */
     };
 
     typedef uv_dir_t dir_t;
@@ -213,7 +236,8 @@ namespace manapi::ev {
     typedef uv_statfs_t statfs_t;
     typedef uv_stat_t stat_t;
 
-    void callback_watcher_alloc (uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
+    void callback_watcher_tcp_connection_alloc (uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
+    void callback_watcher_udp_alloc (uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
     void callback_watcher_async (uv_async_t *s);
     void callback_watcher_timer (uv_timer_t *s);
     void callback_watcher_io (uv_poll_t *s, int status, int revents);

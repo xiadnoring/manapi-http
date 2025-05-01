@@ -267,6 +267,8 @@ void manapi::net::worker::TCP::connection_close(std::shared_ptr<connection> conn
 void manapi::net::worker::TCP::stop() {
     /* in the libev main loop */
     this->limit_rate_timer.sync_stop(this->site.async_context());
+    this->watcher->stop();
+    this->site.async_context()->eventloop()->stop_watcher(std::move(this->watcher));
 }
 
 ssize_t manapi::net::worker::TCP::sync_read(worker::connection *conn, void *buff, ssize_t size) {

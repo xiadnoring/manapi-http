@@ -63,8 +63,6 @@ namespace manapi::net::worker {
 
         virtual future<bool> configure_connection (std::shared_ptr<connection> conn) = 0;
 
-        virtual void onrecv (std::shared_ptr<ev::io> &watcher, int status, int revents) = 0;
-
         manapi::future<ssize_t> fwrite (connection &conn, const void *buff, ssize_t size, bool finish);
         manapi::future<ssize_t> fread (connection &conn, void *buff, ssize_t size);
 

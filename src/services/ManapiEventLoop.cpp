@@ -129,11 +129,13 @@ namespace manapi::ev::internal {
     struct tcp_connection_ctx {
         std::shared_ptr<ev::tcp> s_;
         ev::tcp_connection_cb read;
+        ev::tcp_alloc_cb alloc_cb;
     };
 
     struct udp_ctx {
         std::shared_ptr<ev::udp> s_;
         ev::udp_cb recv;
+        ev::udp_alloc_cb alloc_cb;
     };
 
     struct udp_send_ctx {
@@ -404,8 +406,14 @@ void manapi::ev::callback_watcher_random(uv_random_t *s, int status, void *buff,
 }
 
 
-void manapi::ev::callback_watcher_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+void manapi::ev::callback_watcher_tcp_connection_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+    static_cast<manapi::ev::internal::tcp_connection_ctx *> (handle->data)
+        ->alloc_cb(static_cast<manapi::ev::internal::tcp_connection_ctx *> (handle->data)->s_, suggested_size, buf);
+}
 
+void manapi::ev::callback_watcher_udp_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+    static_cast<manapi::ev::internal::udp_ctx *> (handle->data)
+        ->alloc_cb(static_cast<manapi::ev::internal::udp_ctx *> (handle->data)->s_, suggested_size, buf);
 }
 
 ssize_t double_store_in_ssize (double a) { ssize_t b = 0; memcpy (&b, &a, sizeof (a)); return a; }
@@ -632,23 +640,23 @@ std::shared_ptr<manapi::ev::tcp> manapi::event_loop::create_watcher_tcp_accept( 
     return std::move(w);
 }
 
-std::shared_ptr<manapi::ev::tcp> manapi::event_loop::create_watcher_tcp_connection( ev::tcp_connection_cb read) {
+std::shared_ptr<manapi::ev::tcp> manapi::event_loop::create_watcher_tcp_connection( ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb) {
     auto w = std::make_shared<ev::tcp>();
     if (auto rhs = w->bind(&this->loop_)) {
         throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
             std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
     }
-    w->data(new ev::internal::tcp_connection_ctx  {.s_ = w, .read = std::move(read)});
+    w->data(new ev::internal::tcp_connection_ctx  {.s_ = w, .read = std::move(read), .alloc_cb = std::move(alloc_cb)});
     return std::move(w);
 }
 
-std::shared_ptr<manapi::ev::udp> manapi::event_loop::create_watcher_udp(ev::udp_cb recv) {
+std::shared_ptr<manapi::ev::udp> manapi::event_loop::create_watcher_udp(ev::udp_cb recv, ev::udp_alloc_cb alloc_cb) {
     auto w = std::make_shared<ev::udp>();
     if (auto rhs = w->bind(&this->loop_)) {
         throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
             std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
     }
-    w->data(new ev::internal::udp_ctx {.s_ = w, .recv = std::move(recv)});
+    w->data(new ev::internal::udp_ctx {.s_ = w, .recv = std::move(recv), .alloc_cb = std::move(alloc_cb)});
     return std::move(w);
 }
 

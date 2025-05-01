@@ -84,7 +84,7 @@ namespace manapi::net::worker {
 
         explicit http_v3_cloudflare_quiche(net::site &site);
         ~http_v3_cloudflare_quiche() override;
-        void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents) override;
+        void onrecv(std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) override;
         void init() override;
         static std::shared_ptr<http_v3_cloudflare_quiche> create(net::site &site, std::shared_ptr<manapi::net::http::config> config);
         future<ssize_t> response(worker::connection &connection, http::response &resp, bool finish) override;
@@ -118,12 +118,11 @@ namespace manapi::net::worker {
         void _io_timeout (connection_t &conn_data);
         static void _quiche_timeout (std::shared_ptr<ev::timer> t, std::shared_ptr<worker::connection> connection);
         static int _grab_headers (uint8_t *name, size_t name_len, uint8_t *value, size_t value_len, void *argp);
-        static bool _validate_token (std::string_view token, std::string &odcid, const sockaddr_storage &sockaddr_src, const socklen_t &sockaddr_len);
-        static std::string _gen_mint_token (std::string_view dcid, const sockaddr_storage &sockaddr_src, const socklen_t &sockaddr_len);
+        static bool _validate_token (std::string_view token, std::string &odcid, const sockaddr *sockaddr_src, const socklen_t &sockaddr_len);
+        static std::string _gen_mint_token (std::string_view dcid, const sockaddr *sockaddr_src, const socklen_t &sockaddr_len);
         void _quiche_flush_egress(connection_t &connection);
         static void _quiche_timeout_again(connection_t &connection);
-        std::string gbuffer{};
-        size_t gbuffer_size{0};
+
         std::map <std::string, std::shared_ptr<worker::connection>> connections;
         std::function<std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche>()> new_dependency;
 
@@ -133,6 +132,7 @@ namespace manapi::net::worker {
         quiche_config *_quiche_config{nullptr};
         quiche_h3_config *_quiche_h3_config{nullptr};
         manapi::timer limit_rate_timer{};
+        std::string gbuffer;
     };
 }
 
