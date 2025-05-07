@@ -25,26 +25,13 @@ namespace manapi {
 
         ~promise_base() = default;
 
-        promise_base(promise_base &&n) noexcept {
-            this->operator=(std::forward<decltype(n)>(n));
-        }
-
-        promise_base &operator= (promise_base &&n) noexcept {
-            this->finish_cb = std::move(n.finish_cb);
-            this->exception = std::move(n.exception);
-            this->waiting = std::exchange(n.waiting, {});
-
-            return *this;
-        }
-
         void unhandled_exception () {
-            exception = std::current_exception();
+            this->exception = std::current_exception();
         }
 
         int stack_deepth = 0;
         std::coroutine_handle<> waiting;
-        std::exception_ptr exception{nullptr};
-        std::move_only_function<void()> finish_cb{nullptr};
+        std::exception_ptr exception;
         threadpool<task> *taskpool{nullptr};
     };
 
@@ -55,12 +42,34 @@ namespace manapi {
         template<typename P>
         struct final_awaiter {
             bool await_ready () noexcept { return false; }
-            auto await_suspend (std::coroutine_handle<P> handle) noexcept {
-                auto &_promise = handle.promise();
-                auto waiting = std::exchange(_promise.waiting, nullptr);
 
-                if (_promise.finish_cb) {
-                    _promise.finish_cb();
+            template<typename T1 = T>
+            requires(std::is_same_v<T, void>)
+            auto await_suspend (std::coroutine_handle<P> handle) noexcept {
+                auto &promise_ = handle.promise();
+                auto waiting = std::exchange(promise_.waiting, nullptr);
+
+                if (promise_.finish_cb) {
+                    promise_.finish_cb->operator()(std::move(promise_.exception));
+                }
+
+                return waiting ? waiting : std::noop_coroutine();
+            }
+
+            template<typename T1 = T>
+            requires(!std::is_same_v<T, void>)
+            auto await_suspend (std::coroutine_handle<P> handle) noexcept {
+                auto &promise_ = handle.promise();
+                auto waiting = std::exchange(promise_.waiting, nullptr);
+
+                if (promise_.finish_cb) {
+                    if (promise_.exception) {
+                        promise_.finish_cb->operator()(std::move(promise_.exception), nullptr);
+                    }
+                    else {
+                        auto value_ = promise_.get_value();
+                        promise_.finish_cb->operator()(std::move(promise_.exception), &value_);
+                    }
                 }
 
                 return waiting ? waiting : std::noop_coroutine();
@@ -106,13 +115,14 @@ namespace manapi {
             final_awaiter<promise> final_suspend() noexcept {
                 return {};
             }
-        private:
+
+            std::unique_ptr<std::move_only_function<void(std::exception_ptr err, T *v)>> finish_cb{nullptr};
             std::optional<T> value{};
         };
 
         using value_type = T;
         using promise_type = promise;
-        explicit future(std::coroutine_handle<promise> handle) : handle (std::exchange(handle, nullptr)) {
+        explicit future(std::coroutine_handle<promise> handle) : handle_ (std::exchange(handle, nullptr)) {
 
         }
 
@@ -121,73 +131,32 @@ namespace manapi {
         }
 
         future (future &&n) noexcept {
-            this->operator=(std::forward<decltype(n)>(n));
+            this->handle_ = std::exchange(n.handle_, nullptr);
         }
 
         future &operator=(future &&n) noexcept {
-            this->handle = std::exchange(n.handle, nullptr);
+            this->handle_ = std::exchange(n.handle_, nullptr);
 
             return *this;
         }
 
         void reset () {
-            if (this->handle) {
-                this->handle.destroy();
-                this->handle = nullptr;
+            if (this->handle_) {
+                this->handle_.destroy();
+                this->handle_ = nullptr;
             }
         }
 
         std::coroutine_handle<promise> release () {
-            return std::exchange(this->handle, nullptr);
-        }
-
-        operator future<void> () noexcept {
-            return future<void> (this->handle);
+            return std::exchange(this->handle_, nullptr);
         }
 
         void operator()() {
-            this->resume_promise(this->handle);
-        }
-
-        template <typename T1 = T>
-        requires(std::is_same_v<T1, void>)
-        void get(std::shared_ptr<threadpool<task>> taskpool) {
-            if (!this->handle.done()) {
-                std::mutex mx;
-                bool stop = false;
-                {
-                    mx.lock();
-                    this->on_finish([&stop, &mx] () -> void {
-                        stop = true;
-                        mx.unlock();
-                    }, std::move(taskpool));
-                    this->resume_promise(this->handle);
-                    mx.lock();
-                }
-            }
-        }
-
-        template <typename T1 = T>
-        requires(!std::is_same_v<T1, void>)
-        T1 get(std::shared_ptr<threadpool<task>> taskpool) {
-            if (!this->handle.done()) {
-                std::mutex mx;
-                bool stop = false;
-                {
-                    mx.lock();
-                    this->on_finish([&stop, &mx] () -> void {
-                        stop = true;
-                        mx.unlock();
-                    }, std::move(taskpool));
-                    this->resume_promise(this->handle);
-                    mx.lock();
-                }
-            }
-            return std::move(this->handle.promise().get_value());
+            this->resume_promise(this->handle_);
         }
 
         [[nodiscard]] bool operator==(const nullptr_t &n) const {
-            return this->handle == nullptr;
+            return this->handle_ == nullptr;
         }
 
         [[nodiscard]] bool operator!=(const nullptr_t &n) const {
@@ -223,7 +192,7 @@ namespace manapi {
                 return !this->handle || this->handle.done();
             }
             template <typename T1 = T>
-            requires(std::is_same_v<T1, void>)
+            requires(std::is_same_v<T, void>)
             void await_resume() {
                 auto &promise_ = this->handle.promise();
 
@@ -233,7 +202,7 @@ namespace manapi {
             }
 
             template <typename T1 = T>
-            requires(!std::is_same_v<T1, void>)
+            requires(!std::is_same_v<T, void>)
             T await_resume() {
                 auto &promise_ = this->handle.promise();
                 if (promise_.exception) {
@@ -250,25 +219,37 @@ namespace manapi {
             handle.resume();
         }
 
-        void on_finish (std::move_only_function<void()> cb, std::shared_ptr<threadpool<task>> taskpool) {
-            if (this->handle) {
-                auto &promise = this->handle.promise();
-                promise.finish_cb = std::move(cb);
-                promise.taskpool = taskpool.get();
+        template <typename T1 = T>
+        requires(std::is_same_v<T, void>)
+        void onfinish (std::move_only_function<void(std::exception_ptr err)> cb, threadpool<task> *taskpool) {
+            if (this->handle_) {
+                auto &promise = this->handle_.promise();
+                promise.finish_cb = std::move(std::make_unique<decltype(cb)>(std::move(cb)));
+                promise.taskpool = taskpool;
+            }
+        }
+
+        template <typename T1 = T>
+        requires(!std::is_same_v<T, void>)
+        void onfinish (std::move_only_function<void(std::exception_ptr err, T *v)> cb, threadpool<task> *taskpool) {
+            if (this->handle_) {
+                auto &promise = this->handle_.promise();
+                promise.finish_cb = std::move(std::make_unique<decltype(cb)>(std::move(cb)));
+                promise.taskpool = taskpool;
             }
         }
 
         [[nodiscard]] bool finished () const {
-            return !this->handle || this->handle.done();
+            return !this->handle_ || this->handle_.done();
         }
 
-        [[nodiscard]] const std::coroutine_handle<promise> &get_handle () {
-            return this->handle;
+        [[nodiscard]] const std::coroutine_handle<promise> &handle () {
+            return this->handle_;
         }
 
-        auto operator co_await () noexcept { return Awaiter{this->handle}; }
+        auto operator co_await () noexcept { return Awaiter{this->handle_}; }
     private:
-        std::coroutine_handle<promise> handle;
+        std::coroutine_handle<promise> handle_;
     };
 
     template<>
@@ -289,5 +270,7 @@ namespace manapi {
         {
             return future<void>{ std::coroutine_handle<promise>::from_promise(*this) };
         }
+
+        std::unique_ptr<std::move_only_function<void(std::exception_ptr err)>> finish_cb{nullptr};
     };
 }

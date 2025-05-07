@@ -72,7 +72,7 @@ namespace manapi::async {
             this->value = std::make_shared<value_t>();
             auto taskrun = this->value->run(std::move(task));
             async::run(this->ctx->taskpool(), std::move(taskrun),
-            [mx = this->mx, value = this->value] ()
+            [mx = this->mx, value = this->value] (std::exception_ptr err)
                 -> void {
                 mx->unlock();
             });
@@ -88,7 +88,7 @@ namespace manapi::async {
         this->value = std::make_shared<value_t>();
         auto taskrun = this->value->run(std::move(task));
         async::run(this->ctx->taskpool(), std::move(taskrun),
-        [mx = this->mx, value = this->value] ()
+        [mx = this->mx, value = this->value] (std::exception_ptr err)
             -> void {
             mx->unlock();
         });

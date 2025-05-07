@@ -20,6 +20,10 @@ const std::map <std::string, manapi::net::http::versions::http> http_version_to_
 };
 
 manapi::net::http::config::config(async::shared_ctx ctx, const json &config) {
+    this->max_buffer_stack_.store(5);
+    this->max_plain_param_length_.store(16000UL);
+    this->max_file_param_length_.store(2147483648UL);
+
     /* partial data min size */
     if (config.contains("partial_data_min_size"))
     {
@@ -351,6 +355,10 @@ std::atomic<bool> &manapi::net::http::config::is_quic_debug() {
 
 std::atomic <size_t> &manapi::net::http::config::quic_cc_algo() {
     return this->quic_cc_algo_;
+}
+
+std::atomic<size_t> & manapi::net::http::config::max_buffer_stack() {
+    return this->max_buffer_stack_;
 }
 
 std::atomic<ssize_t> & manapi::net::http::config::max_rst_cnt() {

@@ -15,7 +15,7 @@ const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 constexpr ssize_t line_max_size = 500;
 
 manapi::net::formdata_recv::formdata_recv(async::shared_ctx ctx, size_t buffer_size,
-            ssize_t &body_buffer_size, char *buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read) : ctx(std::move(ctx)) {
+            int &body_buffer_size, char *buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read) : ctx(std::move(ctx)) {
     this->body_index = &body_index;
     this->body_buffer = buffer;
     this->body_buffer_size = &body_buffer_size;
@@ -54,7 +54,7 @@ manapi::future<> manapi::net::formdata_recv::_init(bool has_body, const std::str
 
     auto &content_type_value = header[0].value;
     if (*this->body_max_size_left >= 0) {
-        *this->body_buffer_size = std::min(*this->body_buffer_size, *this->body_max_size_left);
+        *this->body_buffer_size = std::min(static_cast<ssize_t>(*this->body_buffer_size), *this->body_max_size_left);
     }
 
     if (content_type_value == mime::types.MULTIPART_FORM_DATA)
@@ -330,7 +330,7 @@ manapi::future<void> manapi::net::formdata_recv::urlencoded_read_param(std::func
                 if (rhs > *this->body_max_size_left) {
                     THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_BODY_TOO_LONG, "http body too long. take it easy");
                 }
-                *this->body_buffer_size = std::min (*this->body_buffer_size, *this->body_max_size_left);
+                *this->body_buffer_size = std::min (static_cast<ssize_t>(*this->body_buffer_size), *this->body_max_size_left);
             }
         }
 

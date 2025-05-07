@@ -9,18 +9,19 @@
 #include "ManapiAsync.hpp"
 #include "ManapiJson.hpp"
 #include "ManapiJsonMask.hpp"
-#include "services/ManapiTask.hpp"
-#include "services/ManapiTimerPool.hpp"
 #include "compress/ManapiCompress.hpp"
-#include "async/ManapiAsyncTimer.hpp"
 
-#include "ManapiHttpRequest.hpp"
-#include "ManapiHttpResponse.hpp"
 #include "async/ManapiAsyncMutex.hpp"
-#include "services/ManapiEventLoop.hpp"
+#include "http/Utils.hpp"
+#include "ManapiHttpConfig.hpp"
 
 namespace manapi::net::worker {
     class base;
+}
+
+namespace manapi::net::http {
+    class request;
+    class response;
 }
 
 namespace manapi::net {
@@ -97,7 +98,7 @@ namespace manapi::net {
         http_uri_part *handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
         http_uri_part *handler (std::string method, std::string uri, std::string folder);
 
-        http_handler_page handler (http::request_data_t &request_data) const;
+        std::unique_ptr<http_handler_page> handler (http::request_data_t *request_data) const;
 
         void compressor_for_file (const std::string &name, std::move_only_function<future<void>(std::string src, std::string dest)> handler);
         void compressor_for_string (const std::string &name, std::move_only_function<std::string(std::string_view data)> handler);

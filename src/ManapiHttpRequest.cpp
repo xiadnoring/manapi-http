@@ -7,14 +7,17 @@
 #include "ManapiHttpMime.hpp"
 #include "http/base_http.hpp"
 #include "http/ManapiURLParams.hpp"
+#include "include/ManapiHttpStructs.hpp"
 
 
-manapi::net::http::request::request(const manapi::net::http::manapi_socket_information &ip_data, manapi::net::http::request_data_t &request_data, http::base *http_task, std::shared_ptr<http::config> config, const void *handler) : config(std::move(config))
-{
-    this->ip_data_ = &ip_data;
-    this->request_data = &request_data;
-    this->http_task = http_task;
-    this->page_handler = handler;
+manapi::net::http::request::request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::connection *conn, worker::shared_worker worker, const http_handler_functions *handler)  {
+    this->conn_ = (conn);
+    this->ip_data_ = std::move(ip_data);
+    this->request_data = request_data;
+    this->worker_ = std::move(worker);
+    this->flags = 0;
+    this->max_plain_body_size_ = 1000000;
+    this->handler_ = handler;
 }
 
 manapi::net::http::request::~request () = default;
@@ -67,7 +70,7 @@ std::string manapi::net::http::request::dump() const {
 }
 
 manapi::future<std::string> manapi::net::http::request::text() {
-    if (!this->request_data->has_body)
+    if (!(this->request_data->flags & internal::REQ_DATA_FLAG_HAS_BODY))
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
     }
@@ -113,11 +116,11 @@ manapi::future<manapi::json> manapi::net::http::request::json()
 
 manapi::future<manapi::net::formdata_recv> manapi::net::http::request::form ()
 {
-    formdata_recv formdata (this->http_task->get_site().async_context(), this->request_data->buffer->size(),
-        this->request_data->body_part, this->request_data->buffer->data(), this->request_data->body_left, this->request_data->body_index, [http_base = this->http_task] (void *buff, ssize_t buff_size)
-        -> future<ssize_t> { return http_base->read(buff, buff_size);  });
-    co_await formdata._init(this->request_data->has_body, this->request_data->headers[http::HEADER.CONTENT_TYPE]);
-    co_return std::move(formdata);
+    // formdata_recv formdata (this->worker_->site().async_context(), this->request_data->buffer->size(),
+    //     this->request_data->body_part, this->request_data->buffer->data(), this->request_data->body_left, this->request_data->body_index, [worker = this->worker_, conn = this->conn_] (void *buff, ssize_t buff_size)
+    //     -> future<ssize_t> { return worker->read(conn, buff, buff_size);  });
+    // co_await formdata._init(this->request_data->flags & internal::REQ_DATA_FLAG_HAS_BODY, this->request_data->headers[http::HEADER.CONTENT_TYPE]);
+    // co_return std::move(formdata);
 }
 
 manapi::future<> manapi::net::http::request::callback_sync( std::move_only_function<ssize_t(const char *buffer, ssize_t size)> callback) {
@@ -129,7 +132,7 @@ manapi::future<> manapi::net::http::request::callback_async(std::move_only_funct
 }
 
 manapi::future<> manapi::net::http::request::file(std::string filepath) {
-    manapi::filesystem::fstream f (this->http_task->get_site().async_context(), filepath);
+    manapi::filesystem::fstream f (this->worker_->site().async_context(), filepath);
     co_await f.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_TRUNC);
 
     if (!f.is_open()) {
@@ -160,8 +163,8 @@ ssize_t manapi::net::http::request::body_size() {
 const std::string & manapi::net::http::request::get(const std::string &key) {
     this->prepare_get_params_();
 
-    auto it = this->get_params_.value().find(key);
-    if (it == this->get_params_.value().end()) {
+    auto it = this->get_params_->find(key);
+    if (it == this->get_params_->end()) {
         THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PARAM_MISSING, "GET param {} is missing", key);
     }
 
@@ -170,7 +173,7 @@ const std::string & manapi::net::http::request::get(const std::string &key) {
 
 bool manapi::net::http::request::contains_get_param(const std::string &key) {
     this->prepare_get_params_();
-    return this->get_params_.value().contains(key);
+    return this->get_params_->contains(key);
 }
 
 void manapi::net::http::request::max_plain_body_size(const size_t &size) {
@@ -186,126 +189,50 @@ const std::string &manapi::net::http::request::header(const std::string &name) {
 }
 
 void manapi::net::http::request::prepare_get_params_() {
-    if (!this->get_params_.has_value()) {
+    if (!this->get_params_) {
+        this->get_params_ = std::make_unique<decltype(this->get_params_)::element_type>();
+
         if (this->request_data->divided != -1) {
-            this->get_params_ = http::parse_get_params (this->request_data->path[this->request_data->divided]);
-        }
-        else {
-            this->get_params_ = decltype(this->get_params_)::value_type();
+            *this->get_params_ = http::parse_get_params (this->request_data->path[this->request_data->divided]);
         }
 
         // verify params
         auto &mask = this->get_mask();
-        if (mask && !mask->valid(this->get_params_.value())) {
+        if (mask && !mask->valid(*this->get_params_)) {
             THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_GET_PARAMS_MASK_FAILED, "GET params verify failed");
         }
     }
 }
 
 const std::unique_ptr<const manapi::json_mask> &manapi::net::http::request::post_mask() const {
-    return static_cast<const http_handler_page *> (this->page_handler)->handler->post_mask;
+    return this->handler_->post_mask;
 }
 
 const std::unique_ptr<const manapi::json_mask> &manapi::net::http::request::get_mask() const {
-    return static_cast<const http_handler_page *> (this->page_handler)->handler->get_mask;
+    return this->handler_->get_mask;
 }
 
-void manapi::net::http::request::stop_propagation(const bool &stop_propagation) {
-    this->is_propagation = !stop_propagation;
+void manapi::net::http::request::stop_propagation() {
+    this->propagation(false);
+}
+
+void manapi::net::http::request::propagation(bool state) {
+    if (state) {
+        this->flags |= internal::REQUEST_FLAG_IS_PROPAGATION;
+    }
+    else if (this->flags & internal::REQUEST_FLAG_IS_PROPAGATION) {
+        this->flags ^= internal::REQUEST_FLAG_IS_PROPAGATION;
+    }
 }
 
 bool manapi::net::http::request::propagation() const {
-    return this->is_propagation;
+    return this->flags & internal::REQUEST_FLAG_IS_PROPAGATION;
 }
 
 manapi::future<void> manapi::net::http::request::_read_body(std::move_only_function<ssize_t(const char *, ssize_t)> handler) {
-    if (this->request_data->body_left >= 0) {
-        this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left)
-            - this->request_data->body_index;
-    }
 
-    this->request_data->body_left -= this->request_data->body_index;
-
-    while (true) {
-        {
-            ssize_t cursor = 0;
-            while (cursor < this->request_data->body_part) {
-                auto rhs = handler (this->request_data->buffer->data() + this->request_data->body_index + cursor, this->request_data->body_part - cursor);
-                if (rhs < 0) { THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "The custom handler returned an invalid signal"); }
-                cursor += rhs;
-            }
-        }
-
-        this->request_data->body_left -= this->request_data->body_part;
-        this->request_data->body_index = 0;
-
-        if (this->request_data->body_left != 0) {
-            ssize_t request_size;
-            if (this->request_data->body_left < 0) {
-                request_size = static_cast<ssize_t>(this->request_data->buffer->size());
-            }
-            else {
-                request_size = std::min(static_cast<ssize_t>(this->request_data->buffer->size()), this->request_data->body_left);
-            }
-            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer->data(), request_size);
-            if (this->request_data->body_part < 0) {
-                THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
-            }
-            if (this->request_data->body_part == 0) {
-                /* eof */
-                break;
-            }
-
-            continue;
-        }
-
-        break;
-    }
-
-    handler(nullptr, 0);
 }
 
 manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t)> handler) {
-    if (this->request_data->body_left >= 0) {
-        this->request_data->body_part = std::min (this->request_data->body_part, this->request_data->body_left)
-            - this->request_data->body_index;
-    }
-    this->request_data->body_left -= this->request_data->body_index;
 
-    while (true) {
-        {
-            ssize_t cursor = 0;
-            while (cursor < this->request_data->body_part) {
-                auto rhs = co_await handler (this->request_data->buffer->data() + this->request_data->body_index + cursor, this->request_data->body_part - cursor);
-                if (rhs < 0) { THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PROTOCOL_ERROR, "The custom handler returned an invalid signal"); }
-                cursor += rhs;
-            }
-        }
-        this->request_data->body_left -= this->request_data->body_part;
-        this->request_data->body_index = 0;
-
-        if (this->request_data->body_left != 0) {
-            ssize_t request_size;
-            if (this->request_data->body_left < 0) {
-                request_size = static_cast<ssize_t>(this->request_data->buffer->size());
-            }
-            else {
-                request_size = std::min(static_cast<ssize_t>(this->request_data->buffer->size()), this->request_data->body_left);
-            }
-            this->request_data->body_part = co_await this->http_task->read(this->request_data->buffer->data(), request_size);
-            if (this->request_data->body_part < 0) {
-                THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_CONNECTION_WAS_CLOSED, "Connection was closed");
-            }
-            if (this->request_data->body_part == 0) {
-                /* eof */
-                break;
-            }
-
-            continue;
-        }
-
-        break;
-    }
-
-    co_await handler (nullptr, 0);
 }

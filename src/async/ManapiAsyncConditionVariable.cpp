@@ -1,7 +1,10 @@
 #include "async/ManapiAsyncConditionVariable.hpp"
 
 void manapi::async::condition_variable::promise::await_suspend(std::coroutine_handle<future<>::promise> handle) {
-    async::run(this->taskpool, this->gmx->lock(), [cond = std::move(this->cond), stack = this->stack, gmx = this->gmx, handle = std::exchange(handle, nullptr)] () mutable -> void {
+    async::run(this->taskpool, this->gmx->lock(),
+        [cond = std::move(this->cond), stack = this->stack, gmx = this->gmx, handle = std::exchange(handle, nullptr)]
+        (std::exception_ptr err) mutable
+            -> void {
         stack->push_back({handle, std::move(cond)});
         gmx->unlock();
     });

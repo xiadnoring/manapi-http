@@ -43,7 +43,7 @@ manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
 
 std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_TLS::create(net::site &site, std::shared_ptr<manapi::net::http::config> config) {
     auto worker = std::make_shared<worker::OpenSSL_TLS>(site);
-    worker->set_config(std::move(config));
+    worker->config(std::move(config));
     return std::move(worker);
 }
 
@@ -89,15 +89,45 @@ void manapi::net::worker::OpenSSL_TLS::ssl_free_(void *ssl) {
     SSL_free(static_cast<SSL*>(ssl));
 }
 
-void manapi::net::worker::OpenSSL_TLS::recv_setup_connection(manapi::net::worker::connection &storage) {
+int manapi::net::worker::OpenSSL_TLS::ssl_bio_read_(void *wbio, void *buff, int size) {
+    return BIO_read(static_cast<BIO*>(wbio), buff, static_cast<int>(size));
+}
+
+int manapi::net::worker::OpenSSL_TLS::ssl_bio_write_(void *rbio, const void *buff, int size) {
+    return BIO_write(static_cast<BIO*>(rbio), buff, static_cast<int>(size));
+}
+
+int manapi::net::worker::OpenSSL_TLS::ssl_bio_should_retry_(void *bio) {
+    return BIO_should_retry(static_cast<BIO*>(bio));
+}
+
+bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(manapi::net::worker::connection *storage) {
     ERR_clear_error();
 
-    auto &conn_data = storage.as<connection_interface>();
-    SSL_set_fd(static_cast<SSL*>(conn_data.ssl), conn_data.id);
-    conn_data.status.fetch_or(CONN_IDLE);
+    auto conn_data = storage->as<connection_interface>();
+    conn_data->status |= CONN_IDLE;
 
-    SSL_set_blocking_mode(static_cast<SSL*>(conn_data.ssl), 0);
-    SSL_set_accept_state(static_cast<SSL*>(conn_data.ssl));
+    conn_data->wbio = BIO_new(BIO_s_mem());
+    if (!conn_data->wbio) {
+        goto err;
+    }
+
+    conn_data->rbio = BIO_new(BIO_s_mem());
+    if (!conn_data->rbio) {
+        goto err;
+    }
+
+    if (!SSL_set_blocking_mode(static_cast<SSL*>(conn_data->ssl), 0)) {
+        goto err;
+    }
+
+    SSL_set_accept_state(static_cast<SSL*>(conn_data->ssl));
+
+    SSL_set_bio(static_cast<SSL*>(conn_data->ssl), static_cast<BIO*>(conn_data->rbio), static_cast<BIO*>(conn_data->wbio));
+
+    return true;
+err:
+    return false;
 }
 
 void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &version) {
@@ -107,13 +137,10 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     switch (version)
     {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        // ReSharper disable once CppDeprecatedEntity
         case http::versions::TLS_v1:      method = TLSv1_server_method();     break;
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        // ReSharper disable once CppDeprecatedEntity
         case http::versions::TLS_v1_1:    method = TLSv1_1_server_method();   break;
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        // ReSharper disable once CppDeprecatedEntity
         case http::versions::TLS_v1_2:    method = TLSv1_2_server_method();   break;
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         case http::versions::TLS_v1_3:    method = TLS_server_method();       break;
@@ -138,14 +165,17 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     //SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
     //SSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
 
-    auto cipher_list = this->config->cipher_list();
-    SSL_CTX_set_cipher_list(ctx, static_cast<const char *>(cipher_list->data()));
+    auto cipher_list = this->config()->cipher_list();
+    if (!SSL_CTX_set_cipher_list(ctx, static_cast<const char *>(cipher_list->data()))) {
+        goto err;
+    }
+
     SSL_CTX_set_alpn_select_cb(ctx, [] (SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,
         unsigned int inlen, void *arg) -> int {
         auto worker = static_cast<OpenSSL_TLS *> (arg);
         std::vector <std::string> wishs;
         {
-            auto b = worker->config->http_versions().get();
+            auto b = worker->config()->http_versions().get();
             for (const auto &version : *b) {
                 switch (version) {
                     case http::versions::HTTP_v1_0:
@@ -189,11 +219,13 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     }, this);
 
     return ctx;
+err:
+    THROW_MANAPIHTTP_EXCEPTION2 (ERR_SSL_CONNECTION, "couldn't setup SSL ctx due to error");
 }
 
 void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
     ERR_clear_error();
-    auto sslconfig = this->config->ssl_config();
+    auto sslconfig = this->config()->ssl_config();
     if (SSL_CTX_use_certificate_file(static_cast<SSL_CTX*>(this->ctx), sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use cert file openssl");
@@ -205,10 +237,10 @@ void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
     }
 
     if (!SSL_CTX_check_private_key(static_cast<SSL_CTX*>(this->ctx))) {
-        MANAPIHTTP_LOG(this->site.async_context(), "Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
+        MANAPIHTTP_LOG(this->site().async_context(), "Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
     }
 
-    SSL_CTX_set_verify(static_cast<SSL_CTX*>(this->ctx), this->config->verify_peer().load() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
+    SSL_CTX_set_verify(static_cast<SSL_CTX*>(this->ctx), this->config()->verify_peer().load() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
     SSL_CTX_set_verify_depth(static_cast<SSL_CTX*>(this->ctx), 1);
 }
 

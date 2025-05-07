@@ -52,7 +52,7 @@ void manapi::net::http::request_data_clear(request_data_t &data) {
     data.body_left = 0;
     data.body_part = 0;
     data.body_size = 0;
-    data.has_body = false;
+    data.flags = 0;
     data.headers_part = 0;
     data.headers_size = 0;
     data.divided = -1;

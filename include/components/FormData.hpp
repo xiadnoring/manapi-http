@@ -19,7 +19,7 @@ namespace manapi::net {
     class formdata_recv {
     public:
         formdata_recv (async::shared_ctx ctx, size_t buffer_size,
-            ssize_t &body_buffer_size, char *buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read);
+            int &body_buffer_size, char *buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read);
         ~formdata_recv ();
 
         formdata_recv (formdata_recv &&n) noexcept;
@@ -77,7 +77,7 @@ namespace manapi::net {
         content_type content_type_form = CONTENT_TYPE_NONE;
 
         char *body_buffer;
-        ssize_t *body_buffer_size;
+        int *body_buffer_size;
         ssize_t *body_max_size_left;
         ssize_t *body_index;
     };

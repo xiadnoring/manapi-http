@@ -361,6 +361,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/components/ManapiEventStructures.cpp
         src/include/ManapiWindows.hpp
         src/crypto/ManapiCryptoUtils.cpp
+        src/include/ManapiHttpResponseStructs.hpp
+        src/include/ManapiDefaultErrors.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

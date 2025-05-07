@@ -34,6 +34,7 @@ namespace manapi::ev {
     typedef std::move_only_function<void(std::shared_ptr<ev::write> &, int status)> write_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::fs> &)> fs_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size)> random_cb;
+    typedef std::move_only_function<void(const std::shared_ptr<ev::tcp> &)> tcp_close_cb;
 }
 
 namespace manapi::ev::internal {
@@ -109,6 +110,15 @@ namespace manapi {
          * @throws manapi::exception with ERR_WATCHER_BIND code
          */
         std::shared_ptr<ev::io> create_watcher_fd (fd_t fd, ev::io_cb callback);
+
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
+        std::shared_ptr<ev::idle> create_watcher_idle (ev::idle_cb callback);
+
         /**
          *
          * @param callback Callback
@@ -153,6 +163,16 @@ namespace manapi {
          */
         std::shared_ptr<ev::random> create_watcher_random (ev::random_cb callback, char *buff, std::size_t size);
 
+        /**
+         *
+         * @param conn TCP connection
+         * @param callback Callback
+         * @param bufs
+         * @param nbuf
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @return
+         */
+        std::shared_ptr<ev::write> create_watcher_write (ev::tcp *conn, ev::write_cb callback, const ev::buff_t *bufs, uint32_t nbuf);
 
         template<typename T>
         void stop_watcher (T *w) { perror("not implemented"); }
@@ -164,7 +184,7 @@ namespace manapi {
         }
 
         void stop_watcher_tcp_accept (std::shared_ptr<ev::tcp> s);
-        void stop_watcher_tcp_connection (std::shared_ptr<ev::tcp> s);
+        void stop_watcher_tcp_connection (std::shared_ptr<ev::tcp> s, std::unique_ptr<ev::tcp_close_cb> close_cb);
 
         future<std::shared_ptr<ev::fs>> fs_open (std::string path, int flags, int mode, ev::fs_cb callback);
         future<std::shared_ptr<ev::fs>> fs_write (ev::file file, const void *data, ssize_t size, ev::fs_cb callback, int64_t offset = -1);
@@ -215,7 +235,7 @@ namespace manapi {
 
         future<> stop_poll (std::shared_ptr<ev::io> w);
 
-        [[nodiscard]] std::shared_ptr<threadpool<task>> taskpool () const;
+        [[nodiscard]] const std::shared_ptr<threadpool<task>> &taskpool () const;
 #if MANAPIHTTP_CURL_DEPENDENCY
         future<void> watch_curl (std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb);
         future<void> unwatch_curl (std::shared_ptr<CURL> curl);
@@ -239,42 +259,65 @@ namespace manapi {
         static void interrupt ();
     protected:
         void custom_watcher_fs_async (std::shared_ptr<ev::async> &w);
+
         void custom_watcher_async_async (std::shared_ptr<ev::async>  &w);
+
         void custom_watcher_timer_async (std::shared_ptr<ev::async>  &w);
+
         void custom_watcher_poll_async (std::shared_ptr<ev::async>  &w);
 #if MANAPIHTTP_CURL_DEPENDENCY
+
         void custom_watcher_curl_async (std::shared_ptr<ev::async>  &w);
+
         void handle_curl_exec_connections ();
+
         void handle_curl_check_connections ();
 #endif
+
         void custom_watcher_timerloop_async (std::shared_ptr<ev::async> &w);
+
         void custom_watcher_callback_async (std::shared_ptr<ev::async>  &w);
     private:
-        void handle_tasks_do_event (std::shared_ptr<ev::prepare> &w);
 #if MANAPIHTTP_CURL_DEPENDENCY
         static std::shared_ptr<ev::io> handle_curl_watcher_gen(event_loop *data, socket_t fd);
+
         static curl_socket_t handle_curl_open_socket (void *cbp, curlsocktype type, curl_sockaddr *addr);
+
         static_assert(ev::READ == CURL_POLL_IN && ev::WRITE == CURL_POLL_OUT, "need for review");
+
         static int handle_curl_socket (CURL *curl, curl_socket_t fd, int revents, void *userp, void *);
+
         static int handle_curl_close_socket (void *cbp, curl_socket_t socket);
+
         void handle_curl_watcher_data(std::unique_ptr<ev::internal::adding_curl_data_t> data);
 #endif
         future<std::optional<manapi::timer>> template_cmd_timer_ (int flag, size_t data, std::move_only_function<manapi::future<>(manapi::timer t)> cb_async, std::move_only_function<void(manapi::timer t)> cb_sync);
+
         static std::atomic<bool> interrupted;
+
         static std::map <size_t, std::shared_ptr<event_loop>> events;
+
         static std::mutex stop_mx;
 
         void pool_(manapi::before_delete lk2, std::shared_ptr<event_loop> le);
+
         manapi::future<> _call_on_finish_cb ();
+
         void free_on_finish_cb_ ();
+
         void stop_pool (async::promise<void>::resolve_t resolve);
+
         void async_break_loop_ (std::shared_ptr<ev::async> watcher);
 
+        void try_tasks_ (ev::shared_idle &w);
+
         bool status;
+
+        std::shared_ptr<threadpool<task>> etaskpool_;
         std::shared_ptr<async::mutex> mx;
         std::shared_ptr<async::mutex> map_finish_cb_mx;
         std::shared_ptr<async::mutex> map_clean_up_cb_mx;
-        uv_loop_t loop_;
+        std::unique_ptr<uv_loop_t> loop_;
         std::shared_ptr<threadpool<task>> taskpool_;
         std::map <size_t, std::move_only_function<manapi::future<void>()>> map_finish_cb;
         std::map <size_t, std::move_only_function<void()>> map_clean_up_cb;
@@ -292,7 +335,7 @@ namespace manapi {
 #endif
         std::unique_ptr<ev::internal::timerloop_t> timerloop;
         std::unique_ptr<ev::internal::custom_callback_t> callback_watcher_{};
-        std::shared_ptr<ev::prepare> do_tasks_watcher;
+        std::shared_ptr<ev::idle> idle_tasks_;
         std::shared_ptr<manapi::logger> logger_;
     };
 }

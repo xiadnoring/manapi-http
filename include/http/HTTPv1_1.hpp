@@ -1,59 +1,33 @@
-#ifndef MANAPIHTTP_HTTP_HTTPV1_1_HPP
-#define MANAPIHTTP_HTTP_HTTPV1_1_HPP
+#pragma once
 
 #include "../ManapiUtils.hpp"
 #include "./base_http.hpp"
 #include "../ManapiHttpConfig.hpp"
+#include "components/ManapiURLDecodeStream.hpp"
 
 namespace manapi::net::http {
-    class http_v1_1 : public http::base
-    {
-    public:
-        enum available_flags {
-            FLAG_UPGRADED_BY_SERVER = 0b1
-        };
-
-        http_v1_1 (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
-        ~http_v1_1 () override;
-        static std::shared_ptr<http_v1_1> create (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
-        void doit() override;
-        manapi::future<bool> parse_request(ssize_t j, ssize_t size) override;
-        manapi::future<void> execute_handler () override;
-
-        [[nodiscard]] bool connection_was_upgraded () const;
-        [[nodiscard]] int upgraded_version () const;
-        future<ssize_t> read (void *buffer, ssize_t size) override;
-        [[nodiscard]] int flags () const;
-    protected:
-        future<bool> validate_http_version() override;
-        void _skip_white_space (char &c);
-        void _next_line (char &c);
-        void _parse_headers (char &c);
-
-        future<versions::http> upgrade_connection ();
-
-        struct parse_vars_t {
-            // states
-            std::string buffer;
-
-            bool next_line_state = false;
-            char hex_symbols[2];
-            char hex_index = -1;
-
-            // Headers
-            std::string key;
-            std::string *value;
-
-            bool is_key = true;
-            bool dbl = false;
-
-            bool finished = false;
-        } parse_vars;
-
-        int flags_ = 0;
-        int upgraded = versions::HTTP_v1_1;
-        std::move_only_function<manapi::future<ssize_t>(void *buffer, ssize_t size)> read_async;
+    struct http_v1_1_t {
+        int current;
+        int next;
+        int http;
+        std::string s1;
+        std::string s2;
+        std::unique_ptr<request_data_t> req;
     };
-}
 
-#endif //MANAPIHTTP_HTTP_HTTPV1_1_HPP
+    struct http_v1_1_chunked_t {
+        int left;
+        int state;
+        std::string prev;
+    };
+
+    enum http_v1_1_errs {
+        EHTTP_V1_1_PROTOCOL_OK = 0,
+        EHTTP_V1_1_PROTOCOL_ERROR = -1,
+        EHTTP_V1_1_PROTOCOL_UPGRADE = -2,
+        EHTTP_V1_1_PROTOCOL_WANT_READ = -3
+    };
+
+    int http_v1_1_work (http_v1_1_t *ctx, net::site *site, const char **nbuffer, ssize_t *nsize);
+    manapi::future<ssize_t> http_v1_1_chunked_read (http_v1_1_chunked_t *ctx, worker::base *worker, worker::connection *conn, net::site *site, char *buffer, ssize_t size);
+}

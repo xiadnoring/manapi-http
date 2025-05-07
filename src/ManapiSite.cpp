@@ -1,7 +1,7 @@
 #include "ManapiFilesystem.hpp"
 #include "ManapiSite.hpp"
 
-#include "../include/encoding/ManapiUnicode.hpp"
+#include "encoding/ManapiUnicode.hpp"
 #include "worker/base_worker.hpp"
 #include "worker/TCP.hpp"
 #include "worker/OpenSSL_TLS.hpp"
@@ -14,6 +14,9 @@
 #include "worker/HTTPv3_clouflare_quiche.hpp"
 #include "worker/HTTPv3_tquic.hpp"
 #include "worker/WolfSSL_TLS.hpp"
+
+#include "ManapiHttpResponse.hpp"
+#include "ManapiHttpRequest.hpp"
 
 namespace manapi::net {
     // default, +error, +layout in url
@@ -144,7 +147,7 @@ void manapi::net::site::setup() {
 #endif
 
 #if MANAPIHTTP_QUICHE_DEPENDENCY
-    this->transport_protocol_worker("quic", "quiche", worker::http_v3_cloudflare_quiche::create);
+    //this->transport_protocol_worker("quic", "quiche", worker::http_v3_cloudflare_quiche::create);
 #endif
 
 #if MANAPIHTTP_TQUIC_DEPENDENCY
@@ -282,10 +285,10 @@ void manapi::net::site::check_exists_method_on_url(const std::string &url,
     if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_ADD_PAGE, "The method {} already contains in the static url {}", method, url); }
 }
 
-manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &request_data) const {
-    http_handler_page handler_page;
-    handler_page.error = std::make_unique<http_handler_page>();
-    handler_page.error->handler = &site::default_error_handler;
+std::unique_ptr<manapi::net::http_handler_page> manapi::net::site::handler(http::request_data_t *request_data) const {
+    auto handler_page = std::make_unique<http_handler_page>();
+    handler_page->error = std::make_unique<http_handler_page>();
+    handler_page->error->handler = &site::default_error_handler;
 
     // how much we will take the layers from handler_page.layers at the start to the handler_page.error.layer
     size_t error_layer_depth = 0;
@@ -293,42 +296,42 @@ manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &
     try
     {
         const http_uri_part *cur = &this->data->handlers;
-        const size_t path_size = request_data.divided == -1 ? request_data.path.size() : request_data.divided;
+        const size_t path_size = request_data->divided == -1 ? request_data->path.size() : request_data->divided;
         for (size_t i = 0; i <= path_size; i++)
         {
 
             if (cur->statics)
             {
-                auto static_it = cur->statics->find(request_data.method);
+                auto static_it = cur->statics->find(request_data->method);
                 if (static_it != cur->statics->end()) {
-                    handler_page.statics = &static_it->second;
-                    handler_page.statics_parts_len = i;
+                    handler_page->statics = &static_it->second;
+                    handler_page->statics_parts_len = i;
                 }
             }
 
 
             if (cur->layers)
             {
-                auto shared_it = cur->layers->find(request_data.method);
+                auto shared_it = cur->layers->find(request_data->method);
                 if (shared_it != cur->layers->end()) {
-                    handler_page.layer.push_back(&shared_it->second);
+                    handler_page->layer.push_back(&shared_it->second);
                 }
             }
 
             if (cur->errors)
             {
-                auto error_it = cur->errors->find(request_data.method);
+                auto error_it = cur->errors->find(request_data->method);
                 if (error_it != cur->errors->end()) {
                     // find errors handlers for method!
-                    handler_page.error->handler = &error_it->second;
-                    error_layer_depth = handler_page.layer.size();
+                    handler_page->error->handler = &error_it->second;
+                    error_layer_depth = handler_page->layer.size();
                 }
             }
 
             if (i == path_size)
             { break; }
 
-            if (cur->map == nullptr || !cur->map->contains(request_data.path.at(i))) {
+            if (cur->map == nullptr || !cur->map->contains(request_data->path.at(i))) {
                 if (cur->regexes != nullptr) {
                     std::smatch match;
                     bool find = false;
@@ -337,7 +340,7 @@ manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &
                         // regex.first  <- regex string
                         // regex.second <- pair <regex, value (maybe next or handler)>
 
-                        if (std::regex_match(request_data.path.at(i), match, regex.second.first)) {
+                        if (std::regex_match(request_data->path.at(i), match, regex.second.first)) {
                             cur     = regex.second.second.get();
                             find    = true;
 
@@ -353,13 +356,13 @@ manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &
                                 // bug
 
                                 MANAPIHTTP_LOG(this->data->ctx,"The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
-                                           cur->params->size(), expected_size, request_data.path.at(i));
+                                           cur->params->size(), expected_size, request_data->path.at(i));
                                 return handler_page;
                             }
 
                             // get params
                             for (size_t z = 0; z < cur->params->size(); z++)
-                            { request_data.params.insert({cur->params->at(z), match.str(z + 1)}); }
+                            { request_data->params.insert({cur->params->at(z), match.str(z + 1)}); }
 
 
                             break;
@@ -373,10 +376,10 @@ manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &
                 break;
             }
 
-            cur = cur->map->at(request_data.path.at(i)).get();
+            cur = cur->map->at(request_data->path.at(i)).get();
         }
 
-        std::copy_n(handler_page.layer.begin(), error_layer_depth, std::back_inserter(handler_page.error->layer));
+        std::copy_n(handler_page->layer.begin(), error_layer_depth, std::back_inserter(handler_page->error->layer));
 
         // handler page
 
@@ -384,19 +387,19 @@ manapi::net::http_handler_page manapi::net::site::handler(http::request_data_t &
             return handler_page;
         }
 
-        http_handler_functions *handler = &cur->handlers->at (request_data.method);
+        http_handler_functions *handler = &cur->handlers->at (request_data->method);
 
         if (handler == nullptr) {
             // TODO: handler error
         }
 
-        handler_page.handler = handler;
+        handler_page->handler = handler;
         return std::move(handler_page);
     }
-    catch (const std::exception &e)
-    {
-        return std::move(handler_page);
+    catch (const std::exception &e) {
+        MANAPIHTTP_LOG(this->data->ctx, "routing: an error has occurred: {}", e.what());
     }
+    return std::move(handler_page);
 }
 
 manapi::net::site::site(const async::shared_ctx &ctx) {

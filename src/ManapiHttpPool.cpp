@@ -42,7 +42,9 @@ manapi::future<> manapi::net::http_pool::stop() {
     // stop watcher
     co_await this->site->async_context()->eventloop()->custom_callback([this] (event_loop *ev)
         -> void {
-        this->worker->stop();
+        if (this->worker) {
+            this->worker->stop();
+        }
     });
 }
 
@@ -67,9 +69,6 @@ manapi::future<void> manapi::net::http_pool::_pool() {
             {
                 auto generate = implementations[*implementation];
                 this->worker = generate (this->config);
-                this->worker->watcher = nullptr;
-                this->worker->le = this->events;
-                this->worker->worker = std::weak_ptr<worker::base> (this->worker);
                 this->worker->init();
             }
             else

@@ -8,116 +8,88 @@
 
 #include "./base_worker.hpp"
 #include "./ManapiAsync.hpp"
-#include "../http/HeaderView.hpp"
+#include "../http/HTTPv1_1.hpp"
 #include "../async/ManapiCancellation.hpp"
 
 namespace manapi::net::worker {
     class TCP : public worker::base {
     public:
-        struct connection_stat_interface {
-            std::atomic<ssize_t> total_write = 0;
-            std::atomic<ssize_t> total_read = 0;
-            std::atomic<ssize_t> transfared_last_second = 0;
-            size_t last_total_write = 0;
-            size_t last_total_read = 0;
-            size_t time_ms = 0;
-            std::shared_ptr<ev::io> watcher;
-        };
         struct connection_interface {
-            socket_t id;
             manapi::timer t;
-            net::site *site;
             std::shared_ptr<worker::base> worker;
             connection_stat_interface stats;
-            bool configured = false;
-            std::atomic<int> status = 0x0;
-            async::cancellation_action iocancel;
-            std::shared_ptr<ev::io> watcher;
-        };
-
-        struct connection_io_await {
-            std::function<void()> &iohandle;
-            std::atomic<int> &iostatus;
-            int status;
-            void await_resume () noexcept {}
-            bool await_ready () noexcept { return this->iostatus & CONN_CLOSED; }
-            template<typename T>
-            requires(std::is_base_of_v<promise_base, T>)
-            void await_suspend (std::coroutine_handle<T> handle) {
-                if (this->iostatus & CONN_CLOSED) {
-                    future<>::resume_promise(handle);
-                }
-                else {
-                    this->iohandle = [handle]() -> void {
-                        future<>::resume_promise(handle);
-                    };
-                    if (this->iostatus.fetch_or(this->status) & CONN_CLOSED) {
-                        this->iohandle=nullptr;
-                        future<>::resume_promise(handle);
-                    }
-                }
-            }
+            int status = 0;
+            std::shared_ptr<ev::tcp> watcher;
+            std::unique_ptr<struct connection_io> top;
+            std::unique_ptr<worker_watcher_cb> ev_callback;
         };
 
         TCP (net::site &site);
+
         ~TCP () override;
-        bool is_valid_connection(worker::connection &connection) override;
+
+        bool is_valid_connection(worker::connection *connection) override;
+
         void init () override;
-        future<bool> configure_connection (std::shared_ptr<worker::connection> connection) override;
-        void onrecv(std::shared_ptr<ev::io> &watcher, int status, int revents);
+
+        void configure_connection (const shared_conn & connection, oncont_cb cb) override;
+
+        void onaccept(std::shared_ptr<ev::tcp> &watcher, int status);
+
+        virtual void onrecv (std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer);
+
         static std::shared_ptr<worker::TCP> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
 
-        virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept (const std::function<std::shared_ptr<connection>()> &init);
-        virtual std::optional<std::shared_ptr<manapi::net::worker::connection>> accept ();
+        virtual shared_conn accept (ev::shared_tcp &w, std::move_only_function<shared_conn()> init);
 
-        future<ssize_t> response(worker::connection &connection, http::response &resp, bool finish) override;
+        virtual shared_conn accept (ev::shared_tcp &w);
 
-        void connection_close(std::shared_ptr<connection> conn, bool clean_disconnect) override;
+        future<ssize_t> response(const shared_conn &connection, http::response *resp, bool finish) override;
+
+        void close_connection(connection* conn, bool clean_disconnect) override;
 
         void stop() override;
 
-        ssize_t sync_read(worker::connection *conn, void *buff, ssize_t size) override;
-        ssize_t sync_write(worker::connection *conn, const void *buff, ssize_t size) override;
+        ssize_t sync_write(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
 
-        virtual std::shared_ptr<ev::io> sync_watch_io (worker::connection *conn, int revents, ev::io_cb callback);
-        virtual manapi::future<std::shared_ptr<ev::io>> async_watch_io (worker::connection *conn, int revents, ev::io_cb callback);
+        std::unique_ptr<worker_watcher_cb> event_on(worker::connection *conn, std::unique_ptr<worker_watcher_cb> callback) override;
+
+        int event_flags(worker::connection *conn, int flags) override;
+
+        int event_flags(worker::connection *conn) override;
+
     protected:
-        virtual void recv_setup_connection (manapi::net::worker::connection &storage);
+        virtual void flush_write_ (const shared_conn &connection, bool flush = false);
+
+        virtual bool recv_setup_connection (manapi::net::worker::connection *storage);
+
         void update_limit_rate ();
-        void timeout_ (std::shared_ptr<connection> storage);
+
+        void timeout_ (const worker::shared_conn& storage);
+
         void ev_watcher_stop_ (connection_interface & conn);
-        void connection_close_ (std::shared_ptr<connection> conn, connection_interface &connection);
-        struct async_stack_storage {
-            std::shared_ptr<future<void>> stack;
-            std::shared_ptr<http::HeaderView> storage;
-        };
 
+        virtual void update_limit_rate_connection (connection *conn);
 
-        virtual void update_limit_rate_connection (connection &conn);
         static void _connection_interface_eraser (connection_interface *connection);
 
+        virtual void http_work_ (http::http_v1_1_t *http_v1_1_ctx, const worker::shared_conn &conn, int flags, ibuffpool_t buffer);
 
-        future<ssize_t> default_write (connection &conn, const void *buff, ssize_t size) const;
-        future<ssize_t> default_read (connection &conn, void *buff, ssize_t size) const;
+        virtual void onaccept_event_ (const worker::shared_conn &conn);
 
-        std::map <int, std::shared_ptr<async_stack_storage>> stacks;
-        std::shared_ptr<async::condition_variable> limit_rate_cv;
+        std::map <std::uintptr_t, shared_conn> connections;
+        ev::shared_tcp watcher_accept_;
     private:
-        std::string stringify_http_info (manapi::net::http::response &res, const int &version, const std::string &delimiter) const;
-        std::string stringify_headers (manapi::net::http::response &res, const std::string &delimiter) const;
+        static std::string stringify_http_info (manapi::net::http::response *res, const int &version, const std::string &delimiter) ;
+        static std::string stringify_headers (manapi::net::http::response *res, const std::string &delimiter) ;
         static void connection_interface_eraser (void *ptr);
 
+
+        std::weak_ptr<base> self_;
+        sockaddr_storage sockaddrin{};
         addrinfo *local;
         timer limit_rate_timer{};
-#ifdef _WIN32
-        char socket_param_true = 1;
-        char socket_param_false = 0;
-#else
-        int socket_param_true = 1;
-        int socket_param_false = 0;
-#endif
         timeval recv_timeout{}, send_timeout{};
-        addrinfo hints{};
-        socket_t fd;
+        int count;
     };
 }

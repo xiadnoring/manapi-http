@@ -6,29 +6,34 @@
 #include "services/ManapiEventLoop.hpp"
 #include "services/ManapiTimerPool.hpp"
 
-
 #include "ManapiInitTools.hpp"
 
-manapi::async::shared_ctx manapi::async::context::gctx = nullptr;
+#include "../include/ManapiDefaultErrors.hpp"
 
-manapi::async::context::context(shared_eventloop watcher, shared_taskpool taskpool, shared_timerpool timerpool, shared_logger logger)  {
-    this->watcher_ = std::move(watcher);
+manapi::async::shared_ctx manapi::async::context::gctx = nullptr;
+std::unique_ptr<manapi::sigset_t> manapi::async::context::gbs = nullptr;
+
+manapi::async::context::context(shared_async_thread main, std::shared_ptr<mthreadpool<task>> taskpool, shared_logger logger)  {
+    this->main_ = std::move(main);
     this->taskpool_ = std::move(taskpool);
     this->logger_ = std::move(logger);
-    this->timerpool_ = std::move(timerpool);
 }
 
-manapi::async::shared_ctx manapi::async::context::create(unsigned int threadnum, unsigned int threadnum_fs, ssize_t timer_delay) {
+manapi::async::shared_ctx manapi::async::context::create(unsigned int threadnum, ssize_t timer_delay) {
     manapi::init_tools::ssl_library_init();
     manapi::init_tools::ev_library_init();
     manapi::init_tools::curl_library_init();
 
     auto logger_ = std::make_shared<manapi::logger>();
-    auto taskpool_ = std::make_shared<manapi::threadpool<task>>(logger_, threadnum);
+    auto taskpool_ = std::make_shared<manapi::mthreadpool<task>>(logger_, threadnum);
+
+    /* Main Event Loop */
     auto watcher_ = std::make_shared<manapi::event_loop>(taskpool_, logger_);
     auto timerpool_ = std::make_shared<manapi::timerpool>(watcher_, timer_delay);
 
-    auto ctx = std::make_shared<context>(std::move(watcher_), std::move(taskpool_), std::move(timerpool_), std::move(logger_));
+    auto main_ = std::make_shared<async_thread_t>(std::move(watcher_), std::move(timerpool_));
+
+    auto ctx = std::make_shared<context>(std::move(main_), std::move(taskpool_), std::move(logger_));
     ctx->weak = ctx;
 
     return std::move(ctx);
@@ -39,21 +44,32 @@ void manapi::async::context::threadpoolfs(std::size_t cnt) {
     assert(!uv_os_setenv("UV_THREADPOOL_SIZE", s.data()));
 }
 
+std::unique_ptr<manapi::sigset_t> manapi::async::context::blockedsignals() {
+    auto blocked_signals = std::make_unique<manapi::sigset_t>();
+#if defined (__unix__) || defined(__APPLE__)
+    sigemptyset(blocked_signals.get());
+    sigaddset(blocked_signals.get(), SIGPIPE);
+    pthread_sigmask(SIG_BLOCK, blocked_signals.get(), nullptr);
+#endif
+    return std::move(blocked_signals);
+}
+
 manapi::future<void> manapi::async::context::start() {
     this->taskpool_->start();
-    co_await this->timerpool_->start(this->timerpool_);
-    co_await this->watcher_->start(this->watcher_);
+    co_await this->main_->timerpool->start(this->main_->timerpool);
+    co_await this->main_->eventloop->start(this->main_->eventloop);
 }
 
 void manapi::async::context::sync_start() {
-    this->taskpool()->start();
-    async::run(std::shared_ptr<context>(this->weak), this->timerpool_->start(this->timerpool_));
-    this->watcher_->sync_start(this->watcher_);
+    this->taskpool_->start();
+    async::run(this->taskpool(),
+        this->main_->timerpool->start(this->main_->timerpool));
+    this->main_->eventloop->sync_start(this->main_->eventloop);
 }
 
 manapi::future<void> manapi::async::context::stop() {
-    co_await this->timerpool_->stop();
-    co_await this->watcher_->stop();
+    co_await this->main_->eventloop->stop();
+    co_await this->main_->timerpool->stop();
 
     this->taskpool_->stop();
 }
@@ -63,15 +79,15 @@ void manapi::async::context::join() {
 }
 
 const std::shared_ptr<manapi::event_loop> & manapi::async::context::eventloop() {
-    return this->watcher_;
+    return this->main_->eventloop;
 }
 
 const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::context::taskpool() {
-    return this->taskpool_;
+    return this->main_->eventloop->taskpool();
 }
 
 const std::shared_ptr<manapi::timerpool> & manapi::async::context::timerpool() {
-    return this->timerpool_;
+    return this->main_->timerpool;
 }
 
 const std::shared_ptr<manapi::logger> & manapi::async::context::logger() {
@@ -80,66 +96,29 @@ const std::shared_ptr<manapi::logger> & manapi::async::context::logger() {
 
 manapi::async::context::~context() = default;
 
-void manapi::async::run_prepare_(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> &task, std::unique_ptr<async_task_t> task_data, std::move_only_function<void()> onfinish)  {
-#if defined(MANAPIHTTP_ASYNC_DEBUG)
-    auto index = reinterpret_cast <size_t> (task.get_handle().address());
-    task.on_finish([index, taskpool=taskpool, onfinish = std::move(onfinish)] () mutable -> void {
-        auto index_ = index;
-#else
-    task.on_finish([task_data = std::move(task_data), onfinish = std::move(onfinish)] () mutable -> void {
-#endif
-        if (onfinish) {
-            try { onfinish(); }
-            catch (std::exception const &e) {
-                std::cerr << e.what() << "\n";
-            }
-        }
-#if defined(MANAPIHTTP_ASYNC_DEBUG)
-        decltype(async_tasks)::node_type data;
-        {
-            std::lock_guard<std::mutex> lk (async_tasks_mx);
-            auto it = async_tasks.find(index_);
-            if (it != async_tasks.end()) {
-                data = std::move(async_tasks.extract(it));
-            }
-        }
-#else
+void manapi::async::internal::run_prepare_error_(const manapi::async::shared_taskpool &taskpool, std::exception_ptr err) {
+    int errnum = manapi::ERR_OK;
+    std::string errmsg;
+    manapi::json data;
 
-#endif
+    manapi::rethrow_exception_ptr(std::move(err), &errnum, &errmsg, &data);
 
-    }, taskpool);
-
-    task();
+    taskpool->logger()->error(manapi::logger::default_service, manapi::ERR_UNHANDLED_EXCEPTION,
+        manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], errnum, std::move(errmsg), data.dump());
 }
 
-manapi::future<> manapi::async::blank_future () {
-    co_return;
+
+void manapi::async::internal::run_prepare_std_exception_(const manapi::async::shared_taskpool &taskpool, std::exception const &e) {
+    taskpool->logger()->error(manapi::logger::default_service, manapi::ERR_UNHANDLED_EXCEPTION,
+                    manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], manapi::ERR_UNHANDLED_EXCEPTION, e.what(), "");
 }
 
-void manapi::async::run(const std::shared_ptr<context> &ctx, manapi::future<> task,std::move_only_function<void()> onfinish) {
-    async::run (ctx->taskpool(), std::move(task), std::move(onfinish));
+
+void manapi::async::internal::run_prepare_manapi_exception_(const manapi::async::shared_taskpool &taskpool, manapi::exception &e) {
+    taskpool->logger()->error(manapi::logger::default_service, manapi::ERR_UNHANDLED_EXCEPTION,
+                    manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], e.err_num(), e.what(), e.data()->dump());
 }
 
-void manapi::async::run(const std::shared_ptr<threadpool<task>> &taskpool, manapi::future<> task, std::move_only_function<void()> onfinish) {
-    auto handle = task.release();
-
-    auto task_data = std::make_unique<async_task_t>(manapi::future<>{handle});
-
-#if defined(MANAPIHTTP_ASYNC_DEBUG)
-    {
-        auto index = reinterpret_cast <size_t> (handle.address());
-        std::lock_guard<std::mutex> lk (async_tasks_mx);
-        auto status = async_tasks.insert({index, task_data.get()});
-        assert(status.second);
-    }
-#endif
-
-    task = manapi::future<>{handle};
-    async::run_prepare_(taskpool, task, std::move(task_data), std::move(onfinish));
-
-    task.release();
-}
-
-const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::as_threadpool(const std::shared_ptr<context> &ctx) {
+const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::internal::as_threadpool(const std::shared_ptr<manapi::async::context> &ctx) {
     return ctx->taskpool();
 }

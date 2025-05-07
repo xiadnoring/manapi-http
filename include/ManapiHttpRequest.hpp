@@ -1,9 +1,5 @@
 #pragma once
 
-#if defined(__unix__) || defined(__APPLE__)
-#   include <netinet/in.h>
-#endif
-
 #include <map>
 #include <string>
 #include <functional>
@@ -16,13 +12,13 @@
 #include "ManapiJsonMask.hpp"
 #include "components/FormData.hpp"
 #include "http/Utils.hpp"
+#include "ManapiSite.hpp"
+#include "worker/base_worker.hpp"
 
 namespace manapi::net::http {
-    class base;
-
     class request {
     public:
-        request(const manapi::net::http::manapi_socket_information &ip_data, manapi::net::http::request_data_t &request_data, class manapi::net::http::base *http_task, std::shared_ptr<http::config>, const void *handler);
+        request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::connection *conn, worker::shared_worker worker, const http_handler_functions *handler);
         ~request();
 
         [[nodiscard]] const http::manapi_socket_information &ip_data () const;
@@ -49,33 +45,32 @@ namespace manapi::net::http {
         [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &post_mask () const;
         [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &get_mask () const;
 
-        void stop_propagation (const bool &stop_propagation = true);
+        void stop_propagation ();
+        void propagation (bool state);
         [[nodiscard]] bool propagation () const;
     private:
         future<void> _read_body (std::move_only_function<ssize_t(const char *, ssize_t )> handler);
         future<void> _read_async_body (std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t )> handler);
 
-        std::optional<std::map<std::string, std::string>> get_params_;
+        std::unique_ptr<std::map<std::string, std::string>> get_params_;
 
         void prepare_get_params_();
+
         // peer ip
-        const http::manapi_socket_information *ip_data_;
+        std::unique_ptr<http::manapi_socket_information> ip_data_;
 
         // body, headers, url and etc
         http::request_data_t *request_data;
 
-        // parent
-        http::base *http_task;
-
-        // handler
-        const void *page_handler;
+        manapi::net::worker::connection * conn_;
 
         // server
-        std::shared_ptr<http::config> config;
+        worker::shared_worker worker_;
+
+        const http_handler_functions *handler_;
 
         // if peer sent larger by size then max_plain_body_size -> error
-        size_t max_plain_body_size_ = 1000000;
-
-        bool is_propagation = true;
+        int max_plain_body_size_;
+        int flags;
     };
 }

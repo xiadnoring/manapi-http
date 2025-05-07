@@ -28,8 +28,11 @@ namespace manapi::net::worker {
         int ssl_shutdown_ (void *ssl) override;
         void ssl_set_shutdown_(void *ssl, int flags) override;
         void ssl_free_(void *ssl) override;
+        int ssl_bio_read_(void *wbio, void *buff, int size) override;
+        int ssl_bio_write_(void *rbio, const void *buff, int size) override;
+        int ssl_bio_should_retry_(void *bio) override;
 
-        void recv_setup_connection(manapi::net::worker::connection &storage) override;
+        bool recv_setup_connection(manapi::net::worker::connection *storage) override;
         void* ssl_create_context (const size_t &version) override;
         void ssl_configure_context () override;
     };

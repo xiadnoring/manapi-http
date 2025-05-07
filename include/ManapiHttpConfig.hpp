@@ -88,6 +88,8 @@ namespace manapi::net::http {
 
         [[nodiscard]] std::atomic<size_t> &quic_cc_algo ();
 
+        [[nodiscard]] std::atomic<size_t> &max_buffer_stack ();
+
         std::atomic<ssize_t> &max_rst_cnt ();
         std::atomic<ssize_t> &speed_check_delay ();
         std::atomic<ssize_t> &speed_check_bytes ();
@@ -123,11 +125,12 @@ namespace manapi::net::http {
         Atomic<std::string> port_;// settings
         Atomic<std::string> implementation_;
         Atomic<std::string> transport_;
+        std::atomic<size_t> max_buffer_stack_;
         std::atomic<size_t> keep_alive_;
         Atomic<sockaddr> server_addr_;
         std::atomic<socklen_t> server_len_;
-        std::atomic<size_t> max_plain_param_length_  = 16000UL;
-        std::atomic<size_t> max_file_param_length_   = 2147483648UL;
+        std::atomic<size_t> max_plain_param_length_;
+        std::atomic<size_t> max_file_param_length_;
         std::atomic<size_t> max_connections_;
         std::atomic<int> max_backlog_;
         std::atomic<ssize_t> buffer_size_;

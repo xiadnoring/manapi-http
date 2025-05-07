@@ -8,14 +8,16 @@
 #include "../worker/HTTPv2.hpp"
 
 namespace manapi::net::http {
-    class http_v2 : public http::base {
-    public:
-        http_v2 (std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
-
-        static std::shared_ptr<worker::http_v2> create (std::shared_ptr<manapi::net::worker::TCP> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
-        manapi::future<bool> parse_request(ssize_t j, ssize_t size) override;
-        manapi::future<void> execute_handler() override;
+    struct http_v2_t {
+        std::unique_ptr<request_data_t> req;
     };
+
+    enum http_v2_errs {
+        EHTTP_V2_PROTOCOL_OK = 0,
+        EHTTP_V2_PROTOCOL_ERROR = -1
+    };
+
+    int http_v2_work (http_v2_t *ctx, net::site *site);
 }
 
 #endif //MANAPIHTTP_HTTP_HTTPV2_HPP

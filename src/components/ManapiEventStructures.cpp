@@ -5,7 +5,7 @@
 #define MANAPI_EV_CAST_HANDLE(x) reinterpret_cast <uv_handle_t *> (x)
 #define MANAPI_EV_DEFAULT(name_class, name_struct) \
 void manapi::ev::name_class::unbind (uv_close_cb cb) MANAPI_EV_NOEXPECT {  uv_close(MANAPI_EV_CAST_HANDLE(&this->s_), cb); }\
-void manapi::ev::name_class::unbind () MANAPI_EV_NOEXPECT { uv_close(MANAPI_EV_CAST_HANDLE (&this->s_), nullptr); }\
+void manapi::ev::name_class::unbind () MANAPI_EV_NOEXPECT { uv_close(MANAPI_EV_CAST_HANDLE (&this->s_), callback_close_cb); }\
 void manapi::ev::name_class::data (void *data) MANAPI_EV_NOEXPECT { uv_handle_set_data(MANAPI_EV_CAST_HANDLE (&this->s_), data);}\
 void *manapi::ev::name_class::data () MANAPI_EV_NOEXPECT {return uv_handle_get_data(MANAPI_EV_CAST_HANDLE (&this->s_)); } \
 manapi::ev::loop_ref manapi::ev::name_class::loop () MANAPI_EV_NOEXPECT { return uv_handle_get_loop(MANAPI_EV_CAST_HANDLE(&this->s_)); } \
@@ -24,7 +24,9 @@ MANAPI_EV_DEFAULT(io, uv_poll_t)
 MANAPI_EV_DEFAULT(check, uv_check_t)
 MANAPI_EV_DEFAULT(prepare, uv_prepare_t)
 MANAPI_EV_DEFAULT(idle, uv_idle_t)
+
 MANAPI_EV_DEFAULT(tcp, uv_tcp_t)
+
 MANAPI_EV_DEFAULT(udp, uv_udp_t)
 MANAPI_EV_DEFAULT(write, uv_write_t)
 MANAPI_EV_DEFAULT(random, uv_random_t)
@@ -76,6 +78,10 @@ int manapi::ev::idle::start(uv_idle_cb cb) MANAPI_EV_NOEXPECT {
 
 int manapi::ev::idle::stop() MANAPI_EV_NOEXPECT {
     return uv_idle_stop(&this->s_);
+}
+
+manapi::ev::idle::idle() : s_() {
+
 }
 
 manapi::ev::check::check() : s_() {
@@ -138,6 +144,10 @@ manapi::ev::tcp::tcp() : s_() {
 
 }
 
+int manapi::ev::tcp::listen(int backlog) MANAPI_EV_NOEXPECT {
+    return this->listen(backlog, reinterpret_cast<uv_connection_cb>(ev::callback_watcher_tcp_accept));
+}
+
 int manapi::ev::tcp::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
     return uv_tcp_init(loop, &this->s_);
 }
@@ -158,8 +168,41 @@ int manapi::ev::tcp::read_stop() MANAPI_EV_NOEXPECT {
     return uv_read_stop(MANAPI_EV_CAST_STREAM(&this->s_));
 }
 
+ssize_t manapi::ev::tcp::try_write(const void *buff, ssize_t len) MANAPI_EV_NOEXPECT {
+    ev::buff_t buffs[1] = {{.base = (char*)buff, .len = static_cast<std::size_t>(len)}};
+    return uv_try_write(MANAPI_EV_CAST_STREAM(&this->s_), buffs, 1);
+}
+
 int manapi::ev::tcp::s_bind(sockaddr *addr, int flags) MANAPI_EV_NOEXPECT {
     return uv_tcp_bind(&this->s_, addr, flags);
+}
+
+int manapi::ev::tcp::getpeername(sockaddr *name, int *namelen) MANAPI_EV_NOEXPECT {
+    return uv_tcp_getpeername(&this->s_, name, namelen);
+}
+
+int manapi::ev::tcp::getsockname(sockaddr *name, int *namelen) MANAPI_EV_NOEXPECT {
+    return uv_tcp_getsockname(&this->s_, name, namelen);
+}
+
+int manapi::ev::tcp::close_reset(uv_close_cb close_cb) MANAPI_EV_NOEXPECT {
+    return uv_tcp_close_reset(&this->s_, close_cb);
+}
+
+int manapi::ev::tcp::close_reset() MANAPI_EV_NOEXPECT {
+    return this->close_reset(callback_close_cb);
+}
+
+int manapi::ev::tcp::keepalive(int enable, unsigned int delay) MANAPI_EV_NOEXPECT {
+    return uv_tcp_keepalive(&this->s_, enable, delay);
+}
+
+int manapi::ev::tcp::nodelay(int enable) MANAPI_EV_NOEXPECT {
+    return uv_tcp_nodelay(&this->s_, enable);
+}
+
+int manapi::ev::tcp::simultaneous_accepts(int enable) MANAPI_EV_NOEXPECT {
+    return uv_tcp_simultaneous_accepts(&this->s_, enable);
 }
 
 manapi::ev::udp::udp() : s_() {

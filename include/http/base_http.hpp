@@ -12,43 +12,32 @@
 #include "../async/ManapiAsyncFileStream.hpp"
 #include "../components/Buffer.hpp"
 
-namespace manapi::net::http {
-    class base : public manapi::task {
-    public:
-        base(std::shared_ptr<manapi::net::worker::base> worker, std::shared_ptr<manapi::net::http::config> config, manapi::net::site &site);
-        ~base() override;
-        virtual void prepare ();
-        virtual future<bool> parse_request (ssize_t j = 0, ssize_t size = 0);
-        virtual future<void> send_response (manapi::net::http::response &res);
-        virtual future<void> execute_handler ();
-        virtual future<void> send_response_file (manapi::net::http::response &res, response_features_t &features);
-        virtual future<void> send_response_text (manapi::net::http::response &res, response_features_t &features);
-        virtual future<void> send_response_proxy (manapi::net::http::response &res, response_features_t &features);
-        virtual future<void> send_response_formdata (manapi::net::http::response &res, response_features_t &features);
-        virtual future<void> send_response_sync_cb (manapi::net::http::response &res, response_features_t &features);
-        virtual future<void> send_response_async_cb (manapi::net::http::response &res, response_features_t &features);
-        virtual future<ssize_t> mask_response (manapi::net::http::response &resp, bool finish);
-        future<void> handle_request (const http_handler_page *data, http::request_data_t &request_data, const size_t &status = 200);
-        future<void> send_error_response (const size_t &status, http::request_data_t &request_data, const http_handler_page *error);
-        future<void> send_file(manapi::net::http::response &res, filesystem::fstream &f, ssize_t size, std::vector<replace_founded_item> &replacers) const;
-        future<void> send_file(manapi::net::http::response &res, filesystem::fstream &f, ssize_t size) const;
-        future<void> send_text(std::string_view text, ssize_t size) const;
-        future<bool> expect_header ();
-        future<std::string> compress_file(const std::string &file, const std::string &folder, const std::string &compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor) const;
-        virtual future<ssize_t> read (void *buf, ssize_t size);
-        manapi::net::site &get_site ();
+namespace manapi::net::http::internal {
+    typedef vbefore_delete<bool, false> cont_callback_cb_t;
+    typedef std::unique_ptr<vbefore_delete<bool, false>> cont_callback_t;
 
-        std::shared_ptr<worker::connection> connection;
-        static std::set<std::string> methods;
-        http::request_data_t request_data;
-
-        object_item_pool<bytebuffer, std::size_t> buffer{};
-    protected:
-        virtual future<bool> validate_http_version ();
-        std::shared_ptr<manapi::net::http::config> config{nullptr};
-        std::shared_ptr<manapi::net::worker::base> worker{nullptr};
-        manapi::net::site &site;
-
-        std::function<void(char&)> current{nullptr}, next{nullptr};
+    struct handle_data_t {
+        std::shared_ptr<worker::connection> conn;
+        worker::shared_worker worker;
+        request_data_t * req_data;
+        cont_callback_t cb;
     };
+
+    typedef std::unique_ptr<handle_data_t> uq_handle_data_t;
+
+    void send_response (uq_handle_data_t cdata, std::unique_ptr<response> res);
+    future<void> send_response_file (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
+    future<void> send_response_text (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
+    future<void> send_response_proxy (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
+    future<void> send_response_formdata (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
+    void send_response_sync_cb (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
+    void send_response_async_cb (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
+    future<ssize_t> mask_response (handle_data_t* cdata, response *res, bool finish);
+    void handle_income_request (uq_handle_data_t cdata, std::unique_ptr<http_handler_page> data, int status);
+    void send_error_response (uq_handle_data_t cdata, std::unique_ptr<http_handler_page> error, int status = http::INTERNAL_SERVER_ERROR_500);
+    future<void> send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size, std::vector<replace_founded_item> replacers);
+    future<void> send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size);
+    future<void> send_text(uq_handle_data_t cdata, std::string text);
+    void expect_header (uq_handle_data_t cdata);
+    future<std::string> compress_file(net::site site, std::string file, std::string folder, std::string compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor);
 }

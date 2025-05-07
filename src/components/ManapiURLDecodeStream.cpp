@@ -10,35 +10,42 @@
 
 manapi::net::http::url_decode_stream::url_decode_stream() : hex_symbols{'\0','\0'} {
     this->hex_index = -1;
-    this->divided = -1;
+    this->divided_ = -1;
 }
 
 manapi::net::http::url_decode_stream::~url_decode_stream() = default;
 
-void manapi::net::http::url_decode_stream::operator<<(const char &c) {
-    this->handle_char_(c);
+int manapi::net::http::url_decode_stream::operator<<(const char &c) {
+    return this->handle_char_(c);
 }
 
-void manapi::net::http::url_decode_stream::operator<<(std::string_view data) {
-    for (auto &c : data) {
-        handle_char_(c);
+int manapi::net::http::url_decode_stream::operator<<(std::string_view data) {
+    for (auto const &c : data) {
+        if (auto rhs = this->handle_char_(c)) {
+            return rhs;
+        }
     }
+    return 0;
 }
 
-std::pair<std::vector<std::string>, ssize_t> manapi::net::http::url_decode_stream::result() {
+std::vector<std::string> manapi::net::http::url_decode_stream::result() {
     if (this->hex_index != -1) {
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_PARSE_UNEXPECTED_END, "this->hex_index != -1");
     }
     this->cleanup_uri_();
-    return std::make_pair(std::move(this->result_), std::exchange(this->divided, -1));
+    return std::move(this->result_);
 }
 
-void manapi::net::http::url_decode_stream::handle_char_(const char &c) {
+int manapi::net::http::url_decode_stream::divided() {
+    return std::exchange(this->divided_, -1);
+}
+
+int manapi::net::http::url_decode_stream::handle_char_(const char &c) {
     if (!encoding::url_allowed_symbol(c)) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_PARSE_INVALID_CHAR, "url_decode_stream: invalid char");
+        return -1;
     }
 
-    if (this->divided == -1) {
+    if (this->divided_ == -1) {
         if (this->hex_index >= 0) {
             this->hex_symbols[this->hex_index] = c;
 
@@ -58,44 +65,45 @@ void manapi::net::http::url_decode_stream::handle_char_(const char &c) {
 
                 this->hex_index = -1;
 
-                return;
+                return 0;
             }
 
             this->hex_index++;
 
-            return;
+            return 0;
         }
 
         if (c == '%' && !this->result_.empty()) {
             this->hex_index = 0;
 
-            return;
+            return 0;
         }
 
         if (c == '/') {
             if (this->result_.empty() || !this->result_.back().empty()) {
                 this->result_.emplace_back("");
             }
-            return;
+            return 0;
         }
 
         if (c == '?' || c == '#') {
             this->cleanup_uri_ ();
-            this->divided = static_cast<ssize_t>(this->result_.size());
+            this->divided_ = static_cast<ssize_t>(this->result_.size());
             this->result_.emplace_back(std::string{c});
-            return;
+            return 0;
         }
     }
 
     if (!this->result_.empty()) {
         this->result_.back().push_back(c);
     }
+    return 0;
 }
 
 void manapi::net::http::url_decode_stream::cleanup_uri_() {
-    if (this->divided!=-1) { return; }
+    if (this->divided_ != -1) { return; }
     for (ssize_t i = static_cast<ssize_t>(this->result_.size()) - 1; i >= 0; i--) {
-        if (this->result_[i].empty()) {
+        if (this->result_.operator[](i).empty()) {
             this->result_.pop_back();
         }
         else {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -8,17 +9,28 @@ namespace manapi::net::http {
     public:
         url_decode_stream();
         ~url_decode_stream();
-        void operator << (const char &c);
-        void operator << (std::string_view data);
-        std::pair<std::vector<std::string>, ssize_t> result ();
+        /**
+         *
+         * @param c Input Char
+         * @return 0 on succes, <0 on error
+         */
+        int operator << (const char &c);
+        /**
+         *
+         * @param c Input String
+         * @return 0 on succes, <0 on error
+         */
+        int operator << (std::string_view data);
+        std::vector<std::string> result ();
+        int divided();
     private:
-        void handle_char_ (const char &c);
+        int handle_char_ (const char &c);
         void cleanup_uri_ ();
 
         char hex_symbols[2];
         char hex_index;
 
         std::vector<std::string> result_;
-        ssize_t divided;
+        int divided_;
     };
 }

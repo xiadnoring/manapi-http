@@ -1,4 +1,5 @@
 #include "ManapiErrors.hpp"
+#include "ManapiJson.hpp"
 
 const std::map <manapi::err_num, std::string> manapi::err_msg {
     {ERR_OK, "OK"},
@@ -23,21 +24,30 @@ const std::map <manapi::err_num, std::string> manapi::err_msg {
     {ERR_INCOMPATIBLE_SETTING, "Incompatible setting"}
 };
 
-namespace manapi::error {
-    const char *default_msgs[] = {
-        "file not found",
-        "file exists",
-        "size isn't the same",
-        "by error: {}",
-        "error when receiving additional data",
-        "fs i/o operations failed: {}",
-        "fs callback failed: {}",
-        "fs i/o operation has been cancelled",
-        "fs i/o init watcher failed",
-        "watcher command failed",
-        "fs watcher bind failed",
-        "random string failed"
-    };
+void manapi::rethrow_exception_ptr(std::exception_ptr err, int *errnum, std::string *msg, json *data) {
+    try {
+        std::rethrow_exception(std::move(err));
+    }
+    catch (manapi::exception &e) {
+        if (errnum)
+            *errnum = e.err_num();
+
+        if (msg)
+            *msg = e.what();
+
+        if (data && e.data())
+            *data = std::move(*e.data());
+    }
+    catch (std::exception const &e) {
+        if (errnum)
+            *errnum = ERR_UNHANDLED_EXCEPTION;
+
+        if (msg)
+            *msg = e.what();
+
+        if (data)
+            *data = nullptr;
+    }
 }
 
 manapi::exception::exception(manapi::err_num errnum, std::string message): message(std::move(message)) {
@@ -45,7 +55,7 @@ manapi::exception::exception(manapi::err_num errnum, std::string message): messa
     this->data_ = nullptr;
 }
 
-manapi::exception::exception(manapi::err_num errnum, std::string message, std::shared_ptr<manapi::json> data) {
+manapi::exception::exception(manapi::err_num errnum, std::string message, std::unique_ptr<manapi::json> data) {
     this->errnum_ = errnum;
     this->message = std::move(message);
     this->data_ = std::move(data);

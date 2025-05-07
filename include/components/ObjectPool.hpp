@@ -116,6 +116,10 @@ namespace manapi {
             return object_item_pool<T, Args...>{this->data, std::move(w)};
         }
 
+        object_item_pool<T, Args...> get (std::unique_ptr<T> item) {
+            return object_item_pool<T, Args...>{this->data, std::move(item)};
+        }
+
         void ret (std::unique_ptr<T> item) {
             std::lock_guard<std::mutex> lk (this->data->mx);
             this->data->objects.push_back(std::move(item));

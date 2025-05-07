@@ -31,6 +31,7 @@ namespace manapi {
 
 namespace manapi::ev {
     typedef uv_buf_t buff_t;
+    typedef uv_stream_t stream_t;
 
     enum pf_ip_types {
         IPv4 = PF_INET,
@@ -251,6 +252,7 @@ namespace manapi::ev {
     void callback_watcher_write (uv_write_t *s, int status);
     void callback_watcher_fs (uv_fs_t *req);
     void callback_watcher_random (uv_random_t *s, int status, void *buf, size_t buflen);
+    void callback_close_cb (uv_handle_t *s);
 
     class async {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(async, uv_async_t)
@@ -346,6 +348,7 @@ namespace manapi::ev {
 
         tcp ();
 
+        int listen (int backlog) MANAPI_EV_NOEXPECT;
         int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
         int accept (tcp *parent) MANAPI_EV_NOEXPECT;
 
@@ -354,7 +357,15 @@ namespace manapi::ev {
 
         int read_stop () MANAPI_EV_NOEXPECT;
 
+        ssize_t try_write (const void *buff, ssize_t len) MANAPI_EV_NOEXPECT;
         int s_bind (sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
+        int getpeername (sockaddr *name, int *namelen) MANAPI_EV_NOEXPECT;
+        int getsockname (sockaddr *name, int *namelen) MANAPI_EV_NOEXPECT;
+        int close_reset (uv_close_cb close_cb) MANAPI_EV_NOEXPECT;
+        int close_reset () MANAPI_EV_NOEXPECT;
+        int keepalive (int enable, unsigned int delay) MANAPI_EV_NOEXPECT;
+        int nodelay (int enable) MANAPI_EV_NOEXPECT;
+        int simultaneous_accepts (int enable) MANAPI_EV_NOEXPECT;
     private:
         uv_tcp_t s_;
     };
@@ -571,6 +582,19 @@ namespace manapi::ev {
     private:
         uv_random_t s_;
     };
+
+    typedef std::shared_ptr<async> shared_async;
+    typedef std::shared_ptr<tcp> shared_tcp;
+    typedef std::shared_ptr<udp> shared_udp;
+    typedef std::shared_ptr<check> shared_check;
+    typedef std::shared_ptr<prepare> shared_prepare;
+    typedef std::shared_ptr<idle> shared_idle;
+    typedef std::shared_ptr<random> shared_random;
+    typedef std::shared_ptr<fs> shared_fs;
+    typedef std::shared_ptr<timer> shared_timer;
+    typedef std::shared_ptr<io> shared_io;
+    typedef std::shared_ptr<write> shared_write;
+    typedef std::shared_ptr<udp_send> shared_udp_send;
 }
 
 #undef MANAPI_EV_CAST_HANDLE

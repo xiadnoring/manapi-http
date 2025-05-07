@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <memory>
+#include <format>
 
 namespace manapi {
     enum logger_type {

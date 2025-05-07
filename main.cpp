@@ -38,10 +38,15 @@
 #include "ManapiMath.hpp"
 //#include "extensions/pq/AsyncPostgreClient.hpp"
 
+manapi::future<int> test () {
+    co_return 1;
+}
+
 int main () {
     manapi::async::context::threadpoolfs(8);
+    manapi::async::context::gbs = manapi::async::context::blockedsignals();
 
-    GCTX_OBJ = manapi::async::context::create(7);
+    GCTX_OBJ = manapi::async::context::create(0);
     GCTX_OBJ->eventloop()->setup_handle_interrupt();
 
     auto mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ);
@@ -62,10 +67,20 @@ int main () {
 
     manapi::net::http::server router (GCTX_OBJ);
 
-    router.GET ("/", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+    std::atomic<int> a = 0;
+
+
+    router.GET ("/", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
-        resp.compress_enabled(true);
-        co_return resp.file("./test.html");
+        a.fetch_add(1);
+        resp.compress_enabled(false);
+        co_return resp.text("");
+    });
+
+    router.GET ("/stat", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+        -> manapi::future<> {
+        resp.compress_enabled(false);
+        co_return resp.text(std::to_string(a.load()));
     });
 
     router.GET ("/zstd", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
@@ -95,7 +110,7 @@ int main () {
             manapi::async::cancellation_action cancellation (GCTX_OBJ);
             cancellation.timeout(5000);
             co_await manapi::crypto::async_random_string(GCTX(data.data(), data.size(), std::move(cancellation)));
-            data = manapi::crypto::strdec2strhex(std::move(data));
+            data = manapi::crypto::strdec2strhex(data);
             co_return resp.text(std::move(data));
         }
         catch (...) {

@@ -140,7 +140,7 @@ manapi::future<ssize_t> manapi::filesystem::fstream::fread(void *buff, ssize_t b
 
 manapi::future<> manapi::filesystem::fstream::close() {
     if (this->data->status.fetch_or(FILE_CLOSED) & FILE_CLOSED) {
-        return async::blank_future();
+        return async::blank_future<void>();
     }
     return fstream::close_(this->data);
 }

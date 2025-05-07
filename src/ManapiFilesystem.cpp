@@ -22,6 +22,7 @@
 
 #include "ManapiBeforeDelete.hpp"
 #include "ManapiString.hpp"
+#include "include/ManapiDefaultErrors.hpp"
 
 static const std::string folder_configs;
 

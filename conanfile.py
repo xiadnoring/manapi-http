@@ -115,7 +115,7 @@ class ManapiHttpConan(ConanFile):
             self.requires("zstd/[>=1.5.7 <2]")
 
         if not self.options.get_safe('lib', False):
-            self.requires("libpq/15.5")
+            self.requires("libpq/16.8")
             self.requires("cpptrace/0.7.4")
 
         if self.options.get_safe('zlib_dependency', False):

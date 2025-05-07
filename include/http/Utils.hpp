@@ -15,7 +15,7 @@ namespace manapi::net::http {
         const std::string &compress;
         std::move_only_function<future<void>(std::string src, std::string dest)> *compressor_for_file = nullptr;
         std::move_only_function<std::string(std::string_view data)> *compressor_for_string = nullptr;
-        std::optional<std::map <std::string, std::string>> replacers;
+        std::unique_ptr<std::map <std::string, std::string>> replacers;
     };
 
     struct header_value_t {
@@ -35,8 +35,8 @@ namespace manapi::net::http {
 
     struct request_data_t {
         // size of the part of the headers in the buffer (READ) [HHHH]BBBBBBB <- 4
-        ssize_t headers_part;
-        ssize_t headers_size;
+        int headers_part;
+        int headers_size;
         // just headers
         std::map<std::string, std::string> headers;
         // contains params from url .../[param1]-[param2]/...
@@ -51,15 +51,14 @@ namespace manapi::net::http {
         // split by '/'
         std::vector <std::string> path;
         // index of the element where URL get params in the path
-        ssize_t divided;
+        int divided;
 
         ssize_t body_index;
         ssize_t body_left;
         ssize_t body_size;
         // size of the part of the body in the buffer (READ) HHHH[BBBBB] <- 5
-        ssize_t body_part;
-
-        bool has_body    = false;
+        int body_part;
+        int flags;
 
         object_item_pool<bytebuffer, std::size_t> buffer{};
     };

@@ -1,27 +1,23 @@
+#include <cctype>       // std::tolower
+#include <algorithm>    // std::equal
+#include <string_view>  // std::string_view
+#include <string>       // std::string
+
 #include "ManapiString.hpp"
 
 #include "ManapiDebug.hpp"
 #include "ManapiMath.hpp"
 
-/**
- * Fills the string on the right to the specified size of the string
- *
- * @param str   the link to string
- * @param size  the size of the string
- * @param c     the char which will be added at the end of the string
- */
+bool insensitive_char_equals(char a, char b) {
+    return std::tolower(static_cast<unsigned char>(a)) ==
+           std::tolower(static_cast<unsigned char>(b));
+}
+
 [[maybe_unused]] void manapi::string::rjust (std::string &str, const size_t &size, const char &c) {
     while (str.size() < size)
         str += c;
 }
 
-/**
- * Fills the string on the left to the specified size of the string
- *
- * @param str   the link to string
- * @param size  the size of the string
- * @param c     the char which will be added at the start of the string
- */
 [[maybe_unused]] void manapi::string::ljust (std::string &str, const size_t &size, const char &c) {
     if (str.size() >= size) return;
 
@@ -42,7 +38,9 @@ std::string manapi::string::random (const size_t &len) {
 }
 
 std::string manapi::string::random (const size_t &len, std::string_view src) {
-    if (src.empty()) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "random(...): the 'src' parameter is empty"); }
+    if (src.empty()) {
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "random(...): the 'src' parameter is empty");
+    }
     const size_t back = src.size() - 1;
 
     std::string result;
@@ -69,4 +67,49 @@ std::vector<std::string_view> manapi::string::split(std::string_view s, char c) 
     n.emplace_back(s.data() + j, s.data() + s.size());
 
     return std::move(n);
+}
+
+bool manapi::string::equals(std::string_view lhs, std::string_view rhs, int flags) {
+    bool res = true;
+    ssize_t i = 0;
+    ssize_t const size = lhs.size();
+
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+
+    if (flags & 0b11) {
+        for (; i < size; i++) {
+            if (std::tolower(lhs[i]) != std::tolower(rhs[i])) {
+                res = false;
+                break;
+            }
+        }
+    }
+    else if (flags & 0b01) {
+        for (; i < size; i++) {
+            if (lhs[i] != std::tolower(rhs[i])) {
+                res = false;
+                break;
+            }
+        }
+    }
+    else if (flags & 0b10) {
+        for (; i < size; i++) {
+            if (std::tolower(lhs[i]) != rhs[i]) {
+                res = false;
+                break;
+            }
+        }
+    }
+    else {
+        for (; i < size; i++) {
+            if (lhs[i] != rhs[i]) {
+                res = false;
+                break;
+            }
+        }
+    }
+
+    return res;
 }

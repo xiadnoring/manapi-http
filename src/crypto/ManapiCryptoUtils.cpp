@@ -1,5 +1,6 @@
 #include "crypto/ManapiCryptoUtils.hpp"
 #include "../include/ManapiWindows.hpp"
+#include "../include/ManapiDefaultErrors.hpp"
 
 void random_string_ (char *rnd, std::size_t len) {
 #ifdef _WIN32

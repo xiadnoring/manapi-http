@@ -2,6 +2,10 @@
 
 #include <utility>
 
+manapi::before_delete::before_delete(nullptr_t) {
+    this->f = nullptr;
+}
+
 manapi::before_delete::before_delete(std::move_only_function<void()> f) {
     this->f = std::move(f);
 }
@@ -40,3 +44,23 @@ void manapi::before_delete::disable() {
 void manapi::before_delete::enable() {
     this->autostart = true;
 }
+
+manapi::sbefore_delete::sbefore_delete(nullptr_t) {
+    this->f = nullptr;
+}
+
+manapi::sbefore_delete::sbefore_delete(std::move_only_function<void()> f) {
+    this->f = std::move(f);
+}
+
+manapi::sbefore_delete::sbefore_delete(sbefore_delete &&n) noexcept = default;
+
+manapi::sbefore_delete::~sbefore_delete() {
+    if (this->f) {
+        auto cb = std::move(this->f);
+        cb();
+    }
+}
+
+manapi::sbefore_delete & manapi::sbefore_delete::operator=(sbefore_delete &&n) noexcept = default;
+

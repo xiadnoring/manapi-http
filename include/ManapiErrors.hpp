@@ -3,6 +3,7 @@
 #include <map>
 #include <string>
 #include <memory>
+#include <format>
 #include "ManapiUtils.hpp"
 
 namespace manapi {
@@ -63,7 +64,10 @@ namespace manapi {
         ERR_FILE_NOT_FOUND = 54,
         ERR_TIMER_ERROR = 55,
         ERR_WATCHER_ERROR = 56,
-        ERR_WATCHER_BIND = 57
+        ERR_WATCHER_BIND = 57,
+        ERR_UNHANDLED_EXCEPTION = 58,
+        ERR_IP = 59,
+        ERR_SSL_CONNECTION = 60
     };
 
     extern const std::map <err_num, std::string> err_msg;
@@ -76,10 +80,12 @@ namespace manapi {
         return err_msg.at(ERR_UNDEFINED);
     }
 
+    void rethrow_exception_ptr (std::exception_ptr err, int *errnum, std::string *msg, class json *data);
+
     class exception : public std::exception {
     public:
         exception (manapi::err_num errnum, std::string message);
-        exception (manapi::err_num errnum, std::string message, std::shared_ptr<class json> data);
+        exception (manapi::err_num errnum, std::string message, std::unique_ptr<class json> data);
         [[nodiscard]] const char * what() const noexcept override;
         [[nodiscard]] int err_num () const;
         [[nodiscard]] std::shared_ptr<manapi::json> data();
@@ -90,22 +96,5 @@ namespace manapi {
     };
 }
 
-namespace manapi::error {
-    enum default_msgs_types {
-        ERRMSG_FILE_NOT_FOUND = 0,
-        ERRMSG_FILE_EXISTS,
-        ERRMSG_SIZE_NOT_SAME,
-        /* 1 param */
-        ERRMSG_BY_ERROR,
-        ERRMSG_WHEN_RECV_ADDITIONAL,
-        ERRMSG_FS_FAILURE_FS_IO_OPERATIONS,
-        ERRMSG_FS_FAILURE_CALLBACK,
-        ERRMSG_FS_CANCELLED,
-        ERRMSG_FS_FAILURE_INIT,
-        ERRMSG_WATCHER_COMMAND_FAILED,
-        ERRMSG_WATCHER_BIND_FAILED,
-        ERRMSG_RANDOM_STRING_FAILED
-    };
-
-    extern const char *default_msgs[];
-}
+template <>
+struct std::formatter<manapi::err_num> : std::formatter<int> {};
