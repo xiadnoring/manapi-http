@@ -44,7 +44,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, net::site *site, const c
     auto &size = *nsize;
 
     while (pos != size) {
-        switch (ctx->current) {
+        repeat: switch (ctx->current) {
             case HTTP_V1_1_CALLBACK_INIT: {
 
                 ctx->current = HTTP_V1_1_CALLBACK_PARSE_METHOD;
@@ -85,10 +85,12 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, net::site *site, const c
 
                             ctx->s1.pop_back();
 
+                            pos ++;
+
                             ctx->current = HTTP_V1_1_CALLBACK_FINISH;
                             ctx->next = HTTP_V1_1_CALLBACK_BUG;
 
-                            break;
+                            goto repeat;
                         }
 
                         return EHTTP_V1_1_PROTOCOL_ERROR;
@@ -353,13 +355,13 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, net::site *site, const c
             }
             case HTTP_V1_1_CALLBACK_UPGRADE:
                 buffer += pos;
-                size += pos;
+                size -= pos;
                 return EHTTP_V1_1_PROTOCOL_UPGRADE;
             case HTTP_V1_1_CALLBACK_FINISH: {
                 auto const hconnection = ctx->req->headers.find(HEADER.CONNECTION);
 
                 buffer += pos;
-                size += pos;
+                size -= pos;
 
                 if (hconnection != ctx->req->headers.end()) {
                     /**
@@ -428,7 +430,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, net::site *site, const c
     }
 
     buffer += pos;
-    size += pos;
+    size -= pos;
 
     return EHTTP_V1_1_PROTOCOL_WANT_READ;
 }

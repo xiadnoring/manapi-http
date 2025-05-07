@@ -83,6 +83,12 @@ int main () {
         co_return resp.text(std::to_string(a.load()));
     });
 
+    router.GET ("/favicon.ico", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+        -> manapi::future<> {
+        resp.compress_enabled(false);
+        co_return resp.text("no");
+    });
+
     router.GET ("/zstd", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
         resp.compress("zstd");

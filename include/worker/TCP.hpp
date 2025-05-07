@@ -65,7 +65,7 @@ namespace manapi::net::worker {
 
         void update_limit_rate ();
 
-        void timeout_ (const worker::shared_conn& storage);
+        void timeout_ (worker::connection * storage);
 
         void ev_watcher_stop_ (connection_interface & conn);
 

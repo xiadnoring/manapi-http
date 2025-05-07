@@ -96,8 +96,15 @@ void manapi::net::worker::TCP::init() {
             }
         }
 
-        this->watcher_accept_->keepalive(0, this->config()->keep_alive().load());
-        this->watcher_accept_->nodelay(this->config()->tcp_no_delay().load());
+        if (auto rhs = this->watcher_accept_->nodelay(this->config()->tcp_no_delay().load())) {
+            this->site().async_context()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set nodelay due to result - {}", rhs);
+            goto err;
+        }
+
+        if (auto rhs = this->watcher_accept_->keepalive(!!this->config()->keep_alive().load(), this->config()->keep_alive().load())) {
+            this->site().async_context()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set keep-alive due to result - {}", rhs);
+            goto err;
+        }
 
         if (auto rhs = this->watcher_accept_->s_bind(reinterpret_cast<sockaddr *> (&this->sockaddrin), ev::TCP_REUSEPORT)) {
             this->site().async_context()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't bind socket due to result - {}", rhs);
@@ -133,6 +140,10 @@ manapi::future<ssize_t> manapi::net::worker::TCP::response(const worker::shared_
 }
 
 void manapi::net::worker::TCP::onaccept(std::shared_ptr<ev::tcp> &watcher, int status) {
+    if (status) {
+        return;
+    }
+
     shared_conn connection;
     try {
         // if (this->config()->max_connections() <= this->connections.size()) {
@@ -207,6 +218,14 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
 
 
     if (client->accept(w.get())) {
+        this->site().async_context()->eventloop()->stop_watcher_tcp_connection(std::move(client), nullptr);
+        return nullptr;
+    }
+
+    auto keepalive = this->config()->keep_alive().load();
+    if (auto rhs = client->keepalive(!!keepalive, keepalive)) {
+        this->site().async_context()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set keep-alive due to result - {}", rhs);
+        this->site().async_context()->eventloop()->stop_watcher_tcp_connection(std::move(client), nullptr);
         return nullptr;
     }
 
@@ -223,10 +242,10 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
     conn->worker = this->self_.lock();
     conn->watcher = std::move(client);
 
-    conn->t = this->site().async_context()->timerpool()->append_interval_sync(this->config()->speed_check_delay(),
+    conn->t = this->site().async_context()->timerpool()->append_interval_sync(5000,
         [wconnection = std::weak_ptr(connection)] (manapi::timer t) mutable -> void {
             auto connection = wconnection.lock();
-            dynamic_cast<TCP*>(connection->as<connection_interface>()->worker.get())->timeout_(connection);
+            dynamic_cast<TCP*>(connection->as<connection_interface>()->worker.get())->timeout_(connection.get());
         });
 
     return std::move(connection);
@@ -242,20 +261,29 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept(ev::shared_tcp
 void manapi::net::worker::TCP::close_connection(worker::connection *conn, bool clean_disconnect) {
     auto connection = conn->as<connection_interface>();
 
-    if (connection->t) {
-        connection->t.sync_stop(this->site().async_context());
-        connection->t = nullptr;
-    }
 
-    if (connection->watcher) {
+
+    if (connection->watcher && !clean_disconnect) {
+        if (connection->t) {
+            connection->t.sync_stop(this->site().async_context());
+            connection->t = nullptr;
+        }
         connection->watcher->read_stop();
         this->site().async_context()->eventloop()->stop_watcher_tcp_connection(std::move(connection->watcher),
             std::make_unique<ev::tcp_close_cb>([] (const ev::shared_tcp &tcp) -> void {
 
             }));
+        this->connections.erase(reinterpret_cast<uintptr_t> (conn));
     }
-
-    this->connections.erase(reinterpret_cast<uintptr_t> (conn));
+    else {
+        if (connection->t) {
+            connection->t.sync_stop(this->site().async_context());
+            connection->t = this->site().async_context()->timerpool()->append_interval_sync(5000,
+            [conn] (manapi::timer t) mutable -> void {
+                dynamic_cast<TCP*>(conn->as<connection_interface>()->worker.get())->timeout_(conn);
+            });
+        }
+    }
 }
 
 void manapi::net::worker::TCP::stop() {
@@ -374,9 +402,9 @@ void manapi::net::worker::TCP::update_limit_rate() {
     }
 }
 
-void manapi::net::worker::TCP::timeout_(const worker::shared_conn& storage) {
+void manapi::net::worker::TCP::timeout_(worker::connection * storage) {
     auto conn = storage->as<connection_interface>();
-
+goto err;
 
     if (conn->status & ev::DISCONNECT) {
         goto err;
@@ -391,9 +419,7 @@ err:
     conn->t.sync_stop(this->site().async_context());
     conn->status |= (ev::DISCONNECT);
 
-    if (conn->ev_callback) {
-        conn->ev_callback->operator()(storage, ev::DISCONNECT, {});
-    }
+    this->close_connection(storage, false);
 
     return;
 }
@@ -444,6 +470,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
 
             }));
     }
+    //std::cout << "CLOSE\n";
     delete connection;
 }
 
@@ -463,14 +490,28 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
             switch (http::http_v1_1_work(http_v1_1_ctx, &this->site(), &buff, &size)) {
                 case http::EHTTP_V1_1_PROTOCOL_OK: {
                     auto req_ptr = http_v1_1_ctx->req.get();
-
+                    if (size) {
+                        req_ptr->buffer = std::move(buffer);
+                        req_ptr->buffer->shift_add(req_ptr->buffer->size() - size);
+                    }
                     auto cdata = std::make_unique<http::internal::handle_data_t>(conn, data->worker, req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
-                        [conn, req = std::move(http_v1_1_ctx->req)] (bool ok)
+                        [this, conn, req = std::move(http_v1_1_ctx->req)] (bool ok)
                         -> void {
                             auto data = conn->as<connection_interface>();
 
                             if (ok) {
-                                data->worker->close_connection(conn.get(), true);
+                                if (this->config()->keep_alive()) {
+                                    this->onaccept_event_(conn);
+                                    if (req->buffer != nullptr && !req->buffer->empty()) {
+                                        this->onrecv(data->watcher, conn, std::move(req->buffer));
+                                    }
+                                    else {
+                                        data->worker->close_connection(conn.get(), true);
+                                    }
+                                }
+                                else {
+                                    data->worker->close_connection(conn.get(), true);
+                                }
                             }
                             else {
                                 /* failed */

@@ -43,8 +43,19 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
 
 
     // set time
-    res->header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
-    if (res->request_data()->http < versions::HTTP_v2) { res->header(HEADER.CONNECTION, "close"); }
+    //res->header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
+    if (res->request_data()->http < versions::HTTP_v2) {
+        auto keepalive = cdata->worker->config()->keep_alive().load();
+        if (keepalive) {
+            res->header(HEADER.CONNECTION, HEADER.KEEP_ALIVE);
+            res->header(HEADER.KEEP_ALIVE, std::format("timeout={}, max=20
+            gi
+            0000", keepalive));
+        }
+        else {
+            res->header(HEADER.CONNECTION, "close");
+        }
+    }
 
     auto ctx = cdata->worker->site().async_context();
     switch (res->data_type()) {
@@ -637,10 +648,10 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 
         auto client = std::make_unique<manapi_socket_information>();
 
-        if (handle_request_stringify_ip(client.get(), cdata->conn.get())) {
-            /* error */
-            ctx->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
-        }
+        // if (handle_request_stringify_ip(client.get(), cdata->conn.get())) {
+        //     /* error */
+        //     ctx->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
+        // }
 
         auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, cdata->conn.get(), cdata->worker, data->handler);
         auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());
@@ -964,7 +975,7 @@ manapi::future<void> manapi::net::http::internal::send_text(uq_handle_data_t cda
         current = current + result;
     }
 
-    //cdata->cb->call(true);
+    cdata->cb->call(true);
 }
 
 void manapi::net::http::internal::expect_header(uq_handle_data_t cdata) {
