@@ -72,7 +72,7 @@ namespace manapi::net {
 
     class site {
         struct data_t {
-            async::shared_ctx ctx;
+            async::shared_cthread ctx;
             async::mutex cache_config_mx;
             manapi::json cache_config;
             manapi::json config_;
@@ -83,11 +83,10 @@ namespace manapi::net {
             std::map <std::string, std::move_only_function<future<void>(std::string src, std::string dest)>> compressors_for_file{};
             std::map <std::string, std::move_only_function<std::string(std::string_view data)>> compressors_for_string{};
             std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers{};
-            std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> bufferpool_;
             std::mutex loopmx{};
         };
     public:
-        site (const async::shared_ctx &ctx);
+        site (const async::shared_cthread &ctx);
         virtual ~site();
 
         site (site &&n) noexcept;
@@ -118,9 +117,6 @@ namespace manapi::net {
 
         std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm, std::chrono::system_clock::time_point filetime);
         void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm, std::chrono::system_clock::time_point filetime);
-
-        [[nodiscard]] const async::shared_ctx& async_context ();
-        const std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> &bufferpool();
 
         [[nodiscard]] const std::string &config_cache_dir();
         [[nodiscard]] async::mutex &cache_config_mx();

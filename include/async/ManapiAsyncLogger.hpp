@@ -5,6 +5,10 @@
 #include <format>
 
 namespace manapi {
+    namespace async {
+        class cthread;
+    }
+
     enum logger_type {
         LOGGER_DEBUG = 0,
         LOGGER_WARNING = 1,

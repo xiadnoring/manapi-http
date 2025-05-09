@@ -71,13 +71,11 @@ namespace manapi::net::worker {
 
         virtual void update_limit_rate_connection (connection *conn);
 
-        static void _connection_interface_eraser (connection_interface *connection);
-
         virtual void http_work_ (http::http_v1_1_t *http_v1_1_ctx, const worker::shared_conn &conn, int flags, ibuffpool_t buffer);
 
         virtual void onaccept_event_ (const worker::shared_conn &conn);
 
-        std::map <std::uintptr_t, shared_conn> connections;
+        std::unordered_map <std::uintptr_t, shared_conn> connections;
         ev::shared_tcp watcher_accept_;
     private:
         static std::string stringify_http_info (manapi::net::http::response *res, const int &version, const std::string &delimiter) ;

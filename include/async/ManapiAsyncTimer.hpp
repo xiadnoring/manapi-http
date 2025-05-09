@@ -7,7 +7,7 @@
 namespace manapi::async {
     class delay {
     public:
-        delay (const std::shared_ptr<context> &ctx, size_t ms) : ctx(ctx) {
+        delay (shared_cthread ctx, size_t ms) : ctx(std::move(ctx)) {
             this->time = ms;
         }
         ~delay() = default;
@@ -26,7 +26,7 @@ namespace manapi::async {
         }
         void await_resume () const {}
     private:
-        std::shared_ptr<context> ctx;
+        shared_cthread ctx;
         size_t time{};
     };
 }

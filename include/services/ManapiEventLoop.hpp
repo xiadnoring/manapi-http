@@ -74,11 +74,11 @@ namespace manapi {
 
         manapi::future<> stop ();
 
-        manapi::future<size_t> subscribe_finish (std::move_only_function<manapi::future<void>()> cb);
-        manapi::future<> unsubscribe_finish (std::size_t id);
+        size_t subscribe_finish (std::move_only_function<manapi::future<void>()> cb);
+        void unsubscribe_finish (std::size_t id);
 
-        manapi::future<std::size_t> subscribe_clean_up (std::move_only_function<void()> cb);
-        manapi::future<> unsubscribe_clean_up (std::size_t id);
+        std::size_t subscribe_clean_up (std::move_only_function<void()> cb);
+        void unsubscribe_clean_up (std::size_t id);
 
         manapi::ev::loop_ref loop();
 
@@ -315,8 +315,6 @@ namespace manapi {
 
         std::shared_ptr<threadpool<task>> etaskpool_;
         std::shared_ptr<async::mutex> mx;
-        std::shared_ptr<async::mutex> map_finish_cb_mx;
-        std::shared_ptr<async::mutex> map_clean_up_cb_mx;
         std::unique_ptr<uv_loop_t> loop_;
         std::shared_ptr<threadpool<task>> taskpool_;
         std::map <size_t, std::move_only_function<manapi::future<void>()>> map_finish_cb;
@@ -324,7 +322,6 @@ namespace manapi {
         std::shared_ptr<ev::async> interrupted_watcher_{nullptr};
         std::shared_ptr<ev::async> stop_watcher_{nullptr};
         async::promise<void>::resolve_t resolve_stop{nullptr};
-        std::atomic<bool> loop_interrupted;
 
         std::unique_ptr<ev::internal::fs_watcher_t> fs_watcher;
         std::unique_ptr<ev::internal::io_watcher_t> io_watcher;

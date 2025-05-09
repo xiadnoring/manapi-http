@@ -38,6 +38,7 @@ namespace manapi::net::worker {
 
     class base {
     public:
+        typedef std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> bufferpool_t;
         struct connection_stat_interface {
             size_t transfared_last_second = 0;
         };
@@ -116,6 +117,8 @@ namespace manapi::net::worker {
         net::site &site ();
 
         net::http::config *config ();
+
+        const bufferpool_t &bufferpool();
     protected:
         static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt);
 
@@ -125,8 +128,9 @@ namespace manapi::net::worker {
 
         static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent);
     private:
-        net::site &site_;
+        net::site site_;
         std::shared_ptr<manapi::net::http::config> config_;
+        bufferpool_t bufferpool_;
     };
 
     typedef std::shared_ptr<worker::base> shared_worker;

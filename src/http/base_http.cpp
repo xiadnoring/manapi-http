@@ -48,28 +48,25 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
         auto keepalive = cdata->worker->config()->keep_alive().load();
         if (keepalive) {
             res->header(HEADER.CONNECTION, HEADER.KEEP_ALIVE);
-            res->header(HEADER.KEEP_ALIVE, std::format("timeout={}, max=20
-            gi
-            0000", keepalive));
+            res->header(HEADER.KEEP_ALIVE, std::format("timeout={}, max=200000", keepalive));
         }
         else {
             res->header(HEADER.CONNECTION, "close");
         }
     }
 
-    auto ctx = cdata->worker->site().async_context();
     switch (res->data_type()) {
         case internal::RESPONSE_FILE:
-            manapi::async::run(ctx, send_response_file(std::move(cdata), std::move(res), std::move(features)));
+            manapi::async::run(manapi::async::current(), send_response_file(std::move(cdata), std::move(res), std::move(features)));
         break;
         case internal::RESPONSE_TEXT:
-            manapi::async::run(ctx, send_response_text(std::move(cdata), std::move(res), std::move(features)));
+            manapi::async::run(manapi::async::current(), send_response_text(std::move(cdata), std::move(res), std::move(features)));
         break;
         case internal::RESPONSE_PROXY:
-            manapi::async::run(ctx, send_response_proxy(std::move(cdata), std::move(res), std::move(features)));
+            manapi::async::run(manapi::async::current(), send_response_proxy(std::move(cdata), std::move(res), std::move(features)));
         break;
         case internal::RESPONSE_FORMDATA:
-            manapi::async::run(ctx, send_response_formdata(std::move(cdata), std::move(res), std::move(features)));
+            manapi::async::run(manapi::async::current(), send_response_formdata(std::move(cdata), std::move(res), std::move(features)));
         break;
         case internal::RESPONSE_ASYNC_CALLBACK:
             send_response_async_cb(std::move(cdata), std::move(res), std::move(features));
@@ -78,7 +75,7 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
             send_response_sync_cb(std::move(cdata), std::move(res), std::move(features));
         break;
         default:
-            manapi::async::run<ssize_t>(ctx,  mask_response(cdata.get(), res.get(), true),
+            manapi::async::run<ssize_t>(manapi::async::current(),  mask_response(cdata.get(), res.get(), true),
                 [cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result)
                 -> void {
                     if (err) {
@@ -93,7 +90,6 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
 manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     std::string filepath;
     auto resfile = res->file();
-    auto ctx = cdata->worker->site().async_context();
 
     if (features.compressor_for_file) {
         if (features.replacers) {
@@ -106,7 +102,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
         filepath = std::move(resfile);
     }
 
-    filesystem::fstream f (ctx, filepath);
+    filesystem::fstream f (manapi::async::current(), filepath);
     co_await f.open(ev::FS_O_RDONLY);
 
     if (!f.is_open()) {
@@ -129,12 +125,12 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
         res->header(HEADER.CONTENT_TYPE, mimetype);
 
         // get file size
-        ssize_t fileSize = co_await manapi::filesystem::async_file_size(ctx, filepath);
+        ssize_t fileSize = co_await manapi::filesystem::async_file_size(manapi::async::current(), filepath);
         ssize_t dynamicFileSize = fileSize;
 
         // replacers
         if (features.replacers) {
-            replacers = co_await found_replacers_in_file(ctx, filepath, 0, fileSize, *features.replacers);
+            replacers = co_await found_replacers_in_file(manapi::async::current(), filepath, 0, fileSize, *features.replacers);
 
             for (const auto &replacer: replacers) {
                 dynamicFileSize = static_cast<ssize_t> (
@@ -193,7 +189,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
             res->header(HEADER.CONTENT_RANGE, std::format("bytes {}-{}/{}", start, back, fileSize));
 
             auto task = mask_response(cdata.get(), res.get(), size == 0);
-            manapi::async::run<ssize_t>(ctx, std::move(task),
+            manapi::async::run<ssize_t>(manapi::async::current(), std::move(task),
                 [size, start, f, cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *value) mutable
                 -> void {
                     if (err) {
@@ -205,8 +201,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                         f.seekg(start);
                         // set size and send
                         if (size) {
-                            auto ctx = cdata->worker->site().async_context();
-                            manapi::async::run (ctx,
+                            manapi::async::run (manapi::async::current(),
                                 send_file(std::move(cdata), f, size));
                         }
                     }
@@ -217,7 +212,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
 
             if (fileSize) {
                 auto task = mask_response(cdata.get(), res.get(), false);
-                manapi::async::run<ssize_t>(ctx, std::move(task),
+                manapi::async::run<ssize_t>(manapi::async::current(), std::move(task),
                     [fileSize, replacers = std::move(replacers), f = std::move(f), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *value) mutable
                     -> void {
                         if (err) {
@@ -225,14 +220,13 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                         }
 
                         if (value && *value >= 0) {
-                            auto ctx = cdata->worker->site().async_context();
                             if (replacers.empty()) {
                                 // without replacers
-                                manapi::async::run(ctx,
+                                manapi::async::run(manapi::async::current(),
                                     send_file(std::move(cdata), f, fileSize));
                             }
                             else {
-                                manapi::async::run(ctx,
+                                manapi::async::run(manapi::async::current(),
                                     send_file(std::move(cdata), f, fileSize));
                             }
                         }
@@ -240,13 +234,13 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
             }
             else {
                 auto task = mask_response(cdata.get(), res.get(), true);
-                manapi::async::run<ssize_t>(ctx, std::move(task), [cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result)
+                manapi::async::run<ssize_t>(manapi::async::current(), std::move(task), [cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result)
                     -> void { if (err) { return; } cdata->cb->call(true); });
             }
         }
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG(ctx, "send response failed due to {}", e.what());
+        MANAPIHTTP_LOG(manapi::async::current(), "send response failed due to {}", e.what());
     }
 }
 
@@ -267,8 +261,7 @@ manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_d
     }
 
     auto task = mask_response(cdata.get(), res.get(), plaintext.empty());
-    auto ctx = cdata->worker->site().async_context();
-    manapi::async::run<ssize_t>(ctx, std::move(task),
+    manapi::async::run<ssize_t>(manapi::async::current(), std::move(task),
         [plaintext = std::move(plaintext), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *value) mutable
         -> void {
             if (err) {
@@ -278,8 +271,7 @@ manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_d
 
             if (value && *value >= 0) {
                 /* ok */
-                auto ctx = cdata->worker->site().async_context();
-                manapi::async::run (ctx,
+                manapi::async::run (manapi::async::current(),
                     send_text(std::move(cdata), std::move(plaintext)));
             }
     });
@@ -289,8 +281,7 @@ manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_d
 
 manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
 #ifdef MANAPIHTTP_FETCH_SUPPORT
-    auto ctx = cdata->worker->site().async_context();
-    auto proxy = std::make_unique<fetch>(ctx, res->url());
+    auto proxy = std::make_unique<fetch>(manapi::async::current(), res->url());
     auto proxy_setup = std::move(res->proxy_setup_cb());
 
     if (proxy_setup) {
@@ -334,7 +325,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
         co_return rhs;
     });
 
-    manapi::async::run (ctx,
+    manapi::async::run (manapi::async::current(),
         proxy->async_doit(), [content_length = std::move(content_length),  cdata = std::move(cdata)]
             (std::exception_ptr err) mutable -> void {
             if (err) {
@@ -365,8 +356,7 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(uq_handle_d
     auto size = co_await formdata->payload_size();
 
     auto task = mask_response(cdata.get(), res.get(), false);
-    auto ctx = cdata->worker->site().async_context();
-    manapi::async::run<ssize_t> (ctx, std::move(task),
+    manapi::async::run<ssize_t> (manapi::async::current(), std::move(task),
         [size, formdata = std::move(formdata), cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *result) mutable
         -> void {
             if (err) {
@@ -394,8 +384,7 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(uq_handle_d
                         }
                     });
 
-                auto ctx = cdata->worker->site().async_context();
-                manapi::async::run(ctx, std::move(task),
+                manapi::async::run(manapi::async::current(), std::move(task),
                     [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err) mutable
                     -> void {
                         if (err) {
@@ -419,9 +408,8 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Replacers isn't supported");
     }
 
-    auto ctx = cdata->worker->site().async_context();
     auto task = mask_response(cdata.get(), res.get(), false);
-    manapi::async::run<ssize_t> (ctx, std::move(task),
+    manapi::async::run<ssize_t> (manapi::async::current(), std::move(task),
         [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result) mutable
         -> void {
             if (err) {
@@ -432,8 +420,7 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
             if (result && *result >= 0) {
                 const ssize_t reserved = res->config()->buffer_size();
                 auto cb_sync = res->callback_sync();
-                auto ctx = cdata->worker->site().async_context();
-                manapi::async::run (ctx,
+                manapi::async::run (manapi::async::current(),
                     [cb_sync = std::move(cb_sync), reserved, cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
                         // TODO: speed up
@@ -463,9 +450,8 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Replacers isn't supported");
     }
 
-    auto ctx = cdata->worker->site().async_context();
     auto task = mask_response(cdata.get(), res.get(), false);
-    manapi::async::run<ssize_t> (ctx, std::move(task),
+    manapi::async::run<ssize_t> (manapi::async::current(), std::move(task),
         [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result) mutable
         -> void {
             if (err) {
@@ -476,8 +462,7 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
             if (result && *result >= 0) {
                 auto reserved = res->config()->buffer_size().load();
                 auto cb_async = res->callback_async();
-                auto ctx = cdata->worker->site().async_context();
-                manapi::async::run (ctx,
+                manapi::async::run (manapi::async::current(),
                     [reserved, cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
                         // TODO: speed up
@@ -550,7 +535,6 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
 }
 
 void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, std::unique_ptr<http_handler_page> data, int status) {
-    auto ctx = cdata->worker->site().async_context();
     try {
         // handler function not be found
         if (!data->handler) {
@@ -565,14 +549,13 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 
                 path = manapi::filesystem::path::join(*data->statics, path);
 
-                manapi::async::run(ctx,
+                manapi::async::run(manapi::async::current(),
                     [status, data = std::move(data), cdata = std::move(cdata), path = std::move(path)] () mutable
                     -> manapi::future<> {
                     bool exists = true;
                     uint64_t st_mode = 0;
 
-                    auto ctx = cdata->worker->site().async_context();
-                    co_await manapi::filesystem::async_stat(ctx, path, [&st_mode, &exists] (ev::stat_t *stat)
+                    co_await manapi::filesystem::async_stat(manapi::async::current(), path, [&st_mode, &exists] (ev::stat_t *stat)
                         -> void {
                         if (stat) {
                             st_mode = stat->st_mode;
@@ -595,7 +578,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 
                             if (handle_request_stringify_ip(client.get(), cdata->conn.get())) {
                                 /* error */
-                                ctx->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
+                                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
                                 co_return;
                             }
 
@@ -621,7 +604,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                                 co_return;
                             }
                             catch (const std::exception &e) {
-                                MANAPIHTTP_LOG(ctx, "Unexpected error: {}", e.what());
+                                MANAPIHTTP_LOG(manapi::async::current(), "Unexpected error: {}", e.what());
                             }
                         }
 
@@ -657,7 +640,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
         auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());
 
         auto resptr = res.get();
-        manapi::async::run(ctx,
+        manapi::async::run(manapi::async::current(),
             [req = std::move(req), res = resptr, data = std::move(data)] () -> future<> {
 
                 // handle layers
@@ -687,11 +670,11 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
             case ERR_HTTP_CONNECTION_WAS_CLOSED:
                 return;
             default:
-                MANAPIHTTP_LOG(ctx, "Unexpected error: {}", e.what());
+                MANAPIHTTP_LOG(manapi::async::current(), "Unexpected error: {}", e.what());
         }
     }
     catch (const std::exception &e) {
-        MANAPIHTTP_LOG(ctx, "Unexpected error: {}", e.what());
+        MANAPIHTTP_LOG(manapi::async::current(), "Unexpected error: {}", e.what());
     }
 
     send_error_response(std::move(cdata), std::move(data->error), http::SERVICE_UNAVAILABLE_503);
@@ -720,7 +703,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
 
     size += current;
 
-    async::parallel_run<ssize_t> parallel (cdata->worker->site().async_context());
+    async::parallel_run<ssize_t> parallel (manapi::async::current());
 
     ssize_t rhs;
     std::exception_ptr error{nullptr};
@@ -1003,14 +986,14 @@ std::string generate_cache_name(const std::string &file, const std::string &ext)
 
 manapi::future<std::string> manapi::net::http::internal::compress_file(net::site site, std::string file, std::string folder, std::string compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor) {
     std::string filepath;
-    auto filetime = co_await manapi::filesystem::async_last_time_write(site.async_context(), file);
+    auto filetime = co_await manapi::filesystem::async_last_time_write(manapi::async::current(), file);
     // compressor
     auto lk = co_await site.cache_config_mx().lock_guard();
     auto cached = site.get_compressed_cache_file(file, compress, filetime);
 
     if (cached.empty()) {
         try {
-            co_await filesystem::async_mkdir(site.async_context(), folder, ev::IRUSR|ev::IWUSR);
+            co_await filesystem::async_mkdir(manapi::async::current(), folder, ev::IRUSR|ev::IWUSR);
             filepath = folder + generate_cache_name(file, compress);
 
             co_await (*compressor)(file, filepath);
@@ -1018,7 +1001,7 @@ manapi::future<std::string> manapi::net::http::internal::compress_file(net::site
             site.set_compressed_cache_file(file, filepath, compress, filetime);
         }
         catch (std::exception const &e) {
-            site.async_context()->logger()->error(manapi::logger::default_service, ERR_COMPRESS_DATA, "file compress failed due to {}", e.what());
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_COMPRESS_DATA, "file compress failed due to {}", e.what());
             co_return file;
         }
     }

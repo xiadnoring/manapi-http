@@ -14,7 +14,7 @@ namespace manapi::filesystem {
             FILE_EOF = 0b1000
         };
         struct fstream_data_t_ {
-            async::shared_ctx ctx;
+            async::shared_cthread ctx;
             std::string path;
             async::cancellation_action cancellation;
             ev::file file;
@@ -27,7 +27,7 @@ namespace manapi::filesystem {
             FILE_SEEK_CURRENT
         };
 
-        fstream (const async::shared_ctx &ctx, std::string path, async::cancellation_action cancellation = nullptr);
+        fstream (async::shared_cthread ctx, std::string path, async::cancellation_action cancellation = nullptr);
         fstream (fstream &&n) noexcept;
         fstream &operator=(fstream &&n) noexcept;
         fstream (const fstream &n);

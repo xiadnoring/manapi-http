@@ -74,7 +74,7 @@ err:
     THROW_MANAPIHTTP_EXCEPTION2 (ERR_COMPRESS_DATA, "brotli: compress failed");
 }
 
-manapi::future<void> manapi::compress::brotli_compress_file(async::shared_ctx ctx, std::string src, std::string dest, int quality, int window, int mode, manapi::async::cancellation_action cancellation) {
+manapi::future<void> manapi::compress::brotli_compress_file(async::shared_cthread ctx, std::string src, std::string dest, int quality, int window, int mode, manapi::async::cancellation_action cancellation) {
     filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
     filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 
@@ -161,7 +161,7 @@ err:
     THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: compress failed");
 }
 
-manapi::future<void> manapi::compress::brotli_decompress_file(async::shared_ctx ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
+manapi::future<void> manapi::compress::brotli_decompress_file(async::shared_cthread ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
     filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
     filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 
@@ -225,7 +225,7 @@ std::string manapi::compress::zstd_compress_string(std::string_view src, int lev
     return std::move(dest);
 }
 
-manapi::future<> manapi::compress::zstd_compress_file(async::shared_ctx ctx, std::string src, std::string dest, int level, int additional_threads, manapi::async::cancellation_action cancellation) {
+manapi::future<> manapi::compress::zstd_compress_file(async::shared_cthread ctx, std::string src, std::string dest, int level, int additional_threads, manapi::async::cancellation_action cancellation) {
     filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
     filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 
@@ -316,7 +316,7 @@ err:
     THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: compress failed");
 }
 
-manapi::future<> manapi::compress::zstd_decompress_file(async::shared_ctx ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
+manapi::future<> manapi::compress::zstd_decompress_file(async::shared_cthread ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
 filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
     filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 
@@ -413,7 +413,7 @@ err:
 
 #if MANAPIHTTP_ZLIB_DEPENDENCY
 
-manapi::future<void> manapi::compress::deflate_compress_file(async::shared_ctx ctx, std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation) {
+manapi::future<void> manapi::compress::deflate_compress_file(async::shared_cthread ctx, std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation) {
     filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
     filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 
@@ -491,7 +491,7 @@ excep:
 }
 
 /* decompress */
-manapi::future<void> manapi::compress::deflate_decompress_file(async::shared_ctx ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation){
+manapi::future<void> manapi::compress::deflate_decompress_file(async::shared_cthread ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation){
     filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
     filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 
@@ -731,7 +731,7 @@ std::string manapi::compress::gzip_decompress_string(std::string_view compressed
     return std::move(buff);
 }
 
-manapi::future<void> manapi::compress::gzip_compress_file(async::shared_ctx ctx, std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation)
+manapi::future<void> manapi::compress::gzip_compress_file(async::shared_cthread ctx, std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation)
 {
     filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
     filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
@@ -810,7 +810,7 @@ excep:
     THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "gzip compress failed");
 }
 
-manapi::future<void> manapi::compress::gzip_decompress_file(async::shared_ctx ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
+manapi::future<void> manapi::compress::gzip_decompress_file(async::shared_cthread ctx, std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
     filesystem::fstream input (ctx, src, manapi::async::cancellation_action(ctx, cancellation));
     filesystem::fstream output (ctx, dest, manapi::async::cancellation_action(ctx, cancellation));
 

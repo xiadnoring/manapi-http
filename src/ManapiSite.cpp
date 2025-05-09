@@ -88,10 +88,6 @@ const std::map<std::string, std::function<std::shared_ptr<manapi::net::worker::b
     return this->data->transport_protocol_workers[type];
 }
 
-const std::shared_ptr<manapi::object_pool<manapi::bytebuffer, std::false_type, long unsigned int>> & manapi::net::site::bufferpool() {
-    return this->data->bufferpool_;
-}
-
 const std::string & manapi::net::site::config_cache_dir() {
     return this->data->config_cache_dir;
 }
@@ -163,13 +159,13 @@ void manapi::net::site::setup() {
 manapi::future<> manapi::net::site::config(std::string path) {
     this->data->config_path = std::move(path);
 
-    if (!co_await manapi::filesystem::async_exists(this->async_context(), this->data->config_path))
+    if (!co_await manapi::filesystem::async_exists(this->data->ctx, this->data->config_path))
     {
         std::string data = this->data->config_.dump(4);
-        co_await manapi::filesystem::async_write(this->async_context(), this->data->config_path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+        co_await manapi::filesystem::async_write(this->data->ctx, this->data->config_path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
     }
 
-    this->data->config_ = manapi::json(co_await manapi::filesystem::async_read (this->async_context(), this->data->config_path), true);
+    this->data->config_ = manapi::json(co_await manapi::filesystem::async_read (this->data->ctx, this->data->config_path), true);
     co_await this->setup_config ();
 }
 
@@ -201,14 +197,14 @@ manapi::future<> manapi::net::site::setup_config() {
             this->data->config_cache_dir = manapi::filesystem::path::join(std::filesystem::temp_directory_path(), MANAPIHTTP_NAME, "cache");
         }
 
-        co_await manapi::filesystem::async_mkdir(this->async_context(), this->data->config_cache_dir, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
+        co_await manapi::filesystem::async_mkdir(this->data->ctx, this->data->config_cache_dir, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
 
         manapi::filesystem::path::append_delimiter(this->data->config_cache_dir);
         auto path = this->data->config_cache_dir + site::default_config_name;
         try {
-            if (co_await manapi::filesystem::async_exists(this->async_context(), path))
+            if (co_await manapi::filesystem::async_exists(this->data->ctx, path))
             {
-                this->data->cache_config = manapi::json(co_await manapi::filesystem::async_read(this->async_context(), path), true);
+                this->data->cache_config = manapi::json(co_await manapi::filesystem::async_read(this->data->ctx, path), true);
             }
         }
         catch (std::exception const &e) {
@@ -216,7 +212,7 @@ manapi::future<> manapi::net::site::setup_config() {
         }
     }
     catch (manapi::exception const &e) {
-        this->async_context()->logger()->error(manapi::logger::default_service, e.err_num(), "The configuration directory couldn't be created due to {}.", e.what());
+        this->data->ctx->logger()->error(manapi::logger::default_service, e.err_num(), "The configuration directory couldn't be created due to {}.", e.what());
     }
 }
 
@@ -258,14 +254,10 @@ void manapi::net::site::set_compressed_cache_file(const std::string &file, const
     this->data->cache_config[algorithm].insert(file, file_info);
 }
 
-const manapi::async::shared_ctx & manapi::net::site::async_context() {
-    return this->data->ctx;
-}
-
 void manapi::net::site::save() {
     if (this->data->enabled_save_config)
     {
-        manapi::async::run(this->async_context(), this->save_config(this->data));
+        manapi::async::run(this->data->ctx, this->save_config(this->data));
     }
 }
 
@@ -297,9 +289,7 @@ std::unique_ptr<manapi::net::http_handler_page> manapi::net::site::handler(http:
     {
         const http_uri_part *cur = &this->data->handlers;
         const size_t path_size = request_data->divided == -1 ? request_data->path.size() : request_data->divided;
-        for (size_t i = 0; i <= path_size; i++)
-        {
-
+        for (size_t i = 0; i <= path_size; i++) {
             if (cur->statics)
             {
                 auto static_it = cur->statics->find(request_data->method);
@@ -328,55 +318,65 @@ std::unique_ptr<manapi::net::http_handler_page> manapi::net::site::handler(http:
                 }
             }
 
-            if (i == path_size)
-            { break; }
-
-            if (cur->map == nullptr || !cur->map->contains(request_data->path.at(i))) {
-                if (cur->regexes != nullptr) {
-                    std::smatch match;
-                    bool find = false;
-
-                    for (const auto &regex: *cur->regexes) {
-                        // regex.first  <- regex string
-                        // regex.second <- pair <regex, value (maybe next or handler)>
-
-                        if (std::regex_match(request_data->path.at(i), match, regex.second.first)) {
-                            cur     = regex.second.second.get();
-                            find    = true;
-
-                            if (cur->params == nullptr) {
-                                // bug
-
-                                MANAPIHTTP_LOG(this->data->ctx,"{}", "cur->regexes_title (params) is null.");
-                                return handler_page;
-                            }
-
-                            const size_t expected_size = match.size() - 1;
-                            if (cur->params->size() != expected_size) {
-                                // bug
-
-                                MANAPIHTTP_LOG(this->data->ctx,"The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
-                                           cur->params->size(), expected_size, request_data->path.at(i));
-                                return handler_page;
-                            }
-
-                            // get params
-                            for (size_t z = 0; z < cur->params->size(); z++)
-                            { request_data->params.insert({cur->params->at(z), match.str(z + 1)}); }
-
-
-                            break;
-                        }
-                    }
-
-                    if (find)
-                    { continue; }
-                }
-                not_found = true;
+            if (i == path_size) {
                 break;
             }
 
-            cur = cur->map->at(request_data->path.at(i)).get();
+            if (cur->map) {
+                auto const hmap = cur->map->find(request_data->path[i]);
+
+                if (hmap != cur->map->end()) {
+                    cur = hmap->second.get();
+
+                    break;
+                }
+            }
+
+            if (cur->regexes) {
+                std::smatch match;
+                bool find = false;
+
+                for (const auto &regex: *cur->regexes) {
+                    // regex.first  <- regex string
+                    // regex.second <- pair <regex, value (maybe next or handler)>
+
+                    if (std::regex_match(request_data->path.at(i), match, regex.second.first)) {
+                        cur     = regex.second.second.get();
+                        find    = true;
+
+                        if (cur->params == nullptr) {
+                            // bug
+
+                            MANAPIHTTP_LOG(this->data->ctx,"{}", "cur->regexes_title (params) is null.");
+                            return handler_page;
+                        }
+
+                        const size_t expected_size = match.size() - 1;
+                        if (cur->params->size() != expected_size) {
+                            // bug
+
+                            MANAPIHTTP_LOG(this->data->ctx,"The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
+                                       cur->params->size(), expected_size, request_data->path.at(i));
+                            return handler_page;
+                        }
+
+                        // get params
+                        for (size_t z = 0; z < cur->params->size(); z++)
+                        { request_data->params.insert({cur->params->at(z), match.str(z + 1)}); }
+
+
+                        break;
+                    }
+                }
+
+                if (find) {
+                    continue;
+                }
+            }
+
+            not_found = true;
+
+            break;
         }
 
         std::copy_n(handler_page->layer.begin(), error_layer_depth, std::back_inserter(handler_page->error->layer));
@@ -402,10 +402,9 @@ std::unique_ptr<manapi::net::http_handler_page> manapi::net::site::handler(http:
     return std::move(handler_page);
 }
 
-manapi::net::site::site(const async::shared_ctx &ctx) {
+manapi::net::site::site(const async::shared_cthread &ctx) {
     this->data = std::make_shared<data_t>(ctx, ctx, manapi::json{},
         manapi::json{}, std::string{}, std::string{}, false, http_uri_part{nullptr, nullptr, nullptr, nullptr, nullptr,nullptr,nullptr});
-    this->data->bufferpool_ = std::make_shared<decltype(this->data->bufferpool_)::element_type>();
 }
 
 manapi::net::site::~site() = default;

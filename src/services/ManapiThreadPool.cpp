@@ -81,12 +81,10 @@ namespace manapi {
     }
 
     template<class T>
-    void mthreadpool<T>::for_all_threads(std::function<void()> cb) {
+    void mthreadpool<T>::for_all_threads(std::move_only_function<void(tasks_by_thread_t *)> cb) {
         {
             std::lock_guard<std::mutex> lk (this->queue_mutex);
-            for (auto &row : this->tasks_by_thread) {
-                row.push_back(std::make_unique<function_task>(cb));
-            }
+            cb (&this->tasks_by_thread);
         }
 
         this->cv.notify_all();

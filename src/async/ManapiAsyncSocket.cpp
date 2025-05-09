@@ -15,7 +15,7 @@
 #   include <ws2tcpip.h>
 #endif
 
-manapi::ev::io_cb pio_ready_mk_(manapi::async::shared_ctx ctx, int flags, const int &fd,manapi::async::promise<int>::resolve_t resolve, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
+manapi::ev::io_cb pio_ready_mk_(manapi::async::shared_cthread ctx, int flags, const int &fd,manapi::async::promise<int>::resolve_t resolve, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
     return [flags, ctx, resolve = std::move(resolve), reject = std::move(reject), cancellation = std::move(cancellation)]
         (std::shared_ptr<manapi::ev::io> &w, int status, int revents) mutable
             -> void {
@@ -33,13 +33,13 @@ manapi::ev::io_cb pio_ready_mk_(manapi::async::shared_ctx ctx, int flags, const 
         };
 }
 
-manapi::future<> pio_ready (manapi::async::shared_ctx ctx, manapi::fd_t fd, int flags, manapi::ev::io_cb cb, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
+manapi::future<> pio_ready (manapi::async::shared_cthread ctx, manapi::fd_t fd, int flags, manapi::ev::io_cb cb, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
     return ctx->eventloop()->custom_callback([ctx, fd, flags, reject = std::move(reject), cb = std::move(cb), cancellation] (manapi::event_loop *ev) mutable
         -> void {
         auto w = ctx->eventloop()->create_watcher_fd(fd, std::move(cb));
 
         if (cancellation.contains_cancel_callback()) {
-            cancellation.cancel_callback([w, reject] (manapi::async::shared_ctx ctx) mutable
+            cancellation.cancel_callback([w, reject] (manapi::async::shared_cthread ctx) mutable
                 -> void {
                     assert(!w->stop());
                     ctx->eventloop()->stop_watcher(w);
@@ -112,22 +112,22 @@ void manapi::async::close_descriptor(socket_t fd) {
 #endif
 }
 
-manapi::future<int> manapi::async::custom_ready(std::shared_ptr<context> ctx, fd_t flags, fd_t fd) {
+manapi::future<int> manapi::async::custom_ready(shared_cthread ctx, fd_t flags, fd_t fd) {
     co_return co_await promise<int> (ctx, [ctx, flags, fd] (promise<int>::resolve_t resolve, promise<int>::reject_t reject) -> future<> {
         auto cb = pio_ready_mk_(ctx, flags, fd, std::move(resolve), std::move(reject), nullptr);
         co_await ctx->eventloop()->watch_poll(fd, flags, std::move(cb));
     });
 }
 
-manapi::future<int> manapi::async::read_ready(std::shared_ptr<context> ctx, fd_t fd) {
+manapi::future<int> manapi::async::read_ready(shared_cthread ctx, fd_t fd) {
     return custom_ready(std::move(ctx), ev::READ, fd);
 }
 
-manapi::future<int> manapi::async::write_ready(std::shared_ptr<context> ctx, fd_t fd) {
+manapi::future<int> manapi::async::write_ready(shared_cthread ctx, fd_t fd) {
     return custom_ready(std::move(ctx), ev::WRITE, fd);
 }
 
-manapi::future<int> manapi::async::custom_ready(std::shared_ptr<context> ctx, int flags, fd_t fd, cancellation_action cancellation) {
+manapi::future<int> manapi::async::custom_ready(shared_cthread ctx, int flags, fd_t fd, cancellation_action cancellation) {
     auto res = co_await promise<int> (ctx, [ctx, flags, fd, cancellation] (promise<int>::resolve_t resolve, promise<int>::reject_t reject) mutable -> manapi::future<> {
             auto cb = pio_ready_mk_(ctx, flags, fd, resolve, reject, cancellation);
             co_await pio_ready(ctx, fd, flags, std::move(cb), std::move(reject), cancellation);
@@ -139,10 +139,10 @@ manapi::future<int> manapi::async::custom_ready(std::shared_ptr<context> ctx, in
     co_return res;
 }
 
-manapi::future<int> manapi::async::read_ready(std::shared_ptr<context> ctx, fd_t fd,cancellation_action cancellation) {
+manapi::future<int> manapi::async::read_ready(shared_cthread ctx, fd_t fd,cancellation_action cancellation) {
     return custom_ready(std::move(ctx), ev::READ, fd, std::move(cancellation));
 }
 
-manapi::future<int> manapi::async::write_ready(std::shared_ptr<context> ctx, fd_t fd,cancellation_action cancellation) {
+manapi::future<int> manapi::async::write_ready(shared_cthread ctx, fd_t fd,cancellation_action cancellation) {
     return custom_ready(std::move(ctx), ev::WRITE, fd, std::move(cancellation));
 }

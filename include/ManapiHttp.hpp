@@ -24,7 +24,7 @@
 namespace manapi::net::http {
     class server : public site {
         struct data2_t {
-            async::mutex mx;
+            std::unique_ptr<async::mutex> mx;
             std::atomic <bool> stopping;
             std::map<size_t, std::unique_ptr<http_pool>> pools;
             std::size_t event_id;

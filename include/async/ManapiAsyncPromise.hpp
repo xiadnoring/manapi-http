@@ -33,28 +33,28 @@ namespace manapi::async {
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
-        promise(const std::shared_ptr<context> &ctx, async_cb cb) {
-            this->data = std::make_shared<data_t>(internal::as_threadpool(ctx), nullptr, 0, std::optional <T>{}, nullptr);
+        promise(shared_cthread ctx, async_cb cb) {
+            this->data = std::make_shared<data_t>(internal::ethreadpool_(ctx), nullptr, 0, std::optional <T>{}, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags.store(0b10); this->data->cb = obj.release(); }
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
-        promise(std::shared_ptr<threadpool<task>> taskpool, async_cb cb) {
+        promise(shared_taskpool taskpool, async_cb cb) {
             this->data = std::make_shared<data_t>(std::move(taskpool), nullptr, 0, std::optional <T>{}, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags.store(0b10); this->data->cb = obj.release(); }
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::false_type>)
-        promise(const std::shared_ptr<context> &ctx, sync_cb cb) {
-            this->data = std::make_shared<data_t>(internal::as_threadpool(ctx), nullptr, 0, std::optional <T>{}, nullptr);
+        promise(shared_cthread ctx, sync_cb cb) {
+            this->data = std::make_shared<data_t>(internal::ethreadpool_(ctx), nullptr, 0, std::optional <T>{}, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->cb = obj.release(); }
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::false_type>)
-        promise(const std::shared_ptr<threadpool<task>> &taskpool, sync_cb cb) {
+        promise(shared_taskpool taskpool, sync_cb cb) {
             this->data = std::make_shared<data_t>(std::move(taskpool), nullptr, 0, std::optional <T>{}, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->cb = obj.release(); }
         }
@@ -148,28 +148,28 @@ namespace manapi::async {
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
-        promise(const std::shared_ptr<context> &ctx, async_cb cb) {
-            this->data = std::make_shared<data_t>(internal::as_threadpool(ctx), nullptr, 0, nullptr);
+        promise(shared_cthread ctx, async_cb cb) {
+            this->data = std::make_shared<data_t>(internal::ethreadpool_(ctx), nullptr, 0, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags.store(0b10); this->data->cb = obj.release(); }
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
-        promise(std::shared_ptr<threadpool<task>> taskpool, async_cb cb) {
+        promise(shared_taskpool taskpool, async_cb cb) {
             this->data = std::make_shared<data_t>(std::move(taskpool), nullptr, 0, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags.store(0b10); this->data->cb = obj.release(); }
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::false_type>)
-        promise(const std::shared_ptr<context> &ctx, sync_cb cb) {
-            this->data = std::make_shared<data_t>(internal::as_threadpool(ctx), nullptr, 0, nullptr);
+        promise(shared_cthread ctx, sync_cb cb) {
+            this->data = std::make_shared<data_t>(internal::ethreadpool_(ctx), nullptr, 0, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->cb = obj.release(); }
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::false_type>)
-        promise(const std::shared_ptr<threadpool<task>> &taskpool, sync_cb cb) {
+        promise(shared_taskpool taskpool, sync_cb cb) {
             this->data = std::make_shared<data_t>(std::move(taskpool), nullptr, 0, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->cb = obj.release(); }
         }

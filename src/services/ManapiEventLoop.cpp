@@ -482,9 +482,6 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool_, std:
     this->timerloop->adding_timer_mx = std::make_shared<async::mutex>(taskpool_);
     this->callback_watcher_->adding_mx = std::make_shared<async::mutex>(taskpool_);
 
-    this->map_finish_cb_mx = std::make_shared<async::mutex>(taskpool_);
-    this->map_clean_up_cb_mx = std::make_shared<async::mutex>(taskpool_);
-
     this->taskpool_ = std::move(taskpool_);
     this->status = false;
 
@@ -608,7 +605,6 @@ manapi::future<> manapi::event_loop::stop() {
     co_await this->_call_on_finish_cb();
 
     {
-        auto lk2 = co_await this->map_clean_up_cb_mx->lock_guard();
         auto promise = async::promise<void> (this->etaskpool_,
             [this] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<> {
             this->resolve_stop = std::move(resolve);
@@ -620,41 +616,35 @@ manapi::future<> manapi::event_loop::stop() {
     }
 }
 
-manapi::future<size_t> manapi::event_loop::subscribe_finish(std::move_only_function<manapi::future<void>()> cb) {
-    auto lk = co_await this->map_finish_cb_mx->lock_guard();
-
+size_t manapi::event_loop::subscribe_finish(std::move_only_function<manapi::future<void>()> cb) {
     auto id = *reinterpret_cast<const std::size_t *> (&cb);
 
     if (!this->map_finish_cb.insert({id, std::move(cb)}).second) {
         THROW_MANAPIHTTP_EXCEPTION (ERR_SUBSCRIBE_FAILURE, "index {} exists", id);
     }
 
-    co_return id;
+    return id;
 }
 
-manapi::future<std::size_t> manapi::event_loop::subscribe_clean_up(std::move_only_function<void()> cb) {
-    auto lk = co_await this->map_clean_up_cb_mx->lock_guard();
-
+std::size_t manapi::event_loop::subscribe_clean_up(std::move_only_function<void()> cb) {
     auto id = *reinterpret_cast<const std::size_t *> (&cb);
 
     if (!this->map_clean_up_cb.insert({id, std::move(cb)}).second) {
         THROW_MANAPIHTTP_EXCEPTION (ERR_SUBSCRIBE_FAILURE, "index {} exists", id);
     }
 
-    co_return id;
+    return id;
 
 }
 
-manapi::future<> manapi::event_loop::unsubscribe_clean_up(std::size_t id) {
-    if (!id) { co_return; }
-    auto lk = co_await this->map_clean_up_cb_mx->lock_guard();
+void manapi::event_loop::unsubscribe_clean_up(std::size_t id) {
+    if (!id) { return; }
     this->map_clean_up_cb.erase(id);
 
 }
 
-manapi::future<void> manapi::event_loop::unsubscribe_finish(std::size_t id) {
-    if (!id) { co_return; }
-    auto lk = co_await this->map_finish_cb_mx->lock_guard();
+void manapi::event_loop::unsubscribe_finish(std::size_t id) {
+    if (!id) { return; }
     this->map_finish_cb.erase(id);
 }
 
@@ -706,7 +696,6 @@ std::shared_ptr<manapi::ev::udp> manapi::event_loop::create_watcher_udp(ev::udp_
 }
 
 manapi::future<> manapi::event_loop::_call_on_finish_cb() {
-    auto lk = co_await this->map_finish_cb_mx->lock_guard();
     while (!this->map_finish_cb.empty()) {
         const auto it = this->map_finish_cb.begin();
         std::size_t address = it->first;
@@ -746,7 +735,6 @@ void manapi::event_loop::async_break_loop_(std::shared_ptr<ev::async> watcher) {
     uv_stop(this->loop_.get());
 
     printf("1\n");
-    this->map_clean_up_cb_mx->unlock();
 
     if (this->resolve_stop) {
     printf("2\n");

@@ -44,7 +44,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(ev::shared_tcp
         auto ms = std::make_shared<net::worker::connection>(new connection_interface {}, connection_interface_eraser);
         auto connection = ms->as<connection_interface>();
         connection->ssl = this->config()->ssl_config()->enabled ? this->ssl_new_(this->ctx) : nullptr;
-        connection->accept_timer = this->site().async_context()->timerpool()->append_timer_sync(8000,
+        connection->accept_timer = manapi::async::current()->timerpool()->append_timer_sync(8000,
             [this, conn = ms.get()] (manapi::timer t) mutable
             -> void {
                 auto connection = conn->as<connection_interface>();
@@ -60,12 +60,12 @@ void manapi::net::worker::TLS::close_connection(connection *conn, bool clean_dis
     auto connection = conn->as<connection_interface>();
 
     if (connection->accept_timer) {
-        connection->accept_timer.sync_stop(this->site().async_context());
+        connection->accept_timer.sync_stop(manapi::async::current());
         connection->accept_timer = nullptr;
     }
 
     if (connection->t) {
-        connection->t.sync_stop(this->site().async_context());
+        connection->t.sync_stop(manapi::async::current());
     }
 
     if (clean_disconnect) {
@@ -127,7 +127,7 @@ void manapi::net::worker::TLS::update_limit_rate_connection(connection *conn) {
 
 void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {
     auto connection = static_cast<connection_interface *> (ptr);
-    TCP::_connection_interface_eraser (connection);
+
     if (connection->ssl) {
         auto ssl = std::exchange(connection->ssl, nullptr);
         std::cout << ("SSL FREE\n");
@@ -232,7 +232,7 @@ void manapi::net::worker::TLS::accept_work_(const shared_conn &conn, int flags, 
         return;
     }
     catch (std::exception const &e) {
-        data->worker->site().async_context()->logger()->error(manapi::logger::default_service,
+        manapi::async::current()->logger()->error(manapi::logger::default_service,
             ERR_SSL_CONNECTION, "TLS: accept_work_(): {}", e.what());
     }
     err: {
@@ -286,7 +286,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
             if (cnt && *cnt >= max_cnt)
                 return CONN_IO_WANT_WRITE;
 
-            auto buffer = this->site().bufferpool()->get();
+            auto buffer = this->bufferpool()->get();
             buffer->resize_max(this->config()->buffer_size());
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
@@ -345,7 +345,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
             if (cnt && *cnt >= max_cnt)
                 return CONN_IO_WANT_READ;
 
-            auto buffer = this->site().bufferpool()->get();
+            auto buffer = this->bufferpool()->get();
             buffer->resize_max(this->config()->buffer_size());
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);

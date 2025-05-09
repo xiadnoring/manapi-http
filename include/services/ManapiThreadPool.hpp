@@ -38,18 +38,20 @@ namespace manapi {
 
         virtual void join () = 0;
 
-        const std::shared_ptr<manapi::logger> &logger() {
+        const std::shared_ptr<manapi::logger> &logger () {
             return this->logger_;
         }
     protected:
         std::shared_ptr<manapi::logger> logger_;
-
     };
 
     template<class T>
     class mthreadpool : public threadpool<T> {
     public:
+        typedef std::vector<chain<std::unique_ptr<T>>> tasks_by_thread_t;
+
         mthreadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num);
+
         ~mthreadpool();
 
         [[nodiscard]] std::size_t size () const;
@@ -60,7 +62,7 @@ namespace manapi {
 
         void join() override;
 
-        void for_all_threads (std::function<void()> cb);
+        void for_all_threads (std::move_only_function<void(tasks_by_thread_t *)> cb);
 
         void stop () override;
 
@@ -80,7 +82,7 @@ namespace manapi {
 
         std::condition_variable cv;
 
-        std::vector<chain<std::unique_ptr<T>>> tasks_by_thread;
+        tasks_by_thread_t tasks_by_thread;
 
         // this vector of queue which contains tasks
         chain <std::unique_ptr<T> > tasks;

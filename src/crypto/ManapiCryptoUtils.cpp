@@ -39,7 +39,7 @@ void random_string_ (char *rnd, std::size_t len) {
 #endif
 }
 
-manapi::future<void> manapi::crypto::async_random_string(async::shared_ctx ctx, char *buff, size_t len, async::cancellation_action cancellation) {
+manapi::future<void> manapi::crypto::async_random_string(async::shared_cthread ctx, char *buff, size_t len, async::cancellation_action cancellation) {
     using promise = manapi::async::promise<void>;
     co_await promise (ctx, [&] (promise::resolve_t resolve, promise::reject_t reject) mutable
         -> manapi::future<> {
@@ -57,7 +57,7 @@ manapi::future<void> manapi::crypto::async_random_string(async::shared_ctx ctx, 
                         resolve();
                 }, buff, len);
                 if (cancellation.contains_cancel_callback()) {
-                    cancellation.cancel_callback([w, resolve = std::move(resolve)] (async::shared_ctx ctx) mutable
+                    cancellation.cancel_callback([w, resolve = std::move(resolve)] (async::shared_cthread ctx) mutable
                         -> void {
                         ctx->eventloop()->stop_watcher(std::move(w));
                         resolve();

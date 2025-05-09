@@ -199,7 +199,7 @@ std::string manapi::net::http::stringify_header_value (const std::vector <header
     return std::move(result);
 }
 
-manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net::http::found_replacers_in_file(const async::shared_ctx &ctx, const std::string &path, const ssize_t &start, const size_t &size, const std::map<std::string, std::string> &replacers) {
+manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net::http::found_replacers_in_file(const async::shared_cthread &ctx, const std::string &path, const ssize_t &start, const size_t &size, const std::map<std::string, std::string> &replacers) {
     // SPECIAL
     std::string special_key;
     bool opened = false;

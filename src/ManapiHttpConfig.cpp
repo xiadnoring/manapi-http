@@ -19,7 +19,7 @@ const std::map <std::string, manapi::net::http::versions::http> http_version_to_
     {"3.0", manapi::net::http::versions::HTTP_v3}
 };
 
-manapi::net::http::config::config(async::shared_ctx ctx, const json &config) {
+manapi::net::http::config::config(const json &config) {
     this->max_buffer_stack_.store(5);
     this->max_plain_param_length_.store(16000UL);
     this->max_file_param_length_.store(2147483648UL);
@@ -44,7 +44,7 @@ manapi::net::http::config::config(async::shared_ctx ctx, const json &config) {
             else if (version == "2")        num = versions::HTTP_v2;
             else if (version == "3")        num = versions::HTTP_v3;
             else {
-                MANAPIHTTP_LOG(ctx, "http version '{}' is invalid in the config", version.as_string());
+                MANAPIHTTP_LOG(manapi::async::current(), "http version '{}' is invalid in the config", version.as_string());
             }
 
             if (-1 != num) {

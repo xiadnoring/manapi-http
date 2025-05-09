@@ -99,8 +99,12 @@ manapi::future<> manapi::timer::async_stop(const std::shared_ptr<manapi::event_l
     this->_clear();
 }
 
-manapi::future<> manapi::timer::async_stop(const async::shared_ctx &ctx) {
+manapi::future<> manapi::timer::async_stop(const async::shared_cthread &ctx) {
     return async_stop(ctx->eventloop());
+}
+
+void manapi::timer::sync_stop () {
+    return this->sync_stop(manapi::async::current());
 }
 
 void manapi::timer::sync_stop(const std::shared_ptr<manapi::timerpool> &timerpool) {
@@ -112,7 +116,7 @@ void manapi::timer::sync_stop(const std::shared_ptr<manapi::timerpool> &timerpoo
     this->_clear();
 }
 
-void manapi::timer::sync_stop(const async::shared_ctx &ctx) {
+void manapi::timer::sync_stop(const async::shared_cthread &ctx) {
     return this->sync_stop(ctx->timerpool());
 }
 

@@ -28,12 +28,12 @@ namespace manapi::async {
             std::optional<T> value{};
         };
 
-        parallel_run (std::shared_ptr<context> ctx) {
+        parallel_run (shared_cthread ctx) {
             this->mx = std::make_shared<async::mutex>(ctx);
             this->ctx = std::move(ctx);
         }
 
-        parallel_run (std::shared_ptr<context> ctx, manapi::future<T> task) {
+        parallel_run (shared_cthread ctx, manapi::future<T> task) {
             this->mx = std::make_shared<async::mutex>(ctx);
             this->ctx = std::move(ctx);
 
@@ -53,7 +53,7 @@ namespace manapi::async {
     private:
         std::shared_ptr<value_t> value{nullptr};
         std::shared_ptr<async::mutex> mx;
-        async::shared_ctx ctx;
+        async::shared_cthread ctx;
     };
 
     template<>
@@ -71,7 +71,7 @@ namespace manapi::async {
         if (this->mx->try_to_lock()) {
             this->value = std::make_shared<value_t>();
             auto taskrun = this->value->run(std::move(task));
-            async::run(this->ctx->taskpool(), std::move(taskrun),
+            async::run(this->ctx->etaskpool(), std::move(taskrun),
             [mx = this->mx, value = this->value] (std::exception_ptr err)
                 -> void {
                 mx->unlock();
@@ -87,7 +87,7 @@ namespace manapi::async {
         co_await this->mx->lock_guard();
         this->value = std::make_shared<value_t>();
         auto taskrun = this->value->run(std::move(task));
-        async::run(this->ctx->taskpool(), std::move(taskrun),
+        async::run(this->ctx->etaskpool(), std::move(taskrun),
         [mx = this->mx, value = this->value] (std::exception_ptr err)
             -> void {
             mx->unlock();
@@ -100,7 +100,7 @@ namespace manapi::async {
         cb();
         this->value = std::make_shared<value_t>();
         auto taskrun = this->value->run(invoke(std::move(task)));
-        async::run(this->ctx->taskpool(), std::move(taskrun),
+        async::run(this->ctx->etaskpool(), std::move(taskrun),
         [mx = this->mx, value = this->value] ()
             -> void {
             mx->unlock();

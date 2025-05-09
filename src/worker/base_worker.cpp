@@ -8,7 +8,11 @@
 
 manapi::net::worker::connection::connection(void *ptr, void(*eraser)(void*)): client(), ptr (ptr, eraser) {}
 
-manapi::net::worker::base::base(net::site &site) :site_(site) {}
+manapi::net::worker::base::base(net::site &site) :site_(site) {
+    this->bufferpool_ = std::make_shared<decltype(this->bufferpool_)::element_type>();
+    // initialization object pools
+    this->bufferpool()->init(0);
+}
 
 manapi::net::worker::base::~base() = default;
 
@@ -28,7 +32,7 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
     int prev_flags;
     std::unique_ptr<worker_watcher_cb> prev_cb;
 
-    rhs = co_await promise (this->site_.async_context(), [&] (promise::resolve_t resolve, promise::reject_t reject)
+    rhs = co_await promise (manapi::async::current(), [&] (promise::resolve_t resolve, promise::reject_t reject)
         -> void {
         prev_flags = this->event_flags(conn.get(), ev::WRITE);
         prev_cb = this->event_on(conn.get(), [this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]
@@ -93,6 +97,10 @@ manapi::net::site & manapi::net::worker::base::site() {
 
 manapi::net::http::config *manapi::net::worker::base::config() {
     return this->config_.get();
+}
+
+const manapi::net::worker::base::bufferpool_t & manapi::net::worker::base::bufferpool() {
+    return this->bufferpool_;
 }
 
 
