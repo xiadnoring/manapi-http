@@ -91,19 +91,21 @@ cmake ... -DMANAPIHTTP_BUILD_METHOD=conan
 
 ```c++
 int main () {
-    manapi::async::context::threadpoolfs(8);
+    manapi::async::context::threadpoolfs(2);
+    manapi::async::context::gbs = manapi::async::context::blockedsignals();
     
-    auto ctx = manapi::async::context::create();
-    auto db = std::make_shared<manapi::ext::pq::connection>(ctx);
-    manapi::net::http::server router (ctx) 
-
+    auto ctx = manapi::async::context::create(4, 4);
+    manapi::async::cthread::current(ctx);
+    
     ctx->eventloop()->setup_handle_interrupt();
+    
+    manapi::net::http::server router () 
 
-    router.GET ("/", [cnt = std::make_shared<std::atomic<int>>(0)] (decltype(router)::req req, decltype(router)::resp resp) mutable -> manapi::future<> {
+    router.GET ("/", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::req &req, manapi::net::http::resp &resp) mutable -> manapi::future<> {
         co_return resp.text(std::format("Hello World! Count: {}", cnt->fetch_add(1)));
     });
 
-    router.GET("/+error", [](decltype(router)::req req, decltype(router):::resp resp) -> manapi::future<> {
+    router.GET("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
         resp.replacers({
             {"status_code", std::to_string(resp.status_code())},
             {"status_message", std::string{resp.status_message()}}
@@ -112,13 +114,13 @@ int main () {
         co_return resp.file ("../examples/error.html");
     });
 
-    router.POST("/+error", [](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
+    router.POST("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
         co_return resp.json({{"error", resp.status_code()},
                 {"msg", std::string{resp.status_message()}}});
     });
 
-    router.GET("/cat", [&ctx](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
-        auto fetch = co_await manapi::net::fetch2::fetch (ctx, "https://dragonball-api.com/api/planets/7", {
+    router.GET("/cat", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+        auto fetch = co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
             {"ssl_verify", false},
             {"alpn", true},
             {"method", "GET"}
@@ -133,45 +135,29 @@ int main () {
         co_return resp.text(std::move(data["description"].as_string()));
     });
 
-    router.GET("/pq", [db, mx = std::make_shared<manapi::async::mutex>(ctx)](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
-        auto lk = co_await mx->lock_guard();
-        /* The pool of database connections here / That example is so slow */
-        auto res = co_await db->exec("SELECT id, str_col FROM for_test WHERE id > $1", 0);
-
-        lk.call();
-
-        std::string content;
-        for (const auto &row: res) {
-            content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
-        }
-
-        co_return resp.text(std::move(content));
-    });
-
-    router.GET("/proxy", [](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
+    router.GET("/proxy", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
         co_return resp.proxy("http://127.0.0.1:8889/video");
     });
 
-    router.GET("/video", [](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
+    router.GET("/video", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
         resp.partial_enabled(true);
         resp.compress_enabled(false);
         co_return resp.file("video.mp4");
     });
 
-    router.GET("/stop", [ctx](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
+    router.GET("/stop", [ctx](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
         /* stop the app */
         co_await ctx->stop();
         co_return resp.text("stopped");
     });
 
-    router.GET("/timeout", [ctx](decltype(router)::req req, decltype(router)::resp resp) -> manapi::future<> {
+    router.GET("/timeout", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
         /* stop the app */
-        co_await manapi::async::delay{ctx, 10000};
+        co_await manapi::async::delay{10000};
         co_return resp.text("10sec");
     });
 
-    manapi::async::run(ctx, [router, db] () -> manapi::future<> {
-        co_await db->connect("address", "port", "username", "password", "db");
+    manapi::async::run([router] () -> manapi::future<> {
         co_await router.config_object({
             {"pools", manapi::json::array({
                 {
@@ -180,8 +166,8 @@ int main () {
                     {"transport", "tls"},
                     {"partial_data_min_size", 0},
                     {"tls_version", "1.3"},
-                        {"implementation", "openssl"},
-                        {"port", "8888"},
+                    {"implementation", "openssl"},
+                    {"port", "8888"},
                     {"ssl", {
                         {"cert", "../examples/self-signed-ssl/cert.crt"},
                         {"key", "../examples/self-signed-ssl/cert.key"},
@@ -192,7 +178,9 @@ int main () {
             })},
             {"save_config", false}
         });
-        co_await router.start();
+        
+        /* run a http server using 4 threads */
+        co_await router.start(4);
     });
 
     ctx->sync_start();
