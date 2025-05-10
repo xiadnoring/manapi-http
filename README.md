@@ -22,6 +22,22 @@ For compile this project, you need to install below projects:
 - quiche 0.22.0 or greater \[optional\]
 - tquic 1.5.0 or greater \[optional\]
 
+### Benchmark
+
+Using 16 threads on my laptop (Intel i5-12500H) wrk (HTTP/1.1) gave me the following results
+
+```bash
+wrk http://127.0.0.1:8889 -d 10 -t 4 -c 200
+Running 10s test @ http://127.0.0.1:8889
+  4 threads and 200 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     0.90ms  739.74us  17.73ms   79.30%
+    Req/Sec    58.46k     4.39k   78.92k    76.25%
+  2329117 requests in 10.01s, 306.53MB read
+Requests/sec: 232592.51
+Transfer/sec:     30.61MB
+```
+
 ### For Arch Linux
 ```bash
 pacman -Sy libuv
@@ -44,11 +60,11 @@ paru -Sy gmp openssl zlib curl
 
 ### For Windows
 
-No support
+No support (will be soon)
 
 ### For MacOs
 
-No support
+No support (will be soon)
 
 ## Build
 

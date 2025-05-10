@@ -48,7 +48,7 @@ int main () {
     manapi::async::context::threadpoolfs(4);
     manapi::async::context::gbs = manapi::async::context::blockedsignals();
 
-    GCTX_OBJ = manapi::async::context::create(0, 8);
+    GCTX_OBJ = manapi::async::context::create(0, 16);
     GCTX_OBJ->eventloop()->setup_handle_interrupt();
 
     manapi::async::cthread::current(GCTX_OBJ);
@@ -56,7 +56,8 @@ int main () {
     auto mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ);
     GCTX_OBJ->logger()->callback([mx](manapi::logger_type type, std::string_view service, int error_code, std::string msg)
         -> void {
-        manapi::async::run(GCTX_OBJ, manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
+        manapi::async::run(manapi::async::current(), manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
+            auto lk = co_await mx->lock_guard();
             if (type == manapi::logger_type::LOGGER_ERROR) {
                 std::cerr << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
             }
@@ -181,7 +182,7 @@ int main () {
         //co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
 
         co_await router.config("./config.json");
-        co_await router.start();
+        co_await router.start(GCTX_OBJ->loops());
     });
 
     GCTX_OBJ->sync_start();

@@ -43,27 +43,36 @@ manapi::net::http::server & manapi::net::http::server::operator=(const server &n
 
 manapi::net::http::server::server(const async::shared_ctx &ctx)
         : site(ctx) {
-    this->data2 = std::make_shared<data2_t>(std::make_unique<async::mutex>(manapi::async::current()), true, std::map<size_t, std::unique_ptr<http_pool>>(), 0UL, 0UL, 0UL, nullptr, nullptr);
+    this->data2 = std::make_shared<data2_t>(std::make_unique<async::mutex>(manapi::async::current()), true, pools_t(), 0UL, 0UL, 0UL, nullptr, nullptr);
     this->setup ();
 }
 
-manapi::future<void> manapi::net::http::server::start() {
+manapi::future<void> manapi::net::http::server::start(std::vector<async::shared_cthread> loops) {
     auto lk = co_await this->data2->mx->lock_guard();
 
     if (!this->data2->stopping.exchange(false)) {
         co_return;
     }
 
-    co_await this->_init_pool();
+    this->loops_ = std::move(loops);
+    auto const it = std::find(this->loops_.begin(), this->loops_.end(), manapi::async::current());
+    if (it != this->loops_.end()) {
+        this->loops_.erase(it);
+    }
 
-    this->data2->event_id = this->data->ctx->eventloop()->subscribe_finish([this] ()
+    this->data2->event_id = async::current()->eventloop()->subscribe_finish([this] ()
         -> future<> { co_return co_await this->stop_(true); });
 
-    this->data2->clean_up_id = this->data->ctx->eventloop()->subscribe_clean_up([this] ()
+    this->data2->clean_up_id = async::current()->eventloop()->subscribe_clean_up([this] ()
         -> void { this->clean_up(); });
 
-    co_await async::promise<void> (this->data->ctx, [this, &lk] (async::promise<void>::resolve_ref_t resolve, async::promise<void>::reject_ref_t reject) -> future<> {
-        co_await this->_pool([&lk, resolve] () mutable -> void {
+    for (const auto &loop : this->loops_) {
+        co_await this->call_in_thread_(loop, [this] ()
+                -> manapi::future<> { return this->init_pool_(); });
+    }
+
+    co_await async::promise<void> (async::current(), [this, &lk] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<> {
+        co_await this->pool_([&lk, resolve = std::move(resolve)] () mutable -> void {
             lk.call();
             resolve ();
         });
@@ -110,11 +119,30 @@ manapi::future<void> manapi::net::http::server::stop_(bool evloop) {
     }
 
     if (!evloop) {
-        this->data->ctx->eventloop()->unsubscribe_finish(std::exchange(this->data2->event_id, 0));
-        this->data->ctx->eventloop()->unsubscribe_clean_up(std::exchange(this->data2->clean_up_id, 0));
+        async::current()->eventloop()->unsubscribe_finish(std::exchange(this->data2->event_id, 0));
+        async::current()->eventloop()->unsubscribe_clean_up(std::exchange(this->data2->clean_up_id, 0));
+    }
+    for (const auto &loop : this->loops_) {
+        co_await this->call_in_thread_(loop, [this] ()
+                -> manapi::future<> { return this->stop_pool(); });
     }
 
-    co_await this->stop_pool();
+    try {
+        this->save();
+
+        // cache config
+        co_await manapi::filesystem::async_write(async::current(), data->config_cache_dir + site::default_config_name, this->data->cache_config.dump(),
+            ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+    }
+    catch (std::exception const &e) {
+        async::current()->logger()->error(manapi::logger::default_service, ERR_CONFIG_ERROR, "http: couldn't save the configuration file due to {}", e.what());
+    }
+    if (this->data2->init_watcher) {
+        printf("unwatch_async(this->data2->init_watcher);\n");
+        co_await async::current()->eventloop()->unwatch_async(this->data2->init_watcher);
+        this->data2->init_watcher.reset();
+        printf("finish unwatch_async(this->data2->init_watcher);\n");
+    }
 
     if (!evloop) {
         /* clean up */
@@ -122,7 +150,8 @@ manapi::future<void> manapi::net::http::server::stop_(bool evloop) {
     }
 }
 
-manapi::future<> manapi::net::http::server::_init_pool() {
+manapi::future<> manapi::net::http::server::init_pool_() {
+    auto &pool = this->data2->pools[std::this_thread::get_id()];
     // init all pools
     if (this->data->config_.contains("pools"))
     {
@@ -131,9 +160,9 @@ manapi::future<> manapi::net::http::server::_init_pool() {
             std::unique_ptr<http_pool> p;
 
             try {
-                p = std::make_unique<http_pool> (*it, this, this->data2->next_pool_id, this->data->ctx->eventloop());
+                p = std::make_unique<http_pool> (*it, this, this->data2->next_pool_id, async::current()->eventloop());
                 co_await p->run();
-                this->data2->pools.insert({this->data2->next_pool_id, std::move(p)});
+                pool.insert({this->data2->next_pool_id, std::move(p)});
             }
             catch (std::exception const &e) {
                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "init pool failed due to {}", e.what());
@@ -146,8 +175,34 @@ manapi::future<> manapi::net::http::server::_init_pool() {
     }
 }
 
-manapi::future<void> manapi::net::http::server::_pool(const std::function<void()> &cb) {
-    this->data2->init_watcher = co_await this->data->ctx->eventloop()->watch_async([cb] (std::shared_ptr<ev::async> &w) -> void {
+manapi::future<> manapi::net::http::server::call_in_thread_(const async::shared_cthread &thr, std::move_only_function<manapi::future<>()> cb) {
+    using promise = manapi::async::promise<void>;
+    co_await promise (manapi::async::current(), [&] (promise::resolve_t resolve, promise::reject_t reject) -> manapi::future<> {
+        auto w = async::current()->eventloop()->create_watcher_async([resolve = std::move(resolve)] (ev::shared_async &w) mutable
+            -> void {
+            auto cb = std::move(resolve);
+            async::current()->eventloop()->stop_watcher(w);
+            /* -- [ DELETED ] -- */
+            cb();
+        });
+
+        /* run the callback in other event loop */
+        co_await thr->eventloop()->custom_callback([this, cb = std::move(cb), w = std::move(w)] (event_loop *ev) mutable
+            -> void {
+            manapi::async::run(manapi::async::current(),
+                std::move(cb), [w = std::move(w)] (std::exception_ptr err) -> void {
+                    if (err) {
+                        /* error */
+                    }
+                    w->send();
+                });
+        });
+    });
+}
+
+manapi::future<void> manapi::net::http::server::pool_(std::move_only_function<void()> cb) {
+    this->data2->init_watcher = co_await async::current()->eventloop()->watch_async([cb = std::move(cb)] (std::shared_ptr<ev::async> &w) mutable
+        -> void {
         w->unbind();
         cb();
     });
@@ -163,10 +218,11 @@ void manapi::net::http::server::clean_up() {
 }
 
 manapi::future<> manapi::net::http::server::stop_pool() {
+    auto &pools = this->data2->pools[std::this_thread::get_id()];
     MANAPIHTTP_LOG2(manapi::async::current(), "cv_stopping -> pass");
 
     // stop all pools
-    for (const auto &pool: this->data2->pools)
+    for (const auto &pool: pools)
     {
         MANAPIHTTP_LOG (manapi::async::current(), "pool #{} is stopping...", pool.first);
         co_await pool.second->stop();
@@ -174,21 +230,4 @@ manapi::future<> manapi::net::http::server::stop_pool() {
     }
 
     MANAPIHTTP_LOG2(manapi::async::current(), "pools(...) -> pass");
-
-    try {
-        this->save();
-
-        // cache config
-        co_await manapi::filesystem::async_write(this->data->ctx, data->config_cache_dir + site::default_config_name, this->data->cache_config.dump(),
-            ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
-    }
-    catch (std::exception const &e) {
-        this->data->ctx->logger()->error(manapi::logger::default_service, ERR_CONFIG_ERROR, "http: couldn't save the configuration file due to {}", e.what());
-    }
-    if (this->data2->init_watcher) {
-        printf("unwatch_async(this->data2->init_watcher);\n");
-        co_await this->data->ctx->eventloop()->unwatch_async(this->data2->init_watcher);
-        this->data2->init_watcher.reset();
-        printf("finish unwatch_async(this->data2->init_watcher);\n");
-    }
 }

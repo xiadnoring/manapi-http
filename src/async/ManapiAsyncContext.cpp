@@ -87,16 +87,15 @@ manapi::async::shared_ctx manapi::async::context::create(unsigned int threadnum,
     auto watcher_ = std::make_shared<manapi::event_loop>(taskpool_, logger_);
     auto timerpool_ = std::make_shared<manapi::timerpool>(watcher_);
 
-    auto mainctx = std::make_shared<context>(std::move(watcher_), taskpool_, std::move(timerpool_), std::move(logger_));
+    auto mainctx = std::make_shared<context>(std::move(watcher_), taskpool_, std::move(timerpool_), logger_);
 
     mainctx->loops_.resize(loops);
 
     for (int i = 0; i < loops; ++i) {
-        logger_ = std::make_shared<manapi::logger>();
         watcher_ = std::make_shared<manapi::event_loop>(taskpool_, logger_);
         timerpool_ = std::make_shared<manapi::timerpool>(watcher_);
 
-        mainctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), taskpool_, std::move(timerpool_), std::move(logger_));
+        mainctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), taskpool_, std::move(timerpool_), logger_);
     }
 
     for (int i = 0; i < loops; ++i) {
@@ -128,6 +127,10 @@ std::unique_ptr<manapi::sigset_t> manapi::async::context::blockedsignals() {
     pthread_sigmask(SIG_BLOCK, blocked_signals.get(), nullptr);
 #endif
     return std::move(blocked_signals);
+}
+
+const std::vector<manapi::async::shared_cthread> & manapi::async::context::loops() {
+    return this->loops_;
 }
 
 const manapi::async::shared_cthread &manapi::async::current() {

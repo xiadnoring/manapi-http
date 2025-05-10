@@ -72,7 +72,6 @@ namespace manapi::net {
 
     class site {
         struct data_t {
-            async::shared_cthread ctx;
             async::mutex cache_config_mx;
             manapi::json cache_config;
             manapi::json config_;

@@ -75,13 +75,13 @@ namespace manapi {
 
         chain (chain &&n) noexcept {
             this->src_ = std::move(n.src_);
-            this->last_ = std::move(n.last_);
+            this->last_ = std::exchange(n.last_, nullptr);
             this->s_ = std::exchange(n.s_, 0);
         }
 
         chain &operator=(chain &&n) noexcept {
             this->src_ = std::move(n.src_);
-            this->last_ = std::move(n.last_);
+            this->last_ = std::exchange(n.last_, nullptr);
             this->s_ = std::exchange(n.s_, 0);
             return *this;
         }

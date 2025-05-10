@@ -843,40 +843,46 @@ void handle_timer_watcher_data(manapi::event_loop *ev, std::unique_ptr<manapi::e
 
 void manapi::event_loop::custom_watcher_poll_async(std::shared_ptr<ev::async> &w) {
     if (this->io_watcher->adding_watcher_mx->try_to_lock()) {
-        while (!this->io_watcher->adding_watcher_data.empty()) {
-            std::unique_ptr<ev::internal::adding_watcher_io_data_t> data = std::move(this->io_watcher->adding_watcher_data.front());
-            this->io_watcher->adding_watcher_data.pop_front();
+        auto list = std::move(this->io_watcher->adding_watcher_data);
+        this->io_watcher->adding_watcher_mx->unlock();
+
+        while (!list.empty()) {
+            std::unique_ptr<ev::internal::adding_watcher_io_data_t> data = std::move(list.front());
+            list.pop_front();
 
             handle_io_watcher_data (this, std::move(data));
         }
 
-        this->io_watcher->adding_watcher_mx->unlock();
     }
 }
 
 void manapi::event_loop::custom_watcher_async_async(std::shared_ptr<ev::async> &w) {
     if (this->async_watcher->adding_watcher_mx->try_to_lock()) {
-        while (!this->async_watcher->adding_watcher_data.empty()) {
-            auto data = std::move(this->async_watcher->adding_watcher_data.front());
-            this->async_watcher->adding_watcher_data.pop_front();
+        auto list = std::move(this->async_watcher->adding_watcher_data);
+        this->async_watcher->adding_watcher_mx->unlock();
+
+        while (!list.empty()) {
+            auto data = std::move(list.front());
+            list.pop_front();
 
             handle_async_watcher_data(this, std::move(data));
         }
 
-        this->async_watcher->adding_watcher_mx->unlock();
     }
 }
 
 void manapi::event_loop::custom_watcher_timer_async(std::shared_ptr<ev::async> &w) {
     if (this->timer_watcher->adding_watcher_mx->try_to_lock()) {
-        while (!this->timer_watcher->adding_watcher_data.empty()) {
-            auto data = std::move(this->timer_watcher->adding_watcher_data.front());
-            this->timer_watcher->adding_watcher_data.pop_front();
+        auto list = std::move(this->timer_watcher->adding_watcher_data);
+        this->timer_watcher->adding_watcher_mx->unlock();
+
+        while (!list.empty()) {
+            auto data = std::move(list.front());
+            list.pop_front();
 
             handle_timer_watcher_data(this, std::move(data));
         }
 
-        this->timer_watcher->adding_watcher_mx->unlock();
     }
 }
 
@@ -901,12 +907,14 @@ void manapi::event_loop::custom_watcher_curl_async(std::shared_ptr<ev::async> &w
     }
 
     if (this->curl_watcher->curl_multi_mx->try_to_lock()) {
-        while (!this->curl_watcher->adding_curl_data.empty()) {
-            this->handle_curl_watcher_data(std::move(this->curl_watcher->adding_curl_data.front()));
-            this->curl_watcher->adding_curl_data.pop_front();
+        auto list = std::move(this->curl_watcher->adding_curl_data);
+        this->curl_watcher->curl_multi_mx->unlock();
+
+        while (!list.empty()) {
+            this->handle_curl_watcher_data(std::move(list.front()));
+            list.pop_front();
         }
 
-        this->curl_watcher->curl_multi_mx->unlock();
     }
 
     this->handle_curl_exec_connections();
@@ -950,24 +958,29 @@ void manapi::event_loop::handle_curl_check_connections() {
 
 void manapi::event_loop::custom_watcher_timerloop_async(std::shared_ptr<ev::async> &w) {
     if (this->timerloop->adding_timer_mx->try_to_lock()) {
-        while (!this->timerloop->adding_timer_data.empty()) {
-            std::unique_ptr<manapi::ev::internal::adding_timerloop_data_t> data = std::move(this->timerloop->adding_timer_data.front ());
-            this->timerloop->adding_timer_data.pop_front();
+        auto list = std::move(this->timerloop->adding_timer_data);
+        this->timerloop->adding_timer_mx->unlock();
+
+        while (!list.empty()) {
+            std::unique_ptr<manapi::ev::internal::adding_timerloop_data_t> data = std::move(list.front ());
+            list.pop_front();
 
             auto resolve = std::move(data->resolve);
             auto res = this->timerloop->external_cb(data.get());
             resolve(std::move(res));
         }
 
-        this->timerloop->adding_timer_mx->unlock();
     }
 }
 
 void manapi::event_loop::custom_watcher_callback_async(std::shared_ptr<ev::async> &w) {
     if (this->callback_watcher_->adding_mx->try_to_lock()) {
-        while (!this->callback_watcher_->callback_data.empty()) {
-            auto data = std::move(this->callback_watcher_->callback_data.front());
-            this->callback_watcher_->callback_data.pop_front();
+        auto list = std::move(this->callback_watcher_->callback_data);
+        this->callback_watcher_->adding_mx->unlock();
+
+        while (!list.empty()) {
+            auto data = std::move(list.front());
+            list.pop_front();
 
             try {
                 data->cb(this);
@@ -980,8 +993,6 @@ void manapi::event_loop::custom_watcher_callback_async(std::shared_ptr<ev::async
 
             data->resolve();
         }
-
-        this->callback_watcher_->adding_mx->unlock();
     }
 }
 
@@ -1627,9 +1638,12 @@ void manapi::event_loop::interrupt() {
 
 void manapi::event_loop::custom_watcher_fs_async(std::shared_ptr<ev::async> &w) {
     if (this->fs_watcher->adding_watcher_mx->try_to_lock()) {
-        while (!this->fs_watcher->adding_watcher_data.empty()) {
-            auto data = std::move(this->fs_watcher->adding_watcher_data.front());
-            this->fs_watcher->adding_watcher_data.pop_front();
+        auto list = std::move(this->fs_watcher->adding_watcher_data);
+        this->fs_watcher->adding_watcher_mx->unlock();
+
+        while (!list.empty()) {
+            auto data = std::move(list.front());
+            list.pop_front();
 
             std::shared_ptr<ev::fs> s = this->create_watcher_fs(std::move(data->cb));
             int rhs = 0;
@@ -1763,8 +1777,6 @@ void manapi::event_loop::custom_watcher_fs_async(std::shared_ptr<ev::async> &w) 
 
             data->resolve(std::move(s));
         }
-
-        this->fs_watcher->adding_watcher_mx->unlock();
     }
 }
 

@@ -128,7 +128,7 @@ namespace manapi::async {
     public:
         context (shared_eventloop eventloop, std::shared_ptr<mthreadpool<task>> taskpool, shared_timerpool timerpool, shared_logger logger);
 
-        ~context();
+        ~context() override;
 
         static std::shared_ptr<context> create (unsigned int threadnum = std::thread::hardware_concurrency(), int loops = 0);
 
@@ -136,6 +136,7 @@ namespace manapi::async {
 
         static std::unique_ptr<manapi::sigset_t> blockedsignals ();
 
+        const std::vector<shared_cthread> &loops ();
 
         static std::shared_ptr<context> gctx;
         static std::unique_ptr<manapi::sigset_t> gbs;

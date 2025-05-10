@@ -22,11 +22,12 @@
 #include "services/ManapiEventLoop.hpp"
 
 namespace manapi::net::http {
+    typedef std::map<std::thread::id, std::map<size_t, std::unique_ptr<http_pool>>> pools_t;
     class server : public site {
         struct data2_t {
             std::unique_ptr<async::mutex> mx;
             std::atomic <bool> stopping;
-            std::map<size_t, std::unique_ptr<http_pool>> pools;
+            pools_t pools;
             std::size_t event_id;
             std::size_t clean_up_id;
             std::size_t next_pool_id;
@@ -46,7 +47,7 @@ namespace manapi::net::http {
         server(const server &n);
         server&operator=(const server &n);
 
-        manapi::future <void> start ();
+        manapi::future <void> start (std::vector<async::shared_cthread> loops = {});
 
         void GET (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
         void POST (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
@@ -58,10 +59,12 @@ namespace manapi::net::http {
 
         manapi::future<void> stop ();
     private:
+        std::vector<async::shared_cthread> loops_;
         std::shared_ptr<data2_t> data2;
         manapi::future<void> stop_ (bool evloop);
-        manapi::future<> _init_pool ();
-        manapi::future<void> _pool (const std::function<void()> &cb);
+        manapi::future<> init_pool_ ();
+        manapi::future<> call_in_thread_ (const async::shared_cthread &thr, std::move_only_function<manapi::future<>()> cb);
+        manapi::future<void> pool_ (std::move_only_function<void()> cb);
         void clean_up ();
         manapi::future<void> stop_pool ();
     };
