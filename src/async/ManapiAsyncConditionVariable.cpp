@@ -1,7 +1,7 @@
 #include "async/ManapiAsyncConditionVariable.hpp"
 
 void manapi::async::condition_variable::promise::await_suspend(std::coroutine_handle<future<>::promise> handle) {
-    async::run(this->taskpool, this->gmx->lock(),
+    async::run(this->gmx->lock(),
         [cond = std::move(this->cond), stack = this->stack, gmx = this->gmx, handle = std::exchange(handle, nullptr)]
         (std::exception_ptr err) mutable
             -> void {
@@ -10,17 +10,14 @@ void manapi::async::condition_variable::promise::await_suspend(std::coroutine_ha
     });
 }
 
-manapi::async::condition_variable::condition_variable(const async::shared_cthread &ctx) : taskpool(ctx->etaskpool()) {
-    this->mx = std::make_shared<async::mutex>(ctx);
-}
 
-manapi::async::condition_variable::condition_variable(const std::shared_ptr<threadpool<task>> &taskpool) : taskpool(taskpool) {
-    this->mx = std::make_shared<async::mutex>(taskpool);
+manapi::async::condition_variable::condition_variable() {
+    this->mx = std::make_shared<async::mutex>();
 }
 
 manapi::future<> manapi::async::condition_variable::wait(std::function<bool()> cond) {
     if (cond()) { co_return; }
-    co_await promise{std::move(cond), this->mx, this->taskpool, &this->stack};
+    co_await promise{std::move(cond), this->mx, &this->stack};
 }
 
 manapi::future<> manapi::async::condition_variable::notify_one() {
@@ -36,8 +33,7 @@ manapi::future<> manapi::async::condition_variable::notify_one() {
     auto handle = std::move(row.handle);
     this->stack.pop_back();
 
-    this->taskpool->append_task([handle = std::move(handle)] () mutable
-        -> void { handle.resume(); });
+    handle.resume();
 }
 
 manapi::future<> manapi::async::condition_variable::notify_all() {
@@ -51,7 +47,6 @@ manapi::future<> manapi::async::condition_variable::notify_all() {
         auto handle = std::move(it->handle);
         it = this->stack.erase(it);
 
-        this->taskpool->append_task([handle = std::move(handle)] () mutable
-            -> void { handle.resume(); });
+        handle.resume();
     }
 }

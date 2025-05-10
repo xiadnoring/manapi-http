@@ -32,7 +32,7 @@ void manapi::net::worker::udp::init() {
     this->config()->server_address(*this->local->ai_addr);
     this->config()->server_len(this->local->ai_addrlen);
 
-    MANAPIHTTP_LOG(manapi::async::current(), "HTTP UDP PORT USED: {}. https://{}:{}", *port, *address, *port);
+    MANAPIHTTP_LOG("HTTP UDP PORT USED: {}. https://{}:{}", *port, *address, *port);
 
     this->udp_accept_ = manapi::async::current()->eventloop()->create_watcher_udp([this] (std::shared_ptr<ev::udp> &w, ssize_t nread, const ev::buff_t *buf, const sockaddr *addr, unsigned flags)
         -> void {

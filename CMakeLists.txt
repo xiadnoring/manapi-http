@@ -223,8 +223,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiSite.hpp
         include/ManapiSite.hpp
         include/ManapiHttpConfig.hpp
-        include/extensions/ManapiJsonWebTokenTraits.hpp
-        include/extensions/ManapiJsonWebTokenDefaults.hpp
+        include/ext/ManapiJsonWebTokenTraits.hpp
+        include/ext/ManapiJsonWebTokenDefaults.hpp
         include/encoding/ManapiUnicode.hpp
         include/ManapiJsonBuilder.hpp
         include/ManapiBeforeDelete.hpp
@@ -324,19 +324,19 @@ set(MANAPIHTTP_HTTP_FILES
         src/async/ManapiAsyncConditionVariable.cpp
         include/async/ManapiAsyncFileStream.hpp
         src/async/ManapiAsyncFileStream.cpp
-        include/extensions/pq/AsyncPostgreClient.hpp
+        include/ext/pq/AsyncPostgreClient.hpp
         include/async/ManapiAsyncSocket.hpp
-        include/extensions/pq/AsyncPostgreResult.hpp
-        include/extensions/pq/AsyncPostgreRow.hpp
-        include/extensions/pq/AsyncPostgreField.hpp
-        include/extensions/pq/AsyncPostgreValue.hpp
-        include/extensions/pq/AsyncPostgreValueTypes.hpp
-        include/extensions/pq/AsyncPostgreNotification.hpp
+        include/ext/pq/AsyncPostgreResult.hpp
+        include/ext/pq/AsyncPostgreRow.hpp
+        include/ext/pq/AsyncPostgreField.hpp
+        include/ext/pq/AsyncPostgreValue.hpp
+        include/ext/pq/AsyncPostgreValueTypes.hpp
+        include/ext/pq/AsyncPostgreNotification.hpp
         include/async/ManapiAsyncParallelRun.hpp
         include/services/ManapiFetch2.hpp
         include/components/TimerObject.hpp
         src/components/TimerObject.cpp
-        include/extensions/jemallocator.hpp
+        include/ext/jemallocator.hpp
         include/components/Buffer.hpp
         src/components/Buffer.cpp
         include/components/ObjectPool.hpp
@@ -361,8 +361,10 @@ set(MANAPIHTTP_HTTP_FILES
         src/components/ManapiEventStructures.cpp
         src/include/ManapiWindows.hpp
         src/crypto/ManapiCryptoUtils.cpp
-        src/include/ManapiHttpResponseStructs.hpp
+        src/include/ManapiHttpStructs.hpp
         src/include/ManapiDefaultErrors.hpp
+        include/ManapiProcess.hpp
+        src/ManapiProcess.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

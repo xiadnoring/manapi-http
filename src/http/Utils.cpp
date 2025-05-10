@@ -210,7 +210,7 @@ manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net
     std::vector <replace_founded_item> founded;
 
     // find replacers
-    filesystem::fstream f (ctx, path);
+    filesystem::fstream f (path);
     co_await f.open(ev::FS_O_RDONLY);
     if (!f.is_open())
     {

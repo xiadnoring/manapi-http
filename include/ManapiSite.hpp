@@ -72,7 +72,6 @@ namespace manapi::net {
 
     class site {
         struct data_t {
-            async::mutex cache_config_mx;
             manapi::json cache_config;
             manapi::json config_;
             std::string config_path;
@@ -83,9 +82,10 @@ namespace manapi::net {
             std::map <std::string, std::move_only_function<std::string(std::string_view data)>> compressors_for_string{};
             std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers{};
             std::mutex loopmx{};
+            async::mutex cache_config_mx{};
         };
     public:
-        site (const async::shared_cthread &ctx);
+        site ();
         virtual ~site();
 
         site (site &&n) noexcept;

@@ -44,7 +44,7 @@ manapi::net::http::config::config(const json &config) {
             else if (version == "2")        num = versions::HTTP_v2;
             else if (version == "3")        num = versions::HTTP_v3;
             else {
-                MANAPIHTTP_LOG(manapi::async::current(), "http version '{}' is invalid in the config", version.as_string());
+                MANAPIHTTP_LOG("http version '{}' is invalid in the config", version.as_string());
             }
 
             if (-1 != num) {
@@ -261,7 +261,14 @@ manapi::net::http::config::config(const json &config) {
         this->cipher_list_ = config["cipher_list"].as_string();
     }
     else {
-        this->cipher_list_ = "TLS_CHACHA20_POLY1305_SHA256:TLS_AES_256_GCM_SHA384";
+        this->cipher_list_ = "TLS_CHACHA20_POLY1305_SHA256:TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256";
+    }
+
+    if (config.contains("simultaneous_accepts")) {
+        this->simultaneous_accepts_.store(config["simultaneous_accepts"].as_bool());
+    }
+    else {
+        this->simultaneous_accepts_.store(false);
     }
 }
 
@@ -418,6 +425,10 @@ manapi::net::http::versions::http manapi::net::http::config::parse_http_version(
 
 std::atomic<bool> & manapi::net::http::config::tcp_no_delay() {
     return this->tcp_no_delay_;
+}
+
+std::atomic<bool> & manapi::net::http::config::simultaneous_accepts() {
+    return this->simultaneous_accepts_;
 }
 
 std::atomic<bool> & manapi::net::http::config::verify_peer() {

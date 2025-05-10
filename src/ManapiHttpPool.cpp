@@ -25,7 +25,7 @@ manapi::net::http_pool::http_pool(const json &config, class site *site, const si
     this->config = std::make_shared <http::config> (config);
     this->id = id;
     this->site = site;
-    this->mx = std::make_shared<async::mutex>(manapi::async::current());
+    this->mx = std::make_shared<async::mutex>();
 
     this->config->function_contains_compressor([site] (const std::string &name) -> bool {
         return site->contains_compressor_for_file(name)
@@ -37,7 +37,7 @@ manapi::net::http_pool::~http_pool() = default;
 
 manapi::future<> manapi::net::http_pool::stop() {
     auto lk = co_await this->mx->lock_guard();
-    MANAPIHTTP_LOG(manapi::async::current(), "{}", "shutdown socket");
+    MANAPIHTTP_LOG("{}", "shutdown socket");
 
     // stop watcher
     co_await manapi::async::current()->eventloop()->custom_callback([this] (event_loop *ev)
@@ -53,11 +53,11 @@ manapi::future<void> manapi::net::http_pool::run() {
 }
 
 manapi::future<void> manapi::net::http_pool::_pool() {
-    MANAPIHTTP_LOG(manapi::async::current(), "pool init #{}", this->id);
+    MANAPIHTTP_LOG("pool init #{}", this->id);
 
     auto lk = co_await this->mx->lock_guard();
 
-    MANAPIHTTP_LOG(manapi::async::current(), "pool start #{}", this->id);
+    MANAPIHTTP_LOG("pool start #{}", this->id);
 
     co_await this->events->custom_callback([&] (event_loop *ev) -> void {
         {
@@ -83,7 +83,7 @@ manapi::future<void> manapi::net::http_pool::_pool() {
                         available += it->first;
                     }
                 }
-                MANAPIHTTP_LOG(manapi::async::current(), "implementation by {} not found in {}. Available: [{}]", *implementation, *transport, available);
+                MANAPIHTTP_LOG("implementation by {} not found in {}. Available: [{}]", *implementation, *transport, available);
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "implementation not found");
             }
         }

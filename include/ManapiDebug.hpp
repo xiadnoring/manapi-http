@@ -12,13 +12,13 @@
 #include "async/ManapiAsyncLogger.hpp"
 
 #if _MSC_VER
-#   define MANAPIHTTP_LOG(ctx, msg, ...) manapi::debug::_log (ctx->logger(), __LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
-#   define MANAPIHTTP_LOG2(ctx, msg) manapi::debug::_log (ctx->logger(), __LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg);
+#   define MANAPIHTTP_LOG(msg, ...) manapi::debug::_log (manapi::async::current()->logger(), __LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
+#   define MANAPIHTTP_LOG2(msg) manapi::debug::_log (manapi::async::current()->logger(), __LINE__, __FILE__, __FUNCTION__, manapi::ERR_DEBUG, msg);
 #   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, msg, __VA_ARGS__)
 #   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, msg)
 #else
-#   define MANAPIHTTP_LOG(ctx, msg, ...) manapi::debug::_log (ctx->logger(), __LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
-#   define MANAPIHTTP_LOG2(ctx, msg) manapi::debug::_log (ctx->logger(), __LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg);
+#   define MANAPIHTTP_LOG(msg, ...) manapi::debug::_log (manapi::async::current()->logger(), __LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg, __VA_ARGS__)
+#   define MANAPIHTTP_LOG2(msg) manapi::debug::_log (manapi::async::current()->logger(), __LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_DEBUG, msg);
 #   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg, __VA_ARGS__)
 #   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg)
 #endif

@@ -13,7 +13,6 @@ namespace manapi {
         struct data_t {
             std::tuple<Args...> args{};
             manapi::chain<std::unique_ptr<T>> objects{};
-            std::mutex mx{};
         };
 
         object_item_pool () : data(nullptr), object(nullptr) {}
@@ -62,7 +61,6 @@ namespace manapi {
 
         static void internal_ret (std::shared_ptr<typename object_item_pool<T, Args...>::data_t> data, std::unique_ptr<T> item) {
             item->reinit();
-            std::lock_guard<std::mutex> lk (data->mx);
             data->objects.push_back(std::move(item));
         }
 
@@ -101,17 +99,14 @@ namespace manapi {
         }
 
         object_item_pool<T, Args...> get () {
-            std::unique_lock <std::mutex> lk (this->data->mx);
 
             if (this->data->objects.empty()) {
-                lk.unlock();
 
                 constexpr size_t n = std::tuple_size_v<std::tuple<Args...>>;
                 return object_item_pool<T, Args...>{this->data, this->make_unique_(this->data->args, std::make_index_sequence<n>{})};
             }
             auto w = std::move(this->data->objects.back());
             this->data->objects.pop_back();
-            lk.unlock();
 
             return object_item_pool<T, Args...>{this->data, std::move(w)};
         }
@@ -121,7 +116,6 @@ namespace manapi {
         }
 
         void ret (std::unique_ptr<T> item) {
-            std::lock_guard<std::mutex> lk (this->data->mx);
             this->data->objects.push_back(std::move(item));
         }
     private:

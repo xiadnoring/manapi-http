@@ -68,7 +68,8 @@ namespace manapi {
         ERR_UNHANDLED_EXCEPTION = 58,
         ERR_IP = 59,
         ERR_SSL_CONNECTION = 60,
-        ERR_ASYNC = 61
+        ERR_ASYNC = 61,
+        ERR_OS_ENV = 62
     };
 
     extern const std::map <err_num, std::string> err_msg;

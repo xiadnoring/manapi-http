@@ -106,9 +106,9 @@ void manapi::net::site::setup() {
 
 #if MANAPIHTTP_ZLIB_DEPENDENCY
     this->compressor_for_file("deflate", +[] (std::string src, std::string dest)
-        -> future<void> { return manapi::compress::deflate_compress_file(manapi::async::current(), std::move(src), std::move(dest)); });
+        -> future<void> { return manapi::compress::deflate_compress_file( std::move(src), std::move(dest)); });
     this->compressor_for_file("gzip", +[] (std::string src, std::string dest)
-        -> future<void> { return manapi::compress::gzip_compress_file(manapi::async::current(), std::move(src), std::move(dest)); });
+        -> future<void> { return manapi::compress::gzip_compress_file(std::move(src), std::move(dest)); });
 
     this->compressor_for_string("deflate", +[] (std::string_view data)
         -> std::string { return compress::deflate_compress_string(data); });
@@ -118,14 +118,14 @@ void manapi::net::site::setup() {
 
 #ifdef MANAPIHTTP_BROTLI_DEPENDENCY
     this->compressor_for_file("br", +[] (std::string src, std::string dest)
-        -> future<void> { return manapi::compress::brotli_compress_file(manapi::async::current(), std::move(src), std::move(dest), 11, 22, 0); });
+        -> future<void> { return manapi::compress::brotli_compress_file(std::move(src), std::move(dest), 11, 22, 0); });
     this->compressor_for_string("br", +[] (std::string_view data)
         -> std::string { return compress::brotli_compress_string(data, 11, 22, 0); });
 #endif
 
 #ifdef MANAPIHTTP_ZSTD_DEPENDENCY
     this->compressor_for_file("zstd", +[] (std::string src, std::string dest)
-        -> future<void> { return manapi::compress::zstd_compress_file(manapi::async::current(), std::move(src), std::move(dest), 1); });
+        -> future<void> { return manapi::compress::zstd_compress_file(std::move(src), std::move(dest), 1); });
     this->compressor_for_string("zstd", +[] (std::string_view data)
         -> std::string { return compress::zstd_compress_string(data, 1); });
 #endif
@@ -159,13 +159,13 @@ void manapi::net::site::setup() {
 manapi::future<> manapi::net::site::config(std::string path) {
     this->data->config_path = std::move(path);
 
-    if (!co_await manapi::filesystem::async_exists(manapi::async::current(), this->data->config_path))
+    if (!co_await manapi::filesystem::async_exists(this->data->config_path))
     {
         std::string data = this->data->config_.dump(4);
-        co_await manapi::filesystem::async_write(manapi::async::current(), this->data->config_path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+        co_await manapi::filesystem::async_write(this->data->config_path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
     }
 
-    this->data->config_ = manapi::json(co_await manapi::filesystem::async_read (manapi::async::current(), this->data->config_path), true);
+    this->data->config_ = manapi::json(co_await manapi::filesystem::async_read ( this->data->config_path), true);
     co_await this->setup_config ();
 }
 
@@ -197,14 +197,14 @@ manapi::future<> manapi::net::site::setup_config() {
             this->data->config_cache_dir = manapi::filesystem::path::join(std::filesystem::temp_directory_path(), MANAPIHTTP_NAME, "cache");
         }
 
-        co_await manapi::filesystem::async_mkdir(manapi::async::current(), this->data->config_cache_dir, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
+        co_await manapi::filesystem::async_mkdir(this->data->config_cache_dir, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
 
         manapi::filesystem::path::append_delimiter(this->data->config_cache_dir);
         auto path = this->data->config_cache_dir + site::default_config_name;
         try {
-            if (co_await manapi::filesystem::async_exists(manapi::async::current(), path))
+            if (co_await manapi::filesystem::async_exists(path))
             {
-                this->data->cache_config = manapi::json(co_await manapi::filesystem::async_read(manapi::async::current(), path), true);
+                this->data->cache_config = manapi::json(co_await manapi::filesystem::async_read(path), true);
             }
         }
         catch (std::exception const &e) {
@@ -257,14 +257,14 @@ void manapi::net::site::set_compressed_cache_file(const std::string &file, const
 void manapi::net::site::save() {
     if (this->data->enabled_save_config)
     {
-        manapi::async::run(manapi::async::current(), this->save_config(this->data));
+        manapi::async::run(this->save_config(this->data));
     }
 }
 
 manapi::future<> manapi::net::site::save_config(std::shared_ptr<data_t> data) {
-    if (!co_await manapi::filesystem::async_exists(manapi::async::current(), data->config_path)) {
+    if (!co_await manapi::filesystem::async_exists(data->config_path)) {
         // main config
-        co_await manapi::filesystem::async_write(manapi::async::current(), data->config_path, data->config_.dump(), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+        co_await manapi::filesystem::async_write(data->config_path, data->config_.dump(), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
     }
 }
 
@@ -347,7 +347,7 @@ std::unique_ptr<manapi::net::http_handler_page> manapi::net::site::handler(http:
                         if (cur->params == nullptr) {
                             // bug
 
-                            MANAPIHTTP_LOG(manapi::async::current(),"{}", "cur->regexes_title (params) is null.");
+                            MANAPIHTTP_LOG2("cur->regexes_title (params) is null.");
                             return handler_page;
                         }
 
@@ -355,7 +355,7 @@ std::unique_ptr<manapi::net::http_handler_page> manapi::net::site::handler(http:
                         if (cur->params->size() != expected_size) {
                             // bug
 
-                            MANAPIHTTP_LOG(manapi::async::current(),"The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
+                            MANAPIHTTP_LOG("The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
                                        cur->params->size(), expected_size, request_data->path.at(i));
                             return handler_page;
                         }
@@ -397,13 +397,13 @@ std::unique_ptr<manapi::net::http_handler_page> manapi::net::site::handler(http:
         return std::move(handler_page);
     }
     catch (const std::exception &e) {
-        MANAPIHTTP_LOG(manapi::async::current(), "routing: an error has occurred: {}", e.what());
+        MANAPIHTTP_LOG("routing: an error has occurred: {}", e.what());
     }
     return std::move(handler_page);
 }
 
-manapi::net::site::site(const async::shared_cthread &ctx) {
-    this->data = std::make_shared<data_t>(ctx, manapi::json{},
+manapi::net::site::site() {
+    this->data = std::make_shared<data_t>(manapi::json{},
         manapi::json{}, std::string{}, std::string{}, false, http_uri_part{nullptr, nullptr, nullptr, nullptr, nullptr,nullptr,nullptr});
 }
 
@@ -550,7 +550,7 @@ manapi::net::http_uri_part *manapi::net::site::build_uri_part(const std::string 
                                 {
                                     if (std::find(past_params->get()->begin(), past_params->get()->end(), param) !=
                                         past_params->get()->end())
-                                        MANAPIHTTP_LOG(manapi::async::current(),"Warning: a param with a title '{}' is already in use. ({})",
+                                        MANAPIHTTP_LOG("Warning: a param with a title '{}' is already in use. ({})",
                                                    param, uri);
                                 }
                             }
@@ -578,7 +578,7 @@ manapi::net::http_uri_part *manapi::net::site::build_uri_part(const std::string 
                     {
                         if (buff == "+error") { type = URI_PAGE_ERROR; }
                         else if (buff == "+layer") { type = URI_PAGE_LAYER; }
-                        else { MANAPIHTTP_LOG(manapi::async::current(),"The first char '{}' is reserved for special pages in {}", '+', buff); }
+                        else { MANAPIHTTP_LOG("The first char '{}' is reserved for special pages in {}", '+', buff); }
 
                         break;
                     }

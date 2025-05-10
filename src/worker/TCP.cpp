@@ -69,7 +69,7 @@ void manapi::net::worker::TCP::init() {
         this->config()->server_address(*this->local->ai_addr);
         this->config()->server_len(this->local->ai_addrlen);
 
-        MANAPIHTTP_LOG(manapi::async::current(), "HTTP TCP PORT USED: {}. {}:{}", port, address, port);
+        MANAPIHTTP_LOG("HTTP TCP PORT USED: {}. {}:{}", port, address, port);
 
         /* every 1 second */
         this->limit_rate_timer = manapi::async::current()->timerpool()->append_interval_sync(1000,
@@ -98,6 +98,11 @@ void manapi::net::worker::TCP::init() {
 
         if (auto rhs = this->watcher_accept_->nodelay(this->config()->tcp_no_delay().load())) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set nodelay due to result - {}", rhs);
+            goto err;
+        }
+
+        if (auto rhs = this->watcher_accept_->simultaneous_accepts(this->config()->simultaneous_accepts().load())) {
+            manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set simultaneous_accepts due to result - {}", rhs);
             goto err;
         }
 
@@ -265,7 +270,7 @@ void manapi::net::worker::TCP::close_connection(worker::connection *conn, bool c
 
     if (connection->watcher && !clean_disconnect) {
         if (connection->t) {
-            connection->t.sync_stop(manapi::async::current());
+            connection->t.stop();
             connection->t = nullptr;
         }
         connection->watcher->read_stop();
@@ -277,7 +282,7 @@ void manapi::net::worker::TCP::close_connection(worker::connection *conn, bool c
     }
     else {
         if (connection->t) {
-            connection->t.sync_stop(manapi::async::current());
+            connection->t.stop();
             connection->t = manapi::async::current()->timerpool()->append_interval_sync(15000,
             [conn] (manapi::timer t) mutable -> void {
                 dynamic_cast<TCP*>(conn->as<connection_interface>()->worker.get())->timeout_(conn);
@@ -288,7 +293,7 @@ void manapi::net::worker::TCP::close_connection(worker::connection *conn, bool c
 
 void manapi::net::worker::TCP::stop() {
     /* on the libev main loop */
-    this->limit_rate_timer.sync_stop(manapi::async::current());
+    this->limit_rate_timer.stop();
 }
 
 ssize_t manapi::net::worker::TCP::sync_write(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish) {
@@ -416,7 +421,7 @@ goto err;
     }
     return;
 err:
-    conn->t.sync_stop(manapi::async::current());
+    conn->t.stop();
     conn->status |= (ev::DISCONNECT);
 
     this->close_connection(storage, false);

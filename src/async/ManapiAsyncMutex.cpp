@@ -16,20 +16,17 @@ void manapi::async::mutex::promise::await_suspend(std::coroutine_handle<future<>
     }
 }
 
-manapi::async::mutex::mutex(std::shared_ptr<manapi::threadpool<task>> taskpool_)  : taskpool(std::move(taskpool_)) {}
+manapi::async::mutex::mutex() {}
 
-manapi::async::mutex::mutex(const async::shared_cthread &ctx) : taskpool(ctx->etaskpool()) {}
 
 manapi::async::mutex::mutex(mutex &&n) noexcept {
     this->own = std::exchange(n.own, false);
     this->stack = std::move(n.stack);
-    this->taskpool = n.taskpool;
 }
 
 manapi::async::mutex & manapi::async::mutex::operator=(mutex &&n) noexcept {
     this->own = std::exchange(n.own, false);
     this->stack = std::move(n.stack);
-    this->taskpool = n.taskpool;
     return *this;
 }
 
@@ -59,7 +56,7 @@ void manapi::async::mutex::unlock()  {
     if (this->stack.empty()) {
         stack = {}; // free
     }
-    this->taskpool->append_task([handle = std::exchange(handle, nullptr)] () -> void {
+    manapi::async::current()->etaskpool()->append_task([handle = std::exchange(handle, nullptr)] () -> void {
         future<>::resume_promise(handle);
     });
 }

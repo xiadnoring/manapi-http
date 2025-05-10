@@ -16,7 +16,15 @@
 
 namespace manapi {
     namespace async {
+        class cthread;
         extern size_t max_stack_depth;
+
+        namespace internal {
+            static thread_local std::shared_ptr<cthread> current_cthread_ = nullptr;
+            const std::shared_ptr<threadpool<task>> &ethreadpool_(const std::shared_ptr<cthread> &ctx);
+        }
+
+        const std::shared_ptr<cthread> &current ();
     }
 
     class promise_base {
@@ -32,7 +40,6 @@ namespace manapi {
         int stack_deepth = 0;
         std::coroutine_handle<> waiting;
         std::exception_ptr exception;
-        threadpool<task> *taskpool{nullptr};
     };
 
     template <typename T = void>
@@ -172,15 +179,16 @@ namespace manapi {
                 auto &npromise = handle.promise();
 
                 promise.stack_deepth = ++npromise.stack_deepth;
-                promise.taskpool = npromise.taskpool;
                 promise.waiting = handle;
-                
-                if (promise.taskpool && promise.stack_deepth >= async::max_stack_depth) {
 
-                    promise.stack_deepth = 0;
-                    promise.taskpool->append_task([handle = this->handle] () -> void {
-                         handle.resume();
-                    });
+                if (promise.stack_deepth >= async::max_stack_depth) {
+                    auto &thr = manapi::async::current();
+                    if (thr) {
+                        promise.stack_deepth = 0;
+                        async::internal::ethreadpool_(thr)->append_task([handle = this->handle] () -> void {
+                             handle.resume();
+                        });
+                    }
 
                     return;
                 }
@@ -221,21 +229,19 @@ namespace manapi {
 
         template <typename T1 = T>
         requires(std::is_same_v<T, void>)
-        void onfinish (std::move_only_function<void(std::exception_ptr err)> cb, threadpool<task> *taskpool) {
+        void onfinish (std::move_only_function<void(std::exception_ptr err)> cb) {
             if (this->handle_) {
                 auto &promise = this->handle_.promise();
                 promise.finish_cb = std::move(std::make_unique<decltype(cb)>(std::move(cb)));
-                promise.taskpool = taskpool;
             }
         }
 
         template <typename T1 = T>
         requires(!std::is_same_v<T, void>)
-        void onfinish (std::move_only_function<void(std::exception_ptr err, T *v)> cb, threadpool<task> *taskpool) {
+        void onfinish (std::move_only_function<void(std::exception_ptr err, T *v)> cb) {
             if (this->handle_) {
                 auto &promise = this->handle_.promise();
                 promise.finish_cb = std::move(std::make_unique<decltype(cb)>(std::move(cb)));
-                promise.taskpool = taskpool;
             }
         }
 

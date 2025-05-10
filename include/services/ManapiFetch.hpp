@@ -92,20 +92,19 @@ namespace manapi::net {
             std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)> async_handler_recv_body{nullptr};
             std::move_only_function <manapi::future<bool>(std::shared_ptr<shared_data> data, std::map <std::string, std::string>)> async_handler_headers{nullptr};
             std::move_only_function <bool(std::map <std::string, std::string>)> handler_headers{nullptr};
-            async::shared_cthread ctx;
             std::shared_ptr<CURL> curl {nullptr};
             std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
             std::map<std::string, std::string> headers{};
             std::atomic<bool> async_waiting{false};
-            std::optional<std::move_only_function<manapi::future<>(std::shared_ptr<shared_data> data, bool)>> async_user_body_cb{};
-            std::optional<std::move_only_function<ssize_t(char *buffer, ssize_t size)>> sync_user_body_cb{};
-            std::optional<std::function<void(CURLcode)>> parallel_task{};
+            std::unique_ptr<std::move_only_function<manapi::future<>(std::shared_ptr<shared_data> data, bool)>> async_user_body_cb{nullptr};
+            std::unique_ptr<std::move_only_function<ssize_t(char *buffer, ssize_t size)>> sync_user_body_cb{nullptr};
             std::move_only_function <ssize_t(char *, ssize_t)> handler_send_body{nullptr};
             std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)> async_handler_send_body{nullptr};
+            std::unique_ptr<std::move_only_function<void()>> parallel_task{nullptr};
         };
     public:
 
-        explicit fetch(const async::shared_cthread &ctx, std::string url);
+        explicit fetch(std::string url);
         fetch(fetch &&n) noexcept;
         ~fetch() override;
 
@@ -162,9 +161,9 @@ namespace manapi::net {
         static std::size_t curl_read_handler (char *buffer, std::size_t size, std::size_t nitems, void *user_p);
         static object_pool<bytebuffer, std::true_type> bufferpool;
 
-        void header_ (std::string key, std::string value);
         void setup_parallel_task ();
-        void _default_setup_curl ();
+        void header_ (std::string key, std::string value);
+        void default_setup_curl_ ();
 
         future<CURLcode> async_curl_perform ();
 

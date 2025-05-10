@@ -40,34 +40,31 @@ void random_string_ (char *rnd, std::size_t len) {
 }
 
 manapi::future<void> manapi::crypto::async_random_string(async::shared_cthread ctx, char *buff, size_t len, async::cancellation_action cancellation) {
-    using promise = manapi::async::promise<void>;
-    co_await promise (ctx, [&] (promise::resolve_t resolve, promise::reject_t reject) mutable
-        -> manapi::future<> {
-        co_await ctx->eventloop()->custom_callback([reject = std::move(reject), buff, len, resolve = std::move(resolve), cancellation] (event_loop *ev) mutable
-            -> void {
-            try {
-                auto w = ev->create_watcher_random(
-                    [resolve, reject] (std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size) mutable
+    using promise = manapi::async::promise<void, std::false_type>;
+    co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) mutable
+        -> void {
+        try {
+            auto w = manapi::async::current()->eventloop()->create_watcher_random(
+                [resolve, reject] (std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size) mutable
+                -> void {
+                    if (status) {
+                        reject(std::make_exception_ptr(manapi::exception(manapi::ERR_WATCHER_ERROR,
+                           manapi::error::default_msgs[error::ERRMSG_RANDOM_STRING_FAILED], std::make_unique<json>(manapi::json{{"rhs", status}}))));
+                        return;
+                    }
+                    resolve();
+            }, buff, len);
+            if (cancellation.contains_cancel_callback()) {
+                cancellation.cancel_callback([w, resolve = std::move(resolve)] () mutable
                     -> void {
-                        if (status) {
-                            reject(std::make_exception_ptr(manapi::exception(manapi::ERR_WATCHER_ERROR,
-                               manapi::error::default_msgs[error::ERRMSG_RANDOM_STRING_FAILED], std::make_unique<json>(manapi::json{{"rhs", status}}))));
-                            return;
-                        }
-                        resolve();
-                }, buff, len);
-                if (cancellation.contains_cancel_callback()) {
-                    cancellation.cancel_callback([w, resolve = std::move(resolve)] (async::shared_cthread ctx) mutable
-                        -> void {
-                        ctx->eventloop()->stop_watcher(std::move(w));
-                        resolve();
-                    });
-                }
+                    manapi::async::current()->eventloop()->stop_watcher(std::move(w));
+                    resolve();
+                });
             }
-            catch (...) {
-                reject(std::current_exception());
-            }
-        });
+        }
+        catch (...) {
+            reject(std::current_exception());
+        }
     });
     cancellation.disable_cancellation();
 }

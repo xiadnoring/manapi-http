@@ -23,40 +23,19 @@ namespace manapi::async {
 
     template<typename T = void>
     requires(std::is_same_v<T, void>)
-    void run(shared_taskpool taskpool, manapi::future<> task, run_cb onfinish = nullptr);
+    void run(manapi::future<> task, run_cb onfinish = nullptr);
 
     template<typename T = void>
     requires(std::is_same_v<T, void>)
-    void run (const shared_cthread & ctx, manapi::future<> task, run_cb onfinish = nullptr);
-
-    template<typename T = void>
-    requires(std::is_same_v<T, void>)
-    void run (const shared_cthread & ctx, auto && executor, run_cb onfinish = nullptr);
-
-    template<typename T = void>
-    requires(std::is_same_v<T, void>)
-    void run (shared_taskpool taskpool, auto && executor, run_cb onfinish = nullptr);
+    void run (auto && executor, run_cb onfinish = nullptr);
 
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run(shared_taskpool taskpool, manapi::future<T> task, run_cb_with_value<T> onfinish = nullptr);
+    void run(manapi::future<T> task, run_cb_with_value<T> onfinish = nullptr);
 
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run (const shared_cthread & ctx, manapi::future<T> task, run_cb_with_value<T> onfinish = nullptr);
-
-    template<typename T>
-    requires(!std::is_same_v<T, void>)
-    void run (const shared_cthread & ctx, auto && executor, run_cb_with_value<T> onfinish = nullptr);
-
-    template<typename T>
-    requires(!std::is_same_v<T, void>)
-    void run (shared_taskpool taskpool, auto && executor, run_cb_with_value<T> onfinish = nullptr);
-}
-
-namespace manapi::async::internal {
-    static thread_local shared_cthread current_cthread_ = nullptr;
-    const std::shared_ptr<threadpool<task>> &ethreadpool_(const shared_cthread &ctx);
+    void run (auto && executor, run_cb_with_value<T> onfinish = nullptr);
 }
 
 namespace manapi {
@@ -162,43 +141,40 @@ namespace manapi::async {
     manapi::future<T> manapi::async::blank_future () {
         co_return;
     }
-
-    const shared_cthread &current ();
 }
 
 
 namespace manapi::async::internal {
-    void run_prepare_error_ (const shared_taskpool &taskpool, std::exception_ptr err);
+    void run_prepare_error_ (std::exception_ptr err);
 
-    void run_prepare_std_exception_ (const shared_taskpool &taskpool, std::exception const &e);
+    void run_prepare_std_exception_ (std::exception const &e);
 
-    void run_prepare_manapi_exception_ (const shared_taskpool &taskpool, manapi::exception &e);
+    void run_prepare_manapi_exception_ (manapi::exception &e);
 
     template<typename T = void>
     requires(std::is_same_v<T, void>)
-    void run_prepare_(shared_taskpool taskpool, std::unique_ptr<manapi::async::async_task_t<T>> task_data, run_cb onfinish) {
-        auto taskpoolptr = taskpool.get();
+    void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> task_data, run_cb onfinish) {
         if (onfinish) {
-            task_data->task.onfinish([taskpool = std::move(taskpool), task = task_data.get(), onfinish = std::move(onfinish)] (std::exception_ptr err) mutable -> void {
+            task_data->task.onfinish([task = task_data.get(), onfinish = std::move(onfinish)] (std::exception_ptr err) mutable -> void {
                 try {
                     onfinish(std::move(err));
                 }
                 catch (manapi::exception &e) {
-                    run_prepare_manapi_exception_(taskpool, e);
+                    run_prepare_manapi_exception_(e);
                 }
                 catch (std::exception const &e) {
-                    run_prepare_std_exception_(taskpool, e);
+                    run_prepare_std_exception_(e);
                 }
                 if (task->flags.exchange(1)) { delete task; }
-            }, taskpoolptr);
+            });
         }
         else {
-            task_data->task.onfinish([taskpool = std::move(taskpool), task = task_data.get()] (std::exception_ptr err) mutable -> void {
+            task_data->task.onfinish([task = task_data.get()] (std::exception_ptr err) mutable -> void {
                 if (err)
-                    run_prepare_error_(taskpool, std::move(err));
+                    run_prepare_error_(std::move(err));
 
                 if (task->flags.exchange(1)) { delete task; }
-            }, taskpoolptr);
+            });
         }
 
         task_data->task();
@@ -209,21 +185,20 @@ namespace manapi::async::internal {
 
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run_prepare_(shared_taskpool taskpool, std::unique_ptr<manapi::async::async_task_t<T>> task_data, run_cb_with_value<T> onfinish) {
-        auto taskpoolptr = taskpool.get();
+    void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> task_data, run_cb_with_value<T> onfinish) {
         if (onfinish) {
-            task_data->task.onfinish([taskpool = std::move(taskpool), task = task_data.get(), onfinish = std::move(onfinish)] (std::exception_ptr err, T *value) mutable -> void {
+            task_data->task.onfinish([task = task_data.get(), onfinish = std::move(onfinish)] (std::exception_ptr err, T *value) mutable -> void {
                 try { onfinish(std::move(err), value); }
-                catch (manapi::exception &e) { internal::run_prepare_manapi_exception_(taskpool, e); }
-                catch (std::exception const &e) { internal::run_prepare_std_exception_(taskpool, e); }
+                catch (manapi::exception &e) { internal::run_prepare_manapi_exception_(e); }
+                catch (std::exception const &e) { internal::run_prepare_std_exception_(e); }
                 if (task->flags.exchange(1)) { delete task; }
-            }, taskpoolptr);
+            });
         }
         else {
-            task_data->task.onfinish([taskpool = std::move(taskpool), task = task_data.get()] (std::exception_ptr err, T *value) mutable -> void {
-                if (err) internal::run_prepare_error_(taskpool, std::move(err));
+            task_data->task.onfinish([task = task_data.get()] (std::exception_ptr err, T *value) mutable -> void {
+                if (err) internal::run_prepare_error_(std::move(err));
                 if (task->flags.exchange(1)) { delete task; }
-            }, taskpoolptr);
+            });
         }
 
         task_data->task();
@@ -248,51 +223,27 @@ namespace manapi::async {
 
     template<typename T>
     requires(std::is_same_v<T, void>)
-    void run (const shared_cthread & ctx, auto && executor,  std::move_only_function<void(std::exception_ptr err)> onfinish ) {
-        async::run<T> (ctx->etaskpool(), invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
-    }
-
-    template<typename T>
-    requires(std::is_same_v<T, void>)
-    void run (shared_taskpool taskpool, auto && executor,  std::move_only_function<void(std::exception_ptr err)> onfinish ) {
-        async::run<T> (std::move(taskpool), invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
+    void run (auto && executor,  std::move_only_function<void(std::exception_ptr err)> onfinish ) {
+        async::run<T> (invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
     }
 
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run (const shared_cthread &ctx, auto &&executor, run_cb_with_value<T> onfinish) {
-        async::run<T> (std::move(ctx), invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
+    void run (auto &&executor, run_cb_with_value<T> onfinish) {
+        async::run<T> (invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
     }
 
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run (shared_taskpool taskpool, auto &&executor, run_cb_with_value<T> onfinish) {
-        async::run<T> (std::move(taskpool), invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
-    }
-
-    template<typename T>
-    requires(!std::is_same_v<T, void>)
-    void run(shared_taskpool taskpool, manapi::future<T> task, run_cb_with_value<T> onfinish) {
+    void run(manapi::future<T> task, run_cb_with_value<T> onfinish) {
         auto task_data = std::make_unique<async_task_t<T>>(manapi::future<T>{task.release()});
-        internal::run_prepare_<T>(std::move(taskpool), std::move(task_data), std::move(onfinish));
-    }
-
-    template<typename T>
-    requires(!std::is_same_v<T, void>)
-    void run (const shared_cthread &ctx, manapi::future<T> task, run_cb_with_value<T> onfinish) {
-        async::run<T> (ctx->etaskpool(), std::move(task), std::move(onfinish));
+        internal::run_prepare_<T>(std::move(task_data), std::move(onfinish));
     }
 
     template<typename T>
     requires(std::is_same_v<T, void>)
-    void manapi::async::run(const shared_cthread &ctx, manapi::future<> task,std::move_only_function<void(std::exception_ptr err)> onfinish) {
-        async::run<T> (ctx->etaskpool(), std::move(task), std::move(onfinish));
-    }
-
-    template<typename T>
-    requires(std::is_same_v<T, void>)
-    void manapi::async::run(shared_taskpool taskpool, manapi::future<> task, std::move_only_function<void(std::exception_ptr err)> onfinish) {
+    void manapi::async::run(manapi::future<> task, std::move_only_function<void(std::exception_ptr err)> onfinish) {
         auto task_data = std::make_unique<async_task_t<T>>(manapi::future<T>{task.release()});
-        internal::run_prepare_<T>(std::move(taskpool), std::move(task_data), std::move(onfinish));
+        internal::run_prepare_<T>(std::move(task_data), std::move(onfinish));
     }
 }

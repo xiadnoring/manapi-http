@@ -60,12 +60,12 @@ void manapi::net::worker::TLS::close_connection(connection *conn, bool clean_dis
     auto connection = conn->as<connection_interface>();
 
     if (connection->accept_timer) {
-        connection->accept_timer.sync_stop(manapi::async::current());
+        connection->accept_timer.stop();
         connection->accept_timer = nullptr;
     }
 
     if (connection->t) {
-        connection->t.sync_stop(manapi::async::current());
+        connection->t.stop();
     }
 
     if (clean_disconnect) {

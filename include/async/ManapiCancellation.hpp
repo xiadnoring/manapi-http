@@ -10,21 +10,18 @@ namespace manapi::async {
             int ask;
             ssize_t timeout_; /* ms */
             manapi::timer timeout_struct_;
-            std::unique_ptr<std::move_only_function<void(async::shared_cthread ctx)>> cancel_sync_callback_;
+            std::unique_ptr<std::move_only_function<void()>> cancel_sync_callback_;
             std::unique_ptr<std::move_only_function<void()>> ready_callback_;
-            async::shared_cthread ctx;
             std::shared_ptr<ev::async> watcher;
             std::unique_ptr<manapi::async::cancellation_action> want_to_unit;
             std::unique_ptr<std::vector<cancellation_action>> associated;
         };
     public:
-        cancellation_action ();
-
         cancellation_action (nullptr_t);
 
-        cancellation_action (async::shared_cthread ctx);
+        cancellation_action ();
 
-        cancellation_action (async::shared_cthread ctx, cancellation_action cancellation);
+        static cancellation_action unit (cancellation_action cancellation);
 
         cancellation_action (cancellation_action &&n) noexcept;
 
@@ -50,7 +47,7 @@ namespace manapi::async {
          *
          * @param ctx Async context
          */
-        void reset (async::shared_cthread ctx);
+        void reset ();
 
         /**
          * Set a callback which will be called after preparation
@@ -65,7 +62,7 @@ namespace manapi::async {
          * @param callback Callback that will be called while canceling
          * @note It must be called only in @code event loop thread@endcode
          */
-        void cancel_callback (std::move_only_function<void(async::shared_cthread ctx)> callback);
+        void cancel_callback (std::move_only_function<void()> callback);
 
         /**
          * Set an other cancellation that will be cancelled while canceling

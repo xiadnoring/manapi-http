@@ -36,6 +36,7 @@
 
 #include "ManapiHash.hpp"
 #include "ManapiMath.hpp"
+#include "ManapiProcess.hpp"
 //#include "extensions/pq/AsyncPostgreClient.hpp"
 
 //SO_ATTACH_REUSEPORT_CBPF
@@ -45,18 +46,25 @@ manapi::future<int> test () {
 }
 
 int main () {
-    manapi::async::context::threadpoolfs(4);
+    int threads = 2;
+    try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS")); }
+    catch (...) {  }
+
+    manapi::async::context::threadpoolfs(threads);
     manapi::async::context::gbs = manapi::async::context::blockedsignals();
 
-    GCTX_OBJ = manapi::async::context::create(0, 16);
+    int loops = 2;
+    try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS")); }
+    catch (...) {  }
+    GCTX_OBJ = manapi::async::context::create(0, loops);
     GCTX_OBJ->eventloop()->setup_handle_interrupt();
 
     manapi::async::cthread::current(GCTX_OBJ);
 
-    auto mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ);
+    auto mx = std::make_shared<manapi::async::mutex>();
     GCTX_OBJ->logger()->callback([mx](manapi::logger_type type, std::string_view service, int error_code, std::string msg)
         -> void {
-        manapi::async::run(manapi::async::current(), manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
+        manapi::async::run(manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
             auto lk = co_await mx->lock_guard();
             if (type == manapi::logger_type::LOGGER_ERROR) {
                 std::cerr << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
@@ -70,7 +78,7 @@ int main () {
 
     //auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
 
-    manapi::net::http::server router (GCTX_OBJ);
+    manapi::net::http::server router;
 
     std::atomic<int> a = 0;
 
@@ -178,7 +186,7 @@ int main () {
     //     co_return resp.text(std::move(content));
     // });
 
-    manapi::async::run(manapi::async::current(), [router] () mutable -> manapi::future<> {
+    manapi::async::run([router] () mutable -> manapi::future<> {
         //co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
 
         co_await router.config("./config.json");

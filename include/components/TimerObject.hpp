@@ -16,9 +16,9 @@ namespace manapi {
 
     class timer {
         struct timer_data_t {
-            std::atomic<bool> enabled{true};
-            std::optional<std::move_only_function<manapi::future<>(std::shared_ptr<timer_data_t> &data, std::shared_ptr<event_loop> eventloop,  std::shared_ptr<threadpool<task>> taskpool)>> async_cb{};
-            std::optional<std::move_only_function<void(const std::shared_ptr<timer_data_t> &data, const std::shared_ptr<event_loop> &eventloop, const std::shared_ptr<threadpool<task>> &taskpool)>> sync_cb{};
+            bool enabled{true};
+            std::unique_ptr<std::move_only_function<manapi::future<>(std::shared_ptr<timer_data_t> &data)>> async_cb{};
+            std::unique_ptr<std::move_only_function<void(const std::shared_ptr<timer_data_t> &data)>> sync_cb{};
         };
     public:
         timer ();
@@ -34,18 +34,15 @@ namespace manapi {
         ~timer ();
         explicit operator bool () const;
         [[nodiscard]] size_t id () const;
-        void _call (const std::shared_ptr<event_loop> &eventloop, const std::shared_ptr<threadpool<task>> &taskpool);
-        void _clear ();
-        manapi::future<> async_stop (const std::shared_ptr<manapi::event_loop> &events);
-        manapi::future<> async_stop (const std::shared_ptr<async::cthread> &ctx);
-        void sync_stop ();
-        void sync_stop (const std::shared_ptr<manapi::timerpool> &timerpool);
-        void sync_stop (const std::shared_ptr<async::cthread> &ctx);
+
+        void call_ ();
+        void clear_ ();
+        void stop ();
         [[nodiscard]] bool is_async () const;
         [[nodiscard]] bool is_sync () const;
         [[nodiscard]] bool enabled () const;
     private:
-        [[nodiscard]] static size_t _id (const std::shared_ptr<timer_data_t> &data);
+        [[nodiscard]] static size_t id_ (const std::shared_ptr<timer_data_t> &data);
         std::shared_ptr<timer_data_t> data;
     };
 }

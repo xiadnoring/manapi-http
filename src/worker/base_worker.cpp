@@ -32,7 +32,7 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
     int prev_flags;
     std::unique_ptr<worker_watcher_cb> prev_cb;
 
-    rhs = co_await promise (manapi::async::current(), [&] (promise::resolve_t resolve, promise::reject_t reject)
+    rhs = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
         -> void {
         prev_flags = this->event_flags(conn.get(), ev::WRITE);
         prev_cb = this->event_on(conn.get(), [this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]

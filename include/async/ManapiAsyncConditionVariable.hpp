@@ -20,7 +20,6 @@ namespace manapi::async {
         struct promise {
             std::function<bool()> cond;
             std::shared_ptr<async::mutex> gmx;
-            std::shared_ptr<threadpool<task>> &taskpool;
             chain <notify_sub_t> *stack;
 
             bool await_ready () noexcept { return false; }
@@ -29,8 +28,7 @@ namespace manapi::async {
             void await_suspend (std::coroutine_handle<future<>::promise> handle);
         };
 
-        condition_variable (const async::shared_cthread &ctx);
-        condition_variable (const shared_taskpool &taskpool);
+        condition_variable ();
 
         future<void> wait (std::function<bool()> cond);
 
@@ -41,7 +39,6 @@ namespace manapi::async {
         ~condition_variable () = default;
     private:
         std::atomic<bool> stop = false;
-        std::shared_ptr<threadpool<task>> taskpool;
         std::shared_ptr<async::mutex> mx;
         chain <notify_sub_t> stack;
     };

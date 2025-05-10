@@ -110,11 +110,14 @@ namespace manapi::net::http {
 
         std::atomic<bool> &tcp_no_delay ();
 
+        std::atomic<bool> &simultaneous_accepts ();
+
         std::atomic<bool> &verify_peer ();
 
         std::atomic<ssize_t> &buffer_size ();
     private:
         // settings
+        std::atomic<bool> simultaneous_accepts_;
         std::atomic<bool> quic_debug_;
         std::atomic<size_t> quic_cc_algo_;
         std::atomic<size_t> tls_version_;

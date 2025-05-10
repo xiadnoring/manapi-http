@@ -38,7 +38,7 @@ namespace manapi::net::http {
         using resp = manapi::net::http::response &;
         using req = manapi::net::http::request &;
 
-        server(const async::shared_ctx &ctx);
+        server();
         ~server() final;
 
         server(server &&n) noexcept;
@@ -64,7 +64,7 @@ namespace manapi::net::http {
         manapi::future<void> stop_ (bool evloop);
         manapi::future<> init_pool_ ();
         manapi::future<> call_in_thread_ (const async::shared_cthread &thr, std::move_only_function<manapi::future<>()> cb);
-        manapi::future<void> pool_ (std::move_only_function<void()> cb);
+        void pool_ (std::move_only_function<void()> cb);
         void clean_up ();
         manapi::future<void> stop_pool ();
     };

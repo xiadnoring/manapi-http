@@ -21,8 +21,8 @@ namespace manapi::async {
             void await_resume () noexcept;
             void await_suspend (std::coroutine_handle<future<>::promise> handle);
         };
-        mutex (shared_taskpool taskpool_);
-        mutex (const manapi::async::shared_cthread &ctx);
+
+        mutex ();
 
         mutex (mutex &&n) noexcept;
         mutex &operator=(mutex &&n) noexcept;
@@ -39,7 +39,6 @@ namespace manapi::async {
 
         ~mutex ();
     private:
-        std::shared_ptr<threadpool<task>> taskpool;
         std::mutex mx;
         bool own{false};
         manapi::chain <std::coroutine_handle<future<>::promise> > stack;

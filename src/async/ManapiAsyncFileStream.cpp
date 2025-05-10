@@ -5,9 +5,8 @@
 #include "ManapiFilesystem.hpp"
 #include "../include/ManapiWindows.hpp"
 
-manapi::filesystem::fstream::fstream(async::shared_cthread ctx, std::string path, async::cancellation_action cancellation) {
+manapi::filesystem::fstream::fstream(std::string path, async::cancellation_action cancellation) {
     this->data = std::make_shared<fstream_data_t_>(
-        ctx = std::move(ctx),
         std::move(path),
         std::move(cancellation),
         -1,
@@ -42,8 +41,8 @@ manapi::future<> manapi::filesystem::fstream::open(int flags, int mode) {
         this->data->off_ = 0;
     }
 
-    this->data->file = co_await manapi::filesystem::async_open(this->data->ctx, this->data->path, flags, mode,
-        async::cancellation_action(this->data->ctx, this->data->cancellation));
+    this->data->file = co_await manapi::filesystem::async_open(this->data->path, flags, mode,
+        async::cancellation_action::unit(this->data->cancellation));
 }
 
 bool manapi::filesystem::fstream::is_open() const {
@@ -60,8 +59,8 @@ manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t bu
     while (true) {
         ssize_t rhs;
 
-        rhs = co_await manapi::filesystem::async_read(this->data->ctx, this->data->file, buff, buff_size, this->data->off_,
-            manapi::async::cancellation_action(this->data->ctx, this->data->cancellation));
+        rhs = co_await manapi::filesystem::async_read(this->data->file, buff, buff_size, this->data->off_,
+            manapi::async::cancellation_action::unit(this->data->cancellation));
 
 
         if (rhs < 0) {
@@ -96,8 +95,8 @@ manapi::future<ssize_t> manapi::filesystem::fstream::write(const void *buff, ssi
         //
         //     break;
         // }
-        rhs = co_await manapi::filesystem::async_write(this->data->ctx, this->data->file, buff, buff_size, this->data->off_,
-            manapi::async::cancellation_action(this->data->ctx, this->data->cancellation));
+        rhs = co_await manapi::filesystem::async_write(this->data->file, buff, buff_size, this->data->off_,
+            manapi::async::cancellation_action::unit(this->data->cancellation));
 
         if (this->data->off_ >= 0) {
             this->data->off_ += rhs;
@@ -155,10 +154,10 @@ ssize_t manapi::filesystem::fstream::seekg(const ssize_t &pos, const seek_flag_t
 
 manapi::future<ssize_t> manapi::filesystem::fstream::size() const {
     ssize_t size;
-    co_await manapi::filesystem::async_fstat(this->data->ctx, this->data->file, [&size] (ev::stat_t *data)
+    co_await manapi::filesystem::async_fstat(this->data->file, [&size] (ev::stat_t *data)
         -> void {
         size = static_cast<ssize_t>(data->st_size);
-    }, async::cancellation_action(this->data->ctx, this->data->cancellation));
+    }, async::cancellation_action::unit(this->data->cancellation));
     co_return size;
 }
 
@@ -185,12 +184,12 @@ ssize_t manapi::filesystem::fstream::seekg_(const ssize_t &pos, const seek_flag_
 
 void manapi::filesystem::fstream::sync_close_(std::shared_ptr<fstream_data_t_> data) {
     if (!(data->status.fetch_or(FILE_CLOSED) & FILE_CLOSED)) {
-        manapi::async::run(data->ctx, fstream::close_(data));
+        manapi::async::run(fstream::close_(data));
     }
 }
 
 manapi::future<> manapi::filesystem::fstream::close_(std::shared_ptr<fstream_data_t_> data) {
     if (data && data->file > 0) {
-        co_await manapi::filesystem::async_close(data->ctx, data->file);
+        co_await manapi::filesystem::async_close(data->file);
     }
 }

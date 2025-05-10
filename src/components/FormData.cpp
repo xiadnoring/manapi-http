@@ -447,7 +447,7 @@ manapi::future<> manapi::net::formdata_recv::get_async_file(std::function<manapi
 }
 
 manapi::future<void> manapi::net::formdata_recv::save_file (std::string filepath) {
-    manapi::filesystem::fstream out (this->ctx, filepath);
+    manapi::filesystem::fstream out (filepath);
     co_await out.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_TRUNC);
     if (!out.is_open())
     {
@@ -594,7 +594,7 @@ manapi::future<ssize_t> manapi::net::formdata_send::payload_size() const {
     for (const auto &param : this->data) {
         switch (param.second.type) {
             case DATA_FILE:
-                s += co_await manapi::filesystem::async_file_size(this->ctx, param.second.data);
+                s += co_await manapi::filesystem::async_file_size(param.second.data);
             break;
             case DATA_PLAIN:
                 s += static_cast<ssize_t>(param.second.data.size());
@@ -674,7 +674,7 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
 
             co_await write (nline, sizeof (nline) - 1);
 
-            manapi::filesystem::fstream f (this->ctx, param.second.data);
+            manapi::filesystem::fstream f (param.second.data);
             co_await f.open(ev::FS_O_RDONLY);
 
             if (!f.is_open()) {

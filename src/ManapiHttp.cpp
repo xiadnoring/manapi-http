@@ -41,9 +41,9 @@ manapi::net::http::server & manapi::net::http::server::operator=(const server &n
     return *this;
 }
 
-manapi::net::http::server::server(const async::shared_ctx &ctx)
-        : site(ctx) {
-    this->data2 = std::make_shared<data2_t>(std::make_unique<async::mutex>(manapi::async::current()), true, pools_t(), 0UL, 0UL, 0UL, nullptr, nullptr);
+manapi::net::http::server::server()
+        : site() {
+    this->data2 = std::make_shared<data2_t>(std::make_unique<async::mutex>(), true, pools_t(), 0UL, 0UL, 0UL, nullptr, nullptr);
     this->setup ();
 }
 
@@ -56,8 +56,8 @@ manapi::future<void> manapi::net::http::server::start(std::vector<async::shared_
 
     this->loops_ = std::move(loops);
     auto const it = std::find(this->loops_.begin(), this->loops_.end(), manapi::async::current());
-    if (it != this->loops_.end()) {
-        this->loops_.erase(it);
+    if (it == this->loops_.end()) {
+        this->loops_.push_back(manapi::async::current());
     }
 
     this->data2->event_id = async::current()->eventloop()->subscribe_finish([this] ()
@@ -71,8 +71,9 @@ manapi::future<void> manapi::net::http::server::start(std::vector<async::shared_
                 -> manapi::future<> { return this->init_pool_(); });
     }
 
-    co_await async::promise<void> (async::current(), [this, &lk] (async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> future<> {
-        co_await this->pool_([&lk, resolve = std::move(resolve)] () mutable -> void {
+    using promise = async::promise<void, std::false_type>;
+    co_await  promise([this, &lk] (promise::resolve_t resolve, promise::reject_t reject) -> void {
+        this->pool_([&lk, resolve = std::move(resolve)] () mutable -> void {
             lk.call();
             resolve ();
         });
@@ -131,7 +132,7 @@ manapi::future<void> manapi::net::http::server::stop_(bool evloop) {
         this->save();
 
         // cache config
-        co_await manapi::filesystem::async_write(async::current(), data->config_cache_dir + site::default_config_name, this->data->cache_config.dump(),
+        co_await manapi::filesystem::async_write(data->config_cache_dir + site::default_config_name, this->data->cache_config.dump(),
             ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
     }
     catch (std::exception const &e) {
@@ -139,8 +140,7 @@ manapi::future<void> manapi::net::http::server::stop_(bool evloop) {
     }
     if (this->data2->init_watcher) {
         printf("unwatch_async(this->data2->init_watcher);\n");
-        co_await async::current()->eventloop()->unwatch_async(this->data2->init_watcher);
-        this->data2->init_watcher.reset();
+        async::current()->eventloop()->stop_watcher(std::move(this->data2->init_watcher));
         printf("finish unwatch_async(this->data2->init_watcher);\n");
     }
 
@@ -177,7 +177,7 @@ manapi::future<> manapi::net::http::server::init_pool_() {
 
 manapi::future<> manapi::net::http::server::call_in_thread_(const async::shared_cthread &thr, std::move_only_function<manapi::future<>()> cb) {
     using promise = manapi::async::promise<void>;
-    co_await promise (manapi::async::current(), [&] (promise::resolve_t resolve, promise::reject_t reject) -> manapi::future<> {
+    co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> manapi::future<> {
         auto w = async::current()->eventloop()->create_watcher_async([resolve = std::move(resolve)] (ev::shared_async &w) mutable
             -> void {
             auto cb = std::move(resolve);
@@ -189,8 +189,7 @@ manapi::future<> manapi::net::http::server::call_in_thread_(const async::shared_
         /* run the callback in other event loop */
         co_await thr->eventloop()->custom_callback([this, cb = std::move(cb), w = std::move(w)] (event_loop *ev) mutable
             -> void {
-            manapi::async::run(manapi::async::current(),
-                std::move(cb), [w = std::move(w)] (std::exception_ptr err) -> void {
+            manapi::async::run(std::move(cb), [w = std::move(w)] (std::exception_ptr err) -> void {
                     if (err) {
                         /* error */
                     }
@@ -200,8 +199,8 @@ manapi::future<> manapi::net::http::server::call_in_thread_(const async::shared_
     });
 }
 
-manapi::future<void> manapi::net::http::server::pool_(std::move_only_function<void()> cb) {
-    this->data2->init_watcher = co_await async::current()->eventloop()->watch_async([cb = std::move(cb)] (std::shared_ptr<ev::async> &w) mutable
+void manapi::net::http::server::pool_(std::move_only_function<void()> cb) {
+    this->data2->init_watcher = async::current()->eventloop()->create_watcher_async([cb = std::move(cb)] (std::shared_ptr<ev::async> &w) mutable
         -> void {
         w->unbind();
         cb();
@@ -219,15 +218,15 @@ void manapi::net::http::server::clean_up() {
 
 manapi::future<> manapi::net::http::server::stop_pool() {
     auto &pools = this->data2->pools[std::this_thread::get_id()];
-    MANAPIHTTP_LOG2(manapi::async::current(), "cv_stopping -> pass");
+    MANAPIHTTP_LOG2("cv_stopping -> pass");
 
     // stop all pools
     for (const auto &pool: pools)
     {
-        MANAPIHTTP_LOG (manapi::async::current(), "pool #{} is stopping...", pool.first);
+        MANAPIHTTP_LOG ("pool #{} is stopping...", pool.first);
         co_await pool.second->stop();
-        MANAPIHTTP_LOG (manapi::async::current(), "pool #{} stopped successfully", pool.first);
+        MANAPIHTTP_LOG ("pool #{} stopped successfully", pool.first);
     }
 
-    MANAPIHTTP_LOG2(manapi::async::current(), "pools(...) -> pass");
+    MANAPIHTTP_LOG2("pools(...) -> pass");
 }

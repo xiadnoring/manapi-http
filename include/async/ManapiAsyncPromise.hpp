@@ -19,7 +19,6 @@ namespace manapi::async {
         typedef const reject_t& reject_ref_t;
 
         struct data_t {
-            std::shared_ptr<threadpool<task>> taskpool{nullptr};
             std::exception_ptr exception{nullptr};
             std::atomic<int> flags;
             std::optional <T> value;
@@ -33,29 +32,15 @@ namespace manapi::async {
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
-        promise(shared_cthread ctx, async_cb cb) {
-            this->data = std::make_shared<data_t>(internal::ethreadpool_(ctx), nullptr, 0, std::optional <T>{}, nullptr);
-            if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags.store(0b10); this->data->cb = obj.release(); }
-        }
-
-        template<typename Async1 = Async>
-        requires(std::is_same_v<Async1, std::true_type>)
-        promise(shared_taskpool taskpool, async_cb cb) {
-            this->data = std::make_shared<data_t>(std::move(taskpool), nullptr, 0, std::optional <T>{}, nullptr);
+        promise(async_cb cb) {
+            this->data = std::make_shared<data_t>(nullptr, 0, std::optional <T>{}, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags.store(0b10); this->data->cb = obj.release(); }
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::false_type>)
-        promise(shared_cthread ctx, sync_cb cb) {
-            this->data = std::make_shared<data_t>(internal::ethreadpool_(ctx), nullptr, 0, std::optional <T>{}, nullptr);
-            if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->cb = obj.release(); }
-        }
-
-        template<typename Async1 = Async>
-        requires(std::is_same_v<Async1, std::false_type>)
-        promise(shared_taskpool taskpool, sync_cb cb) {
-            this->data = std::make_shared<data_t>(std::move(taskpool), nullptr, 0, std::optional <T>{}, nullptr);
+        promise(sync_cb cb) {
+            this->data = std::make_shared<data_t>(nullptr, 0, std::optional <T>{}, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->cb = obj.release(); }
         }
 
@@ -77,7 +62,7 @@ namespace manapi::async {
         requires(std::is_base_of_v<promise_base, T1>)
         void await_suspend (std::coroutine_handle<T1> handle) {
             if (this->data->flags & 0b10 /* async */) {
-                async::run<void>(this->data->taskpool, static_cast<async_cb *>(this->data->cb)->operator()([handle, data = this->data] (T v) mutable
+                async::run<void>(static_cast<async_cb *>(this->data->cb)->operator()([handle, data = this->data] (T v) mutable
                     -> void { resolve(std::move(data), handle, v); },
                     [handle, data = this->data] (std::exception_ptr e) mutable
                     -> void { reject(std::move(data), handle, std::move(e)); }), [data = this->data] (std::exception_ptr err) -> void {});
@@ -93,8 +78,7 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
-            data->taskpool->append_task([handle = std::exchange(handle, nullptr)] ()
-                 -> void { handle.resume(); });
+            handle.resume();
         }
 
         template <typename T1>
@@ -134,7 +118,6 @@ namespace manapi::async {
         typedef const reject_t& reject_ref_t;
 
         struct data_t {
-            std::shared_ptr<threadpool<task>> taskpool{nullptr};
             std::exception_ptr exception{nullptr};
             std::atomic<int> flags;
             void *cb;
@@ -148,29 +131,15 @@ namespace manapi::async {
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
-        promise(shared_cthread ctx, async_cb cb) {
-            this->data = std::make_shared<data_t>(internal::ethreadpool_(ctx), nullptr, 0, nullptr);
-            if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags.store(0b10); this->data->cb = obj.release(); }
-        }
-
-        template<typename Async1 = Async>
-        requires(std::is_same_v<Async1, std::true_type>)
-        promise(shared_taskpool taskpool, async_cb cb) {
-            this->data = std::make_shared<data_t>(std::move(taskpool), nullptr, 0, nullptr);
+        promise(async_cb cb) {
+            this->data = std::make_shared<data_t>(nullptr, 0, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags.store(0b10); this->data->cb = obj.release(); }
         }
 
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::false_type>)
-        promise(shared_cthread ctx, sync_cb cb) {
-            this->data = std::make_shared<data_t>(internal::ethreadpool_(ctx), nullptr, 0, nullptr);
-            if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->cb = obj.release(); }
-        }
-
-        template<typename Async1 = Async>
-        requires(std::is_same_v<Async1, std::false_type>)
-        promise(shared_taskpool taskpool, sync_cb cb) {
-            this->data = std::make_shared<data_t>(std::move(taskpool), nullptr, 0, nullptr);
+        promise(sync_cb cb) {
+            this->data = std::make_shared<data_t>(nullptr, 0, nullptr);
             if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->cb = obj.release(); }
         }
 
@@ -190,7 +159,7 @@ namespace manapi::async {
         requires(std::is_base_of_v<promise_base, T1>)
         void await_suspend (std::coroutine_handle<T1> handle) {
             if ((this->data->flags & 0b10)) {
-                async::run<void>(this->data->taskpool, static_cast<async_cb *>(this->data->cb)->operator() ([data = this->data, handle] () mutable
+                async::run<void>(static_cast<async_cb *>(this->data->cb)->operator() ([data = this->data, handle] () mutable
                     -> void { resolve(std::move(data), handle); },
                 [data = this->data, handle] (std::exception_ptr e) mutable
                     -> void { reject(std::move(data), handle, std::move(e)); }), [data = this->data] (std::exception_ptr err) -> void {});
@@ -206,8 +175,7 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
-            data->taskpool->append_task([handle = std::exchange(handle, nullptr)] ()
-                -> void { handle.resume(); });
+            handle.resume();
         }
 
         template <typename T1>
