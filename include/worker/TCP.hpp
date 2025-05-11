@@ -61,8 +61,6 @@ namespace manapi::net::worker {
     protected:
         virtual void flush_write_ (const shared_conn &connection, bool flush = false);
 
-        virtual bool recv_setup_connection (manapi::net::worker::connection *storage);
-
         void update_limit_rate ();
 
         void timeout_ (worker::connection * storage);
@@ -77,13 +75,13 @@ namespace manapi::net::worker {
 
         std::unordered_map <std::uintptr_t, shared_conn> connections;
         ev::shared_tcp watcher_accept_;
+    protected:
+        std::weak_ptr<base> self_;
     private:
         static std::string stringify_http_info (manapi::net::http::response *res, const int &version, const std::string &delimiter) ;
         static std::string stringify_headers (manapi::net::http::response *res, const std::string &delimiter) ;
         static void connection_interface_eraser (void *ptr);
 
-
-        std::weak_ptr<base> self_;
         sockaddr_storage sockaddrin{};
         addrinfo *local;
         timer limit_rate_timer{};

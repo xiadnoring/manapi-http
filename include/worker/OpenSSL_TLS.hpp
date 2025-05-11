@@ -32,7 +32,7 @@ namespace manapi::net::worker {
         int ssl_bio_write_(void *rbio, const void *buff, int size) override;
         int ssl_bio_should_retry_(void *bio) override;
 
-        bool recv_setup_connection(manapi::net::worker::connection *storage) override;
+        bool recv_setup_connection(connection_interface *storage) override;
         void* ssl_create_context (const size_t &version) override;
         void ssl_configure_context () override;
     };

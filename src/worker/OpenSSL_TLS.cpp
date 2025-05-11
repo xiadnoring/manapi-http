@@ -44,6 +44,7 @@ manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
 std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_TLS::create(net::site &site, std::shared_ptr<manapi::net::http::config> config) {
     auto worker = std::make_shared<worker::OpenSSL_TLS>(site);
     worker->config(std::move(config));
+    worker->self_ = worker;
     return std::move(worker);
 }
 
@@ -101,29 +102,24 @@ int manapi::net::worker::OpenSSL_TLS::ssl_bio_should_retry_(void *bio) {
     return BIO_should_retry(static_cast<BIO*>(bio));
 }
 
-bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(manapi::net::worker::connection *storage) {
+bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(connection_interface *data) {
     ERR_clear_error();
 
-    auto conn_data = storage->as<connection_interface>();
-    conn_data->status |= CONN_IDLE;
+    data->status |= CONN_IDLE;
 
-    conn_data->wbio = BIO_new(BIO_s_mem());
-    if (!conn_data->wbio) {
+    data->wbio = BIO_new(BIO_s_mem());
+    if (!data->wbio) {
         goto err;
     }
 
-    conn_data->rbio = BIO_new(BIO_s_mem());
-    if (!conn_data->rbio) {
+    data->rbio = BIO_new(BIO_s_mem());
+    if (!data->rbio) {
         goto err;
     }
 
-    if (!SSL_set_blocking_mode(static_cast<SSL*>(conn_data->ssl), 0)) {
-        goto err;
-    }
+    SSL_set_accept_state(static_cast<SSL*>(data->ssl));
 
-    SSL_set_accept_state(static_cast<SSL*>(conn_data->ssl));
-
-    SSL_set_bio(static_cast<SSL*>(conn_data->ssl), static_cast<BIO*>(conn_data->rbio), static_cast<BIO*>(conn_data->wbio));
+    SSL_set_bio(static_cast<SSL*>(data->ssl), static_cast<BIO*>(data->rbio), static_cast<BIO*>(data->wbio));
 
     return true;
 err:

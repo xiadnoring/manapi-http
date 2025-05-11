@@ -91,6 +91,7 @@ int main () {
 
     router.GET ("/stat", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
         -> manapi::future<> {
+        std::cout << "/stat\n";
         resp.compress_enabled(false);
         co_return resp.text(std::to_string(a.load()));
     });
@@ -156,12 +157,12 @@ int main () {
     //     co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
     // });
     //
-    // router.GET("/video", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-    //     -> manapi::future<> {
-    //     resp.compress_enabled(false);
-    //     resp.partial_enabled(true);
-    //     co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
-    // });
+    router.GET("/video", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+        -> manapi::future<> {
+        resp.compress_enabled(false);
+        resp.partial_enabled(true);
+        co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+    });
     //
     // router.GET("/folder", "/home/Timur/Downloads/VideoDownloader");
 

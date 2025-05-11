@@ -46,8 +46,7 @@ namespace manapi::filesystem {
     private:
         ssize_t seekg_ (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START) const;
 
-        static future<> close_(std::shared_ptr<fstream_data_t_> data);
-        static void sync_close_ (std::shared_ptr<fstream_data_t_> data);
+        static future<> close_(ev::file fileno);
 
         std::shared_ptr<fstream_data_t_> data;
     };

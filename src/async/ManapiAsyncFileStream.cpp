@@ -50,32 +50,38 @@ bool manapi::filesystem::fstream::is_open() const {
 }
 
 manapi::filesystem::fstream::~fstream() {
-    if (this->data) {
-        sync_close_(this->data);
+    if (1 == this->data.use_count()) {
+        manapi::async::run(fstream::close_(this->data->file));
     }
 }
 
 manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t buff_size) {
-    while (true) {
-        ssize_t rhs;
+    try {
+        while (true) {
+            ssize_t rhs;
 
-        rhs = co_await manapi::filesystem::async_read(this->data->file, buff, buff_size, this->data->off_,
-            manapi::async::cancellation_action::unit(this->data->cancellation));
+            rhs = co_await manapi::filesystem::async_read(this->data->file, buff, buff_size, this->data->off_,
+                manapi::async::cancellation_action::unit(this->data->cancellation));
 
 
-        if (rhs < 0) {
-            break;
+            if (rhs < 0) {
+                break;
+            }
+
+            if (rhs == 0) {
+                this->data->status |= FILE_EOF;
+            }
+
+            if (this->data->off_ >= 0) {
+                this->data->off_ += rhs;
+            }
+
+            co_return rhs;
         }
-
-        if (rhs == 0) {
-            this->data->status |= FILE_EOF;
-        }
-
-        if (this->data->off_ >= 0) {
-            this->data->off_ += rhs;
-        }
-
-        co_return rhs;
+    }
+    catch (std::exception const &e) {
+        manapi::async::current()->logger()->error(manapi::logger::default_service,
+            ERR_FS_IO, "fs: read() failed due to {}", e.what());
     }
 
     co_return -1;
@@ -141,7 +147,7 @@ manapi::future<> manapi::filesystem::fstream::close() {
     if (this->data->status.fetch_or(FILE_CLOSED) & FILE_CLOSED) {
         return async::blank_future<void>();
     }
-    return fstream::close_(this->data);
+    return fstream::close_(std::exchange(this->data->file, -1));
 }
 
 ssize_t manapi::filesystem::fstream::tellg() const {
@@ -182,14 +188,8 @@ ssize_t manapi::filesystem::fstream::seekg_(const ssize_t &pos, const seek_flag_
     return prev;
 }
 
-void manapi::filesystem::fstream::sync_close_(std::shared_ptr<fstream_data_t_> data) {
-    if (!(data->status.fetch_or(FILE_CLOSED) & FILE_CLOSED)) {
-        manapi::async::run(fstream::close_(data));
-    }
-}
-
-manapi::future<> manapi::filesystem::fstream::close_(std::shared_ptr<fstream_data_t_> data) {
-    if (data && data->file > 0) {
-        co_await manapi::filesystem::async_close(data->file);
+manapi::future<> manapi::filesystem::fstream::close_(ev::file fileno) {
+    if (fileno) {
+        co_await manapi::filesystem::async_close(fileno);
     }
 }

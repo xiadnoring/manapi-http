@@ -244,6 +244,8 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
 
     auto conn = connection->as<connection_interface>();
 
+    conn->top = std::make_unique<connection_io>();
+
     conn->worker = this->self_.lock();
     conn->watcher = std::move(client);
 
@@ -396,10 +398,6 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
     }
 }
 
-bool manapi::net::worker::TCP::recv_setup_connection(manapi::net::worker::connection *storage) {
-    return true;
-}
-
 void manapi::net::worker::TCP::update_limit_rate() {
     /* in the event loop */
     for (auto &conn: this->connections) {
@@ -522,13 +520,11 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
 
                     }));
 
-                    data->top = std::make_unique<connection_io>();
-
                     this->event_on(conn.get(), std::unique_ptr<worker_watcher_cb>(nullptr));
                     this->event_flags(conn.get(), 0);
 
                     connection_io_send(&data->top->recv, buff, size,
-                        this->bufferpool().get(), static_cast<int>(this->config()->buffer_size().load()), nullptr, 0);
+                        this->bufferpool().get(), static_cast<int>(this->config()->buffer_size().load()), &data->top->recv_size, 1e5);
 
                     net::http::internal::handle_income_request(std::move(cdata), this->site().handler(req_ptr), http::OK_200);
 
@@ -541,7 +537,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     this->event_flags(conn.get(), 0);
 
                     connection_io_send(&data->top->recv, buff, size,
-                        this->bufferpool().get(), static_cast<int>(this->config()->buffer_size().load()), nullptr, 0);
+                        this->bufferpool().get(), static_cast<int>(this->config()->buffer_size().load()), &data->top->recv_size, 1e5);
 
                     switch (httpv) {
                         case http::versions::HTTP_v0_9: {

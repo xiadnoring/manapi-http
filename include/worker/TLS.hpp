@@ -24,7 +24,7 @@ namespace manapi::net::worker {
         ~TLS () override;
 
         void init () override;
-
+        
         void configure_connection(const shared_conn &connection, oncont_cb cb) override;
 
         shared_conn accept (ev::shared_tcp &w) override;
@@ -53,7 +53,7 @@ namespace manapi::net::worker {
         virtual int ssl_bio_read_ (void *wbio, void *buff, int size) = 0;
         virtual int ssl_bio_should_retry_ (void *bio) = 0;
 
-        bool recv_setup_connection(manapi::net::worker::connection *storage) override = 0;
+        virtual bool recv_setup_connection(connection_interface *storage) = 0;
 
         void update_limit_rate_connection(connection *conn) override;
 
@@ -65,8 +65,6 @@ namespace manapi::net::worker {
 
         void onrecv(std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) override;
 
-        void onaccept_event_(const shared_conn &conn) override;
-
         void accept_work_ (const shared_conn &conn, int flags, ibuffpool_t buffer);
 
         void flush_write_(const shared_conn &connection, bool flush) override;
@@ -74,6 +72,8 @@ namespace manapi::net::worker {
         void *ctx = nullptr;
         int ssl_session_ctx_id{1};
     private:
+        int check_read_stack_full_ (connection_interface *data);
+
         int ssl_bio_flush_write_ (const shared_conn &conn, void *wbio, connection_io_part *top, int *cnt, int max_cnt);
 
         int ssl_bio_flush_read_ (const shared_conn &conn, void *rbio, connection_io_part *top, int *cnt, int max_cnt);
