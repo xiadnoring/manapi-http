@@ -63,15 +63,15 @@ namespace manapi::async {
         void await_suspend (std::coroutine_handle<T1> handle) {
             if (this->data->flags & 0b10 /* async */) {
                 async::run<void>(static_cast<async_cb *>(this->data->cb)->operator()([handle, data = this->data] (T v) mutable
-                    -> void { resolve(std::move(data), handle, v); },
+                    -> void { resolve((data), handle, v); },
                     [handle, data = this->data] (std::exception_ptr e) mutable
-                    -> void { reject(std::move(data), handle, std::move(e)); }), [data = this->data] (std::exception_ptr err) -> void {});
+                    -> void { reject((data), handle, std::move(e)); }), [data = this->data] (std::exception_ptr err) -> void {});
             }
             else {
                 static_cast<sync_cb *>(this->data->cb)->operator() ([handle, data = this->data] (T v) mutable
-                    -> void { resolve(std::move(data), handle, v); },
+                    -> void { resolve((data), handle, v); },
                     [handle, data = this->data] (std::exception_ptr e) mutable
-                    -> void { reject(std::move(data), handle, std::move(e)); });
+                    -> void { reject((data), handle, std::move(e)); });
             }
         }
     private:
@@ -160,15 +160,15 @@ namespace manapi::async {
         void await_suspend (std::coroutine_handle<T1> handle) {
             if ((this->data->flags & 0b10)) {
                 async::run<void>(static_cast<async_cb *>(this->data->cb)->operator() ([data = this->data, handle] () mutable
-                    -> void { resolve(std::move(data), handle); },
+                    -> void { resolve((data), handle); },
                 [data = this->data, handle] (std::exception_ptr e) mutable
-                    -> void { reject(std::move(data), handle, std::move(e)); }), [data = this->data] (std::exception_ptr err) -> void {});
+                    -> void { reject((data), handle, std::move(e)); }), [data = this->data] (std::exception_ptr err) -> void {});
             }
             else {
                 static_cast<sync_cb *>(this->data->cb)->operator() ([data = this->data, handle] () mutable
-                    -> void { resolve(std::move(data), handle); },
+                    -> void { resolve((data), handle); },
                 [data = this->data, handle] (std::exception_ptr e) mutable
-                    -> void { reject(std::move(data), handle, std::move(e)); });
+                    -> void { reject((data), handle, std::move(e)); });
             }
         }
     private:

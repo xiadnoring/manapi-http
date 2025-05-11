@@ -122,7 +122,7 @@ ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, const void
                 &connection->top->send, &connection->top->send_size, static_cast<int>(this->config()->max_buffer_stack().load()))) {
             if (err == CONN_IO_WANT_WRITE) {
                 this->flush_write_(conn, finish);
-                return 0;
+                return rhs;
             }
 
             return CONN_IO_ERROR;

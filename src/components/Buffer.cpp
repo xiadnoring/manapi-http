@@ -47,11 +47,11 @@ manapi::bytebuffer & manapi::bytebuffer::operator=(bytebuffer &&n) noexcept {
 }
 
 char * manapi::bytebuffer::c_str() {
-    return reinterpret_cast<char *> (this->src);
+    return reinterpret_cast<char *> (this->src) + this->shift_;
 }
 
 char * manapi::bytebuffer::data() {
-    return reinterpret_cast<char *> (this->src);
+    return reinterpret_cast<char *> (this->src) + this->shift_;
 }
 
 char &manapi::bytebuffer::operator[](std::size_t i_) {

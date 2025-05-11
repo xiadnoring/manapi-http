@@ -362,6 +362,11 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
             conn->top->send.deque_cursor = 0;
         }
 
+        if (conn->top->send.deque_current) {
+            object->shift_add(conn->top->send.deque_current);
+            conn->top->send.deque_current = 0;
+        }
+
 
         conn->stats.transfared_last_second+=static_cast<int>(object->size());
 

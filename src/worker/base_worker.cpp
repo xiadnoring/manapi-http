@@ -39,15 +39,18 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
             (const shared_conn &conn, int flags, ibuffpool_t buffer) -> void {
                 try {
                     if (flags & ev::DISCONNECT) {
-                        reject(std::make_exception_ptr(std::move(manapi::exception (ERR_CANCELLED, "write cancelled"))));
+                        resolve(-1);
+                        return;
                     }
 
                     if (flags & ev::WRITE) {
                         resolve(this->sync_write(conn, buff, size, finish));
+                        return;
                     }
                 }
                 catch (...) {
-                    reject(std::current_exception());
+                    //reject(std::current_exception());
+                    resolve(-1);
                 }
         });
     });
@@ -187,6 +190,7 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
         auto const copy = std::min(size - rhs, static_cast<ssize_t>(top->last_deque->buffer->size() - top->deque_cursor));
         memcpy (top->last_deque->buffer->data() + top->deque_cursor, buffer + rhs, copy);
         rhs += copy;
+        top->deque_cursor += copy;
     }
     return rhs;
 }
