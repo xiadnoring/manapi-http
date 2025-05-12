@@ -89,6 +89,12 @@ void manapi::net::worker::TLS::close_connection(connection *conn, bool clean_dis
 ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
     auto connection = conn->as<connection_interface>();
 
+    auto const max_buffer_stack = static_cast<int>(this->config()->max_buffer_stack().load());
+
+    if (connection->top->send_size >= max_buffer_stack) {
+        return 0;
+    }
+
     while (true) {
         auto rhs = this->ssl_write_(connection->ssl, buff, static_cast<int>(size));
 
@@ -101,7 +107,7 @@ ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, const void
 
             if (rhs == this->ssl_error_want_write_) {
                 if (auto const err = this->ssl_bio_flush_write_(conn, connection->wbio,
-                    &connection->top->send, &connection->top->send_size, static_cast<int>(this->config()->max_buffer_stack().load()))) {
+                    &connection->top->send, &connection->top->send_size, max_buffer_stack)) {
                     if (err == CONN_IO_WANT_WRITE) {
                         this->flush_write_(conn, finish);
                         return 0;
@@ -119,7 +125,7 @@ ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, const void
         }
 
         if (auto const err = this->ssl_bio_flush_write_(conn, connection->wbio,
-                &connection->top->send, &connection->top->send_size, static_cast<int>(this->config()->max_buffer_stack().load()))) {
+                &connection->top->send, &connection->top->send_size, max_buffer_stack)) {
             if (err == CONN_IO_WANT_WRITE) {
                 this->flush_write_(conn, finish);
                 return rhs;
@@ -371,7 +377,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
 
         if (!rhs && (flags /* an empty buffer was created */ )) {
             /* remove an empty buffer at the end */
-            connection_io_trim(top, parent);
+            connection_io_trim(top, parent, cnt);
         }
     }
     while (rhs > 0);
@@ -429,7 +435,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
             top->deque_cursor += rhs;
             if (!rhs && (flags /* an empty buffer was created */ )) {
                 /* remove an empty buffer at the end */
-                connection_io_trim(top, parent);
+                connection_io_trim(top, parent, cnt);
             }
         }
 

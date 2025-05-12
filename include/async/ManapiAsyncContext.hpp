@@ -70,7 +70,7 @@ namespace manapi::async {
 namespace manapi::async {
     class cthread {
     public:
-        cthread (shared_eventloop eventloop, std::shared_ptr<mthreadpool<task>> taskpool, shared_timerpool timerpool, shared_logger logger);
+        cthread (shared_eventloop eventloop, shared_taskpool taskpool, shared_timerpool timerpool, shared_logger logger);
 
         static void current (std::shared_ptr<cthread> thr);
 
@@ -109,7 +109,11 @@ namespace manapi::async {
 
         ~context() override;
 
-        static std::shared_ptr<context> create (unsigned int threadnum = std::thread::hardware_concurrency(), int loops = 0);
+        // static void inloops (shared_ctx thr, std::function<void()> callback);
+
+        static std::shared_ptr<context> create (unsigned int threadnum = std::thread::hardware_concurrency());
+
+        static void run (shared_ctx ctx, int loops, std::function<void(std::function<void()> bind)> callback);
 
         static void threadpoolfs (std::size_t cnt = 4);
 

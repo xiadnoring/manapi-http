@@ -195,7 +195,7 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
     return rhs;
 }
 
-void manapi::net::worker::base::connection_io_trim(struct connection_io_part *top, buffer_deque *parent) {
+void manapi::net::worker::base::connection_io_trim(struct connection_io_part *top, buffer_deque *parent, int *cnt) {
     if (!top->deque_cursor && top->last_deque) {
         if (parent) {
             parent->next = nullptr;
@@ -208,6 +208,10 @@ void manapi::net::worker::base::connection_io_trim(struct connection_io_part *to
             top->last_deque = nullptr;
             top->deque_current = 0;
             top->deque_cursor = 0;
+        }
+
+        if (cnt) {
+            (*cnt)--;
         }
     }
 }

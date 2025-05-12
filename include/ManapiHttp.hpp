@@ -47,7 +47,7 @@ namespace manapi::net::http {
         server(const server &n);
         server&operator=(const server &n);
 
-        manapi::future <void> start (std::vector<async::shared_cthread> loops = {});
+        manapi::future <void> start ();
 
         void GET (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
         void POST (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
@@ -59,7 +59,6 @@ namespace manapi::net::http {
 
         manapi::future<void> stop ();
     private:
-        std::vector<async::shared_cthread> loops_;
         std::shared_ptr<data2_t> data2;
         manapi::future<void> stop_ (bool evloop);
         manapi::future<> init_pool_ ();

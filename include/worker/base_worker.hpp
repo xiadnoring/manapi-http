@@ -126,7 +126,7 @@ namespace manapi::net::worker {
 
         static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool<bytebuffer, std::false_type, std::size_t> *bufferpool, int buffer_size, int *cnt, int max_cnt);
 
-        static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent);
+        static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, int *cnt);
     private:
         net::site site_;
         std::shared_ptr<manapi::net::http::config> config_;

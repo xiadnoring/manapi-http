@@ -47,17 +47,11 @@ manapi::net::http::server::server()
     this->setup ();
 }
 
-manapi::future<void> manapi::net::http::server::start(std::vector<async::shared_cthread> loops) {
+manapi::future<void> manapi::net::http::server::start() {
     auto lk = co_await this->data2->mx->lock_guard();
 
     if (!this->data2->stopping.exchange(false)) {
         co_return;
-    }
-
-    this->loops_ = std::move(loops);
-    auto const it = std::find(this->loops_.begin(), this->loops_.end(), manapi::async::current());
-    if (it == this->loops_.end()) {
-        this->loops_.push_back(manapi::async::current());
     }
 
     this->data2->event_id = async::current()->eventloop()->subscribe_finish([this] ()
@@ -66,10 +60,7 @@ manapi::future<void> manapi::net::http::server::start(std::vector<async::shared_
     this->data2->clean_up_id = async::current()->eventloop()->subscribe_clean_up([this] ()
         -> void { this->clean_up(); });
 
-    for (const auto &loop : this->loops_) {
-        co_await this->call_in_thread_(loop, [this] ()
-                -> manapi::future<> { return this->init_pool_(); });
-    }
+    co_await this->init_pool_();
 
     using promise = async::promise<void, std::false_type>;
     co_await  promise([this, &lk] (promise::resolve_t resolve, promise::reject_t reject) -> void {
@@ -123,10 +114,8 @@ manapi::future<void> manapi::net::http::server::stop_(bool evloop) {
         async::current()->eventloop()->unsubscribe_finish(std::exchange(this->data2->event_id, 0));
         async::current()->eventloop()->unsubscribe_clean_up(std::exchange(this->data2->clean_up_id, 0));
     }
-    for (const auto &loop : this->loops_) {
-        co_await this->call_in_thread_(loop, [this] ()
-                -> manapi::future<> { return this->stop_pool(); });
-    }
+
+    co_await this->stop_pool();
 
     try {
         this->save();

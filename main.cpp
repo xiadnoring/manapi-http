@@ -31,6 +31,7 @@
 #include "services/ManapiEventLoop.hpp"
 #include "services/ManapiFetch2.hpp"
 #include <memory.h>
+#include <memory>
 #include <pg_config.h>
 #include <libpq/libpq-fs.h>
 
@@ -46,29 +47,30 @@ manapi::future<int> test () {
 }
 
 int main () {
-    int threads = 2;
+    int threads = 16;
     try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS")); }
     catch (...) {  }
 
     manapi::async::context::threadpoolfs(threads);
     manapi::async::context::gbs = manapi::async::context::blockedsignals();
 
-    int loops = 2;
+    int loops = 14;
     try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS")); }
     catch (...) {  }
-    GCTX_OBJ = manapi::async::context::create(0, loops);
-    GCTX_OBJ->eventloop()->setup_handle_interrupt();
 
-    manapi::async::cthread::current(GCTX_OBJ);
+    GCTX_OBJ = manapi::async::context::create(threads);
+    GCTX_OBJ->eventloop()->setup_handle_interrupt();
+    manapi::async::context::current(GCTX_OBJ);
 
     auto mx = std::make_shared<manapi::async::mutex>();
-    GCTX_OBJ->logger()->callback([mx](manapi::logger_type type, std::string_view service, int error_code, std::string msg)
+    GCTX_OBJ->logger()->callback(
+        [mx = std::move(mx)](manapi::logger_type type, std::string_view service, int error_code, std::string msg)
         -> void {
         manapi::async::run(manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
             auto lk = co_await mx->lock_guard();
             if (type == manapi::logger_type::LOGGER_ERROR) {
                 std::cerr << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
-            }
+
             else {
                 std::cout << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
             }
@@ -76,125 +78,127 @@ int main () {
         }, mx, type, service, error_code, std::move(msg)));
     });
 
-    //auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
+    GCTX_OBJ->run(GCTX_OBJ, loops, [] (std::function<void()> bind) -> void {
+        //auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
 
-    manapi::net::http::server router;
+        manapi::net::http::server router;
 
-    std::atomic<int> a = 0;
+        std::atomic<int> a = 0;
 
-    router.GET ("/", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        -> manapi::future<> {
-        a.fetch_add(1);
-        resp.compress_enabled(false);
-        co_return resp.text("");
+        router.GET ("/", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            a.fetch_add(1);
+            resp.compress_enabled(false);
+            co_return resp.text("");
+        });
+
+        router.GET ("/stat", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            std::cout << "/stat\n";
+            resp.compress_enabled(false);
+            co_return resp.text(std::to_string(a.load()));
+        });
+
+        router.GET ("/favicon.ico", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress_enabled(false);
+            co_return resp.text("no");
+        });
+
+        router.GET ("/zstd", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress("zstd");
+            resp.compress_enabled(true);
+            co_return resp.file("./test.html");
+        });
+
+        router.GET ("/brotli", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress("br");
+            resp.compress_enabled(true);
+            co_return resp.file("./test.html");
+        });
+
+        router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable
+            -> manapi::future<> {
+            resp.compress_enabled(false);
+            co_return resp.text(std::to_string(cnt->fetch_add(1)));
+        });
+
+        router.GET("/random", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+            try {
+                std::string data;
+                data.resize(64);
+                manapi::async::cancellation_action cancellation;
+                cancellation.timeout(5000);
+                co_await manapi::crypto::async_random_string(GCTX(data.data(), data.size(), std::move(cancellation)));
+                data = manapi::crypto::strdec2strhex(data);
+                co_return resp.text(std::move(data));
+            }
+            catch (...) {
+                co_return resp.text("error");
+            }
+        });
+
+        router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            ssize_t result = 0;
+            std::cout << "start\n";
+            try {
+                co_await req.callback_sync([&result] (const char *buffer, ssize_t size)
+                    -> ssize_t { result += size; return result; });
+            }
+            catch (std::exception const &e) {
+                std::cout << e.what() << "\n";
+            }
+            std::cout << "end\n";
+            co_return resp.text(std::format("{} : {}", result, result));
+        });
+
+        router.GET("/download", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
+        });
+
+        router.GET("/video", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress_enabled(false);
+            resp.partial_enabled(true);
+            co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+        });
+        //
+        // router.GET("/folder", "/home/Timur/Downloads/VideoDownloader");
+
+        // router.GET("/pq/[id]", [db, mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ)](manapi::net::http::request& req, manapi::net::http::response& resp) -> manapi::future<> {
+        //     auto lk = co_await mx->lock_guard();
+        //     /* The pool of database connections here / This example is so slow */
+        //     try {
+        //         auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
+        //     }
+        //     catch (...) {
+        //
+        //     }
+        //
+        //     auto res = co_await db->exec("SELECT * FROM for_test;");
+        //     lk.call();
+        //
+        //     std::string content = "b";
+        //     for (const auto &row: res) {
+        //         content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+        //     }
+        //
+        //     co_return resp.text(std::move(content));
+        // });
+
+        manapi::async::run([router] () mutable -> manapi::future<> {
+            //co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
+
+            co_await router.config("./config.json");
+            co_await router.start();
+        });
+
+        bind();
     });
-
-    router.GET ("/stat", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        -> manapi::future<> {
-        std::cout << "/stat\n";
-        resp.compress_enabled(false);
-        co_return resp.text(std::to_string(a.load()));
-    });
-
-    router.GET ("/favicon.ico", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        -> manapi::future<> {
-        resp.compress_enabled(false);
-        co_return resp.text("no");
-    });
-
-    // router.GET ("/zstd", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-    //     -> manapi::future<> {
-    //     resp.compress("zstd");
-    //     resp.compress_enabled(true);
-    //     co_return resp.file("./test.html");
-    // });
-
-    // router.GET ("/brotli", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-    //     -> manapi::future<> {
-    //     resp.compress("br");
-    //     resp.compress_enabled(true);
-    //     co_return resp.file("./test.html");
-    // });
-    //
-    // router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable
-    //     -> manapi::future<> {
-    //     resp.compress_enabled(false);
-    //     co_return resp.text(std::to_string(cnt->fetch_add(1)));
-    // });
-    //
-    // router.GET("/random", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-    //     try {
-    //         std::string data;
-    //         data.resize(64);
-    //         manapi::async::cancellation_action cancellation (GCTX_OBJ);
-    //         cancellation.timeout(5000);
-    //         co_await manapi::crypto::async_random_string(GCTX(data.data(), data.size(), std::move(cancellation)));
-    //         data = manapi::crypto::strdec2strhex(data);
-    //         co_return resp.text(std::move(data));
-    //     }
-    //     catch (...) {
-    //         co_return resp.text("error");
-    //     }
-    // });
-    //
-    // router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-    //     -> manapi::future<> {
-    //     ssize_t result = 0;
-    //     std::cout << "start\n";
-    //     try {
-    //         co_await req.callback_sync([&result] (const char *buffer, ssize_t size)
-    //             -> ssize_t { result += size; return result; });
-    //     }
-    //     catch (std::exception const &e) {
-    //         std::cout << e.what() << "\n";
-    //     }
-    //     std::cout << "end\n";
-    //     co_return resp.text(std::format("{} : {}", result, result));
-    // });
-    //
-    // router.GET("/download", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-    //     -> manapi::future<> {
-    //     co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
-    // });
-    //
-    router.GET("/video", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        -> manapi::future<> {
-        resp.compress_enabled(false);
-        resp.partial_enabled(true);
-        co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
-    });
-    //
-    // router.GET("/folder", "/home/Timur/Downloads/VideoDownloader");
-
-    // router.GET("/pq/[id]", [db, mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ)](manapi::net::http::request& req, manapi::net::http::response& resp) -> manapi::future<> {
-    //     auto lk = co_await mx->lock_guard();
-    //     /* The pool of database connections here / This example is so slow */
-    //     try {
-    //         auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
-    //     }
-    //     catch (...) {
-    //
-    //     }
-    //
-    //     auto res = co_await db->exec("SELECT * FROM for_test;");
-    //     lk.call();
-    //
-    //     std::string content = "b";
-    //     for (const auto &row: res) {
-    //         content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
-    //     }
-    //
-    //     co_return resp.text(std::move(content));
-    // });
-
-    manapi::async::run([router] () mutable -> manapi::future<> {
-        //co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
-
-        co_await router.config("./config.json");
-        co_await router.start(GCTX_OBJ->loops());
-    });
-
-    GCTX_OBJ->sync_start();
 }
 
 // using namespace std;
