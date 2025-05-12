@@ -94,96 +94,99 @@ int main () {
     manapi::async::context::threadpoolfs(2);
     manapi::async::context::gbs = manapi::async::context::blockedsignals();
     
-    auto ctx = manapi::async::context::create(4, 4);
+    auto ctx = manapi::async::context::create(4);
     manapi::async::cthread::current(ctx);
     
     ctx->eventloop()->setup_handle_interrupt();
     
-    manapi::net::http::server router () 
+    std::atomic<int> cnt = 0;
+    manapi::async::context::run(ctx, 2, [&cnt] (std::function<void> bind) -> void {
+        manapi::net::http::server router; 
 
-    router.GET ("/", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::req &req, manapi::net::http::resp &resp) mutable -> manapi::future<> {
-        co_return resp.text(std::format("Hello World! Count: {}", cnt->fetch_add(1)));
-    });
-
-    router.GET("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
-        resp.replacers({
-            {"status_code", std::to_string(resp.status_code())},
-            {"status_message", std::string{resp.status_message()}}
+        router.GET ("/", [&cnt] (manapi::net::http::req &req, manapi::net::http::resp &resp) mutable -> manapi::future<> {
+            co_return resp.text(std::format("Hello World! Count: {}", cnt.fetch_add(1)));
         });
-
-        co_return resp.file ("../examples/error.html");
-    });
-
-    router.POST("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
-        co_return resp.json({{"error", resp.status_code()},
-                {"msg", std::string{resp.status_message()}}});
-    });
-
-    router.GET("/cat", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
-        auto fetch = co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
-            {"ssl_verify", false},
-            {"alpn", true},
-            {"method", "GET"}
+    
+        router.GET("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+            resp.replacers({
+                {"status_code", std::to_string(resp.status_code())},
+                {"status_message", std::string{resp.status_message()}}
+            });
+    
+            co_return resp.file ("../examples/error.html");
         });
-
-        if (!fetch.ok()) {
-            co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
-        }
-
-        auto data = co_await fetch.json();
-
-        co_return resp.text(std::move(data["description"].as_string()));
-    });
-
-    router.GET("/proxy", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
-        co_return resp.proxy("http://127.0.0.1:8889/video");
-    });
-
-    router.GET("/video", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
-        resp.partial_enabled(true);
-        resp.compress_enabled(false);
-        co_return resp.file("video.mp4");
-    });
-
-    router.GET("/stop", [ctx](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
-        /* stop the app */
-        co_await ctx->stop();
-        co_return resp.text("stopped");
-    });
-
-    router.GET("/timeout", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
-        /* stop the app */
-        co_await manapi::async::delay{10000};
-        co_return resp.text("10sec");
-    });
-
-    manapi::async::run([router] () -> manapi::future<> {
-        co_await router.config_object({
-            {"pools", manapi::json::array({
-                {
-                    {"address", "127.0.0.1"},
-                    {"http_versions", manapi::json::array({"2", "1.1"})},
-                    {"transport", "tls"},
-                    {"partial_data_min_size", 0},
-                    {"tls_version", "1.3"},
-                    {"implementation", "openssl"},
-                    {"port", "8888"},
-                    {"ssl", {
-                        {"cert", "../examples/self-signed-ssl/cert.crt"},
-                        {"key", "../examples/self-signed-ssl/cert.key"},
-                        {"enabled", true}
-                    }},
-                    {"tcp_no_delay", true}
-                }
-            })},
-            {"save_config", false}
+    
+        router.POST("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+            co_return resp.json({{"error", resp.status_code()},
+                    {"msg", std::string{resp.status_message()}}});
+        });
+    
+        router.GET("/cat", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+            auto fetch = co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
+                {"ssl_verify", false},
+                {"alpn", true},
+                {"method", "GET"}
+            });
+    
+            if (!fetch.ok()) {
+                co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
+            }
+    
+            auto data = co_await fetch.json();
+    
+            co_return resp.text(std::move(data["description"].as_string()));
+        });
+    
+        router.GET("/proxy", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+            co_return resp.proxy("http://127.0.0.1:8889/video");
+        });
+    
+        router.GET("/video", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+            resp.partial_enabled(true);
+            resp.compress_enabled(false);
+            co_return resp.file("video.mp4");
+        });
+    
+        router.GET("/stop", [ctx](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+            /* stop the app */
+            co_await ctx->stop();
+            co_return resp.text("stopped");
+        });
+    
+        router.GET("/timeout", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+            /* stop the app */
+            co_await manapi::async::delay{10000};
+            co_return resp.text("10sec");
+        });
+    
+        manapi::async::run([router] () -> manapi::future<> {
+            co_await router.config_object({
+                {"pools", manapi::json::array({
+                    {
+                        {"address", "127.0.0.1"},
+                        {"http_versions", manapi::json::array({"2", "1.1"})},
+                        {"transport", "tls"},
+                        {"partial_data_min_size", 0},
+                        {"tls_version", "1.3"},
+                        {"implementation", "openssl"},
+                        {"port", "8888"},
+                        {"ssl", {
+                            {"cert", "../examples/self-signed-ssl/cert.crt"},
+                            {"key", "../examples/self-signed-ssl/cert.key"},
+                            {"enabled", true}
+                        }},
+                        {"tcp_no_delay", true}
+                    }
+                })},
+                {"save_config", false}
+            });
+            
+            co_await router.start();
         });
         
-        /* run a http server using 4 threads */
-        co_await router.start(4);
+        bind();
     });
-
-    ctx->sync_start();
+  
 
     return 0;
 }

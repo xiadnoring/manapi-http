@@ -70,7 +70,7 @@ int main () {
             auto lk = co_await mx->lock_guard();
             if (type == manapi::logger_type::LOGGER_ERROR) {
                 std::cerr << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
-
+            }
             else {
                 std::cout << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
             }
@@ -78,12 +78,13 @@ int main () {
         }, mx, type, service, error_code, std::move(msg)));
     });
 
-    GCTX_OBJ->run(GCTX_OBJ, loops, [] (std::function<void()> bind) -> void {
+    std::atomic<int> a = 0;
+
+    GCTX_OBJ->run(GCTX_OBJ, loops, [&a] (std::function<void()> bind) -> void {
         //auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
 
         manapi::net::http::server router;
 
-        std::atomic<int> a = 0;
 
         router.GET ("/", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
