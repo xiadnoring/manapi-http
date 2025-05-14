@@ -28,6 +28,6 @@ namespace manapi::net::http {
         EHTTP_V1_1_PROTOCOL_WANT_READ = -3
     };
 
-    int http_v1_1_work (http_v1_1_t *ctx, net::site *site, const char **nbuffer, ssize_t *nsize);
-    manapi::future<ssize_t> http_v1_1_chunked_read (http_v1_1_chunked_t *ctx, worker::base *worker, worker::connection *conn, net::site *site, char *buffer, ssize_t size);
+    int http_v1_1_work (http_v1_1_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize);
+    manapi::future<ssize_t> http_v1_1_chunked_read (http_v1_1_chunked_t *ctx, worker::base *worker, worker::connection *conn, http::config *config, char *buffer, ssize_t size);
 }

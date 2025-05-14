@@ -14,6 +14,7 @@
 #include "async/ManapiAsyncMutex.hpp"
 #include "http/Utils.hpp"
 #include "ManapiHttpConfig.hpp"
+#include "http/ManapiSiteCtx.hpp"
 
 namespace manapi::net::worker {
     class base;
@@ -24,7 +25,7 @@ namespace manapi::net::http {
     class response;
 }
 
-namespace manapi::net {
+namespace manapi::net::http {
     typedef std::function <future<void>(manapi::net::http::request &req, manapi::net::http::response &res)> handler_template_t;
 
     struct http_uri_part;
@@ -71,21 +72,30 @@ namespace manapi::net {
     };
 
     class site {
+    public:
+        typedef std::function<std::shared_ptr<worker::base>(net::http::site site, std::shared_ptr<manapi::net::worker::worker_config_t> wdata, std::shared_ptr<http::config> config)> implement_create_cb;
+    private:
         struct data_t {
+            std::unique_ptr<async::condition_variable> cache_cv;
+            ev::shared_async server_config_notifier;
+            std::shared_ptr<worker::server_config_t> server_config;
             manapi::json cache_config;
             manapi::json config_;
+            size_t cache_time;
+            size_t config_time;
             std::string config_path;
             std::string config_cache_dir;
+            server_ctx sctx;
             bool enabled_save_config;
             http_uri_part handlers;
             std::map <std::string, std::move_only_function<future<void>(std::string src, std::string dest)>> compressors_for_file{};
             std::map <std::string, std::move_only_function<std::string(std::string_view data)>> compressors_for_string{};
-            std::map <std::string, std::map <std::string, std::function<std::shared_ptr<worker::base>(std::shared_ptr<http::config> config)>>> transport_protocol_workers{};
+            std::map <std::string, std::map <std::string, implement_create_cb>> transport_protocol_workers{};
             std::mutex loopmx{};
             async::mutex cache_config_mx{};
         };
     public:
-        site ();
+        site (server_ctx sctx);
         virtual ~site();
 
         site (site &&n) noexcept;
@@ -107,15 +117,15 @@ namespace manapi::net {
         [[nodiscard]] bool contains_compressor_for_file (const std::string &name) const;
         [[nodiscard]] bool contains_compressor_for_string (const std::string &name) const;
 
-        void transport_protocol_worker (const std::string &type, const std::string &name, const std::function<std::shared_ptr<class worker::base>(net::site &site, std::shared_ptr<http::config> config)> &worker);
-        const std::map <std::string, std::function<std::shared_ptr<manapi::net::worker::base>(std::shared_ptr<manapi::net::http::config> config)>> &transport_protocol_worker (const std::string &type);
+        void transport_protocol_worker (const std::string &type, const std::string &name, implement_create_cb worker);
+        const std::map <std::string, implement_create_cb> &transport_protocol_worker (const std::string &type);
 
         manapi::future<> config (std::string path);
         manapi::future<> config_object (json config);
-        const manapi::json &config ();
+        // const manapi::json &config ();
 
-        std::string get_compressed_cache_file (const std::string &file, const std::string &algorithm, std::chrono::system_clock::time_point filetime);
-        void set_compressed_cache_file (const std::string &file, const std::string &compressed, const std::string &algorithm, std::chrono::system_clock::time_point filetime);
+        manapi::future<std::pair<int, std::string>> get_compressed_cache_file (std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime);
+        manapi::future<> set_compressed_cache_file (std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime);
 
         [[nodiscard]] const std::string &config_cache_dir();
         [[nodiscard]] async::mutex &cache_config_mx();

@@ -103,6 +103,8 @@ manapi::async::shared_ctx manapi::async::context::create(unsigned int threadnum)
 
     auto mainctx = std::make_shared<context>(std::move(watcher_), taskpool_, std::move(timerpool_), logger_);
 
+    manapi::async::context::current(mainctx);
+
     return std::move(mainctx);
 }
 

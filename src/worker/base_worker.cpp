@@ -8,7 +8,7 @@
 
 manapi::net::worker::connection::connection(void *ptr, void(*eraser)(void*)): client(), ptr (ptr, eraser) {}
 
-manapi::net::worker::base::base(net::site &site) :site_(site) {
+manapi::net::worker::base::base(net::http::site site, std::shared_ptr<worker::worker_config_t> data) : site_(std::move(site)), worker_data_(std::move(data)) {
     this->bufferpool_ = std::make_shared<decltype(this->bufferpool_)::element_type>();
     // initialization object pools
     this->bufferpool()->init(0);
@@ -94,7 +94,7 @@ void manapi::net::worker::base::event_toggle(worker::connection *conn, bool stat
     }
 }
 
-manapi::net::site & manapi::net::worker::base::site() {
+manapi::net::http::site & manapi::net::worker::base::site() {
     return this->site_;
 }
 
@@ -104,6 +104,10 @@ manapi::net::http::config *manapi::net::worker::base::config() {
 
 const manapi::net::worker::base::bufferpool_t & manapi::net::worker::base::bufferpool() {
     return this->bufferpool_;
+}
+
+const std::shared_ptr<manapi::net::worker::worker_config_t> & manapi::net::worker::base::worker_data() {
+    return this->worker_data_;
 }
 
 

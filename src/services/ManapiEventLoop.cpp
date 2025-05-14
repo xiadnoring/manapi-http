@@ -8,6 +8,7 @@
 #include "async/ManapiAsyncSocket.hpp"
 #include "components/TimerObject.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
+#include "async/ManapiAsyncThreadsMutex.hpp"
 
 #ifdef _WIN32
 #   define NOMINMAX
@@ -322,7 +323,7 @@ namespace manapi::ev::internal {
 
     struct custom_callback_t {
         manapi::chain<std::unique_ptr<adding_custom_callback_data_t>> callback_data{};
-        std::shared_ptr<manapi::async::mutex> adding_mx;
+        std::shared_ptr<manapi::async::tmutex> adding_mx;
         std::shared_ptr <ev::async> adding_async;
         std::move_only_function<void()> adding_async_cb{nullptr};
     };
@@ -482,7 +483,7 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool_, std:
     // this->fs_watcher->adding_watcher_data = {};
     //
     // this->timerloop->adding_timer_mx = std::make_shared<async::mutex>();
-    this->callback_watcher_->adding_mx = std::make_shared<async::mutex>();
+    this->callback_watcher_->adding_mx = std::make_shared<async::tmutex>();
 
     this->taskpool_ = std::move(taskpool_);
     this->status = false;
@@ -576,7 +577,7 @@ manapi::future<> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
 
 void manapi::event_loop::sync_start(std::shared_ptr<event_loop> le) {
     if (this->mx->try_to_lock()) {
-        auto lk = before_delete([mx = this->mx]()->void{mx->unlock();});
+        auto lk = sbefore_delete([mx = this->mx]()->void{mx->unlock();});
         if (std::exchange(this->status,true)) {
             return;
         }
@@ -1859,7 +1860,7 @@ template<> void manapi::event_loop::event_loop::stop_watcher(ev::udp_send *w) {
     }
 }
 
-void manapi::event_loop::pool_(manapi::before_delete lk2, std::shared_ptr<event_loop> le) {
+void manapi::event_loop::pool_(manapi::sbefore_delete lk2, std::shared_ptr<event_loop> le) {
     {
         std::lock_guard<std::mutex> lk (event_loop::stop_mx);
 

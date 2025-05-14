@@ -41,8 +41,8 @@ manapi::net::http::server & manapi::net::http::server::operator=(const server &n
     return *this;
 }
 
-manapi::net::http::server::server()
-        : site() {
+manapi::net::http::server::server(server_ctx sctx)
+        : site(std::move(sctx)) {
     this->data2 = std::make_shared<data2_t>(std::make_unique<async::mutex>(), true, pools_t(), 0UL, 0UL, 0UL, nullptr, nullptr);
     this->setup ();
 }
@@ -149,7 +149,8 @@ manapi::future<> manapi::net::http::server::init_pool_() {
             std::unique_ptr<http_pool> p;
 
             try {
-                p = std::make_unique<http_pool> (*it, this, this->data2->next_pool_id, async::current()->eventloop());
+                auto worker_data = this->data->sctx.worker_config(this->data2->next_pool_id);
+                p = std::make_unique<http_pool> (*it, std::move(worker_data), this, this->data2->next_pool_id, async::current()->eventloop());
                 co_await p->run();
                 pool.insert({this->data2->next_pool_id, std::move(p)});
             }

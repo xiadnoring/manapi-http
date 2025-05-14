@@ -38,7 +38,7 @@ namespace manapi::net::http {
         using resp = manapi::net::http::response &;
         using req = manapi::net::http::request &;
 
-        server();
+        server(server_ctx sctx);
         ~server() final;
 
         server(server &&n) noexcept;

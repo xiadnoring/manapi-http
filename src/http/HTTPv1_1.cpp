@@ -8,7 +8,6 @@
 #include "ManapiFilesystem.hpp"
 #include "ManapiString.hpp"
 #include "services/ManapiFetch.hpp"
-#include "http/HeaderView.hpp"
 
 enum http_v1_1_callbacks {
     HTTP_V1_1_CALLBACK_INIT = 0,
@@ -36,7 +35,7 @@ bool istokenchar (const char &c) {
     return ::isalpha(c) || ::isdigit(c) || tcharlist.contains(c);
 }
 
-int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, net::site *site, const char **nbuffer, ssize_t *nsize) {
+int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize) {
             // ctx->request_data->buffer = site->bufferpool()->get();
     ssize_t pos = 0;
 
@@ -435,6 +434,6 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, net::site *site, const c
     return EHTTP_V1_1_PROTOCOL_WANT_READ;
 }
 
-manapi::future<ssize_t> manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::base *worker, worker::connection *conn, net::site *site, char *buffer, ssize_t size) {
+manapi::future<ssize_t> manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::base *worker, worker::connection *conn, http::config *config, char *buffer, ssize_t size) {
 
 }

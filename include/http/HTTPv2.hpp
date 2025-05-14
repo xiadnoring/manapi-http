@@ -17,7 +17,7 @@ namespace manapi::net::http {
         EHTTP_V2_PROTOCOL_ERROR = -1
     };
 
-    int http_v2_work (http_v2_t *ctx, net::site *site);
+    int http_v2_work (http_v2_t *ctx, http::config *config);
 }
 
 #endif //MANAPIHTTP_HTTP_HTTPV2_HPP

@@ -974,21 +974,21 @@ std::string generate_cache_name(const std::string &file, const std::string &ext)
     return std::move(name);
 }
 
-manapi::future<std::string> manapi::net::http::internal::compress_file(net::site site, std::string file, std::string folder, std::string compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor) {
+manapi::future<std::string> manapi::net::http::internal::compress_file(net::http::site site, std::string file, std::string folder, std::string compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor) {
     std::string filepath;
     auto filetime = co_await manapi::filesystem::async_last_time_write(file);
     // compressor
     auto lk = co_await site.cache_config_mx().lock_guard();
-    auto cached = site.get_compressed_cache_file(file, compress, filetime);
+    auto const cached = co_await site.get_compressed_cache_file(file, compress, filetime);
 
-    if (cached.empty()) {
+    if (cached.first) {
         try {
             co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR);
             filepath = folder + generate_cache_name(file, compress);
 
             co_await (*compressor)(file, filepath);
 
-            site.set_compressed_cache_file(file, filepath, compress, filetime);
+            co_await site.set_compressed_cache_file(file, filepath, compress, filetime);
         }
         catch (std::exception const &e) {
             manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_COMPRESS_DATA, "file compress failed due to {}", e.what());
@@ -996,7 +996,7 @@ manapi::future<std::string> manapi::net::http::internal::compress_file(net::site
         }
     }
     else {
-        filepath = std::move(cached);
+        filepath = std::move(cached.second);
     }
 
     co_return std::move(filepath);

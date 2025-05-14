@@ -30,15 +30,13 @@
 
 #include "ManapiUtils.hpp"
 #include "async/ManapiAsyncSocket.hpp"
-#include "http/HeaderView.hpp"
 #include "http/base_http.hpp"
 
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpResponse.hpp"
 
-manapi::net::worker::TCP::TCP(net::site &site) : base (site) {
+manapi::net::worker::TCP::TCP(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata) : base (std::move(site), std::move(wdata)) {
     this->local = nullptr;
-    this->count = 0;
 }
 
 manapi::net::worker::TCP::~TCP() {
@@ -183,8 +181,8 @@ void manapi::net::worker::TCP::onrecv(std::shared_ptr<ev::tcp> &watcher, const w
     connection->ev_callback->operator()(conn, ev::READ, std::move(buffer));
 }
 
-std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::site &site, std::shared_ptr<manapi::net::http::config> config) {
-    auto worker = std::make_shared<worker::TCP>(site);
+std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
+    auto worker = std::make_shared<worker::TCP>(std::move(site), std::move(wdata));
     worker->config(std::move(config));
     worker->self_ = std::weak_ptr (worker);
     return std::move(worker);
@@ -234,7 +232,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
         return nullptr;
     }
 
-    this->count += 1;
+    this->worker_data_->count.fetch_add(1);
 
     int addrlen = sizeof (connection->client.data);
     if (auto rhs = client->getpeername(reinterpret_cast <sockaddr *>(connection->client.data), &addrlen)) {
@@ -475,7 +473,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
     }
 
     //std::cout << "CLOSE\n";
-    dynamic_cast<TCP *> (connection->worker.get())->count--;
+    connection->worker->worker_data()->count.fetch_sub(1);
     delete connection;
 }
 
@@ -492,7 +490,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
             const char *buff = buffer->as<char>();
             auto size = static_cast<ssize_t>(buffer->size());
 
-            switch (http::http_v1_1_work(http_v1_1_ctx, &this->site(), &buff, &size)) {
+            switch (http::http_v1_1_work(http_v1_1_ctx, this->config(), &buff, &size)) {
                 case http::EHTTP_V1_1_PROTOCOL_OK: {
                     auto req_ptr = http_v1_1_ctx->req.get();
                     if (size) {

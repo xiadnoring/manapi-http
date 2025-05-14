@@ -38,6 +38,7 @@
 #include "ManapiHash.hpp"
 #include "ManapiMath.hpp"
 #include "ManapiProcess.hpp"
+#include "http/ManapiSiteCtx.hpp"
 //#include "extensions/pq/AsyncPostgreClient.hpp"
 
 //SO_ATTACH_REUSEPORT_CBPF
@@ -60,13 +61,12 @@ int main () {
 
     GCTX_OBJ = manapi::async::context::create(threads);
     GCTX_OBJ->eventloop()->setup_handle_interrupt();
-    manapi::async::context::current(GCTX_OBJ);
 
-    auto mx = std::make_shared<manapi::async::mutex>();
+    auto mx = std::make_shared<manapi::async::tmutex>();
     GCTX_OBJ->logger()->callback(
         [mx = std::move(mx)](manapi::logger_type type, std::string_view service, int error_code, std::string msg)
         -> void {
-        manapi::async::run(manapi::async::invoke(+[](std::shared_ptr<manapi::async::mutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
+        manapi::async::run(manapi::async::invoke(+[](std::shared_ptr<manapi::async::tmutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
             auto lk = co_await mx->lock_guard();
             if (type == manapi::logger_type::LOGGER_ERROR) {
                 std::cerr << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
@@ -80,10 +80,12 @@ int main () {
 
     std::atomic<int> a = 0;
 
-    GCTX_OBJ->run(GCTX_OBJ, loops, [&a] (std::function<void()> bind) -> void {
+    manapi::net::server_ctx server_ctx;
+
+    GCTX_OBJ->run(GCTX_OBJ, loops, [&a, server_ctx] (std::function<void()> bind) -> void {
         //auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
 
-        manapi::net::http::server router;
+        manapi::net::http::server router (server_ctx);
 
 
         router.GET ("/", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
@@ -116,6 +118,20 @@ int main () {
         router.GET ("/brotli", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             resp.compress("br");
+            resp.compress_enabled(true);
+            co_return resp.file("./test.html");
+        });
+
+        router.GET ("/gzip", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress("gzip");
+            resp.compress_enabled(true);
+            co_return resp.file("./test.html");
+        });
+
+        router.GET ("/deflate", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress("deflate");
             resp.compress_enabled(true);
             co_return resp.file("./test.html");
         });

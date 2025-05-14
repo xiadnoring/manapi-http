@@ -15,9 +15,9 @@
 namespace manapi::net::worker {
     class OpenSSL_TLS : public worker::TLS {
     public:
-        OpenSSL_TLS (net::site &site);
+        OpenSSL_TLS (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata);
         ~OpenSSL_TLS ();
-        static std::shared_ptr<worker::OpenSSL_TLS> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
+        static std::shared_ptr<worker::OpenSSL_TLS> create (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config);
     protected:
         bool ssl_is_init_fininshed_ (void *ssl) override;
         int ssl_get_error_ (void *ssl, int rhs) override;

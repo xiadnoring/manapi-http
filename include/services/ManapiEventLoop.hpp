@@ -297,7 +297,7 @@ namespace manapi {
 
         static std::mutex stop_mx;
 
-        void pool_(manapi::before_delete lk2, std::shared_ptr<event_loop> le);
+        void pool_(manapi::sbefore_delete lk2, std::shared_ptr<event_loop> le);
 
         manapi::future<> _call_on_finish_cb ();
 

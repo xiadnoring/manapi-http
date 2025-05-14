@@ -1,22 +1,31 @@
 #include "async/ManapiAsyncMutex.hpp"
 
-bool manapi::async::mutex::promise::await_ready() noexcept { return false; }
+struct mutex_promise {
+    manapi::chain <std::coroutine_handle<manapi::future<>::promise> > &stack;
+    bool &own;
 
-void manapi::async::mutex::promise::await_resume() noexcept {}
+    bool await_ready () noexcept;
+    void await_resume () noexcept;
+    void await_suspend (std::coroutine_handle<manapi::future<>::promise> handle);
+};
 
-void manapi::async::mutex::promise::await_suspend(std::coroutine_handle<future<>::promise> handle) {
-    std::unique_lock <std::mutex> lk (this->mx);
+bool mutex_promise::await_ready() noexcept { return false; }
+
+void mutex_promise::await_resume() noexcept {}
+
+void mutex_promise::await_suspend(std::coroutine_handle<manapi::future<>::promise> handle) {
     if (this->own) {
         this->stack.push_back(std::exchange(handle, nullptr));
     }
     else {
         this->own = true;
-        lk.unlock();
-        future<>::resume_promise(handle);
+        manapi::future<>::resume_promise(handle);
     }
 }
 
-manapi::async::mutex::mutex() {}
+manapi::async::mutex::mutex() {
+    this->own = false;
+}
 
 
 manapi::async::mutex::mutex(mutex &&n) noexcept {
@@ -31,19 +40,17 @@ manapi::async::mutex & manapi::async::mutex::operator=(mutex &&n) noexcept {
 }
 
 manapi::future<void> manapi::async::mutex::lock(){
-    co_await async::mutex::promise {this->mx, this->stack, this->own};
+    co_await mutex_promise {this->stack, this->own};
     co_return;
 }
 
 bool manapi::async::mutex::try_to_lock() {
-    std::lock_guard<std::mutex> lk (this->mx);
     if (this->own) { return false; }
     this->own = true;
     return true;
 }
 
 void manapi::async::mutex::unlock()  {
-    std::lock_guard<std::mutex> lk (this->mx);
     if (!this->own) {
         return;
     }
@@ -53,32 +60,22 @@ void manapi::async::mutex::unlock()  {
     }
     auto handle = this->stack.back();
     this->stack.pop_back();
-    if (this->stack.empty()) {
-        stack = {}; // free
-    }
+
     manapi::async::current()->etaskpool()->append_task([handle = std::exchange(handle, nullptr)] () -> void {
         future<>::resume_promise(handle);
     });
 }
 
-bool manapi::async::mutex::locked() {
-    std::lock_guard<std::mutex> lk (this->mx);
-    return this->own;
-}
-
-manapi::future<manapi::before_delete> manapi::async::mutex::lock_guard()  {
+manapi::future<manapi::sbefore_delete> manapi::async::mutex::lock_guard()  {
     co_await this->lock();
-    co_return before_delete([this] () -> void {
+    co_return sbefore_delete([this] () -> void {
         this->unlock();
     });
 }
 
 manapi::async::mutex::~mutex() {
-    std::unique_lock<std::mutex> lk (this->mx);
     /* unlock everything ! */
     if (!this->stack.empty()) {
-        lk.unlock();
         this->unlock();
-        lk.lock();
     }
 }

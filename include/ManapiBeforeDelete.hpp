@@ -26,6 +26,7 @@ namespace manapi {
         sbefore_delete (sbefore_delete &&n) noexcept;
         ~sbefore_delete();
         sbefore_delete &operator=(sbefore_delete &&n) noexcept;
+        void call ();
     private:
         std::move_only_function <void()> f;
     };

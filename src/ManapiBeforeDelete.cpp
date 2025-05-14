@@ -64,3 +64,10 @@ manapi::sbefore_delete::~sbefore_delete() {
 
 manapi::sbefore_delete & manapi::sbefore_delete::operator=(sbefore_delete &&n) noexcept = default;
 
+void manapi::sbefore_delete::call() {
+    if (this->f) {
+        auto cb = std::move(this->f);
+        cb();
+    }
+}
+

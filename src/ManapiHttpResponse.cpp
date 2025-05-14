@@ -170,9 +170,9 @@ void manapi::net::http::response::compress(std::string name) {
 
 void manapi::net::http::response::compress_enabled (bool state) {
     if (state)
-        this->flags |= internal::RESPONSE_FLAG_PARTITIAL_ENABLED;
-    else if (this->flags & internal::RESPONSE_FLAG_PARTITIAL_ENABLED)
-        this->flags ^= internal::RESPONSE_FLAG_PARTITIAL_ENABLED;
+        this->flags |= internal::RESPONSE_FLAG_COMPRESS_ENABLED;
+    else if (this->flags & internal::RESPONSE_FLAG_COMPRESS_ENABLED)
+        this->flags ^= internal::RESPONSE_FLAG_COMPRESS_ENABLED;
 }
 
 std::string manapi::net::http::response::compress() {
@@ -243,7 +243,7 @@ void manapi::net::http::response::detect_ranges () {
 }
 
 bool manapi::net::http::response::partial_enabled() const {
-    return this->flags & internal::RESPONSE_FLAG_PARTITIAL_ENABLED;
+    return (this->flags & internal::RESPONSE_FLAG_PARTITIAL_ENABLED);
 }
 
 int manapi::net::http::response::data_type() const {
@@ -300,7 +300,7 @@ void manapi::net::http::response::replacers(std::map<std::string, std::string> r
 void manapi::net::http::response::partial_enabled(bool state) {
     if (state)
         this->flags |= internal::RESPONSE_FLAG_PARTITIAL_ENABLED;
-    else if (this->flags & internal::RESPONSE_FLAG_PARTITIAL_ENABLED)
+    else if ((this->flags & internal::RESPONSE_FLAG_PARTITIAL_ENABLED))
         this->flags ^= internal::RESPONSE_FLAG_PARTITIAL_ENABLED;
 }
 #ifdef MANAPIHTTP_FETCH_SUPPORT

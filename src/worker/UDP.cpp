@@ -7,7 +7,7 @@
 
 #include "async/ManapiAsyncSocket.hpp"
 
-manapi::net::worker::udp::udp(net::site &site) : worker::base(site) {
+manapi::net::worker::udp::udp(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata) : worker::base(std::move(site), std::move(wdata)) {
 
 }
 

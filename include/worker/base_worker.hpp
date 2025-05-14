@@ -80,7 +80,7 @@ namespace manapi::net::worker {
             CONN_IO_WANT_WRITE = -1001
         };
 
-        base (net::site &site);
+        base (net::http::site site, std::shared_ptr<worker::worker_config_t> worker_data);
 
         virtual ~base ();
 
@@ -114,11 +114,13 @@ namespace manapi::net::worker {
 
         void event_toggle (worker::connection *conn, bool state, int flag);
 
-        net::site &site ();
+        net::http::site &site ();
 
         net::http::config *config ();
 
         const bufferpool_t &bufferpool();
+
+        const std::shared_ptr<worker_config_t> &worker_data ();
     protected:
         static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt);
 
@@ -127,8 +129,10 @@ namespace manapi::net::worker {
         static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool<bytebuffer, std::false_type, std::size_t> *bufferpool, int buffer_size, int *cnt, int max_cnt);
 
         static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, int *cnt);
+
+        std::shared_ptr<worker::worker_config_t> worker_data_;
     private:
-        net::site site_;
+        net::http::site site_;
         std::shared_ptr<manapi::net::http::config> config_;
         bufferpool_t bufferpool_;
     };

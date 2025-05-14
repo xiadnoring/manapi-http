@@ -24,7 +24,7 @@ namespace manapi::net::worker {
             std::unique_ptr<worker_watcher_cb> ev_callback;
         };
 
-        TCP (net::site &site);
+        TCP (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata);
 
         ~TCP () override;
 
@@ -38,7 +38,7 @@ namespace manapi::net::worker {
 
         virtual void onrecv (std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer);
 
-        static std::shared_ptr<worker::TCP> create (net::site &site, std::shared_ptr<manapi::net::http::config> config);
+        static std::shared_ptr<worker::TCP> create (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config);
 
         virtual shared_conn accept (ev::shared_tcp &w, std::move_only_function<shared_conn()> init);
 
@@ -86,6 +86,5 @@ namespace manapi::net::worker {
         addrinfo *local;
         timer limit_rate_timer{};
         timeval recv_timeout{}, send_timeout{};
-        int count;
     };
 }

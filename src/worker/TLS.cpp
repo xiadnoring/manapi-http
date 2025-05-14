@@ -17,7 +17,7 @@
 #include <set>
 
 
-manapi::net::worker::TLS::TLS(net::site &site) : TCP(site) {}
+manapi::net::worker::TLS::TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata) : TCP(std::move(site), std::move(wdata)) {}
 
 manapi::net::worker::TLS::~TLS() = default;
 

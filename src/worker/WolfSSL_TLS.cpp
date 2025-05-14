@@ -24,7 +24,6 @@
 #include <set>
 
 #include "ManapiUtils.hpp"
-#include "http/HeaderView.hpp"
 #include "ManapiInitTools.hpp"
 #include "async/ManapiAsyncSocket.hpp"
 

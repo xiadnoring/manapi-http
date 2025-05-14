@@ -17,29 +17,19 @@ namespace manapi::async {
             std::function<bool()> cond;
         };
     public:
-        struct promise {
-            std::function<bool()> cond;
-            std::shared_ptr<async::mutex> gmx;
-            chain <notify_sub_t> *stack;
-
-            bool await_ready () noexcept { return false; }
-            void await_resume () noexcept {}
-
-            void await_suspend (std::coroutine_handle<future<>::promise> handle);
-        };
+        struct promise;
 
         condition_variable ();
 
         future<void> wait (std::function<bool()> cond);
 
-        future<void> notify_one ();
+        void notify_one ();
 
-        future<void> notify_all ();
+        void notify_all ();
 
         ~condition_variable () = default;
     private:
-        std::atomic<bool> stop = false;
-        std::shared_ptr<async::mutex> mx;
+        bool stop = false;
         chain <notify_sub_t> stack;
     };
 }

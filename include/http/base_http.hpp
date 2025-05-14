@@ -39,5 +39,5 @@ namespace manapi::net::http::internal {
     future<void> send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size);
     future<void> send_text(uq_handle_data_t cdata, std::string text);
     void expect_header (uq_handle_data_t cdata);
-    future<std::string> compress_file(net::site site, std::string file, std::string folder, std::string compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor);
+    future<std::string> compress_file(net::http::site site, std::string file, std::string folder, std::string compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor);
 }

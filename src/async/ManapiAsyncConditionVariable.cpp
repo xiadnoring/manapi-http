@@ -1,52 +1,67 @@
 #include "async/ManapiAsyncConditionVariable.hpp"
 
+struct manapi::async::condition_variable::promise {
+    std::function<bool()> cond;
+    chain <notify_sub_t> *stack;
+
+    bool await_ready () noexcept { return false; }
+    void await_resume () noexcept {}
+
+    void await_suspend (std::coroutine_handle<future<>::promise> handle);
+};
+
 void manapi::async::condition_variable::promise::await_suspend(std::coroutine_handle<future<>::promise> handle) {
-    async::run(this->gmx->lock(),
-        [cond = std::move(this->cond), stack = this->stack, gmx = this->gmx, handle = std::exchange(handle, nullptr)]
-        (std::exception_ptr err) mutable
-            -> void {
-        stack->push_back({handle, std::move(cond)});
-        gmx->unlock();
-    });
+    this->stack->push_back({handle, std::move(this->cond)});
 }
 
 
-manapi::async::condition_variable::condition_variable() {
-    this->mx = std::make_shared<async::mutex>();
-}
+manapi::async::condition_variable::condition_variable() = default;
 
 manapi::future<> manapi::async::condition_variable::wait(std::function<bool()> cond) {
     if (cond()) { co_return; }
-    co_await promise{std::move(cond), this->mx, &this->stack};
+    co_await promise{std::move(cond), &this->stack};
 }
 
-manapi::future<> manapi::async::condition_variable::notify_one() {
-    auto lk = co_await this->mx->lock_guard();
+void manapi::async::condition_variable::notify_one() {
     if (this->stack.empty()) {
-        co_return;
-    }
-    auto &row = this->stack.back();
-    if (!row.cond()) {
-        co_return;
+        return;
     }
 
-    auto handle = std::move(row.handle);
+    auto row = std::move(this->stack.back());
     this->stack.pop_back();
 
-    handle.resume();
+    try {
+        if (!row.cond()) {
+            goto err;
+        }
+    }
+    catch (...) {
+        goto err;
+    }
+
+    row.handle.resume();
+    return;
+
+    err: this->stack.push_back(std::move(row));
 }
 
-manapi::future<> manapi::async::condition_variable::notify_all() {
-    auto lk = co_await this->mx->lock_guard();
-    for (auto it = this->stack.begin(); it != this->stack.end(); ) {
-        if (!it->cond()) {
-            it++;
-            continue;
+void manapi::async::condition_variable::notify_all() {
+    while (!this->stack.empty()) {
+        auto row = std::move(this->stack.back());
+        this->stack.pop_back();
+
+        try {
+            if (!row.cond()) {
+                goto err;
+            }
+        }
+        catch (...) {
+            goto err;
         }
 
-        auto handle = std::move(it->handle);
-        it = this->stack.erase(it);
+        row.handle.resume();
+        continue;
 
-        handle.resume();
+        err: this->stack.push_back(std::move(row));
     }
 }

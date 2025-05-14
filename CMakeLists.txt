@@ -233,7 +233,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/worker/OpenSSL_TLS.hpp
         include/http/HTTPv1_1.hpp
         include/http/HTTPv1_1.hpp
-        include/http/HeaderView.hpp
         include/compress/ManapiHPack.hpp
         include/worker/HTTPv2.hpp
         include/ManapiHttpMime.hpp
@@ -269,7 +268,6 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/OpenSSL_TLS.cpp
         src/http/HTTPv1_1.cpp
         src/http/HTTPv2.cpp
-        src/http/HeaderView.cpp
         src/worker/HTTPv2.cpp
         src/ManapiHttpMime.cpp
         src/worker/QUIC.cpp
@@ -315,7 +313,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/async/ManapiAsyncTools.hpp
         include/worker/WolfSSL_TLS.hpp
         src/worker/WolfSSL_TLS.cpp
-        include/components/AtomicAsync.hpp
+        # include/components/AtomicAsync.hpp
         include/services/ManapiEventLoop.hpp
         src/services/ManapiEventLoop.cpp
         include/async/ManapiAsyncContext.hpp
@@ -365,6 +363,10 @@ set(MANAPIHTTP_HTTP_FILES
         src/include/ManapiDefaultErrors.hpp
         include/ManapiProcess.hpp
         src/ManapiProcess.cpp
+        include/http/ManapiSiteCtx.hpp
+        src/http/ManapiSiteCtx.cpp
+        include/async/ManapiAsyncThreadsMutex.hpp
+        src/async/ManapiAsyncThreadsMutex.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
