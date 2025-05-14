@@ -337,17 +337,21 @@ manapi::future<> manapi::net::http::site::set_compressed_cache_file(std::string 
     this->data->sctx.server_notify_subs();
 }
 
-void manapi::net::http::site::save() {
-    if (this->data->enabled_save_config)
-    {
-        manapi::async::run(manapi::net::http::site::save_config(this->data));
-    }
-}
-
 manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> data) {
+    if ((data->server_config->flags.fetch_or(0b10) & 0b10)) {
+        co_return;
+    }
+
+    auto lk = co_await data->server_config->config_mx->lock_guard();
+
+
     if (!co_await manapi::filesystem::async_exists(data->config_path)) {
+        auto config = (data->server_config->config);
+        lk.call();
+
         // main config
-        co_await manapi::filesystem::async_write(data->config_path, data->config_.dump(), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+        co_await manapi::filesystem::async_write(data->config_path,
+            config.dump(), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
     }
 }
 

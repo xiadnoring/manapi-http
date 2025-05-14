@@ -54,11 +54,11 @@ manapi::future<void> manapi::net::http::server::start() {
         co_return;
     }
 
-    this->data2->event_id = async::current()->eventloop()->subscribe_finish([this] ()
-        -> future<> { co_return co_await this->stop_(true); });
+    this->data2->event_id = async::current()->eventloop()->subscribe_finish([data = this->data, data2 = this->data2] ()
+        -> future<> { co_return co_await stop_(data, data2, true); });
 
-    this->data2->clean_up_id = async::current()->eventloop()->subscribe_clean_up([this] ()
-        -> void { this->clean_up(); });
+    this->data2->clean_up_id = async::current()->eventloop()->subscribe_clean_up([data2 = this->data2] ()
+        -> void { clean_up(data2); });
 
     co_await this->init_pool_();
 
@@ -100,42 +100,50 @@ void manapi::net::http::server::GET(std::string uri, std::string folder) {
 }
 
 manapi::future<void> manapi::net::http::server::stop() {
-    return this->stop_(false);
+    return this->stop_(this->data, this->data2, false);
 }
 
-manapi::future<void> manapi::net::http::server::stop_(bool evloop) {
-    auto lk = co_await this->data2->mx->lock_guard();
+manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data_t> data, std::shared_ptr<data2_t> data2, bool evloop) {
+    auto lk = co_await data2->mx->lock_guard();
 
-    if (this->data2->stopping.exchange(true)) {
+    if (data2->stopping.exchange(true)) {
         co_return;
     }
 
     if (!evloop) {
-        async::current()->eventloop()->unsubscribe_finish(std::exchange(this->data2->event_id, 0));
-        async::current()->eventloop()->unsubscribe_clean_up(std::exchange(this->data2->clean_up_id, 0));
+        async::current()->eventloop()->unsubscribe_finish(std::exchange(data2->event_id, 0));
+        async::current()->eventloop()->unsubscribe_clean_up(std::exchange(data2->clean_up_id, 0));
     }
 
-    co_await this->stop_pool();
+    co_await stop_pool(data2);
 
     try {
-        this->save();
+        co_await save_config(data);
 
-        // cache config
-        co_await manapi::filesystem::async_write(data->config_cache_dir + site::default_config_name, this->data->cache_config.dump(),
-            ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+        if (!(data->server_config->flags.fetch_or(0b1) & 0b1)) {
+
+            auto lkc = co_await data->server_config->cache_mx->lock_guard();
+
+            auto const cconfig = data->server_config->cache;
+            lkc.call();
+
+            // cache config
+            co_await manapi::filesystem::async_write(data->config_cache_dir + site::default_config_name, cconfig.dump(),
+                ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+        }
     }
     catch (std::exception const &e) {
         async::current()->logger()->error(manapi::logger::default_service, ERR_CONFIG_ERROR, "http: couldn't save the configuration file due to {}", e.what());
     }
-    if (this->data2->init_watcher) {
+    if (data2->init_watcher) {
         printf("unwatch_async(this->data2->init_watcher);\n");
-        async::current()->eventloop()->stop_watcher(std::move(this->data2->init_watcher));
+        async::current()->eventloop()->stop_watcher(std::move(data2->init_watcher));
         printf("finish unwatch_async(this->data2->init_watcher);\n");
     }
 
     if (!evloop) {
         /* clean up */
-        this->clean_up();
+        clean_up(data2);
     }
 }
 
@@ -190,24 +198,26 @@ manapi::future<> manapi::net::http::server::call_in_thread_(const async::shared_
 }
 
 void manapi::net::http::server::pool_(std::move_only_function<void()> cb) {
-    this->data2->init_watcher = async::current()->eventloop()->create_watcher_async([cb = std::move(cb)] (std::shared_ptr<ev::async> &w) mutable
+    this->data2->init_watcher = async::current()->eventloop()->create_watcher_async([data2 = this->data2, cb = std::move(cb)] (std::shared_ptr<ev::async> &w) mutable
         -> void {
-        w->unbind();
         cb();
+
+        auto wz = std::move(data2->init_watcher);
+        manapi::async::current()->eventloop()->stop_watcher(std::move(wz));
     });
 
     this->data2->init_watcher->send();
 }
 
-void manapi::net::http::server::clean_up() {
+void manapi::net::http::server::clean_up(std::shared_ptr<data2_t> data2) {
     // clean
-    this->data2->pools.clear();
+    data2->pools.clear();
     // reset
-    this->data2->next_pool_id = 0;
+    data2->next_pool_id = 0;
 }
 
-manapi::future<> manapi::net::http::server::stop_pool() {
-    auto &pools = this->data2->pools[std::this_thread::get_id()];
+manapi::future<> manapi::net::http::server::stop_pool(std::shared_ptr<data2_t> data2) {
+    auto &pools = data2->pools[std::this_thread::get_id()];
     MANAPIHTTP_LOG2("cv_stopping -> pass");
 
     // stop all pools

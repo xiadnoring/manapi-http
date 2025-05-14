@@ -1874,8 +1874,8 @@ void manapi::event_loop::pool_(manapi::sbefore_delete lk2, std::shared_ptr<event
     this->stop_watcher_ = this->create_watcher_async([this] (std::shared_ptr<ev::async> &w)
         -> void { this->async_break_loop_(w); });
 
-    auto init_watcher = this->create_watcher_async([&lk2] (std::shared_ptr<ev::async> &w)
-        -> void { w->unbind(); lk2.call(); });
+    auto init_watcher = this->create_watcher_async([&lk2, this] (std::shared_ptr<ev::async> &w)
+        -> void {  lk2.call(); this->stop_watcher(std::move(w)); });
 
     init_watcher->send();
 
@@ -1886,6 +1886,5 @@ void manapi::event_loop::pool_(manapi::sbefore_delete lk2, std::shared_ptr<event
     /* if init_watcher(...) was not called */
     lk2.call();
 
-    this->stop_watcher(init_watcher);
     this->stop_watcher(this->stop_watcher_);
 }

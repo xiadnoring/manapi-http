@@ -60,11 +60,11 @@ namespace manapi::net::http {
         manapi::future<void> stop ();
     private:
         std::shared_ptr<data2_t> data2;
-        manapi::future<void> stop_ (bool evloop);
+        static manapi::future<void> stop_ (std::shared_ptr<site::data_t> data, std::shared_ptr<data2_t> data2, bool evloop);
         manapi::future<> init_pool_ ();
         manapi::future<> call_in_thread_ (const async::shared_cthread &thr, std::move_only_function<manapi::future<>()> cb);
         void pool_ (std::move_only_function<void()> cb);
-        void clean_up ();
-        manapi::future<void> stop_pool ();
+        static void clean_up (std::shared_ptr<data2_t> data2);
+        static manapi::future<void> stop_pool (std::shared_ptr<data2_t> data2);
     };
 }

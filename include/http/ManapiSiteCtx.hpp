@@ -18,6 +18,7 @@ namespace manapi::net {
             std::unique_ptr<manapi::async::tmutex> config_mx;
             std::atomic<size_t> config_time;
             std::atomic<size_t> cache_time;
+            std::atomic<int> flags;
             manapi::json config;
             manapi::json cache;
         };
