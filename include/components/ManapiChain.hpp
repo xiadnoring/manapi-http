@@ -24,7 +24,7 @@ namespace manapi {
         class chain_iterator {
         public:
 
-            explicit chain_iterator (chain_item_ptr n) {
+            chain_iterator (chain_item_ptr n) {
                 this->src_ = n;
             }
 

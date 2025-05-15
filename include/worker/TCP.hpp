@@ -46,9 +46,11 @@ namespace manapi::net::worker {
 
         future<ssize_t> response(const shared_conn &connection, http::response *resp, bool finish) override;
 
-        void close_connection(connection* conn, bool clean_disconnect) override;
+        void close_connection(const shared_conn &conn, bool clean_disconnect) override;
 
         void stop() override;
+
+        ssize_t sync_write_ex(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt);
 
         ssize_t sync_write(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
 
@@ -63,7 +65,7 @@ namespace manapi::net::worker {
 
         void update_limit_rate ();
 
-        void timeout_ (worker::connection * storage);
+        void timeout_ (const shared_conn &conn);
 
         void ev_watcher_stop_ (connection_interface & conn);
 

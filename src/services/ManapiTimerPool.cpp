@@ -140,7 +140,7 @@ void manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,const s
     erase_task_(data_, task);
 }
 
-manapi::timerpool::storage::iterator manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,storage::iterator task) {
+void manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,storage::iterator task) {
     if (!data_->sorted_tasks.empty()) {
         if (data_->sorted_tasks.begin()->second == task->first) {
             data_->sorted_tasks.erase({task->second.point, task->first});
@@ -153,10 +153,9 @@ manapi::timerpool::storage::iterator manapi::timerpool::erase_task_(const std::s
 
     task = data_->tasks.erase(task);
     flush_stack_free(data_);
-    return task;
 }
 
-manapi::timerpool::sorted_storage::iterator manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task) {
+void manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task) {
     auto it = data_->tasks.find(sorted_task->second);
     if (it != data_->tasks.end()) {
         data_->tasks.erase(it);
@@ -171,40 +170,36 @@ manapi::timerpool::sorted_storage::iterator manapi::timerpool::erase_task_(const
             sorted_task = data_->sorted_tasks.erase(sorted_task);
         }
     }
-
-    return sorted_task;
 }
 
 void manapi::timerpool::start_(const std::shared_ptr<data_t> &data) {
     auto now = std::chrono::steady_clock::now();
     data->flags |= TIMERPOOL_FLAG_RUNNING;
 
-    for (auto sorted_task = data->sorted_tasks.begin(); sorted_task != data->sorted_tasks.end(); ) {
-        auto task = data->tasks.find(sorted_task->second);
+    while (!data->sorted_tasks.empty()) {
+        auto sorted_task = data->sorted_tasks.begin();
 
         if (now < sorted_task->first) {
             break;
         }
 
+        auto task = data->tasks.find(sorted_task->second);
+
+
         if (task->second.flags & TIMERTASK_FLAG_ACTIVE) {
             task->second.flags ^= TIMERTASK_FLAG_ACTIVE;
 
             auto timertask = task->second.timer;
-            timertask.call_();
-            /* if timertask is executed asynchronously, sorted_task hasn't been changed */
             if (task->second.flags & TIMERTASK_FLAG_INTERVAL) {
-                ++sorted_task;
-                update_interval_state_(data, task->first);
-                continue;
+                sorted_task = data->sorted_tasks.erase(sorted_task);
+                timertask.call_();
             }
             else {
+                timertask.call_();
                 timertask.clear_();
-                sorted_task = erase_task_(data, sorted_task);
-                continue;
+                erase_task_(data, sorted_task);
             }
         }
-
-        ++sorted_task;
     }
 
     data->flags ^= TIMERPOOL_FLAG_RUNNING;
@@ -228,8 +223,14 @@ uint64_t manapi::timerpool::calculate_repeat_(const std::shared_ptr<data_t> &dat
         return 0;
     }
 
-    return std::min(static_cast<uint64_t>(1),
-        static_cast<uint64_t>((data_->sorted_tasks.begin()->first - std::chrono::steady_clock::now()).count()));
+    auto know = std::chrono::steady_clock::now();
+    auto pnt = data_->sorted_tasks.begin()->first;
+
+    if (pnt <= know) {
+        return 0;
+    }
+
+    return static_cast<uint64_t>((std::chrono::duration_cast<std::chrono::milliseconds>(pnt - know)).count());
 }
 
 bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) {
@@ -308,30 +309,32 @@ void manapi::timerpool::update_interval_state_(const std::shared_ptr<data_t> &da
         return;
     }
 
-    data_->sorted_tasks.erase({task->second.point, id});
-
     task->second.flags |= TIMERTASK_FLAG_ACTIVE;
     task->second.point = std::chrono::steady_clock::now() + task->second.delay;
 
     data_->sorted_tasks.insert({task->second.point, id});
+
+    if (data_->sorted_tasks.begin()->second == id) {
+        reinit_timer_(data_);
+    }
 }
 
 manapi::timer manapi::timerpool::append_(std::chrono::milliseconds duration, std::move_only_function<future<>(manapi::timer t)> async_task, std::move_only_function<void(manapi::timer t)> task, bool interval) {
     manapi::timer timertask{};
 
     if (task) {
-        timertask = manapi::timer(static_cast<std::move_only_function<void(manapi::timer t)>>(std::move(task)));
+        timertask = manapi::timer(interval, static_cast<std::move_only_function<void(manapi::timer t)>>(std::move(task)));
     }
 
     if (async_task) {
-        timertask = manapi::timer(static_cast <std::move_only_function<manapi::future<>(manapi::timer t)>>(std::move(async_task)));
+        timertask = manapi::timer(interval, static_cast <std::move_only_function<manapi::future<>(manapi::timer t)>>(std::move(async_task)));
     }
 
     auto _task = this->data_->tasks.insert({timertask.id(), timer_task{
         duration,
         std::chrono::steady_clock::now() + duration,
         timertask,
-        interval ? TIMERTASK_FLAG_INTERVAL : 0
+        (interval ? TIMERTASK_FLAG_INTERVAL : 0)|TIMERTASK_FLAG_ACTIVE
     }});
 
     if (!_task.second) {

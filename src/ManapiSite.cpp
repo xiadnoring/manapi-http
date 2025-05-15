@@ -17,6 +17,7 @@
 
 #include "ManapiHttpResponse.hpp"
 #include "ManapiHttpRequest.hpp"
+#include "async/ManapiEasyCancellation.hpp"
 
 namespace manapi::net {
     // default, +error, +layout in url
@@ -88,10 +89,6 @@ const std::map<std::string, manapi::net::http::site::implement_create_cb> &manap
 
 const std::string & manapi::net::http::site::config_cache_dir() {
     return this->data->config_cache_dir;
-}
-
-manapi::async::mutex & manapi::net::http::site::cache_config_mx() {
-    return this->data->cache_config_mx;
 }
 
 void manapi::net::http::site::setup() {
@@ -315,9 +312,22 @@ manapi::future<> manapi::net::http::site::set_compressed_cache_file(std::string 
         auto lk = co_await this->data->server_config->cache_mx->lock_guard();
 
         try {
-            if (!this->data->server_config->cache.contains(algorithm)) {
+            if (this->data->server_config->cache.contains(algorithm)) {
+                auto &alghs = this->data->server_config->cache[algorithm];
+                auto fileit = alghs.as_object().find(file);
+                if (fileit != alghs.as_object().end()
+                    && fileit->second.is_object()) {
+                    auto const compressedit = fileit->second.as_object().find("compressed");
+                    if (compressedit != fileit->second.as_object().end()) {
+                        manapi::async::run(manapi::filesystem::async_unlink(compressedit->second.as_string(),
+                            manapi::async::timeout_cancellation(5000)));
+                    }
+                }
+            }
+            else {
                 this->data->server_config->cache.insert(algorithm, manapi::json::object());
             }
+
 
             manapi::json file_info = manapi::json::object();
 

@@ -367,6 +367,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/http/ManapiSiteCtx.cpp
         include/async/ManapiAsyncThreadsMutex.hpp
         src/async/ManapiAsyncThreadsMutex.cpp
+        include/async/ManapiEasyCancellation.hpp
+        src/async/ManapiEasyCancellation.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

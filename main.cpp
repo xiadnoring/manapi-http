@@ -38,6 +38,9 @@
 #include "ManapiHash.hpp"
 #include "ManapiMath.hpp"
 #include "ManapiProcess.hpp"
+#include "async/ManapiAsyncSocket.hpp"
+#include "async/ManapiAsyncTimer.hpp"
+#include "async/ManapiEasyCancellation.hpp"
 #include "http/ManapiSiteCtx.hpp"
 //#include "extensions/pq/AsyncPostgreClient.hpp"
 
@@ -160,15 +163,13 @@ int main () {
         router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             ssize_t result = 0;
-            std::cout << "start\n";
             try {
                 co_await req.callback_sync([&result] (const char *buffer, ssize_t size)
-                    -> ssize_t { result += size; return result; });
+                    -> ssize_t { result += size; return size; });
             }
             catch (std::exception const &e) {
                 std::cout << e.what() << "\n";
             }
-            std::cout << "end\n";
             co_return resp.text(std::format("{} : {}", result, result));
         });
 

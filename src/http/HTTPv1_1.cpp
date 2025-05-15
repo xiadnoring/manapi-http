@@ -357,11 +357,18 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                 size -= pos;
                 return EHTTP_V1_1_PROTOCOL_UPGRADE;
             case HTTP_V1_1_CALLBACK_FINISH: {
-                auto const hconnection = ctx->req->headers.find(HEADER.CONNECTION);
-
                 buffer += pos;
                 size -= pos;
 
+                auto const hcontentlength = ctx->req->headers.find(HEADER.CONTENT_LENGTH);
+                if (hcontentlength == ctx->req->headers.end()) {
+                    ctx->req->body_size = -1;
+                }
+                else {
+                    ctx->req->body_size = std::stoll(hcontentlength->second);
+                }
+
+                auto const hconnection = ctx->req->headers.find(HEADER.CONNECTION);
                 if (hconnection != ctx->req->headers.end()) {
                     /**
                      * RFC7540 (3.2) Starting HTTP/2 for "http" URIs

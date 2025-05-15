@@ -15,7 +15,9 @@ namespace manapi::error {
         ERRMSG_WATCHER_COMMAND_FAILED,
         ERRMSG_WATCHER_BIND_FAILED,
         ERRMSG_RANDOM_STRING_FAILED,
-        ERRMSG_UNHANDLED_EXCEPTION
+        ERRMSG_UNHANDLED_EXCEPTION,
+        ERRMSG_CONNECTION_WAS_CLOSED,
+        ERRMSG_CUSTOM_CALLBACK_ERR1
     };
 
     const constexpr char *default_msgs[] = {
@@ -32,6 +34,8 @@ namespace manapi::error {
         "fs watcher bind failed",
         "random string failed",
         "unhandled exception. errnum: {}; errmsg: {}; data: {}",
+        "connection was closed",
+        "custom callback failed due to {}"
     };
 }
 

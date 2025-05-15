@@ -90,7 +90,7 @@ namespace manapi::net::worker {
 
         virtual void config (std::shared_ptr<manapi::net::http::config> config);
 
-        virtual void close_connection (worker::connection* conn, bool clean_disconnect) = 0;
+        virtual void close_connection (const shared_conn &conn, bool clean_disconnect) = 0;
 
         virtual void configure_connection (const shared_conn &conn, oncont_cb cb) = 0;
 

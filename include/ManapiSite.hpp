@@ -92,7 +92,6 @@ namespace manapi::net::http {
             std::map <std::string, std::move_only_function<std::string(std::string_view data)>> compressors_for_string{};
             std::map <std::string, std::map <std::string, implement_create_cb>> transport_protocol_workers{};
             std::mutex loopmx{};
-            async::mutex cache_config_mx{};
         };
     public:
         site (server_ctx sctx);
@@ -128,7 +127,6 @@ namespace manapi::net::http {
         manapi::future<> set_compressed_cache_file (std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime);
 
         [[nodiscard]] const std::string &config_cache_dir();
-        [[nodiscard]] async::mutex &cache_config_mx();
 
     protected:
         void setup ();

@@ -18,7 +18,7 @@
 namespace manapi::net::http {
     class request {
     public:
-        request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::connection *conn, worker::shared_worker worker, const http_handler_functions *handler);
+        request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::shared_conn *conn, worker::shared_worker worker, const http_handler_functions *handler);
         ~request();
 
         [[nodiscard]] const http::manapi_socket_information &ip_data () const;
@@ -34,7 +34,7 @@ namespace manapi::net::http {
         future<void> callback_sync (std::move_only_function<ssize_t(const char *buffer, ssize_t size)> callback);
         future<void> callback_async (std::move_only_function<manapi::future<ssize_t>(const char *buffer, ssize_t size)> callback);
         future<void> file (std::string filepath);
-        ssize_t body_size ();
+        ssize_t left ();
         const std::string &get (const std::string &key);
         bool contains_get_param (const std::string &key);
         void max_plain_body_size (const size_t &size);
@@ -62,7 +62,7 @@ namespace manapi::net::http {
         // body, headers, url and etc
         http::request_data_t *request_data;
 
-        manapi::net::worker::connection * conn_;
+        manapi::net::worker::shared_conn * conn_;
 
         // server
         worker::shared_worker worker_;

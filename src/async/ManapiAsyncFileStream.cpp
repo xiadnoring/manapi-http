@@ -41,8 +41,21 @@ manapi::future<> manapi::filesystem::fstream::open(int flags, int mode) {
         this->data->off_ = 0;
     }
 
-    this->data->file = co_await manapi::filesystem::async_open(this->data->path, flags, mode,
-        async::cancellation_action::unit(this->data->cancellation));
+    try {
+        this->data->file = co_await manapi::filesystem::async_open(this->data->path, flags, mode,
+            async::cancellation_action::unit(this->data->cancellation));
+    }
+    catch (manapi::exception const &e) {
+        if (e.err_num() == manapi::ERR_FS_IO_RESULT || e.err_num() == manapi::ERR_FS_IO) {
+            this->data->file = -1;
+            co_return;
+        }
+
+        THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FS_IO, "file open failed due to {}", e.what());
+    }
+    catch (std::exception const &e) {
+        THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FS_IO, "file open failed due to {}", e.what());
+    }
 }
 
 bool manapi::filesystem::fstream::is_open() const {

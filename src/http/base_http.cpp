@@ -90,153 +90,161 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
     std::string filepath;
     auto resfile = res->file();
 
-    if (features.compressor_for_file) {
-        if (features.replacers) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
-        }
+    bool force_compress = false;
 
-        filepath = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site().config_cache_dir(), features.compress, features.compressor_for_file);
-    }
-    else {
-        filepath = std::move(resfile);
-    }
-
-    filesystem::fstream f (filepath);
-    co_await f.open(ev::FS_O_RDONLY);
-
-    if (!f.is_open()) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to open the file: {}", filepath);
-    }
-
-    try {
-        // set headers
-
-        std::string mimetype = mime::mime_by_file_path(
-            resfile.empty() ? filepath : resfile);
-        std::vector<replace_founded_item> replacers;
-
-        if (mimetype.size() > sizeof ("text")) {
-            if (strncmp("text", mimetype.data(), sizeof ("text") - 1) == 0) {
-                mimetype = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
-            }
-        }
-
-        res->header(HEADER.CONTENT_TYPE, mimetype);
-
-        // get file size
-        ssize_t fileSize = co_await manapi::filesystem::async_file_size(filepath);
-        ssize_t dynamicFileSize = fileSize;
-
-        // replacers
-        if (features.replacers) {
-            replacers = co_await found_replacers_in_file(manapi::async::current(), filepath, 0, fileSize, *features.replacers);
-
-            for (const auto &replacer: replacers) {
-                dynamicFileSize = static_cast<ssize_t> (
-                    dynamicFileSize - (replacer.pos.second - replacer.pos.first + 1) + replacer.value->size());
-            }
-        }
-
-        // partial enabled
-        if (res->partial_enabled() && res->config()->partial_data_min_size() <= fileSize) {
-            if (features.compressor_for_file) {
-                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
-                                       "the compress '{}' with the partial content is not supported.",
-                                       features.compress);
-            }
-
-
+    while (true) {
+        if (features.compressor_for_file) {
             if (features.replacers) {
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be use with partial");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
             }
 
-            res->status(http::PARTIAL_CONTENT_206);
-            res->header(HEADER.ACCEPT_RANGES, "bytes");
-
-            ssize_t start = 0,
-                    back = fileSize - 1,
-                    size;
-
-            auto ranges = res->ranges();
-            ssize_t const ranges_size = ranges ? static_cast<ssize_t>(ranges->size()) : 0;
-
-            switch (ranges_size) {
-                case 1: {
-                    auto &range = ranges->operator[](0);
-                    if (range.first != -1) {
-                        start = range.first;
-                    }
-
-                    if (range.second != -1) {
-                        back = range.second;
-                    }
-                    else {
-                        back = fileSize - 1;
-                    }
-                    break;
-                }
-                case 0:
-                    break;
-
-                default:
-                    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_UNSUPPORTED, "multi bytes not supported");
-            }
-
-            size = back - start + 1;
-
-            res->header(HEADER.CONTENT_LENGTH, std::to_string(size));
-            res->header(HEADER.CONTENT_RANGE, std::format("bytes {}-{}/{}", start, back, fileSize));
-
-            auto task = mask_response(cdata.get(), res.get(), size == 0);
-            manapi::async::run<ssize_t>(std::move(task),
-                [size, start, f, cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *value) mutable
-                -> void {
-                    if (err) {
-                        return;
-                    }
-
-                    if (value && *value >= 0) {
-                        // set start position
-                        f.seekg(start);
-                        // set size and send
-                        if (size) {
-                            manapi::async::run (send_file(std::move(cdata), f, size));
-                        }
-                    }
-            });
+            filepath = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site().config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
         }
         else {
-            res->header(HEADER.CONTENT_LENGTH, std::to_string(dynamicFileSize));
+            filepath = std::move(resfile);
+        }
 
-            if (fileSize) {
-                auto task = mask_response(cdata.get(), res.get(), false);
+        filesystem::fstream f (filepath);
+        co_await f.open(ev::FS_O_RDONLY);
+
+        if (!f.is_open()) {
+            force_compress = true;
+            MANAPIHTTP_LOG("Failed to open the file: {}", filepath);
+            continue;
+        }
+
+        try {
+            // set headers
+
+            std::string mimetype = mime::mime_by_file_path(
+                resfile.empty() ? filepath : resfile);
+            std::vector<replace_founded_item> replacers;
+
+            if (mimetype.size() > sizeof ("text")) {
+                if (strncmp("text", mimetype.data(), sizeof ("text") - 1) == 0) {
+                    mimetype = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
+                }
+            }
+
+            res->header(HEADER.CONTENT_TYPE, mimetype);
+
+            // get file size
+            ssize_t fileSize = co_await manapi::filesystem::async_file_size(filepath);
+            ssize_t dynamicFileSize = fileSize;
+
+            // replacers
+            if (features.replacers) {
+                replacers = co_await found_replacers_in_file(manapi::async::current(), filepath, 0, fileSize, *features.replacers);
+
+                for (const auto &replacer: replacers) {
+                    dynamicFileSize = static_cast<ssize_t> (
+                        dynamicFileSize - (replacer.pos.second - replacer.pos.first + 1) + replacer.value->size());
+                }
+            }
+
+            // partial enabled
+            if (res->partial_enabled() && res->config()->partial_data_min_size() <= fileSize) {
+                if (features.compressor_for_file) {
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
+                                           "the compress '{}' with the partial content is not supported.",
+                                           features.compress);
+                }
+
+
+                if (features.replacers) {
+                    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be use with partial");
+                }
+
+                res->status(http::PARTIAL_CONTENT_206);
+                res->header(HEADER.ACCEPT_RANGES, "bytes");
+
+                ssize_t start = 0,
+                        back = fileSize - 1,
+                        size;
+
+                auto ranges = res->ranges();
+                ssize_t const ranges_size = ranges ? static_cast<ssize_t>(ranges->size()) : 0;
+
+                switch (ranges_size) {
+                    case 1: {
+                        auto &range = ranges->operator[](0);
+                        if (range.first != -1) {
+                            start = range.first;
+                        }
+
+                        if (range.second != -1) {
+                            back = range.second;
+                        }
+                        else {
+                            back = fileSize - 1;
+                        }
+                        break;
+                    }
+                    case 0:
+                        break;
+
+                    default:
+                        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_UNSUPPORTED, "multi bytes not supported");
+                }
+
+                size = back - start + 1;
+
+                res->header(HEADER.CONTENT_LENGTH, std::to_string(size));
+                res->header(HEADER.CONTENT_RANGE, std::format("bytes {}-{}/{}", start, back, fileSize));
+
+                auto task = mask_response(cdata.get(), res.get(), size == 0);
                 manapi::async::run<ssize_t>(std::move(task),
-                    [fileSize, replacers = std::move(replacers), f = std::move(f), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *value) mutable
+                    [size, start, f, cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *value) mutable
                     -> void {
                         if (err) {
                             return;
                         }
 
                         if (value && *value >= 0) {
-                            if (replacers.empty()) {
-                                // without replacers
-                                manapi::async::run( send_file(std::move(cdata), f, fileSize));
-                            }
-                            else {
-                                manapi::async::run(send_file(std::move(cdata), f, fileSize));
+                            // set start position
+                            f.seekg(start);
+                            // set size and send
+                            if (size) {
+                                manapi::async::run (send_file(std::move(cdata), f, size));
                             }
                         }
                 });
             }
             else {
-                auto task = mask_response(cdata.get(), res.get(), true);
-                manapi::async::run<ssize_t>(std::move(task), [cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result)
-                    -> void { if (err) { return; } cdata->cb->call(true); });
+                res->header(HEADER.CONTENT_LENGTH, std::to_string(dynamicFileSize));
+
+                if (fileSize) {
+                    auto task = mask_response(cdata.get(), res.get(), false);
+                    manapi::async::run<ssize_t>(std::move(task),
+                        [fileSize, replacers = std::move(replacers), f = std::move(f), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *value) mutable
+                        -> void {
+                            if (err) {
+                                return;
+                            }
+
+                            if (value && *value >= 0) {
+                                if (replacers.empty()) {
+                                    // without replacers
+                                    manapi::async::run( send_file(std::move(cdata), f, fileSize));
+                                }
+                                else {
+                                    manapi::async::run(send_file(std::move(cdata), f, fileSize));
+                                }
+                            }
+                    });
+                }
+                else {
+                    auto task = mask_response(cdata.get(), res.get(), true);
+                    manapi::async::run<ssize_t>(std::move(task), [cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result)
+                        -> void { if (err) { return; } cdata->cb->call(true); });
+                }
             }
         }
-    }
-    catch (std::exception const &e) {
-        MANAPIHTTP_LOG("send response failed due to {}", e.what());
+        catch (std::exception const &e) {
+            MANAPIHTTP_LOG("send response failed due to {}", e.what());
+        }
+
+        break;
     }
 }
 
@@ -573,7 +581,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                                 co_return;
                             }
 
-                            auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, cdata->conn.get(), cdata->worker, data->handler);
+                            auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, data->handler);
                             auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());
 
                             // handle layers
@@ -627,7 +635,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
         //     ctx->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
         // }
 
-        auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, cdata->conn.get(), cdata->worker, data->handler);
+        auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, data->handler);
         auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());
 
         auto resptr = res.get();
@@ -974,12 +982,18 @@ std::string generate_cache_name(const std::string &file, const std::string &ext)
     return std::move(name);
 }
 
-manapi::future<std::string> manapi::net::http::internal::compress_file(net::http::site site, std::string file, std::string folder, std::string compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor) {
+manapi::future<std::string> manapi::net::http::internal::compress_file(net::http::site site, std::string file, std::string folder, std::string compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor, bool force_compress) {
     std::string filepath;
+    std::pair<int, std::string> cached;
+
     auto filetime = co_await manapi::filesystem::async_last_time_write(file);
     // compressor
-    auto lk = co_await site.cache_config_mx().lock_guard();
-    auto const cached = co_await site.get_compressed_cache_file(file, compress, filetime);
+    if (force_compress) {
+        cached.first = 2; /* force */
+    }
+    else {
+        cached = co_await site.get_compressed_cache_file(file, compress, filetime);
+    }
 
     if (cached.first) {
         try {

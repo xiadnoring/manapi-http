@@ -16,7 +16,7 @@ namespace manapi {
 
     class timer {
         struct timer_data_t {
-            bool enabled{true};
+            int flags{0};
             std::unique_ptr<std::move_only_function<manapi::future<>(std::shared_ptr<timer_data_t> &data)>> async_cb{};
             std::unique_ptr<std::move_only_function<void(const std::shared_ptr<timer_data_t> &data)>> sync_cb{};
         };
@@ -24,8 +24,8 @@ namespace manapi {
         timer ();
         timer (nullptr_t);
         timer (std::shared_ptr<timer_data_t> data);
-        timer (std::move_only_function<void(manapi::timer t)> sync_cb);
-        timer (std::move_only_function<manapi::future<>(manapi::timer t)> async_cb);
+        timer (bool interval,std::move_only_function<void(manapi::timer t)> sync_cb);
+        timer (bool interval,std::move_only_function<manapi::future<>(manapi::timer t)> async_cb);
         timer (const timer &n);
         timer (timer &&n) noexcept;
         timer &operator=(timer &&n) noexcept;

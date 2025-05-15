@@ -65,7 +65,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(ev::shared_tcp
     return std::move(connection);
 }
 
-void manapi::net::worker::TLS::close_connection(connection *conn, bool clean_disconnect) {
+void manapi::net::worker::TLS::close_connection(const shared_conn &conn, bool clean_disconnect) {
     auto connection = conn->as<connection_interface>();
 
     if (connection->accept_timer) {
@@ -279,7 +279,7 @@ void manapi::net::worker::TLS::accept_work_(const shared_conn &conn, int flags, 
             ERR_SSL_CONNECTION, "TLS: accept_work_(): {}", e.what());
     }
     err: {
-        this->close_connection(conn.get(), false);
+        this->close_connection(conn, false);
         return;
     }
     finish: {

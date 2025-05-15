@@ -95,9 +95,9 @@ namespace manapi {
 
         static void erase_task_ (const std::shared_ptr<data_t> &data_,const size_t &id);
 
-        static storage::iterator erase_task_ (const std::shared_ptr<data_t> &data_,storage::iterator task);
+        static void erase_task_ (const std::shared_ptr<data_t> &data_,storage::iterator task);
 
-        static sorted_storage::iterator erase_task_ (const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task);
+        static void erase_task_ (const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task);
 
         static void start_ (const std::shared_ptr<data_t> &data);
 

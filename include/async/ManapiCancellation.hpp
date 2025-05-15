@@ -5,17 +5,7 @@
 
 namespace manapi::async {
     class cancellation_action {
-        struct data_t {
-            std::atomic<int> status_;
-            int ask;
-            ssize_t timeout_; /* ms */
-            manapi::timer timeout_struct_;
-            std::unique_ptr<std::move_only_function<void()>> cancel_sync_callback_;
-            std::unique_ptr<std::move_only_function<void()>> ready_callback_;
-            std::shared_ptr<ev::async> watcher;
-            std::unique_ptr<manapi::async::cancellation_action> want_to_unit;
-            std::unique_ptr<std::vector<cancellation_action>> associated;
-        };
+        struct data_t;
     public:
         cancellation_action (nullptr_t);
 
@@ -89,7 +79,7 @@ namespace manapi::async {
          *
          * @param timeout Timeout in milliseconds
          */
-        void timeout (ssize_t timeout);
+        void timeout (size_t timeout);
 
         /**
          * It will return a message stating that it asks
@@ -100,19 +90,11 @@ namespace manapi::async {
         [[nodiscard]] bool contains_cancel_callback () const;
 
         /**
-         * It will return a message stating that it asks
-         * a timeout
-         *
-         * @return a message stating that it asks a timeout
-         */
-        [[nodiscard]] bool contains_timeout () const;
-
-        /**
          * Return current timeout in milliseconds
          *
          * @return timeout in milliseconds
          */
-        [[nodiscard]] ssize_t timeout () const;
+        [[nodiscard]] size_t timeout () const;
 
 
         /**

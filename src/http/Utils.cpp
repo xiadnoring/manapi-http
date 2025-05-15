@@ -48,13 +48,8 @@ void manapi::net::http::request_data_clear(request_data_t &data) {
     data.params = {};
     data.uri = {};
     data.path = {};
-    data.body_index = 0;
-    data.body_left = 0;
-    data.body_part = 0;
     data.body_size = 0;
     data.flags = 0;
-    data.headers_part = 0;
-    data.headers_size = 0;
     data.divided = -1;
 }
 
