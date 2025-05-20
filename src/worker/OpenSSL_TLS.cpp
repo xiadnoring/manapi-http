@@ -42,7 +42,7 @@ manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
 
 std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_TLS::create(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
     auto worker = std::make_shared<worker::OpenSSL_TLS>(std::move(site), std::move(wdata));
-    worker->config(std::move(config));
+    worker->config(config.get());
     worker->self_ = worker;
     return std::move(worker);
 }

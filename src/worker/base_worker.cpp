@@ -14,10 +14,15 @@ manapi::net::worker::base::base(net::http::site site, std::shared_ptr<worker::wo
     this->bufferpool()->init(0);
 }
 
+manapi::net::worker::base::base(net::http::site site, bufferpool_t bufferpool,
+    std::shared_ptr<worker::worker_config_t> worker_data) : site_(std::move(site)), worker_data_(std::move(worker_data)), bufferpool_(std::move(bufferpool)) {
+
+}
+
 manapi::net::worker::base::~base() = default;
 
-void manapi::net::worker::base::config(std::shared_ptr<manapi::net::http::config> config) {
-    this->config_ = std::move(config);
+void manapi::net::worker::base::config(manapi::net::http::config *config) {
+    this->config_ = config;
 }
 
 manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
@@ -34,9 +39,9 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
 
     rhs = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
         -> void {
-        prev_flags = this->event_flags(conn.get(), ev::WRITE);
-        prev_cb = this->event_on(conn.get(), [this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]
-            (const shared_conn &conn, int flags, ibuffpool_t buffer) -> void {
+        prev_flags = this->event_flags(conn, ev::WRITE);
+        prev_cb = this->event_on(conn, [this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]
+            (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize) -> void {
                 try {
                     if (flags & ev::DISCONNECT) {
                         resolve(-1);
@@ -55,8 +60,8 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
         });
     });
 
-    this->event_flags(conn.get(), prev_flags);
-    this->event_on(conn.get(), std::move(prev_cb));
+    this->event_flags(conn, prev_flags);
+    this->event_on(conn, std::move(prev_cb));
 
     co_return rhs;
 }
@@ -78,11 +83,11 @@ manapi::future<ssize_t> manapi::net::worker::base::response(const worker::shared
     co_return -1;
 }
 
-std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::base::event_on(worker::connection *conn, worker_watcher_cb callback) {
+std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::base::event_on(const shared_conn & conn, worker_watcher_cb callback) {
     return this->event_on(conn, std::make_unique<decltype(callback)>(std::move(callback)));
 }
 
-void manapi::net::worker::base::event_toggle(worker::connection *conn, bool state, int flag) {
+void manapi::net::worker::base::event_toggle(const shared_conn & conn, bool state, int flag) {
     auto flags = this->event_flags(conn);
     if (state) {
         if (!(flags & flag)) {
@@ -99,7 +104,7 @@ manapi::net::http::site & manapi::net::worker::base::site() {
 }
 
 manapi::net::http::config *manapi::net::worker::base::config() {
-    return this->config_.get();
+    return this->config_;
 }
 
 const manapi::net::worker::base::bufferpool_t & manapi::net::worker::base::bufferpool() {

@@ -241,7 +241,7 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
             -> void {
             auto cb = std::make_unique<worker::worker_watcher_cb>(
                 [this, resolve = std::move(resolve), reject = std::move(reject), handler = std::move(handler)] (
-                const worker::shared_conn & conn, int flags, worker::ibuffpool_t buffer) mutable -> void {
+                const worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize) mutable -> void {
                     if (flags & ev::DISCONNECT) {
                         reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(
                             manapi::ERR_HTTP_CONNECTION_WAS_CLOSED, manapi::error::default_msgs[manapi::error::ERRMSG_CONNECTION_WAS_CLOSED])));
@@ -251,15 +251,15 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
                         try {
                             ssize_t size;
                             if (this->request_data->body_size >= 0)
-                                size = std::min(this->request_data->body_size, static_cast<ssize_t> (buffer->size()));
+                                size = std::min(this->request_data->body_size, static_cast<ssize_t> (nsize));
                             else
-                                size = static_cast<ssize_t> (buffer->size());
+                                size = static_cast<ssize_t> (nsize);
 
                             ssize_t rhs = 0;
                             while (rhs < size) {
                                 auto const copy = size - rhs;
 
-                                auto const res = handler (buffer->data() + rhs, copy);
+                                auto const res = handler (buffer + rhs, copy);
                                 if (res >= 0) {
                                     if (copy > res) {
                                         reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(
@@ -282,8 +282,10 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
                                 auto const copy = static_cast<int>(size - rhs);
                                 if (copy) {
                                     assert(this->request_data->buffer == nullptr);
-                                    buffer->shift_add(copy);
-                                    this->request_data->buffer = std::move(buffer);
+                                    auto object = this->worker_->bufferpool()->get();
+                                    object->resize(nsize - copy);
+                                    memcpy(object->data(), buffer + copy, nsize - copy);
+                                    this->request_data->buffer = std::move(object);
                                 }
                                 resolve();
                                 goto finish;
@@ -298,18 +300,18 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
 
                     return;
                     finish: {
-                        this->worker_->event_flags(conn.get(), 0);
+                        this->worker_->event_flags(conn, 0);
                     }
             });
 
-            pflags = this->worker_->event_flags(this->conn_->get(), ev::READ);
+            pflags = this->worker_->event_flags(*this->conn_, ev::READ);
 
             if (this->request_data->buffer) {
-               cb->operator()(*this->conn_, ev::READ, std::move(this->request_data->buffer));
+               cb->operator()(*this->conn_, ev::READ, this->request_data->buffer->data(), this->request_data->buffer->size());
             }
 
 
-            prev = this->worker_->event_on(this->conn_->get(), std::move(cb));
+            prev = this->worker_->event_on(*this->conn_, std::move(cb));
         });
     }
     catch (...) {
@@ -317,8 +319,8 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
     }
 
     if (prev) {
-        this->worker_->event_on(this->conn_->get(), std::move(prev));
-        this->worker_->event_flags(this->conn_->get(), pflags);
+        this->worker_->event_on(*this->conn_, std::move(prev));
+        this->worker_->event_flags(*this->conn_, pflags);
     }
 
     if (err) {
@@ -337,27 +339,27 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
             -> void {
             auto cb = std::make_unique<worker::worker_watcher_cb>(
                 [this, resolve = std::move(resolve), reject = std::move(reject), handler = std::move(handler)] (
-                const worker::shared_conn & conn, int flags, worker::ibuffpool_t buffer) mutable -> void {
+                const worker::shared_conn & conn, int flags, const char * buffer, ssize_t nsize) mutable -> void {
                     if (flags & ev::DISCONNECT) {
                         reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(
                             manapi::ERR_HTTP_CONNECTION_WAS_CLOSED, manapi::error::default_msgs[manapi::error::ERRMSG_CONNECTION_WAS_CLOSED])));
                         goto finish;
                     }
                     if (flags & ev::READ) {
-                        this->worker_->event_flags(this->conn_->get(), 0);
+                        this->worker_->event_flags(*this->conn_, 0);
                         manapi::async::run ([&] () -> manapi::future<> {
                             ssize_t size;
 
                             if (this->request_data->body_size >= 0)
-                                size = std::min(this->request_data->body_size, static_cast<ssize_t> (buffer->size()));
+                                size = std::min(this->request_data->body_size, static_cast<ssize_t> (nsize));
                             else
-                                size = static_cast<ssize_t> (buffer->size());
+                                size = static_cast<ssize_t> (nsize);
 
                             ssize_t rhs = 0;
                             while (rhs < size) {
                                 auto const copy = size - rhs;
 
-                                auto const res = co_await handler (buffer->data() + rhs, copy);
+                                auto const res = co_await handler (buffer + rhs, copy);
                                 if (res >= 0) {
                                     if (copy > res) {
                                         reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(
@@ -380,18 +382,20 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
                                 auto const copy = static_cast<int>(size - rhs);
                                 if (copy) {
                                     assert(this->request_data->buffer == nullptr);
-                                    buffer->shift_add(copy);
-                                    this->request_data->buffer = std::move(buffer);
+                                    auto object = this->worker_->bufferpool()->get();
+                                    object->resize(size - copy);
+                                    memcpy (object->data(), buffer + copy, size - copy);
+                                    this->request_data->buffer = std::move(object);
                                 }
                                 resolve();
                                 goto finish;
                             }
 
-                            this->worker_->event_flags(this->conn_->get(), ev::READ);
+                            this->worker_->event_flags(*this->conn_, ev::READ);
 
                             co_return;
                             finish: {
-                                this->worker_->event_flags(this->conn_->get(), 0);
+                                this->worker_->event_flags(*this->conn_, 0);
                             }
                         }, [&] (std::exception_ptr err) -> void {
                             if (err) {
@@ -399,24 +403,24 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
                                 manapi::rethrow_exception_ptr(std::move(err), nullptr, &msg, nullptr);
                                 reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
                                     manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], msg)));
-                                this->worker_->event_flags(this->conn_->get(), 0);
+                                this->worker_->event_flags(*this->conn_, 0);
                             }
                         });
                     }
 
                     return;
                     finish: {
-                        this->worker_->event_flags(conn.get(), 0);
+                        this->worker_->event_flags(conn, 0);
                     }
             });
 
-            pflags = this->worker_->event_flags(this->conn_->get(), ev::READ);
+            pflags = this->worker_->event_flags(*this->conn_, ev::READ);
 
             if (this->request_data->buffer) {
-                cb->operator()(*this->conn_, ev::READ, std::move(this->request_data->buffer));
+                cb->operator()(*this->conn_, ev::READ, this->request_data->buffer->data(), this->request_data->buffer->size());
             }
 
-            prev = this->worker_->event_on(this->conn_->get(), std::move(cb));
+            prev = this->worker_->event_on(*this->conn_, std::move(cb));
         });
     }
     catch (...) {
@@ -424,8 +428,8 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
     }
 
     if (prev) {
-        this->worker_->event_on(this->conn_->get(), std::move(prev));
-        this->worker_->event_flags(this->conn_->get(), pflags);
+        this->worker_->event_on(*this->conn_, std::move(prev));
+        this->worker_->event_flags(*this->conn_, pflags);
     }
 
     if (err) {

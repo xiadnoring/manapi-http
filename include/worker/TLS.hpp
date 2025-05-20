@@ -31,9 +31,11 @@ namespace manapi::net::worker {
 
         void close_connection(const shared_conn &conn, bool clean_disconnect) override;
 
+        ssize_t sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) override;
+
         ssize_t sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
 
-        int event_flags(worker::connection *conn, int flags) override;
+        int event_flags(const shared_conn & conn, int flags) override;
     protected:
         int ssl_error_none_, ssl_error_want_read_,
         ssl_error_want_write_, ssl_error_zero_return_,

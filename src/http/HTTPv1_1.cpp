@@ -27,7 +27,7 @@ enum http_v1_1_callbacks {
 };
 
 static constexpr char version_label_1_1[] = "HTTP/1.1";
-static constexpr char version_label_2[] = "HTTP/2";
+static constexpr char version_label_2[] = "HTTP/2.0";
 
 static const std::set<char> tcharlist = {'!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~'};
 
@@ -250,7 +250,9 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
             case HTTP_V1_1_CALLBACK_PARSE_HTTP_2: {
                 while (pos != size) {
                     if (buffer[pos] != version_label_2[ctx->next]) {
-                        return EHTTP_V1_1_PROTOCOL_ERROR;
+                        if (!(pos == 6 && buffer[pos] == '\r')) {
+                            return EHTTP_V1_1_PROTOCOL_ERROR;
+                        }
                     }
 
                     pos++;
@@ -264,6 +266,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                         break;
                     }
                 }
+                break;
             }
             case HTTP_V1_1_CALLBACK_PARSE_METHOD: {
                 while (pos != size) {
@@ -309,6 +312,10 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                 break;
             }
             case HTTP_V1_1_CALLBACK_THINK: {
+                buffer += pos;
+                size -= pos;
+                pos = 0;
+
                 url_decode_stream url_decoder;
 
                 switch (ctx->http) {
@@ -321,10 +328,9 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                         if (ctx->s2.size() /* '*' path */ != 1 || ctx->s1.size() /* 'PRI' method*/ != 3) {
                             return EHTTP_V1_1_PROTOCOL_ERROR;
                         }
-                        ctx->current = HTTP_V1_1_CALLBACK_NEXT_LINER;
-                        ctx->next = HTTP_V1_1_CALLBACK_UPGRADE;
+                        ctx->current = HTTP_V1_1_CALLBACK_UPGRADE;
 
-                        break;
+                        goto finish;
                     }
                     default: {
                         return EHTTP_V1_1_PROTOCOL_ERROR;
@@ -350,15 +356,17 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                 ctx->current = HTTP_V1_1_CALLBACK_NEXT_LINER;
                 ctx->next = HTTP_V1_1_CALLBACK_PARSE_HEADER_KEY;
 
-                break;
+                finish: break;
             }
             case HTTP_V1_1_CALLBACK_UPGRADE:
                 buffer += pos;
                 size -= pos;
+                pos = 0;
                 return EHTTP_V1_1_PROTOCOL_UPGRADE;
             case HTTP_V1_1_CALLBACK_FINISH: {
                 buffer += pos;
                 size -= pos;
+                pos = 0;
 
                 auto const hcontentlength = ctx->req->headers.find(HEADER.CONTENT_LENGTH);
                 if (hcontentlength == ctx->req->headers.end()) {
@@ -437,6 +445,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
 
     buffer += pos;
     size -= pos;
+    pos = 0;
 
     return EHTTP_V1_1_PROTOCOL_WANT_READ;
 }

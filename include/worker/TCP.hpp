@@ -8,6 +8,7 @@
 
 #include "./base_worker.hpp"
 #include "./ManapiAsync.hpp"
+#include "../http/HTTPv2.hpp"
 #include "../http/HTTPv1_1.hpp"
 #include "../async/ManapiCancellation.hpp"
 
@@ -54,11 +55,11 @@ namespace manapi::net::worker {
 
         ssize_t sync_write(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
 
-        std::unique_ptr<worker_watcher_cb> event_on(worker::connection *conn, std::unique_ptr<worker_watcher_cb> callback) override;
+        std::unique_ptr<worker_watcher_cb> event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) override;
 
-        int event_flags(worker::connection *conn, int flags) override;
+        int event_flags(const shared_conn & conn, int flags) override;
 
-        int event_flags(worker::connection *conn) override;
+        int event_flags(const shared_conn & conn) override;
 
     protected:
         virtual void flush_write_ (const shared_conn &connection, bool flush = false);
@@ -71,7 +72,9 @@ namespace manapi::net::worker {
 
         virtual void update_limit_rate_connection (connection *conn);
 
-        virtual void http_work_ (http::http_v1_1_t *http_v1_1_ctx, const worker::shared_conn &conn, int flags, ibuffpool_t buffer);
+        virtual void http2_work_ (http::http_v2_t *http_v2_ctx, const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize);
+
+        virtual void http_work_ (http::http_v1_1_t *http_v1_1_ctx, const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize);
 
         virtual void onaccept_event_ (const worker::shared_conn &conn);
 
@@ -79,6 +82,7 @@ namespace manapi::net::worker {
         ev::shared_tcp watcher_accept_;
     protected:
         std::weak_ptr<base> self_;
+        std::shared_ptr<net::worker::http_v2> http_v2_worker;
     private:
         static std::string stringify_http_info (manapi::net::http::response *res, const int &version, const std::string &delimiter) ;
         static std::string stringify_headers (manapi::net::http::response *res, const std::string &delimiter) ;

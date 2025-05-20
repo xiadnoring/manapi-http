@@ -28,13 +28,14 @@ namespace manapi::net::worker {
         worker::sockaddr_st client{};
         socklen_t len{};
         int version = http::versions::HTTP_v1_1;
+        int buffer_size;
     private:
         std::unique_ptr<void, void(*)(void *)> ptr;
     };
 
     typedef std::shared_ptr<worker::connection> shared_conn;
     typedef object_item_pool<bytebuffer, std::size_t> ibuffpool_t;
-    typedef std::move_only_function<void(const worker::shared_conn &conn, int flags, ibuffpool_t buffer)> worker_watcher_cb;
+    typedef std::move_only_function<void(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize)> worker_watcher_cb;
 
     class base {
     public:
@@ -82,17 +83,21 @@ namespace manapi::net::worker {
 
         base (net::http::site site, std::shared_ptr<worker::worker_config_t> worker_data);
 
+        base (net::http::site site, bufferpool_t bufferpool, std::shared_ptr<worker::worker_config_t> worker_data);
+
         virtual ~base ();
 
         virtual bool is_valid_connection (worker::connection *connection) = 0;
 
         virtual void init () = 0;
 
-        virtual void config (std::shared_ptr<manapi::net::http::config> config);
+        virtual void config (manapi::net::http::config *config);
 
         virtual void close_connection (const shared_conn &conn, bool clean_disconnect) = 0;
 
         virtual void configure_connection (const shared_conn &conn, oncont_cb cb) = 0;
+
+        virtual ssize_t sync_write_ex (const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) = 0;
 
         virtual ssize_t sync_write (const shared_conn &conn, const void *buff, ssize_t size, bool finish) = 0;
 
@@ -104,15 +109,15 @@ namespace manapi::net::worker {
 
         virtual void stop () = 0;
 
-        virtual std::unique_ptr<worker_watcher_cb> event_on (worker::connection *conn, std::unique_ptr<worker_watcher_cb> callback) = 0;
+        virtual std::unique_ptr<worker_watcher_cb> event_on (const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) = 0;
 
-        std::unique_ptr<worker_watcher_cb> event_on (worker::connection *conn, worker_watcher_cb callback);
+        std::unique_ptr<worker_watcher_cb> event_on (const shared_conn & conn, worker_watcher_cb callback);
 
-        virtual int event_flags (worker::connection *conn, int flags) = 0;
+        virtual int event_flags (const shared_conn & conn, int flags) = 0;
 
-        virtual int event_flags (worker::connection *conn) = 0;
+        virtual int event_flags (const shared_conn & conn) = 0;
 
-        void event_toggle (worker::connection *conn, bool state, int flag);
+        void event_toggle (const shared_conn & conn, bool state, int flag);
 
         net::http::site &site ();
 
@@ -121,7 +126,7 @@ namespace manapi::net::worker {
         const bufferpool_t &bufferpool();
 
         const std::shared_ptr<worker_config_t> &worker_data ();
-    protected:
+
         static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt);
 
         static ssize_t connection_io_recv (struct connection_io_part *top, char *buffer, ssize_t size, int *cnt);
@@ -129,11 +134,12 @@ namespace manapi::net::worker {
         static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool<bytebuffer, std::false_type, std::size_t> *bufferpool, int buffer_size, int *cnt, int max_cnt);
 
         static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, int *cnt);
+    protected:
 
         std::shared_ptr<worker::worker_config_t> worker_data_;
     private:
         net::http::site site_;
-        std::shared_ptr<manapi::net::http::config> config_;
+        manapi::net::http::config *config_;
         bufferpool_t bufferpool_;
     };
 
