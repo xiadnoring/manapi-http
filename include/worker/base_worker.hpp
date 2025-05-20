@@ -28,7 +28,6 @@ namespace manapi::net::worker {
         worker::sockaddr_st client{};
         socklen_t len{};
         int version = http::versions::HTTP_v1_1;
-        int buffer_size;
     private:
         std::unique_ptr<void, void(*)(void *)> ptr;
     };
@@ -101,6 +100,8 @@ namespace manapi::net::worker {
 
         virtual ssize_t sync_write (const shared_conn &conn, const void *buff, ssize_t size, bool finish) = 0;
 
+        virtual bool is_writable (const shared_conn &conn) = 0;
+
         manapi::future<ssize_t> write (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
 
         manapi::future<ssize_t> fwrite (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
@@ -137,7 +138,7 @@ namespace manapi::net::worker {
     protected:
 
         std::shared_ptr<worker::worker_config_t> worker_data_;
-    private:
+
         net::http::site site_;
         manapi::net::http::config *config_;
         bufferpool_t bufferpool_;

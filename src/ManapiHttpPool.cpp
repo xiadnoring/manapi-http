@@ -55,11 +55,11 @@ manapi::future<void> manapi::net::http_pool::_pool() {
 
     auto implementation = this->config->implementation();
     auto transport = this->config->transport();
-    auto implementations = this->site->transport_protocol_worker(*transport);
+    auto implementations = this->site->transport_protocol_worker(transport);
 
-    if (implementations.contains(*implementation))
+    if (implementations.contains(implementation))
     {
-        auto generate = implementations[*implementation];
+        auto generate = implementations[implementation];
         this->worker = generate (*this->site, this->worker_config, this->config);
         this->worker->init();
     }
@@ -75,7 +75,7 @@ manapi::future<void> manapi::net::http_pool::_pool() {
                 available += it->first;
             }
         }
-        MANAPIHTTP_LOG("implementation by {} not found in {}. Available: [{}]", *implementation, *transport, available);
+        MANAPIHTTP_LOG("implementation by {} not found in {}. Available: [{}]", implementation, transport, available);
         THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "implementation not found");
     }
 }

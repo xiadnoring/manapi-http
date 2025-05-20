@@ -45,7 +45,7 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
     // set time
     //res->header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
     if (res->request_data()->http < versions::HTTP_v2) {
-        auto keepalive = cdata->worker->config()->keep_alive().load();
+        auto keepalive = cdata->worker->config()->keep_alive();
         if (keepalive) {
             res->header(HEADER.CONNECTION, HEADER.KEEP_ALIVE);
         }
@@ -461,7 +461,7 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
             }
 
             if (result && *result >= 0) {
-                auto reserved = res->config()->buffer_size().load();
+                auto reserved = res->config()->buffer_size();
                 auto cb_async = res->callback_async();
                 manapi::async::run ([reserved, cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
@@ -690,7 +690,7 @@ void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, st
 }
 
 manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size) {
-    auto block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size().load());
+    auto block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size());
 
     std::string write_block, read_block;
 

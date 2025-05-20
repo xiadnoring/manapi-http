@@ -24,9 +24,9 @@ manapi::net::worker::TLS::~TLS() = default;
 void manapi::net::worker::TLS::init() {
     TCP::init();
 
-    auto sslconfig = this->config()->ssl_config();
+    auto &sslconfig = this->config()->ssl_config();
 
-    if (sslconfig->enabled) {
+    if (sslconfig.enabled) {
         // init
         this->ctx = this->ssl_create_context(this->config()->tls_version());
         // setup ctx (load certs)
@@ -85,59 +85,72 @@ void manapi::net::worker::TLS::close_connection(const shared_conn &conn, bool cl
 
     this->ssl_set_shutdown_(connection->ssl, this->ssl_send_shutdown_|this->ssl_recv_shutdown_);
 }
+#include "openssl/err.h"
 
 ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {
     auto connection = conn->as<connection_interface>();
 
-    if (connection->top->send_size >= maxcnt) {
-        return 0;
-    }
+    ssize_t res = 0;
 
-    while (true) {
-        auto rhs = this->ssl_write_(connection->ssl, buff, static_cast<int>(size));
-
-        if (rhs < 0) {
-            rhs = this->ssl_get_error_(connection->ssl, rhs);
-
-            if (rhs == this->ssl_error_want_read_) {
-                return 0;
-            }
-
-            if (rhs == this->ssl_error_want_write_) {
-                if (auto const err = this->ssl_bio_flush_write_(conn, connection->wbio,
-                    &connection->top->send, &connection->top->send_size, maxcnt)) {
-                    if (err == CONN_IO_WANT_WRITE) {
-                        this->flush_write_(conn, finish);
-                        return 0;
-                    }
-
-                    return CONN_IO_ERROR;
-                    }
-
-                this->flush_write_(conn, true);
-
-                continue;
-            }
-
-            break;
+    while (res != size) {
+        if (connection->top->send_size >= maxcnt) {
+            return res;
         }
 
-        if (auto const err = this->ssl_bio_flush_write_(conn, connection->wbio,
-                &connection->top->send, &connection->top->send_size, maxcnt)) {
+        auto rhs = this->ssl_write_(connection->ssl, static_cast<const char *> (buff) + res, static_cast<int>(size - res));
+
+        if (rhs >= 0) {
+            res += rhs;
+        }
+
+        auto err = this->ssl_get_error_(connection->ssl, rhs);
+
+        if (err == this->ssl_error_none_) {
+
+        }
+
+        else if (err == this->ssl_error_want_read_) {
+            return res;
+        }
+
+        else if (err == this->ssl_error_want_write_) {
+            err = this->ssl_bio_flush_write_(conn, connection->wbio,
+                &connection->top->send, &connection->top->send_size, maxcnt);
+
+            if (err) {
+                if (err == CONN_IO_WANT_WRITE) {
+                    this->flush_write_(conn, finish);
+                    return res;
+                }
+
+                return CONN_IO_ERROR;
+            }
+
+            this->flush_write_(conn, true);
+
+            continue;
+        }
+        else {
+            printf("%s\n", ERR_error_string(ERR_get_error(), NULL));
+            return CONN_IO_ERROR;
+        }
+
+        err = this->ssl_bio_flush_write_(conn, connection->wbio,
+                &connection->top->send, &connection->top->send_size, maxcnt);
+
+        if (err) {
             if (err == CONN_IO_WANT_WRITE) {
                 this->flush_write_(conn, finish);
-                return rhs;
+                return res;
             }
 
             return CONN_IO_ERROR;
         }
 
         this->flush_write_(conn, finish);
-
-        return rhs;
     }
 
-    return CONN_IO_ERROR;
+    return res;
 }
 
 ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
@@ -342,7 +355,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
                 return CONN_IO_WANT_WRITE;
 
             auto buffer = this->bufferpool()->get();
-            buffer->resize_max(conn->buffer_size);
+            buffer->resize_max(this->config_->buffer_size());
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
             if (top->last_deque) {
@@ -407,7 +420,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
                 return CONN_IO_WANT_READ;
 
             auto buffer = this->bufferpool()->get();
-            buffer->resize_max(conn->buffer_size);
+            buffer->resize_max(this->config_->buffer_size());
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
             if (top->last_deque) {

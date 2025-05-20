@@ -20,17 +20,17 @@ const std::map <std::string, manapi::net::http::versions::http> http_version_to_
 };
 
 manapi::net::http::config::config(const json &config) {
-    this->max_buffer_stack_.store(5);
-    this->max_plain_param_length_.store(16000UL);
-    this->max_file_param_length_.store(2147483648UL);
+    this->max_buffer_stack_=(5);
+    this->max_plain_param_length_=(16000UL);
+    this->max_file_param_length_=(2147483648UL);
 
     /* partial data min size */
     if (config.contains("partial_data_min_size"))
     {
-        this->partial_data_min_size_.store(config["partial_data_min_size"].as_integer());
+        this->partial_data_min_size_=(config["partial_data_min_size"].as_integer());
     }
     else {
-        this->partial_data_min_size_.store(0UL);
+        this->partial_data_min_size_=(0UL);
     }
 
     /* http versions */
@@ -75,7 +75,7 @@ manapi::net::http::config::config(const json &config) {
         this->speed_limit_rate_ = config["speed_limit_rate"].as_integer();
     }
     else {
-        this->speed_limit_rate_.store(2097152000);
+        this->speed_limit_rate_=(2097152000);
     }
 
     /* ssl */
@@ -90,35 +90,35 @@ manapi::net::http::config::config(const json &config) {
     /* max_header_block_size */
     if (config.contains("max_header_block_size"))
     {
-        this->max_header_block_size_.store(config["max_header_block_size"].as_integer());
+        this->max_header_block_size_=(config["max_header_block_size"].as_integer());
     }
     else {
-        this->max_header_block_size_.store(4096UL);
+        this->max_header_block_size_=(4096UL);
     }
 
     /* buffer_size */
     if (config.contains("buffer_size")) {
-        this->buffer_size_.store(config["buffer_size"].as_integer());
+        this->buffer_size_=(config["buffer_size"].as_integer());
     }
     else {
-        this->buffer_size_.store(65536);
+        this->buffer_size_=(65536);
     }
 
     /* max_backlog */
     if (config.contains("max_backlog")) {
-        this->max_backlog_.store(config["max_backlog"].as_integer());
+        this->max_backlog_=(config["max_backlog"].as_integer());
     }
     else {
-        this->max_backlog().store(200);
+        this->max_backlog()=(200);
     }
 
     /* keep_alive */
     if (config.contains("keep_alive"))
     {
-        this->keep_alive_.store(config["keep_alive"].as_integer());
+        this->keep_alive_=(config["keep_alive"].as_integer());
     }
     else {
-        this->keep_alive_.store(2UL);
+        this->keep_alive_=(2UL);
     }
 
     /* implementation */
@@ -145,26 +145,26 @@ manapi::net::http::config::config(const json &config) {
         const std::string &tls_version_string = config["tls_version"].as_string();
         if (tls_version_string == "1" || tls_version_string == "1.0")
         {
-            this->tls_version_.store(versions::TLS_v1);
+            this->tls_version_=(versions::TLS_v1);
         }
         else if (tls_version_string == "1.1")
         {
-            this->tls_version_.store(versions::TLS_v1_1);
+            this->tls_version_=(versions::TLS_v1_1);
         }
         else if (tls_version_string == "1.2")
         {
-            this->tls_version_.store(versions::TLS_v1_2);
+            this->tls_version_=(versions::TLS_v1_2);
         }
         else if (tls_version_string == "1.3")
         {
-            this->tls_version_.store(versions::TLS_v1_3);
+            this->tls_version_=(versions::TLS_v1_3);
         }
         else {
             THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid tls_version in config: {}", tls_version_string);
         }
     }
     else {
-        this->tls_version_.store(versions::TLS_v1_3);
+        this->tls_version_=(versions::TLS_v1_3);
     }
 
     /* quic cc algo */
@@ -173,23 +173,23 @@ manapi::net::http::config::config(const json &config) {
         const std::string &quic_cc_algo_string = config["quic_cc_algo"].as_string();
         if (quic_cc_algo_string == "CUBIC")
         {
-            this->quic_cc_algo_.store(versions::QUIC_CC_CUBIC);
+            this->quic_cc_algo_=(versions::QUIC_CC_CUBIC);
         }
         else if (quic_cc_algo_string == "RENO")
         {
-            this->quic_cc_algo_.store(versions::QUIC_CC_RENO);
+            this->quic_cc_algo_=(versions::QUIC_CC_RENO);
         }
         else if (quic_cc_algo_string == "BBR")
         {
-            this->quic_cc_algo_.store(versions::QUIC_CC_BBR);
+            this->quic_cc_algo_=(versions::QUIC_CC_BBR);
         }
         else if (quic_cc_algo_string == "BBR2")
         {
-            this->quic_cc_algo_.store(versions::QUIC_CC_BBR2);
+            this->quic_cc_algo_=(versions::QUIC_CC_BBR2);
         }
         else if (quic_cc_algo_string == "NONE")
         {
-            this->quic_cc_algo_.store(versions::QUIC_CC_NONE);
+            this->quic_cc_algo_=(versions::QUIC_CC_NONE);
         }
         else {
             THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo param in the config: {}", quic_cc_algo_string);
@@ -201,59 +201,59 @@ manapi::net::http::config::config(const json &config) {
 
     /* max connections */
     if (config.contains("max_connections")) {
-        this->max_connections_.store(config["max_connections"].as_integer());
+        this->max_connections_=(config["max_connections"].as_integer());
     }
     else {
-        this->max_connections_.store(1000);
+        this->max_connections_=(1000);
     }
 
     /* max_rst_cnt */
     if (config.contains("max_rst_cnt")) {
-        this->max_rst_cnt_.store(config["max_rst_cnt"].as_integer());
+        this->max_rst_cnt_=(config["max_rst_cnt"].as_integer());
     }
     else {
-        this->max_rst_cnt_.store(5);
+        this->max_rst_cnt_=(5);
     }
 
     /* quic debug */
     if (config.contains("quic_debug"))
     {
-        this->quic_debug_.store(config["quic_debug"].as_bool());
+        this->quic_debug_=(config["quic_debug"].as_bool());
     }
     else {
-        this->quic_debug_.store(false);
+        this->quic_debug_=(false);
     }
 
     /* tcp no delay */
     if (config.contains("tcp_no_delay")) {
-        this->tcp_no_delay_.store(config["tcp_no_delay"].as_bool());
+        this->tcp_no_delay_=(config["tcp_no_delay"].as_bool());
     }
     else {
-        this->tcp_no_delay_.store(false);
+        this->tcp_no_delay_=(false);
     }
 
     /* verify peer */
     if (config.contains("verify_peer")) {
-        this->verify_peer_.store(config["verify_peer"].as_bool());
+        this->verify_peer_=(config["verify_peer"].as_bool());
     }
     else {
-        this->verify_peer_.store(true);
+        this->verify_peer_=(true);
     }
 
     /* speed_check_delay */
     if (config.contains("speed_check_delay")) {
-        this->speed_check_delay_.store(config["speed_check_delay"].as_integer());
+        this->speed_check_delay_=(config["speed_check_delay"].as_integer());
     }
     else {
-        this->speed_check_delay_.store(5000);
+        this->speed_check_delay_=(5000);
     }
 
     /* speed_check_bytes */
     if (config.contains("speed_check_bytes")) {
-        this->speed_check_bytes_.store(config["speed_check_bytes"].as_integer());
+        this->speed_check_bytes_=(config["speed_check_bytes"].as_integer());
     }
     else {
-        this->speed_check_bytes_.store(1048576);
+        this->speed_check_bytes_=(1048576);
     }
 
     /* cipher list */
@@ -265,10 +265,10 @@ manapi::net::http::config::config(const json &config) {
     }
 
     if (config.contains("simultaneous_accepts")) {
-        this->simultaneous_accepts_.store(config["simultaneous_accepts"].as_bool());
+        this->simultaneous_accepts_=(config["simultaneous_accepts"].as_bool());
     }
     else {
-        this->simultaneous_accepts_.store(false);
+        this->simultaneous_accepts_=(false);
     }
 }
 
@@ -278,32 +278,31 @@ manapi::net::http::config::~config() = default;
 
 
 void manapi::net::http::config::max_header_block_size(const size_t &s) {
-    this->max_header_block_size_.store(s);
+    this->max_header_block_size_ = s;
 }
 
-std::atomic<size_t> &manapi::net::http::config::max_header_block_size() {
+size_t &manapi::net::http::config::max_header_block_size() {
     return this->max_header_block_size_;
 }
 
-std::atomic<size_t> &manapi::net::http::config::partial_data_min_size() {
+size_t &manapi::net::http::config::partial_data_min_size() {
     return this->partial_data_min_size_;
 }
 
 
 bool manapi::net::http::config::contains_http_version(int version) {
-    auto n = this->http_versions().get();
-    return n->contains(version);
+    return this->http_versions().contains(version);
 }
 
 int manapi::net::http::config::recommended_http_version() {
-    auto n = this->http_versions().get();
-    if (n->empty()) {
+    auto &n = this->http_versions();
+    if (n.empty()) {
         return -1;
     }
-    return *n->rbegin();
+    return *n.rbegin();
 }
 
-manapi::Atomic<std::set<int>> & manapi::net::http::config::http_versions() {
+std::set<int> & manapi::net::http::config::http_versions() {
     return this->http_versions_;
 }
 
@@ -312,18 +311,18 @@ manapi::Atomic<std::set<int>> & manapi::net::http::config::http_versions() {
  * @param seconds
  */
 void manapi::net::http::config::keep_alive(const long int &seconds) {
-    this->keep_alive_.store(seconds);
+    this->keep_alive_=(seconds);
 }
 
-std::atomic<size_t> &manapi::net::http::config::keep_alive() {
+size_t &manapi::net::http::config::keep_alive() {
     return this->keep_alive_;
 }
 
-std::atomic<size_t> & manapi::net::http::config::max_connections() {
+size_t & manapi::net::http::config::max_connections() {
     return this->max_connections_;
 }
 
-std::atomic<int> & manapi::net::http::config::max_backlog() {
+int & manapi::net::http::config::max_backlog() {
     return this->max_backlog_;
 }
 
@@ -331,76 +330,76 @@ void manapi::net::http::config::port(const std::string &_port) {
     this->port_ = _port;
 }
 
-manapi::AtomicReference<std::string> manapi::net::http::config::port() {
-    return *this->port_;
+std::string &manapi::net::http::config::port() {
+    return this->port_;
 }
 
-manapi::AtomicReference<std::string> manapi::net::http::config::implementation() {
-    return *this->implementation_;
+std::string &manapi::net::http::config::implementation() {
+    return this->implementation_;
 }
 
-manapi::AtomicReference<std::string> manapi::net::http::config::transport() {
-    return *this->transport_;
+std::string &manapi::net::http::config::transport() {
+    return this->transport_;
 }
 
 
-manapi::AtomicReference<std::string> manapi::net::http::config::address() {
-    return *this->address_;
+std::string &manapi::net::http::config::address() {
+    return this->address_;
 }
 
-manapi::AtomicReference<std::string> manapi::net::http::config::cipher_list() {
-    return *this->cipher_list_;
+std::string &manapi::net::http::config::cipher_list() {
+    return this->cipher_list_;
 }
 
-std::atomic<size_t> &manapi::net::http::config::tls_version() {
+size_t &manapi::net::http::config::tls_version() {
     return this->tls_version_;
 }
 
-std::atomic<bool> &manapi::net::http::config::is_quic_debug() {
+bool &manapi::net::http::config::is_quic_debug() {
     return this->quic_debug_;
 }
 
-std::atomic <size_t> &manapi::net::http::config::quic_cc_algo() {
+size_t &manapi::net::http::config::quic_cc_algo() {
     return this->quic_cc_algo_;
 }
 
-std::atomic<size_t> & manapi::net::http::config::max_buffer_stack() {
+size_t & manapi::net::http::config::max_buffer_stack() {
     return this->max_buffer_stack_;
 }
 
-std::atomic<ssize_t> & manapi::net::http::config::max_rst_cnt() {
+ssize_t & manapi::net::http::config::max_rst_cnt() {
     return this->max_rst_cnt_;
 }
 
-std::atomic<ssize_t> & manapi::net::http::config::speed_check_delay() {
+ssize_t & manapi::net::http::config::speed_check_delay() {
     return this->speed_check_delay_;
 }
 
-std::atomic<ssize_t> & manapi::net::http::config::speed_check_bytes() {
+ssize_t & manapi::net::http::config::speed_check_bytes() {
     return this->speed_check_bytes_;
 }
 
-std::atomic<ssize_t> & manapi::net::http::config::speed_limit_rate() {
+ssize_t & manapi::net::http::config::speed_limit_rate() {
     return this->speed_limit_rate_;
 }
 
-manapi::AtomicReference<manapi::net::http::ssl_config_t> manapi::net::http::config::ssl_config() {
-    return *this->ssl_config_;
+manapi::net::http::ssl_config_t &manapi::net::http::config::ssl_config() {
+    return this->ssl_config_;
 }
 
 void manapi::net::http::config::server_address(const sockaddr &addr) {
     this->server_addr_ = addr;
 }
 
-manapi::AtomicReference<sockaddr> manapi::net::http::config::server_address() {
-    return *this->server_addr_;
+sockaddr &manapi::net::http::config::server_address() {
+    return this->server_addr_;
 }
 
 void manapi::net::http::config::server_len(const size_t &len) {
-    this->server_len_.store(len);
+    this->server_len_ = len;
 }
 
-std::atomic<socklen_t>  &manapi::net::http::config::server_len() {
+socklen_t  &manapi::net::http::config::server_len() {
     return this->server_len_;
 }
 
@@ -423,18 +422,18 @@ manapi::net::http::versions::http manapi::net::http::config::parse_http_version(
     return http_version_to_parse.at(version);
 }
 
-std::atomic<bool> & manapi::net::http::config::tcp_no_delay() {
+bool & manapi::net::http::config::tcp_no_delay() {
     return this->tcp_no_delay_;
 }
 
-std::atomic<bool> & manapi::net::http::config::simultaneous_accepts() {
+bool & manapi::net::http::config::simultaneous_accepts() {
     return this->simultaneous_accepts_;
 }
 
-std::atomic<bool> & manapi::net::http::config::verify_peer() {
+bool & manapi::net::http::config::verify_peer() {
     return this->verify_peer_;
 }
 
-std::atomic<ssize_t> & manapi::net::http::config::buffer_size() {
+ssize_t & manapi::net::http::config::buffer_size() {
     return this->buffer_size_;
 }

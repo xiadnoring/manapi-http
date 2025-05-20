@@ -60,8 +60,8 @@ void manapi::net::worker::TCP::init() {
             .ai_protocol    = IPPROTO_TCP
         };
 
-        auto address = *this->config()->address();
-        auto port = *this->config()->port();
+        auto &address = this->config()->address();
+        auto &port = this->config()->port();
 
         if (getaddrinfo(address.data(), port.data(), &hints, &this->local) != 0) {
             THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
@@ -85,29 +85,29 @@ void manapi::net::worker::TCP::init() {
         memset(&this->sockaddrin, '\0', sizeof (sockaddr));
 
         if (this->local->ai_family == ev::IPv4) {
-            if (auto rhs = this->watcher_accept_->ip4_addr(this->config()->address()->data(), std::stoi(*this->config()->port()), reinterpret_cast<sockaddr_in *>(&this->sockaddrin))) {
+            if (auto rhs = this->watcher_accept_->ip4_addr(this->config()->address().data(), std::stoi(this->config()->port()), reinterpret_cast<sockaddr_in *>(&this->sockaddrin))) {
                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't set ipv4 addr due to result - {}", rhs);
                 goto err;
             }
         }
         else if (this->local->ai_family == ev::IPv6) {
-            if (auto rhs = this->watcher_accept_->ip6_addr(this->config()->address()->data(), std::stoi(*this->config()->port()), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin))) {
+            if (auto rhs = this->watcher_accept_->ip6_addr(this->config()->address().data(), std::stoi(this->config()->port()), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin))) {
                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't set ipv6 addr due to result - {}", rhs);
                 goto err;
             }
         }
 
-        if (auto rhs = this->watcher_accept_->nodelay(this->config()->tcp_no_delay().load())) {
+        if (auto rhs = this->watcher_accept_->nodelay(this->config()->tcp_no_delay())) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set nodelay due to result - {}", rhs);
             goto err;
         }
 
-        if (auto rhs = this->watcher_accept_->simultaneous_accepts(this->config()->simultaneous_accepts().load())) {
+        if (auto rhs = this->watcher_accept_->simultaneous_accepts(this->config()->simultaneous_accepts())) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set simultaneous_accepts due to result - {}", rhs);
             goto err;
         }
 
-        if (auto rhs = this->watcher_accept_->keepalive(!!this->config()->keep_alive().load(), this->config()->keep_alive().load())) {
+        if (auto rhs = this->watcher_accept_->keepalive(!!this->config()->keep_alive(), this->config()->keep_alive())) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set keep-alive due to result - {}", rhs);
             goto err;
         }
@@ -117,7 +117,7 @@ void manapi::net::worker::TCP::init() {
             goto err;
         }
 
-        if (auto rhs = this->watcher_accept_->listen(this->config()->max_backlog().load())) {
+        if (auto rhs = this->watcher_accept_->listen(this->config()->max_backlog())) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't listen socket due to result - {}", rhs);
             goto err;
         }
@@ -126,6 +126,7 @@ void manapi::net::worker::TCP::init() {
 
         this->http_v2_worker = std::make_shared<net::worker::http_v2>(this->site(),
             this->bufferpool(), this->worker_data());
+        this->http_v2_worker->config(this->config());
         return;
     }
     catch (std::exception const &e) {
@@ -235,7 +236,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
         return nullptr;
     }
 
-    auto keepalive = this->config()->keep_alive().load();
+    auto keepalive = this->config()->keep_alive();
     if (auto rhs = client->keepalive(!!keepalive, keepalive)) {
         manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set keep-alive due to result - {}", rhs);
         manapi::async::current()->eventloop()->stop_watcher_tcp_connection(std::move(client), nullptr);
@@ -250,7 +251,6 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
     }
     connection->len = addrlen;
 
-    connection->buffer_size = static_cast<int>(this->config()->buffer_size().load());
 
     auto conn = connection->as<connection_interface>();
 
@@ -338,7 +338,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
 
     if (rhs != size) {
         rhs += connection_io_send (&connection->top->send, static_cast<const char *>(buff) + rhs, size - rhs, this->bufferpool().get(),
-            conn->buffer_size, &connection->top->send_size, maxcnt);
+            this->config_->buffer_size(), &connection->top->send_size, maxcnt);
 
         this->flush_write_(conn, finish);
     }
@@ -347,7 +347,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
 }
 
 ssize_t manapi::net::worker::TCP::sync_write(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish) {
-    return sync_write_ex(conn, buff, size, finish, conn->buffer_size);
+    return sync_write_ex(conn, buff, size, finish, this->config_->max_buffer_stack());
 }
 
 std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::TCP::event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) {
@@ -481,76 +481,89 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
         goto err;
     }
 
-    while (true) {
-        rhs = http::http_v2_work(http_v2_ctx, this->config(), &buffer, &nsize);
+    if (flags & ev::WRITE) {
+        if (http::http_v2_on_write(http_v2_ctx)) {
+            goto err;
+        }
+    }
 
-        switch (rhs) {
-            case http::EHTTP_V2_PROTOCOL_OK: {
-                this->close_connection(conn, true);
-                break;
-            }
-            case http::EHTTP_V1_1_PROTOCOL_WANT_READ: {
-                break;
-            }
-            case http::EHTTP_V2_PROTOCOL_ERROR: {
-                goto err;
-            }
-            case http::EHTTP_V2_IO_ERROR: {
-                goto err;
-            }
-            case http::EHTTP_V2_NEW_STREAM: {
-                /**
-                 * stream id always must be at the end
-                 * of the map (ctx->streams).
-                 **/
-                auto const s = http_v2_ctx->streams->rbegin();
-                assert((s != http_v2_ctx->streams->rend() && "At least one stream must be"));
-                auto sconn = std::make_shared<worker::connection> (http_v2_ctx->last_stream.release(), +[] (void *s)
-                    -> void {
-                    auto const p = static_cast<http::http_v2_stream_t *> (s);
-                    delete p;
-                });
+    if (flags & ev::READ) {
+        while (true) {
+            rhs = http::http_v2_work(http_v2_ctx, this->config(), &buffer, &nsize);
 
-                auto req_ptr = s->second->req.get();
-                auto cdata = std::make_unique<http::internal::handle_data_t>(sconn, this->http_v2_worker, req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
-                    [this, sconn, conn, req = std::move(s->second->req)] (bool ok)
-                    -> void {
-                        auto data = sconn->as<http::http_v2_stream_t>();
+            switch (rhs) {
+                case http::EHTTP_V2_PROTOCOL_OK: {
+                    this->close_connection(conn, true);
+                    break;
+                }
+                case http::EHTTP_V2_PROTOCOL_WANT_READ: {
+                    break;
+                }
+                case http::EHTTP_V2_PROTOCOL_ERROR: {
+                    goto err;
+                }
+                case http::EHTTP_V2_IO_ERROR: {
+                    goto err;
+                }
+                case http::EHTTP_V2_NEW_STREAM: {
+                    /**
+                     * stream id always must be at the end
+                     * of the map (ctx->streams).
+                     **/
+                    auto const s = http_v2_ctx->streams->rbegin();
+                    assert((s != http_v2_ctx->streams->rend() && "At least one stream must be"));
 
-                        if (ok) {
-                            if (this->config()->keep_alive()) {
-                                this->http_v2_worker->close_connection(sconn, true);
+                    auto const sdata = s->second->as<http::http_v2_stream_t>();
+                    auto const req_ptr = sdata->req.get();
+                    auto cdata = std::make_unique<http::internal::handle_data_t>(s->second, this->http_v2_worker,
+                        req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
+                        [this, sconn = s->second, conn, req = std::move(sdata->req)] (bool ok)
+                        -> void {
+                            auto data = sconn->as<http::http_v2_stream_t>();
+
+                            if (ok) {
+                                if (this->config()->keep_alive()) {
+                                    this->http_v2_worker->close_connection(sconn, true);
+                                }
+                                else {
+                                    this->http_v2_worker->close_connection(sconn, true);
+                                }
                             }
                             else {
-                                this->http_v2_worker->close_connection(sconn, true);
+                                /* failed */
+                                this->http_v2_worker->close_connection(sconn, false);
                             }
-                        }
-                        else {
-                            /* failed */
-                            this->http_v2_worker->close_connection(sconn, false);
-                        }
 
-                }));
+                    }));
 
-                // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
-                // this->event_flags(conn, 0);
+                    // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
+                    // this->event_flags(conn, 0);
 
-                net::http::internal::handle_income_request(std::move(cdata), this->site().handler(req_ptr), http::OK_200);
+                    net::http::internal::handle_income_request(std::move(cdata), this->site().handler(req_ptr), http::OK_200);
 
-                continue;
+                    continue;
+                }
+                default: {
+                    goto err;
+                }
             }
-            default: {
-                goto err;
-            }
+
+            break;
         }
-
-        break;
     }
 
     return;
     err: {
         this->close_connection(conn, false);
+        if (http::http_v2_on_error (http_v2_ctx)) {
+            /* error */
+        }
     }
+}
+
+bool manapi::net::worker::TCP::is_writable(const shared_conn &conn) {
+    auto const data = conn->as<connection_interface>();
+    return data->top->recv_size <= this->config_->max_buffer_stack();
 }
 
 std::string manapi::net::worker::TCP::stringify_http_info(manapi::net::http::response *res, const int &version, const std::string &delimiter) {
@@ -654,7 +667,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     this->event_flags(conn, 0);
 
                     connection_io_send(&data->top->recv, buff, size,
-                        this->bufferpool().get(), conn->buffer_size, &data->top->recv_size, 1e5);
+                        this->bufferpool().get(), this->config_->buffer_size(), &data->top->recv_size, 1e5);
 
                     net::http::internal::handle_income_request(std::move(cdata), this->site().handler(req_ptr), http::OK_200);
 
@@ -678,7 +691,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                         }
                         case http::versions::HTTP_v2: {
                             auto http2_ctx = std::make_unique<http::http_v2_t>();
-                            http2_ctx->conn = &conn;
+                            http2_ctx->conn = conn;
                             http2_ctx->worker = this;
                             http2_ctx->http_v2_worker = this->http_v2_worker;
 
@@ -689,7 +702,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                                 this->http2_work_(ctx.get(), conn, flags, buffer, nsize);
                             }));
 
-                            this->event_flags(conn, ev::READ);
+                            this->event_flags(conn, ev::READ|ev::WRITE);
 
                             break;
                         }
@@ -703,7 +716,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     }
 
                     connection_io_send(&data->top->recv, buff, size,
-                        this->bufferpool().get(), conn->buffer_size, &data->top->recv_size, 1e5);
+                        this->bufferpool().get(), this->config_->buffer_size(), &data->top->recv_size, 1e5);
 
                     break;
                 }

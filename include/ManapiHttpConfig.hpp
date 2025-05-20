@@ -59,94 +59,95 @@ namespace manapi::net::http {
         ~config ();
 
         void max_header_block_size (const size_t &s);
-        [[nodiscard]] std::atomic<size_t> &max_header_block_size ();
+        [[nodiscard]] size_t &max_header_block_size ();
 
-        [[nodiscard]] std::atomic<size_t> &partial_data_min_size ();
+        [[nodiscard]] size_t &partial_data_min_size ();
 
         bool contains_http_version (int version);
         int recommended_http_version ();
-        Atomic<std::set<int>> &http_versions ();
+        std::set<int> &http_versions ();
 
         void keep_alive (const long int &seconds);
-        [[nodiscard]] std::atomic<size_t> &keep_alive ();
+        [[nodiscard]] size_t &keep_alive ();
 
-        std::atomic<size_t> &max_connections ();
-        std::atomic<int> &max_backlog();
+        size_t &max_connections ();
+        int &max_backlog();
 
         void port (const std::string &_port);
-        [[nodiscard]] AtomicReference<std::string> port ();
+        [[nodiscard]] std::string &port ();
 
-        [[nodiscard]] AtomicReference<std::string> implementation ();
-        [[nodiscard]] AtomicReference<std::string> transport ();
-        [[nodiscard]] AtomicReference<std::string> address ();
-        [[nodiscard]] AtomicReference<std::string> quic_implement ();
-        [[nodiscard]] AtomicReference<std::string> cipher_list();
+        [[nodiscard]] std::string &implementation ();
+        [[nodiscard]] std::string &transport ();
+        [[nodiscard]] std::string &address ();
+        [[nodiscard]] std::string &quic_implement ();
+        [[nodiscard]] std::string &cipher_list();
 
-        [[nodiscard]] std::atomic<size_t> &tls_version ();
+        [[nodiscard]] size_t &tls_version ();
 
-        [[nodiscard]] std::atomic<bool> &is_quic_debug ();
+        [[nodiscard]] bool &is_quic_debug ();
 
-        [[nodiscard]] std::atomic<size_t> &quic_cc_algo ();
+        [[nodiscard]] size_t &quic_cc_algo ();
 
-        [[nodiscard]] std::atomic<size_t> &max_buffer_stack ();
+        [[nodiscard]] size_t &max_buffer_stack ();
 
-        std::atomic<ssize_t> &max_rst_cnt ();
-        std::atomic<ssize_t> &speed_check_delay ();
-        std::atomic<ssize_t> &speed_check_bytes ();
-        std::atomic<ssize_t> &speed_limit_rate ();
+        ssize_t &max_rst_cnt ();
+        ssize_t &speed_check_delay ();
+        ssize_t &speed_check_bytes ();
+        ssize_t &speed_limit_rate ();
 
-        AtomicReference<ssl_config_t> ssl_config ();
+        ssl_config_t &ssl_config ();
 
         void server_address (const sockaddr &addr);
-        AtomicReference<sockaddr> server_address ();
+        sockaddr &server_address ();
         void server_len (const size_t &len);
-        [[nodiscard]] std::atomic<socklen_t> &server_len ();
+        [[nodiscard]] socklen_t &server_len ();
 
         [[nodiscard]] bool contains_compressor (const std::string &name);
         void function_contains_compressor (std::move_only_function<bool(const std::string &name)> func);
 
         static const std::string &stringify_http_version (const int &version);
+
         static http::versions::http parse_http_version (const std::string &version);
 
-        std::atomic<bool> &tcp_no_delay ();
+        bool &tcp_no_delay ();
 
-        std::atomic<bool> &simultaneous_accepts ();
+        bool &simultaneous_accepts ();
 
-        std::atomic<bool> &verify_peer ();
+        bool &verify_peer ();
 
-        std::atomic<ssize_t> &buffer_size ();
+        ssize_t &buffer_size ();
     private:
         // settings
-        std::atomic<bool> simultaneous_accepts_;
-        std::atomic<bool> quic_debug_;
-        std::atomic<size_t> quic_cc_algo_;
-        std::atomic<size_t> tls_version_;
-        std::atomic<size_t> max_header_block_size_;
-        std::atomic<size_t> partial_data_min_size_;
-        Atomic<std::set<int>> http_versions_ = {};
-        Atomic<std::string> address_;
-        Atomic<std::string> port_;// settings
-        Atomic<std::string> implementation_;
-        Atomic<std::string> transport_;
-        std::atomic<size_t> max_buffer_stack_;
-        std::atomic<size_t> keep_alive_;
-        Atomic<sockaddr> server_addr_;
-        std::atomic<socklen_t> server_len_;
-        std::atomic<size_t> max_plain_param_length_;
-        std::atomic<size_t> max_file_param_length_;
-        std::atomic<size_t> max_connections_;
-        std::atomic<int> max_backlog_;
-        std::atomic<ssize_t> buffer_size_;
-        std::atomic<ssize_t> max_rst_cnt_;
-        std::atomic<ssize_t> speed_check_delay_;
+        bool simultaneous_accepts_;
+        bool quic_debug_;
+        size_t quic_cc_algo_;
+        size_t tls_version_;
+        size_t max_header_block_size_;
+        size_t partial_data_min_size_;
+        std::set<int> http_versions_ = {};
+        std::string address_;
+        std::string port_;// settings
+        std::string implementation_;
+        std::string transport_;
+        size_t max_buffer_stack_;
+        size_t keep_alive_;
+        sockaddr server_addr_;
+        socklen_t server_len_;
+        size_t max_plain_param_length_;
+        size_t max_file_param_length_;
+        size_t max_connections_;
+        int max_backlog_;
+        ssize_t buffer_size_;
+        ssize_t max_rst_cnt_;
+        ssize_t speed_check_delay_;
         /* 80KB */
-        std::atomic<ssize_t> speed_check_bytes_;
+        ssize_t speed_check_bytes_;
         /* 2000 MB */
-        std::atomic<ssize_t> speed_limit_rate_;
-        Atomic<ssl_config_t> ssl_config_;
-        std::atomic<bool> tcp_no_delay_;
-        std::atomic<bool> verify_peer_;
+        ssize_t speed_limit_rate_;
+        ssl_config_t ssl_config_;
+        bool tcp_no_delay_;
+        bool verify_peer_;
         std::move_only_function<bool(const std::string &name)> function_contains_compressor_ = nullptr;
-        Atomic<std::string> cipher_list_;
+        std::string cipher_list_;
     };
 }

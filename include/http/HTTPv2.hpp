@@ -52,7 +52,7 @@ namespace manapi::net::http {
     };
 
     struct http_v2_t {
-        worker::shared_conn const *conn;
+        worker::shared_conn conn;
         worker::base *worker;
         std::shared_ptr<worker::http_v2> http_v2_worker;
 
@@ -77,12 +77,10 @@ namespace manapi::net::http {
         std::unique_ptr<http_v2_settings_t> client;
         std::unique_ptr<http_v2_settings_t> server;
 
-        std::unique_ptr<std::map<int, http_v2_stream_t *>> streams;
+        std::unique_ptr<std::map<int, worker::shared_conn>> streams;
 
         std::unique_ptr<manapi::compress::hpack::decoder_t> decoder;
         std::unique_ptr<manapi::compress::hpack::encoder_t> encoder;
-
-        std::unique_ptr<http_v2_stream_t> last_stream;
     };
 
     enum http_v2_errs {
@@ -93,6 +91,8 @@ namespace manapi::net::http {
         EHTTP_V2_NEW_STREAM
     };
 
+    int http_v2_on_error (http_v2_t *ctx);
+    int http_v2_on_write (http_v2_t *ctx);
     int http_v2_work (http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize);
     ssize_t http_v2_write (http_v2_stream_t *s, const void *buffer, ssize_t size, bool finish);
     manapi::future<ssize_t> http_v2_response (worker::base *worker, const worker::shared_conn &connection, http_v2_stream_t *s, int status, std::map<std::string, std::string> headers, bool finish);

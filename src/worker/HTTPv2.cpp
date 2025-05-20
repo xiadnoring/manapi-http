@@ -48,6 +48,11 @@ void manapi::net::worker::http_v2::init() {
 
 }
 
+bool manapi::net::worker::http_v2::is_writable(const shared_conn &conn) {
+    auto const s = conn->as<http::http_v2_stream_t>();
+    return s->write_window && s->ctx->write_window;
+}
+
 bool manapi::net::worker::http_v2::is_valid_connection(worker::connection *connection) {
     return true;
 }
@@ -57,7 +62,7 @@ void manapi::net::worker::http_v2::stop() {
 }
 
 ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
-    return sync_write_ex (conn, buff, size, finish, static_cast<int>(this->config()->max_buffer_stack().load()));
+    return sync_write_ex (conn, buff, size, finish, static_cast<int>(this->config()->max_buffer_stack()));
 }
 
 ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {

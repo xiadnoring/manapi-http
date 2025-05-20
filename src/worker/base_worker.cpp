@@ -49,7 +49,10 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
                     }
 
                     if (flags & ev::WRITE) {
-                        resolve(this->sync_write(conn, buff, size, finish));
+                        auto const rhs = this->sync_write(conn, buff, size, finish);
+                        if (rhs) {
+                            resolve(rhs);
+                        }
                         return;
                     }
                 }

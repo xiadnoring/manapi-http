@@ -31,6 +31,8 @@ namespace manapi::net::worker {
 
         void init() override;
 
+        bool is_writable(const shared_conn &conn) override;
+
         bool is_valid_connection(worker::connection *connection) override;
 
         void stop() override;
