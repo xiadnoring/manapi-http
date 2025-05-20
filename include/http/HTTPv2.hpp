@@ -81,6 +81,9 @@ namespace manapi::net::http {
 
         std::unique_ptr<manapi::compress::hpack::decoder_t> decoder;
         std::unique_ptr<manapi::compress::hpack::encoder_t> encoder;
+
+        manapi::timer timeout;
+        std::unique_ptr<std::set<std::string>> pings;
     };
 
     enum http_v2_errs {
@@ -91,7 +94,7 @@ namespace manapi::net::http {
         EHTTP_V2_NEW_STREAM
     };
 
-    int http_v2_on_error (http_v2_t *ctx);
+    int http_v2_on_close (http_v2_t *ctx);
     int http_v2_on_write (http_v2_t *ctx);
     int http_v2_work (http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize);
     ssize_t http_v2_write (http_v2_stream_t *s, const void *buffer, ssize_t size, bool finish);

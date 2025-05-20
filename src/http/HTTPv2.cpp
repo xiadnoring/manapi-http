@@ -106,6 +106,7 @@ struct http_v2_goaway_t {
 static constexpr char smlabel[] = "\r\n\r\nSM\r\n";
 static constexpr int maxcnt = 1e9;
 
+
 std::map <int, manapi::json_mask> allow_settings {
         {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
         {HTTP2_SETTING_ENABLE_PUSH, manapi::json{"{integer(>=0 <=1)}"}},
@@ -193,7 +194,7 @@ int http_v2_send_window_frame (manapi::net::http::http_v2_t *ctx,  int stream_id
      *
      */
 
-    if (!size || (size & 0x8000)) {
+    if (!size || (size & 0x80000000)) {
         /**
          * RFC9113 (6.9) WINDOW_UPDATE
          *
@@ -215,7 +216,7 @@ int http_v2_send_window_frame (manapi::net::http::http_v2_t *ctx,  int stream_id
     return http_v2_send_frame(ctx,  HTTP2_FRAME_WINDOW_UPDATE, 0, stream_id, &buff, 1);
 }
 
-int http_v2_send_ping_frame (manapi::net::http::http_v2_t *ctx, manapi::net::worker::shared_conn *conn, char *data) {
+int http_v2_send_ping_frame (manapi::net::http::http_v2_t *ctx, char *data) {
     if (data) {
         manapi::ev::buff_t const buf = {.base = data, .len = 8};
 
@@ -224,9 +225,15 @@ int http_v2_send_ping_frame (manapi::net::http::http_v2_t *ctx, manapi::net::wor
         }
     }
     else {
-        if (http_v2_send_frame(ctx, HTTP2_FRAME_PING, 0, 0, nullptr, 0)) {
+        auto s = manapi::crypto::random_string(8);
+        if (!ctx->pings) {
+            ctx->pings = std::make_unique<decltype(ctx->pings)::element_type>();
+        }
+        manapi::ev::buff_t const buf = {.base = s.data(), .len = 8};
+        if (http_v2_send_frame(ctx, HTTP2_FRAME_PING, 0, 0, &buf, 1)) {
             return -1;
         }
+        ctx->pings->insert(std::move(s));
     }
 
     return 0;
@@ -280,13 +287,45 @@ int http_v2_apply_setting (manapi::net::http::http_v2_t *ctx, int key, int value
             settings->settings_enable_connect_protocol = value;
         break;
         default:
+            /**
+             * RFC9113 (6.5.3) Settings Synchronization
+             *
+             * Unsupported settings MUST be ignored.
+             */
             break;
     }
 
     return 0;
 }
 
+int http_v2_send_goaway (manapi::net::http::http_v2_t *ctx, http_v2_goaway_t *http_goaway) {
+    manapi::ev::buff_t data[2];
+    char nums[8];
+
+    data[0].base = nums;
+    data[0].len = sizeof (nums);
+
+    data[1].base = http_goaway->err_msg.data();
+    data[1].len = http_goaway->err_msg.size();
+
+    stringify_number<int> (ctx->last_stream_id, data[0].base);
+    stringify_number<int>(http_goaway->err_code, data[0].base + 4);
+
+    manapi::async::current()->logger()->debug(manapi::logger::default_service, "HTTP2: GOAWAY SEND. "
+                                                                                    "err code: {}, stream id: {}, msg: {}", http_goaway->err_code, ctx->last_stream_id, http_goaway->err_msg);
+
+    if (auto rhs = http_v2_send_frame(ctx, HTTP2_FRAME_GOAWAY, 0, 0, data, 2)) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<std::pair<short, int>> & options) {
+    if (ctx->timeout) {
+        return -1;
+    }
+
     size_t const len = options.size() * 6;
     char buffer[len];
     for (int i = 0; i < options.size(); ++i) {
@@ -298,7 +337,22 @@ int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<
         stringify_number<int>(options[i].second, buffer + i * 6 + 2);
     }
     manapi::ev::buff_t const bufs = {.base = buffer, .len = len};
-    return http_v2_send_frame(ctx, HTTP2_FRAME_SETTINGS, 0, 0, &bufs, 1);
+    if (http_v2_send_frame(ctx, HTTP2_FRAME_SETTINGS, 0, 0, &bufs, 1)) {
+        return -1;
+    }
+
+    ctx->timeout = manapi::async::current()->timerpool()->append_timer_sync(3000,
+        [ctx] (manapi::timer t) -> void {
+            http_v2_goaway_t http_goaway = {
+                .err_code = HTTP2_ERROR_SETTINGS_TIMEOUT,
+                .err_msg = "SETTINGS timeout"
+            };
+
+            auto const rhs = http_v2_send_goaway (ctx, &http_goaway);
+            ctx->worker->feed_event(ctx->conn, manapi::ev::DISCONNECT, nullptr, 0);
+    });
+
+    return 0;
 }
 
 int http_v2_flush_recv (manapi::net::http::http_v2_stream_t *s) {
@@ -324,7 +378,12 @@ int http_v2_flush_recv (manapi::net::http::http_v2_stream_t *s) {
     return 0;
 }
 
-int manapi::net::http::http_v2_on_error(http_v2_t *ctx) {
+int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
+    if (ctx->timeout) {
+        ctx->timeout.stop();
+        ctx->timeout = nullptr;
+    }
+
     for (const auto &s : *ctx->streams) {
         auto const data = s.second->as<http_v2_stream_t>();
         data->flags |= ev::DISCONNECT;
@@ -356,666 +415,738 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
     auto &buffer = *nbuffer;
     auto &size = *nsize;
 
-    while (pos != size) {
-        switch(ctx->current) {
-            case HTTP2_CALLBACK_INIT: {
-                ctx->current = HTTP2_CALLBACK_SKIP_MSG;
-                ctx->next = HTTP2_CALLBACK_ERROR;
-
-
-                ctx->last_stream_id = 0;
-                ctx->n1 = 0;
-                ctx->n2 = 0;
-                ctx->pos1 = 0;
-
-                ctx->read_window = 65535;
-                ctx->write_window = 65535;
-
-                ctx->server = std::make_unique<http_v2_settings_t>();
-                ctx->client = std::make_unique<http_v2_settings_t>();
-
-                ctx->decoder = std::make_unique<decltype(ctx->decoder)::element_type>();
-                ctx->encoder = std::make_unique<decltype(ctx->encoder)::element_type>();
-
-                ctx->server->header_table_size = 4096;
-                ctx->server->enable_push = 1;
-                ctx->server->max_concurret_streams = std::numeric_limits<int>::max();
-                ctx->server->initial_window_size = 65535;
-                ctx->server->max_frame_size = 16384;
-                ctx->server->max_header_list_size = std::numeric_limits<int>::max();
-                ctx->server->settings_no_rfc7540_priorities = 0;
-                ctx->server->settings_enable_metadata = 0;
-                ctx->server->settings_enable_connect_protocol = 0;
-                ctx->server->tls_reneg_permitted = 0;
-
-                *ctx->client = *ctx->server;
-
-                ctx->encoder->max_table_size(ctx->server->header_table_size);
-                ctx->decoder->m_dynamic_max(ctx->client->header_table_size);
-
-                ctx->streams = std::make_unique<decltype(ctx->streams)::element_type>();
-
-                if (http_v2_send_settings(ctx, {
-                    {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, 1},
-                    {HTTP2_SETTING_ENABLE_PUSH, 0},
-                    {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, 100},
-                    {HTTP2_SETTING_MAX_HEADER_LIST_SIZE,  65000},
-                    {HTTP2_SETTING_INITIAL_WINDOW_SIZE, 65535}
-                })) {
-                    return EHTTP_V2_PROTOCOL_ERROR;
-                }
-
-                break;
-            }
-            case HTTP2_CALLBACK_NEXT_LINE: {
-                if (buffer[pos] == '\r') {
-                    ctx->current = HTTP2_CALLBACK_NEXT_LINE2;
-                    pos++;
-                    break;
-                }
-                return EHTTP_V2_PROTOCOL_ERROR;
-            }
-            case HTTP2_CALLBACK_NEXT_LINE2: {
-                if (buffer[pos] == '\n') {
-                    ctx->current = ctx->next;
-                    ctx->next = HTTP2_CALLBACK_ERROR;
-                    pos++;
-                    break;
-                }
-                return EHTTP_V2_PROTOCOL_ERROR;
-            }
-            case HTTP2_CALLBACK_SKIP_MSG: {
-                while (pos != size) {
-                    if (buffer[pos] != smlabel[ctx->pos1]) {
-                        ctx->pos1 = 0;
-                        http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
-                        http_goaway.err_msg = "invalid sm label";
-                        ctx->current = HTTP2_CALLBACK_GOAWAY;
-                        break;
-                    }
-
-                    if (++pos == sizeof (smlabel) - 1) {
-                        ctx->next = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                        ctx->current = HTTP2_CALLBACK_NEXT_LINE;
-                        ctx->pos1 = 0;
-
-                        break;
-                    }
-                    ctx->pos1++;
-                }
-
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_HEADER_LENGTH: {
-                while (pos != size) {
-                    ctx->frame_length = static_cast<unsigned int>((static_cast<unsigned int>(ctx->frame_length << 8)
-                        | static_cast<unsigned char>(buffer[pos++])));
-
-                    /* 3 chars only */
-                    if (++ctx->pos1 == 3) {
-                        ctx->current = HTTP2_CALLBACK_PARSE_HEADER_TYPE;
-                        ctx->pos1 = 0;
-                        break;
-                    }
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_NEW_FRAME: {
-                ctx->frame_length = 0;
-                ctx->frame_stream_id = 0;
-                ctx->frame_buffer.clear();
-
-                ctx->current = HTTP2_CALLBACK_PARSE_HEADER_LENGTH;
-
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_HEADER_TYPE:
-                ctx->frame_type = static_cast<int>(static_cast<unsigned char> (buffer[pos++]));
-                ctx->current = HTTP2_CALLBACK_PARSE_HEADER_FLAG;
-                break;
-            case HTTP2_CALLBACK_SKIP_NULL_OCTECTS: {
-                while (pos != size) {
-                    ctx->current = ctx->next;
+    try {
+        while (pos != size) {
+            switch(ctx->current) {
+                case HTTP2_CALLBACK_INIT: {
+                    ctx->current = HTTP2_CALLBACK_SKIP_MSG;
                     ctx->next = HTTP2_CALLBACK_ERROR;
 
-                    if (buffer[pos] == '\0') {
-                        pos++;
-                        break;
-                    }
 
-                    perror(("bug"));
-
-                    break;
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_HEADER_STREAM_ID: {
-                while (pos != size) {
-                    ctx->frame_stream_id = static_cast< int>((static_cast<unsigned int>(ctx->frame_stream_id << 8)
-                        | static_cast<unsigned char>(buffer[pos++])));
-
-                    if (++ctx->pos1 == 4) {
-                        // STREAM ID
-
-                        // Reserved (1),
-                        // Stream Identifier (31)
-
-                        ctx->frame_stream_id = ctx->frame_stream_id & 0x7FFFFFFF; // 31
-                        ctx->pos1 = 0;
-
-                        if (ctx->frame_flag & HTTP2_FLAG_HEADERS_PRIORITY) {
-                            //deprecated
-                            ctx->n1 = 5; // skip 5 bytes
-
-                            ctx->current = HTTP2_CALLBACK_PARSE_SKIP_N_BYTES;
-                            ctx->next = HTTP2_CALLBACK_PARSE_FIELD_BLOCK;
-                        }
-                        else {
-                            ctx->current = HTTP2_CALLBACK_PARSE_FIELD_BLOCK;
-                        }
-
-                        break;
-                    }
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_HEADER_FLAG:
-
-                ctx->frame_flag = static_cast<int>(static_cast<unsigned char>(buffer[pos++]));
-                ctx->current = HTTP2_CALLBACK_PARSE_HEADER_STREAM_ID;
-            break;
-            case HTTP2_CALLBACK_PARSE_GOAWAY_LAST_STREAM_ID: {
-                while (pos != size) {
-                    ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
-                    if (++ctx->pos1 == 4) {
-                        ctx->n2 = static_cast<int> (ctx->n1 & 0x7FFFFFFF);
-                        ctx->n1 = 0;
-                        ctx->pos1 = 0;
-                        ctx->frame_length -= 4;
-                        ctx->current = HTTP2_CALLBACK_PARSE_GOAWAY_ERROR_CODE;
-                        break;
-                    }
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_GOAWAY_ERROR_CODE: {
-                while (pos != size) {
-                    ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
-                    if (++ctx->pos1 == 4) {
-                        ctx->pos1 = 0;
-                        ctx->current = HTTP2_CALLBACK_PARSE_GOAWAY_ADDITIONAL_DATA;
-                        ctx->frame_length -= 4;
-                        break;
-                    }
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_GOAWAY_ADDITIONAL_DATA: {
-                auto const copy = std::min(static_cast<ssize_t>(ctx->frame_length), size - pos);
-                ctx->frame_buffer.append(buffer + pos, copy);
-
-                pos += copy;
-                ctx->frame_length -= copy;
-
-                if (!ctx->frame_length) {
-                    /*
-                     * connection was closed
-                     * n1 - error code
-                     * n2 - last stream id
-                     * frame_buffer - additional debug data
-                     */
-
-                    ctx->current = HTTP2_CALLBACK_FINISH;
-
-                    /* TODO: close connection */
-
-                    manapi::async::current()->logger()->debug(manapi::logger::default_service, "HTTP2: GOAWAY RECV. "
-                                                                                               "err code: {}, stream id: {}, msg: {}", ctx->n1, ctx->n2, ctx->frame_buffer);
-
+                    ctx->last_stream_id = 0;
                     ctx->n1 = 0;
                     ctx->n2 = 0;
-                    ctx->frame_buffer.clear();
+                    ctx->pos1 = 0;
 
-                    return EHTTP_V2_PROTOCOL_OK;
-                }
+                    ctx->read_window = 65535;
+                    ctx->write_window = 65535;
 
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_WINDOW_UPDATE_VALUE: {
-                while (pos != size) {
-                    ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
-                    if (++ctx->pos1 == 4) {
-                        ctx->pos1 = 0;
-                        ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                        ctx->frame_length -= 4;
+                    ctx->server = std::make_unique<http_v2_settings_t>();
+                    ctx->client = std::make_unique<http_v2_settings_t>();
 
-                        /**
-                         * n1 - Length
-                         */
+                    ctx->decoder = std::make_unique<decltype(ctx->decoder)::element_type>();
+                    ctx->encoder = std::make_unique<decltype(ctx->encoder)::element_type>();
 
+                    ctx->server->header_table_size = 4096;
+                    ctx->server->enable_push = 1;
+                    ctx->server->max_concurret_streams = std::numeric_limits<int>::max();
+                    ctx->server->initial_window_size = 65535;
+                    ctx->server->max_frame_size = 16384;
+                    ctx->server->max_header_list_size = std::numeric_limits<int>::max();
+                    ctx->server->settings_no_rfc7540_priorities = 0;
+                    ctx->server->settings_enable_metadata = 0;
+                    ctx->server->settings_enable_connect_protocol = 0;
+                    ctx->server->tls_reneg_permitted = 0;
 
-                        if (!ctx->n1) {
-                            /**
-                             * RFC9113 (6.9) WINDOW_UPDATE
-                             *
-                             * A receiver MUST treat the receipt of a WINDOW_UPDATE frame
-                             * with a flow-control window increment of 0 as a stream
-                             * error (Section 5.4.2) of type PROTOCOL_ERROR;
-                             * errors on the connection flow-control window MUST be treated
-                             * as a connection error (Section 5.4.1).
-                             */
+                    *ctx->client = *ctx->server;
 
-                            http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
-                            http_goaway.err_msg = "invalid WINDOW_UPDATE";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            break;
-                        }
+                    ctx->encoder->max_table_size(ctx->server->header_table_size);
+                    ctx->decoder->m_dynamic_max(ctx->client->header_table_size);
 
-                        if (ctx->frame_stream_id) {
-                            auto const s = ctx->streams->find(ctx->frame_stream_id);
-                            auto const sdata = s->second->as<http_v2_stream_t>();
+                    ctx->streams = std::make_unique<decltype(ctx->streams)::element_type>();
 
-                            if (s == ctx->streams->end()) {
-                                ctx->n1 = 0;
-                                http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
-                                http_goaway.err_msg = "stream id is invalid";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                break;
-                            }
-
-                            sdata->write_window += ctx->n1;
-                            if (sdata->write_window == ctx->n1
-                                && (sdata->flags & ev::WRITE)
-                                && (sdata->ev_callback)) {
-                                sdata->ev_callback->operator()(s->second, ev::WRITE, nullptr, 0);
-                            }
-                        }
-                        else {
-                            ctx->write_window += static_cast<int>(ctx->n1);
-                            if (ctx->write_window == ctx->n1) {
-                                for (const auto &s : *ctx->streams) {
-                                    auto const sdata = s.second->as<http_v2_stream_t>();
-                                    if ((sdata->flags & ev::WRITE)
-                                        && (sdata->ev_callback)) {
-                                        sdata->ev_callback->operator()(s.second, ev::WRITE, nullptr, 0);
-                                    }
-                                }
-                            }
-                        }
-
-                        ctx->n1 = 0;
-                        break;
-                    }
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_RST_STREAM_ACTION: {
-                while (pos != size) {
-                    ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
-                    if (++ctx->pos1 == 4) {
-                        ctx->pos1 = 0;
-                        ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                        ctx->frame_length -= 4;
-
-                        /**
-                         * n1 - error code
-                         */
-
-                        if (ctx->n1 >= HTTP2_ERROR_NO_ERROR
-                            && ctx->n1 <= HTTP2_ERROR_HTTP_1_1_REQUIRED) {
-                            auto s = ctx->streams->find(ctx->frame_stream_id);
-                            if (s == ctx->streams->end()) {
-
-                            }
-                            else {
-                                auto const sdata = s->second->as<http_v2_stream_t>();
-                                sdata->flags |= ev::DISCONNECT;
-
-                                if (sdata->ev_callback) {
-                                    sdata->ev_callback->operator()(s->second, ev::DISCONNECT, nullptr, 0);
-                                }
-                            }
-                        }
-
-                        ctx->n1 = 0;
-                        break;
-                    }
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_PING_DATA : {
-                auto const copy = std::min(static_cast<ssize_t> (ctx->frame_length), size - pos);
-                ctx->frame_buffer.append(buffer + pos, copy);
-                pos += copy;
-                ctx->frame_length -= copy;
-                if (!ctx->frame_length) {
-
-                    ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                    ctx->frame_buffer.clear();
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_SETTING_ID: {
-                while (pos != size) {
-                    ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
-                    if (++ctx->pos1 == 2) {
-                        ctx->pos1 = 0;
-                        ctx->current = HTTP2_CALLBACK_PARSE_SETTING_VALUE;
-                        ctx->frame_length -= 2;
-
-                        break;
-                    }
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_SETTING_VALUE: {
-                while (pos != size) {
-                    ctx->n2 = static_cast<int>((static_cast<unsigned int>(ctx->n2 << 8) | static_cast<unsigned char>(buffer[pos++])));
-                    if (++ctx->pos1 == 4) {
-                        ctx->pos1 = 0;
-                        ctx->frame_length -= 4;
-
-                        /**
-                         * n1 - setting id
-                         * n2 - setting value
-                         */
-
-                        if (http_v2_apply_setting(ctx, static_cast<short> (ctx->n1), ctx->n2, false)) {
-                            ctx->n1 = 0;
-                            ctx->n2 = 0;
-                            http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
-                            http_goaway.err_msg = "setting is invalid";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            break;
-                        }
-
-                        if (ctx->frame_length) {
-                            ctx->current = HTTP2_CALLBACK_PARSE_SETTING_ID;
-                        }
-                        else {
-                            ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-
-                            /* send ack frame */
-                            if (http_v2_send_frame(ctx, HTTP2_FRAME_SETTINGS, HTTP2_FLAG_SETTINGS_ACK, 0, nullptr, 0)) {
-                                return EHTTP_V2_PROTOCOL_ERROR;
-                            }
-                        }
-
-                        ctx->n1 = 0;
-                        ctx->n2 = 0;
-                        break;
-                    }
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_HEADER_DATA : {
-                /**
-                 * n2 - padding size
-                 */
-                auto datasize = ctx->frame_length - static_cast<ssize_t>(ctx->n2);
-
-                const auto cutsize = std::min(static_cast<ssize_t>(size - pos), datasize);
-                ctx->frame_buffer.append(buffer + pos, cutsize);
-                ctx->frame_length -= cutsize;
-                pos += cutsize;
-
-                if (datasize == cutsize) {
-                    auto s = ctx->streams->end();
-                    http_v2_stream_t *sdata = nullptr;
-
-                    if (ctx->frame_type == HTTP2_FRAME_HEADERS) {
-                        s = ctx->streams->find(ctx->frame_stream_id);
-                        if (s == ctx->streams->end()) {
-                            auto sptr = std::make_unique<http_v2_stream_t>(
-                                ctx->frame_stream_id,
-                                0,
-                                ctx,
-                                ctx->client->initial_window_size,
-                                ctx->server->initial_window_size,
-                                nullptr,
-                                0,
-                                nullptr,
-                                nullptr
-                            );
-
-                            auto sconn = std::make_shared<worker::connection> (sptr.release(), +[] (void *s)
-                                -> void {
-                                auto const p = static_cast<http::http_v2_stream_t *> (s);
-                                delete p;
-                            });
-
-                            s = ctx->streams->insert({ctx->frame_stream_id, std::move(sconn)}).first;
-                            sdata = s->second->as<http_v2_stream_t>();
-                            sdata->req = std::make_unique<request_data_t>();
-                            sdata->recv = std::make_unique<worker::base::connection_io_part>();
-                        }
-                        else {
-                            http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
-                            http_goaway.err_msg = "CONTINUATION frame instead of HEADERS frame";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            break;
-                        }
-
-                    }
-
-                    bool const flg = ctx->frame_flag & HTTP2_FLAG_HEADERS_END_HEADERS;
-
-                    if (flg) {
-
-                        if (!ctx->decoder->decode(ctx->frame_buffer)) {
-                            http_goaway.err_code = HTTP2_ERROR_INTERNAL_ERROR;
-                            http_goaway.err_msg = "hpack: failed to decode headers";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            break;
-                        }
-
-                        ctx->frame_buffer.clear();
-
-                        if (s == ctx->streams->end()) {
-                            s = ctx->streams->find(ctx->frame_stream_id);
-
-                            if (s == ctx->streams->end()) {
-                                http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
-                                http_goaway.err_msg = "stream doesn't exists";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                break;
-                            }
-
-                            sdata = s->second->as<http_v2_stream_t>();
-                        }
-
-                        auto headers = ctx->decoder->headers();
-                        while (!headers.empty()) {
-                            auto it = headers.begin();
-                            auto value = std::move(it->second);
-                            auto node = headers.extract(it);
-                            auto &key = node.key();
-                            for (auto &c : key) {
-                                c = static_cast<char>(std::tolower(c));
-                            }
-                            sdata->req->headers.insert({std::move(key), std::move(value)});
-                        }
-
-                        sdata->req->http = http::versions::HTTP_v2;
-                        auto hv = sdata->req->headers.extract(":method");
-                        sdata->req->method = std::move(hv.mapped());
-
-                        hv = sdata->req->headers.extract(":path");
-                        sdata->req->uri = std::move(hv.mapped());
-
-                        url_decode_stream url_decoder;
-
-                        if (auto rhs = url_decoder << sdata->req->uri) {
-                            return EHTTP_V2_PROTOCOL_ERROR;
-                        }
-
-                        sdata->req->path = url_decoder.result();
-                        sdata->req->divided = url_decoder.divided();
-                    }
-
-                    if (ctx->n2) {
-                        ctx->n1 = ctx->n2;
-                        ctx->n2 = 0;
-                        ctx->frame_length -= ctx->n1;
-                        ctx->current = HTTP2_CALLBACK_PARSE_SKIP_N_BYTES;
-                        ctx->next = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                    }
-                    else {
-                        ctx->n1 = 0;
-                        ctx->n2 = 0;
-                        ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                    }
-
-                    if (flg) {
-                        buffer += pos;
-                        size -= pos;
-                        pos = 0;
-
-                        return EHTTP_V2_NEW_STREAM;
-                    }
-                }
-
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_BODY_DATA : {
-                auto datasize = ctx->frame_length - ctx->n2;
-                const auto cutsize = std::min(static_cast<int>(size - pos), static_cast<int>(datasize));
-
-                {
-                    //MANAPIHTTP_LOG("RECV DATA {}", len);
-
-                    auto s = ctx->streams->find(ctx->frame_stream_id);
-                    if (s == ctx->streams->end()) {
-                        http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
-                        http_goaway.err_msg = "stream doesn't exists";
-                        ctx->current = HTTP2_CALLBACK_GOAWAY;
-                        break;
-                    }
-                    auto const sdata = s->second->as<http_v2_stream_t>();
-
-                    if (sdata->read_window < cutsize || ctx->read_window < cutsize) {
-                        http_goaway.err_code = HTTP2_ERROR_FLOW_CONTROL_ERROR;
-                        http_goaway.err_msg = "read buffer overflow";
-                        ctx->current = HTTP2_CALLBACK_GOAWAY;
-                        break;
-                    }
-
-                    sdata->read_window -= cutsize;
-                    ctx->read_window -= cutsize;
-
-
-                    auto bs = config->buffer_size();
-
-                    /**
-                     * recv data
-                     */
-                    if (http_v2_flush_recv (sdata)) {
+                    if (http_v2_send_settings(ctx, {
+                        {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, 1},
+                        {HTTP2_SETTING_ENABLE_PUSH, 0},
+                        {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, 100},
+                        {HTTP2_SETTING_MAX_HEADER_LIST_SIZE,  65000},
+                        {HTTP2_SETTING_INITIAL_WINDOW_SIZE, 65535}
+                    })) {
                         return EHTTP_V2_PROTOCOL_ERROR;
                     }
 
-                    if ((sdata->flags & ev::READ) && sdata->ev_callback) {
-                        sdata->ev_callback->operator()(s->second, ev::READ, buffer + pos, size - pos);
+                    break;
+                }
+                case HTTP2_CALLBACK_NEXT_LINE: {
+                    if (buffer[pos] == '\r') {
+                        ctx->current = HTTP2_CALLBACK_NEXT_LINE2;
+                        pos++;
+                        break;
                     }
-                    else {
-                        auto const copy = size - pos;
-                        if (copy != worker::base::connection_io_send(sdata->recv.get(), buffer + pos,
-                            copy, sdata->ctx->worker->bufferpool().get(), bs, &sdata->recv_size, maxcnt)) {
+                    return EHTTP_V2_PROTOCOL_ERROR;
+                }
+                case HTTP2_CALLBACK_NEXT_LINE2: {
+                    if (buffer[pos] == '\n') {
+                        ctx->current = ctx->next;
+                        ctx->next = HTTP2_CALLBACK_ERROR;
+                        pos++;
+                        break;
+                    }
+                    return EHTTP_V2_PROTOCOL_ERROR;
+                }
+                case HTTP2_CALLBACK_SKIP_MSG: {
+                    while (pos != size) {
+                        if (buffer[pos] != smlabel[ctx->pos1]) {
+                            ctx->pos1 = 0;
+                            http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                            http_goaway.err_msg = "invalid sm label";
+                            ctx->current = HTTP2_CALLBACK_GOAWAY;
+                            break;
+                        }
+
+                        if (++pos == sizeof (smlabel) - 1) {
+                            ctx->next = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                            ctx->current = HTTP2_CALLBACK_NEXT_LINE;
+                            ctx->pos1 = 0;
+
+                            break;
+                        }
+                        ctx->pos1++;
+                    }
+
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_HEADER_LENGTH: {
+                    while (pos != size) {
+                        ctx->frame_length = static_cast<unsigned int>((static_cast<unsigned int>(ctx->frame_length << 8)
+                            | static_cast<unsigned char>(buffer[pos++])));
+
+                        /* 3 chars only */
+                        if (++ctx->pos1 == 3) {
+                            ctx->current = HTTP2_CALLBACK_PARSE_HEADER_TYPE;
+                            ctx->pos1 = 0;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_NEW_FRAME: {
+                    ctx->frame_length = 0;
+                    ctx->frame_stream_id = 0;
+                    ctx->frame_buffer.clear();
+
+                    ctx->current = HTTP2_CALLBACK_PARSE_HEADER_LENGTH;
+
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_HEADER_TYPE:
+                    ctx->frame_type = static_cast<int>(static_cast<unsigned char> (buffer[pos++]));
+                ctx->current = HTTP2_CALLBACK_PARSE_HEADER_FLAG;
+                break;
+                case HTTP2_CALLBACK_SKIP_NULL_OCTECTS: {
+                    while (pos != size) {
+                        ctx->current = ctx->next;
+                        ctx->next = HTTP2_CALLBACK_ERROR;
+
+                        if (buffer[pos] == '\0') {
+                            pos++;
+                            break;
+                        }
+
+                        perror(("bug"));
+
+                        break;
+                    }
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_HEADER_STREAM_ID: {
+                    while (pos != size) {
+                        ctx->frame_stream_id = static_cast< int>((static_cast<unsigned int>(ctx->frame_stream_id << 8)
+                            | static_cast<unsigned char>(buffer[pos++])));
+
+                        if (++ctx->pos1 == 4) {
+                            // STREAM ID
+
+                            // Reserved (1),
+                            // Stream Identifier (31)
+
+                            ctx->frame_stream_id = ctx->frame_stream_id & 0x7FFFFFFF; // 31
+                            ctx->pos1 = 0;
+
+                            if (ctx->frame_flag & HTTP2_FLAG_HEADERS_PRIORITY) {
+                                //deprecated
+                                ctx->n1 = 5; // skip 5 bytes
+
+                                ctx->current = HTTP2_CALLBACK_PARSE_SKIP_N_BYTES;
+                                ctx->next = HTTP2_CALLBACK_PARSE_FIELD_BLOCK;
+                            }
+                            else {
+                                ctx->current = HTTP2_CALLBACK_PARSE_FIELD_BLOCK;
+                            }
+
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_HEADER_FLAG:
+
+                    ctx->frame_flag = static_cast<int>(static_cast<unsigned char>(buffer[pos++]));
+                ctx->current = HTTP2_CALLBACK_PARSE_HEADER_STREAM_ID;
+                break;
+                case HTTP2_CALLBACK_PARSE_GOAWAY_LAST_STREAM_ID: {
+                    while (pos != size) {
+                        ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
+                        if (++ctx->pos1 == 4) {
+                            ctx->n2 = static_cast<int> (ctx->n1 & 0x7FFFFFFF);
+                            ctx->n1 = 0;
+                            ctx->pos1 = 0;
+                            ctx->frame_length -= 4;
+                            ctx->current = HTTP2_CALLBACK_PARSE_GOAWAY_ERROR_CODE;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_GOAWAY_ERROR_CODE: {
+                    while (pos != size) {
+                        ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
+                        if (++ctx->pos1 == 4) {
+                            ctx->pos1 = 0;
+                            ctx->current = HTTP2_CALLBACK_PARSE_GOAWAY_ADDITIONAL_DATA;
+                            ctx->frame_length -= 4;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_GOAWAY_ADDITIONAL_DATA: {
+                    auto const copy = std::min(static_cast<ssize_t>(ctx->frame_length), size - pos);
+                    ctx->frame_buffer.append(buffer + pos, copy);
+
+                    pos += copy;
+                    ctx->frame_length -= copy;
+
+                    if (!ctx->frame_length) {
+                        /*
+                         * connection was closed
+                         * n1 - error code
+                         * n2 - last stream id
+                         * frame_buffer - additional debug data
+                         */
+
+                        ctx->current = HTTP2_CALLBACK_FINISH;
+
+                        /* TODO: close connection */
+
+                        manapi::async::current()->logger()->debug(manapi::logger::default_service, "HTTP2: GOAWAY RECV. "
+                                                                                                   "err code: {}, stream id: {}, msg: {}", ctx->n1, ctx->n2, ctx->frame_buffer);
+
+                        ctx->n1 = 0;
+                        ctx->n2 = 0;
+                        ctx->frame_buffer.clear();
+
+                        return EHTTP_V2_PROTOCOL_OK;
+                    }
+
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_WINDOW_UPDATE_VALUE: {
+                    while (pos != size) {
+                        ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
+                        if (++ctx->pos1 == 4) {
+                            ctx->pos1 = 0;
+                            ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                            ctx->frame_length -= 4;
+
+                            /**
+                             * n1 - Length
+                             */
+
+
+                            if (!ctx->n1) {
+                                /**
+                                 * RFC9113 (6.9) WINDOW_UPDATE
+                                 *
+                                 * A receiver MUST treat the receipt of a WINDOW_UPDATE frame
+                                 * with a flow-control window increment of 0 as a stream
+                                 * error (Section 5.4.2) of type PROTOCOL_ERROR;
+                                 * errors on the connection flow-control window MUST be treated
+                                 * as a connection error (Section 5.4.1).
+                                 */
+
+                                http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_msg = "invalid WINDOW_UPDATE";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                break;
+                            }
+
+                            if (ctx->frame_stream_id) {
+                                auto const s = ctx->streams->find(ctx->frame_stream_id);
+                                auto const sdata = s->second->as<http_v2_stream_t>();
+
+                                if (s == ctx->streams->end()) {
+                                    ctx->n1 = 0;
+                                    http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                                    http_goaway.err_msg = "stream id is invalid";
+                                    ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                    break;
+                                }
+
+                                sdata->write_window += ctx->n1;
+                                if (sdata->write_window == ctx->n1
+                                    && (sdata->flags & ev::WRITE)
+                                    && (sdata->ev_callback)) {
+                                    sdata->ev_callback->operator()(s->second, ev::WRITE, nullptr, 0);
+                                    }
+                            }
+                            else {
+                                ctx->write_window += static_cast<int>(ctx->n1);
+                                if (ctx->write_window == ctx->n1) {
+                                    for (const auto &s : *ctx->streams) {
+                                        auto const sdata = s.second->as<http_v2_stream_t>();
+                                        if ((sdata->flags & ev::WRITE)
+                                            && (sdata->ev_callback)) {
+                                            sdata->ev_callback->operator()(s.second, ev::WRITE, nullptr, 0);
+                                            }
+                                    }
+                                }
+                            }
+
+                            ctx->n1 = 0;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_RST_STREAM_ACTION: {
+                    while (pos != size) {
+                        ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
+                        if (++ctx->pos1 == 4) {
+                            ctx->pos1 = 0;
+                            ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                            ctx->frame_length -= 4;
+
+                            /**
+                             * n1 - error code
+                             */
+
+                            if (ctx->n1 >= HTTP2_ERROR_NO_ERROR
+                                && ctx->n1 <= HTTP2_ERROR_HTTP_1_1_REQUIRED) {
+                                auto s = ctx->streams->find(ctx->frame_stream_id);
+                                if (s == ctx->streams->end()) {
+
+                                }
+                                else {
+                                    auto const sdata = s->second->as<http_v2_stream_t>();
+                                    sdata->flags |= ev::DISCONNECT;
+
+                                    if (sdata->ev_callback) {
+                                        sdata->ev_callback->operator()(s->second, ev::DISCONNECT, nullptr, 0);
+                                    }
+                                }
+                                }
+
+                            ctx->n1 = 0;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_PING_DATA : {
+                    auto const copy = std::min(static_cast<ssize_t> (ctx->frame_length), size - pos);
+                    ctx->frame_buffer.append(buffer + pos, copy);
+                    pos += copy;
+                    ctx->frame_length -= copy;
+
+                    if (!ctx->frame_length) {
+                        if (ctx->frame_flag & HTTP2_FLAG_PING_ACK) {
+                            bool flg = true;
+
+                            if (ctx->pings) {
+                                auto const it = ctx->pings->find(ctx->frame_buffer);
+                                if (it != ctx->pings->end()) {
+                                    ctx->pings->erase(it);
+                                    flg = false;
+                                }
+                            }
+
+                            if (flg) {
+
+                            }
+                        }
+                        else {
+                            http_v2_send_ping_frame(ctx, ctx->frame_buffer.data());
+                        }
+
+                        ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                        ctx->frame_buffer.clear();
+                    }
+
+
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_SETTING_ID: {
+                    while (pos != size) {
+                        ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
+                        if (++ctx->pos1 == 2) {
+                            ctx->pos1 = 0;
+                            ctx->current = HTTP2_CALLBACK_PARSE_SETTING_VALUE;
+                            ctx->frame_length -= 2;
+
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_SETTING_VALUE: {
+                    while (pos != size) {
+                        ctx->n2 = static_cast<int>((static_cast<unsigned int>(ctx->n2 << 8) | static_cast<unsigned char>(buffer[pos++])));
+                        if (++ctx->pos1 == 4) {
+                            ctx->pos1 = 0;
+                            ctx->frame_length -= 4;
+
+                            /**
+                             * n1 - setting id
+                             * n2 - setting value
+                             */
+
+                            if (http_v2_apply_setting(ctx, static_cast<short> (ctx->n1), ctx->n2, false)) {
+                                ctx->n1 = 0;
+                                ctx->n2 = 0;
+                                http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_msg = "setting is invalid";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                break;
+                            }
+
+                            if (ctx->frame_length) {
+                                ctx->current = HTTP2_CALLBACK_PARSE_SETTING_ID;
+                            }
+                            else {
+                                ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+
+                                /* send ack frame */
+                                if (http_v2_send_frame(ctx, HTTP2_FRAME_SETTINGS, HTTP2_FLAG_SETTINGS_ACK, 0, nullptr, 0)) {
+                                    return EHTTP_V2_PROTOCOL_ERROR;
+                                }
+                            }
+
+                            ctx->n1 = 0;
+                            ctx->n2 = 0;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_HEADER_DATA : {
+                    /**
+                     * n2 - padding size
+                     */
+                    auto datasize = ctx->frame_length - static_cast<ssize_t>(ctx->n2);
+
+                    const auto cutsize = std::min(static_cast<ssize_t>(size - pos), datasize);
+                    ctx->frame_buffer.append(buffer + pos, cutsize);
+                    ctx->frame_length -= cutsize;
+                    pos += cutsize;
+
+                    if (datasize == cutsize) {
+                        auto s = ctx->streams->end();
+                        http_v2_stream_t *sdata = nullptr;
+
+                        if (ctx->frame_type == HTTP2_FRAME_HEADERS) {
+                            s = ctx->streams->find(ctx->frame_stream_id);
+                            if (s == ctx->streams->end()) {
+                                auto sptr = std::make_unique<http_v2_stream_t>(
+                                    ctx->frame_stream_id,
+                                    0,
+                                    ctx,
+                                    ctx->client->initial_window_size,
+                                    ctx->server->initial_window_size,
+                                    nullptr,
+                                    0,
+                                    nullptr,
+                                    nullptr
+                                );
+
+                                auto sconn = std::make_shared<worker::connection> (sptr.release(), +[] (void *s)
+                                    -> void {
+                                    auto const p = static_cast<http::http_v2_stream_t *> (s);
+                                    delete p;
+                                });
+
+                                s = ctx->streams->insert({ctx->frame_stream_id, std::move(sconn)}).first;
+                                sdata = s->second->as<http_v2_stream_t>();
+                                sdata->req = std::make_unique<request_data_t>();
+                                sdata->recv = std::make_unique<worker::base::connection_io_part>();
+                            }
+                            else {
+                                http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_msg = "CONTINUATION frame instead of HEADERS frame";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                break;
+                            }
+
+                        }
+
+                        bool const flg = ctx->frame_flag & HTTP2_FLAG_HEADERS_END_HEADERS;
+
+                        if (flg) {
+
+                            if (!ctx->decoder->decode(ctx->frame_buffer)) {
+                                http_goaway.err_code = HTTP2_ERROR_INTERNAL_ERROR;
+                                http_goaway.err_msg = "hpack: failed to decode headers";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                break;
+                            }
+
+                            ctx->frame_buffer.clear();
+
+                            if (s == ctx->streams->end()) {
+                                s = ctx->streams->find(ctx->frame_stream_id);
+
+                                if (s == ctx->streams->end()) {
+                                    http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                                    http_goaway.err_msg = "stream doesn't exists";
+                                    ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                    break;
+                                }
+
+                                sdata = s->second->as<http_v2_stream_t>();
+                            }
+
+                            auto headers = ctx->decoder->headers();
+                            while (!headers.empty()) {
+                                auto it = headers.begin();
+                                auto value = std::move(it->second);
+                                auto node = headers.extract(it);
+                                auto &key = node.key();
+                                for (auto &c : key) {
+                                    c = static_cast<char>(std::tolower(c));
+                                }
+                                sdata->req->headers.insert({std::move(key), std::move(value)});
+                            }
+
+                            sdata->req->http = http::versions::HTTP_v2;
+                            auto hv = sdata->req->headers.extract(":method");
+                            if (hv.empty()) {
+                                http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_msg = ":method is missing";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                break;
+                            }
+                            sdata->req->method = std::move(hv.mapped());
+
+                            hv = sdata->req->headers.extract(":path");
+                            if (hv.empty()) {
+                                http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_msg = ":path is missing";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                break;
+                            }
+                            sdata->req->uri = std::move(hv.mapped());
+
+                            auto hit = sdata->req->headers.find(http::HEADER.CONTENT_LENGTH);
+                            if (hit == sdata->req->headers.end()) {
+                                sdata->req->body_size = -1;
+                            }
+                            else {
+                                try {
+                                    sdata->req->body_size = std::stoll(hit->second);
+                                }
+                                catch (...) {
+                                    sdata->req->body_size = -1;
+                                }
+
+                                if (sdata->req->body_size < 0) {
+                                    http_goaway.err_code = HTTP2_ERROR_REFUSED_STREAM;
+                                    http_goaway.err_msg = "invalid content length";
+                                    ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                    break;
+                                }
+                            }
+
+
+                            url_decode_stream url_decoder;
+
+                            if (auto rhs = url_decoder << sdata->req->uri) {
+                                return EHTTP_V2_PROTOCOL_ERROR;
+                            }
+
+                            sdata->req->path = url_decoder.result();
+                            sdata->req->divided = url_decoder.divided();
+                        }
+
+                        if (ctx->n2) {
+                            ctx->n1 = ctx->n2;
+                            ctx->n2 = 0;
+                            ctx->frame_length -= ctx->n1;
+                            ctx->current = HTTP2_CALLBACK_PARSE_SKIP_N_BYTES;
+                            ctx->next = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                        }
+                        else {
+                            ctx->n1 = 0;
+                            ctx->n2 = 0;
+                            ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                        }
+
+                        if (flg) {
+                            buffer += pos;
+                            size -= pos;
+                            pos = 0;
+
+                            return EHTTP_V2_NEW_STREAM;
+                        }
+                    }
+
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_BODY_DATA : {
+                    auto datasize = ctx->frame_length - ctx->n2;
+                    assert((datasize <= ctx->server->max_frame_size));
+                    datasize = std::min(static_cast<int>(size - pos), static_cast<int>(datasize));
+
+                    {
+                        //MANAPIHTTP_LOG("RECV DATA {}", len);
+
+                        auto s = ctx->streams->find(ctx->frame_stream_id);
+                        if (s == ctx->streams->end()) {
+                            http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                            http_goaway.err_msg = "stream doesn't exists";
+                            ctx->current = HTTP2_CALLBACK_GOAWAY;
+                            break;
+                        }
+                        auto const sdata = s->second->as<http_v2_stream_t>();
+
+                        if (sdata->read_window < datasize || ctx->read_window < datasize) {
+                            http_goaway.err_code = HTTP2_ERROR_FLOW_CONTROL_ERROR;
+                            http_goaway.err_msg = "read buffer overflow";
+                            ctx->current = HTTP2_CALLBACK_GOAWAY;
+                            break;
+                        }
+
+                        static constexpr int conn_max_window_hlf = 2000000 / 2;
+                        static constexpr int stream_max_window_hlf = 400000 / 2;
+
+                        if ((sdata->read_window -= datasize) <= stream_max_window_hlf) {
+                            const auto allow = stream_max_window_hlf + stream_max_window_hlf - sdata->read_window;
+                            if (http_v2_send_window_frame(ctx, sdata->id,
+                                allow)) {
+                                return EHTTP_V2_PROTOCOL_ERROR;
+                                }
+                            sdata->read_window += allow;
+                        }
+
+                        if ((ctx->read_window -= datasize) <= conn_max_window_hlf) {
+                            const auto allow = conn_max_window_hlf + conn_max_window_hlf - ctx->read_window;
+                            if (http_v2_send_window_frame(ctx, 0,
+                                allow)) {
+                                return EHTTP_V2_PROTOCOL_ERROR;
+                                }
+                            ctx->read_window += allow;
+                        }
+
+                        auto bs = config->buffer_size();
+
+                        /**
+                         * recv data
+                         */
+                        if (http_v2_flush_recv (sdata)) {
                             return EHTTP_V2_PROTOCOL_ERROR;
                         }
 
-                        if (sdata->recv_size >= bs) {
-                            ctx->worker->event_toggle(ctx->conn, false, ev::READ);
-                        }
-                    }
-
-                    if (sdata->recv_size < bs) {
-                        ctx->worker->event_toggle(ctx->conn, true, ev::READ);
-                    }
-                }
-
-                ctx->frame_length -= cutsize;
-                pos += cutsize;
-
-                if (!ctx->frame_length) {
-                    if (ctx->n2) {
-                        ctx->n1 = ctx->n2;
-                        ctx->n2 = 0;
-                        ctx->current = HTTP2_CALLBACK_PARSE_SKIP_N_BYTES;
-                        ctx->next = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                    }
-                    else {
-                        ctx->n1 = 0;
-                        ctx->n2 = 0;
-                        ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                    }
-                }
-
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_SKIP_N_BYTES: {
-                while (pos != size) {
-                    pos++;
-                    if (--ctx->n1 <= 0) {
-                        ctx->n1 = 0;
-                        ctx->current = ctx->next;
-                        break;
-                    }
-                }
-                break;
-            }
-            case HTTP2_CALLBACK_PARSE_FIELD_BLOCK: {
-                switch (ctx->frame_type) {
-                    case HTTP2_FRAME_HEADERS: {
-                        if (ctx->frame_length == 0) {
-                            http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
-                            http_goaway.err_msg = "HEADER frame is empty";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            goto finish;
-                        }
-
-                        if (ctx->frame_stream_id == 0) {
-                            http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
-                            http_goaway.err_msg = "0 is reserved";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            goto finish;
-                        }
-
-                        if (ctx->frame_stream_id <= ctx->last_stream_id || (ctx->frame_stream_id % 2 == 0)) {
-                            http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
-                            http_goaway.err_msg = "unexpected stream id";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            goto finish;
-                        }
-
-
-                        if (ctx->streams->size() >= ctx->server->max_concurret_streams) {
-                            http_goaway.err_code = HTTP2_ERROR_REFUSED_STREAM;
-                            http_goaway.err_msg = std::format("max concurrent streams-{}", ctx->server->max_concurret_streams);
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            goto finish;
-                        }
-
-                        ctx->last_stream_id = ctx->frame_stream_id;
-
-                        if (ctx->frame_flag & HTTP2_FLAG_HEADERS_PADDED) {
-                            ctx->n1 = 1; /* number size */
-                            ctx->n2 = 0; /* return value */
-                            ctx->current = HTTP2_CALLBACK_PARSE_NUMBER;
-                            ctx->next = HTTP2_CALLBACK_PARSE_HEADER_DATA;
+                        if ((sdata->flags & ev::READ) && sdata->ev_callback) {
+                            sdata->ev_callback->operator()(s->second, ev::READ, buffer + pos, datasize);
                         }
                         else {
-                            ctx->current = HTTP2_CALLBACK_PARSE_HEADER_DATA;
+                            if (datasize != worker::base::connection_io_send(sdata->recv.get(), buffer + pos,
+                                datasize, sdata->ctx->worker->bufferpool().get(), bs, &sdata->recv_size, maxcnt)) {
+                                return EHTTP_V2_PROTOCOL_ERROR;
+                            }
+
+                            if (sdata->recv_size >= bs) {
+                                ctx->worker->event_toggle(ctx->conn, false, ev::READ);
+                            }
                         }
 
-                        break;
-                    }
-                    case HTTP2_FRAME_CONTINUATION:
-                        if (ctx->frame_stream_id == 0) {
-                            http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
-                            http_goaway.err_msg = "0 is reserved";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            goto finish;
+                        if (sdata->recv_size < bs) {
+                            ctx->worker->event_toggle(ctx->conn, true, ev::READ);
                         }
+                    }
+
+                    ctx->frame_length -= datasize;
+                    pos += datasize;
+
+                    if (!ctx->frame_length) {
+                        if (ctx->n2) {
+                            ctx->n1 = ctx->n2;
+                            ctx->n2 = 0;
+                            ctx->current = HTTP2_CALLBACK_PARSE_SKIP_N_BYTES;
+                            ctx->next = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                        }
+                        else {
+                            ctx->n1 = 0;
+                            ctx->n2 = 0;
+                            ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                        }
+                    }
+
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_SKIP_N_BYTES: {
+                    while (pos != size) {
+                        pos++;
+                        if (--ctx->n1 <= 0) {
+                            ctx->n1 = 0;
+                            ctx->current = ctx->next;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_FIELD_BLOCK: {
+                    switch (ctx->frame_type) {
+                        case HTTP2_FRAME_HEADERS: {
+                            if (ctx->frame_length == 0) {
+                                http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_msg = "HEADER frame is empty";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
+                            }
+
+                            if (ctx->frame_stream_id == 0) {
+                                http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_msg = "0 is reserved";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
+                            }
+
+                            if (ctx->frame_stream_id <= ctx->last_stream_id || (ctx->frame_stream_id % 2 == 0)) {
+                                http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_msg = "unexpected stream id";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
+                            }
+
+
+                            if (ctx->streams->size() >= ctx->server->max_concurret_streams) {
+                                http_goaway.err_code = HTTP2_ERROR_REFUSED_STREAM;
+                                http_goaway.err_msg = std::format("max concurrent streams-{}", ctx->server->max_concurret_streams);
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
+                            }
+
+                            ctx->last_stream_id = ctx->frame_stream_id;
+
+                            if (ctx->frame_flag & HTTP2_FLAG_HEADERS_PADDED) {
+                                ctx->n1 = 1; /* number size */
+                                ctx->n2 = 0; /* return value */
+                                ctx->current = HTTP2_CALLBACK_PARSE_NUMBER;
+                                ctx->next = HTTP2_CALLBACK_PARSE_HEADER_DATA;
+                            }
+                            else {
+                                ctx->current = HTTP2_CALLBACK_PARSE_HEADER_DATA;
+                            }
+
+                            break;
+                        }
+                        case HTTP2_FRAME_CONTINUATION:
+                            if (ctx->frame_stream_id == 0) {
+                                http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_msg = "0 is reserved";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
+                            }
 
                         if (ctx->frame_stream_id != ctx->last_stream_id) {
                             http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
@@ -1025,160 +1156,157 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         }
 
                         ctx->current = HTTP2_CALLBACK_PARSE_HEADER_DATA;
-                    break;
-                    case HTTP2_FRAME_SETTINGS:
-                        // setting param size - 6 bytes
-                        if (ctx->frame_length % 6 != 0) {
-                            http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
-                            http_goaway.err_msg = "invalid length in frame SETTINGS";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            goto finish;
-                        }
+                        break;
+                        case HTTP2_FRAME_SETTINGS:
+                            // setting param size - 6 bytes
+                                if (ctx->frame_length % 6 != 0) {
+                                    http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                    http_goaway.err_msg = "invalid length in frame SETTINGS";
+                                    ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                    goto finish;
+                                }
 
                         if (ctx->frame_length == 0) {
                             /* ack server settings */
                             ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                            if (ctx->timeout) {
+                                ctx->timeout.stop();
+                                ctx->timeout = nullptr;
+                            }
+                            else {
+
+                            }
                         }
                         else {
                             ctx->current = HTTP2_CALLBACK_PARSE_SETTING_ID;
                         }
-                    break;
-                    case HTTP2_FRAME_GOAWAY:
-                        ctx->current = HTTP2_CALLBACK_PARSE_GOAWAY_LAST_STREAM_ID;
-                    break;
-                    case HTTP2_FRAME_WINDOW_UPDATE:
-                        if (ctx->frame_length != 4) {
-                            /**
-                             * RFC9113 (6.9) WINDOW_UPDATE
-                             *
-                             * A WINDOW_UPDATE frame with a length other
-                             * than 4 octets MUST be treated as
-                             * a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
-                             */
+                        break;
+                        case HTTP2_FRAME_GOAWAY:
+                            ctx->current = HTTP2_CALLBACK_PARSE_GOAWAY_LAST_STREAM_ID;
+                        break;
+                        case HTTP2_FRAME_WINDOW_UPDATE:
+                            if (ctx->frame_length != 4) {
+                                /**
+                                 * RFC9113 (6.9) WINDOW_UPDATE
+                                 *
+                                 * A WINDOW_UPDATE frame with a length other
+                                 * than 4 octets MUST be treated as
+                                 * a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
+                                 */
 
-                            http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
-                            http_goaway.err_msg = "invalid WINDOW_UPDATE";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            goto finish;
-                        }
+                                http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_msg = "invalid WINDOW_UPDATE";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
+                            }
                         ctx->current = HTTP2_CALLBACK_PARSE_WINDOW_UPDATE_VALUE;
-                    break;
-                    case HTTP2_FRAME_RST_STREAM:
-                        ctx->current = HTTP2_CALLBACK_PARSE_RST_STREAM_ACTION;
-                    break;
-                    case HTTP2_FRAME_PING:
-                        if (ctx->frame_length != 8) {
-                            /**
-                             * RFC9113 (6.7) PING
-                             *
-                             * Receipt of a PING frame with a length field value other than
-                             * 8 MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
-                             */
-                            http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
-                            http_goaway.err_msg = "invalid PING";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            goto finish;
-                        }
+                        break;
+                        case HTTP2_FRAME_RST_STREAM:
+                            ctx->current = HTTP2_CALLBACK_PARSE_RST_STREAM_ACTION;
+                        break;
+                        case HTTP2_FRAME_PING:
+                            if (ctx->frame_length != 8) {
+                                /**
+                                 * RFC9113 (6.7) PING
+                                 *
+                                 * Receipt of a PING frame with a length field value other than
+                                 * 8 MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
+                                 */
+                                http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_msg = "invalid PING";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
+                            }
                         ctx->current = HTTP2_CALLBACK_PARSE_PING_DATA;
+                        break;
+                        case HTTP2_FRAME_DATA: {
+                            if (ctx->frame_flag & HTTP2_FLAG_DATA_PADDED) {
+                                ctx->n1 = 1; /* size */
+                                ctx->n2 = 0; /* return value */
+                                ctx->current = HTTP2_CALLBACK_PARSE_NUMBER;
+                                ctx->next = HTTP2_CALLBACK_PARSE_BODY_DATA;
+                            }
+                            else {
+                                ctx->current = HTTP2_CALLBACK_PARSE_BODY_DATA;
+                            }
+                            break;
+                        }
+                        default: {
+                            /* undefined frame */
+                            ctx->n1 = ctx->frame_length;
+                            ctx->current = HTTP2_CALLBACK_PARSE_SKIP_N_BYTES;
+                            ctx->next = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                        }
+                    }
+
+                    if (ctx->frame_length > ctx->server->max_frame_size) {
+                        http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
+                        http_goaway.err_msg = "frame length is invalid";
+                        ctx->current = HTTP2_CALLBACK_GOAWAY;
+                        goto finish;
+                    }
+
+                    finish: break;
+                }
+                case HTTP2_CALLBACK_PARSE_NUMBER: {
+                    while (pos != size) {
+                        if (ctx->n1 == 0) {
+                            ctx->current = ctx->next;
+                            ctx->next = HTTP2_CALLBACK_ERROR;
+                            break;
+                        }
+
+                        ctx->n2 = static_cast<int>((static_cast<unsigned int>(ctx->n2) << 8) | static_cast<unsigned char> (buffer[pos++]));
+                        ctx->n1--;
+                    }
+
                     break;
-                    case HTTP2_FRAME_DATA: {
-                        if (ctx->frame_flag & HTTP2_FLAG_DATA_PADDED) {
-                            ctx->n1 = 1; /* size */
-                            ctx->n2 = 0; /* return value */
-                            ctx->current = HTTP2_CALLBACK_PARSE_NUMBER;
-                            ctx->next = HTTP2_CALLBACK_PARSE_BODY_DATA;
-                        }
-                        else {
-                            ctx->current = HTTP2_CALLBACK_PARSE_BODY_DATA;
-                        }
-                        break;
-                    }
-                    default: {
-                        /* undefined frame */
-                        ctx->n1 = ctx->frame_length;
-                        ctx->current = HTTP2_CALLBACK_PARSE_SKIP_N_BYTES;
-                        ctx->next = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                    }
                 }
+                case HTTP2_CALLBACK_GOAWAY: {
+                    /**
+                     * RFC9113 (6.8) GOAWAY
+                     *
+                     * GOAWAY Frame {
+                     *  Length (24),
+                     *  Type (8) = 0x07,
+                     *
+                     *  Unused Flags (8),
+                     *
+                     *  Reserved (1),
+                     *  Stream Identifier (31) = 0,
+                     *
+                     *  Reserved (1),
+                     *  Last-Stream-ID (31),
+                     *  Error Code (32),
+                     *  Additional Debug Data (..),
+                     * }
+                     *
+                     * The GOAWAY frame does not define any flags.
+                     *
+                     * The GOAWAY frame applies to the connection, not a specific stream.
+                     *
+                     */
 
-                if (ctx->frame_length > ctx->server->max_frame_size) {
-                    http_goaway.err_code = HTTP2_ERROR_FRAME_SIZE_ERROR;
-                    http_goaway.err_msg = "frame length is invalid";
-                    ctx->current = HTTP2_CALLBACK_GOAWAY;
-                    goto finish;
-                }
+                    ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
 
-                finish: break;
-            }
-            case HTTP2_CALLBACK_PARSE_NUMBER: {
-                while (pos != size) {
-                    if (ctx->n1 == 0) {
-                        ctx->current = ctx->next;
-                        ctx->next = HTTP2_CALLBACK_ERROR;
-                        break;
+                    if (http_v2_send_goaway (ctx, &http_goaway)) {
+                        return EHTTP_V2_PROTOCOL_ERROR;
                     }
 
-                    ctx->n2 = static_cast<int>((static_cast<unsigned int>(ctx->n2) << 8) | static_cast<unsigned char> (buffer[pos++]));
-                    ctx->n1--;
+                    return EHTTP_V2_PROTOCOL_OK;
                 }
-
-                break;
-            }
-            case HTTP2_CALLBACK_GOAWAY: {
-                /**
-                 * RFC9113 (6.8) GOAWAY
-                 *
-                 * GOAWAY Frame {
-                 *  Length (24),
-                 *  Type (8) = 0x07,
-                 *
-                 *  Unused Flags (8),
-                 *
-                 *  Reserved (1),
-                 *  Stream Identifier (31) = 0,
-                 *
-                 *  Reserved (1),
-                 *  Last-Stream-ID (31),
-                 *  Error Code (32),
-                 *  Additional Debug Data (..),
-                 * }
-                 *
-                 * The GOAWAY frame does not define any flags.
-                 *
-                 * The GOAWAY frame applies to the connection, not a specific stream.
-                 *
-                 */
-
-                ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-
-                ev::buff_t data[2];
-                char nums[8];
-
-                data[0].base = nums;
-                data[0].len = sizeof (nums);
-
-                data[1].base = http_goaway.err_msg.data();
-                data[1].len = http_goaway.err_msg.size();
-
-                stringify_number<int> (ctx->last_stream_id, data[0].base);
-                stringify_number<int>(http_goaway.err_code, data[0].base + 4);
-
-                manapi::async::current()->logger()->debug(manapi::logger::default_service, "HTTP2: GOAWAY SEND. "
-                                                                                                "err code: {}, stream id: {}, msg: {}", http_goaway.err_code, ctx->last_stream_id, http_goaway.err_msg);
-
-                if (auto rhs = http_v2_send_frame(ctx, HTTP2_FRAME_GOAWAY, 0, 0, data, 2)) {
-                    return EHTTP_V2_IO_ERROR;
+                case HTTP2_CALLBACK_ERROR: {
+                    return EHTTP_V2_PROTOCOL_ERROR;
                 }
-
-                return EHTTP_V2_PROTOCOL_OK;
-            }
-            case HTTP2_CALLBACK_ERROR: {
-                return EHTTP_V2_PROTOCOL_ERROR;
-            }
-            default: {
-                return EHTTP_V2_PROTOCOL_ERROR;
+                default: {
+                    return EHTTP_V2_PROTOCOL_ERROR;
+                }
             }
         }
+    }
+    catch (...) {
+        /* some errors */
+        return EHTTP_V2_PROTOCOL_ERROR;
     }
 
     return EHTTP_V2_PROTOCOL_WANT_READ;
@@ -1216,7 +1344,7 @@ ssize_t manapi::net::http::http_v2_write(http_v2_stream_t *s, const void *buffer
         buff.len = std::min(static_cast<size_t>(copy),
             static_cast<size_t>(s->ctx->client->max_frame_size));
 
-        if (http_v2_send_data_frame(s->ctx, s->id, &buff, 1, finish && buff.base + buff.len == buff.base)) {
+        if (http_v2_send_data_frame(s->ctx, s->id, &buff, 1, finish && (buff.base + buff.len) == rend)) {
             return -1;
         }
 

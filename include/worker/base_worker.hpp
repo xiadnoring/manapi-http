@@ -112,11 +112,11 @@ namespace manapi::net::worker {
 
         virtual std::unique_ptr<worker_watcher_cb> event_on (const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) = 0;
 
-        std::unique_ptr<worker_watcher_cb> event_on (const shared_conn & conn, worker_watcher_cb callback);
-
         virtual int event_flags (const shared_conn & conn, int flags) = 0;
 
         virtual int event_flags (const shared_conn & conn) = 0;
+
+        virtual void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size) = 0;
 
         void event_toggle (const shared_conn & conn, bool state, int flag);
 

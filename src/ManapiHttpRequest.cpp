@@ -269,7 +269,7 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
 
                                     rhs += res;
 
-                                    this->request_data->body_size -= rhs;
+                                    this->request_data->body_size -= res;
 
                                     continue;
                                 }
@@ -301,6 +301,7 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
                     return;
                     finish: {
                         this->worker_->event_flags(conn, 0);
+                        this->worker_->event_on(conn, nullptr);
                     }
             });
 
@@ -369,7 +370,7 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
 
                                     rhs += res;
 
-                                    this->request_data->body_size -= rhs;
+                                    this->request_data->body_size -= res;
 
                                     continue;
                                 }
@@ -411,6 +412,7 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
                     return;
                     finish: {
                         this->worker_->event_flags(conn, 0);
+                        this->worker_->event_on(conn, nullptr);
                     }
             });
 

@@ -315,6 +315,13 @@ void manapi::net::worker::TCP::stop() {
     this->limit_rate_timer.stop();
 }
 
+void manapi::net::worker::TCP::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size) {
+    auto const data = conn->as<connection_interface>();
+    if (data->ev_callback) {
+        data->ev_callback->operator()(conn, flags, buff, size);
+    }
+}
+
 ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {
     auto connection = conn->as<connection_interface>();
 
@@ -442,7 +449,7 @@ void manapi::net::worker::TCP::update_limit_rate() {
     }
 }
 
-void manapi::net::worker::TCP::timeout_(const shared_conn &conn) {
+void manapi::net::worker::TCP::timeout_(shared_conn conn) {
     auto data = conn->as<connection_interface>();
 goto err;
 
@@ -493,6 +500,7 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
 
             switch (rhs) {
                 case http::EHTTP_V2_PROTOCOL_OK: {
+                    http::http_v2_on_close (http_v2_ctx);
                     this->close_connection(conn, true);
                     break;
                 }
@@ -555,7 +563,7 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
     return;
     err: {
         this->close_connection(conn, false);
-        if (http::http_v2_on_error (http_v2_ctx)) {
+        if (http::http_v2_on_close (http_v2_ctx)) {
             /* error */
         }
     }

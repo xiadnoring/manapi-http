@@ -51,6 +51,8 @@ namespace manapi::net::worker {
 
         void stop() override;
 
+        void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size) override;
+
         ssize_t sync_write_ex(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt);
 
         ssize_t sync_write(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
@@ -66,7 +68,7 @@ namespace manapi::net::worker {
 
         void update_limit_rate ();
 
-        void timeout_ (const shared_conn &conn);
+        void timeout_ (shared_conn conn);
 
         void ev_watcher_stop_ (connection_interface & conn);
 

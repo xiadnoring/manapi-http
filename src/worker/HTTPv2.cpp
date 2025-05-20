@@ -7,6 +7,13 @@ manapi::net::worker::http_v2::http_v2(net::http::site site, bufferpool_t bufferp
 
 manapi::net::worker::http_v2::~http_v2() = default;
 
+void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size) {
+    auto const data = conn->as<http::http_v2_stream_t>();
+    if (data->ev_callback) {
+        data->ev_callback->operator()(conn, flags, buff, size);
+    }
+}
+
 void manapi::net::worker::http_v2::close_connection(const shared_conn &conn, bool clean_disconnect) {
     auto data = conn->as<http::http_v2_stream_t>();
     data->flags |= http::HTTP2_STREAM_CLOSED;

@@ -40,7 +40,7 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
     rhs = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
         -> void {
         prev_flags = this->event_flags(conn, ev::WRITE);
-        prev_cb = this->event_on(conn, [this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]
+        prev_cb = this->event_on(conn, std::make_unique<worker_watcher_cb>([this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]
             (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize) -> void {
                 try {
                     if (flags & ev::DISCONNECT) {
@@ -60,7 +60,7 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
                     //reject(std::current_exception());
                     resolve(-1);
                 }
-        });
+        }));
     });
 
     this->event_flags(conn, prev_flags);
@@ -84,10 +84,6 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
 
 manapi::future<ssize_t> manapi::net::worker::base::response(const worker::shared_conn &connection, http::response *resp, bool finish) {
     co_return -1;
-}
-
-std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::base::event_on(const shared_conn & conn, worker_watcher_cb callback) {
-    return this->event_on(conn, std::make_unique<decltype(callback)>(std::move(callback)));
 }
 
 void manapi::net::worker::base::event_toggle(const shared_conn & conn, bool state, int flag) {

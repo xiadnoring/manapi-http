@@ -163,14 +163,29 @@ int main () {
         router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             ssize_t result = 0;
+            manapi::net::hash::SHA256 hash{};
+            hash.init();
             try {
-                co_await req.callback_sync([&result] (const char *buffer, ssize_t size)
-                    -> ssize_t { result += size; return size; });
+                co_await req.callback_sync([&result, &hash] (const char *buffer, ssize_t size)
+                    -> ssize_t {
+                    hash.update(reinterpret_cast<const uint8_t *>(buffer), size);
+                    result += size;
+                    return size;
+                });
             }
             catch (std::exception const &e) {
                 std::cout << e.what() << "\n";
             }
-            co_return resp.text(std::format("{} : {}", result, result));
+
+            std::string b;
+            b.resize(36);
+            hash.final(reinterpret_cast<uint8_t *>(b.data()));
+
+            b = manapi::crypto::strdec2strhex(b);
+
+            std::cout << b << "\n";
+
+            co_return resp.text(std::format("{} : {}", result, b));
         });
 
         router.GET("/download", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
