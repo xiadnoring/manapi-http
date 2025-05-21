@@ -13,7 +13,7 @@ namespace manapi::net::http {
 namespace manapi::net::worker {
     class http_v2 : public worker::base {
     public:
-        http_v2 (net::http::site site, bufferpool_t bufferpool, std::shared_ptr<worker::worker_config_t> worker_data);
+        http_v2 (net::http::site site, bufferpool_t bufferpool, std::shared_ptr<worker::worker_config_t> worker_data, http::config *config);
 
         ~http_v2 ();
 

@@ -135,7 +135,7 @@ void manapi::net::http::site::setup() {
 #endif
 
 #if MANAPIHTTP_QUICHE_DEPENDENCY
-    //this->transport_protocol_worker("quic", "quiche", worker::http_v3_cloudflare_quiche::create);
+    this->transport_protocol_worker("quic", "quiche", worker::http_v3_cloudflare_quiche::create);
 #endif
 
 #if MANAPIHTTP_TQUIC_DEPENDENCY

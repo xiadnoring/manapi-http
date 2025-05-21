@@ -17,7 +17,7 @@
 #include <set>
 
 
-manapi::net::worker::TLS::TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata) : TCP(std::move(site), std::move(wdata)) {}
+manapi::net::worker::TLS::TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : TCP(std::move(site), std::move(wdata), config) {}
 
 manapi::net::worker::TLS::~TLS() = default;
 
@@ -89,6 +89,10 @@ void manapi::net::worker::TLS::close_connection(const shared_conn &conn, bool cl
 
 ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {
     auto connection = conn->as<connection_interface>();
+
+    if (connection->status & ev::DISCONNECT) {
+        return -1;
+    }
 
     ssize_t res = 0;
 
@@ -212,7 +216,7 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
 
                 this->flush_write_(conn, true);
             }
-            else {
+            else if (status) {
                 goto err;
             }
         }
@@ -402,6 +406,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
 
 int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void *rbio, connection_io_part *top, int *cnt, int max_cnt) {
     int rhs;
+    int err;
     int flags = 0;
     buffer_deque *parent = nullptr;
     auto data = conn->as<connection_interface>();
@@ -453,7 +458,12 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
                 connection_io_trim(top, parent, cnt);
             }
         }
-
+        else {
+            err = this->ssl_get_error_(data->ssl, rhs);
+            if (err == this->ssl_error_ssl_ || err == this->ssl_error_syscall_) {
+                return CONN_IO_ERROR;
+            }
+        }
     }
     while (rhs > 0);
 

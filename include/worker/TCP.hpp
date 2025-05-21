@@ -25,7 +25,7 @@ namespace manapi::net::worker {
             std::unique_ptr<worker_watcher_cb> ev_callback;
         };
 
-        TCP (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata);
+        TCP (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config);
 
         ~TCP () override;
 

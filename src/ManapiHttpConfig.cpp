@@ -245,7 +245,7 @@ manapi::net::http::config::config(const json &config) {
         this->speed_check_delay_=(config["speed_check_delay"].as_integer());
     }
     else {
-        this->speed_check_delay_=(5000);
+        this->speed_check_delay_=(5);
     }
 
     /* speed_check_bytes */

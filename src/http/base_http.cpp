@@ -625,6 +625,9 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                     }
                 });
             }
+            else {
+                send_error_response(std::move(cdata), std::move(data->error), http::NOT_FOUND_404);
+            }
             return;
         }
 

@@ -38,7 +38,7 @@
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpResponse.hpp"
 
-manapi::net::worker::TCP::TCP(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata) : base (std::move(site), std::move(wdata)) {
+manapi::net::worker::TCP::TCP(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : base (std::move(site), std::move(wdata), config) {
     this->local = nullptr;
 }
 
@@ -125,8 +125,7 @@ void manapi::net::worker::TCP::init() {
         this->watcher_accept_->read_start();
 
         this->http_v2_worker = std::make_shared<net::worker::http_v2>(this->site(),
-            this->bufferpool(), this->worker_data());
-        this->http_v2_worker->config(this->config());
+            this->bufferpool(), this->worker_data(), this->config_);
         return;
     }
     catch (std::exception const &e) {
@@ -189,8 +188,7 @@ void manapi::net::worker::TCP::onrecv(std::shared_ptr<ev::tcp> &watcher, const w
 }
 
 std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
-    auto worker = std::make_shared<worker::TCP>(std::move(site), std::move(wdata));
-    worker->config(config.get());
+    auto worker = std::make_shared<worker::TCP>(std::move(site), std::move(wdata), config.get());
     worker->self_ = std::weak_ptr (worker);
     return std::move(worker);
 }

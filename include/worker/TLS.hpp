@@ -19,7 +19,7 @@ namespace manapi::net::worker {
             void *wbio;
         };
 
-        TLS (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata);
+        TLS (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config);
 
         ~TLS () override;
 

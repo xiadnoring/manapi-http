@@ -8,22 +8,18 @@
 
 manapi::net::worker::connection::connection(void *ptr, void(*eraser)(void*)): client(), ptr (ptr, eraser) {}
 
-manapi::net::worker::base::base(net::http::site site, std::shared_ptr<worker::worker_config_t> data) : site_(std::move(site)), worker_data_(std::move(data)) {
+manapi::net::worker::base::base(net::http::site site, std::shared_ptr<worker::worker_config_t> data, manapi::net::http::config *config) : site_(std::move(site)), config_(config), worker_data_(std::move(data)) {
     this->bufferpool_ = std::make_shared<decltype(this->bufferpool_)::element_type>();
     // initialization object pools
     this->bufferpool()->init(0);
 }
 
 manapi::net::worker::base::base(net::http::site site, bufferpool_t bufferpool,
-    std::shared_ptr<worker::worker_config_t> worker_data) : site_(std::move(site)), worker_data_(std::move(worker_data)), bufferpool_(std::move(bufferpool)) {
+    std::shared_ptr<worker::worker_config_t> worker_data, manapi::net::http::config *config) : site_(std::move(site)), worker_data_(std::move(worker_data)), config_(config), bufferpool_(std::move(bufferpool)) {
 
 }
 
 manapi::net::worker::base::~base() = default;
-
-void manapi::net::worker::base::config(manapi::net::http::config *config) {
-    this->config_ = config;
-}
 
 manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
     using promise = manapi::async::promise<ssize_t, std::false_type>;
@@ -45,13 +41,14 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
                 try {
                     if (flags & ev::DISCONNECT) {
                         resolve(-1);
-                        return;
+                        goto finish;
                     }
 
                     if (flags & ev::WRITE) {
                         auto const rhs = this->sync_write(conn, buff, size, finish);
                         if (rhs) {
                             resolve(rhs);
+                            goto finish;
                         }
                         return;
                     }
@@ -59,7 +56,11 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
                 catch (...) {
                     //reject(std::current_exception());
                     resolve(-1);
+                    goto finish;
                 }
+
+                return;
+                finish: this->event_flags(conn, 0);
         }));
     });
 

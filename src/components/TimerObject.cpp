@@ -1,11 +1,6 @@
 #include "./components/TimerObject.hpp"
 #include "async/ManapiAsyncContext.hpp"
 
-enum timer_tasks_flags {
-    TIMER_TASK_ENABLED = 0b1,
-    TIMER_TASK_INTERVAL = 0b10
-};
-
 manapi::timer::timer() {
     this->data = nullptr;
 }
@@ -18,43 +13,53 @@ manapi::timer::timer(std::shared_ptr<timer_data_t> data) {
     this->data = std::move(data);
 }
 
-manapi::timer::timer(bool interval,std::move_only_function<void(manapi::timer t)> sync_cb) {
+manapi::timer::timer(bool interval,manapi::timer::sync_cb_t sync_cb) {
     this->data = std::make_shared<timer_data_t>();
     if (interval) {
         this->data->flags |= TIMER_TASK_INTERVAL;
     }
     this->data->flags |= TIMER_TASK_ENABLED;
-    this->data->sync_cb = std::make_unique<decltype(this->data->sync_cb)::element_type>([cb = std::move(sync_cb)] (const std::shared_ptr<timer_data_t> &data) mutable
+    this->data->sync_cb = std::make_unique<decltype(this->data->sync_cb)::element_type>([cb = std::move(sync_cb)] (manapi::timer data) mutable
             -> void {
+        if (!(data.data->flags & TIMER_TASK_INTERVAL
+            && data.data->flags & TIMER_TASK_ENABLED)) {
+            data.data->flags ^= TIMER_TASK_ENABLED;
+        }
+
         try {
-            cb(timer{data});
+            cb(data);
         }
         catch (std::exception const &e) {
             manapi::async::current()->logger()->debug(manapi::logger::default_service, "timer: cb failed due to: {}", e.what());
         }
 
-        if (data->flags & TIMER_TASK_INTERVAL) {
-            manapi::async::current()->timerpool()->update_interval_state(manapi::timer::id_(data));
+        if (data.data->flags & TIMER_TASK_INTERVAL) {
+            manapi::async::current()->timerpool()->update_interval_state(data.id());
         }
     });
 }
 
-manapi::timer::timer(bool interval,std::move_only_function<manapi::future<>(manapi::timer t)> async_cb) {
+manapi::timer::timer(bool interval,async_cb_t async_cb) {
     this->data = std::make_shared<timer_data_t>();
     if (interval) {
         this->data->flags |= TIMER_TASK_INTERVAL;
     }
     this->data->flags |= TIMER_TASK_ENABLED;
-    this->data->async_cb = std::make_unique<decltype(this->data->async_cb)::element_type>([cb = std::move(async_cb)] (std::shared_ptr<timer_data_t> data) mutable
+    this->data->async_cb = std::make_unique<decltype(this->data->async_cb)::element_type>([cb = std::move(async_cb)] (manapi::timer data) mutable
         -> manapi::future<> {
+        if (!(data.data->flags & TIMER_TASK_INTERVAL)
+            && data.data->flags & TIMER_TASK_ENABLED) {
+            data.data->flags ^= TIMER_TASK_ENABLED;
+        }
+
         try {
             co_await cb (timer{data});
         }
         catch (std::exception const &e) {
             manapi::async::current()->logger()->debug(manapi::logger::default_service, "timer: cb failed due to: {}", e.what());
         }
-        if (data->flags & TIMER_TASK_INTERVAL) {
-            manapi::async::current()->timerpool()->update_interval_state(manapi::timer::id_(data));
+        if (data.data->flags & TIMER_TASK_INTERVAL) {
+            manapi::async::current()->timerpool()->update_interval_state(data.id());
         }
     });
 }
@@ -99,7 +104,7 @@ void manapi::timer::call_() {
 
     if (this->data->sync_cb) {
         try {
-            this->data->sync_cb->operator()(this->data);
+            this->data->sync_cb->operator()(*this);
         }
         catch (std::exception const &e) {
             manapi::async::current()->logger()->debug(manapi::logger::default_service, "timer: User Callback Error: {}", e.what());
@@ -107,13 +112,15 @@ void manapi::timer::call_() {
     }
 
     if (this->data->async_cb) {
-        manapi::async::run (this->data->async_cb->operator()(this->data));
+        manapi::async::run (this->data->async_cb->operator()(*this));
     }
 }
 
 void manapi::timer::clear_() {
-    this->data->async_cb = {};
-    this->data->sync_cb = {};
+    if (!(this->data->flags & TIMER_TASK_ENABLED)) {
+        this->data->async_cb = {};
+        this->data->sync_cb = {};
+    }
 }
 
 void manapi::timer::stop() {
@@ -127,6 +134,33 @@ void manapi::timer::stop() {
     this->clear_();
 }
 
+void manapi::timer::callback_async(async_cb_t cb) {
+    if (!this->data->async_cb) {
+        this->data->async_cb = std::make_unique<async_cb_t>(std::move(cb));
+    }
+    else {
+        *this->data->async_cb = std::move(cb);
+    }
+
+    this->data->sync_cb.reset();
+}
+
+void manapi::timer::callback_sync(sync_cb_t cb) {
+    if (!this->data->sync_cb) {
+        this->data->sync_cb = std::make_unique<sync_cb_t>(std::move(cb));
+    }
+    else {
+        *this->data->sync_cb = std::move(cb);
+    }
+
+    this->data->async_cb.reset();
+}
+
+void manapi::timer::again(std::size_t ms) {
+    this->data->flags |= TIMER_TASK_ENABLED;
+    manapi::async::current()->timerpool()->again_timer(std::chrono::milliseconds{ms}, this->id(), this->data, this->data->flags & TIMER_TASK_INTERVAL);
+}
+
 bool manapi::timer::is_async() const {
     return !!this->data->async_cb;
 }
@@ -137,6 +171,10 @@ bool manapi::timer::is_sync() const {
 
 bool manapi::timer::enabled() const {
     return (this->data->flags & TIMER_TASK_ENABLED);
+}
+
+std::shared_ptr<manapi::timer::timer_data_t> manapi::timer::data_() const {
+    return this->data;
 }
 
 

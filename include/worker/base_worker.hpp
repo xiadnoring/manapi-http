@@ -80,17 +80,15 @@ namespace manapi::net::worker {
             CONN_IO_WANT_WRITE = -1001
         };
 
-        base (net::http::site site, std::shared_ptr<worker::worker_config_t> worker_data);
+        base (net::http::site site, std::shared_ptr<worker::worker_config_t> worker_data, manapi::net::http::config *config);
 
-        base (net::http::site site, bufferpool_t bufferpool, std::shared_ptr<worker::worker_config_t> worker_data);
+        base (net::http::site site, bufferpool_t bufferpool, std::shared_ptr<worker::worker_config_t> worker_data, manapi::net::http::config *config);
 
         virtual ~base ();
 
         virtual bool is_valid_connection (worker::connection *connection) = 0;
 
         virtual void init () = 0;
-
-        virtual void config (manapi::net::http::config *config);
 
         virtual void close_connection (const shared_conn &conn, bool clean_disconnect) = 0;
 

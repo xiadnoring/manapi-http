@@ -19,7 +19,7 @@ namespace manapi {
     struct timer_task {
         std::chrono::milliseconds delay;
         std::chrono::steady_clock::time_point point;
-        manapi::timer timer;
+        std::shared_ptr<timer::timer_data_t> t;
         int flags;
     };
     class timerpool : public task {
@@ -34,9 +34,6 @@ namespace manapi {
         typedef std::set <std::pair <std::chrono::steady_clock::time_point, size_t>, sorted_tasks_compare_t> sorted_storage;
 
         struct data_t {
-            // wait while deps being exists
-            manapi::chain<size_t> prepare_remove;
-
             sorted_storage sorted_tasks;
             storage tasks{};
             std::shared_ptr<event_loop> events{nullptr};
@@ -61,9 +58,9 @@ namespace manapi {
         //
         // future<manapi::timer> async_append_timer_async (size_t ms, std::move_only_function<future<void>(manapi::timer t)> task);
 
-        manapi::timer append_timer_sync (size_t ms, std::move_only_function<void(manapi::timer t)> task);
+        manapi::timer append_timer_sync (size_t ms, manapi::timer::sync_cb_t task);
 
-        manapi::timer append_timer_async (size_t ms, std::move_only_function<manapi::future<>(manapi::timer t)> task);
+        manapi::timer append_timer_async (size_t ms, manapi::timer::async_cb_t task);
 
         // future<void> async_remove_timer (size_t id);
 
@@ -73,11 +70,13 @@ namespace manapi {
         //
         // future<manapi::timer> async_append_interval_async (size_t ms, std::move_only_function<future<>(manapi::timer t)> task);
 
-        manapi::timer append_interval_async (size_t ms, std::move_only_function<manapi::future<>(manapi::timer t)> task);
+        manapi::timer append_interval_async (size_t ms, manapi::timer::async_cb_t task);
 
-        manapi::timer append_interval_sync (size_t ms, std::move_only_function<void(manapi::timer t)> task);
+        manapi::timer append_interval_sync (size_t ms, manapi::timer::sync_cb_t task);
 
         void update_interval_state (std::size_t id);
+
+        void again_timer (std::chrono::milliseconds duration, std::size_t id, std::shared_ptr<manapi::timer::timer_data_t> data, bool interval);
 
         void start ();
 
@@ -109,7 +108,7 @@ namespace manapi {
 
         static void update_interval_state_ (const std::shared_ptr<data_t> &data_, const size_t& id);
 
-        manapi::timer append_ (std::chrono::milliseconds duration, std::move_only_function<future<>(manapi::timer t)> async_task, std::move_only_function<void(manapi::timer t)> task,  bool inteval);
+        manapi::timer append_ (std::chrono::milliseconds duration, manapi::timer::async_cb_t async_task, manapi::timer::sync_cb_t task,  bool interval);
 
         std::shared_ptr<data_t> data_;
     private:

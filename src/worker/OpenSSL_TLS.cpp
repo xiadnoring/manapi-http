@@ -23,7 +23,7 @@
 
 #include "ManapiUtils.hpp"
 
-manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata) : TLS (std::move(site), std::move(wdata)) {
+manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
     this->ssl_error_none_ = SSL_ERROR_NONE;
     this->ssl_error_syscall_ = SSL_ERROR_SYSCALL;
     this->ssl_error_want_read_ = SSL_ERROR_WANT_READ;
@@ -41,8 +41,7 @@ manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
 }
 
 std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_TLS::create(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
-    auto worker = std::make_shared<worker::OpenSSL_TLS>(std::move(site), std::move(wdata));
-    worker->config(config.get());
+    auto worker = std::make_shared<worker::OpenSSL_TLS>(std::move(site), std::move(wdata), config.get());
     worker->self_ = worker;
     return std::move(worker);
 }

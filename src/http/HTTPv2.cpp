@@ -566,6 +566,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             if (ctx->frame_flag & HTTP2_FLAG_HEADERS_PRIORITY) {
                                 //deprecated
                                 ctx->n1 = 5; // skip 5 bytes
+                                ctx->frame_length -= ctx->n1;
 
                                 ctx->current = HTTP2_CALLBACK_PARSE_SKIP_N_BYTES;
                                 ctx->next = HTTP2_CALLBACK_PARSE_FIELD_BLOCK;
@@ -840,7 +841,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                     ctx->frame_length -= cutsize;
                     pos += cutsize;
 
-                    if (datasize == cutsize) {
+                    if (!ctx->frame_length) {
                         auto s = ctx->streams->end();
                         http_v2_stream_t *sdata = nullptr;
 
@@ -1148,14 +1149,14 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 goto finish;
                             }
 
-                        if (ctx->frame_stream_id != ctx->last_stream_id) {
-                            http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
-                            http_goaway.err_msg = "provided stream id isn't handled";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            goto finish;
-                        }
+                            if (ctx->frame_stream_id != ctx->last_stream_id) {
+                                http_goaway.err_code = HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_msg = "provided stream id isn't handled";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
+                            }
 
-                        ctx->current = HTTP2_CALLBACK_PARSE_HEADER_DATA;
+                            ctx->current = HTTP2_CALLBACK_PARSE_HEADER_DATA;
                         break;
                         case HTTP2_FRAME_SETTINGS:
                             // setting param size - 6 bytes
@@ -1304,7 +1305,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
             }
         }
     }
-    catch (...) {
+    catch (std::exception const &e) {
+        ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
         /* some errors */
         return EHTTP_V2_PROTOCOL_ERROR;
     }
@@ -1321,7 +1323,7 @@ ssize_t manapi::net::http::http_v2_write(http_v2_stream_t *s, const void *buffer
         return 0;
     }
 
-    auto const copy = std::min(
+    auto copy = std::min(
         static_cast<ssize_t>(std::min(s->write_window, s->ctx->write_window)), size);
 
     assert((copy >= 0));
@@ -1349,6 +1351,7 @@ ssize_t manapi::net::http::http_v2_write(http_v2_stream_t *s, const void *buffer
         }
 
         buff.base += buff.len;
+        copy -= buff.len;
 
         if (!s->ctx->worker->is_writable(s->ctx->conn)) {
             break;
