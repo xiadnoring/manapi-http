@@ -14,7 +14,7 @@ void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags
     }
 }
 
-void manapi::net::worker::http_v2::close_connection(const shared_conn &conn, bool clean_disconnect) {
+void manapi::net::worker::http_v2::close_connection(shared_conn conn, bool clean_disconnect) {
     auto data = conn->as<http::http_v2_stream_t>();
     if (data->flags & http::HTTP2_STREAM_REMOVED) {
         return;
@@ -43,6 +43,9 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::response(const shared_conn
 
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flags) {
     auto const data = conn->as<http::http_v2_stream_t>();
+    if (flags & ev::WRITE) {
+        data->ctx->worker->event_toggle(conn, true, ev::WRITE);
+    }
     return std::exchange(data->flags, ((data->flags >> 2) << 2) | flags);;
 }
 
@@ -57,6 +60,11 @@ std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::htt
 
 void manapi::net::worker::http_v2::init() {
 
+}
+
+manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v2::ipdata(worker::connection *conn) {
+    auto const data = conn->as<http::http_v2_stream_t>();
+    return data->ctx->conn->ipdata.get();
 }
 
 bool manapi::net::worker::http_v2::is_writable(const shared_conn &conn) {

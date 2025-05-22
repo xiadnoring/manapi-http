@@ -99,6 +99,10 @@ void manapi::net::worker::base::event_toggle(const shared_conn & conn, bool stat
     }
 }
 
+manapi::net::worker::connection::ipdata_t * manapi::net::worker::base::ipdata(worker::connection *conn) {
+    return conn->ipdata.get();
+}
+
 manapi::net::http::site & manapi::net::worker::base::site() {
     return this->site_;
 }

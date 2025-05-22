@@ -488,8 +488,9 @@ manapi::future<ssize_t> manapi::net::http::internal::mask_response(handle_data_t
     co_return co_await cdata->worker->response(cdata->conn, res, finish);
 }
 
-int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *inf, manapi::net::worker::connection *conn) {
-    auto family = reinterpret_cast <struct sockaddr_in *> (conn->ipdata->client.data)->sin_family;
+int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *inf, manapi::net::worker::base *w, manapi::net::worker::connection *conn) {
+    auto ipdata = w->ipdata(conn);
+    auto family = reinterpret_cast <struct sockaddr_in *> (ipdata->client.data)->sin_family;
     std::string buffer;
     int size;
 
@@ -497,7 +498,7 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
         size = sizeof ("xxx:xxx:xxx:xxx");
         buffer.resize(size);
 
-        if (!inet_ntop(AF_INET, conn->ipdata->client.data, buffer.data(), size)) {
+        if (!inet_ntop(AF_INET, ipdata->client.data, buffer.data(), size)) {
             return -1;
         }
 
@@ -508,7 +509,7 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
         buffer.resize(size + 1);
 
         inf->ip = std::move(buffer);
-        inf->port = htons(reinterpret_cast<struct sockaddr_in *> (&conn->ipdata->client)->sin_port);
+        inf->port = htons(reinterpret_cast<struct sockaddr_in *> (&ipdata->client)->sin_port);
         return 0;
     }
 
@@ -516,7 +517,7 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
         size = sizeof ("xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx");
         buffer.resize(size);
 
-        if (!inet_ntop(AF_INET6, &conn->ipdata->client, buffer.data(), size)) {
+        if (!inet_ntop(AF_INET6, &ipdata->client, buffer.data(), size)) {
             return -1;
         }
 
@@ -527,7 +528,7 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
         buffer.resize(size + 1);
 
         inf->ip = std::move(buffer);
-        inf->port = htons(reinterpret_cast<struct sockaddr_in6 *> (&conn->ipdata->client)->sin6_port);
+        inf->port = htons(reinterpret_cast<struct sockaddr_in6 *> (&ipdata->client)->sin6_port);
         return 0;
     }
 
@@ -575,7 +576,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 
                             auto client = std::make_unique<manapi_socket_information>();
 
-                            if (handle_request_stringify_ip(client.get(), cdata->conn.get())) {
+                            if (handle_request_stringify_ip(client.get(), cdata->worker.get(), cdata->conn.get())) {
                                 /* error */
                                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
                                 co_return;
@@ -738,7 +739,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
         }
 
 
-        cdata->cb->call(current <= size);
+        cdata->cb->call(current >= size);
 
         co_return;
     }

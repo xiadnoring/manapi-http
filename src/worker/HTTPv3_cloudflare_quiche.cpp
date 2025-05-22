@@ -149,7 +149,7 @@ err:
     THROW_MANAPIHTTP_EXCEPTION2(ERR_SOCKET, "quiche: init(...) failed");
 }
 
-void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(const shared_conn &conn, bool clean) {
+void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_conn conn, bool clean) {
     auto s = conn->as<connection_stream_t>();
     if (s->flags & HTTP_V3_STREAM_REMOVED) {
         return;
@@ -166,6 +166,12 @@ void manapi::net::worker::http_v3_cloudflare_quiche::reset_all_streams_(connecti
     for (const auto &s : *conn_data->streams) {
         close_connection(s.second, s.second->as<connection_stream_t>());
     }
+}
+
+manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v3_cloudflare_quiche::ipdata(
+    worker::connection *conn) {
+    auto const data = conn->as<connection_stream_t>();
+    return data->conn->self->ipdata.get();
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::quiche_timeout_(manapi::timer w, const shared_conn &connection) {

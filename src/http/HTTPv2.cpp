@@ -396,12 +396,18 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
 }
 
 int manapi::net::http::http_v2_on_write(http_v2_t *ctx) {
+    bool no_one = true;
     for (const auto &s : *ctx->streams) {
         auto const data = s.second->as<http_v2_stream_t>();
-        if ((data->flags & ev::WRITE)
-            && data->ev_callback) {
-            data->ev_callback->operator()(s.second, ev::WRITE, nullptr, 0);
+        if ((data->flags & ev::WRITE)) {
+            no_one = false;
+            if (data->ev_callback)
+                data->ev_callback->operator()(s.second, ev::WRITE, nullptr, 0);
         }
+    }
+
+    if (no_one) {
+        ctx->worker->event_toggle(ctx->conn, false, ev::WRITE);
     }
 
     return 0;

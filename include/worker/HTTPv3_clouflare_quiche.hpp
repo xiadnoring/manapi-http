@@ -54,7 +54,7 @@ namespace manapi::net::worker {
 
         ssize_t sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) override;
 
-        void close_connection(const shared_conn &conn, bool clean_disconnect) override;
+        void close_connection(shared_conn conn, bool clean_disconnect) override;
 
         void configure_connection(const shared_conn &conn, oncont_cb cb) override;
 
@@ -92,6 +92,8 @@ namespace manapi::net::worker {
         static void flush_connection_closed_ (const shared_conn &conn, connection_t *conn_data);
 
         void reset_all_streams_ (connection_t *conn_data);
+
+        connection::ipdata_t *ipdata(worker::connection *conn) override;
 
         static void quiche_timeout_ (manapi::timer t, const shared_conn &connection);
 

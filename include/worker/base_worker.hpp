@@ -95,7 +95,7 @@ namespace manapi::net::worker {
 
         virtual void init () = 0;
 
-        virtual void close_connection (const shared_conn &conn, bool clean_disconnect) = 0;
+        virtual void close_connection (shared_conn conn, bool clean_disconnect) = 0;
 
         virtual void configure_connection (const shared_conn &conn, oncont_cb cb) = 0;
 
@@ -122,6 +122,8 @@ namespace manapi::net::worker {
         virtual void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size) = 0;
 
         void event_toggle (const shared_conn & conn, bool state, int flag);
+
+        virtual connection::ipdata_t *ipdata (worker::connection *conn);
 
         net::http::site &site ();
 

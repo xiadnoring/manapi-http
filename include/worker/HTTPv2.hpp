@@ -19,7 +19,7 @@ namespace manapi::net::worker {
 
         void feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size) override;
 
-        void close_connection(const shared_conn &conn, bool clean_disconnect) override;
+        void close_connection(shared_conn conn, bool clean_disconnect) override;
 
         void configure_connection(const shared_conn &conn, oncont_cb cb) override;
 
@@ -32,6 +32,8 @@ namespace manapi::net::worker {
         std::unique_ptr<worker_watcher_cb> event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) override;
 
         void init() override;
+
+        connection::ipdata_t *ipdata(worker::connection *conn) override;
 
         bool is_writable(const shared_conn &conn) override;
 

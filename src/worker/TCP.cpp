@@ -269,7 +269,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept(ev::shared_tcp
     }));
 }
 
-void manapi::net::worker::TCP::close_connection(const shared_conn &conn, bool clean_disconnect) {
+void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_disconnect) {
     auto connection = conn->as<connection_interface>();
 
     if (connection->status & CONN_REMOVED) {
@@ -281,7 +281,7 @@ void manapi::net::worker::TCP::close_connection(const shared_conn &conn, bool cl
             connection->status ^= CONN_KEEP_ALIVE;
         }
 
-        connection->status |= CONN_REMOVED|CONN_CLOSED;
+        connection->status = CONN_REMOVED|CONN_CLOSED;
 
         if (connection->t) {
             connection->t.stop();
@@ -291,10 +291,7 @@ void manapi::net::worker::TCP::close_connection(const shared_conn &conn, bool cl
             connection->ev_callback->operator()(conn, ev::DISCONNECT, nullptr, 0);
         }
         connection->watcher->read_stop();
-        manapi::async::current()->eventloop()->stop_watcher_tcp_connection(std::move(connection->watcher),
-            std::make_unique<ev::tcp_close_cb>([] (const ev::shared_tcp &tcp) -> void {
-
-            }));
+        manapi::async::current()->eventloop()->stop_watcher_tcp_connection(std::move(connection->watcher), nullptr);
         this->connections.erase(reinterpret_cast<uintptr_t> (conn.get()));
     }
     else {
@@ -328,12 +325,6 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
         return CONN_IO_ERROR;
     }
 
-    size = std::min(size, this->config_->speed_limit_rate() - connection->transfered);
-
-    if (!size) {
-        return 0;
-    }
-
     ssize_t rhs;
 
     if (connection->top->send_size) {
@@ -364,6 +355,13 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
 }
 
 ssize_t manapi::net::worker::TCP::sync_write(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish) {
+    auto const connection = conn->as<connection_interface>();
+    size = std::min(size, this->config_->speed_limit_rate() - connection->transfered);
+
+    if (!size) {
+        return 0;
+    }
+
     return sync_write_ex(conn, buff, size, finish, this->config_->max_buffer_stack());
 }
 

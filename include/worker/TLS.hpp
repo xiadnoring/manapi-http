@@ -29,7 +29,7 @@ namespace manapi::net::worker {
 
         shared_conn accept (ev::shared_tcp &w) override;
 
-        void close_connection(const shared_conn &conn, bool clean_disconnect) override;
+        void close_connection(shared_conn conn, bool clean_disconnect) override;
 
         ssize_t sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) override;
 

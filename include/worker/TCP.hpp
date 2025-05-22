@@ -46,7 +46,7 @@ namespace manapi::net::worker {
 
         future<ssize_t> response(const shared_conn &connection, http::response *resp, bool finish) override;
 
-        void close_connection(const shared_conn &conn, bool clean_disconnect) override;
+        void close_connection(shared_conn conn, bool clean_disconnect) override;
 
         void stop() override;
 
