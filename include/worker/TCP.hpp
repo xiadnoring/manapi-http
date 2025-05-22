@@ -84,6 +84,8 @@ namespace manapi::net::worker {
         std::unordered_map <std::uintptr_t, shared_conn> connections;
         ev::shared_tcp watcher_accept_;
     protected:
+        void conn_work_finish_ (worker::shared_conn conn, bool ok, ibuffpool_t buffer = {});
+
         std::weak_ptr<base> self_;
         std::shared_ptr<net::worker::http_v2> http_v2_worker;
     private:

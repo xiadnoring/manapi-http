@@ -152,7 +152,7 @@ ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, const void
     auto const data = conn->as<connection_interface>();
     size = std::min(size, this->config_->speed_limit_rate() - data->transfered);
 
-    if (!size) {
+    if (size <= 0) {
         return size;
     }
 
@@ -184,7 +184,14 @@ void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {
 void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) {
     auto buff = buffer->as<char>();
     auto size = static_cast<ssize_t>(buffer->size());
-    auto data = conn->as<TLS::connection_interface>();
+    auto const data = conn->as<TLS::connection_interface>();
+
+    if (data->status & CONN_LIMIT_RATE) {
+        data->transfered += size;
+        if (data->transfered >= this->config_->speed_limit_rate()) {
+            data->watcher->read_stop();
+        }
+    }
 
     while (size) {
         auto rhs = this->ssl_bio_write_(data->rbio, buff, static_cast<int>(size));
