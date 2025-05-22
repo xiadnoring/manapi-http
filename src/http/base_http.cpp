@@ -45,7 +45,7 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
     // set time
     //res->header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
     if (res->request_data()->http < versions::HTTP_v2) {
-        auto keepalive = cdata->worker->config()->keep_alive();
+        auto const keepalive = cdata->worker->config()->keep_alive;
         if (keepalive) {
             res->header(HEADER.CONNECTION, HEADER.KEEP_ALIVE);
         }
@@ -143,7 +143,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
             }
 
             // partial enabled
-            if (res->partial_enabled() && res->config()->partial_data_min_size() <= fileSize) {
+            if (res->partial_enabled() && res->config()->partial_data_min_size <= fileSize) {
                 if (features.compressor_for_file) {
                     THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
                                            "the compress '{}' with the partial content is not supported.",
@@ -374,7 +374,7 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(uq_handle_d
                 res->header(HEADER.CONTENT_TYPE, stringify_header_value({{"multipart/form-data", {{"boundary", boundary.substr(2)}}}}));
 
                 auto task = formdata->data2multipart(std::move(boundary),
-                    res->config()->buffer_size(),
+                    res->config()->buffer_size,
                     [cdata = cdata.get(), res = res.get()] (const void *buffer, ssize_t size)
                     -> future<> {
                         /**
@@ -420,7 +420,7 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
             }
 
             if (result && *result >= 0) {
-                const ssize_t reserved = res->config()->buffer_size();
+                const ssize_t reserved = res->config()->buffer_size;
                 auto cb_sync = res->callback_sync();
                 manapi::async::run ([cb_sync = std::move(cb_sync), reserved, cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
@@ -461,7 +461,7 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
             }
 
             if (result && *result >= 0) {
-                auto reserved = res->config()->buffer_size();
+                auto reserved = res->config()->buffer_size;
                 auto cb_async = res->callback_async();
                 manapi::async::run ([reserved, cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
@@ -694,7 +694,7 @@ void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, st
 }
 
 manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size) {
-    auto block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size());
+    auto block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size);
 
     std::string write_block, read_block;
 
@@ -756,7 +756,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
 
 manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size, std::vector<replace_founded_item> replacers) {
     std::string block;
-    auto block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size());
+    auto block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size);
 
     block.resize(block_size);
 

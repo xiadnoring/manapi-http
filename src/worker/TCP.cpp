@@ -60,15 +60,15 @@ void manapi::net::worker::TCP::init() {
             .ai_protocol    = IPPROTO_TCP
         };
 
-        auto &address = this->config()->address();
-        auto &port = this->config()->port();
+        auto &address = this->config_->address;
+        auto &port = this->config_->port;
 
         if (getaddrinfo(address.data(), port.data(), &hints, &this->local) != 0) {
             THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
         }
 
-        this->config()->server_address(*this->local->ai_addr);
-        this->config()->server_len(this->local->ai_addrlen);
+        this->config_->server_addr=(*this->local->ai_addr);
+        this->config_->server_len=(this->local->ai_addrlen);
 
         MANAPIHTTP_LOG("HTTP TCP PORT USED: {}. {}:{}", port, address, port);
 
@@ -85,29 +85,29 @@ void manapi::net::worker::TCP::init() {
         memset(&this->sockaddrin, '\0', sizeof (sockaddr));
 
         if (this->local->ai_family == ev::IPv4) {
-            if (auto rhs = this->watcher_accept_->ip4_addr(this->config()->address().data(), std::stoi(this->config()->port()), reinterpret_cast<sockaddr_in *>(&this->sockaddrin))) {
+            if (auto rhs = this->watcher_accept_->ip4_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in *>(&this->sockaddrin))) {
                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't set ipv4 addr due to result - {}", rhs);
                 goto err;
             }
         }
         else if (this->local->ai_family == ev::IPv6) {
-            if (auto rhs = this->watcher_accept_->ip6_addr(this->config()->address().data(), std::stoi(this->config()->port()), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin))) {
+            if (auto rhs = this->watcher_accept_->ip6_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin))) {
                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't set ipv6 addr due to result - {}", rhs);
                 goto err;
             }
         }
 
-        if (auto rhs = this->watcher_accept_->nodelay(this->config()->tcp_no_delay())) {
+        if (auto rhs = this->watcher_accept_->nodelay(this->config_->tcp_no_delay)) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set nodelay due to result - {}", rhs);
             goto err;
         }
 
-        if (auto rhs = this->watcher_accept_->simultaneous_accepts(this->config()->simultaneous_accepts())) {
+        if (auto rhs = this->watcher_accept_->simultaneous_accepts(this->config_->simultaneous_accepts)) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set simultaneous_accepts due to result - {}", rhs);
             goto err;
         }
 
-        if (auto rhs = this->watcher_accept_->keepalive(!!this->config()->keep_alive(), this->config()->keep_alive())) {
+        if (auto rhs = this->watcher_accept_->keepalive(!!this->config_->keep_alive, this->config_->keep_alive)) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set keep-alive due to result - {}", rhs);
             goto err;
         }
@@ -117,7 +117,7 @@ void manapi::net::worker::TCP::init() {
             goto err;
         }
 
-        if (auto rhs = this->watcher_accept_->listen(this->config()->max_backlog())) {
+        if (auto rhs = this->watcher_accept_->listen(this->config_->max_backlog)) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't listen socket due to result - {}", rhs);
             goto err;
         }
@@ -155,7 +155,7 @@ void manapi::net::worker::TCP::onaccept(std::shared_ptr<ev::tcp> &watcher, int s
 
     shared_conn connection;
     try {
-        // if (this->config()->max_connections() <= this->connections.size()) {
+        // if (this->config_->max_connections() <= this->connections.size()) {
         //     return;
         // }
 
@@ -187,7 +187,7 @@ void manapi::net::worker::TCP::onrecv(std::shared_ptr<ev::tcp> &watcher, const w
     auto const size = static_cast<int>(buffer->size());
     if (connection->status & CONN_LIMIT_RATE) {
         connection->transfered += size;
-        if (connection->transfered >= this->config_->speed_limit_rate()) {
+        if (connection->transfered >= this->config_->speed_limit_rate) {
             connection->watcher->read_stop();
         }
     }
@@ -241,8 +241,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
         return nullptr;
     }
 
-    auto keepalive = this->config()->keep_alive();
-    if (auto rhs = client->keepalive(!!keepalive, keepalive)) {
+    if (auto rhs = client->keepalive(!!this->config_->keep_alive, this->config_->keep_alive)) {
         manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set keep-alive due to result - {}", rhs);
         manapi::async::current()->eventloop()->stop_watcher_tcp_connection(std::move(client), nullptr);
         return nullptr;
@@ -351,7 +350,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
 
     if (rhs != size) {
         rhs += connection_io_send (&connection->top->send, static_cast<const char *>(buff) + rhs, size - rhs, this->bufferpool().get(),
-            this->config_->buffer_size(), &connection->top->send_size, maxcnt);
+            this->config_->buffer_size, &connection->top->send_size, maxcnt);
 
         connection->transfered += rhs;
 
@@ -363,13 +362,13 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
 
 ssize_t manapi::net::worker::TCP::sync_write(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish) {
     auto const connection = conn->as<connection_interface>();
-    size = std::min(size, this->config_->speed_limit_rate() - connection->transfered);
+    size = std::min(size, this->config_->speed_limit_rate - connection->transfered);
 
     if (size <= 0) {
         return 0;
     }
 
-    return sync_write_ex(conn, buff, size, finish, this->config_->max_buffer_stack());
+    return sync_write_ex(conn, buff, size, finish, this->config_->max_buffer_stack);
 }
 
 std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::TCP::event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) {
@@ -391,7 +390,7 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
             assert(!data->watcher->read_stop());
         }
     }
-
+    data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
     return std::exchange(status, ((status >> 2) << 2) | flags);
 }
 
@@ -456,8 +455,21 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
 
 void manapi::net::worker::TCP::update_limit_rate() {
     /* in the event loop */
-    for (auto &conn: this->connections) {
-        this->update_limit_rate_connection(conn.second);
+    auto it = this->connections.begin();
+    if (it == this->connections.end()) {
+        return;
+    }
+    while (this->update_limit_rate_connection(it->second)) {
+        /* was removed */
+        it = this->connections.begin();
+        if (it == this->connections.end()) {
+            return;
+        }
+    }
+    for (auto nit = std::next(it); nit != this->connections.end(); nit = std::next(it)) {
+        if(!this->update_limit_rate_connection(it->second)) {
+            it = nit;
+        }
     }
 }
 
@@ -478,9 +490,10 @@ void manapi::net::worker::TCP::ev_watcher_stop_(connection_interface &conn) {
     this->connections.erase(reinterpret_cast<std::uintptr_t>(conn.watcher.get()));
 }
 
-void manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &sconn) {
+bool manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &sconn) {
     auto const conn_data = sconn->as<connection_interface>();
-    if (conn_data->transfered >= this->config_->speed_limit_rate()
+
+    if (conn_data->transfered >= this->config_->speed_limit_rate
         && conn_data->ev_callback) {
         conn_data->transfered = 0;
         if (conn_data->status & ev::READ)
@@ -490,8 +503,17 @@ void manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &s
             conn_data->ev_callback->operator()(sconn, ev::WRITE, nullptr, 0);
     }
     else {
+        if (--conn_data->speed_min_delay == 0) {
+            if (conn_data->transfered < this->config_->speed_check_bytes) {
+                this->close_connection(sconn, false);
+                return true;
+            }
+            conn_data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
+        }
         conn_data->transfered = 0;
     }
+
+    return false;
 }
 
 void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize) {
@@ -509,7 +531,7 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
 
     if (flags & ev::READ) {
         while (true) {
-            rhs = http::http_v2_work(http_v2_ctx, this->config(), &buffer, &nsize);
+            rhs = http::http_v2_work(http_v2_ctx, this->config_, &buffer, &nsize);
 
             switch (rhs) {
                 case http::EHTTP_V2_PROTOCOL_OK: {
@@ -577,8 +599,8 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
 
 bool manapi::net::worker::TCP::is_writable(const shared_conn &conn) {
     auto const data = conn->as<connection_interface>();
-    return data->top->recv_size <= this->config_->max_buffer_stack()
-        && data->transfered < this->config_->speed_limit_rate();
+    return data->top->recv_size <= this->config_->max_buffer_stack
+        && data->transfered < this->config_->speed_limit_rate;
 }
 
 std::string manapi::net::worker::TCP::stringify_http_info(manapi::net::http::response *res, const int &version, const std::string &delimiter) {
@@ -628,7 +650,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
     try {
         if (flags & ev::READ) {
 
-            switch (http::http_v1_1_work(http_v1_1_ctx, this->config(), &buff, &size)) {
+            switch (http::http_v1_1_work(http_v1_1_ctx, this->config_, &buff, &size)) {
                 case http::EHTTP_V1_1_PROTOCOL_OK: {
                     auto req_ptr = http_v1_1_ctx->req.get();
                     if (size) {
@@ -662,7 +684,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     this->event_flags(conn, 0);
 
                     connection_io_send(&data->top->recv, buff, size,
-                        this->bufferpool().get(), this->config_->buffer_size(), &data->top->recv_size, 1e5);
+                        this->bufferpool().get(), this->config_->buffer_size, &data->top->recv_size, 1e5);
 
                     net::http::internal::handle_income_request(std::move(cdata), this->site().handler(req_ptr), http::OK_200);
 
@@ -713,7 +735,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     }
 
                     connection_io_send(&data->top->recv, buff, size,
-                        this->bufferpool().get(), this->config_->buffer_size(), &data->top->recv_size, 1e5);
+                        this->bufferpool().get(), this->config_->buffer_size, &data->top->recv_size, 1e5);
 
                     break;
                 }
@@ -761,7 +783,7 @@ void manapi::net::worker::TCP::conn_work_finish_(worker::shared_conn conn, bool 
     std::cout << "CLOSE\n";
 
     if (ok) {
-        if (this->config()->keep_alive()) {
+        if (this->config_->keep_alive) {
             this->event_on(conn,
                 std::make_unique<manapi::net::worker::worker_watcher_cb>(
                     [this]

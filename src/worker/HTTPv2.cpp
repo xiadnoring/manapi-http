@@ -38,6 +38,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::response(const shared_conn
 
     int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) {
     auto const data = conn->as<http::http_v2_stream_t>();
+    data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
     return data->flags & (ev::READ|ev::WRITE|ev::DISCONNECT);
 }
 
@@ -81,7 +82,7 @@ void manapi::net::worker::http_v2::stop() {
 }
 
 ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
-    return sync_write_ex (conn, buff, size, finish, static_cast<int>(this->config()->max_buffer_stack()));
+    return sync_write_ex (conn, buff, size, finish, static_cast<int>(this->config_->max_buffer_stack));
 }
 
 ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {

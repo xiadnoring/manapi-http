@@ -24,11 +24,11 @@ manapi::net::worker::TLS::~TLS() = default;
 void manapi::net::worker::TLS::init() {
     TCP::init();
 
-    auto &sslconfig = this->config()->ssl_config();
+    auto &sslconfig = this->config_->ssl_config;
 
     if (sslconfig.enabled) {
         // init
-        this->ctx = this->ssl_create_context(this->config()->tls_version());
+        this->ctx = this->ssl_create_context(this->config_->tls_version);
         // setup ctx (load certs)
         this->ssl_configure_context();
     }
@@ -150,23 +150,24 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, const v
 
 ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
     auto const data = conn->as<connection_interface>();
-    size = std::min(size, this->config_->speed_limit_rate() - data->transfered);
+    size = std::min(size, this->config_->speed_limit_rate - data->transfered);
 
     if (size <= 0) {
         return size;
     }
 
-    return this->sync_write_ex(conn, buff, size, finish, static_cast<int>(this->config()->max_buffer_stack()));
+    return this->sync_write_ex(conn, buff, size, finish, static_cast<int>(this->config_->max_buffer_stack));
 }
 
 int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) {
     auto const data = conn->as<connection_interface>();
     auto &status = data->status;
+    data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
     return std::exchange(status, ((status >> 2) << 2) | flags);
 }
 
-void manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &sconn) {
-    TCP::update_limit_rate_connection(sconn);
+bool manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &sconn) {
+    return TCP::update_limit_rate_connection(sconn);
 }
 
 void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {
@@ -188,7 +189,7 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
 
     if (data->status & CONN_LIMIT_RATE) {
         data->transfered += size;
-        if (data->transfered >= this->config_->speed_limit_rate()) {
+        if (data->transfered >= this->config_->speed_limit_rate) {
             data->watcher->read_stop();
         }
     }
@@ -348,7 +349,7 @@ void manapi::net::worker::TLS::flush_write_(const shared_conn &connection, bool 
 }
 
 int manapi::net::worker::TLS::check_read_stack_full_(connection_interface *data) {
-    if (data->top->recv_size > this->config()->max_buffer_stack()) {
+    if (data->top->recv_size > this->config_->max_buffer_stack) {
         /* sadness */
         if (auto rhs = data->watcher->read_stop()) {
             return rhs;
@@ -370,7 +371,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
                 return CONN_IO_WANT_WRITE;
 
             auto buffer = this->bufferpool()->get();
-            buffer->resize_max(this->config_->buffer_size());
+            buffer->resize_max(this->config_->buffer_size);
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
             if (top->last_deque) {
@@ -436,7 +437,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
                 return CONN_IO_WANT_READ;
 
             auto buffer = this->bufferpool()->get();
-            buffer->resize_max(this->config_->buffer_size());
+            buffer->resize_max(this->config_->buffer_size);
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
             if (top->last_deque) {

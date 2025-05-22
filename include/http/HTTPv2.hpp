@@ -50,6 +50,8 @@ namespace manapi::net::http {
 
         std::unique_ptr<request_data_t> req;
         std::unique_ptr<worker::worker_watcher_cb> ev_callback;
+
+        int speed_min_delay;
     };
 
     struct http_v2_t {

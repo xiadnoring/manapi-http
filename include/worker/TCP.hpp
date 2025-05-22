@@ -22,6 +22,7 @@ namespace manapi::net::worker {
             std::shared_ptr<ev::tcp> watcher;
             std::unique_ptr<struct connection_io> top;
             std::unique_ptr<worker_watcher_cb> ev_callback;
+            int speed_min_delay;
         };
 
         TCP (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config);
@@ -71,7 +72,7 @@ namespace manapi::net::worker {
 
         void ev_watcher_stop_ (connection_interface & conn);
 
-        virtual void update_limit_rate_connection (const shared_conn &sconn);
+        virtual bool update_limit_rate_connection (const shared_conn &sconn);
 
         virtual void http2_work_ (http::http_v2_t *http_v2_ctx, const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize);
 

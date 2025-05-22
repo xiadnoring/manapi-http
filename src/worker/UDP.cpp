@@ -22,15 +22,15 @@ void manapi::net::worker::udp::init() {
         .ai_protocol = IPPROTO_UDP
     };
 
-    auto &address = this->config()->address();
-    auto &port = this->config()->port();
+    auto &address = this->config_->address;
+    auto &port = this->config_->port;
 
     if (getaddrinfo(address.data(), port.data(), &hints, &this->local) != 0) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
     }
 
-    this->config()->server_address(*this->local->ai_addr);
-    this->config()->server_len(this->local->ai_addrlen);
+    this->config_->server_addr=(*this->local->ai_addr);
+    this->config_->server_len=(this->local->ai_addrlen);
 
     MANAPIHTTP_LOG("HTTP UDP PORT USED: {}. https://{}:{}", port, address, port);
 
@@ -53,13 +53,13 @@ void manapi::net::worker::udp::init() {
     memset(&this->sockaddrin, '\0', sizeof (sockaddr));
 
     if (this->local->ai_family == ev::IPv4) {
-        if (auto rhs = this->udp_accept_->ip4_addr(this->config()->address().data(), std::stoi(this->config()->port()), reinterpret_cast<sockaddr_in *>(&this->sockaddrin))) {
+        if (auto rhs = this->udp_accept_->ip4_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in *>(&this->sockaddrin))) {
             manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't set ipv4 addr due to result - {}", rhs);
             goto err;
         }
     }
     else if (this->local->ai_family == ev::IPv6) {
-        if (auto rhs = this->udp_accept_->ip6_addr(this->config()->address().data(), std::stoi(this->config()->port()), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin))) {
+        if (auto rhs = this->udp_accept_->ip6_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin))) {
             manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't set ipv6 addr due to result - {}", rhs);
             goto err;
         }

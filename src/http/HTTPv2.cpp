@@ -1042,7 +1042,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             ctx->read_window += allow;
                         }
 
-                        auto bs = config->buffer_size();
+                        auto bs = config->buffer_size;
 
                         /**
                          * recv data

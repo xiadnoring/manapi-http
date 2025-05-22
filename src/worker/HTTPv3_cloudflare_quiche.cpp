@@ -76,7 +76,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         this->quiche_config_ = quiche_config_new(QUICHE_PROTOCOL_VERSION);
         this->quiche_h3_config_ = quiche_h3_config_new();
 
-        auto const ssl_config = &this->config_->ssl_config();
+        auto const ssl_config = &this->config_->ssl_config;
 
         if (!ssl_config->enabled) {
             THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "QUICHE: QUIC requires SSL be enabled");
@@ -104,8 +104,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         quiche_config_set_initial_max_streams_bidi (this->quiche_config_, 100);
         quiche_config_set_initial_max_streams_uni (this->quiche_config_, 100);
         //quiche_config_set_disable_active_migration (this->quiche_config_, true);
-        quiche_config_verify_peer(this->quiche_config_, this->config_->verify_peer());
-        if (this->config_->is_quic_debug()) {
+        quiche_config_verify_peer(this->quiche_config_, this->config_->verify_peer);
+        if (this->config_->quic_debug) {
             if (quiche_enable_debug_logging([] (const char *line, void *argp)
                 -> void {
                 MANAPIHTTP_LOG2(line);
@@ -114,17 +114,17 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
             }
         }
 
-        if (this->config_->quic_cc_algo() != http::versions::QUIC_CC_NONE) {
+        if (this->config_->quic_cc_algo != http::versions::QUIC_CC_NONE) {
             quiche_cc_algorithm algo = QUICHE_CC_RENO;
 
-            switch (this->config_->quic_cc_algo())
+            switch (this->config_->quic_cc_algo)
             {
                 case http::versions::QUIC_CC_CUBIC:   algo = QUICHE_CC_CUBIC;     break;
                 case http::versions::QUIC_CC_RENO:    algo = QUICHE_CC_RENO;      break;
                 case http::versions::QUIC_CC_BBR:     algo = QUICHE_CC_BBR;       break;
                 case http::versions::QUIC_CC_BBR2:    algo = QUICHE_CC_BBR2;      break;
                 default: THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo: {}",
-                        static_cast<int>(this->config_->quic_cc_algo()));
+                        static_cast<int>(this->config_->quic_cc_algo));
             }
 
             quiche_config_set_cc_algorithm (this->quiche_config_, algo);
@@ -378,7 +378,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
         }
 
         auto quiche_conn_ = quiche_accept(reinterpret_cast<uint8_t *> (dcid), dcid_len,
-         reinterpret_cast<uint8_t *>(odcid), odcid_len, &this->config_->server_address(), this->config_->server_len(),
+         reinterpret_cast<uint8_t *>(odcid), odcid_len, &this->config_->server_addr, this->config_->server_len,
          reinterpret_cast<sockaddr *>(sockaddr_src), sockaddr_len, this->quiche_config_);
 
         if (!quiche_conn_) {
@@ -414,8 +414,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
     quiche_recv_info recv_info {
          reinterpret_cast <sockaddr *>(sockaddr_src),
          sockaddr_len,
-         (sockaddr *)&this->config_->server_address(),
-         this->config_->server_len()
+         (sockaddr *)&this->config_->server_addr,
+         this->config_->server_len
     };
 
     ssize_t done = quiche_conn_recv(conn_data->conn, reinterpret_cast<uint8_t *> (buff), size, &recv_info);
@@ -600,7 +600,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
 }
 
 ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
-    return sync_write_ex (conn, buff, size, finish, static_cast<int>(this->config_->max_buffer_stack()));
+    return sync_write_ex (conn, buff, size, finish, static_cast<int>(this->config_->max_buffer_stack));
 }
 
 ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {
@@ -647,6 +647,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_con
 int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_conn &conn, int flags) {
     auto const data = conn->as<connection_stream_t>();
     auto &flags_ = data->flags;
+    data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
     return std::exchange(flags_, ((flags_ >> 2) << 2) | flags);
 }
 
@@ -669,7 +670,7 @@ bool manapi::net::worker::http_v3_cloudflare_quiche::is_valid_connection(worker:
 
 bool manapi::net::worker::http_v3_cloudflare_quiche::is_writable(const shared_conn &conn) {
     auto const data = conn->as<connection_stream_t>();
-    return data->top->send_size < this->config_->max_buffer_stack();
+    return data->top->send_size < this->config_->max_buffer_stack;
 }
 
 // dvoid manapi::net::worker::http_v3_cloudflare_quiche::recv_buffer_alloc_(ssize_t nread, ev::buff_t *buff) {
@@ -732,7 +733,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
     buffer_deque *parent = nullptr;
     ssize_t rhs;
     int flags;
-    int const maxcnt = this->config_->max_buffer_stack();
+    int const maxcnt = this->config_->max_buffer_stack;
 
     do {
         if (!top->last_deque || top->last_deque->buffer->size() == top->deque_cursor) {
@@ -744,7 +745,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
                 return CONN_IO_WANT_READ;
 
             auto buffer = this->bufferpool()->get();
-            buffer->resize_max(this->config_->buffer_size());
+            buffer->resize_max(this->config_->buffer_size);
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
             if (top->last_deque) {

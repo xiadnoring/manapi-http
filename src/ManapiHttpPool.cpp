@@ -53,8 +53,8 @@ manapi::future<void> manapi::net::http_pool::_pool() {
 
     MANAPIHTTP_LOG("pool start #{}", this->id);
 
-    auto implementation = this->config->implementation();
-    auto transport = this->config->transport();
+    auto implementation = this->config->implementation;
+    auto transport = this->config->transport;
     auto implementations = this->site->transport_protocol_worker(transport);
 
     if (implementations.contains(implementation))

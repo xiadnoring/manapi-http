@@ -157,7 +157,7 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     //SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
     //SSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
 
-    auto &cipher_list = this->config()->cipher_list();
+    auto &cipher_list = this->config_->cipher_list;
     if (!SSL_CTX_set_cipher_list(ctx, static_cast<const char *>(cipher_list.data()))) {
         goto err;
     }
@@ -167,7 +167,7 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
         auto worker = static_cast<OpenSSL_TLS *> (arg);
         std::vector <std::string> wishs;
         {
-            auto &b = worker->config()->http_versions();
+            auto &b = worker->config_->http_versions;
             for (const auto &version : b) {
                 switch (version) {
                     case http::versions::HTTP_v1_0:
@@ -217,7 +217,7 @@ err:
 
 void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
     ERR_clear_error();
-    auto &sslconfig = this->config()->ssl_config();
+    auto &sslconfig = this->config_->ssl_config;
     if (SSL_CTX_use_certificate_file(static_cast<SSL_CTX*>(this->ctx), sslconfig.cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use cert file openssl");
@@ -232,7 +232,7 @@ void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
         MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig.cert.data(), sslconfig.key.data());
     }
 
-    SSL_CTX_set_verify(static_cast<SSL_CTX*>(this->ctx), this->config()->verify_peer() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
+    SSL_CTX_set_verify(static_cast<SSL_CTX*>(this->ctx), this->config_->verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
     SSL_CTX_set_verify_depth(static_cast<SSL_CTX*>(this->ctx), 1);
 }
 

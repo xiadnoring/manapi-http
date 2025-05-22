@@ -58,49 +58,8 @@ namespace manapi::net::http {
         config (const json &config);
         ~config ();
 
-        void max_header_block_size (const size_t &s);
-        [[nodiscard]] size_t &max_header_block_size ();
-
-        [[nodiscard]] size_t &partial_data_min_size ();
-
         bool contains_http_version (int version);
         int recommended_http_version ();
-        std::set<int> &http_versions ();
-
-        void keep_alive (const long int &seconds);
-        [[nodiscard]] size_t &keep_alive ();
-
-        size_t &max_connections ();
-        int &max_backlog();
-
-        void port (const std::string &_port);
-        [[nodiscard]] std::string &port ();
-
-        [[nodiscard]] std::string &implementation ();
-        [[nodiscard]] std::string &transport ();
-        [[nodiscard]] std::string &address ();
-        [[nodiscard]] std::string &quic_implement ();
-        [[nodiscard]] std::string &cipher_list();
-
-        [[nodiscard]] size_t &tls_version ();
-
-        [[nodiscard]] bool &is_quic_debug ();
-
-        [[nodiscard]] size_t &quic_cc_algo ();
-
-        [[nodiscard]] size_t &max_buffer_stack ();
-
-        ssize_t &max_rst_cnt ();
-        ssize_t &speed_check_delay ();
-        ssize_t &speed_check_bytes ();
-        ssize_t &speed_limit_rate ();
-
-        ssl_config_t &ssl_config ();
-
-        void server_address (const sockaddr &addr);
-        sockaddr &server_address ();
-        void server_len (const size_t &len);
-        [[nodiscard]] socklen_t &server_len ();
 
         [[nodiscard]] bool contains_compressor (const std::string &name);
         void function_contains_compressor (std::move_only_function<bool(const std::string &name)> func);
@@ -109,45 +68,37 @@ namespace manapi::net::http {
 
         static http::versions::http parse_http_version (const std::string &version);
 
-        bool &tcp_no_delay ();
-
-        bool &simultaneous_accepts ();
-
-        bool &verify_peer ();
-
-        ssize_t &buffer_size ();
-    private:
         // settings
-        bool simultaneous_accepts_;
-        bool quic_debug_;
-        size_t quic_cc_algo_;
-        size_t tls_version_;
-        size_t max_header_block_size_;
-        size_t partial_data_min_size_;
-        std::set<int> http_versions_ = {};
-        std::string address_;
-        std::string port_;// settings
-        std::string implementation_;
-        std::string transport_;
-        size_t max_buffer_stack_;
-        size_t keep_alive_;
-        sockaddr server_addr_;
-        socklen_t server_len_;
-        size_t max_plain_param_length_;
-        size_t max_file_param_length_;
-        size_t max_connections_;
-        int max_backlog_;
-        ssize_t buffer_size_;
-        ssize_t max_rst_cnt_;
-        ssize_t speed_check_delay_;
+        bool simultaneous_accepts;
+        bool quic_debug;
+        size_t quic_cc_algo;
+        size_t tls_version;
+        size_t max_header_block_size;
+        size_t partial_data_min_size;
+        std::set<int> http_versions = {};
+        std::string address;
+        std::string port;// settings
+        std::string implementation;
+        std::string transport;
+        size_t max_buffer_stack;
+        size_t keep_alive;
+        sockaddr server_addr;
+        socklen_t server_len;
+        size_t max_plain_param_length;
+        size_t max_file_param_length;
+        size_t max_connections;
+        int max_backlog;
+        ssize_t buffer_size;
+        ssize_t max_rst_cnt;
+        ssize_t speed_check_delay;
         /* 80KB */
-        ssize_t speed_check_bytes_;
+        ssize_t speed_check_bytes;
         /* 2000 MB */
-        ssize_t speed_limit_rate_;
-        ssl_config_t ssl_config_;
-        bool tcp_no_delay_;
-        bool verify_peer_;
+        ssize_t speed_limit_rate;
+        ssl_config_t ssl_config;
+        bool tcp_no_delay;
+        bool verify_peer;
         std::move_only_function<bool(const std::string &name)> function_contains_compressor_ = nullptr;
-        std::string cipher_list_;
+        std::string cipher_list;
     };
 }
