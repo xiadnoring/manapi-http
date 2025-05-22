@@ -49,6 +49,8 @@ namespace manapi::net::worker {
 
         void init() override;
 
+        void stop() override;
+
         void onrecv(std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) override;
 
         ssize_t sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
@@ -75,12 +77,15 @@ namespace manapi::net::worker {
     protected:
 
         // void recv_buffer_alloc_(ssize_t nread, ev::buff_t *buff) override;
+        //
         // void recv_buffer_dealloc_(const ev::buff_t *buf) override;
 
     private:
         void update_limit_rate ();
 
-        virtual void update_limit_rate_connection (connection &conn);
+        virtual void update_limit_rate_connection (const shared_conn &conn);
+
+        virtual void update_limit_rate_stream (const shared_conn &conn);
 
         static void flush_write_ (const shared_conn &conn, connection_t *conn_data);
 

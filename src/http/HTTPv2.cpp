@@ -856,7 +856,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             if (s == ctx->streams->end()) {
 
                                 auto sconn = std::make_shared<worker::connection> (new http_v2_stream_t{
-                                    0,
+                                    0, 0,
                                     ctx->frame_stream_id,
                                     0,
                                     ctx,

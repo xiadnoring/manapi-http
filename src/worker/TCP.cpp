@@ -503,11 +503,14 @@ bool manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &s
             conn_data->ev_callback->operator()(sconn, ev::WRITE, nullptr, 0);
     }
     else {
+        conn_data->transfered_k += conn_data->transfered;
+
         if (--conn_data->speed_min_delay == 0) {
-            if (conn_data->transfered < this->config_->speed_check_bytes) {
+            if (conn_data->transfered_k < this->config_->speed_check_bytes) {
                 this->close_connection(sconn, false);
                 return true;
             }
+            conn_data->transfered_k = 0;
             conn_data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
         }
         conn_data->transfered = 0;

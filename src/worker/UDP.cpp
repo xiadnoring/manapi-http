@@ -41,9 +41,8 @@ void manapi::net::worker::udp::init() {
         if (addr) {
             this->onrecv(w, buf->base, static_cast<ssize_t>(nread), addr, flags);
         }
-        else {
-            this->recv_buffer_dealloc_(buf);
-        }
+
+        this->recv_buffer_dealloc_(buf);
     },
     [this](std::shared_ptr<ev::udp> &w, ssize_t nread, ev::buff_t *buff)
         -> void {
@@ -85,6 +84,7 @@ void manapi::net::worker::udp::recv_buffer_dealloc_(const ev::buff_t *buf) {
     /* free */
     auto object = std::make_unique<bytebuffer>(buf->base, buf->len);
     this->bufferpool()->ret(std::move(object));
+
 }
 
 void manapi::net::worker::udp::recv_buffer_alloc_(ssize_t nread, ev::buff_t *buff) {
