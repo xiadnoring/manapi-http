@@ -16,7 +16,11 @@ void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags
 
 void manapi::net::worker::http_v2::close_connection(const shared_conn &conn, bool clean_disconnect) {
     auto data = conn->as<http::http_v2_stream_t>();
-    data->flags |= http::HTTP2_STREAM_CLOSED;
+    if (data->flags & http::HTTP2_STREAM_REMOVED) {
+        return;
+    }
+
+    data->flags |= http::HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_REMOVED;
     if (data->ev_callback) {
         data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0);
     }

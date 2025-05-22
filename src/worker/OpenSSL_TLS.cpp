@@ -103,8 +103,6 @@ int manapi::net::worker::OpenSSL_TLS::ssl_bio_should_retry_(void *bio) {
 bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(connection_interface *data) {
     ERR_clear_error();
 
-    data->status |= CONN_IDLE;
-
     data->wbio = BIO_new(BIO_s_mem());
     if (!data->wbio) {
         goto err;

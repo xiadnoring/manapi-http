@@ -68,8 +68,7 @@ namespace manapi::net::worker {
             CONN_READ           = 0b00000001,
             CONN_WRITE          = 0b00000010,
             CONN_CLOSED         = 0b00000100,
-            CONN_IDLE           = 0b00001000,
-            CONN_HALF_CLOSED    = 0b00010000,
+            CONN_REMOVED        = 0b00001000,
             CONN_LIMIT_RATE     = 0b00100000
         };
 

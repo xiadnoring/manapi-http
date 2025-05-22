@@ -31,6 +31,7 @@ namespace manapi::net::http {
         HTTP2_STREAM_CLOSED = manapi::ev::DISCONNECT,
         HTTP2_STREAM_RECV_END = 8,
         HTTP2_STREAM_SEND_END  = 16,
+        HTTP2_STREAM_REMOVED = 32
     };
 
     struct http_v2_t;

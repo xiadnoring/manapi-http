@@ -102,7 +102,7 @@ namespace manapi {
 
         static void flush_stack_free (const std::shared_ptr<data_t> &data_);
 
-        static uint64_t calculate_repeat_ (const std::shared_ptr<data_t> &data_);
+        static int64_t calculate_repeat_ (const std::shared_ptr<data_t> &data_);
 
         static bool reinit_timer_ (const std::shared_ptr<data_t> &data_);
 

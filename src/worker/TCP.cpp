@@ -276,13 +276,13 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept(ev::shared_tcp
 void manapi::net::worker::TCP::close_connection(const shared_conn &conn, bool clean_disconnect) {
     auto connection = conn->as<connection_interface>();
 
-    if (connection->status & CONN_CLOSED) {
+    if (connection->status & CONN_REMOVED) {
         return;
     }
 
-    connection->status |= CONN_CLOSED;
-
     if (connection->watcher && !clean_disconnect) {
+        connection->status |= CONN_REMOVED|CONN_CLOSED;
+
         if (connection->t) {
             connection->t.stop();
             connection->t = nullptr;
@@ -604,7 +604,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
             }));
     }
 
-    //std::cout << "CLOSE\n";
+    std::cout << "CLOSE 2\n";
     connection->worker->worker_data()->count.fetch_sub(1);
     delete connection;
 }
@@ -647,6 +647,8 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                         [this, conn, req = std::move(http_v1_1_ctx->req)] (bool ok)
                         -> void {
                             auto data = conn->as<connection_interface>();
+
+                            std::cout << "CLOSE\n";
 
                             if (ok) {
                                 if (this->config()->keep_alive()) {

@@ -226,6 +226,7 @@ void manapi::timerpool::start_(const std::shared_ptr<data_t> &data) {
     }
 
     data->flags ^= TIMERPOOL_FLAG_RUNNING;
+    reinit_timer_(data);
 
     // while (!data->prepare_remove.empty()) {
     //     auto id = data->prepare_remove.front();
@@ -241,9 +242,9 @@ void manapi::timerpool::flush_stack_free(const std::shared_ptr<data_t> &data_) {
     }
 }
 
-uint64_t manapi::timerpool::calculate_repeat_(const std::shared_ptr<data_t> &data_) {
+int64_t manapi::timerpool::calculate_repeat_(const std::shared_ptr<data_t> &data_) {
     if (data_->sorted_tasks.empty()) {
-        return 0;
+        return -1;
     }
 
     auto know = std::chrono::steady_clock::now();
@@ -253,13 +254,13 @@ uint64_t manapi::timerpool::calculate_repeat_(const std::shared_ptr<data_t> &dat
         return 0;
     }
 
-    return static_cast<uint64_t>((std::chrono::duration_cast<std::chrono::milliseconds>(pnt - know)).count());
+    return static_cast<int64_t>((std::chrono::duration_cast<std::chrono::milliseconds>(pnt - know)).count());
 }
 
 bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) {
     if (data_->timer) {
         auto const delay = calculate_repeat_(data_);
-        if (delay) {
+        if (delay >= 0) {
             if (data_->timer->is_active()) {
                 data_->timer->repeat(delay);
                 if (data_->timer->again()) {
