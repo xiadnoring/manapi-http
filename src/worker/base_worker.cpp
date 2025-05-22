@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <memory>
 
-manapi::net::worker::connection::connection(void *ptr, void(*eraser)(void*)): client(), ptr (ptr, eraser) {}
+manapi::net::worker::connection::connection(void *ptr, void(*eraser)(void*)): ptr (ptr, eraser) {}
 
 manapi::net::worker::base::base(net::http::site site, std::shared_ptr<worker::worker_config_t> data, manapi::net::http::config *config) : site_(std::move(site)), config_(config), worker_data_(std::move(data)) {
     this->bufferpool_ = std::make_shared<decltype(this->bufferpool_)::element_type>();

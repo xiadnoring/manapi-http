@@ -31,7 +31,7 @@ namespace manapi::net::worker {
             shared_conn self;
         };
 
-        struct connection_stream_t {
+        struct connection_stream_t : worker::base::connection_base_t {
             int flags;
             int64_t id;
             connection_t *conn;

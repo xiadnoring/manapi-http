@@ -36,7 +36,7 @@ namespace manapi::net::http {
 
     struct http_v2_t;
 
-    struct http_v2_stream_t {
+    struct http_v2_stream_t : worker::base::connection_base_t {
         int id;
         int flags;
 

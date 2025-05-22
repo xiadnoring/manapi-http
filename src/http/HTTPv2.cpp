@@ -848,7 +848,9 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         if (ctx->frame_type == HTTP2_FRAME_HEADERS) {
                             s = ctx->streams->find(ctx->frame_stream_id);
                             if (s == ctx->streams->end()) {
-                                auto sptr = std::make_unique<http_v2_stream_t>(
+
+                                auto sconn = std::make_shared<worker::connection> (new http_v2_stream_t{
+                                    0,
                                     ctx->frame_stream_id,
                                     0,
                                     ctx,
@@ -857,14 +859,11 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     nullptr,
                                     0,
                                     nullptr,
-                                    nullptr
-                                );
-
-                                auto sconn = std::make_shared<worker::connection> (sptr.release(), +[] (void *s)
-                                    -> void {
-                                    auto const p = static_cast<http::http_v2_stream_t *> (s);
-                                    delete p;
-                                });
+                                    nullptr}, +[] (void *s)
+                                        -> void {
+                                        auto const p = static_cast<http::http_v2_stream_t *> (s);
+                                        delete p;
+                                    });
 
                                 s = ctx->streams->insert({ctx->frame_stream_id, std::move(sconn)}).first;
                                 sdata = s->second->as<http_v2_stream_t>();

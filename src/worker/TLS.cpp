@@ -167,8 +167,8 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) {
     return std::exchange(status, ((status >> 2) << 2) | flags);
 }
 
-void manapi::net::worker::TLS::update_limit_rate_connection(connection *conn) {
-    TCP::update_limit_rate_connection(conn);
+void manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &sconn) {
+    TCP::update_limit_rate_connection(sconn);
 }
 
 void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {

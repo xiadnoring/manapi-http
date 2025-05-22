@@ -15,6 +15,11 @@ namespace manapi::net::worker {
 
     class connection {
     public:
+        struct ipdata_t {
+            worker::sockaddr_st client{};
+            socklen_t len{};
+        };
+
         connection (void *ptr, void(*eraser)(void*));
 
         template <typename T>
@@ -25,8 +30,7 @@ namespace manapi::net::worker {
             THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Pointer is null");
         }
 
-        worker::sockaddr_st client{};
-        socklen_t len{};
+        std::unique_ptr<ipdata_t> ipdata;
         int version = http::versions::HTTP_v1_1;
     private:
         std::unique_ptr<void, void(*)(void *)> ptr;
@@ -38,10 +42,11 @@ namespace manapi::net::worker {
 
     class base {
     public:
-        typedef std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> bufferpool_t;
-        struct connection_stat_interface {
-            size_t transfared_last_second = 0;
+        struct connection_base_t {
+            unsigned int transfered;
         };
+
+        typedef std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> bufferpool_t;
 
         struct buffer_deque {
             object_item_pool<bytebuffer, std::size_t> buffer;
@@ -69,6 +74,7 @@ namespace manapi::net::worker {
             CONN_WRITE          = 0b00000010,
             CONN_CLOSED         = 0b00000100,
             CONN_REMOVED        = 0b00001000,
+            CONN_KEEP_ALIVE     = 0b00010000,
             CONN_LIMIT_RATE     = 0b00100000
         };
 

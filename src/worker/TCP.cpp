@@ -49,7 +49,7 @@ manapi::net::worker::TCP::~TCP() {
 }
 
 bool manapi::net::worker::TCP::is_valid_connection(worker::connection *connection) {
-    return connection->len;
+    return !!connection->ipdata;
 }
 
 void manapi::net::worker::TCP::init() {
@@ -74,7 +74,7 @@ void manapi::net::worker::TCP::init() {
 
         /* every 1 second */
         this->limit_rate_timer = manapi::async::current()->timerpool()->append_interval_sync(1000,
-            [this] (manapi::timer t) -> void { this->update_limit_rate(); });
+            [this] (const manapi::timer& t) -> void { this->update_limit_rate(); });
 
         this->watcher_accept_ = manapi::async::current()->eventloop()->create_watcher_tcp_accept(
             [this] (std::shared_ptr<ev::tcp> & w, int status)
@@ -243,11 +243,13 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
 
     this->worker_data_->count.fetch_add(1);
 
-    int addrlen = sizeof (connection->client.data);
-    if (auto rhs = client->getpeername(reinterpret_cast <sockaddr *>(connection->client.data), &addrlen)) {
+    connection->ipdata = std::make_unique<decltype(connection)::element_type::ipdata_t>();
+
+    int addrlen = sizeof (connection->ipdata->client.data);
+    if (auto rhs = client->getpeername(reinterpret_cast <sockaddr *>(connection->ipdata->client.data), &addrlen)) {
         std::cerr << "getpeername failed " << rhs << "\n";
     }
-    connection->len = addrlen;
+    connection->ipdata->len = addrlen;
 
 
     auto conn = connection->as<connection_interface>();
@@ -256,12 +258,6 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
 
     conn->worker = this->self_.lock();
     conn->watcher = std::move(client);
-
-    conn->t = manapi::async::current()->timerpool()->append_interval_sync(15000,
-        [wconnection = std::weak_ptr(connection)] (manapi::timer t) mutable -> void {
-            auto connection = wconnection.lock();
-            dynamic_cast<TCP*>(connection->as<connection_interface>()->worker.get())->timeout_(connection);
-        });
 
     return std::move(connection);
 }
@@ -281,6 +277,10 @@ void manapi::net::worker::TCP::close_connection(const shared_conn &conn, bool cl
     }
 
     if (connection->watcher && !clean_disconnect) {
+        if (connection->status & CONN_KEEP_ALIVE) {
+            connection->status ^= CONN_KEEP_ALIVE;
+        }
+
         connection->status |= CONN_REMOVED|CONN_CLOSED;
 
         if (connection->t) {
@@ -298,13 +298,14 @@ void manapi::net::worker::TCP::close_connection(const shared_conn &conn, bool cl
         this->connections.erase(reinterpret_cast<uintptr_t> (conn.get()));
     }
     else {
+        connection->status |= CONN_KEEP_ALIVE;
         if (connection->t) {
             connection->t.stop();
-            connection->t = manapi::async::current()->timerpool()->append_interval_sync(15000,
-            [conn] (manapi::timer t) mutable -> void {
-                dynamic_cast<TCP*>(conn->as<connection_interface>()->worker.get())->timeout_(conn);
-            });
         }
+        connection->t = manapi::async::current()->timerpool()->append_interval_sync(15000,
+            [conn] (manapi::timer t) mutable -> void {
+            dynamic_cast<TCP*>(conn->as<connection_interface>()->worker.get())->timeout_(conn);
+        });
     }
 }
 
@@ -327,6 +328,12 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
         return CONN_IO_ERROR;
     }
 
+    size = std::min(size, this->config_->speed_limit_rate() - connection->transfered);
+
+    if (!size) {
+        return 0;
+    }
+
     ssize_t rhs;
 
     if (connection->top->send_size) {
@@ -338,12 +345,17 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
         if (rhs < 0) {
             rhs = 0;
         }
+        else {
+            connection->transfered += rhs;
+        }
     }
 
 
     if (rhs != size) {
         rhs += connection_io_send (&connection->top->send, static_cast<const char *>(buff) + rhs, size - rhs, this->bufferpool().get(),
             this->config_->buffer_size(), &connection->top->send_size, maxcnt);
+
+        connection->transfered += rhs;
 
         this->flush_write_(conn, finish);
     }
@@ -365,12 +377,12 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
     auto const data = conn->as<connection_interface>();
     auto &status = data->status;
     if ((flags & ev::READ)) {
-        if (!(status & ev::READ)) {
+        if (!(status & (ev::READ|ev::DISCONNECT)) && !data->watcher->is_active()) {
             assert(!data->watcher->read_start());
         }
     }
     else {
-        if (status & ev::READ) {
+        if ((status & ev::READ ) && !(status & ev::DISCONNECT) && data->watcher->is_active()) {
             assert(!data->watcher->read_stop());
         }
     }
@@ -403,9 +415,6 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
             object->shift_add(conn->top->send.deque_current);
             conn->top->send.deque_current = 0;
         }
-
-
-        conn->stats.transfared_last_second+=static_cast<int>(object->size());
 
         auto s = std::make_unique<ev::buff_t>(object->data(), static_cast<std::size_t>(object->size()));
 
@@ -443,40 +452,38 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
 void manapi::net::worker::TCP::update_limit_rate() {
     /* in the event loop */
     for (auto &conn: this->connections) {
-        this->update_limit_rate_connection(conn.second.get());
+        this->update_limit_rate_connection(conn.second);
     }
 }
 
 void manapi::net::worker::TCP::timeout_(shared_conn conn) {
-    auto data = conn->as<connection_interface>();
-goto err;
+    auto const data = conn->as<connection_interface>();
 
-    if (data->status & ev::DISCONNECT) {
-        goto err;
-    }
-    if (data->status & (ev::READ|ev::WRITE)) {
-        if (data->stats.transfared_last_second < this->config()->speed_check_bytes()) {
-            goto err;
-        }
-    }
-    return;
-err:
     data->t.stop();
     data->status |= (ev::DISCONNECT);
 
-    this->close_connection(conn, false);
+    if (data->status & CONN_KEEP_ALIVE) {
+        data->status ^= CONN_KEEP_ALIVE;
+    }
 
-    return;
+    this->close_connection(conn, false);
 }
 
 void manapi::net::worker::TCP::ev_watcher_stop_(connection_interface &conn) {
     this->connections.erase(reinterpret_cast<std::uintptr_t>(conn.watcher.get()));
 }
 
-void manapi::net::worker::TCP::update_limit_rate_connection(connection *conn) {
-    auto conn_data = conn->as<connection_interface>();
-    conn_data->stats.transfared_last_second=(0);
-
+void manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &sconn) {
+    auto const conn_data = sconn->as<connection_interface>();
+    if (conn_data->status & ev::WRITE
+        && conn_data->transfered == this->config_->speed_limit_rate()
+        && conn_data->ev_callback) {
+        conn_data->transfered = 0;
+        conn_data->ev_callback->operator()(sconn, ev::WRITE, nullptr, 0);
+    }
+    else {
+        conn_data->transfered = 0;
+    }
 }
 
 void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize) {
@@ -616,7 +623,6 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
         goto err;
     }
 
-
     try {
         if (flags & ev::READ) {
 
@@ -652,7 +658,33 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
 
                             if (ok) {
                                 if (this->config()->keep_alive()) {
-                                    this->onaccept_event_(conn);
+                                    this->event_on(conn,
+                                        std::make_unique<manapi::net::worker::worker_watcher_cb>(
+                                            [this]
+                                        (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize) mutable
+                                            -> void {
+                                                if (flags & ev::DISCONNECT) {
+                                                    this->close_connection(conn, false);
+                                                    return;
+                                                }
+
+                                                if (flags & ev::READ) {
+                                                    auto const data = conn->as<connection_interface>();
+                                                    if (data->status & CONN_KEEP_ALIVE) {
+                                                        data->status ^= CONN_KEEP_ALIVE;
+
+                                                        data->t.stop();
+                                                        data->t = nullptr;
+                                                    }
+
+                                                    auto const w = this;
+                                                    w->onaccept_event_(conn);
+                                                    w->feed_event(conn, flags, buffer, nsize);
+                                                }
+                                        }));
+
+                                    this->event_flags(conn, ev::READ);
+
                                     if (req->buffer != nullptr && !req->buffer->empty()) {
                                         this->onrecv(data->watcher, conn, std::move(req->buffer));
                                     }
