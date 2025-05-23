@@ -307,7 +307,7 @@ namespace manapi {
 
         void async_break_loop_ (std::shared_ptr<ev::async> watcher);
 
-        void try_tasks_ (ev::shared_idle &w);
+        void try_tasks_ (ev::shared_prepare &w);
 
         bool status;
 
@@ -330,7 +330,7 @@ namespace manapi {
 #endif
         //std::unique_ptr<ev::internal::timerloop_t> timerloop;
         std::unique_ptr<ev::internal::custom_callback_t> callback_watcher_{};
-        std::shared_ptr<ev::idle> idle_tasks_;
+        std::shared_ptr<ev::prepare> exec_tasks_;
         std::shared_ptr<manapi::logger> logger_;
     };
 }

@@ -457,14 +457,14 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool_, std:
     // this->timerloop = std::make_unique<ev::internal::timerloop_t>();
     this->callback_watcher_ = std::make_unique<ev::internal::custom_callback_t>();
 
-    this->idle_tasks_ = this->create_watcher_idle([this] (ev::shared_idle &w)
+    this->exec_tasks_ = this->create_watcher_prepare([this] (ev::shared_prepare &w)
         -> void {
         this->try_tasks_(w);
     });
 
     this->etaskpool_ = std::make_shared<manapi::ethreadpool<task>>(logger, [this] ()
         -> void {
-        this->idle_tasks_->start();
+        this->exec_tasks_->start();
     });
 
     dynamic_cast<ethreadpool<task> *>(this->etaskpool_.get())->set_notify();
@@ -531,7 +531,7 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool_, std:
     curl_multi_setopt(this->curl_watcher->curl_multi.get(), CURLMOPT_SOCKETDATA, this);
 #endif
 
-    this->idle_tasks_->start();
+    this->exec_tasks_->start();
 
 // #if MANAPIHTTP_CURL_DEPENDENCY
 //     // this->curl_watcher.adding_curl_multi_async->start();
@@ -562,7 +562,7 @@ manapi::event_loop::~event_loop() {
 // #endif
 //     this->stop_watcher (this->async_watcher->adding_watcher_async);
     this->stop_watcher(this->callback_watcher_->adding_async);
-    this->stop_watcher(this->idle_tasks_);
+    this->stop_watcher(this->exec_tasks_);
 }
 
 manapi::future<> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
@@ -749,11 +749,12 @@ void manapi::event_loop::async_break_loop_(std::shared_ptr<ev::async> watcher) {
     printf("4\n");
 }
 
-void manapi::event_loop::try_tasks_(ev::shared_idle &w) {
+void manapi::event_loop::try_tasks_(ev::shared_prepare &w) {
     auto etaskpool = dynamic_cast<ethreadpool<task> *>(this->etaskpool_.get());
-    if (!etaskpool->try_task()) {
+    while (!etaskpool->try_task()) {
         etaskpool->set_notify();
         w->stop();
+        break;
     }
 }
 
