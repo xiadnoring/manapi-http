@@ -519,7 +519,7 @@ manapi::net::http::site::site(server_ctx sctx) {
                 this->data->cache_time = this->data->server_config->cache_time;
 
                 auto const cachedirit = this->data->server_config->config.as_object().find("cache_dir");
-                if (cachedirit == this->data->server_config->config.as_object().end() && cachedirit->second.is_string()) {
+                if (cachedirit != this->data->server_config->config.as_object().end() && cachedirit->second.is_string()) {
                     this->data->config_cache_dir = cachedirit->second.as_string();
                 }
                 else {

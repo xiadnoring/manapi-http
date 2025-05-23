@@ -132,7 +132,11 @@ void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(s
 
                 callback([thr] () -> void {
                     thr->sync_start();
+
+                    thr->timerpool()->stop();
                 });
+
+
             }));
         });
     }
@@ -140,6 +144,11 @@ void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(s
 
     callback([ctx = std::move(ctx)] () -> void {
         ctx->sync_start();
+
+        ctx->timerpool_->stop();
+
+        ctx->taskpool_->stop();
+        ctx->taskpool_->join();
     });
 }
 

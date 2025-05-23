@@ -14,6 +14,7 @@
 
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpResponse.hpp"
+#include "../include/ManapiDefaultErrors.hpp"
 
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 
@@ -296,7 +297,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
     auto content_length = std::make_unique<ssize_t>(0);
 
     proxy->handle_async_headers (
-        [content_length = *content_length.get(), &proxy, cdata = cdata.get(), res = res.get()](std::map<std::string, std::string> headers) mutable
+        [content_length = *content_length.get(), proxy = proxy.get(), cdata = cdata.get(), res = res.get()](std::map<std::string, std::string> headers) mutable
         -> manapi::future<bool> {
         res->status_code(proxy->status_code());
 
@@ -328,10 +329,15 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
         co_return rhs;
     });
 
-    manapi::async::run (proxy->async_doit(), [content_length = std::move(content_length),  cdata = std::move(cdata)]
+    auto task = proxy->async_doit();
+    manapi::async::run (std::move(task), [proxy = std::move(proxy),
+        content_length = std::move(content_length),  cdata = std::move(cdata), res = std::move(res)]
             (std::exception_ptr err) mutable -> void {
             if (err) {
                 /* failed */
+                std::string msg;
+                manapi::rethrow_exception_ptr(std::move(err), nullptr, &msg, nullptr);
+                std::cerr << msg << "\n";
                 return;
             }
 

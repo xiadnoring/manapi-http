@@ -15,9 +15,6 @@
 
 static constexpr size_t quiche_token_max_len_ = sizeof ("quiche") - 1 + sizeof (struct sockaddr_storage) + QUICHE_MAX_CONN_ID_LEN;
 
-enum http_v3_worker_flags {
-    HTTP_V3_QUICHE_WORKER_BUFFER_WAS_FREED = 1
-};
 
 enum http_v3_stream_flags {
     HTTP_V3_STREAM_WANT_READ = manapi::ev::READ,
@@ -51,8 +48,6 @@ ssize_t manapi_quiche_h3_send_additional_headers_(Args&&...args) { /* skip */ re
 
 manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(net::http::site site,
     std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config* config) : udp(std::move(site), std::move(wdata), config) {
-    this->flags = HTTP_V3_QUICHE_WORKER_BUFFER_WAS_FREED;
-    this->recv_buffer = nullptr;
 }
 
 manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() = default;
@@ -133,15 +128,6 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         /* every 1 second */
         this->limit_rate_timer = manapi::async::current()->timerpool()->append_interval_sync(1000,
             [this] (manapi::timer t) -> void { this->update_limit_rate(); });
-
-        try {
-            this->recv_buffer.reset(static_cast<char *>(malloc (MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE)));
-        }
-        catch (...) {
-            manapi::async::current()->logger()->error(
-                manapi::logger::default_service, ERR_FATAL, "udp buffer alloc failed");
-            goto err;
-        }
     }
     while (0);
     return;

@@ -468,7 +468,7 @@ void manapi::net::worker::TCP::update_limit_rate() {
         }
     }
     for (auto nit = std::next(it); nit != this->connections.end(); nit = std::next(it)) {
-        if(!this->update_limit_rate_connection(it->second)) {
+        if(!this->update_limit_rate_connection(nit->second)) {
             it = nit;
         }
     }

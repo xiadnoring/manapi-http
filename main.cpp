@@ -161,6 +161,30 @@ int main () {
             }
         });
 
+        router.GET ("/chunked", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            try {
+                auto fetch = co_await manapi::net::fetch2::fetch("http://manapi.ru", {
+                    {"http", "1.1"},
+                    {"verify_peer", false},
+                    {"verbose", true},
+                    {"alpn", false}
+                });
+                if (!fetch.ok()) {
+                    co_return resp.text(std::format("status : {}", fetch.status()));
+                }
+                co_return resp.text(co_await fetch.text());
+            }
+            catch (std::exception const &e) {
+                co_return resp.text(e.what());
+            }
+        });
+
+        router.GET ("/proxy_download", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            co_return resp.proxy("http://127.0.0.1:8889/file");
+        });
+
         router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             ssize_t result = 0;
@@ -194,12 +218,20 @@ int main () {
             co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
         });
 
+        router.GET("/file", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress_enabled(false);
+            resp.partial_enabled(false);
+            co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+        });
+
         router.GET("/video", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             resp.compress_enabled(false);
             resp.partial_enabled(true);
             co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
         });
+
         //
         // router.GET("/folder", "/home/Timur/Downloads/VideoDownloader");
 

@@ -13,11 +13,6 @@ struct quiche_h3_config;
 
 namespace manapi::net::worker {
     class http_v3_cloudflare_quiche : public udp {
-        struct buffer_deleter {
-            void operator () (char *ptr) {
-                delete ptr;
-            }
-        };
     public:
 
         struct connection_t {
@@ -118,8 +113,6 @@ namespace manapi::net::worker {
         quiche_config *quiche_config_{nullptr};
         quiche_h3_config *quiche_h3_config_{nullptr};
         manapi::timer limit_rate_timer{};
-        std::unique_ptr<char, buffer_deleter> recv_buffer;
-        int flags;
     };
 }
 

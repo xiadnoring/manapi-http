@@ -153,30 +153,39 @@ namespace manapi::net {
             if (exception) { std::rethrow_exception(exception); }
         }
         void setup_fetch (manapi::json params) {
-            if (params.contains("method")) {
-                this->fetchdata->data.method(std::move(params["method"].as_string()));
-            }
-            if (params.contains("ssl_verify")) {
-                this->fetchdata->data.enable_ssl_verify(params["ssl_verify"].as_bool());
-            }
-            if (params.contains("verbose")) {
-                this->fetchdata->data.verbose(params["verbose"].as_bool());
-            }
-            if (params.contains("alpn")) {
-                this->fetchdata->data.enable_alpn(params["alpn"].as_bool());
-            }
-            if (params.contains("http1_1")&&params["http1_1"].as_bool()) {
-                this->fetchdata->data.enable_http1_1();
-            }
-            if (params.contains("http2")&&params["http2"].as_bool()) {
-                this->fetchdata->data.enable_http2();
-            }
-            if (params.contains("http3")&&params["http3"].as_bool()) {
-                this->fetchdata->data.enable_http3();
-            }
+            try {
+                if (params.contains("method")) {
+                    this->fetchdata->data.method(std::move(params["method"].as_string()));
+                }
+                if (params.contains("verify_peer")) {
+                    this->fetchdata->data.enable_ssl_verify(params["verify_peer"].as_bool());
+                }
+                if (params.contains("verbose")) {
+                    this->fetchdata->data.verbose(params["verbose"].as_bool());
+                }
+                if (params.contains("alpn")) {
+                    this->fetchdata->data.enable_alpn(params["alpn"].as_bool());
+                }
 
-            if (params.contains("headers") && params["headers"].is_object()) {
-                this->fetchdata->data.json_headers(std::move(params["headers"]));
+                if (params.contains("http")) {
+                    auto const version = std::stold(params["http"].as_string_cast());
+                    if (version >= 0.9 && version <= 1.1) {
+                        this->fetchdata->data.enable_http1_1();
+                    }
+                    else if (version == 2.0) {
+                        this->fetchdata->data.enable_http2();
+                    }
+                    else if (version == 3.0) {
+                        this->fetchdata->data.enable_http1_1();
+                    }
+                }
+
+                if (params.contains("headers") && params["headers"].is_object()) {
+                    this->fetchdata->data.json_headers(std::move(params["headers"]));
+                }
+            }
+            catch (std::exception const &e) {
+                THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_CONFIG_ERROR, "param is invalid: {}", e.what());
             }
 
             this->fetchdata->setup = true;

@@ -457,14 +457,14 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool_, std:
     // this->timerloop = std::make_unique<ev::internal::timerloop_t>();
     this->callback_watcher_ = std::make_unique<ev::internal::custom_callback_t>();
 
-    this->exec_tasks_ = this->create_watcher_prepare([this] (ev::shared_prepare &w)
+    this->idle_tasks_ = this->create_watcher_idle([this] (ev::shared_idle &w)
         -> void {
         this->try_tasks_(w);
     });
 
     this->etaskpool_ = std::make_shared<manapi::ethreadpool<task>>(logger, [this] ()
         -> void {
-        this->exec_tasks_->start();
+        this->idle_tasks_->start();
     });
 
     dynamic_cast<ethreadpool<task> *>(this->etaskpool_.get())->set_notify();
@@ -531,21 +531,22 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool_, std:
     curl_multi_setopt(this->curl_watcher->curl_multi.get(), CURLMOPT_SOCKETDATA, this);
 #endif
 
-    this->exec_tasks_->start();
+    this->idle_tasks_->start();
 
-// #if MANAPIHTTP_CURL_DEPENDENCY
-//     // this->curl_watcher.adding_curl_multi_async->start();
-//
-//     /* curl fetch timeout */
-//     this->curl_watcher->timeout_watcher = create_watcher_timer([this] (std::shared_ptr<ev::timer> &w) -> void {
-//         this->curl_watcher->adding_curl_multi_async->send();
-//
-//         w->repeat(50);
-//         w->again();
-//     });
-//
-//     this->curl_watcher->timeout_watcher->start(50, 0);
-// #endif
+#if MANAPIHTTP_CURL_DEPENDENCY
+    // this->curl_watcher.adding_curl_multi_async->start();
+
+    /* curl fetch timeout */
+    this->curl_watcher->timeout_watcher = create_watcher_timer([this] (std::shared_ptr<ev::timer> &w) -> void {
+        this->handle_curl_exec_connections();
+        this->handle_curl_check_connections();
+
+        w->repeat(50);
+        w->again();
+    });
+
+    this->curl_watcher->timeout_watcher->start(50, 0);
+#endif
 
     /* interrupted */
     this->interrupted_watcher_ = create_watcher_async([this] (std::shared_ptr<ev::async> &w)
@@ -562,7 +563,7 @@ manapi::event_loop::~event_loop() {
 // #endif
 //     this->stop_watcher (this->async_watcher->adding_watcher_async);
     this->stop_watcher(this->callback_watcher_->adding_async);
-    this->stop_watcher(this->exec_tasks_);
+    this->stop_watcher(this->idle_tasks_);
 }
 
 manapi::future<> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
@@ -749,7 +750,7 @@ void manapi::event_loop::async_break_loop_(std::shared_ptr<ev::async> watcher) {
     printf("4\n");
 }
 
-void manapi::event_loop::try_tasks_(ev::shared_prepare &w) {
+void manapi::event_loop::try_tasks_(ev::shared_idle &w) {
     auto etaskpool = dynamic_cast<ethreadpool<task> *>(this->etaskpool_.get());
     while (!etaskpool->try_task()) {
         etaskpool->set_notify();
@@ -903,27 +904,6 @@ manapi::future<void> manapi::event_loop::custom_callback(std::move_only_function
 }
 
 #if MANAPIHTTP_CURL_DEPENDENCY
-// void manapi::event_loop::custom_watcher_curl_async(std::shared_ptr<ev::async> &w) {
-//     while (!this->curl_watcher->curl_fds.empty()) {
-//         this->stop_watcher(std::move(this->curl_watcher->curl_fds.front()));
-//         this->curl_watcher->curl_fds.pop();
-//     }
-//
-//     if (this->curl_watcher->curl_multi_mx->try_to_lock()) {
-//         auto list = std::move(this->curl_watcher->adding_curl_data);
-//         this->curl_watcher->curl_multi_mx->unlock();
-//
-//         while (!list.empty()) {
-//             this->handle_curl_watcher_data(std::move(list.front()));
-//             list.pop_front();
-//         }
-//
-//     }
-//
-//     this->handle_curl_exec_connections();
-//     this->handle_curl_check_connections();
-// }
-
 void manapi::event_loop::handle_curl_exec_connections() {
     int running_handles = 0;
     auto mcode = curl_multi_perform(this->curl_watcher->curl_multi.get(), &running_handles);
@@ -958,23 +938,6 @@ void manapi::event_loop::handle_curl_check_connections() {
     }
 }
 #endif
-
-// void manapi::event_loop::custom_watcher_timerloop_async(std::shared_ptr<ev::async> &w) {
-//     if (this->timerloop->adding_timer_mx->try_to_lock()) {
-//         auto list = std::move(this->timerloop->adding_timer_data);
-//         this->timerloop->adding_timer_mx->unlock();
-//
-//         while (!list.empty()) {
-//             std::unique_ptr<manapi::ev::internal::adding_timerloop_data_t> data = std::move(list.front ());
-//             list.pop_front();
-//
-//             auto resolve = std::move(data->resolve);
-//             auto res = this->timerloop->external_cb(data.get());
-//             resolve(std::move(res));
-//         }
-//
-//     }
-// }
 
 void manapi::event_loop::custom_watcher_callback_async(std::shared_ptr<ev::async> &w) {
     if (this->callback_watcher_->adding_mx->try_to_lock()) {
@@ -1071,160 +1034,7 @@ int manapi::event_loop::handle_curl_close_socket(void *cbp, curl_socket_t socket
     async::close_descriptor(static_cast<socket_t>(socket));
     return 0;
 }
-
-// void manapi::event_loop::handle_curl_watcher_data(std::unique_ptr<ev::internal::adding_curl_data_t> data) {
-//     CURLMcode mcode;
-//
-//     else if (data->flag==1) {
-//
-//     }
-//     else if (data->flag==2) {
-//
-//     }
-//     else if (data->flag==3) {
-//
-//     }
-//     else if (data->flag==4) {
-//
-//     }
-// }
 #endif
-
-// manapi::future<std::shared_ptr<manapi::ev::fs>> template_fs_watcher_(std::shared_ptr<manapi::threadpool<manapi::task>> taskpool_,
-//     manapi::ev::internal::fs_watcher_t *w, std::unique_ptr<manapi::ev::internal::adding_watcher_fs_data_t> data) {
-//
-//     typedef std::shared_ptr<manapi::ev::fs> ret;
-//     co_return co_await manapi::async::promise<ret> (taskpool_,
-//         [&] (manapi::async::promise<ret>::resolve_t resolve, manapi::async::promise<ret>::reject_t reject) mutable
-//         -> manapi::future<> {
-//             data->resolve = std::move(resolve);
-//             data->reject = std::move(reject);
-//
-//             auto w_ = w;
-//             auto lk = co_await w_->adding_watcher_mx->lock_guard();
-//             w_->adding_watcher_data.push_back(std::move(data));
-//             lk.call();
-//             w_->adding_watcher_async_cb();
-//     });
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::io>> template_io_watcher_(std::shared_ptr<manapi::threadpool<manapi::task>> taskpool_,
-//     manapi::ev::internal::io_watcher_t *w, std::unique_ptr<manapi::ev::internal::adding_watcher_io_data_t> data) {
-//
-//     typedef std::shared_ptr<manapi::ev::io> ret;
-//     co_return co_await manapi::async::promise<ret> (taskpool_,
-//         [&] (manapi::async::promise<ret>::resolve_t resolve, manapi::async::promise<ret>::reject_t reject) mutable
-//         -> manapi::future<> {
-//             data->resolve = std::move(resolve);
-//             auto w_ = w;
-//             auto lk = co_await w_->adding_watcher_mx->lock_guard();
-//             w_->adding_watcher_data.push_back(std::move(data));
-//             lk.call();
-//             w_->adding_watcher_async_cb();
-//     });
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::async>> template_async_watcher_(std::shared_ptr<manapi::threadpool<manapi::task>> taskpool_,
-//     manapi::ev::internal::async_watcher_t *w, std::unique_ptr<manapi::ev::internal::adding_watcher_async_data_t> data) {
-//
-//     typedef std::shared_ptr<manapi::ev::async> ret;
-//     co_return co_await manapi::async::promise<ret> (taskpool_,
-//         [&] (manapi::async::promise<ret>::resolve_t resolve, manapi::async::promise<ret>::reject_t reject) mutable
-//         -> manapi::future<> {
-//             data->resolve = std::move(resolve);
-//             auto w_ = w;
-//             auto lk = co_await w_->adding_watcher_mx->lock_guard();
-//             w_->adding_watcher_data.push_back(std::move(data));
-//             lk.call();
-//             w_->adding_watcher_async_cb();
-//     });
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::timer>> template_timer_watcher_(std::shared_ptr<manapi::threadpool<manapi::task>> taskpool_,
-//     manapi::ev::internal::timer_watcher_t *w, std::unique_ptr<manapi::ev::internal::adding_watcher_timer_data_t> data) {
-//
-//     typedef std::shared_ptr<manapi::ev::timer> ret;
-//     auto res =  co_await manapi::async::promise<ret> (taskpool_,
-//         [&] (manapi::async::promise<ret>::resolve_t resolve, manapi::async::promise<ret>::reject_t reject) mutable
-//         -> manapi::future<> {
-//             data->resolve = std::move(resolve);
-//             auto w_ = w;
-//             auto lk = co_await w_->adding_watcher_mx->lock_guard();
-//             w_->adding_watcher_data.push_back(std::move(data));
-//             lk.call();
-//             w_->adding_watcher_async_cb();
-//     });
-//     if (res) {
-//         co_return std::move(res);
-//     }
-//
-//     THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_WATCHER_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_WATCHER_COMMAND_FAILED]);
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::io>> _template_async_watcher(std::shared_ptr<manapi::threadpool<manapi::task>> taskpool_,
-//     manapi::ev::internal::io_watcher_t *w, std::unique_ptr<manapi::ev::internal::adding_watcher_io_data_t> data) {
-//
-//     typedef std::shared_ptr<manapi::ev::io> ret;
-//     co_return co_await manapi::async::promise<ret> (taskpool_,
-//         [&] (manapi::async::promise<ret>::resolve_t resolve, manapi::async::promise<ret>::reject_t reject) mutable
-//         -> manapi::future<> {
-//             data->resolve = std::move(resolve);
-//             auto w_ = w;
-//             auto lk = co_await w_->adding_watcher_mx->lock_guard();
-//             w_->adding_watcher_data.push_back(std::move(data));
-//             lk.call();
-//             w_->adding_watcher_async_cb();
-//     });
-// }
-
-// #if MANAPIHTTP_CURL_DEPENDENCY
-// manapi::future<> template_watcher_curl_(std::shared_ptr<manapi::threadpool<manapi::task>> taskpool_, manapi::ev::internal::curl_watcher_t *curl_watcher,
-//     int flag, std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb) {
-//
-//     co_await manapi::async::promise<void> (taskpool_, [&] (manapi::async::promise<void>::resolve_t resolve,
-//         manapi::async::promise<void>::reject_t reject) -> manapi::future<void> {
-//
-//         auto data = std::make_unique<manapi::ev::internal::adding_curl_data_t>(
-//             flag,
-//             curl,
-//             std::move(cb),
-//             std::move(resolve),
-//             std::move(reject)
-//         );
-//
-//         auto curl_watcher_ = curl_watcher;
-//
-//         auto lk = co_await curl_watcher_->curl_multi_mx->lock_guard();
-//         curl_watcher_->adding_curl_data.push_back(std::move(data));
-//         lk.call();
-//
-//         curl_watcher_->adding_curl_async_cb();
-//     });
-// }
-// #endif
-// manapi::future<std::optional<manapi::timer>> manapi::event_loop::template_cmd_timer_(int flag, size_t data, std::move_only_function<manapi::future<>(manapi::timer t)> cb_async, std::move_only_function<void(manapi::timer t)> cb_sync) {
-//
-//     co_return co_await async::promise<std::optional<manapi::timer>> (this->etaskpool_, [&] (async::promise<std::optional<manapi::timer>>::resolve_t resolve, async::promise<std::optional<manapi::timer>>::reject_t reject) -> future<void> {
-//         auto data1 = std::make_unique<ev::internal::adding_timerloop_data_t>(
-//             flag,
-//             data,
-//             std::move(cb_sync),
-//             std::move(cb_async),
-//             std::move(resolve),
-//             std::move(reject)
-//         );
-//
-//
-//
-//         auto this_ = this;
-//         auto lk = co_await this->timerloop->adding_timer_mx->lock_guard();
-//         this->timerloop->adding_timer_data.push_back(std::move(data1));
-//         lk.call();
-//         this_->timerloop->adding_timer_async_cb();
-//
-//         co_return;
-//     });
-// }
 
 void manapi::event_loop::stop_watcher_tcp_accept(std::shared_ptr<ev::tcp> s) {
     // static_cast<ev::internal::tcp *>(s->data())->close_cb = std::move(close_cb);
@@ -1245,260 +1055,6 @@ void manapi::event_loop::stop_watcher_tcp_connection(std::shared_ptr<ev::tcp> s,
         if (data) { data->s_.reset(); delete data; }
     });
 }
-
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_open(std::string path, int flags, int mode, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_OPEN, nullptr, std::move(path), std::string{}, flags, mode, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_write(ev::file file, const void *buffer, ssize_t size, ev::fs_cb callback, int64_t offset) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_WRITE, buffer, std::string{}, std::string{}, size, offset, file, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_read(ev::file file, void *buffer, ssize_t size, ev::fs_cb callback, int64_t offset) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_READ, buffer, std::string{}, std::string{}, size, offset, file, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_close(ev::file file, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_CLOSE, nullptr, std::string{}, std::string{}, 0, 0, file, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_fstat(ev::file file, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_FSTAT, nullptr, std::string{}, std::string{}, 0, 0, file, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_unlink(std::string path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_UNLINK, nullptr, std::move(path), std::string{}, 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_mkdir(std::string path, int mode,
-// ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_MKDIR, nullptr, std::move(path), std::string{}, mode, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_mkdtemp(std::string path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_MKDTEMP, nullptr, std::move(path), std::string{}, 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_mkstemp(std::string path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_MKSTEMP, nullptr, std::move(path), std::string{}, 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_rmdir(std::string path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_RMDIR, nullptr, std::move(path), std::string{}, 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_opendir(std::string path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_OPENDIR, nullptr, std::move(path), std::string{}, 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_closedir(ev::dir_t *dir, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_CLOSEDIR, nullptr, std::string{}, std::string{},
-//         reinterpret_cast<ssize_t>(dir), 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_readdir(ev::dir_t *dir, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_READDIR, nullptr, std::string{}, std::string{},
-//         reinterpret_cast<ssize_t>(dir), 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_scandir(std::string path, int flags,
-//     ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_SCANDIR, nullptr, std::move(path), std::string{}, flags, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_scandir_next(ev::dirent_t *dirent,
-//     ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_SCANDIR_NEXT, nullptr, std::string{}, std::string{},
-//         reinterpret_cast<ssize_t>(dirent), 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_stat(std::string path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_STAT, nullptr, std::move(path), std::string{}, 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_lstat(std::string path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_LSTAT, nullptr, std::move(path), std::string{}, 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_statfs(std::string path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_STATFS, nullptr, std::move(path), std::string{}, 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_rename(std::string path, std::string new_path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_RENAME, nullptr, std::move(path), std::move(new_path), 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_fsync(ev::file file, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_FSYNC, nullptr, std::string{}, std::string{}, 0, 0, file, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_fdatasync(ev::file file, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_FDATASYNC, nullptr, std::string{}, std::string{}, 0, 0, file, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_ftruncate(ev::file file, int64_t offset, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_FTRUNCATE, nullptr, std::string{}, std::string{}, offset, 0, file, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_copyfile(std::string path, std::string new_path, int flags, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_COPYFILE, nullptr, std::move(path), std::move(new_path), flags, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_sendfile(ev::file outfd, ev::file infd, int64_t offset, size_t length, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_SENDFILE, nullptr, std::string{}, std::string{}, offset, static_cast<ssize_t>(length), outfd, std::move(callback), nullptr, nullptr, infd);
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_access(std::string path, int mode, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_ACCESS, nullptr, std::move(path), std::string{}, mode, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_chmod(std::string path, int mode, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_CHMOD, nullptr, std::move(path), std::string{}, mode, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_fchmod(ev::file file, int mode, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_FCHMOD, nullptr, std::string{}, std::string{}, mode, 0, file, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_utime(std::string path, double atime, double mtime, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_UTIME, nullptr, std::move(path), std::string{},  double_store_in_ssize(atime), double_store_in_ssize(mtime), 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_futime(ev::file file, double atime, double mtime, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_FUTIME, nullptr, std::string{}, std::string{}, double_store_in_ssize(atime), double_store_in_ssize(mtime), file, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_lutime(std::string path, double atime, double mtime, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_LUTIME, nullptr, std::move(path), std::string{},  double_store_in_ssize(atime), double_store_in_ssize(mtime), 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_link(std::string path, std::string new_path,ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_LINK, nullptr, std::move(path), std::move(new_path), 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_symlink(std::string path, std::string new_path,int flags, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_SYMLINK, nullptr, std::move(path), std::move(new_path), flags, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_readlink(std::string path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_READLINK, nullptr, std::move(path), std::string{}, 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_realpath(std::string path, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_REALPATH, nullptr, std::move(path), std::string{}, 0, 0, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_chown(std::string path, ev::uid_t uid,ev::gid_t gid, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_CHOWN, nullptr, std::move(path), std::string{}, uid, gid, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_fchown(ev::file file, ev::uid_t uid,ev::gid_t gid, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_FCHOWN, nullptr, std::string{}, std::string{}, uid, gid, file, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::fs_lchown(std::string path, ev::uid_t uid,ev::gid_t gid, ev::fs_cb callback) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_fs_data_t>(ADD_FS_EVENT_LCHOWN, nullptr, std::move(path), std::string{}, uid, gid, 0, std::move(callback));
-//     return template_fs_watcher_ (this->etaskpool_, this->fs_watcher.get(), std::move(data));
-// }
-
-// manapi::future<std::shared_ptr<manapi::ev::io>> manapi::event_loop::watch_poll(fd_t fd, int flags, ev::io_cb callback) {
-//
-//     auto data = std::make_unique<manapi::ev::internal::adding_watcher_io_data_t>(ADD_IO_EVENT_INIT_FD, flags, ev::internal::adding_watcher_io_data_payload_t{}, nullptr);
-//     data->payload.init.cb = std::move(callback);
-//     data->payload.init.fd = fd;
-//
-//     co_return co_await template_io_watcher_(this->etaskpool_, this->io_watcher.get(), std::move(data));
-// }
-
-// manapi::future<> manapi::event_loop::unwatch_poll(std::shared_ptr<manapi::ev::io> w) {
-//     ev::internal::adding_watcher_io_data_payload_t payload;
-//     payload.s = std::move(w);
-//     auto data = std::make_unique<ev::internal::adding_watcher_io_data_t>(ADD_IO_EVENT_REMOVE, 0, std::move(payload), nullptr);
-//     co_await template_io_watcher_(this->etaskpool_, this->io_watcher.get(), std::move(data));
-// }
-
-// manapi::future<std::shared_ptr<manapi::ev::io>> manapi::event_loop::watch_poll_socket(socket_t sock, int flags, ev::io_cb callback) {
-//
-//     auto data = std::make_unique<manapi::ev::internal::adding_watcher_io_data_t>(ADD_IO_EVENT_INIT_SD, flags, ev::internal::adding_watcher_io_data_payload_t{}, nullptr);
-//
-//     data->payload.init.cb = std::move(callback);
-//     data->payload.init.sd = sock;
-//
-//     co_return co_await template_io_watcher_(this->etaskpool_, this->io_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::async>> manapi::event_loop::watch_async(ev::async_cb callback) {
-//     auto data = std::make_unique<manapi::ev::internal::adding_watcher_async_data_t>(ADD_ASYNC_EVENT_INIT, ev::internal::adding_watcher_async_data_payload_t{}, nullptr);
-//     data->payload.cb = std::move(callback);
-//     co_return co_await template_async_watcher_(this->etaskpool_, this->async_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<> manapi::event_loop::unwatch_async(std::shared_ptr<ev::async> w) {
-//     auto data = std::make_unique<manapi::ev::internal::adding_watcher_async_data_t>(ADD_ASYNC_EVENT_REMOVE, ev::internal::adding_watcher_async_data_payload_t{}, nullptr);
-//     data->payload.s = std::move(w);
-//     co_await template_async_watcher_(this->etaskpool_, this->async_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<std::shared_ptr<manapi::ev::timer>> manapi::event_loop::watch_timer(uint64_t delay, uint64_t repeat, ev::timer_cb cb) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_timer_data_t>(ADD_TIMER_EVENT_INIT, delay, repeat, ev::internal::adding_watcher_timer_data_payload_t{}, nullptr);
-//     data->payload.cb = (std::move(cb));
-//     co_return co_await template_timer_watcher_(this->etaskpool_, this->timer_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<> manapi::event_loop::unwatch_timer(std::shared_ptr<ev::timer> w) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_timer_data_t>(ADD_TIMER_EVENT_REMOVE, 0, 0, ev::internal::adding_watcher_timer_data_payload_t{}, nullptr);
-//     data->payload.s= (std::move(w));
-//     co_await template_timer_watcher_(this->etaskpool_, this->timer_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<> manapi::event_loop::again_timer(uint64_t repeat, std::shared_ptr<ev::timer> w) {
-//     auto data = std::make_unique<ev::internal::adding_watcher_timer_data_t>(ADD_TIMER_EVENT_AGAIN, 0, repeat, ev::internal::adding_watcher_timer_data_payload_t{}, nullptr);
-//     data->payload.s=(std::move(w));
-//     co_await template_timer_watcher_(this->etaskpool_, this->timer_watcher.get(), std::move(data));
-// }
-//
-// manapi::future<> manapi::event_loop::stop_poll(std::shared_ptr<ev::io> w) {
-//     ev::internal::adding_watcher_io_data_payload_t payload;
-//     payload.s = std::move(w);
-//     auto data = std::make_unique<ev::internal::adding_watcher_io_data_t>(ADD_IO_EVENT_STOP, 0, std::move(payload), nullptr);
-//     co_await template_io_watcher_(this->etaskpool_, this->io_watcher.get(), std::move(data));
-// }
 
 const std::shared_ptr<manapi::threadpool<manapi::task>> &manapi::event_loop::taskpool() const {
     return this->etaskpool_;
@@ -1523,6 +1079,10 @@ void manapi::event_loop::watch_curl(std::shared_ptr<CURL> curl, std::move_only_f
     auto curlptr = curl.get();
     this->curl_watcher->curl_res.insert({curlptr, {std::move(curl), std::move(cb), nullptr}});
 
+    this->etaskpool_->append_task([this] () -> void {
+        this->handle_curl_exec_connections();
+        this->handle_curl_check_connections();
+    });
 }
 
 void manapi::event_loop::unwatch_curl(std::shared_ptr<CURL> curl) {
@@ -1544,6 +1104,11 @@ void manapi::event_loop::unwatch_curl(std::shared_ptr<CURL> curl) {
         this->stop_watcher(curl_data.mapped().watcher);
     }
     curl_data.mapped().finish(CURLE_ABORTED_BY_CALLBACK);
+
+    this->etaskpool_->append_task([this] () -> void {
+        this->handle_curl_exec_connections();
+        this->handle_curl_check_connections();
+    });
 }
 
 void manapi::event_loop::pause_watch_curl(std::shared_ptr<CURL> curl) {
@@ -1552,6 +1117,10 @@ void manapi::event_loop::pause_watch_curl(std::shared_ptr<CURL> curl) {
     if (CURLE_OK != rhs) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl_easy_pause(...) with CURLPAUSE_ALL failed -> {}", static_cast<int>(rhs));
     }
+    this->etaskpool_->append_task([this] () -> void {
+        this->handle_curl_exec_connections();
+        this->handle_curl_check_connections();
+    });
 }
 
 void manapi::event_loop::unpause_watch_curl(std::shared_ptr<CURL> curl) {
@@ -1561,41 +1130,13 @@ void manapi::event_loop::unpause_watch_curl(std::shared_ptr<CURL> curl) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH,
             "curl_easy_pause(...) with CURLPAUSE_CONT failed -> {}", static_cast<int>(rhs));
     }
+    this->etaskpool_->append_task([this] () -> void {
+        this->handle_curl_exec_connections();
+        this->handle_curl_check_connections();
+    });
 }
 #endif
-//
-// manapi::future<manapi::timer> manapi::event_loop::append_async_timer(size_t time, std::move_only_function<manapi::future<>(manapi::timer t)> cb) {
-//     co_return std::move((co_await this->template_cmd_timer_ (0, time, std::move(cb), nullptr)).value());
-// }
-//
-// manapi::future<manapi::timer> manapi::event_loop::append_sync_timer(size_t time, std::move_only_function<void(manapi::timer t)> cb) {
-//     co_return std::move((co_await this->template_cmd_timer_ (0, time, nullptr, std::move(cb))).value());
-// }
-//
-// manapi::future<manapi::timer> manapi::event_loop::append_async_interval(size_t time, std::move_only_function<manapi::future<>(manapi::timer t)> cb) {
-//     co_return std::move((co_await this->template_cmd_timer_ (1, time, std::move(cb), nullptr)).value());
-// }
-//
-// manapi::future<manapi::timer> manapi::event_loop::append_sync_interval(size_t time, std::move_only_function<void(manapi::timer t)> cb) {
-//     co_return std::move((co_await this->template_cmd_timer_ (1, time, nullptr, std::move(cb))).value());
-// }
-//
-// manapi::future<void> manapi::event_loop::update_state_interval(size_t id) {
-//     co_await this->template_cmd_timer_(3, id, nullptr, nullptr);
-// }
-//
-// manapi::future<> manapi::event_loop::remove_timer(size_t id) {
-//     co_await this->template_cmd_timer_ (2, id, nullptr, nullptr);
-// }
 
-// void manapi::event_loop::callback_io_watcher(std::shared_ptr<ev::io> w, ev::io_cb cb) {
-//     auto data = static_cast<ev::internal::io_ctx *> (w->data());
-//     data->cb = std::move(cb);
-// }
-
-// void manapi::event_loop::timer_callback(std::move_only_function<std::optional<manapi::timer>(ev::internal::adding_timerloop_data_t *data)> cb) {
-//     this->timerloop->external_cb = std::move(cb);
-// }
 
 void manapi::event_loop::interrupt() {
     std::unique_lock <std::mutex> lk (event_loop::stop_mx, std::try_to_lock);
@@ -1607,150 +1148,6 @@ void manapi::event_loop::interrupt() {
 
     manapi::event_loop::events.clear();
 }
-
-// void manapi::event_loop::custom_watcher_fs_async(std::shared_ptr<ev::async> &w) {
-//     if (this->fs_watcher->adding_watcher_mx->try_to_lock()) {
-//         auto list = std::move(this->fs_watcher->adding_watcher_data);
-//         this->fs_watcher->adding_watcher_mx->unlock();
-//
-//         while (!list.empty()) {
-//             auto data = std::move(list.front());
-//             list.pop_front();
-//
-//             std::shared_ptr<ev::fs> s = this->create_watcher_fs(std::move(data->cb));
-//             int rhs = 0;
-//
-//             switch (data->flag) {
-//                 case ADD_FS_EVENT_OPEN:
-//                     rhs = s->open(data->path1.data(), static_cast<int>(data->s1), static_cast<int>(data->s2));
-//                     break;
-//
-//                 case ADD_FS_EVENT_READ: {
-//                     const uv_buf_t buf[] = {{.base = (char*)(data->data), .len = static_cast<std::size_t>(data->s1)}};
-//                     rhs = s->read(data->file, buf, 1, data->s2);
-//                     break;
-//                 }
-//                 case ADD_FS_EVENT_WRITE: {
-//                     const uv_buf_t buf[] = {{.base = (char*)(data->data), .len = static_cast<std::size_t>(data->s1)}};
-//                     rhs = s->write(data->file, buf, 1, data->s2);
-//                     break;
-//                 }
-//                 case ADD_FS_EVENT_CLOSE: {
-//                     rhs = s->close(data->file);
-//                     break;
-//                 }
-//                 case ADD_FS_EVENT_UNLINK:
-//                     rhs = s->unlink(data->path1.data());
-//                     break;
-//                 case ADD_FS_EVENT_MKDIR:
-//                     rhs = s->mkdir(data->path1.data(), static_cast<int>(data->s1));
-//                     break;
-//                 case ADD_FS_EVENT_MKDTEMP:
-//                     rhs = s->mkdtemp(data->path1.data());
-//                     break;
-//                 case ADD_FS_EVENT_MKSTEMP:
-//                     rhs = s->mkstemp(data->path1.data());
-//                     break;
-//                 case ADD_FS_EVENT_RMDIR:
-//                     rhs = s->rmdir(data->path1.data());
-//                     break;
-//                 case ADD_FS_EVENT_OPENDIR:
-//                     rhs = s->opendir(data->path1.data());
-//                     break;
-//                 case ADD_FS_EVENT_READDIR:
-//                     rhs = s->readdir(reinterpret_cast<ev::dir_t *>(data->s1));
-//                     break;
-//                 case ADD_FS_EVENT_CLOSEDIR:
-//                     rhs = s->closedir(reinterpret_cast<ev::dir_t *>(data->s1));
-//                     break;
-//                 case ADD_FS_EVENT_SCANDIR:
-//                     rhs = s->scandir(data->path1.data(), static_cast<int>(data->s1));
-//                     break;
-//                 case ADD_FS_EVENT_SCANDIR_NEXT:
-//                     rhs = s->scandir_next(reinterpret_cast<ev::dirent_t *>(data->s1));
-//                     break;
-//                 case ADD_FS_EVENT_STAT:
-//                     rhs = s->stat(data->path1.data());
-//                     break;
-//                 case ADD_FS_EVENT_FSTAT:
-//                     rhs = s->fstat(data->file);
-//                     break;
-//                 case ADD_FS_EVENT_LSTAT:
-//                     rhs = s->lstat(data->path1.data());
-//                     break;
-//                 case ADD_FS_EVENT_STATFS:
-//                     rhs = s->statfs(data->path1.data());
-//                     break;
-//                 case ADD_FS_EVENT_RENAME:
-//                     rhs = s->rename(data->path1.data(), data->path2.data());
-//                     break;
-//                 case ADD_FS_EVENT_FSYNC:
-//                     rhs = s->fsync(data->file);
-//                     break;
-//                 case ADD_FS_EVENT_FDATASYNC:
-//                     rhs = s->fdatasync(data->file);
-//                     break;
-//                 case ADD_FS_EVENT_FTRUNCATE:
-//                     rhs = s->ftruncate(data->file, data->s1);
-//                     break;
-//                 case ADD_FS_EVENT_COPYFILE:
-//                     rhs = s->copyfile(data->path1.data(), data->path2.data(), data->s1);
-//                     break;
-//                 case ADD_FS_EVENT_SENDFILE:
-//                     rhs = s->sendfile(data->file, data->file2, data->s1, (size_t)(data->s2));
-//                     break;
-//                 case ADD_FS_EVENT_ACCESS:
-//                     rhs = s->access(data->path1.data(), static_cast<int>(data->s1));
-//                     break;
-//                 case ADD_FS_EVENT_CHMOD:
-//                     rhs = s->chmod(data->path1.data(), static_cast<int>(data->s1));
-//                     break;
-//                 case ADD_FS_EVENT_FCHMOD:
-//                     rhs = s->fchmod(data->file, static_cast<int>(data->s1));
-//                     break;
-//                 case ADD_FS_EVENT_UTIME:
-//                     rhs = s->utime(data->path1.data(), ssize_store_in_double(data->s1), ssize_store_in_double(data->s2));
-//                     break;
-//                 case ADD_FS_EVENT_FUTIME:
-//                     rhs = s->futime(data->file, ssize_store_in_double(data->s1), ssize_store_in_double(data->s2));
-//                     break;
-//                 case ADD_FS_EVENT_LUTIME:
-//                     rhs = s->lutime(data->path1.data(), ssize_store_in_double(data->s1), ssize_store_in_double(data->s2));
-//                     break;
-//                 case ADD_FS_EVENT_SYMLINK:
-//                     rhs = s->symlink(data->path1.data(), data->path2.data(), static_cast<int>(data->s1));
-//                     break;
-//                 case ADD_FS_EVENT_READLINK:
-//                     rhs = s->readlink(data->path1.data());
-//                     break;
-//                 case ADD_FS_EVENT_REALPATH:
-//                     rhs = s->realpath(data->path1.data());
-//                     break;
-//                 case ADD_FS_EVENT_CHOWN:
-//                     rhs = s->chown(data->path1.data(), data->s1, data->s2);
-//                     break;
-//                 case ADD_FS_EVENT_FCHOWN:
-//                     rhs = s->fchown(data->file, data->s1, data->s2);
-//                     break;
-//                 case ADD_FS_EVENT_LCHOWN:
-//                     rhs = s->lchown(data->path1.data(), data->s1, data->s2);
-//                     break;
-//                 case ADD_FS_EVENT_LINK:
-//                     rhs = s->link(data->path1.data(), data->path2.data());
-//                     break;
-//             }
-//
-//             if (rhs) {
-//                 /* error */
-//                 data->reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "fs command({}) failed with error: {}",
-//                     static_cast<int>(data->flag), rhs)));
-//                 return;
-//             }
-//
-//             data->resolve(std::move(s));
-//         }
-//     }
-// }
 
 std::shared_ptr<manapi::ev::io> manapi::event_loop::create_watcher_fd(fd_t fd, ev::io_cb callback) {
     auto w = std::make_shared<ev::io>(this->loop_.get(), fd);
