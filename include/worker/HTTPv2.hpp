@@ -8,6 +8,7 @@
 
 namespace manapi::net::http {
     struct http_v2_t;
+    struct http_v2_stream_t;
 }
 
 namespace manapi::net::worker {
@@ -44,5 +45,7 @@ namespace manapi::net::worker {
         ssize_t sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
 
         ssize_t sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) override;
+
+        void update_limit_rate_stream (const shared_conn &conn);
     };
 }

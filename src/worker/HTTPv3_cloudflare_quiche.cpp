@@ -743,7 +743,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
 
         if (conn_data->flags & ev::WRITE)
             conn_data->ev_callback->operator()(conn, ev::WRITE, nullptr, 0);
-        }
+    }
     else {
         conn_data->transfered_k += conn_data->transfered;
 
@@ -757,8 +757,6 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
         }
         conn_data->transfered = 0;
     }
-
-    return;
 }
 
 int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_buffers_(const shared_conn &conn, connection_stream_t *s, connection_io_part *top, int *cnt) {

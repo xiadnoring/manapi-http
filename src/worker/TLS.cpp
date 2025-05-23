@@ -349,7 +349,7 @@ void manapi::net::worker::TLS::flush_write_(const shared_conn &connection, bool 
 }
 
 int manapi::net::worker::TLS::check_read_stack_full_(connection_interface *data) {
-    if (data->top->recv_size > this->config_->max_buffer_stack) {
+    if (data->top->recv_size >= this->config_->max_buffer_stack) {
         /* sadness */
         if (auto rhs = data->watcher->read_stop()) {
             return rhs;

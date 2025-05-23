@@ -282,6 +282,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
         return;
     }
 
+    connection->data = nullptr;
     if (connection->watcher && !clean_disconnect) {
         if (connection->status & CONN_KEEP_ALIVE) {
             connection->status ^= CONN_KEEP_ALIVE;
@@ -516,6 +517,15 @@ bool manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &s
         conn_data->transfered = 0;
     }
 
+    if (conn_data->data) {
+        if (sconn->version == http::versions::HTTP_v2) {
+            auto const http_v2_ctx = static_cast<http::http_v2_t *> (conn_data->data);
+            for (const auto &s : *http_v2_ctx->streams) {
+                this->http_v2_worker->update_limit_rate_stream(s.second);
+            }
+        }
+    }
+
     return false;
 }
 
@@ -563,16 +573,18 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
                     auto const req_ptr = sdata->req.get();
                     auto cdata = std::make_unique<http::internal::handle_data_t>(s->second, this->http_v2_worker,
                         req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
-                        [this, sconn = s->second, conn, req = std::move(sdata->req)] (bool ok)
+                        [this, sconn = s->second, conn, req = std::move(sdata->req)] (bool ok) mutable
                         -> void {
-                            if (ok) {
-                                this->http_v2_worker->close_connection(sconn, true);
-                            }
-                            else {
-                                /* failed */
-                                this->http_v2_worker->close_connection(sconn, false);
-                            }
-
+                            manapi::async::current()->etaskpool()->append_task(
+                                [this, w = this->self_.lock(), ok, conn = std::move(conn), sconn = std::move(sconn)] () -> void {
+                                if (ok) {
+                                    this->http_v2_worker->close_connection(sconn, true);
+                                }
+                                else {
+                                    /* failed */
+                                    this->http_v2_worker->close_connection(sconn, false);
+                                }
+                            });
                     }));
 
                     // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
@@ -711,11 +723,13 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                         }
                         case http::versions::HTTP_v2: {
                             auto http2_ctx = std::make_unique<http::http_v2_t>();
+                            conn->version = http::versions::HTTP_v2;
                             http2_ctx->conn = conn;
                             http2_ctx->worker = this;
                             http2_ctx->http_v2_worker = this->http_v2_worker;
 
                             data->status |= CONN_LIMIT_RATE;
+                            data->data = http2_ctx.get();
 
                             this->event_on(conn, std::make_unique<worker_watcher_cb>(
                                 [this, ctx = std::move(http2_ctx)]
@@ -779,6 +793,8 @@ void manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) 
 
 void manapi::net::worker::TCP::conn_work_finish_(worker::shared_conn conn, bool ok, ibuffpool_t buffer) {
     auto const data = conn->as<connection_interface>();
+
+    data->data = nullptr;
 
     if (data->status & CONN_LIMIT_RATE)
         data->status ^= CONN_LIMIT_RATE;

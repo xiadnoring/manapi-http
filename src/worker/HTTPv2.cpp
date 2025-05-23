@@ -24,6 +24,12 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, bool clean
     if (data->ev_callback) {
         data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0);
     }
+
+    if (clean_disconnect) {
+        if (http::http_v2_rst_stream(data, manapi::net::http::HTTP2_ERROR_CONNECT_ERROR)) {
+            /* failed :( */
+        }
+    }
 }
 
 void manapi::net::worker::http_v2::configure_connection(const shared_conn &conn, oncont_cb cb) {
@@ -90,51 +96,15 @@ ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, con
     return http::http_v2_write(data, buff, size, finish);
 }
 
+void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &conn) {
+    auto const conn_data = conn->as<http::http_v2_stream_t>();
 
-// manapi::future<ssize_t> manapi::net::worker::http_v2::response(worker::connection &connection, http::response &resp, bool finish) {
-//     auto &conn = connection.as<manapi_http_2_connection_t>();
-//
-//     co_await conn.original->mx.lock();
-//     conn.original->headers = std::move(resp.headers());
-//     conn.original->headers[":status"] = std::to_string(resp.status_code());
-//     if (finish) { conn.original->atomic_flags.fetch_or(HTTP2_THREAD_ATOMIC_SEND_EOS); }
-//     conn.original->atomic_flags.fetch_or(HTTP2_THREAD_ATOMIC_HEADERS);
-//     this->io_call_watcher->send();
-//
-//     /* it's okay */
-//     co_return 1;
-// }
-// void manapi::net::worker::http_v2::session_worker(std::map<int, std::unique_ptr<http_v2_thread_data_t>>::iterator it) {
-//     if (it == this->threads.end()) { THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Failed to find session thread data by id");  }
-//     auto worker = this->new_dependency();
-//     auto id = it->first;
-//     auto client = std::make_shared<http::http_v2> (worker, this->config, this->site);
-//     client->connection = std::make_shared<worker::connection>(new manapi_http_2_connection_t (it->second.get(), 0, 0, 0),
-//         [] (void *ptr) -> void { delete static_cast<manapi_http_2_connection_t *> (ptr); });
-//     client->connection->version = manapi::net::http::versions::HTTP_v2;
-//
-//
-// void manapi::net::worker::http_v2::send_headers(http_v2_thread_data_t &stream) {
-//     manapi::compress::hpack::encoder_t encoder;
-//     for (auto &header: stream.headers) {
-//         encoder.add (compress::hpack::header_t(header.first, std::move(header.second)));
-//     }
-//     uint8_t cflag = 0x0;
-//     const auto data = encoder.data();
-//     size_t cnt = 0;
-//     auto frameSize = static_cast<size_t>(this->protocol.client_settings.max_frame_size);
-//     http2_frame_type ft = HTTP2_FRAME_HEADERS;
-//     if (stream.atomic_flags & HTTP2_THREAD_ATOMIC_SEND_EOS) { cflag |= HTTP2_FLAG_HEADERS_END_STREAM; }
-//     goto skip;
-//     while (cnt < data.size()) {
-//         ft = HTTP2_FRAME_CONTINUATION;
-//         skip:
-//         auto left = std::min(frameSize, data.size() - cnt);
-//         if (cnt + left == data.size()) {
-//             cflag |= HTTP2_FLAG_HEADERS_END_HEADERS;
-//         }
-//         send_frame(ft, cflag, stream.id, std::string_view(data.data() + cnt, left));
-//         cflag = 0;
-//         cnt += left;
-//     }
-// }
+    if (--conn_data->speed_min_delay == 0) {
+        if (conn_data->transfered_k < this->config_->speed_check_bytes) {
+            this->close_connection(conn, false);
+            return;
+        }
+        conn_data->transfered_k = 0;
+        conn_data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
+    }
+}

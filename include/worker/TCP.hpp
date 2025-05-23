@@ -23,6 +23,7 @@ namespace manapi::net::worker {
             std::unique_ptr<struct connection_io> top;
             std::unique_ptr<worker_watcher_cb> ev_callback;
             int speed_min_delay;
+            void *data;
         };
 
         TCP (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config);
