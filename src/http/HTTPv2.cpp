@@ -736,13 +736,15 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 }
                                 else {
                                     auto const sdata = s->second->as<http_v2_stream_t>();
-                                    sdata->flags |= ev::DISCONNECT;
+                                    sdata->flags |= http::HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_REMOVED;
 
                                     if (sdata->ev_callback) {
                                         sdata->ev_callback->operator()(s->second, ev::DISCONNECT, nullptr, 0);
                                     }
+
+                                    s->second->cancellation.cancel();
                                 }
-                                }
+                            }
 
                             ctx->n1 = 0;
                             break;

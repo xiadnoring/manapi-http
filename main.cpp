@@ -162,7 +162,11 @@ int main () {
         router.GET ("/chunked", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             try {
-                manapi::filesystem::fstream file ("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+                auto cancellation = manapi::async::cancellation_action::unit(req.cancellation());
+                cancellation.timeout(5000);
+                cancellation.ask_cancel_callback();
+                manapi::filesystem::fstream file ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
+                    std::move(cancellation));
                 co_await file.open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
                 if (!file.is_open()) {
                     co_return resp.text("failed to open the file");

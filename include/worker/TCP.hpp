@@ -17,7 +17,7 @@ namespace manapi::net::worker {
     public:
         struct connection_interface : base::connection_base_t {
             manapi::timer t;
-            std::shared_ptr<worker::base> worker;
+            worker::base *worker;
             int status = 0;
             std::shared_ptr<ev::tcp> watcher;
             std::unique_ptr<struct connection_io> top;

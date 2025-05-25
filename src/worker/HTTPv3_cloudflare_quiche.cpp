@@ -173,6 +173,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_con
     if (s->ev_callback) {
         s->ev_callback->operator()(conn, ev::DISCONNECT, nullptr, 0);
     }
+
+    conn->cancellation.cancel();
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::reset_all_streams_(connection_t *conn_data) {

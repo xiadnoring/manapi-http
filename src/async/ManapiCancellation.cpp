@@ -33,7 +33,7 @@ manapi::async::cancellation_action manapi::async::cancellation_action::unit(canc
     if (cancellation) {
         cancellation_action n;
         n.ask_cancel_callback();
-        n.cancel_callback(std::move(cancellation));
+        cancellation.cancel_callback(n);
         return std::move(n);
     }
 
@@ -95,13 +95,6 @@ void manapi::async::cancellation_action::cancel_callback (std::move_only_functio
     if (this->data) {
         this->data->cancel_sync_callback_ = std::make_unique<decltype(callback)>(std::move(callback));
 
-        if (this->data->timeout_ > 0) {
-            this->data->timeout_struct_ = manapi::async::current()->timerpool()->append_timer_sync(this->timeout(), [data = this->data] (manapi::timer t) mutable
-                -> void {
-                cancellation_action::cancel_(std::move(data));
-            });
-        }
-
         this->ready();
     }
 }
@@ -112,16 +105,22 @@ void manapi::async::cancellation_action::cancel_callback(cancellation_action can
             cancellation.data->parent->data->unites->erase(cancellation.data->element);
             cancellation.data->parent = nullptr;
         }
-
-        if (this->data->unites) {
-            this->data->unites = std::make_unique<decltype(this->data->unites)::element_type>();
+        if (this->data->status_ & FLAG_CANCEL) {
+            /* already! BOOM! */
+            cancellation.ask_cancel_callback();
+            cancellation.data->status_ |= FLAG_CANCEL;
         }
+        else {
+            if (!this->data->unites) {
+                this->data->unites = std::make_unique<decltype(this->data->unites)::element_type>();
+            }
 
-        this->ask_cancel_callback();
+            cancellation.ask_cancel_callback();
 
-        cancellation.data->parent = this;
-        this->data->unites->push_back((cancellation));
-        cancellation.data->element = this->data->unites->rbegin();
+            cancellation.data->parent = this;
+            this->data->unites->push_back((cancellation));
+            cancellation.data->element = this->data->unites->rbegin();
+        }
     }
 }
 
@@ -151,14 +150,14 @@ void manapi::async::cancellation_action::ready() {
         }
 
         if (this->data->status_ & (FLAG_CANCEL)) {
-            this->cancel();
+            this->cancel_(this->data);
         }
     }
 }
 
 void manapi::async::cancellation_action::ask_cancel_callback() {
     if (this->data) {
-
+        this->data->status_ |= FLAG_ASK_CANCEL;
     }
 }
 
@@ -166,6 +165,20 @@ void manapi::async::cancellation_action::timeout(size_t timeout) {
     if (this->data) {
         this->data->timeout_ = timeout;
         this->data->status_ |= FLAG_ASK_CANCEL;
+
+        if (this->data->timeout_ > 0) {
+            this->data->timeout_struct_ = manapi::async::current()->timerpool()
+                ->append_timer_sync(this->timeout(), [data = this->data] (manapi::timer t) mutable
+                -> void {
+                    if ((data->status_ & (FLAG_CANCEL|FLAG_DISABLED))) {
+                        return;
+                    }
+
+                    data->status_ |= FLAG_CANCEL;
+
+                    cancellation_action::cancel_(std::move(data));
+            });
+        }
     }
 }
 
@@ -184,7 +197,7 @@ void manapi::async::cancellation_action::disable_cancellation() {
 }
 
 void manapi::async::cancellation_action::send_async_() {
-    if (this->data && this->data->status_ & (FLAG_READY)) {
+    if (this->data && (this->data->status_ & (FLAG_READY))) {
         if (this->data->status_ & FLAG_CANCEL) {
             cancellation_action::cancel_(std::move(this->data));
         }
@@ -205,15 +218,18 @@ void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) {
         auto cb = std::move(*data->cancel_sync_callback_);
         data->cancel_sync_callback_.reset();
         if (!(data->status_ & FLAG_DISABLED)) {
-            try {
-                cb();
-            }
-            catch (manapi::exception const &e) {
-                MANAPIHTTP_LOG("cancellation failed by error({}): {}", static_cast<int>(e.err_num()), e.what());
-            }
-            catch (std::exception const &e) {
-                MANAPIHTTP_LOG("cancellation failed by error {}", e.what());
-            }
+            manapi::async::current()->etaskpool()->append_task(
+                [cb = std::move(cb)] () mutable -> void {
+                try {
+                    cb();
+                }
+                catch (manapi::exception const &e) {
+                    MANAPIHTTP_LOG("cancellation failed by error({}): {}", static_cast<int>(e.err_num()), e.what());
+                }
+                catch (std::exception const &e) {
+                    MANAPIHTTP_LOG("cancellation failed by error {}", e.what());
+                }
+            });
         }
     }
 

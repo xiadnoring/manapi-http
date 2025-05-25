@@ -21,11 +21,14 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, bool clean
     }
 
     data->flags |= http::HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_REMOVED;
+
     if (data->ev_callback) {
         data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0);
     }
 
-    if (clean_disconnect) {
+    conn->cancellation.cancel();
+
+    if (!clean_disconnect) {
         if (http::http_v2_rst_stream(data, manapi::net::http::HTTP2_ERROR_CONNECT_ERROR)) {
             /* failed :( */
         }

@@ -204,10 +204,10 @@ void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {
     if (connection->ssl) {
         auto ssl = std::exchange(connection->ssl, nullptr);
         std::cout << ("SSL FREE\n");
-        (dynamic_cast<TLS*>(connection->worker.get()))->ssl_free_(ssl);
+        (dynamic_cast<TLS*>(connection->worker))->ssl_free_(ssl);
     }
 
-    auto const wrk = dynamic_cast<TLS*> (connection->worker.get());
+    auto const wrk = dynamic_cast<TLS*> (connection->worker);
 
     wrk->count--;
     wrk->worker_data()->count.fetch_sub(1);
@@ -284,7 +284,11 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
     return;
 
     err: {
-        conn->as<connection_interface>()->status |= ev::DISCONNECT;
+        auto const cdata = conn->as<connection_interface>();
+
+        cdata->status |= ev::DISCONNECT;
+        conn->cancellation.cancel();
+
         return;
     }
 }

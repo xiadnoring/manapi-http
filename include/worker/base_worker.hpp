@@ -30,6 +30,7 @@ namespace manapi::net::worker {
             THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Pointer is null");
         }
 
+        manapi::async::cancellation_action cancellation;
         std::unique_ptr<ipdata_t> ipdata;
         int version = http::versions::HTTP_v1_1;
     private:

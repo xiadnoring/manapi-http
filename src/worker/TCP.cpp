@@ -275,7 +275,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
 
     conn->top = std::make_unique<connection_io>();
 
-    conn->worker = this->self_.lock();
+    conn->worker = this;
     conn->watcher = std::move(client);
 
     return std::move(connection);
@@ -284,7 +284,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
 manapi::net::worker::shared_conn manapi::net::worker::TCP::accept(ev::shared_tcp &w) {
     return std::move(this->accept(w,
         [this] () -> shared_conn {
-        return std::make_shared<worker::connection> (new connection_interface (), connection_interface_eraser);
+        return std::make_shared<worker::connection> (new connection_interface{}, connection_interface_eraser);
     }));
 }
 
@@ -294,6 +294,8 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
     if (connection->status & CONN_REMOVED) {
         return;
     }
+
+    conn->cancellation.cancel();
 
     connection->data = nullptr;
     if (connection->watcher && !clean_disconnect) {
@@ -316,13 +318,15 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
         this->connections.erase(reinterpret_cast<uintptr_t> (conn.get()));
     }
     else {
+        conn->cancellation.reset();
+
         connection->status |= CONN_KEEP_ALIVE;
         if (connection->t) {
             connection->t.stop();
         }
         connection->t = manapi::async::current()->timerpool()->append_interval_sync(15000,
             [conn] (manapi::timer t) mutable -> void {
-            dynamic_cast<TCP*>(conn->as<connection_interface>()->worker.get())->timeout_(conn);
+            dynamic_cast<TCP*>(conn->as<connection_interface>()->worker)->timeout_(conn);
         });
     }
 }
@@ -489,6 +493,7 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
                 if (status) {
                     /* error */
                     conn->status |= ev::DISCONNECT;
+                    connection->cancellation.cancel();
 
                     if (conn->ev_callback) {
                         conn->ev_callback->operator()(connection, ev::DISCONNECT, nullptr, 0);
@@ -663,7 +668,7 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
                                         return;
                                     }
 
-                                    auto const wrk = dynamic_cast<TCP*>(data->worker.get());
+                                    auto const wrk = dynamic_cast<TCP*>(data->worker);
                                     auto const sdata = sconn->as<http::http_v2_stream_t>();
 
 
@@ -738,9 +743,9 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
         manapi::async::current()->eventloop()->stop_watcher_tcp_connection(std::move(connection->watcher));
     }
 
-    std::cout << "CLOSE 2\n";
+    //std::cout << "CLOSE 2\n";
 
-    auto const wrk = dynamic_cast<TCP*> (connection->worker.get());
+    auto const wrk = dynamic_cast<TCP*> (connection->worker);
 
     wrk->count--;
     wrk->worker_data()->count.fetch_sub(1);
@@ -807,7 +812,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     }
 
                     data->status |= CONN_LIMIT_RATE;
-                    auto cdata = std::make_unique<http::internal::handle_data_t>(conn, data->worker, req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
+                    auto cdata = std::make_unique<http::internal::handle_data_t>(conn, this->self_.lock(), req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
                         [this, conn, req = std::move(http_v1_1_ctx->req)] (bool ok)
                         -> void {
                             conn_work_finish_ (conn, ok);
@@ -922,7 +927,7 @@ void manapi::net::worker::TCP::conn_work_finish_(worker::shared_conn conn, bool 
         delete static_cast<connection_data_t *>(std::exchange(data->data, nullptr));
     }
 
-    std::cout << "CLOSE\n";
+    //std::cout << "CLOSE\n";
 
     if (ok) {
         if (this->config_->keep_alive) {

@@ -23,6 +23,10 @@ manapi::net::http::request::request(std::unique_ptr<manapi::net::http::manapi_so
 
 manapi::net::http::request::~request () = default;
 
+manapi::async::cancellation_action manapi::net::http::request::cancellation() {
+    return this->conn_->get()->cancellation;
+}
+
 const manapi::net::http::manapi_socket_information &manapi::net::http::request::ip_data() const {
     return *this->ip_data_;
 }
