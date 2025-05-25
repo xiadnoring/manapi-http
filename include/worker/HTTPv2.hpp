@@ -40,7 +40,7 @@ namespace manapi::net::worker {
 
         bool is_valid_connection(worker::connection *connection) override;
 
-        void stop() override;
+        void stop(std::function<void()> cb) override;
 
         ssize_t sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
 

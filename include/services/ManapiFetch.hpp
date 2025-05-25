@@ -66,7 +66,8 @@ namespace manapi::net {
             FLAG_WAS_USED = 0b100
         };
         enum status_data_flags {
-            FLAG_DATA_EOF = 0b1
+            FLAG_DATA_EOF = 0b1,
+            FLAG_DATA_CLOSED = 0b10
         };
         struct curl_deleter {
             void operator() (CURL *curl)
@@ -87,19 +88,18 @@ namespace manapi::net {
             std::unique_ptr<async::mutex> async_run;
             ssize_t async_buffer_cursor{0};
             object_item_pool<manapi::bytebuffer> async_buffer{};
-            std::move_only_function <void(CURL *)> handle_custom_setup{nullptr};
-            std::move_only_function <ssize_t(char *, ssize_t)> handler_recv_body{nullptr};
-            std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)> async_handler_recv_body{nullptr};
-            std::move_only_function <manapi::future<bool>(std::shared_ptr<shared_data> data, std::map <std::string, std::string>)> async_handler_headers{nullptr};
-            std::move_only_function <bool(std::map <std::string, std::string>)> handler_headers{nullptr};
+            std::unique_ptr<std::move_only_function <void(CURL *)>> handle_custom_setup{nullptr};
+            std::unique_ptr<std::move_only_function <ssize_t(char *, ssize_t)>> handler_recv_body{nullptr};
+            std::unique_ptr<std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)>> async_handler_recv_body{nullptr};
+            std::unique_ptr<std::move_only_function <manapi::future<bool>(std::shared_ptr<shared_data> data, std::map <std::string, std::string>)>> async_handler_headers{nullptr};
+            std::unique_ptr<std::move_only_function <bool(std::map <std::string, std::string>)>> handler_headers{nullptr};
             std::shared_ptr<CURL> curl {nullptr};
             std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
-            std::map<std::string, std::string> headers{};
-            std::atomic<bool> async_waiting{false};
+            std::unique_ptr<std::map<std::string, std::string>> headers{};
             std::unique_ptr<std::move_only_function<manapi::future<>(std::shared_ptr<shared_data> data, bool)>> async_user_body_cb{nullptr};
             std::unique_ptr<std::move_only_function<ssize_t(char *buffer, ssize_t size)>> sync_user_body_cb{nullptr};
-            std::move_only_function <ssize_t(char *, ssize_t)> handler_send_body{nullptr};
-            std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)> async_handler_send_body{nullptr};
+            std::unique_ptr<std::move_only_function <ssize_t(char *, ssize_t)>> handler_send_body{nullptr};
+            std::unique_ptr<std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)>> async_handler_send_body{nullptr};
             std::unique_ptr<std::move_only_function<void()>> parallel_task{nullptr};
         };
     public:

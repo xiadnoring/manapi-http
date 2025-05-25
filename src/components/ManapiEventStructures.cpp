@@ -304,6 +304,10 @@ uint64_t manapi::ev::timer::due_in() const MANAPI_EV_NOEXPECT {
 
 manapi::ev::fs::fs(loop_ref loop) : s_(), loop_(loop) {}
 
+int manapi::ev::fs::cancel() noexcept(true) {
+    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->s_));
+}
+
 int manapi::ev::fs::open(const char *path, int flags, int mode, uv_fs_cb open_cb) MANAPI_EV_NOEXPECT {
     return uv_fs_open(this->loop_, &this->s_, path, flags, mode, open_cb);
 }
@@ -765,6 +769,10 @@ ssize_t manapi::ev::fs::result() const MANAPI_EV_NOEXPECT {
 }
 
 manapi::ev::random::random() : s_() {}
+
+int manapi::ev::random::cancel() noexcept(true) {
+    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->s_));
+}
 
 int manapi::ev::random::bind(loop_ref loop, char *buff, std::size_t size, uv_random_cb cb) MANAPI_EV_NOEXPECT {
     return uv_random(loop, &this->s_, buff, size, /* flags */ 0, cb);

@@ -132,8 +132,10 @@ void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(s
 
                 callback([thr] () -> void {
                     thr->sync_start();
-
                     thr->timerpool()->stop();
+                    thr->eventloop()->wait();
+
+                    manapi::async::internal::current_cthread_ = nullptr;
                 });
 
 
@@ -149,6 +151,9 @@ void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(s
 
         ctx->taskpool_->stop();
         ctx->taskpool_->join();
+        ctx->eventloop_->wait();
+
+        manapi::async::internal::current_cthread_ = nullptr;
     });
 }
 

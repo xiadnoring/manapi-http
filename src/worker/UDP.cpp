@@ -75,9 +75,14 @@ err:
     THROW_MANAPIHTTP_EXCEPTION2 (ERR_SOCKET, "couldn't initialize udp connection");
 }
 
-void manapi::net::worker::udp::stop() {
+void manapi::net::worker::udp::stop(std::function<void()> cb) {
     this->udp_accept_->recv_stop();
-    manapi::async::current()->eventloop()->stop_watcher(std::move(this->udp_accept_));
+    manapi::async::current()->eventloop()->stop_callback<ev::udp>(this->udp_accept_,
+        [cb = std::move(cb)] (const ev::shared_udp &w) -> void {
+        cb ();
+    });
+    manapi::async::current()->eventloop()
+        ->stop_watcher(std::move(this->udp_accept_));
 }
 
 void manapi::net::worker::udp::recv_buffer_dealloc_(const ev::buff_t *buf) {

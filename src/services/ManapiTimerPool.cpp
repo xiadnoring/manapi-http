@@ -16,7 +16,7 @@ enum timertask_flags {
 };
 
 manapi::timerpool::timerpool(std::shared_ptr<event_loop> events) {
-    this->data_ = std::make_shared<data_t>(sorted_storage(), storage(), std::move(events), 0, nullptr, 0);
+    this->data_ = std::make_shared<data_t>(sorted_storage(), storage(), std::move(events), 0, nullptr);
 }
 
 manapi::timerpool::~timerpool() {
@@ -120,9 +120,6 @@ void manapi::timerpool::start() {
 
     this->data_->flags |= TIMERPOOL_FLAG_ACTIVE;
 
-    this->data_->finish_event = this->data_->events->subscribe_finish([data = this->data_] ()
-        -> future<> { timerpool::stop_(data, true); co_return; });
-
 
     this->data_->timer = this->data_->events->create_watcher_timer([data = this->data_] (std::shared_ptr<ev::timer> &w)
         -> void {
@@ -145,12 +142,15 @@ void manapi::timerpool::stop_(std::shared_ptr<data_t> data, bool evloop) {
 
     data->flags ^= TIMERPOOL_FLAG_ACTIVE;
 
-    data->events->unsubscribe_finish(std::exchange(data->finish_event, 0));
     data->events->stop_watcher(std::move(data->timer));
 }
 
 void manapi::timerpool::doit() {
 
+}
+
+void manapi::timerpool::run_once() {
+    timerpool::start_(this->data_);
 }
 
 void manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,const size_t &id) {

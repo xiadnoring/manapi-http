@@ -297,11 +297,16 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
                             goto finish;
                         }
                     }
+                    if (flags & worker::base::CONN_RECV_END) {
+                        resolve();
+                        goto finish;
+                    }
 
                     return;
                     finish: {
-                        this->worker_->event_flags(conn, 0);
-                        this->worker_->event_on(conn, nullptr);
+                        auto const wrk_  = this;
+                        wrk_->worker_->event_on(conn, nullptr);
+                        wrk_->worker_->event_flags(conn, 0);
                     }
             });
 
@@ -408,21 +413,26 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
                             }
                         });
                     }
+                    else if (flags & worker::base::CONN_RECV_END) {
+                        resolve();
+                        goto finish;
+                    }
 
                     return;
                     finish: {
-                        this->worker_->event_flags(conn, 0);
-                        this->worker_->event_on(conn, nullptr);
+                        auto const wrk_ = this;
+                        wrk_->worker_->event_on(conn, nullptr);
+                        wrk_->worker_->event_flags(conn, 0);
                     }
             });
 
+            prev = this->worker_->event_on(*this->conn_, std::move(cb));
             pflags = this->worker_->event_flags(*this->conn_, ev::READ);
 
             if (this->request_data->buffer) {
                 cb->operator()(*this->conn_, ev::READ, this->request_data->buffer->data(), this->request_data->buffer->size());
             }
 
-            prev = this->worker_->event_on(*this->conn_, std::move(cb));
         });
     }
     catch (...) {

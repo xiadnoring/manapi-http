@@ -196,11 +196,15 @@ namespace manapi::net {
         manapi::future<> response () {
             co_await this->fetchdata->mx.lock();
             co_await async::promise<void> ([this] (manapi::async::promise<void>::resolve_t resolve, manapi::async::promise<void>::reject_t reject) -> manapi::future<> {
-                this->fetchdata->data.handle_async_headers([fetchdata = this->fetchdata, resolve = std::move(resolve)] (std::map<std::string, std::string> headers) -> manapi::future<bool> {
-                    fetchdata->received = true;
-                    resolve ();
-                    auto lk = co_await fetchdata->mx.lock_guard();
-                    co_return fetchdata->result;
+                this->fetchdata->data.handle_async_headers([fetchdata = this->fetchdata.get(), resolve = std::move(resolve)] (std::map<std::string, std::string> headers) mutable
+                    -> manapi::future<bool> {
+                    auto const fetchdata_ = fetchdata;
+                    auto resolve_ = std::move(resolve);
+
+                    fetchdata_->received = true;
+                    resolve_ ();
+                    auto lk = co_await fetchdata_->mx.lock_guard();
+                    co_return fetchdata_->result;
                 });
 
                 this->fetchdata->async_run.run(manapi::async::invoke([reject, fetchdata = this->fetchdata] () -> manapi::future<std::exception_ptr> {

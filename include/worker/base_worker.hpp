@@ -40,6 +40,10 @@ namespace manapi::net::worker {
     typedef object_item_pool<bytebuffer, std::size_t> ibuffpool_t;
     typedef std::move_only_function<void(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize)> worker_watcher_cb;
 
+    enum net_worker_flags {
+        NET_WORKER_CLOSED = 1
+    };
+
     class base {
     public:
         struct connection_base_t {
@@ -76,7 +80,9 @@ namespace manapi::net::worker {
             CONN_CLOSED         = 0b00000100,
             CONN_REMOVED        = 0b00001000,
             CONN_KEEP_ALIVE     = 0b00010000,
-            CONN_LIMIT_RATE     = 0b00100000
+            CONN_LIMIT_RATE     = 0b00100000,
+            CONN_RECV_END       = 0b01000000,
+            CONN_RESERVED       = 0b10000000
         };
 
         enum connection_io_status {
@@ -112,7 +118,7 @@ namespace manapi::net::worker {
 
         virtual future<ssize_t> response (const shared_conn &connection, http::response *resp, bool finish);
 
-        virtual void stop () = 0;
+        virtual void stop (std::function<void()> cb) = 0;
 
         virtual std::unique_ptr<worker_watcher_cb> event_on (const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) = 0;
 

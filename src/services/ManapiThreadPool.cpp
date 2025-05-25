@@ -2,6 +2,7 @@
 
 #include "services/ManapiThreadPool.hpp"
 
+#include <cassert>
 #include <future>
 #include <stacktrace>
 
@@ -12,6 +13,7 @@
 
 template<class T>
 void task_doit(std::unique_ptr<T> task, manapi::logger *logger) {
+    assert((task.get()));
     try {
         task->doit();
     }

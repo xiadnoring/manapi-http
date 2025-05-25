@@ -44,7 +44,7 @@ namespace manapi::net::worker {
 
         void init() override;
 
-        void stop() override;
+        void stop(std::function<void()> cb) override;
 
         void onrecv(std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) override;
 
@@ -70,6 +70,11 @@ namespace manapi::net::worker {
 
         future<ssize_t> response(const shared_conn &connection, http::response *resp, bool finish) override;
     protected:
+        int flags;
+
+        int count;
+
+        std::function<void()> finish;
 
         // void recv_buffer_alloc_(ssize_t nread, ev::buff_t *buff) override;
         //

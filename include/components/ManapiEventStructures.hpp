@@ -453,6 +453,8 @@ namespace manapi::ev {
 
         fs (loop_ref loop);
 
+        int cancel () MANAPI_EV_NOEXPECT;
+
         int open (const char *path, int flags, int mode, uv_fs_cb open_cb) MANAPI_EV_NOEXPECT;
         int open (const char *path, int flags, int mode) MANAPI_EV_NOEXPECT;
 
@@ -577,6 +579,7 @@ namespace manapi::ev {
     public:
         MANAPI_EV_DEFAULT(random, uv_random_t)
         random ();
+        int cancel () MANAPI_EV_NOEXPECT;
         int bind (loop_ref loop, char *buff, std::size_t size, uv_random_cb cb) MANAPI_EV_NOEXPECT;
         int bind (loop_ref loop, char *buff, std::size_t size) MANAPI_EV_NOEXPECT;
     private:

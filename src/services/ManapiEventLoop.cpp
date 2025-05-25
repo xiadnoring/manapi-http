@@ -23,6 +23,12 @@
         handle->data = nullptr; if (data) { data->s_.reset(); delete data; } }); \
     } }
 
+#define MANAPI_EV_UNWATCHER2(classname, ctxname) template<> void manapi::event_loop::event_loop::stop_watcher(ev::classname *w) { \
+    if (w->data()) { \
+        w->unbind(+[](uv_handle_t *handle) -> void { auto data = static_cast<ev::internal::ctxname *>(handle->data); \
+        handle->data = nullptr; if (data->close_cb) { data->close_cb->operator()(data->s_); } if (data) { data->s_.reset(); delete data; } }); \
+    } }
+
 enum add_watcher_io_events {
     ADD_IO_EVENT_INIT_FD = 0,
     ADD_IO_EVENT_INIT_SD,
@@ -123,21 +129,22 @@ namespace manapi::ev::internal {
         ev::io_cb cb;
     };
 
-    struct tcp {
+    struct tcp_ctx {
         std::shared_ptr<ev::tcp> s_;
-        std::unique_ptr<tcp_close_cb> close_cb;
+        std::unique_ptr<close_cb_t<ev::tcp>> close_cb;
     };
 
-    struct tcp_accept_ctx : tcp {
+    struct tcp_accept_ctx : tcp_ctx {
         ev::tcp_accept_cb connection;
     };
 
-    struct tcp_connection_ctx : tcp {
+    struct tcp_connection_ctx : tcp_ctx {
         ev::tcp_connection_cb read;
         ev::tcp_alloc_cb alloc_cb;
     };
 
     struct udp_ctx {
+        std::unique_ptr<close_cb_t<ev::udp>> close_cb;
         std::shared_ptr<ev::udp> s_;
         ev::udp_cb recv;
         ev::udp_alloc_cb alloc_cb;
@@ -400,14 +407,30 @@ void manapi::ev::callback_watcher_write (uv_write_t *s, int status) {
 }
 
 void manapi::ev::callback_watcher_fs(uv_fs_t *req) {
-    fs_req_deleter deleter (req);
-    static_cast<manapi::ev::internal::fs_ctx *> (req->data)
-        ->cb(static_cast<manapi::ev::internal::fs_ctx *> (req->data)->s_);
+    if (req->data) {
+        /* otherwise it was cancelled */
+        auto w = std::move(static_cast<manapi::ev::internal::fs_ctx *> (req->data)->s_);
+        {
+            fs_req_deleter deleter (req);
+            static_cast<manapi::ev::internal::fs_ctx *> (req->data)
+                ->cb(w);
+        }
+        delete static_cast<manapi::ev::internal::fs_ctx *> (req->data);
+        req->data = nullptr;
+    }
+    else {
+        fs_req_deleter deleter (req);
+    }
 }
 
 void manapi::ev::callback_watcher_random(uv_random_t *s, int status, void *buff, std::size_t size) {
-    static_cast<manapi::ev::internal::random_ctx *> (s->data)
-        ->cb(static_cast<manapi::ev::internal::random_ctx *> (s->data)->s_, status, buff, size);
+    if (s->data) {
+        /* otherwise it was cancelled */
+        static_cast<manapi::ev::internal::random_ctx *> (s->data)
+            ->cb(static_cast<manapi::ev::internal::random_ctx *> (s->data)->s_, status, buff, size);
+        delete static_cast<manapi::ev::internal::random_ctx *> (s->data);
+        s->data = nullptr;
+    }
 }
 
 
@@ -424,8 +447,8 @@ void manapi::ev::callback_watcher_udp_alloc(uv_handle_t *handle, size_t suggeste
 void manapi::ev::callback_close_cb(uv_handle_t *s) {
     switch (s->type) {
         case ev::EV_TCP: {
-            if (static_cast<manapi::ev::internal::tcp *> (s->data)) {
-                static_cast<manapi::ev::internal::tcp *> (s->data)->
+            if (static_cast<manapi::ev::internal::tcp_ctx *> (s->data)) {
+                static_cast<manapi::ev::internal::tcp_ctx *> (s->data)->
                     close_cb->operator()(static_cast<manapi::ev::internal::tcp_connection_ctx *> (s->data)->s_);
             }
             break;
@@ -554,16 +577,7 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool_, std:
 }
 
 manapi::event_loop::~event_loop() {
-    // this->stop()
-    //     .get(this->taskpool_);
-    this->stop_watcher (this->interrupted_watcher_);
-//     this->stop_watcher (this->timerloop->adding_timer_async);
-// #if MANAPIHTTP_CURL_DEPENDENCY
-//     this->stop_watcher (this->curl_watcher->adding_curl_multi_async);
-// #endif
-//     this->stop_watcher (this->async_watcher->adding_watcher_async);
-    this->stop_watcher(this->callback_watcher_->adding_async);
-    this->stop_watcher(this->idle_tasks_);
+
 }
 
 manapi::future<> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
@@ -617,6 +631,33 @@ manapi::future<> manapi::event_loop::stop() {
 
         co_await promise;
     }
+}
+
+void manapi::event_loop::wait() {
+    this->stop_watcher (std::move(this->interrupted_watcher_));
+    this->stop_watcher(std::move(this->callback_watcher_->adding_async));
+    this->stop_watcher(std::move(this->idle_tasks_));
+    this->stop_watcher(std::move(this->curl_watcher->timeout_watcher));
+
+    while (uv_loop_alive(this->loop())) {
+        auto etaskpool = dynamic_cast<ethreadpool<task> *>(this->etaskpool_.get());
+        while (!etaskpool->try_task()) {
+            break;
+        }
+
+        manapi::async::current()->timerpool()->run_once();
+
+        auto const rhs = uv_run(this->loop(), UV_RUN_NOWAIT);
+
+        if (!rhs) {
+            break;
+        }
+    }
+
+    this->etaskpool_->stop();
+    this->etaskpool_->join();
+
+    uv_loop_close(this->loop_.get());
 }
 
 size_t manapi::event_loop::subscribe_finish(std::move_only_function<manapi::future<void>()> cb) {
@@ -729,10 +770,7 @@ void manapi::event_loop::stop_pool(async::promise<void>::resolve_t resolve) {
     resolve();
 }
 
-void manapi::event_loop::async_break_loop_(std::shared_ptr<ev::async> watcher) {
-    this->etaskpool_->stop();
-    this->etaskpool_->join();
-
+void manapi::event_loop::async_break_loop_() {
     this->free_on_finish_cb_();
 
     uv_stop(this->loop_.get());
@@ -1037,7 +1075,6 @@ int manapi::event_loop::handle_curl_close_socket(void *cbp, curl_socket_t socket
 #endif
 
 void manapi::event_loop::stop_watcher_tcp_accept(std::shared_ptr<ev::tcp> s) {
-    // static_cast<ev::internal::tcp *>(s->data())->close_cb = std::move(close_cb);
     s->unbind(+[] (uv_handle_t *s) -> void {
         auto data = static_cast<ev::internal::tcp_accept_ctx *>(s->data);
         if (data->close_cb) { data->close_cb->operator()(data->s_); }
@@ -1046,8 +1083,7 @@ void manapi::event_loop::stop_watcher_tcp_accept(std::shared_ptr<ev::tcp> s) {
     });
 }
 
-void manapi::event_loop::stop_watcher_tcp_connection(std::shared_ptr<ev::tcp> s, std::unique_ptr<ev::tcp_close_cb> close_cb) {
-    static_cast<ev::internal::tcp *>(s->data())->close_cb = std::move(close_cb);
+void manapi::event_loop::stop_watcher_tcp_connection(std::shared_ptr<ev::tcp> s) {
     s->unbind(+[] (uv_handle_t *s) -> void {
         auto data = static_cast<ev::internal::tcp_connection_ctx *>(s->data);
         if (data->close_cb) { data->close_cb->operator()(data->s_); }
@@ -1227,14 +1263,59 @@ std::shared_ptr<manapi::ev::write> manapi::event_loop::create_watcher_write(ev::
     return std::move(w);
 }
 
+template<>
+void manapi::event_loop::stop_callback(const std::shared_ptr<ev::tcp> &s, ev::close_cb_t<ev::tcp> cb) {
+    auto const data = static_cast<ev::internal::tcp_ctx*> (s->data());
+    if (data) {
+        data->close_cb = std::make_unique<decltype(cb)>(std::move(cb));
+    }
+}
+
+template<>
+void manapi::event_loop::stop_callback(const std::shared_ptr<ev::udp> &s, ev::close_cb_t<ev::udp> cb) {
+    auto const data = static_cast<ev::internal::udp_ctx*> (s->data());
+    if (data) {
+        data->close_cb = std::make_unique<decltype(cb)>(std::move(cb));
+    }
+}
+
 MANAPI_EV_UNWATCHER(idle, idle_ctx);
 MANAPI_EV_UNWATCHER(io, io_ctx);
-MANAPI_EV_UNWATCHER(udp, udp_ctx);
+MANAPI_EV_UNWATCHER2(udp, udp_ctx);
 MANAPI_EV_UNWATCHER(async, async_ctx);
 MANAPI_EV_UNWATCHER(check, check_ctx);
 MANAPI_EV_UNWATCHER(timer, timer_ctx);
 MANAPI_EV_UNWATCHER(prepare, prepare_ctx);
-MANAPI_EV_UNWATCHER(fs, fs_ctx);
+
+template<>
+void manapi::event_loop::event_loop::stop_watcher(ev::fs *w) {
+    if (w->data()) {
+        w->cancel();
+
+        auto data = static_cast<ev::internal::fs_ctx *>(w->data());
+        w->data(nullptr);
+
+        if (data) {
+            data->s_.reset();
+            delete data;
+        }
+    }
+}
+
+template<>
+void manapi::event_loop::event_loop::stop_watcher(ev::random *w) {
+    if (w->data()) {
+        w->cancel();
+
+        auto data = static_cast<ev::internal::random_ctx *>(w->data());
+        w->data(nullptr);
+
+        if (data) {
+            data->s_.reset();
+            delete data;
+        }
+    }
+}
 
 template<> void manapi::event_loop::event_loop::stop_watcher(ev::write *w) {
     if (w->data()) {
@@ -1270,7 +1351,10 @@ void manapi::event_loop::pool_(manapi::sbefore_delete lk2, std::shared_ptr<event
     }
 
     this->stop_watcher_ = this->create_watcher_async([this] (std::shared_ptr<ev::async> &w)
-        -> void { this->async_break_loop_(w); });
+        -> void {
+        this->async_break_loop_();
+        this->stop_watcher(std::move(this->stop_watcher_));
+    });
 
     auto init_watcher = this->create_watcher_async([&lk2, this] (std::shared_ptr<ev::async> &w)
         -> void {  lk2.call(); this->stop_watcher(std::move(w)); });
@@ -1283,6 +1367,4 @@ void manapi::event_loop::pool_(manapi::sbefore_delete lk2, std::shared_ptr<event
 
     /* if init_watcher(...) was not called */
     lk2.call();
-
-    this->stop_watcher(this->stop_watcher_);
 }

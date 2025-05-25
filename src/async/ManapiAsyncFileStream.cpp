@@ -202,7 +202,7 @@ ssize_t manapi::filesystem::fstream::seekg_(const ssize_t &pos, const seek_flag_
 }
 
 manapi::future<> manapi::filesystem::fstream::close_(ev::file fileno) {
-    if (fileno) {
+    if (fileno > 0) {
         co_await manapi::filesystem::async_close(fileno);
     }
 }

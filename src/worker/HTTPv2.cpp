@@ -53,16 +53,19 @@ int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flag
     if (flags & ev::WRITE) {
         data->ctx->worker->event_toggle(conn, true, ev::WRITE);
     }
-    return std::exchange(data->flags, ((data->flags >> 2) << 2) | flags);;
+    auto const prev = std::exchange(data->flags, ((data->flags >> 2) << 2) | flags);
+    if ((data->flags & http::HTTP2_STREAM_CLOSED) && flags && data->ev_callback) {
+        data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0);
+    }
+    if ((data->flags & CONN_RECV_END) && (flags & ev::READ) && data->ev_callback) {
+        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0);
+    }
+    return prev;
 }
 
 std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::http_v2::event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) {
     auto const conn_data = conn->as<http::http_v2_stream_t>();
-    auto n = std::exchange(conn_data->ev_callback, std::move(callback));
-    if (conn_data->ev_callback && (conn_data->flags & http::HTTP2_STREAM_CLOSED)) {
-        conn_data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0);
-    }
-    return std::move(n);
+    return std::exchange(conn_data->ev_callback, std::move(callback));
 }
 
 void manapi::net::worker::http_v2::init() {
@@ -83,8 +86,8 @@ bool manapi::net::worker::http_v2::is_valid_connection(worker::connection *conne
     return true;
 }
 
-void manapi::net::worker::http_v2::stop() {
-
+void manapi::net::worker::http_v2::stop(std::function<void()> cb) {
+    cb();
 }
 
 ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {

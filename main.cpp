@@ -86,11 +86,10 @@ int main () {
 
     manapi::net::server_ctx server_ctx;
 
-    GCTX_OBJ->run(GCTX_OBJ, loops, [&a, server_ctx] (std::function<void()> bind) -> void {
+    GCTX_OBJ->run(GCTX_OBJ, loops, [&a, server_ctx] (const std::function<void()> &bind) -> void {
         //auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
 
         manapi::net::http::server router (server_ctx);
-
 
         router.GET ("/", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
@@ -164,12 +163,28 @@ int main () {
         router.GET ("/chunked", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             try {
-                auto fetch = co_await manapi::net::fetch2::fetch("http://manapi.ru", {
+                manapi::filesystem::fstream file ("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+                co_await file.open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
+                if (!file.is_open()) {
+                    co_return resp.text("failed to open the file");
+                }
+
+                auto fetch = co_await manapi::net::fetch2::fetch("https://localhost:8888/upload", {
                     {"http", "1.1"},
                     {"verify_peer", false},
-                    {"verbose", true},
-                    {"alpn", false}
+                    {"verbose", false},
+                    {"alpn", false},
+                    {"method", "POST"},
+                    {"headers", {
+                        {"transfer-encoding", "chunked"}
+                        // {"content-length", "298512394"}
+                    }}
+                }, [file] (char *body, ssize_t size) mutable -> manapi::future<ssize_t> {
+                    return file.read(body, size);
                 });
+
+                co_await file.close();
+
                 if (!fetch.ok()) {
                     co_return resp.text(std::format("status : {}", fetch.status()));
                 }
@@ -178,11 +193,6 @@ int main () {
             catch (std::exception const &e) {
                 co_return resp.text(e.what());
             }
-        });
-
-        router.GET ("/proxy_download", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-            -> manapi::future<> {
-            co_return resp.proxy("http://127.0.0.1:8889/file");
         });
 
         router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
@@ -208,7 +218,7 @@ int main () {
 
             b = manapi::crypto::strdec2strhex(b);
 
-            std::cout << b << "\n";
+            std::cout << result << " " << b << "\n";
 
             co_return resp.text(std::format("{} : {}", result, b));
         });
@@ -216,13 +226,6 @@ int main () {
         router.GET("/download", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
-        });
-
-        router.GET("/file", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-            -> manapi::future<> {
-            resp.compress_enabled(false);
-            resp.partial_enabled(false);
-            co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
         });
 
         router.GET("/video", [] (manapi::net::http::request &req, manapi::net::http::response &resp)

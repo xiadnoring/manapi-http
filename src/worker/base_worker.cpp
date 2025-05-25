@@ -35,7 +35,6 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
 
     rhs = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
         -> void {
-        prev_flags = this->event_flags(conn, ev::WRITE);
         prev_cb = this->event_on(conn, std::make_unique<worker_watcher_cb>([this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]
             (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize) -> void {
                 try {
@@ -62,10 +61,11 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
                 return;
                 finish: this->event_flags(conn, 0);
         }));
+        prev_flags = this->event_flags(conn, ev::WRITE);
     });
 
-    this->event_flags(conn, prev_flags);
     this->event_on(conn, std::move(prev_cb));
+    this->event_flags(conn, prev_flags);
 
     co_return rhs;
 }

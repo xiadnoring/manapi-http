@@ -55,10 +55,14 @@ manapi::future<void> manapi::net::http::server::start() {
     }
 
     this->data2->event_id = async::current()->eventloop()->subscribe_finish([data = this->data, data2 = this->data2] ()
-        -> future<> { co_return co_await stop_(data, data2, true); });
+        -> future<> {
+        co_return co_await stop_(data, data2, true);
+    });
 
     this->data2->clean_up_id = async::current()->eventloop()->subscribe_clean_up([data2 = this->data2] ()
-        -> void { clean_up(data2); });
+        -> void {
+        clean_up(data2);
+    });
 
     co_await this->init_pool_();
 
@@ -135,10 +139,16 @@ manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data
     catch (std::exception const &e) {
         async::current()->logger()->error(manapi::logger::default_service, ERR_CONFIG_ERROR, "http: couldn't save the configuration file due to {}", e.what());
     }
+
     if (data2->init_watcher) {
         printf("unwatch_async(this->data2->init_watcher);\n");
         async::current()->eventloop()->stop_watcher(std::move(data2->init_watcher));
         printf("finish unwatch_async(this->data2->init_watcher);\n");
+    }
+
+    if (data->server_config_notifier) {
+        data->sctx.remove_server_sub(data->server_config_notifier);
+        async::current()->eventloop()->stop_watcher(std::move(data->server_config_notifier));
     }
 
     if (!evloop) {

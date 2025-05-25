@@ -39,7 +39,6 @@ namespace manapi {
             std::shared_ptr<event_loop> events{nullptr};
             int flags;
             std::shared_ptr<ev::timer> timer;
-            size_t finish_event{0};
         };
 
         timerpool(std::shared_ptr<event_loop> events);
@@ -83,6 +82,8 @@ namespace manapi {
         void stop ();
 
         void doit ();
+
+        void run_once ();
 
         void clear();
 

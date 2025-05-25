@@ -450,6 +450,156 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
     return EHTTP_V1_1_PROTOCOL_WANT_READ;
 }
 
-manapi::future<ssize_t> manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::base *worker, worker::connection *conn, http::config *config, char *buffer, ssize_t size) {
+enum http_v1_1_chunked_flags {
+    HTTP_V1_1_CHUNK_NUM_GRAB = 0,
+    HTTP_V1_1_CHUNK_CHAR_R,
+    HTTP_V1_1_CHUNK_CHAR_N,
+    HTTP_V1_1_CHUNK_BODY,
+    HTTP_V1_1_CHUNK_THINK,
+    HTTP_V1_1_CHUNK_ERR,
+};
 
+int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::base *worker, const worker::shared_conn &conn, http::config *config, const char *buffer, ssize_t size) {
+    ssize_t pos = 0;
+    while (pos != size) {
+        switch (ctx->state) {
+            case HTTP_V1_1_CHUNK_NUM_GRAB:
+                if (buffer[pos] == '\r') {
+                    ctx->state = HTTP_V1_1_CHUNK_CHAR_N;
+                    ctx->next = HTTP_V1_1_CHUNK_THINK;
+                    pos++;
+                    break;
+                }
+
+                if (ctx->left > INT_MAX / 16) {
+                    /**
+                     * RFC9112 (7.1) Chunked Transfer Coding
+                     *
+                     * recipients MUST anticipate potentially large
+                     * hexadecimal numerals and prevent parsing
+                     * errors due to integer conversion overflows
+                     * or precision loss due to integer representation.
+                     */
+                    return EHTTP_V1_1_CHUNKED_ERR;
+                }
+
+                ctx->left = (ctx->left * 16);
+                int n;
+                /**
+                 * RFC9112 (1.2) Syntax Notation
+                 *
+                 * HEXDIG (hexadecimal 0-9/A-F/a-f)
+                 */
+                if (isdigit(buffer[pos]))
+                    n = buffer[pos] - '0';
+                else if (buffer[pos] >= 'a' && buffer[pos] <= 'f')
+                    n = static_cast<int>(buffer[pos] - 'a' + 10);
+                else if (buffer[pos] >= 'A' && buffer[pos] <= 'F')
+                    n = static_cast<int>(buffer[pos] - 'A' + 10);
+                else
+                    return EHTTP_V1_1_CHUNKED_ERR;
+
+                if (n < 0) {
+                    return EHTTP_V1_1_CHUNKED_ERR;
+                }
+
+                if (ctx->left > INT_MAX - n) {
+                    /* would overflow */
+                    return EHTTP_V1_1_CHUNKED_ERR;
+                }
+
+                ctx->left += n;
+                pos++;
+
+                break;
+            case HTTP_V1_1_CHUNK_CHAR_R:
+                if (buffer[pos]!='\r') {
+                    return EHTTP_V1_1_CHUNKED_ERR;
+                }
+                pos++;
+
+                ctx->state = HTTP_V1_1_CHUNK_CHAR_N;
+
+                break;
+            case HTTP_V1_1_CHUNK_CHAR_N:
+                if (buffer[pos]!='\n') {
+                    return EHTTP_V1_1_CHUNKED_ERR;
+                }
+                pos++;
+
+                ctx->state = ctx->next;
+                ctx->next = HTTP_V1_1_CHUNK_ERR;
+
+                break;
+            case HTTP_V1_1_CHUNK_BODY: {
+                auto const copy = std::min(size - pos, static_cast<ssize_t>(ctx->left));
+                if (copy) {
+                    if (worker->event_flags(conn) & ev::READ) {
+                        worker->feed_event(conn, ev::READ, buffer + pos, copy);
+                    }
+                    else {
+                        worker::base::connection_io_send(&ctx->top, buffer + pos, copy,
+                            worker->bufferpool().get(), static_cast<int>(config->buffer_size), nullptr, 0);
+                    }
+
+                    pos += copy;
+                    ctx->left -= static_cast<int>(copy);
+                }
+
+                if (!ctx->left) {
+                    ctx->state = HTTP_V1_1_CHUNK_CHAR_R;
+                    ctx->next = HTTP_V1_1_CHUNK_NUM_GRAB;
+                }
+                break;
+            }
+            case HTTP_V1_1_CHUNK_THINK: {
+                if (ctx->left) {
+                    ctx->state = HTTP_V1_1_CHUNK_BODY;
+                }
+                else {
+                    ctx->state = -1;
+                    if (worker->event_flags(conn) & ev::READ) {
+                        return EHTTP_V1_1_CHUNKED_OK;
+                    }
+                    return EHTTP_V1_1_CHUNKED_WAIT;
+                }
+                break;
+            }
+            default:
+                return EHTTP_V1_1_CHUNKED_ERR;
+        }
+    }
+
+    return EHTTP_V1_1_CHUNKED_READ;
+}
+
+int manapi::net::http::http_v1_1_chunked_flush(http_v1_1_chunked_t *ctx, worker::base *worker, const worker::shared_conn &conn) {
+    while (ctx->top.last_deque) {
+        if ((worker->event_flags(conn) & ev::READ)) {
+            auto obj = std::move(ctx->top.deque->buffer);
+            ctx->top.deque = std::move(ctx->top.deque->next);
+
+            if (!ctx->top.deque) {
+                obj->resize(ctx->top.deque_cursor);
+                ctx->top.last_deque = nullptr;
+                ctx->top.deque_cursor = 0;
+            }
+
+            if (ctx->top.deque_current) {
+                obj->shift_add(ctx->top.deque_current);
+                ctx->top.deque_current = 0;
+            }
+
+            worker->feed_event(conn, ev::READ, obj->data(), obj->size());
+        }
+        else {
+            return EHTTP_V1_1_CHUNKED_WAIT;
+        }
+    }
+
+    if (static_cast<uint32_t>(ctx->state) & 0x80000000) {
+        return EHTTP_V1_1_CHUNKED_OK;
+    }
+
+    return EHTTP_V1_1_CHUNKED_READ;
 }

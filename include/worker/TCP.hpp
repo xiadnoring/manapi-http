@@ -26,6 +26,14 @@ namespace manapi::net::worker {
             void *data;
         };
 
+        enum conn_tcp_flags {
+            CONN_HTTP_1_1_CHUNKED   = 0b100000000
+        };
+
+        struct connection_data_t {
+            std::unique_ptr<http::http_v1_1_chunked_t> chunked_ctx;
+        };
+
         TCP (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config);
 
         ~TCP () override;
@@ -50,7 +58,7 @@ namespace manapi::net::worker {
 
         void close_connection(shared_conn conn, bool clean_disconnect) override;
 
-        void stop() override;
+        void stop(std::function<void()> cb) override;
 
         void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size) override;
 
@@ -66,6 +74,8 @@ namespace manapi::net::worker {
 
     protected:
         virtual void flush_write_ (const shared_conn &connection, bool flush = false);
+
+        void tcp_handle_read_data (const shared_conn &conn, connection_interface *data, int flags, const char *buffer, ssize_t size);
 
         void update_limit_rate ();
 
@@ -87,6 +97,11 @@ namespace manapi::net::worker {
         ev::shared_tcp watcher_accept_;
     protected:
         void conn_work_finish_ (worker::shared_conn conn, bool ok, ibuffpool_t buffer = {});
+
+        int count;
+
+        int flags;
+        std::function<void()> finish;
 
         std::weak_ptr<base> self_;
         std::shared_ptr<net::worker::http_v2> http_v2_worker;

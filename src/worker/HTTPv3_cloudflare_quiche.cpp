@@ -48,9 +48,25 @@ ssize_t manapi_quiche_h3_send_additional_headers_(Args&&...args) { /* skip */ re
 
 manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(net::http::site site,
     std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config* config) : udp(std::move(site), std::move(wdata), config) {
+    this->flags = 0;
+    this->count = 0;
+    this->finish = nullptr;
 }
 
-manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() = default;
+manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() {
+    if (this->limit_rate_timer) {
+        this->limit_rate_timer.stop();
+        this->limit_rate_timer = nullptr;
+    }
+
+    if (this->quiche_h3_config_) {
+        quiche_h3_config_free(std::exchange(this->quiche_h3_config_, nullptr));
+    }
+
+    if (this->quiche_config_) {
+        quiche_config_free(std::exchange(this->quiche_config_, nullptr));
+    }
+}
 
 std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::worker::http_v3_cloudflare_quiche::create(
     net::http::site site, std::shared_ptr<worker::worker_config_t> wdata,
@@ -135,11 +151,15 @@ err:
     THROW_MANAPIHTTP_EXCEPTION2(ERR_SOCKET, "quiche: init(...) failed");
 }
 
-void manapi::net::worker::http_v3_cloudflare_quiche::stop() {
-    if (this->limit_rate_timer) {
-        this->limit_rate_timer.stop();
-        this->limit_rate_timer = nullptr;
-    }
+void manapi::net::worker::http_v3_cloudflare_quiche::stop(std::function<void()> cb) {
+    udp::stop([this, cb = std::move(cb)] () -> void {
+        this->flags |= NET_WORKER_CLOSED;
+        this->finish = cb;
+
+        if (!this->count) {
+            this->finish();
+        }
+    });
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_conn conn, bool clean) {
@@ -659,13 +679,16 @@ int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_con
     auto const data = conn->as<connection_stream_t>();
     auto &flags_ = data->flags;
     data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
-    std::exchange(flags_, ((flags_ >> 2) << 2) | flags);
+    auto const prev = std::exchange(flags_, ((flags_ >> 2) << 2) | flags);
     if ((flags_ & ev::READ)
         && !(flags_ & ev::DISCONNECT)
         && data->ev_callback) {
         this->flush_read_(conn);
     }
-    return flags_;
+    if ((flags_ & CONN_RECV_END) && (flags_ & CONN_READ) && data->ev_callback) {
+        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0);
+    }
+    return prev;
 }
 
 std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::http_v3_cloudflare_quiche::event_on( const shared_conn &conn, std::unique_ptr<worker_watcher_cb> callback) {
@@ -845,6 +868,8 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
 
 void manapi::net::worker::http_v3_cloudflare_quiche::force_close_(shared_conn conn, connection_t *conn_data) {
     if (quiche_conn_is_closed(conn_data->conn)) {
+        auto const wrk = conn_data->worker;
+
         quiche_stats stats;
         quiche_path_stats path_stats;
 
@@ -862,6 +887,14 @@ void manapi::net::worker::http_v3_cloudflare_quiche::force_close_(shared_conn co
         }
 
         quiche_conn_free(std::exchange(conn_data->conn, nullptr));
+
+        wrk->count--;
+
+        if (wrk->flags & NET_WORKER_CLOSED
+            && !wrk->count
+            && wrk->finish) {
+            wrk->finish();
+        }
     }
     else {
         if (!(conn_data->flags & CONN_REMOVED)) {

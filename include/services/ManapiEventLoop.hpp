@@ -34,7 +34,9 @@ namespace manapi::ev {
     typedef std::move_only_function<void(std::shared_ptr<ev::write> &, int status)> write_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::fs> &)> fs_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size)> random_cb;
-    typedef std::move_only_function<void(const std::shared_ptr<ev::tcp> &)> tcp_close_cb;
+
+    template<typename T>
+    using close_cb_t = std::move_only_function<void(const std::shared_ptr<T> &)>;
 }
 
 namespace manapi::ev::internal {
@@ -73,6 +75,8 @@ namespace manapi {
         void setup_handle_interrupt ();
 
         manapi::future<> stop ();
+
+        void wait ();
 
         size_t subscribe_finish (std::move_only_function<manapi::future<void>()> cb);
         void unsubscribe_finish (std::size_t id);
@@ -183,8 +187,11 @@ namespace manapi {
             this->stop_watcher(w.get());
         }
 
+        template<typename T>
+        void stop_callback (const std::shared_ptr<T> &s, ev::close_cb_t<T> cb) { perror("not implemented"); }
+
         void stop_watcher_tcp_accept (std::shared_ptr<ev::tcp> s);
-        void stop_watcher_tcp_connection (std::shared_ptr<ev::tcp> s, std::unique_ptr<ev::tcp_close_cb> close_cb);
+        void stop_watcher_tcp_connection (std::shared_ptr<ev::tcp> s);
 
         [[nodiscard]] const std::shared_ptr<threadpool<task>> &taskpool () const;
 #if MANAPIHTTP_CURL_DEPENDENCY
@@ -236,7 +243,7 @@ namespace manapi {
 
         void stop_pool (async::promise<void>::resolve_t resolve);
 
-        void async_break_loop_ (std::shared_ptr<ev::async> watcher);
+        void async_break_loop_ ();
 
         void try_tasks_ (ev::shared_idle &w);
 

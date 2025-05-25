@@ -1163,6 +1163,9 @@ manapi::json::STRING manapi::json::as_string_cast() const {
 }
 
 manapi::json::INTEGER manapi::json::as_integer_cast() const {
+    if (type == type_string) {
+        return std::stoll(as_string());
+    }
     if (type == type_integer) {
         return as_integer();
     }
