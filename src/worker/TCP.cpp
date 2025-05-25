@@ -653,17 +653,29 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
                     auto const req_ptr = sdata->req.get();
                     auto cdata = std::make_unique<http::internal::handle_data_t>(s->second, this->http_v2_worker,
                         req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
-                        [this, sconn = s->second, conn, req = std::move(sdata->req)] (bool ok) mutable
+                        [http_v2_ctx, sconn = s->second, conn, req = std::move(sdata->req)] (bool ok) mutable
                         -> void {
                             manapi::async::current()->etaskpool()->append_task(
-                                [this, w = this->self_.lock(), ok, conn = std::move(conn), sconn = std::move(sconn)] () -> void {
-                                if (ok) {
-                                    this->http_v2_worker->close_connection(sconn, true);
-                                }
-                                else {
-                                    /* failed */
-                                    this->http_v2_worker->close_connection(sconn, false);
-                                }
+                                [http_v2_ctx, ok, conn = std::move(conn), sconn = std::move(sconn)] () -> void {
+                                    auto const data = conn->as<connection_interface>();
+
+                                    if (data->status & CONN_CLOSED) {
+                                        return;
+                                    }
+
+                                    auto const wrk = dynamic_cast<TCP*>(data->worker.get());
+                                    auto const sdata = sconn->as<http::http_v2_stream_t>();
+
+
+                                    if (ok) {
+                                        wrk->http_v2_worker->close_connection(sconn, true);
+                                    }
+                                    else {
+                                        /* failed */
+                                        wrk->http_v2_worker->close_connection(sconn, false);
+                                    }
+
+                                    http::http_v2_on_close_stream(http_v2_ctx, sdata->id);
                             });
                     }));
 

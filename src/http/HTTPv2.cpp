@@ -385,6 +385,16 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
     return 0;
 }
 
+int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, int id) {
+    auto it = ctx->streams->find(id);
+    if (it == ctx->streams->end()) {
+        return -1;
+    }
+
+    ctx->streams->erase(it);
+    return 0;
+}
+
 int manapi::net::http::http_v2_on_write(http_v2_t *ctx) {
     bool no_one = true;
     for (const auto &s : *ctx->streams) {
@@ -446,8 +456,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                     *ctx->client = *ctx->server;
 
-                    ctx->encoder->max_table_size(ctx->server->header_table_size);
-                    ctx->decoder->m_dynamic_max(ctx->client->header_table_size);
+                    // ctx->encoder->max_table_size(ctx->server->header_table_size);
+                    // ctx->decoder->m_dynamic_max(ctx->client->header_table_size);
 
                     ctx->streams = std::make_unique<decltype(ctx->streams)::element_type>();
 
@@ -1376,6 +1386,8 @@ manapi::future<ssize_t> manapi::net::http::http_v2_response(worker::base *worker
         co_return -1;
     }
 
+    *s->ctx->encoder = decltype(s->ctx->encoder)::element_type ();
+    s->ctx->encoder->max_table_size(s->ctx->server->header_table_size);
     s->ctx->encoder->add (compress::hpack::header_t(":status", std::to_string(status)));
     for (auto &header: headers) {
         s->ctx->encoder->add (compress::hpack::header_t(header.first, std::move(header.second)));

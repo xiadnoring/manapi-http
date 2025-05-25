@@ -99,7 +99,19 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
             }
 
-            filepath = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site().config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
+            try {
+                filepath = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site().config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
+            }
+            catch (std::exception const &e) {
+                manapi::async::current()->logger()
+                    ->debug(manapi::logger::default_service, "compress file failed due to {}", e.what());
+
+                /* badness */
+                res->remove_header(http::HEADER.CONTENT_ENCODING);
+                features.compressor_for_string = nullptr;
+                features.compressor_for_file = nullptr;
+                filepath = std::move(resfile);
+            }
         }
         else {
             filepath = std::move(resfile);

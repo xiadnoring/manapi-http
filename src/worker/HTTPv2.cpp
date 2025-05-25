@@ -51,7 +51,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::response(const shared_conn
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flags) {
     auto const data = conn->as<http::http_v2_stream_t>();
     if (flags & ev::WRITE) {
-        data->ctx->worker->event_toggle(conn, true, ev::WRITE);
+        data->ctx->worker->event_toggle(data->ctx->conn, true, ev::WRITE);
     }
     auto const prev = std::exchange(data->flags, ((data->flags >> 2) << 2) | flags);
     if ((data->flags & http::HTTP2_STREAM_CLOSED) && flags && data->ev_callback) {

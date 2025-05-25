@@ -320,7 +320,11 @@ manapi::future<> manapi::net::http::site::set_compressed_cache_file(std::string 
                     auto const compressedit = fileit->second.as_object().find("compressed");
                     if (compressedit != fileit->second.as_object().end()) {
                         manapi::async::run(manapi::filesystem::async_unlink(compressedit->second.as_string(),
-                            manapi::async::timeout_cancellation(5000)));
+                            manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err) -> void {
+                                if (err) {
+                                    /* ignore :) */
+                                }
+                            });
                     }
                 }
             }
