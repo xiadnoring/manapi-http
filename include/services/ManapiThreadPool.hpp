@@ -111,6 +111,8 @@ namespace manapi {
 
         void set_notify ();
 
+        void set_notify_cb (std::move_only_function<void()> ontask);
+
         void stop () override;
 
         void start () override;

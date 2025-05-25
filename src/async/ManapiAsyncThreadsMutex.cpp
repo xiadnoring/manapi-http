@@ -18,11 +18,11 @@ void tmutex_promise::await_suspend(std::coroutine_handle<manapi::future<>::promi
     std::unique_lock<std::mutex> lk (this->mx);
 
     if (this->locked_) {
-        auto watcher = manapi::async::current()->eventloop()->create_watcher_async([handle] (manapi::ev::shared_async &w) -> void {
+        auto watcher = manapi::async::current()->eventloop()->create_watcher_async([handle] (const manapi::ev::shared_async &w) -> void {
             auto handle_ = handle;
             manapi::async::current()->eventloop()->stop_watcher(w);
 
-            manapi::future<>::resume_promise(handle_);
+            manapi::future<>::resume_promise(std::exchange(handle_, nullptr));
         });
 
         this->waiters.push_back(std::move(watcher));
@@ -62,8 +62,8 @@ void manapi::async::tmutex::unlock()  {
         return;
     }
 
-    auto handle = std::move(this->waiters.back());
-    this->waiters.pop_back();
+    auto handle = std::move(this->waiters.front());
+    this->waiters.pop_front();
 
     handle->send();
 }

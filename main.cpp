@@ -88,7 +88,6 @@ int main () {
 
     GCTX_OBJ->run(GCTX_OBJ, loops, [&a, server_ctx] (const std::function<void()> &bind) -> void {
         //auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
-
         manapi::net::http::server router (server_ctx);
 
         router.GET ("/", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)

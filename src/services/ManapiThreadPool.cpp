@@ -208,6 +208,11 @@ namespace manapi {
     }
 
     template<class T>
+    void ethreadpool<T>::set_notify_cb(std::move_only_function<void()> ontask) {
+        this->ontask_ = std::move(ontask);
+    }
+
+    template<class T>
     void ethreadpool<T>::stop() {
         if (!(this->flags_ & 0b1)) {
             return;

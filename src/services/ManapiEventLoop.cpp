@@ -639,15 +639,27 @@ void manapi::event_loop::wait() {
     this->stop_watcher(std::move(this->idle_tasks_));
     this->stop_watcher(std::move(this->curl_watcher->timeout_watcher));
 
+    std::shared_ptr<ev::idle> idle_tasks;
+
     while (uv_loop_alive(this->loop())) {
         auto etaskpool = dynamic_cast<ethreadpool<task> *>(this->etaskpool_.get());
-        while (!etaskpool->try_task()) {
-            break;
-        }
+        etaskpool->set_notify_cb([&] () -> void {
+            idle_tasks = this->create_watcher_idle([&idle_tasks, etaskpool, this] (const ev::shared_idle &w) -> void {
+                while (etaskpool->try_task()) {}
+                etaskpool->set_notify();
+
+                auto const loop_ = this->loop();
+                this->stop_watcher(std::move(idle_tasks));
+
+                if (!uv_loop_alive(loop_)) {
+                    uv_stop(loop_);
+                }
+            });
+        });
 
         manapi::async::current()->timerpool()->run_once();
 
-        auto const rhs = uv_run(this->loop(), UV_RUN_NOWAIT);
+        auto const rhs = uv_run(this->loop(), UV_RUN_DEFAULT);
 
         if (!rhs) {
             break;

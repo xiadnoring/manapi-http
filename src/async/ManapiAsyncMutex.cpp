@@ -58,8 +58,8 @@ void manapi::async::mutex::unlock()  {
         this->own = false;
         return;
     }
-    auto handle = this->stack.back();
-    this->stack.pop_back();
+    auto handle = this->stack.front();
+    this->stack.pop_front();
 
     manapi::async::current()->etaskpool()->append_task([handle = std::exchange(handle, nullptr)] () -> void {
         future<>::resume_promise(handle);

@@ -122,11 +122,10 @@ manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data
     co_await stop_pool(data2);
 
     try {
-        co_await save_config(data);
-
         if (!(data->server_config->flags.fetch_or(0b1) & 0b1)) {
-
             auto lkc = co_await data->server_config->cache_mx->lock_guard();
+
+            co_await save_config(data);
 
             auto const cconfig = data->server_config->cache;
             lkc.call();
@@ -238,5 +237,6 @@ manapi::future<> manapi::net::http::server::stop_pool(std::shared_ptr<data2_t> d
         MANAPIHTTP_LOG ("pool #{} stopped successfully", pool.first);
     }
 
-    MANAPIHTTP_LOG2("pools(...) -> pass");
+    std::cout << "7878\n";
+    MANAPIHTTP_LOG2("7878 pools(...) -> pass");
 }

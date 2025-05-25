@@ -163,15 +163,15 @@ std::u32string manapi::unicode::escape_string (const std::u32string &str) {
 
 bool manapi::unicode::escape_char_need (const char &ch, const char &quotes) {
     // if ch >= 128 -> non-ascii (maybe utf)
-    return ch < 127 && ( ch == quotes || ch == '\\' || ch == '/');
+    return ch < 127 && ( ch == quotes || ch == '\\');
 }
 
 bool manapi::unicode::escape_char_need (const wchar_t &ch) {
-    return ch == '"' || ch == '\\' || ch == '/';
+    return ch == '"' || ch == '\\';
 }
 
 bool manapi::unicode::escape_char_need (const char32_t &ch) {
-    return ch == '"' || ch == '\\' || ch == '/';
+    return ch == '"' || ch == '\\';
 }
 
 bool manapi::unicode::valid_special_symbol(const char &c) {

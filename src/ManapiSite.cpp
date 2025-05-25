@@ -150,11 +150,12 @@ void manapi::net::http::site::setup() {
 
 manapi::future<> manapi::net::http::site::config(std::string path) {
     this->data->server_config = this->data->sctx.server_config(this->data->server_config_notifier);
+    this->data->config_path = std::move(path);
+
     {
         auto lk = co_await this->data->server_config->config_mx->lock_guard();
 
         if (this->data->server_config->config.is_null()) {
-            this->data->config_path = std::move(path);
 
             if (!co_await manapi::filesystem::async_exists(this->data->config_path))
             {
@@ -352,20 +353,15 @@ manapi::future<> manapi::net::http::site::set_compressed_cache_file(std::string 
 }
 
 manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> data) {
-    if ((data->server_config->flags.fetch_or(0b10) & 0b10)) {
-        co_return;
-    }
+    auto const &config = (data->server_config->config);
 
-    auto lk = co_await data->server_config->config_mx->lock_guard();
-
-
-    if (!co_await manapi::filesystem::async_exists(data->config_path)) {
-        auto config = (data->server_config->config);
-        lk.call();
+    if (config.is_object()
+        && config.contains("save_config")
+        && config["save_config"].as_bool()) {
 
         // main config
         co_await manapi::filesystem::async_write(data->config_path,
-            config.dump(), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+            config.dump(4), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
     }
 }
 

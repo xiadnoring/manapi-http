@@ -109,6 +109,10 @@ manapi::async::shared_ctx manapi::async::context::create(unsigned int threadnum)
 }
 
 void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(std::function<void()> bind)> callback) {
+    auto const mtaskpool = dynamic_cast<mthreadpool<task> *> (ctx->taskpool_.get());
+
+    assert((loops <= mtaskpool->size() && "not enough threads for event loops"));
+
     ctx->loops_.resize(loops);
 
     for (int i = 0; i < loops; ++i) {
@@ -123,7 +127,7 @@ void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(s
     }
 
     for (int i = 0; i < loops; ++i) {
-        dynamic_cast<mthreadpool<task> *> (ctx->taskpool_.get())->for_all_threads([&] (mthreadpool<task>::tasks_by_thread_t *v)
+        mtaskpool->for_all_threads([&] (mthreadpool<task>::tasks_by_thread_t *v)
             -> void {
             (*v)[i].push_back(std::make_unique<manapi::function_task> ([callback, thr = ctx->loops_[i]] ()
                 -> void {
@@ -132,7 +136,9 @@ void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(s
 
                 callback([thr] () -> void {
                     thr->sync_start();
+
                     thr->timerpool()->stop();
+
                     thr->eventloop()->wait();
 
                     manapi::async::internal::current_cthread_ = nullptr;
@@ -149,9 +155,10 @@ void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(s
 
         ctx->timerpool_->stop();
 
+        ctx->eventloop_->wait();
+
         ctx->taskpool_->stop();
         ctx->taskpool_->join();
-        ctx->eventloop_->wait();
 
         manapi::async::internal::current_cthread_ = nullptr;
     });
