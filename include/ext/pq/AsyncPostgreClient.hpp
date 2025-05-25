@@ -78,7 +78,8 @@ namespace manapi::ext::pq {
                 while (true) {
                     auto ret = PQconnectPoll(this->conn.get());
 
-                    this->cancellation.reset(this->ctx);
+                    this->cancellation.reset();
+
                     if (this->timeoutms_) {
                         this->cancellation.timeout(this->timeoutms_);
                     }
@@ -86,13 +87,13 @@ namespace manapi::ext::pq {
                     switch (ret) {
                         case PGRES_POLLING_READING:
                             this->fd_ = PQsocket(this->conn.get());
-                            if (-1 == co_await async::read_ready(this->ctx, this->fd_, this->cancellation)) {
+                            if (-1 == co_await async::read_ready(this->fd_, manapi::async::cancellation_action::unit(this->cancellation))) {
                                 THROW_MANAPIHTTP_EXCEPTION2(ERR_CONNECTION_TIMEOUT, "postgre: timeout was reached (read)");
                             }
                         continue;
                         case PGRES_POLLING_WRITING:
                             this->fd_ = PQsocket(this->conn.get());
-                            if (-1 == co_await async::write_ready(this->ctx, this->fd_, this->cancellation)) {
+                            if (-1 == co_await async::write_ready(this->fd_, manapi::async::cancellation_action::unit(this->cancellation))) {
                                 THROW_MANAPIHTTP_EXCEPTION2(ERR_CONNECTION_TIMEOUT, "postgre: timeout was reached (write)");
                             }
                         continue;
@@ -148,8 +149,8 @@ namespace manapi::ext::pq {
             this->init_ = false;
         }
 
-        void set_notify_cb (std::function<manapi::future<>(notification notify)> cb) {
-            this->notify_cb = std::move(cb);
+        void notify_cb (std::function<manapi::future<>(notification notify)> cb) {
+            this->notify_cb_ = std::move(cb);
         }
 
         void timeout (ssize_t ms) {
@@ -187,7 +188,7 @@ namespace manapi::ext::pq {
                 co_return;
             }
 
-            this->cancellation.reset(this->ctx);
+            this->cancellation.reset();
             if (this->timeoutms_) {
                 this->cancellation.timeout(this->timeoutms_);
             }
@@ -213,7 +214,8 @@ namespace manapi::ext::pq {
                     }
                 }
 
-                if (-1 == (revents = co_await async::custom_ready(this->ctx, ev::READ|ev::WRITE, PQsocket(this->conn.get())))) {
+                if (-1 == (revents = co_await async::custom_ready(ev::READ|ev::WRITE, PQsocket(this->conn.get()),
+                    manapi::async::cancellation_action::unit(this->cancellation)))) {
                     THROW_MANAPIHTTP_EXCEPTION2 (ERR_CONNECTION_TIMEOUT, "postgre: Timeout was reached");
                 }
             }
@@ -244,11 +246,11 @@ namespace manapi::ext::pq {
                     break;
                 }
                 this->fd_ = PQsocket(this->conn.get());
-                this->cancellation.reset(this->ctx);
+                this->cancellation.reset();
                 if (this->timeoutms_) {
                     this->cancellation.timeout(this->timeoutms_);
                 }
-                if (-1 == co_await async::read_ready(this->ctx, this->fd_, this->cancellation)) {
+                if (-1 == co_await async::read_ready(this->fd_, manapi::async::cancellation_action::unit(this->cancellation))) {
                     THROW_MANAPIHTTP_EXCEPTION2 (ERR_CONNECTION_TIMEOUT, "postgre: timeout was reached (read)");
                 }
             }
@@ -295,15 +297,15 @@ namespace manapi::ext::pq {
                     break;
                 }
 
-                if (this->notify_cb) {
-                    co_await this->notify_cb(std::move(notify));
+                if (this->notify_cb_) {
+                    co_await this->notify_cb_(std::move(notify));
                 }
             }
             co_return;
         }
 
         async::cancellation_action cancellation{nullptr};
-        std::function<manapi::future<>(notification notify)> notify_cb{nullptr};
+        std::function<manapi::future<>(notification notify)> notify_cb_{nullptr};
         ssize_t timeoutms_;
         bool init_{true};
         int fd_{-1};

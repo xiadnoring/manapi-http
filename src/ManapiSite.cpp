@@ -31,11 +31,11 @@ namespace manapi::net {
 manapi::net::http::http_handler_functions manapi::net::http::site::default_error_handler
     = {
     .handler = [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-        co_return resp.text(std::format("<html><head>"
-                            "<title>{0} {1}</title></head><body><center>"
-                            "<h1>{0} {1}</h1></center><hr>"
-                            "<center>{3}/{2}</center>"
-                            "</body></html>", resp.status_code(),
+        co_return resp.text(std::format("<html>\n\t<head>\n\t\t"
+                            "<title>{0} {1}</title>\n\t</head>\n\t<body>\n\t\t<center>\n\t\t\t"
+                            "<h1>{0} {1}</h1>\n\t\t</center>\n\t\t<hr>\n\t\t"
+                            "<center>{3}/{2}</center>\n\t"
+                            "</body>\n</html>", resp.status_code(),
                             resp.status_message(), MANAPIHTTP_VERSION, MANAPIHTTP_NAME));
     },
     .post_mask = nullptr,
@@ -425,7 +425,7 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
                 if (hmap != cur->map->end()) {
                     cur = hmap->second.get();
 
-                    break;
+                    continue;
                 }
             }
 

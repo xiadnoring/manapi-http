@@ -638,7 +638,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 
                     send_error_response(std::move(cdata), std::move(data->error), http::NOT_FOUND_404);
                 },
-                [cdata = std::move(cdata)] (std::exception_ptr err) mutable
+                [] (std::exception_ptr err) mutable
                     -> void {
                     if (err) {
                         return;
@@ -661,24 +661,26 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
         auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, data->handler);
         auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());
 
-        auto resptr = res.get();
-        manapi::async::run( [req = std::move(req), res = resptr, data = std::move(data)] () -> future<> {
+        auto task = [req = std::move(req), res = res.get(), data = data.get()] () -> future<> {
 
-                // handle layers
-                for (const auto &layer: data->layer) {
-                    co_await layer->handler(*req, *res);
+            // handle layers
+            for (const auto &layer: data->layer) {
+                co_await layer->handler(*req, *res);
 
-                    if (!req->propagation()) {
-                        // skip other layers and handlers
-                        break;
-                    }
+                if (!req->propagation()) {
+                    // skip other layers and handlers
+                    break;
                 }
+            }
 
-                co_await data->handler->handler(*req, *res);
-            },
-            [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err) mutable
+            co_await data->handler->handler(*req, *res);
+        };
+
+        manapi::async::run( std::move(task),
+            [res = std::move(res), data = std::move(data), cdata = std::move(cdata)] (std::exception_ptr err) mutable
                 -> void {
                 if (err) {
+                    send_error_response(std::move(cdata), std::move(data->error), http::SERVICE_UNAVAILABLE_503);
                     return;
                 }
 

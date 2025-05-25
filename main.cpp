@@ -41,6 +41,7 @@
 #include "async/ManapiAsyncSocket.hpp"
 #include "async/ManapiAsyncTimer.hpp"
 #include "async/ManapiEasyCancellation.hpp"
+#include "ext/pq/AsyncPostgreClient.hpp"
 #include "http/ManapiSiteCtx.hpp"
 //#include "extensions/pq/AsyncPostgreClient.hpp"
 
@@ -87,7 +88,7 @@ int main () {
     manapi::net::server_ctx server_ctx;
 
     GCTX_OBJ->run(GCTX_OBJ, loops, [&a, server_ctx] (const std::function<void()> &bind) -> void {
-        //auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
+        auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
         manapi::net::http::server router (server_ctx);
 
         router.GET ("/", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
@@ -239,31 +240,28 @@ int main () {
         });
 
         //
-        // router.GET("/folder", "/home/Timur/Downloads/VideoDownloader");
+        router.GET("/folder", "/home/Timur/Downloads/VideoDownloader");
 
-        // router.GET("/pq/[id]", [db, mx = std::make_shared<manapi::async::mutex>(GCTX_OBJ)](manapi::net::http::request& req, manapi::net::http::response& resp) -> manapi::future<> {
-        //     auto lk = co_await mx->lock_guard();
-        //     /* The pool of database connections here / This example is so slow */
-        //     try {
-        //         auto res = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
-        //     }
-        //     catch (...) {
-        //
-        //     }
-        //
-        //     auto res = co_await db->exec("SELECT * FROM for_test;");
-        //     lk.call();
-        //
-        //     std::string content = "b";
-        //     for (const auto &row: res) {
-        //         content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
-        //     }
-        //
-        //     co_return resp.text(std::move(content));
-        // });
+        router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) -> manapi::future<> {
 
-        manapi::async::run([router] () mutable -> manapi::future<> {
-            //co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
+            try {
+                auto res1 = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
+            }
+            catch (...) {
+                /* already exists */
+            }
+            auto res = co_await db->exec("SELECT * FROM for_test;");
+
+            std::string content = "b";
+            for (const auto &row: res) {
+                content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+            }
+
+            co_return resp.text(std::move(content));
+        });
+
+        manapi::async::run([router, db] () mutable -> manapi::future<> {
+            co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
 
             co_await router.config("./config.json");
             co_await router.start();
