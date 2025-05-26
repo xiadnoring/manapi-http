@@ -26,7 +26,7 @@ namespace manapi::net::http {
 }
 
 namespace manapi::net::http {
-    typedef std::function <future<void>(manapi::net::http::request &req, manapi::net::http::response &res)> handler_template_t;
+    typedef std::move_only_function <future<void>(manapi::net::http::request &req, manapi::net::http::response &res)> handler_template_t;
 
     struct http_uri_part;
 
@@ -46,9 +46,9 @@ namespace manapi::net::http {
 
 
     struct http_handler_page {
-        const http_handler_functions                                *handler = nullptr;
+        http_handler_functions                                      *handler = nullptr;
         std::unique_ptr<http_handler_page>                          error = nullptr;
-        std::vector<const http_handler_functions*>                  layer;
+        std::vector<http_handler_functions*>                        layer;
         std::string                                                 *statics = nullptr;
         size_t                                                      statics_parts_len{};
     };

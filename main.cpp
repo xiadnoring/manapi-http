@@ -268,8 +268,9 @@ int main () {
         //
         router.GET("/folder", "/home/Timur/Downloads/VideoDownloader");
 
-        router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) -> manapi::future<> {
-
+        router.GET("/pq/[id]", [db, mx = manapi::async::mutex()](manapi::net::http::request& req, manapi::net::http::response& resp) mutable
+            -> manapi::future<> {
+            auto lk = co_await mx.lock_guard();
             try {
                 auto res1 = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
             }

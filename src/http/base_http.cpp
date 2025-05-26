@@ -607,7 +607,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                             auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());
 
                             // handle layers
-                            for (const auto &layer: data->layer) {
+                            for (auto &layer: data->layer) {
                                 co_await layer->handler(*req, *res);
 
                                 if (!req->propagation()) {
@@ -683,6 +683,10 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
             [res = std::move(res), data = std::move(data), cdata = std::move(cdata)] (std::exception_ptr err) mutable
                 -> void {
                 if (err) {
+                    std::string msg;
+                    manapi::rethrow_exception_ptr(std::move(err), nullptr, &msg, nullptr);
+                    manapi::async::current()->logger()->error(manapi::logger::default_service,
+                        manapi::ERR_FATAL, "an error occurred while processing the HTTP request due to {}", msg);
                     send_error_response(std::move(cdata), std::move(data->error), http::SERVICE_UNAVAILABLE_503);
                     return;
                 }

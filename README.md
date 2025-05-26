@@ -100,8 +100,9 @@ int main () {
     ctx->eventloop()->setup_handle_interrupt();
     
     std::atomic<int> cnt = 0;
-    manapi::async::context::run(ctx, 2, [&cnt] (std::function<void> bind) -> void {
+    manapi::async::context::run(ctx, 4, [&cnt] (std::function<void> bind) -> void {
         manapi::net::http::server router; 
+        auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
 
         router.GET ("/", [&cnt] (manapi::net::http::req &req, manapi::net::http::resp &resp) mutable -> manapi::future<> {
             co_return resp.text(std::format("Hello World! Count: {}", cnt.fetch_add(1)));
@@ -123,7 +124,7 @@ int main () {
     
         router.GET("/cat", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             auto fetch = co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
-                {"ssl_verify", false},
+                {"verify_peer", false},
                 {"alpn", true},
                 {"method", "GET"}
             });
@@ -158,8 +159,27 @@ int main () {
             co_await manapi::async::delay{10000};
             co_return resp.text("10sec");
         });
+        
+        router.GET("/pq/[id]", [db, mx = manapi::async::mutex()](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
+            auto lk = co_await mx.lock_guard();
+            try {
+                auto res1 = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
+            }
+            catch (...) {
+                /* already exists or maybe not... */
+            }
+            auto res = co_await db->exec("SELECT * FROM for_test;");
+
+            std::string content = "b";
+            for (const auto &row: res) {
+                content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+            }
+
+            co_return resp.text(std::move(content));
+        });
     
-        manapi::async::run([router] () -> manapi::future<> {
+        manapi::async::run([router, db] () -> manapi::future<> {
+            co_await db->connect("127.0.0.1", "7879", "development", "password", "db");
             co_await router.config_object({
                 {"pools", manapi::json::array({
                     {
