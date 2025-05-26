@@ -77,6 +77,8 @@ namespace manapi::net::http {
         int read_window;
         int write_window;
 
+        int concurrent_streams_size;
+
         std::string frame_buffer;
 
         std::unique_ptr<http_v2_settings_t> client;

@@ -27,7 +27,7 @@
 #include "ManapiInitTools.hpp"
 #include "async/ManapiAsyncSocket.hpp"
 
-manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(net::site &site) : TLS (site) {
+manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
     this->ssl_error_none_ = WOLFSSL_ERROR_NONE;
     this->ssl_error_syscall_ = WOLFSSL_ERROR_SYSCALL;
     this->ssl_error_want_read_ = WOLFSSL_ERROR_WANT_READ;
@@ -47,22 +47,16 @@ manapi::net::worker::WolfSSL_TLS::~WolfSSL_TLS() {
 void manapi::net::worker::WolfSSL_TLS::init() {
     TLS::init();
 
-    auto sslconfig = config->get_ssl_config();
+    auto sslconfig = &this->config_->ssl_config;
     if (sslconfig->enabled) {
         // init
-        ctx = ssl_create_context(config->get_tls_version());
+        this->ctx = ssl_create_context(this->config_->tls_version);
         // setup ctx (load certs)
-        ssl_configure_context();
-
-        this->write = [this](auto &PH1, auto PH2, auto PH3, auto PH4)
-            -> future<ssize_t> { return ssl_write(PH1, PH2, PH3); };
-
-        this->read = [this](auto &PH1, auto PH2, auto PH3)
-            -> future<ssize_t> { return ssl_read(PH1, PH2, PH3); };
+        this->ssl_configure_context();
     }
 
     this->alpn_protocol_list = "";
-    auto http_versions = this->config->http_versions().get();
+    auto http_versions = &this->config_->http_versions;
     auto it = http_versions->begin();
     goto skip;
     for (; it != http_versions->end(); ++it) {
@@ -88,9 +82,9 @@ void manapi::net::worker::WolfSSL_TLS::init() {
     }
 }
 
-std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(net::site &site, std::shared_ptr<manapi::net::http::config> config) {
-    auto worker = std::make_shared<worker::WolfSSL_TLS>(site);
-    worker->set_config(std::move(config));
+std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
+    auto worker = std::make_shared<worker::WolfSSL_TLS>(std::move(site), std::move(wdata), config.get());
+    worker->self_ = worker;
     return std::move(worker);
 }
 
@@ -130,10 +124,38 @@ void manapi::net::worker::WolfSSL_TLS::ssl_free_(void *ssl) {
     return wolfSSL_free(static_cast<WOLFSSL *>(ssl));
 }
 
-void manapi::net::worker::WolfSSL_TLS::recv_setup_connection(manapi::net::worker::connection &storage) {
-    auto &conn_data = storage.as<connection_interface>();
-    wolfSSL_set_fd(static_cast<WOLFSSL*>(conn_data.ssl), conn_data.id);
-    conn_data.status.fetch_or(CONN_IDLE);
+int manapi::net::worker::WolfSSL_TLS::ssl_bio_read_(void *wbio, void *buff, int size) {
+    return wolfSSL_BIO_read(static_cast<WOLFSSL_BIO*>(wbio), buff, static_cast<int>(size));
+}
+
+int manapi::net::worker::WolfSSL_TLS::ssl_bio_should_retry_(void *bio) {
+    return true;
+}
+
+int manapi::net::worker::WolfSSL_TLS::ssl_bio_write_(void *rbio, const void *buff, int size) {
+    return wolfSSL_BIO_write(static_cast<WOLFSSL_BIO*>(rbio), buff, static_cast<int>(size));
+}
+
+bool manapi::net::worker::WolfSSL_TLS::recv_setup_connection(connection_interface *data) {
+    ERR_clear_error();
+
+    data->wbio = BIO_new(BIO_s_mem());
+    if (!data->wbio) {
+        goto err;
+    }
+
+    data->rbio = BIO_new(BIO_s_mem());
+    if (!data->rbio) {
+        goto err;
+    }
+
+    SSL_set_accept_state(static_cast<SSL*>(data->ssl));
+
+    SSL_set_bio(static_cast<SSL*>(data->ssl), static_cast<BIO*>(data->rbio), static_cast<BIO*>(data->wbio));
+
+    return true;
+    err:
+        return false;
 }
 
 
@@ -164,7 +186,7 @@ void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &versio
 
     // SSL_CTX_set_max_send_fragment(ctx, this->config->buffer_size());
     // SSL_CTX_set_default_read_buffer_len(ctx, this->config->buffer_size());
-    auto cipher_list = this->config->cipher_list();
+    auto cipher_list = &this->config_->cipher_list;
     wolfSSL_CTX_set_cipher_list(ctx, static_cast<const char *>(cipher_list->data()));
     wolfSSL_CTX_set_options(ctx, WOLFSSL_OP_NO_SSLv2);
 #if MANAPIHTTP_WOLFSSL_WITH_ALPN
@@ -175,7 +197,7 @@ void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &versio
 }
 
 void manapi::net::worker::WolfSSL_TLS::ssl_configure_context() {
-    auto sslconfig = this->config->get_ssl_config();
+    auto sslconfig = &this->config_->ssl_config;
     if (wolfSSL_CTX_use_certificate_file(static_cast<WOLFSSL_CTX *>(this->ctx), sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use cert file openssl");
@@ -187,10 +209,10 @@ void manapi::net::worker::WolfSSL_TLS::ssl_configure_context() {
     }
 
     if (!wolfSSL_CTX_check_private_key(static_cast<WOLFSSL_CTX *>(this->ctx))) {
-        MANAPIHTTP_LOG(this->site.async_context(), "Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
+        MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
     }
 
-    wolfSSL_CTX_set_verify(static_cast<WOLFSSL_CTX *>(this->ctx), this->config->get_verify_peer().load() ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
+    wolfSSL_CTX_set_verify(static_cast<WOLFSSL_CTX *>(this->ctx), this->config_->verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
     wolfSSL_CTX_set_verify_depth(static_cast<WOLFSSL_CTX *>(this->ctx), 1);
 }
 

@@ -132,7 +132,6 @@ void manapi::net::worker::TCP::init() {
             goto err;
         }
 
-        this->watcher_accept_->read_start();
 
         this->http_v2_worker = std::make_shared<net::worker::http_v2>(this->site(),
             this->bufferpool(), this->worker_data(), this->config_);
@@ -262,6 +261,10 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
     this->count++;
     this->worker_data_->count.fetch_add(1);
 
+    if (this->count >= this->config_->max_connections) {
+        // TODO: stop accepting
+    }
+
     connection->ipdata = std::make_unique<decltype(connection)::element_type::ipdata_t>();
     connection->ipdata->len = 0;
 
@@ -336,7 +339,6 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
 
 void manapi::net::worker::TCP::stop(std::function<void()> cb) {
     if (this->watcher_accept_) {
-        this->watcher_accept_->read_stop();
         manapi::async::current()->eventloop()
             ->stop_callback<ev::tcp>(this->watcher_accept_, [this, cb = std::move(cb)] (const ev::shared_tcp &w) -> void {
                 this->flags |= NET_WORKER_CLOSED;
@@ -641,7 +643,6 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
             switch (rhs) {
                 case http::EHTTP_V2_PROTOCOL_OK: {
                     http::http_v2_on_close (http_v2_ctx);
-                    this->conn_work_finish_(conn, true);
                     break;
                 }
                 case http::EHTTP_V2_PROTOCOL_WANT_READ: {
@@ -668,10 +669,10 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
                         [http_v2_ctx, sconn = s->second, conn, req = std::move(sdata->req)] (bool ok) mutable
                         -> void {
                             manapi::async::current()->etaskpool()->append_task(
-                                [http_v2_ctx, ok, conn = std::move(conn), sconn = std::move(sconn)] () -> void {
+                                [http_v2_ctx, ok, conn, sconn = std::move(sconn)] () -> void {
                                     auto const data = conn->as<connection_interface>();
 
-                                    if (data->status & CONN_CLOSED) {
+                                    if (data->status & (CONN_CLOSED|CONN_REMOVED)) {
                                         return;
                                     }
 
@@ -688,6 +689,9 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
                                     }
 
                                     http::http_v2_on_close_stream(http_v2_ctx, sdata->id);
+
+                                    if (http_v2_ctx->streams->empty())
+                                        wrk->conn_work_finish_(conn, true);
                             });
                     }));
 
@@ -712,7 +716,8 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
         if (http::http_v2_on_close (http_v2_ctx)) {
             /* error */
         }
-        this->conn_work_finish_(conn, false);
+        if (http_v2_ctx->streams->empty())
+            this->conn_work_finish_(conn, false);
     }
 }
 
@@ -756,6 +761,10 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
 
     wrk->count--;
     wrk->worker_data()->count.fetch_sub(1);
+
+    if (wrk->count < wrk->config_->max_connections) {
+        // TODO: start accepting
+    }
 
     delete connection;
 

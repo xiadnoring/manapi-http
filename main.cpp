@@ -167,7 +167,7 @@ int main () {
             hash.init();
             try {
                 co_await req.form([&result, &hash] (std::string name) -> manapi::net::formdata_recv::ondata_cb_t {
-                    return manapi::net::formdata_recv::save_file(std::move(name) + ".txt");
+                    return manapi::net::formdata_recv::save_file(std::move(name));
                 });
             }
             catch (std::exception const &e) {

@@ -245,33 +245,39 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
         size -= rhs;
 
         /* TODO: resolve this dump logic */
-        if (ssl_is_init_fininshed_(data->ssl)) {
-            if (auto const res = this->ssl_bio_flush_read_(conn, data->wbio, &data->top->recv, &data->top->recv_size, 1e5)) {
-                if (res == CONN_IO_ERROR)
-                    goto err;
-            }
-        }
-        else {
-            rhs = this->ssl_accept_(data->ssl);
-            auto const status = this->ssl_get_error_(data->ssl, rhs);
 
-            if (status == this->ssl_error_want_write_ || status == this->ssl_error_want_read_) {
-                /* force write all data */
-                if (this->ssl_bio_flush_write_(conn, data->wbio, &data->top->send, &data->top->send_size, 1e5)) {
+        while (true) {
+            if (ssl_is_init_fininshed_(data->ssl)) {
+                if (auto const res = this->ssl_bio_flush_read_(conn, data->wbio, &data->top->recv, &data->top->recv_size, 1e5)) {
+                    if (res == CONN_IO_ERROR)
+                        goto err;
+                }
+            }
+            else {
+                rhs = this->ssl_accept_(data->ssl);
+                auto const status = this->ssl_get_error_(data->ssl, rhs);
+
+                if (status == this->ssl_error_want_read_ || status == this->ssl_error_want_write_) {
+                    /* force write all data */
+                    if (this->ssl_bio_flush_write_(conn, data->wbio, &data->top->send, &data->top->send_size, 1e5)) {
+                        goto err;
+                    }
+
+                    this->flush_write_(conn, true);
+                }
+                else if (status) {
                     goto err;
                 }
 
-                this->flush_write_(conn, true);
-            }
-            else if (status) {
-                goto err;
+                if (ssl_is_init_fininshed_ (data->ssl)) {
+                    data->accept_timer.stop();
+                    data->accept_timer.clear();
+                    data->accept_timer = nullptr;
+                    continue;
+                }
             }
 
-            if (ssl_is_init_fininshed_ (data->ssl)) {
-                data->accept_timer.stop();
-                data->accept_timer.clear();
-                data->accept_timer = nullptr;
-            }
+            break;
         }
     }
 

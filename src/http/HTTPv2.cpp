@@ -390,7 +390,11 @@ int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, int id) {
     if (it == ctx->streams->end()) {
         return -1;
     }
-
+    auto s = it->second->as<http_v2_stream_t>();
+    if (!(s->flags & HTTP2_STREAM_SEND_END)) {
+        ctx->concurrent_streams_size--;
+        s->flags |= HTTP2_STREAM_SEND_END;
+    }
     ctx->streams->erase(it);
     return 0;
 }
@@ -874,6 +878,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     });
 
                                 s = ctx->streams->insert({ctx->frame_stream_id, std::move(sconn)}).first;
+                                ctx->concurrent_streams_size++;
                                 sdata = s->second->as<http_v2_stream_t>();
                                 sdata->req = std::make_unique<request_data_t>();
                                 sdata->recv = std::make_unique<worker::base::connection_io_part>();
@@ -1137,7 +1142,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             }
 
 
-                            if (ctx->streams->size() >= ctx->server->max_concurret_streams) {
+                            if (ctx->concurrent_streams_size >= ctx->server->max_concurret_streams) {
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_REFUSED_STREAM;
                                 http_goaway.err_msg = std::format("max concurrent streams-{}", ctx->server->max_concurret_streams);
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -1377,6 +1382,15 @@ ssize_t manapi::net::http::http_v2_write(http_v2_stream_t *s, const void *buffer
 
     const auto rhs = reinterpret_cast<std::ptrdiff_t>(buff.base) - reinterpret_cast<std::ptrdiff_t>(buffer);
     s->transfered_k += static_cast<int>(rhs);
+
+    if (finish
+        && (rhs == copy)
+        && !(s->flags & HTTP2_STREAM_SEND_END)) {
+        /* yay */
+        s->flags |= HTTP2_STREAM_SEND_END;
+        s->ctx->concurrent_streams_size--;
+    }
+
     return rhs;
 }
 
@@ -1400,7 +1414,11 @@ manapi::future<ssize_t> manapi::net::http::http_v2_response(worker::base *worker
     size_t cnt = 0;
     auto frameSize = static_cast<size_t>(s->ctx->client->max_frame_size);
     http2_frame_type ft = HTTP2_FRAME_HEADERS;
-    if (finish) { cflag |= HTTP2_FLAG_HEADERS_END_STREAM; }
+    if (finish) {
+        s->flags |= HTTP2_STREAM_SEND_END;
+        cflag |= HTTP2_FLAG_HEADERS_END_STREAM;
+        s->ctx->concurrent_streams_size--;
+    }
     goto skip;
     while (cnt < data.size()) {
         ft = HTTP2_FRAME_CONTINUATION;
