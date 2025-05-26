@@ -56,6 +56,7 @@ manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(net::h
 manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() {
     if (this->limit_rate_timer) {
         this->limit_rate_timer.stop();
+        this->limit_rate_timer.clear();
         this->limit_rate_timer = nullptr;
     }
 
@@ -274,7 +275,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::quiche_flush_egress_(const s
         ev::buff_t buff = {.base = reinterpret_cast<char *> (out), .len = static_cast<std::size_t>(written)};
         ssize_t const sent = this->udp_accept_->try_send(&buff, 1, reinterpret_cast<sockaddr *>(&send_info.to));
         if (sent < 0) {
-            this->force_close_(connection, data);
+            flush_connection_closed_(connection, data);
             return -1;
         }
     }
@@ -285,11 +286,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::quiche_flush_egress_(const s
 void manapi::net::worker::http_v3_cloudflare_quiche::quiche_timeout_again_(connection_t *connection) {
     auto const repeat = static_cast<int64_t> (quiche_conn_timeout_as_millis(connection->conn));
 
-    if (!connection->timeout.enabled()) {
-        connection->timeout.again(repeat > 0 ? repeat : 200);
-    }
-    else {
-    }
+    connection->timeout.again(repeat > 0 ? repeat : 200);
 }
 
 void quiche_set_header_(quiche_h3_header *header, std::string_view key, std::string_view value) {
@@ -414,6 +411,10 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
 
         conn_data->streams = std::make_unique<decltype(conn_data->streams)::element_type>();
         conn_data->self = connection;
+
+        connection->ipdata = std::make_unique<decltype(connection)::element_type::ipdata_t>();
+        memcpy (connection->ipdata->client.data, sockaddr_src, sockaddr_len);
+        connection->ipdata->len = sockaddr_len;
 
         this->connections.insert({
             std::string{dcid, dcid_len},
@@ -617,7 +618,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
 
     err: {
         if (it != this->connections.end()) {
-            this->force_close_(it->second, it->second->as<connection_t>());
+            flush_connection_closed_(it->second, it->second->as<connection_t>());
         }
     }
 }
@@ -882,13 +883,20 @@ void manapi::net::worker::http_v3_cloudflare_quiche::force_close_(shared_conn co
                 stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
         conn_data->worker->connections.erase(conn_data->cid);
-        conn_data->timeout.stop();
+
+        if (conn_data->timeout) {
+            conn_data->timeout.stop();
+            conn_data->timeout.clear();
+            conn_data->timeout = nullptr;
+        }
 
         if (conn_data->http3_conn) {
             quiche_h3_conn_free(std::exchange(conn_data->http3_conn, nullptr));
         }
 
         quiche_conn_free(std::exchange(conn_data->conn, nullptr));
+
+        conn_data->self.reset();
 
         wrk->count--;
 

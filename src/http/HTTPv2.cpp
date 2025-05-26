@@ -680,7 +680,6 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                             if (ctx->frame_stream_id) {
                                 auto const s = ctx->streams->find(ctx->frame_stream_id);
-                                auto const sdata = s->second->as<http_v2_stream_t>();
 
                                 if (s == ctx->streams->end()) {
                                     ctx->n1 = 0;
@@ -689,6 +688,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     ctx->current = HTTP2_CALLBACK_GOAWAY;
                                     break;
                                 }
+
+                                auto const sdata = s->second->as<http_v2_stream_t>();
 
                                 sdata->write_window += ctx->n1;
                                 if (sdata->write_window == ctx->n1

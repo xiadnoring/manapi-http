@@ -53,6 +53,7 @@ manapi::net::worker::TCP::~TCP() {
 
     if (this->limit_rate_timer) {
         this->limit_rate_timer.stop();
+        this->limit_rate_timer.clear();
         this->limit_rate_timer = nullptr;
     }
 }
@@ -307,6 +308,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
 
         if (connection->t) {
             connection->t.stop();
+            connection->t.clear();
             connection->t = nullptr;
         }
         if (connection->ev_callback) {
@@ -323,6 +325,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
         connection->status |= CONN_KEEP_ALIVE;
         if (connection->t) {
             connection->t.stop();
+            connection->t.clear();
         }
         connection->t = manapi::async::current()->timerpool()->append_interval_sync(15000,
             [conn] (manapi::timer t) mutable -> void {
@@ -562,7 +565,11 @@ void manapi::net::worker::TCP::update_limit_rate() {
 void manapi::net::worker::TCP::timeout_(shared_conn conn) {
     auto const data = conn->as<connection_interface>();
 
-    data->t.stop();
+    if (data->t) {
+        data->t.stop();
+        data->t.clear();
+    }
+
     data->status |= (ev::DISCONNECT);
 
     if (data->status & CONN_KEEP_ALIVE) {
@@ -947,6 +954,8 @@ void manapi::net::worker::TCP::conn_work_finish_(worker::shared_conn conn, bool 
                                 data->status ^= CONN_KEEP_ALIVE;
 
                                 data->t.stop();
+                                data->t.clear();
+
                                 data->t = nullptr;
                             }
 

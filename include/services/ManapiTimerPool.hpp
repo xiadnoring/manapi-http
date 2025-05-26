@@ -16,26 +16,19 @@
 #include "../components/TimerObject.hpp"
 
 namespace manapi {
-    struct timer_task {
-        std::chrono::milliseconds delay;
-        std::chrono::steady_clock::time_point point;
-        std::shared_ptr<timer::timer_data_t> t;
-        int flags;
-    };
     class timerpool : public task {
     public:
+        typedef std::pair <std::chrono::steady_clock::time_point, std::shared_ptr<timer::timer_data_t>> sorted_storage_key;
         struct sorted_tasks_compare_t {
-            bool operator()(const std::pair <std::chrono::steady_clock::time_point, size_t> &a, const std::pair <std::chrono::steady_clock::time_point, size_t> &b) const {
+            bool operator()(const sorted_storage_key &a, const sorted_storage_key &b) const {
                 return a.first < b.first;
             }
         };
 
-        typedef std::map<size_t, timer_task> storage;
-        typedef std::set <std::pair <std::chrono::steady_clock::time_point, size_t>, sorted_tasks_compare_t> sorted_storage;
+        typedef std::set <sorted_storage_key, sorted_tasks_compare_t> sorted_storage;
 
         struct data_t {
             sorted_storage sorted_tasks;
-            storage tasks{};
             std::shared_ptr<event_loop> events{nullptr};
             int flags;
             std::shared_ptr<ev::timer> timer;
@@ -63,7 +56,7 @@ namespace manapi {
 
         // future<void> async_remove_timer (size_t id);
 
-        void remove_timer (size_t id);
+        void remove_timer (std::shared_ptr<timer::timer_data_t> data);
 
         // future<manapi::timer> async_append_interval_sync (size_t ms, std::move_only_function<void(manapi::timer t)> task);
         //
@@ -73,9 +66,9 @@ namespace manapi {
 
         manapi::timer append_interval_sync (size_t ms, manapi::timer::sync_cb_t task);
 
-        void update_interval_state (std::size_t id);
+        void update_interval_state (std::shared_ptr<timer::timer_data_t> data);
 
-        void again_timer (std::chrono::milliseconds duration, std::size_t id, std::shared_ptr<manapi::timer::timer_data_t> data, bool interval);
+        void again_timer (std::shared_ptr<manapi::timer::timer_data_t> data);
 
         void start ();
 
@@ -93,10 +86,6 @@ namespace manapi {
         //
         // std::optional<manapi::timer> _cb_event (void *data);
 
-        static void erase_task_ (const std::shared_ptr<data_t> &data_,const size_t &id);
-
-        static void erase_task_ (const std::shared_ptr<data_t> &data_,storage::iterator task);
-
         static void erase_task_ (const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task);
 
         static void start_ (const std::shared_ptr<data_t> &data);
@@ -107,7 +96,7 @@ namespace manapi {
 
         static bool reinit_timer_ (const std::shared_ptr<data_t> &data_);
 
-        static void update_interval_state_ (const std::shared_ptr<data_t> &data_, const size_t& id);
+        static void update_interval_state_ (const std::shared_ptr<data_t> &data_, std::shared_ptr<manapi::timer::timer_data_t> data);
 
         manapi::timer append_ (std::chrono::milliseconds duration, manapi::timer::async_cb_t async_task, manapi::timer::sync_cb_t task,  bool interval);
 

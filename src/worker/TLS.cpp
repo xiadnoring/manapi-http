@@ -70,6 +70,7 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, bool clean_dis
 
     if (connection->accept_timer) {
         connection->accept_timer.stop();
+        connection->accept_timer.clear();
         connection->accept_timer = nullptr;
 
         clean_disconnect = false;
@@ -268,6 +269,7 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
 
             if (ssl_is_init_fininshed_ (data->ssl)) {
                 data->accept_timer.stop();
+                data->accept_timer.clear();
                 data->accept_timer = nullptr;
             }
         }

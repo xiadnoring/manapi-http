@@ -17,8 +17,9 @@ namespace manapi {
     class timer {
     public:
         enum timer_tasks_flags {
-            TIMER_TASK_ENABLED = 0b1,
-            TIMER_TASK_INTERVAL = 0b10
+            TIMER_TASK_ENABLED = 1,
+            TIMER_TASK_INTERVAL = 2,
+            TIMER_TASK_ACTIVE = 4
         };
 
         typedef std::move_only_function<manapi::future<>(const manapi::timer &data)> async_cb_t;
@@ -26,6 +27,8 @@ namespace manapi {
 
         struct timer_data_t {
             int flags{0};
+            std::chrono::milliseconds delay;
+            std::chrono::steady_clock::time_point point;
             std::unique_ptr<async_cb_t> async_cb{};
             std::unique_ptr<sync_cb_t> sync_cb{};
         };
@@ -57,6 +60,8 @@ namespace manapi {
         [[nodiscard]] size_t id () const;
 
         void call_ ();
+
+        void clear ();
 
         void clear_ ();
 

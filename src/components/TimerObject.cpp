@@ -34,7 +34,7 @@ manapi::timer::timer(bool interval,manapi::timer::sync_cb_t sync_cb) {
         }
 
         if (data.data->flags & TIMER_TASK_INTERVAL) {
-            manapi::async::current()->timerpool()->update_interval_state(data.id());
+            manapi::async::current()->timerpool()->update_interval_state(data.data);
         }
     });
 }
@@ -59,7 +59,7 @@ manapi::timer::timer(bool interval,async_cb_t async_cb) {
             manapi::async::current()->logger()->debug(manapi::logger::default_service, "timer: cb failed due to: {}", e.what());
         }
         if (data.data->flags & TIMER_TASK_INTERVAL) {
-            manapi::async::current()->timerpool()->update_interval_state(data.id());
+            manapi::async::current()->timerpool()->update_interval_state(data.data);
         }
     });
 }
@@ -116,6 +116,10 @@ void manapi::timer::call_() {
     }
 }
 
+void manapi::timer::clear() {
+    this->clear_();
+}
+
 void manapi::timer::clear_() {
     if (!(this->data->flags & TIMER_TASK_ENABLED)) {
         this->data->async_cb = {};
@@ -130,8 +134,7 @@ void manapi::timer::stop() {
 
     this->data->flags ^= TIMER_TASK_ENABLED;
 
-    manapi::async::current()->timerpool()->remove_timer(this->id());
-    this->clear_();
+    manapi::async::current()->timerpool()->remove_timer(this->data);
 }
 
 void manapi::timer::callback_async(async_cb_t cb) {
@@ -158,7 +161,15 @@ void manapi::timer::callback_sync(sync_cb_t cb) {
 
 void manapi::timer::again(std::size_t ms) {
     this->data->flags |= TIMER_TASK_ENABLED;
-    manapi::async::current()->timerpool()->again_timer(std::chrono::milliseconds{ms}, this->id(), this->data, this->data->flags & TIMER_TASK_INTERVAL);
+
+    if (this->data->flags & TIMER_TASK_ACTIVE) {
+        manapi::async::current()->timerpool()->remove_timer(this->data);
+    }
+
+    this->data->delay = std::chrono::milliseconds{ms};
+    this->data->point = std::chrono::steady_clock::now() + this->data->delay;
+
+    manapi::async::current()->timerpool()->again_timer(this->data);
 }
 
 bool manapi::timer::is_async() const {
