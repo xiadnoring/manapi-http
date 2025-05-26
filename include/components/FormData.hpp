@@ -1,13 +1,10 @@
 #pragma once
 
-#include "Buffer.hpp"
-#include "ObjectPool.hpp"
 #include "../ManapiUtils.hpp"
 #include "../async/ManapiAsyncContext.hpp"
 #include "../ManapiAsync.hpp"
 #include "../ManapiHttpConfig.hpp"
-#include "../ManapiUtils.hpp"
-#include "../async/ManapiAsyncParallelRun.hpp"
+#include "../worker/base_worker.hpp"
 
 namespace manapi::net {
     struct file_data_t {
@@ -16,70 +13,42 @@ namespace manapi::net {
         std::string param_name;
     };
 
+
     class formdata_recv {
+        struct formdata_recv_ctx_t;
     public:
-        formdata_recv (async::shared_ctx ctx, size_t buffer_size,
-            int &body_buffer_size, char *buffer, ssize_t &body_max_size_left, ssize_t &body_index, std::function<future<ssize_t>(void *, ssize_t)> body_read);
+        typedef std::move_only_function<manapi::future<ssize_t> (const char *buffer, ssize_t size)> ondata_cb_t;
+
+        typedef std::move_only_function<ondata_cb_t(std::string name)> onparam_cb_t;
+
+        typedef manapi::future<> (*onrecv_cb_t)(worker::base *worker, worker::shared_conn *conn, http::request_data_t *req, std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t )> handler);
+
+        formdata_recv (onrecv_cb_t onrecv_cb, manapi::net::worker::base *worker, worker::shared_conn *conn, http::request_data_t *req);
+
         ~formdata_recv ();
 
         formdata_recv (formdata_recv &&n) noexcept;
+
         formdata_recv &operator=(formdata_recv &&n) noexcept;
 
-        future<void> _init (bool has_body, const std::string &content_type);
+        manapi::future<void> get (onparam_cb_t cb);
 
-        [[nodiscard]] bool next_file () const;
-        [[nodiscard]] bool next_param () const;
+        static ondata_cb_t save_file (std::string file, int mode = ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IROTH, ssize_t maxlen = -1, manapi::async::cancellation_action cancellation = nullptr);
 
-        [[nodiscard]] file_data_t about_file () const;
-        future<void> get_file(std::function<void(const char *, ssize_t)> handler);
-        future<void> get_async_file(std::function<manapi::future<>(const char *, ssize_t)> handler);
-        future<std::string> get_file_to_str();
-        future<void> save_file (std::string filepath);
+        static ondata_cb_t save_string (std::string *str, ssize_t maxlen = -1);
 
-        [[nodiscard]] const std::string &about_param () const;
-        future<std::pair <std::string, std::string>> get_param ();
-
-        static std::string json2form (const json &obj);
+        static ondata_cb_t skip (ssize_t maxlen = -1);
     private:
-        enum data_type {
-            DATA_NONE = 0,
-            DATA_FILE = 1,
-            DATA_PLAIN = 2
-        };
+        manapi::future<ssize_t> onrecv_multipart_ (const char *buffer, ssize_t size);
+        manapi::future<ssize_t> onrecv_urlencoded_ (const char *buffer, ssize_t size);
 
-        enum content_type {
-            CONTENT_TYPE_NONE = 0,
-            CONTENT_TYPE_MULTIPART_FORM_DATA = 1,
-            CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED = 2
-        };
-
-        void _move (formdata_recv &&n) noexcept;
-        future<void> multipart_read_param (std::function<manapi::future<>(const char *, ssize_t )> send_line = nullptr);
-        future<void> urlencoded_read_param (std::function<manapi::future<>(const char *, ssize_t )> send_line = nullptr);
-
-        std::function<future<void>(std::function<manapi::future<>(const char *, ssize_t )> )> current_read_param;
-        std::function<future<ssize_t>(void *, ssize_t)> body_read;
-
-        // boundary --XXXXXxxxXXX for form data
-        std::string body_boundary;
-        std::string buff_extra;
-        size_t buffer_size;
-
-        // the data of the next file
-        file_data_t file_data;
-        std::pair <std::string, std::string> param_data;
-
-        async::shared_ctx ctx;
-
-        bool first_line = true;
-
-        data_type type = DATA_NONE;
-        content_type content_type_form = CONTENT_TYPE_NONE;
-
-        char *body_buffer;
-        int *body_buffer_size;
-        ssize_t *body_max_size_left;
-        ssize_t *body_index;
+        onparam_cb_t onparam_cb_;
+        ondata_cb_t ondata_cb_;
+        onrecv_cb_t onrecv_cb_;
+        std::unique_ptr<formdata_recv_ctx_t> ctx_;
+        worker::base *worker_;
+        worker::shared_conn *conn_;
+        http::request_data_t *req_;
     };
 
     class formdata_send {
@@ -104,19 +73,13 @@ namespace manapi::net {
 
         manapi::future<> data2multipart (std::string boundary, ssize_t buffer_size,  std::function<manapi::future<void>(const void *buffer, ssize_t size)> write);
     private:
-        enum data_type {
-            DATA_NONE = 0,
-            DATA_FILE = 1,
-            DATA_PLAIN = 2
-        };
-
         struct data_file_storage {
             std::string filename;
             std::string filemime;
         };
 
         struct data_storage {
-            data_type type;
+            int type;
             std::string data;
             std::optional<data_file_storage> file;
         };

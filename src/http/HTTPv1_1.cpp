@@ -31,7 +31,7 @@ static constexpr char version_label_2[] = "HTTP/2.0";
 
 static const std::set<char> tcharlist = {'!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~'};
 
-bool istokenchar (const char &c) {
+bool manapi::net::http::http_v1_1_is_token_char (const char &c) {
     return ::isalpha(c) || ::isdigit(c) || tcharlist.contains(c);
 }
 
@@ -114,7 +114,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                         break;
                     }
 
-                    if (!istokenchar(buffer[pos])) {
+                    if (!http_v1_1_is_token_char(buffer[pos])) {
                         /**
                          * RFC7230 (3.2.4) Field Parsing
                          * No whitespace is allowed between the header field-name and colon.
@@ -270,7 +270,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
             }
             case HTTP_V1_1_CALLBACK_PARSE_METHOD: {
                 while (pos != size) {
-                    if (istokenchar(buffer[pos])) {
+                    if (http_v1_1_is_token_char(buffer[pos])) {
                         /**
                          * RFC (3.1.1) Request Line
                          * The method token indicates the request method to be performed on the target resource.

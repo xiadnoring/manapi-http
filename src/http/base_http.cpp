@@ -74,8 +74,9 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
         case internal::RESPONSE_SYNC_CALLBACK:
             send_response_sync_cb(std::move(cdata), std::move(res), std::move(features));
         break;
-        default:
-            manapi::async::run<ssize_t>(mask_response(cdata.get(), res.get(), true),
+        default: {
+            auto const cdataptr = cdata.get();
+            manapi::async::run<ssize_t>(mask_response(cdataptr, res.get(), true),
                 [cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result)
                 -> void {
                     if (err) {
@@ -84,6 +85,7 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
                     }
                     cdata->cb->call(true);
             });
+        }
     }
 }
 
@@ -509,15 +511,15 @@ manapi::future<ssize_t> manapi::net::http::internal::mask_response(handle_data_t
 
 int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *inf, manapi::net::worker::base *w, manapi::net::worker::connection *conn) {
     auto ipdata = w->ipdata(conn);
-    auto family = reinterpret_cast <struct sockaddr_in *> (ipdata->client.data)->sin_family;
+    auto const sa = reinterpret_cast <struct sockaddr_in *> (ipdata->client.data);
     std::string buffer;
     int size;
 
-    if (family == manapi::ev::IPv4) {
+    if (sa->sin_family == manapi::ev::IPv4) {
         size = sizeof ("xxx:xxx:xxx:xxx");
         buffer.resize(size);
 
-        if (!inet_ntop(AF_INET, ipdata->client.data, buffer.data(), size)) {
+        if (!inet_ntop(AF_INET, &sa->sin_addr, buffer.data(), size)) {
             return -1;
         }
 
@@ -532,11 +534,11 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
         return 0;
     }
 
-    if (family == manapi::ev::IPv6) {
+    if (sa->sin_family == manapi::ev::IPv6) {
         size = sizeof ("xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx");
         buffer.resize(size);
 
-        if (!inet_ntop(AF_INET6, &ipdata->client, buffer.data(), size)) {
+        if (!inet_ntop(AF_INET6, &sa->sin_addr, buffer.data(), size)) {
             return -1;
         }
 
@@ -653,10 +655,11 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 
         auto client = std::make_unique<manapi_socket_information>();
 
-        // if (handle_request_stringify_ip(client.get(), cdata->conn.get())) {
-        //     /* error */
-        //     ctx->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
-        // }
+        if (handle_request_stringify_ip(client.get(),
+            cdata->worker.get(), cdata->conn.get())) {
+            /* error */
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
+        }
 
         auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, data->handler);
         auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());

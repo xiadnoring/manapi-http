@@ -160,6 +160,31 @@ int main () {
             }
         });
 
+        router.POST ("/formdata", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            ssize_t result = 0;
+            manapi::net::hash::SHA256 hash{};
+            hash.init();
+            try {
+                co_await req.form([&result, &hash] (std::string name) -> manapi::net::formdata_recv::ondata_cb_t {
+                    return manapi::net::formdata_recv::save_file(std::move(name) + ".txt");
+                });
+            }
+            catch (std::exception const &e) {
+                std::cout << e.what() << "\n";
+            }
+
+            std::string b;
+            b.resize(36);
+            hash.final(reinterpret_cast<uint8_t *>(b.data()));
+
+            b = manapi::crypto::strdec2strhex(b);
+
+            std::cout << result << " " << b << "\n";
+
+            co_return resp.text(std::format("{} : {}", result, b));
+        });
+
         router.GET ("/chunked", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             try {
@@ -205,11 +230,11 @@ int main () {
             manapi::net::hash::SHA256 hash{};
             hash.init();
             try {
-                co_await req.callback_sync([&result, &hash] (const char *buffer, ssize_t size)
-                    -> ssize_t {
+                co_await req.callback_async([&result, &hash] (const char *buffer, ssize_t size)
+                    -> manapi::future<ssize_t> {
                     hash.update(reinterpret_cast<const uint8_t *>(buffer), size);
                     result += size;
-                    return size;
+                    co_return size;
                 });
             }
             catch (std::exception const &e) {
@@ -234,6 +259,7 @@ int main () {
 
         router.GET("/video", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
+            std::cout<<req.ip_data().ip <<":"<<(int)req.ip_data().port<<"\n";
             resp.compress_enabled(false);
             resp.partial_enabled(true);
             co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");

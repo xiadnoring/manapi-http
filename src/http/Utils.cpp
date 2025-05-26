@@ -5,31 +5,25 @@
 #include "encoding/ManapiUnicode.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
 
-std::pair<std::string, std::string> manapi::net::http::parse_header(const std::string &header) {
-    std::pair <std::string, std::string> parsed;
+std::pair<std::string_view, std::string_view> manapi::net::http::parse_header(std::string_view header) {
+    std::pair <std::string_view, std::string_view> parsed;
+    auto const pos = header.find(':');
 
-    bool is_key = true;
+    if (std::string::npos == pos) {
+        THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_HTTP_PARSER_BUG, "invalid header: semicolon is missing");
+    }
 
-    std::string *ptr = &parsed.first;
+    parsed.first = header.substr(0, pos);
+    parsed.second = header.substr(pos + 1);
 
-    for (auto &c: header) {
-        if (ptr->empty() && c == ' ')
-            continue;
+    if (!parsed.second.empty()
+        && parsed.second[0] == ' ') {
+        parsed.second = parsed.second.substr(1);
+    }
 
-        if (is_key) {
-            if (c == ':') {
-                is_key  = false;
-                ptr     = &parsed.second;
-
-                continue;
-            }
-
-            *ptr += (char) std::tolower(c);
-
-            continue;
-        }
-
-        *ptr += c;
+    if (!parsed.second.empty()
+        && (*parsed.second.rbegin()) == ' ') {
+        parsed.second = parsed.second.substr(0, parsed.second.size() - 1);
     }
 
     return std::move(parsed);
@@ -53,7 +47,7 @@ void manapi::net::http::request_data_clear(request_data_t &data) {
     data.divided = -1;
 }
 
-std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_value (const std::string &header_value) {
+std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_value (std::string_view header_value) {
     std::vector <header_value_t> data;
 
     bool opened_queues = false;

@@ -4,7 +4,7 @@
 
 const std::set<char> manapi::encoding::url_allowed_symbols = {'-', '_', '.', '~', '!', '*', '\'', '(', ')', ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '.', '#', '[', ']', '%'};
 
-std::string manapi::encoding::encode_url(const std::string &str) {
+void manapi::encoding::encode_url(std::string &dest, std::string_view str) {
     std::ostringstream escaped;
     escaped.fill('0');
     escaped << std::hex;
@@ -28,12 +28,16 @@ std::string manapi::encoding::encode_url(const std::string &str) {
         escaped << std::nouppercase;
     }
 
-    return escaped.str();
+    dest += escaped.str();
 }
 
-std::string manapi::encoding::decode_url(const std::string &str) {
-    std::string ret;
+std::string manapi::encoding::encode_url(std::string_view str) {
+    std::string dest;
+    encode_url (dest, str);
+    return std::move(dest);
+}
 
+void manapi::encoding::decode_url(std::string &dest, std::string_view str) {
     std::size_t i;
 
     for (i = 0; i < str.size(); i++){
@@ -43,27 +47,32 @@ std::string manapi::encoding::decode_url(const std::string &str) {
 
         if(str[i] != '%'){
             if(str[i] == '+') {
-                ret += ' ';
+                dest += ' ';
             }
             else {
-                ret += str[i];
+                dest += str[i];
             }
         }
         else{
             if (str.size() <= i + 2) {
-                ret += str[i];
+                dest += str[i];
                 continue;
             }
             if (!(isalnum(str[i+1]) && isalnum(str[i+2]))) {
-                ret += str[i];
+                dest += str[i];
                 continue;
             }
-            ret.push_back(static_cast<char> (manapi::unicode::hex2dec(str[i+1]) << 4 | manapi::unicode::hex2dec(
+            dest.push_back(static_cast<char> (manapi::unicode::hex2dec(str[i+1]) << 4 | manapi::unicode::hex2dec(
                                      str[i+2])));
             i = i + 2;
         }
     }
-    return ret;
+}
+
+std::string manapi::encoding::decode_url(std::string_view str) {
+    std::string dest;
+    decode_url(dest, str);
+    return std::move(dest);
 }
 
 bool manapi::encoding::url_allowed_symbol(const char &c) {

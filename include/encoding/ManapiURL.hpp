@@ -12,9 +12,13 @@
 namespace manapi::encoding {
     extern const std::set <char> url_allowed_symbols;
 
-    std::string encode_url(const std::string &str);
+    void encode_url(std::string &dest, std::string_view str);
 
-    std::string decode_url(const std::string &str);
+    std::string encode_url(std::string_view str);
+
+    void decode_url(std::string &dest, std::string_view str);
+
+    std::string decode_url(std::string_view str);
 
     bool url_allowed_symbol(const char &c);
 }

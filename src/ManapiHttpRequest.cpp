@@ -93,14 +93,14 @@ manapi::future<std::string> manapi::net::http::request::text() {
         size_t j = 0;
         //size_t socket_block_size    = http_server->get_socket_block_size();
 
-        co_await this->_read_body([&body, &j] (const char *data, ssize_t size) -> ssize_t {
+        co_await this->read_body_(this->worker_.get(), this->conn_, this->request_data,[&body, &j] (const char *data, ssize_t size) -> ssize_t {
             memcpy (body.data() + j, data, size);
             j += size;
             return size;
         });
     }
     else {
-        co_await this->_read_body([&body] (const char *data, ssize_t size)
+        co_await this->read_body_(this->worker_.get(), this->conn_, this->request_data,[&body] (const char *data, ssize_t size)
             -> ssize_t { body.append(data, size); return size; });
     }
 
@@ -113,27 +113,23 @@ manapi::future<manapi::json> manapi::net::http::request::json()
     const auto &post_mask = this->post_mask();
 
     json_builder builder = post_mask ? json_builder (*post_mask) : json_builder ();
-    co_await _read_body([&builder] (const char *data, ssize_t size)
+    co_await read_body_(this->worker_.get(), this->conn_, this->request_data,[&builder] (const char *data, ssize_t size)
         -> ssize_t { builder << std::string_view (data, size); return size; });
 
     co_return std::move(builder.get());
 }
 
-manapi::future<manapi::net::formdata_recv> manapi::net::http::request::form ()
-{
-    // formdata_recv formdata (this->worker_->site().async_context(), this->request_data->buffer->size(),
-    //     this->request_data->body_part, this->request_data->buffer->data(), this->request_data->body_left, this->request_data->body_index, [worker = this->worker_, conn = this->conn_] (void *buff, ssize_t buff_size)
-    //     -> future<ssize_t> { return worker->read(conn, buff, buff_size);  });
-    // co_await formdata._init(this->request_data->flags & internal::REQ_DATA_FLAG_HAS_BODY, this->request_data->headers[http::HEADER.CONTENT_TYPE]);
-    // co_return std::move(formdata);
+manapi::future<> manapi::net::http::request::form (formdata_recv::onparam_cb_t cb) {
+    formdata_recv fdata (request::read_async_body_, this->worker_.get(), this->conn_, this->request_data);
+    co_await fdata.get(std::move(cb));
 }
 
 manapi::future<> manapi::net::http::request::callback_sync( std::move_only_function<ssize_t(const char *buffer, ssize_t size)> callback) {
-    return this->_read_body(std::move(callback));
+    return this->read_body_(this->worker_.get(), this->conn_, this->request_data,std::move(callback));
 }
 
 manapi::future<> manapi::net::http::request::callback_async(std::move_only_function<manapi::future<ssize_t>(const char *buffer, ssize_t size)> callback) {
-    return this->_read_async_body(std::move(callback));
+    return this->read_async_body_(this->worker_.get(), this->conn_, this->request_data,std::move(callback));
 }
 
 manapi::future<> manapi::net::http::request::file(std::string filepath) {
@@ -147,7 +143,7 @@ manapi::future<> manapi::net::http::request::file(std::string filepath) {
     std::exception_ptr err{nullptr};
 
     try {
-        co_await this->_read_async_body([&] (const char *data, ssize_t size)
+        co_await this->read_async_body_(this->worker_.get(), this->conn_, this->request_data, [&] (const char *data, ssize_t size)
             -> manapi::future<ssize_t> { return f.write(data, size); });
     }
     catch (...) {
@@ -234,7 +230,7 @@ bool manapi::net::http::request::propagation() const {
     return this->flags & internal::REQUEST_FLAG_IS_PROPAGATION;
 }
 
-manapi::future<void> manapi::net::http::request::_read_body(std::move_only_function<ssize_t(const char *, ssize_t)> handler) {
+manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker, worker::shared_conn *conn, request_data_t *req, std::move_only_function<ssize_t(const char *, ssize_t)> handler) {
     using promise = manapi::async::promise<void, std::false_type>;
     std::unique_ptr<worker::worker_watcher_cb> prev{nullptr};
     int pflags;
@@ -244,7 +240,7 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
         co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
             -> void {
             auto cb = std::make_unique<worker::worker_watcher_cb>(
-                [this, resolve = std::move(resolve), reject = std::move(reject), handler = std::move(handler)] (
+                [worker, req, resolve = std::move(resolve), reject = std::move(reject), handler = std::move(handler)] (
                 const worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize) mutable -> void {
                     if (flags & ev::DISCONNECT) {
                         reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(
@@ -254,8 +250,8 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
                     if (flags & ev::READ) {
                         try {
                             ssize_t size;
-                            if (this->request_data->body_size >= 0)
-                                size = std::min(this->request_data->body_size, static_cast<ssize_t> (nsize));
+                            if (req->body_size >= 0)
+                                size = std::min(req->body_size, static_cast<ssize_t> (nsize));
                             else
                                 size = static_cast<ssize_t> (nsize);
 
@@ -273,7 +269,7 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
 
                                     rhs += res;
 
-                                    this->request_data->body_size -= res;
+                                    req->body_size -= res;
 
                                     continue;
                                 }
@@ -282,14 +278,14 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
                                 goto finish;
                             }
 
-                            if (!this->request_data->body_size) {
+                            if (!req->body_size) {
                                 auto const copy = static_cast<int>(size - rhs);
                                 if (copy) {
-                                    assert(this->request_data->buffer == nullptr);
-                                    auto object = this->worker_->bufferpool()->get();
+                                    assert(req->buffer == nullptr);
+                                    auto object = worker->bufferpool()->get();
                                     object->resize(nsize - copy);
                                     memcpy(object->data(), buffer + copy, nsize - copy);
-                                    this->request_data->buffer = std::move(object);
+                                    req->buffer = std::move(object);
                                 }
                                 resolve();
                                 goto finish;
@@ -308,20 +304,21 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
 
                     return;
                     finish: {
-                        auto const wrk_  = this;
-                        wrk_->worker_->event_on(conn, nullptr);
-                        wrk_->worker_->event_flags(conn, 0);
+                        auto const wrk_ = worker;
+                        wrk_->event_on(conn, nullptr);
+                        wrk_->event_flags(conn, 0);
                     }
             });
 
-            pflags = this->worker_->event_flags(*this->conn_, ev::READ);
+            pflags = worker->event_flags(*conn, ev::READ);
 
-            if (this->request_data->buffer) {
-               cb->operator()(*this->conn_, ev::READ, this->request_data->buffer->data(), this->request_data->buffer->size());
+            if (req->buffer) {
+                cb->operator()(*conn, ev::READ, req->buffer->data(), req->buffer->size());
+                req->buffer = {};
             }
 
 
-            prev = this->worker_->event_on(*this->conn_, std::move(cb));
+            prev = worker->event_on(*conn, std::move(cb));
         });
     }
     catch (...) {
@@ -329,8 +326,8 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
     }
 
     if (prev) {
-        this->worker_->event_on(*this->conn_, std::move(prev));
-        this->worker_->event_flags(*this->conn_, pflags);
+        worker->event_on(*conn, std::move(prev));
+        worker->event_flags(*conn, pflags);
     }
 
     if (err) {
@@ -338,7 +335,7 @@ manapi::future<void> manapi::net::http::request::_read_body(std::move_only_funct
     }
 }
 
-manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t)> handler) {
+manapi::future<> manapi::net::http::request::read_async_body_(worker::base *worker, worker::shared_conn *conn, request_data_t *req, std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t)> handler) {
     using promise = manapi::async::promise<void, std::false_type>;
     std::unique_ptr<worker::worker_watcher_cb> prev{nullptr};
     int pflags;
@@ -348,7 +345,7 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
         co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
             -> void {
             auto cb = std::make_unique<worker::worker_watcher_cb>(
-                [this, resolve = std::move(resolve), reject = std::move(reject), handler = std::move(handler)] (
+                [worker, req, resolve = std::move(resolve), reject = std::move(reject), handler = std::move(handler)] (
                 const worker::shared_conn & conn, int flags, const char * buffer, ssize_t nsize) mutable -> void {
                     if (flags & ev::DISCONNECT) {
                         reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(
@@ -356,12 +353,12 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
                         goto finish;
                     }
                     if (flags & ev::READ) {
-                        this->worker_->event_flags(*this->conn_, 0);
+                        worker->event_flags(conn, 0);
                         manapi::async::run ([&] () -> manapi::future<> {
                             ssize_t size;
 
-                            if (this->request_data->body_size >= 0)
-                                size = std::min(this->request_data->body_size, static_cast<ssize_t> (nsize));
+                            if (req->body_size >= 0)
+                                size = std::min(req->body_size, static_cast<ssize_t> (nsize));
                             else
                                 size = static_cast<ssize_t> (nsize);
 
@@ -379,7 +376,7 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
 
                                     rhs += res;
 
-                                    this->request_data->body_size -= res;
+                                    req->body_size -= res;
 
                                     continue;
                                 }
@@ -388,32 +385,32 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
                                 goto finish;
                             }
 
-                            if (!this->request_data->body_size) {
+                            if (!req->body_size) {
                                 auto const copy = static_cast<int>(size - rhs);
                                 if (copy) {
-                                    assert(this->request_data->buffer == nullptr);
-                                    auto object = this->worker_->bufferpool()->get();
+                                    assert(req->buffer == nullptr);
+                                    auto object = worker->bufferpool()->get();
                                     object->resize(size - copy);
                                     memcpy (object->data(), buffer + copy, size - copy);
-                                    this->request_data->buffer = std::move(object);
+                                    req->buffer = std::move(object);
                                 }
                                 resolve();
                                 goto finish;
                             }
 
-                            this->worker_->event_flags(*this->conn_, ev::READ);
+                            worker->event_flags(conn, ev::READ);
 
                             co_return;
                             finish: {
-                                this->worker_->event_flags(*this->conn_, 0);
+                                worker->event_flags(conn, 0);
                             }
-                        }, [&] (std::exception_ptr err) -> void {
+                        }, [conn, worker, reject] (std::exception_ptr err) -> void {
                             if (err) {
                                 std::string msg;
                                 manapi::rethrow_exception_ptr(std::move(err), nullptr, &msg, nullptr);
                                 reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
                                     manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], msg)));
-                                this->worker_->event_flags(*this->conn_, 0);
+                                worker->event_flags(conn, 0);
                             }
                         });
                     }
@@ -424,18 +421,22 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
 
                     return;
                     finish: {
-                        auto const wrk_ = this;
-                        wrk_->worker_->event_on(conn, nullptr);
-                        wrk_->worker_->event_flags(conn, 0);
+                        auto const wrk_ = worker;
+
+                        wrk_->event_on(conn, nullptr);
+                        wrk_->event_flags(conn, 0);
                     }
             });
 
-            prev = this->worker_->event_on(*this->conn_, std::move(cb));
-            pflags = this->worker_->event_flags(*this->conn_, ev::READ);
+            pflags = worker->event_flags(*conn, ev::READ);
 
-            if (this->request_data->buffer) {
-                cb->operator()(*this->conn_, ev::READ, this->request_data->buffer->data(), this->request_data->buffer->size());
+            if (req->buffer) {
+                cb->operator()(*conn, ev::READ, req->buffer->data(), req->buffer->size());
+                req->buffer = {};
             }
+
+            prev = worker->event_on(*conn, std::move(cb));
+
 
         });
     }
@@ -444,8 +445,8 @@ manapi::future<> manapi::net::http::request::_read_async_body(std::move_only_fun
     }
 
     if (prev) {
-        this->worker_->event_on(*this->conn_, std::move(prev));
-        this->worker_->event_flags(*this->conn_, pflags);
+        worker->event_on(*conn, std::move(prev));
+        worker->event_flags(*conn, pflags);
     }
 
     if (err) {
