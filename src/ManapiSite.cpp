@@ -240,8 +240,8 @@ manapi::future<> manapi::net::http::site::setup_config() {
         manapi::async::current()->logger()->error(manapi::logger::default_service, e.err_num(), "The configuration directory couldn't be created due to {}.", e.what());
     }
 
-    manapi::net::server_ctx::next_time(&this->data->server_config->cache_time);
-    manapi::net::server_ctx::next_time(&this->data->server_config->config_time);
+    manapi::net::http::server_ctx::next_time(&this->data->server_config->cache_time);
+    manapi::net::http::server_ctx::next_time(&this->data->server_config->config_time);
 }
 
 manapi::future<std::pair<int, std::string>> manapi::net::http::site::get_compressed_cache_file(std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime) {
@@ -298,7 +298,7 @@ manapi::future<std::pair<int, std::string>> manapi::net::http::site::get_compres
                 (*file_info) = false;
             }
 
-            manapi::net::server_ctx::next_time(&this->data->server_config->cache_time);
+            manapi::net::http::server_ctx::next_time(&this->data->server_config->cache_time);
             this->data->sctx.server_notify_subs();
         }
 
@@ -348,7 +348,7 @@ manapi::future<> manapi::net::http::site::set_compressed_cache_file(std::string 
 
     }
 
-    manapi::net::server_ctx::next_time(&this->data->server_config->cache_time);
+    manapi::net::http::server_ctx::next_time(&this->data->server_config->cache_time);
     this->data->sctx.server_notify_subs();
 }
 

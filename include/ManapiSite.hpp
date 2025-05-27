@@ -73,7 +73,7 @@ namespace manapi::net::http {
 
     class site {
     public:
-        typedef std::function<std::shared_ptr<worker::base>(net::http::site site, std::shared_ptr<manapi::net::worker::worker_config_t> wdata, std::shared_ptr<http::config> config)> implement_create_cb;
+        typedef std::function<std::shared_ptr<worker::base>(site site, std::shared_ptr<manapi::net::worker::worker_config_t> wdata, std::shared_ptr<http::config> config)> implement_create_cb;
     protected:
         struct data_t {
             std::unique_ptr<async::condition_variable> cache_cv;

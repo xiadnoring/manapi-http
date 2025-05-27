@@ -406,7 +406,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
 
         conn_data = connection->as<connection_t>();
 
-        conn_data->timeout = manapi::async::current()->timerpool()->append_timer_sync (200, [connection = std::weak_ptr (connection)] (manapi::timer t)
+        conn_data->timeout = manapi::async::current()->timerpool()->append_timer_sync (1000, [connection = std::weak_ptr (connection)] (manapi::timer t)
             -> void { http_v3_cloudflare_quiche::quiche_timeout_(std::move(t), connection.lock()); });
 
         conn_data->streams = std::make_unique<decltype(conn_data->streams)::element_type>();
@@ -470,6 +470,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
                             .conn = conn_data
                         }, +[] (void *ptr)
                             -> void { delete static_cast<connection_stream_t *> (ptr); });
+
+                        std::cout << "NEW CONN\n";
 
                         auto s = connection->as<connection_stream_t>();
 

@@ -18,17 +18,16 @@
 #include "http/HTTPv1_1.hpp"
 #include <http/HTTPv2.hpp>
 
-manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<worker::worker_config_t> worker_config, class http::site *site, const size_t &id, std::shared_ptr<event_loop> events) {
+manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<worker::worker_config_t> worker_config, class http::site site, const size_t &id, std::shared_ptr<event_loop> events) : site(std::move(site)) {
     this->events = std::move(events);
     this->config = std::make_shared <http::config> (config);
     this->id = id;
     this->worker_config = std::move(worker_config);
-    this->site = site;
     this->mx = std::make_shared<async::mutex>();
 
-    this->config->function_contains_compressor([site] (const std::string &name) -> bool {
-        return site->contains_compressor_for_file(name)
-            || site->contains_compressor_for_string(name);
+    this->config->function_contains_compressor([this] (const std::string &name) -> bool {
+        return this->site.contains_compressor_for_file(name)
+            || this->site.contains_compressor_for_string(name);
     });
 }
 
@@ -63,13 +62,18 @@ manapi::future<void> manapi::net::http_pool::_pool() {
 
     auto implementation = this->config->implementation;
     auto transport = this->config->transport;
-    auto implementations = this->site->transport_protocol_worker(transport);
+    auto implementations = this->site.transport_protocol_worker(transport);
 
     if (implementations.contains(implementation))
     {
-        auto generate = implementations[implementation];
-        this->worker = generate (*this->site, this->worker_config, this->config);
-        this->worker->init();
+        try {
+            auto generate = implementations[implementation];
+            this->worker = generate (this->site, this->worker_config, this->config);
+            this->worker->init();
+        }
+        catch (std::exception const &e) {
+            MANAPIHTTP_LOG("worker init failed due to {}", e.what());
+        }
     }
     else
     {
@@ -88,6 +92,6 @@ manapi::future<void> manapi::net::http_pool::_pool() {
     }
 }
 
-manapi::net::http::site & manapi::net::http_pool::get_site() const {
-    return *this->site;
+const manapi::net::http::site & manapi::net::http_pool::get_site() const {
+    return this->site;
 }

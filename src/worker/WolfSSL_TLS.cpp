@@ -153,6 +153,11 @@ bool manapi::net::worker::WolfSSL_TLS::recv_setup_connection(connection_interfac
 
     SSL_set_bio(static_cast<SSL*>(data->ssl), static_cast<BIO*>(data->rbio), static_cast<BIO*>(data->wbio));
 
+    if (WOLFSSL_SUCCESS != wolfSSL_UseALPN(static_cast<WOLFSSL *>(data->ssl),
+        this->alpn_protocol_list.data(), this->alpn_protocol_list.size(),
+        WOLFSSL_ALPN_FAILED_ON_MISMATCH))
+        goto err;
+
     return true;
     err:
         return false;

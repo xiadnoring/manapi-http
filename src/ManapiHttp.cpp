@@ -167,7 +167,7 @@ manapi::future<> manapi::net::http::server::init_pool_() {
 
             try {
                 auto worker_data = this->data->sctx.worker_config(this->data2->next_pool_id);
-                p = std::make_unique<http_pool> (*it, std::move(worker_data), this, this->data2->next_pool_id, async::current()->eventloop());
+                p = std::make_unique<http_pool> (*it, std::move(worker_data), *this, this->data2->next_pool_id, async::current()->eventloop());
                 co_await p->run();
                 pool.insert({this->data2->next_pool_id, std::move(p)});
             }

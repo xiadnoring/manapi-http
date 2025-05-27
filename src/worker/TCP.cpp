@@ -672,10 +672,6 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
                                 [http_v2_ctx, ok, conn, sconn = std::move(sconn)] () -> void {
                                     auto const data = conn->as<connection_interface>();
 
-                                    if (data->status & (CONN_CLOSED|CONN_REMOVED)) {
-                                        return;
-                                    }
-
                                     auto const wrk = dynamic_cast<TCP*>(data->worker);
                                     auto const sdata = sconn->as<http::http_v2_stream_t>();
 
@@ -690,8 +686,13 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
 
                                     http::http_v2_on_close_stream(http_v2_ctx, sdata->id);
 
-                                    if (http_v2_ctx->streams->empty())
+                                    if (http_v2_ctx->streams->empty() &&
+                                        data->status & (CONN_CLOSED|CONN_REMOVED)) {
+                                        if (http::http_v2_on_close (http_v2_ctx)) {
+                                            /* error */
+                                        }
                                         wrk->conn_work_finish_(conn, true);
+                                    }
                             });
                     }));
 

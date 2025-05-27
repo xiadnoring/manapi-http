@@ -565,7 +565,10 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                 // if statics exists
                 std::string path;
 
-                for (size_t i = data->statics_parts_len; i < cdata->req_data->path.size(); i++) {
+                auto maxsize = static_cast<size_t> (cdata->req_data->divided >= 0
+                    ? cdata->req_data->divided : cdata->req_data->path.size());
+
+                for (size_t i = data->statics_parts_len; i < maxsize; i++) {
                     path += manapi::filesystem::path::delimiter + cdata->req_data->path[i];
                 }
 

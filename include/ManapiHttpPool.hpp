@@ -22,13 +22,13 @@
 namespace manapi::net {
     class http_pool {
     public:
-        explicit http_pool(const json &config, std::shared_ptr<worker::worker_config_t> worker_config, class http::site *site, const size_t &id, std::shared_ptr<event_loop> events);
+        explicit http_pool(const json &config, std::shared_ptr<worker::worker_config_t> worker_config, class http::site site, const size_t &id, std::shared_ptr<event_loop> events);
         ~http_pool();
 
         manapi::future<> stop ();
         manapi::future<void> run ();
 
-        http::site &get_site () const;
+        const http::site &get_site () const;
     private:
         manapi::future<void> _pool ();
 
@@ -45,7 +45,7 @@ namespace manapi::net {
         std::shared_ptr<event_loop> events;
         std::unique_ptr<std::promise <int> > pool_promise;
 
-        http::site *site;
+        http::site site;
         // watchers
         std::shared_ptr <ev::io> watcher;
     };
