@@ -82,7 +82,7 @@ namespace manapi::net::http {
         std::string transport;
         size_t max_buffer_stack;
         size_t keep_alive;
-        sockaddr server_addr;
+        sockaddr_storage server_addr;
         socklen_t server_len;
         size_t max_plain_param_length;
         size_t max_file_param_length;

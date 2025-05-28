@@ -77,8 +77,8 @@ void manapi::net::worker::TCP::init() {
             THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
         }
 
-        this->config_->server_addr=(*this->local->ai_addr);
         this->config_->server_len=(this->local->ai_addrlen);
+        memcpy (&this->config_->server_addr,this->local->ai_addr, this->local->ai_addrlen);
 
         MANAPIHTTP_LOG("HTTP TCP PORT USED: {}. {}:{}", port, address, port);
 

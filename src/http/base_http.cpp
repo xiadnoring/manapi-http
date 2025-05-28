@@ -538,7 +538,7 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
         size = sizeof ("xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx");
         buffer.resize(size);
 
-        if (!inet_ntop(AF_INET6, &sa->sin_addr, buffer.data(), size)) {
+        if (!inet_ntop(AF_INET6, &reinterpret_cast<sockaddr_in6 *>(sa)->sin6_addr, buffer.data(), size)) {
             return -1;
         }
 

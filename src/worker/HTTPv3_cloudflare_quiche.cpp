@@ -94,11 +94,11 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
             THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "QUICHE: QUIC requires SSL be enabled");
         }
 
-        if (0 != quiche_config_load_cert_chain_from_pem_file(this->quiche_config_, ssl_config->cert.data())) {
+        if (quiche_config_load_cert_chain_from_pem_file(this->quiche_config_, ssl_config->cert.data())) {
             THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "QUICHE: failed to load cert chain from pem file: {}", ssl_config->cert);
         }
 
-        if (0 != quiche_config_load_priv_key_from_pem_file(this->quiche_config_, ssl_config->key.data())) {
+        if (quiche_config_load_priv_key_from_pem_file(this->quiche_config_, ssl_config->key.data())) {
             THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "QUICHE: failed to load priv key from pem file: {}", ssl_config->key);
         }
 
@@ -115,14 +115,14 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         quiche_config_set_initial_max_stream_data_uni(this->quiche_config_, 1000000);
         quiche_config_set_initial_max_streams_bidi (this->quiche_config_, 100);
         quiche_config_set_initial_max_streams_uni (this->quiche_config_, 100);
-        //quiche_config_set_disable_active_migration (this->quiche_config_, true);
+        quiche_config_set_disable_active_migration (this->quiche_config_, true);
         quiche_config_verify_peer(this->quiche_config_, this->config_->verify_peer);
         if (this->config_->quic_debug) {
             if (quiche_enable_debug_logging([] (const char *line, void *argp)
                 -> void {
                 MANAPIHTTP_LOG2(line);
             }, this)) {
-                goto err;
+                /* already exists */
             }
         }
 
@@ -304,10 +304,10 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
     uint8_t out[MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE];
 
     auto sockaddr_src = (sockaddr *)addr;
-    if (addr->sa_family == ev::IPv4) {
+    if (sockaddr_src->sa_family == ev::IPv4) {
      sockaddr_len = sizeof (sockaddr_in);
     }
-    else if (addr->sa_family == ev::IPv6) {
+    else if (sockaddr_src->sa_family == ev::IPv6) {
      sockaddr_len = sizeof (sockaddr_in6);
     }
 
@@ -389,8 +389,12 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
             return;
         }
 
+        if (dcid_len != MANAPIHTTP_QUICHE_CONN_ID_SIZE) {
+            return;
+        }
+
         auto quiche_conn_ = quiche_accept(reinterpret_cast<uint8_t *> (dcid), dcid_len,
-         reinterpret_cast<uint8_t *>(odcid), odcid_len, &this->config_->server_addr, this->config_->server_len,
+         reinterpret_cast<uint8_t *>(odcid), odcid_len, reinterpret_cast<sockaddr *> (&this->config_->server_addr), this->config_->server_len,
          reinterpret_cast<sockaddr *>(sockaddr_src), sockaddr_len, this->quiche_config_);
 
         if (!quiche_conn_) {
@@ -428,11 +432,12 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
     decltype(this->connections)::iterator connection_it;
 
     quiche_recv_info recv_info {
-         reinterpret_cast <sockaddr *>(sockaddr_src),
+        (sockaddr *)(sockaddr_src),
          sockaddr_len,
          (sockaddr *)&this->config_->server_addr,
          this->config_->server_len
     };
+
 
     ssize_t done = quiche_conn_recv(conn_data->conn, reinterpret_cast<uint8_t *> (buff), size, &recv_info);
 
@@ -450,7 +455,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
     }
 
     try {
-        if (conn_data->http3_conn && !(conn_data->flags & CONN_CLOSED)) {
+        if (conn_data->http3_conn && !(conn_data->flags & (CONN_REMOVED|CONN_CLOSED))) {
             http_v3_cloudflare_quiche::flush_write_(it->second, conn_data);
 
             quiche_h3_event *event{nullptr};
