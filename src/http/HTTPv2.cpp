@@ -332,13 +332,13 @@ int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<
             };
 
             auto const rhs = http_v2_send_goaway (ctx, &http_goaway);
-            ctx->worker->feed_event(ctx->conn, manapi::ev::DISCONNECT, nullptr, 0);
+            ctx->worker->feed_event(ctx->conn, manapi::ev::DISCONNECT, nullptr, 0, nullptr);
     });
 
     return 0;
 }
 
-int http_v2_flush_recv (manapi::net::http::http_v2_stream_t *s) {
+int http_v2_flush_recv (const manapi::net::worker::shared_conn &conn, manapi::net::http::http_v2_stream_t *s) {
     while (s->recv->last_deque && (s->flags & manapi::ev::READ)) {
         auto b = std::move(s->recv->deque->buffer);
         s->recv->deque = std::move(s->recv->deque->next);
@@ -355,7 +355,7 @@ int http_v2_flush_recv (manapi::net::http::http_v2_stream_t *s) {
             s->recv->deque_current = 0;
         }
 
-        s->ev_callback->operator()(s->ctx->conn, manapi::ev::READ, b->data(), static_cast<ssize_t>(b->size()) /**,std::move(b)**/);
+        s->ev_callback->operator()(conn, manapi::ev::READ, b->data(), static_cast<ssize_t>(b->size()), &b);
     }
 
     return 0;
@@ -378,7 +378,7 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
         auto const data = s.second->as<http_v2_stream_t>();
         data->flags |= ev::DISCONNECT;
         if (data->ev_callback) {
-            data->ev_callback->operator()(s.second, ev::DISCONNECT, nullptr, 0);
+            data->ev_callback->operator()(s.second, ev::DISCONNECT, nullptr, 0, nullptr);
         }
     }
 
@@ -406,7 +406,7 @@ int manapi::net::http::http_v2_on_write(http_v2_t *ctx) {
         if ((data->flags & ev::WRITE)) {
             no_one = false;
             if (data->ev_callback)
-                data->ev_callback->operator()(s.second, ev::WRITE, nullptr, 0);
+                data->ev_callback->operator()(s.second, ev::WRITE, nullptr, 0, nullptr);
         }
     }
 
@@ -699,7 +699,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 if (sdata->write_window == ctx->n1
                                     && (sdata->flags & ev::WRITE)
                                     && (sdata->ev_callback)) {
-                                    sdata->ev_callback->operator()(s->second, ev::WRITE, nullptr, 0);
+                                    sdata->ev_callback->operator()(s->second, ev::WRITE, nullptr, 0, nullptr);
                                     }
                             }
                             else {
@@ -709,7 +709,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                         auto const sdata = s.second->as<http_v2_stream_t>();
                                         if ((sdata->flags & ev::WRITE)
                                             && (sdata->ev_callback)) {
-                                            sdata->ev_callback->operator()(s.second, ev::WRITE, nullptr, 0);
+                                            sdata->ev_callback->operator()(s.second, ev::WRITE, nullptr, 0, nullptr);
                                             }
                                     }
                                 }
@@ -744,7 +744,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     sdata->flags |= http::HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_REMOVED;
 
                                     if (sdata->ev_callback) {
-                                        sdata->ev_callback->operator()(s->second, ev::DISCONNECT, nullptr, 0);
+                                        sdata->ev_callback->operator()(s->second, ev::DISCONNECT, nullptr, 0, nullptr);
                                     }
 
                                     s->second->cancellation.cancel();
@@ -1029,11 +1029,19 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             break;
                         }
 
-                        static constexpr int conn_max_window_hlf = 2000000 / 2;
-                        static constexpr int stream_max_window_hlf = 400000 / 2;
+                        sdata->read_window -= static_cast<int> (datasize);
+                        ctx->read_window -= static_cast<int> (datasize);
 
-                        if ((sdata->read_window -= datasize) <= stream_max_window_hlf) {
-                            const auto allow = stream_max_window_hlf + stream_max_window_hlf - sdata->read_window;
+
+                        static constexpr int conn_max_window_hlf = 2000000 / 2;
+                        static constexpr int conn_min_stream_summary = 400000;
+
+                        auto ssw = (sdata->recv_size + 1) * config->buffer_size;
+                        ssw = std::max(static_cast<ssize_t>(0),
+                            static_cast<ssize_t>(conn_min_stream_summary - ssw));
+
+                        if (sdata->read_window <= ssw) {
+                            const auto allow = static_cast<int>(ssw - sdata->read_window);
                             if (http_v2_send_window_frame(ctx, sdata->id,
                                 allow)) {
                                 return EHTTP_V2_PROTOCOL_ERROR;
@@ -1041,7 +1049,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             sdata->read_window += allow;
                         }
 
-                        if ((ctx->read_window -= datasize) <= conn_max_window_hlf) {
+                        if (ctx->read_window <= conn_max_window_hlf) {
                             const auto allow = conn_max_window_hlf + conn_max_window_hlf - ctx->read_window;
                             if (http_v2_send_window_frame(ctx, 0,
                                 allow)) {
@@ -1062,21 +1070,23 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             /**
                              * recv data
                              */
-                            if (http_v2_flush_recv (sdata)) {
+                            if (http_v2_flush_recv (s->second, sdata)) {
                                 return EHTTP_V2_PROTOCOL_ERROR;
                             }
 
-                            if ((sdata->flags & ev::READ) && sdata->ev_callback) {
-                                sdata->ev_callback->operator()(s->second, ev::READ, buffer + pos, datasize);
-                            }
-                            else {
-                                if (datasize != worker::base::connection_io_send(sdata->recv.get(), buffer + pos,
-                                    datasize, sdata->ctx->worker->bufferpool().get(), static_cast<int>(config->buffer_size), &sdata->recv_size, maxcnt)) {
-                                    return EHTTP_V2_PROTOCOL_ERROR;
-                                    }
+                            if (datasize) {
+                                if ((sdata->flags & ev::READ) && sdata->ev_callback) {
+                                    sdata->ev_callback->operator()(s->second, ev::READ, buffer + pos, datasize, nullptr);
+                                }
+                                else {
+                                    if (datasize != worker::base::connection_io_send(sdata->recv.get(), buffer + pos,
+                                        datasize, sdata->ctx->worker->bufferpool().get(), static_cast<int>(config->buffer_size), &sdata->recv_size, maxcnt)) {
+                                        return EHTTP_V2_PROTOCOL_ERROR;
+                                        }
 
-                                if (sdata->recv_size >= config->max_buffer_stack) {
-                                    ctx->worker->event_toggle(ctx->conn, false, ev::READ);
+                                    if (sdata->recv_size >= config->max_buffer_stack) {
+                                        ctx->worker->event_toggle(ctx->conn, false, ev::READ);
+                                    }
                                 }
                             }
 

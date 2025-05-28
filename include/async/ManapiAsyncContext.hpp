@@ -222,7 +222,7 @@ namespace manapi::async {
     template<typename T, typename ...Args>
     std::invoke_result_t <T, Args...> invoke (T &&executer, Args &&...args) {
         auto cb (std::forward<decltype(executer)>(executer));
-        co_return co_await cb(args...);
+        co_return co_await cb(std::forward<decltype(args)>(args)...);
     }
 
     template<typename T>

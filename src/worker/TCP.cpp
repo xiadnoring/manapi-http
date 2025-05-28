@@ -202,7 +202,7 @@ void manapi::net::worker::TCP::onrecv(std::shared_ptr<ev::tcp> &watcher, const w
     }
 
 
-    tcp_handle_read_data(conn, connection, ev::READ, buffer->data(), size);
+    tcp_handle_read_data(conn, connection, ev::READ, buffer->data(), size, &buffer);
 }
 
 std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
@@ -315,7 +315,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
             connection->t = nullptr;
         }
         if (connection->ev_callback) {
-            connection->ev_callback->operator()(conn, ev::DISCONNECT, nullptr, 0);
+            connection->ev_callback->operator()(conn, ev::DISCONNECT, nullptr, 0, nullptr);
         }
         connection->watcher->read_stop();
         manapi::async::current()->eventloop()->stop_watcher_tcp_connection(std::move(connection->watcher));
@@ -353,10 +353,10 @@ void manapi::net::worker::TCP::stop(std::function<void()> cb) {
     }
 }
 
-void manapi::net::worker::TCP::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size) {
+void manapi::net::worker::TCP::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) {
     auto const data = conn->as<connection_interface>();
     if (data->ev_callback) {
-        data->ev_callback->operator()(conn, flags, buff, size);
+        data->ev_callback->operator()(conn, flags, buff, size, p);
     }
 }
 
@@ -431,7 +431,7 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
     auto const prev = std::exchange(status, ((status >> 2) << 2) | flags);
 
     if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
-        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0);
+        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
     }
 
     if (status & CONN_HTTP_1_1_CHUNKED && status & ev::READ) {
@@ -440,7 +440,7 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
             this, conn)) {
             case http::EHTTP_V1_1_CHUNKED_OK: {
                 data->status |= CONN_RECV_END;
-                this->feed_event(conn, CONN_RECV_END, nullptr, 0);
+                this->feed_event(conn, CONN_RECV_END, nullptr, 0, nullptr);
                 break;
             }
             case http::EHTTP_V1_1_CHUNKED_ERR: {
@@ -501,12 +501,12 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
                     connection->cancellation.cancel();
 
                     if (conn->ev_callback) {
-                        conn->ev_callback->operator()(connection, ev::DISCONNECT, nullptr, 0);
+                        conn->ev_callback->operator()(connection, ev::DISCONNECT, nullptr, 0, nullptr);
                     }
                 }
                 else {
                     if (conn->status & ev::WRITE) {
-                        conn->ev_callback->operator()(connection, ev::WRITE, nullptr, 0);
+                        conn->ev_callback->operator()(connection, ev::WRITE, nullptr, 0, nullptr);
                     }
                 }
 
@@ -519,13 +519,13 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
     }
 }
 
-void manapi::net::worker::TCP::tcp_handle_read_data(const shared_conn &conn, connection_interface *data, int flags, const char *buffer, ssize_t size) {
+void manapi::net::worker::TCP::tcp_handle_read_data(const shared_conn &conn, connection_interface *data, int flags, const char *buffer, ssize_t size, ibuffpool_t *p) {
     if (data->status & CONN_HTTP_1_1_CHUNKED) {
         switch (auto rhs = http::http_v1_1_chunked_read(static_cast<connection_data_t *>(data->data)->chunked_ctx.get(),
             this, conn, this->config_, buffer, size)) {
             case http::EHTTP_V1_1_CHUNKED_OK: {
                 data->status |= CONN_RECV_END;
-                this->feed_event(conn, CONN_RECV_END, nullptr, 0);
+                this->feed_event(conn, CONN_RECV_END, nullptr, 0, nullptr);
                 break;
             }
             case http::EHTTP_V1_1_CHUNKED_READ: {
@@ -540,7 +540,7 @@ void manapi::net::worker::TCP::tcp_handle_read_data(const shared_conn &conn, con
             }
     }
     else {
-        data->ev_callback->operator()(conn, ev::READ, buffer, size);
+        data->ev_callback->operator()(conn, ev::READ, buffer, size, p);
     }
 }
 
@@ -570,6 +570,8 @@ void manapi::net::worker::TCP::timeout_(shared_conn conn) {
     if (data->t) {
         data->t.stop();
         data->t.clear();
+
+        data->t = nullptr;
     }
 
     data->status |= (ev::DISCONNECT);
@@ -595,7 +597,7 @@ bool manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &s
             conn_data->watcher->read_start();
 
         if (conn_data->status & ev::WRITE)
-            conn_data->ev_callback->operator()(sconn, ev::WRITE, nullptr, 0);
+            conn_data->ev_callback->operator()(sconn, ev::WRITE, nullptr, 0, nullptr);
     }
     else {
         conn_data->transfered_k += conn_data->transfered;
@@ -638,8 +640,8 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
 
     if (flags & ev::READ) {
         while (true) {
+            auto data = conn->as<connection_interface>();
             rhs = http::http_v2_work(http_v2_ctx, this->config_, &buffer, &nsize);
-
             switch (rhs) {
                 case http::EHTTP_V2_PROTOCOL_OK: {
                     http::http_v2_on_close (http_v2_ctx);
@@ -873,7 +875,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
 
                             this->event_on(conn, std::make_unique<worker_watcher_cb>(
                                 [this, ctx = std::move(http2_ctx)]
-                                (const shared_conn & conn, int flags, const char *buffer, ssize_t nsize)
+                                (const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)
                                 -> void {
                                 this->http2_work_(ctx.get(), conn, flags, buffer, nsize);
                             }));
@@ -923,7 +925,7 @@ void manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) 
 
     this->event_on(conn,
         std::make_unique<worker_watcher_cb>([this, http_v1_1_ctx = std::move(http_v1_1_ctx)]
-        (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize) mutable
+        (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
         -> void {
             this->http_work_ (http_v1_1_ctx.get(), conn, flags, buffer, nsize);
     }));
@@ -951,7 +953,7 @@ void manapi::net::worker::TCP::conn_work_finish_(worker::shared_conn conn, bool 
             this->event_on(conn,
                 std::make_unique<manapi::net::worker::worker_watcher_cb>(
                     [this]
-                (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize) mutable
+                (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
                     -> void {
                         if (flags & ev::DISCONNECT) {
                             this->close_connection(conn, false);
@@ -963,15 +965,17 @@ void manapi::net::worker::TCP::conn_work_finish_(worker::shared_conn conn, bool 
                             if (data->status & CONN_KEEP_ALIVE) {
                                 data->status ^= CONN_KEEP_ALIVE;
 
-                                data->t.stop();
-                                data->t.clear();
+                                if (data->t) {
+                                    data->t.stop();
+                                    data->t.clear();
 
-                                data->t = nullptr;
+                                    data->t = nullptr;
+                                }
                             }
 
                             auto const w = this;
                             w->onaccept_event_(conn);
-                            w->feed_event(conn, flags, buffer, nsize);
+                            w->feed_event(conn, flags, buffer, nsize, p);
                         }
                 }));
             this->event_flags(conn, ev::READ);

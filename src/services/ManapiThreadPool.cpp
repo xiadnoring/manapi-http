@@ -6,6 +6,7 @@
 #include <future>
 #include <stacktrace>
 
+#include "ManapiAsync.hpp"
 #include "ManapiDebug.hpp"
 #include "services/ManapiTask.hpp"
 #include "services/ManapiTaskFunction.hpp"
@@ -175,6 +176,7 @@ namespace manapi {
             }
             else
             {
+                manapi::async::internal::current_stack_cnt = 0;
                 task_doit(std::move(task), this->logger_.get());
             }
         }
@@ -198,6 +200,7 @@ namespace manapi {
         auto task = std::move(this->tasks.front());
         this->tasks.pop_front();
 
+        manapi::async::internal::current_stack_cnt = 0;
         task_doit(std::move(task), this->logger_.get());
         return true;
     }

@@ -241,7 +241,7 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
             -> void {
             auto cb = std::make_unique<worker::worker_watcher_cb>(
                 [worker, req, resolve = std::move(resolve), reject = std::move(reject), handler = std::move(handler)] (
-                const worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize) mutable -> void {
+                const worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, worker::ibuffpool_t *p) mutable -> void {
                     if (flags & ev::DISCONNECT) {
                         reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(
                             manapi::ERR_HTTP_CONNECTION_WAS_CLOSED, manapi::error::default_msgs[manapi::error::ERRMSG_CONNECTION_WAS_CLOSED])));
@@ -313,7 +313,7 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
             pflags = worker->event_flags(*conn, ev::READ);
 
             if (req->buffer) {
-                cb->operator()(*conn, ev::READ, req->buffer->data(), req->buffer->size());
+                cb->operator()(*conn, ev::READ, req->buffer->data(), req->buffer->size(), &req->buffer);
                 req->buffer = {};
             }
 
@@ -346,7 +346,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
             -> void {
             auto cb = std::make_unique<worker::worker_watcher_cb>(
                 [worker, req, resolve = std::move(resolve), reject = std::move(reject), handler = std::move(handler)] (
-                const worker::shared_conn & conn, int flags, const char * buffer, ssize_t nsize) mutable -> void {
+                const worker::shared_conn & conn, int flags, const char * buffer, ssize_t nsize, worker::ibuffpool_t *p) mutable -> void {
                     if (flags & ev::DISCONNECT) {
                         reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(
                             manapi::ERR_HTTP_CONNECTION_WAS_CLOSED, manapi::error::default_msgs[manapi::error::ERRMSG_CONNECTION_WAS_CLOSED])));
@@ -354,7 +354,21 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                     }
                     if (flags & ev::READ) {
                         worker->event_flags(conn, 0);
-                        manapi::async::run ([&] () -> manapi::future<> {
+                        worker::ibuffpool_t buff;
+
+                        if (!p) {
+                            buff = worker->bufferpool()->get();
+                            buff->resize(nsize);
+                            memcpy (buff->data(), buffer, nsize);
+
+                            p = &buff;
+                        }
+
+                        assert(!((*p)->empty()));
+
+                        manapi::async::run (manapi::async::invoke(
+                            [] (const worker::shared_conn & conn, worker::ibuffpool_t p, const char * buffer, ssize_t nsize, request_data_t *req, net::worker::base *worker,
+                                promise::resolve_t &resolve, promise::reject_t &reject, decltype(handler) &handler) -> manapi::future<> {
                             ssize_t size;
 
                             if (req->body_size >= 0)
@@ -404,7 +418,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                             finish: {
                                 worker->event_flags(conn, 0);
                             }
-                        }, [conn, worker, reject] (std::exception_ptr err) -> void {
+                        }, conn, std::move(*p), buffer, nsize, req, worker, resolve, reject, handler), [conn, worker, reject] (std::exception_ptr err) -> void {
                             if (err) {
                                 std::string msg;
                                 manapi::rethrow_exception_ptr(std::move(err), nullptr, &msg, nullptr);
@@ -431,7 +445,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
             pflags = worker->event_flags(*conn, ev::READ);
 
             if (req->buffer) {
-                cb->operator()(*conn, ev::READ, req->buffer->data(), req->buffer->size());
+                cb->operator()(*conn, ev::READ, req->buffer->data(), req->buffer->size(), &req->buffer);
                 req->buffer = {};
             }
 

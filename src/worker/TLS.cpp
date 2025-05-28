@@ -172,7 +172,7 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) {
             this, conn)) {
             case http::EHTTP_V1_1_CHUNKED_OK: {
                 data->status |= CONN_RECV_END;
-                this->feed_event(conn, CONN_RECV_END, nullptr, 0);
+                this->feed_event(conn, CONN_RECV_END, nullptr, 0, nullptr);
                 break;
             }
             case http::EHTTP_V1_1_CHUNKED_ERR: {
@@ -189,7 +189,7 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) {
     }
 
     if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
-        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0);
+        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
     }
 
     return prev;
@@ -368,7 +368,7 @@ void manapi::net::worker::TLS::accept_work_(const shared_conn &conn, int flags, 
         auto http_v1_1_ctx = std::make_unique<http::http_v1_1_t>();
         this->event_on(conn,
             std::make_unique<worker_watcher_cb>([this, http_v1_1_ctx = std::move(http_v1_1_ctx)]
-            (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize) mutable
+            (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
             -> void {
                 this->http_work_ (http_v1_1_ctx.get(), conn, flags, buffer, nsize);
         }));
@@ -560,7 +560,9 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
             if (cnt)
                 (*cnt)--;
 
-            tcp_handle_read_data (conn, data, ev::READ, object->data(), object->size());
+            if (!object->empty()) {
+                tcp_handle_read_data (conn, data, ev::READ, object->data(), object->size(), &object);
+            }
         }
 
         return CONN_IO_OK;

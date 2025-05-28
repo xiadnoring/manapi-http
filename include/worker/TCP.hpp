@@ -60,7 +60,7 @@ namespace manapi::net::worker {
 
         void stop(std::function<void()> cb) override;
 
-        void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size) override;
+        void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) override;
 
         ssize_t sync_write_ex(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt);
 
@@ -75,7 +75,7 @@ namespace manapi::net::worker {
     protected:
         virtual void flush_write_ (const shared_conn &connection, bool flush = false);
 
-        void tcp_handle_read_data (const shared_conn &conn, connection_interface *data, int flags, const char *buffer, ssize_t size);
+        void tcp_handle_read_data (const shared_conn &conn, connection_interface *data, int flags, const char *buffer, ssize_t size, ibuffpool_t *p);
 
         void update_limit_rate ();
 

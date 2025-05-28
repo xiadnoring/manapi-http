@@ -7,10 +7,10 @@ manapi::net::worker::http_v2::http_v2(net::http::site site, bufferpool_t bufferp
 
 manapi::net::worker::http_v2::~http_v2() = default;
 
-void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size) {
+void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) {
     auto const data = conn->as<http::http_v2_stream_t>();
     if (data->ev_callback) {
-        data->ev_callback->operator()(conn, flags, buff, size);
+        data->ev_callback->operator()(conn, flags, buff, size, p);
     }
 }
 
@@ -23,7 +23,7 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, bool clean
     data->flags |= http::HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_REMOVED;
 
     if (data->ev_callback) {
-        data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0);
+        data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0, nullptr);
     }
 
     conn->cancellation.cancel();
@@ -58,10 +58,10 @@ int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flag
     }
     auto const prev = std::exchange(data->flags, ((data->flags >> 2) << 2) | flags);
     if ((data->flags & http::HTTP2_STREAM_CLOSED) && flags && data->ev_callback) {
-        data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0);
+        data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0, nullptr);
     }
     if ((data->flags & CONN_RECV_END) && (flags & ev::READ) && data->ev_callback) {
-        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0);
+        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
     }
     return prev;
 }

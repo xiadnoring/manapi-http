@@ -53,6 +53,7 @@ namespace manapi::ext::pq {
 
         connection () {
             this->conn = nullptr;
+            this->timeoutms_ = 5000;
         }
 
         ~connection () = default;

@@ -166,13 +166,13 @@ void manapi::timerpool::start_(const std::shared_ptr<data_t> &data) {
             break;
         }
 
-        auto &task = sorted_task->second;
 
 
-        if (task->flags & timer::TIMER_TASK_ACTIVE) {
+        if (sorted_task->second->flags & timer::TIMER_TASK_ACTIVE) {
+            auto exdata = data->sorted_tasks.extract(sorted_task);
+            auto &task = exdata.value().second;
 
             manapi::timer timertask  (task);
-            sorted_task = data->sorted_tasks.erase(sorted_task);
 
             task->flags ^= timer::TIMER_TASK_ACTIVE;
 

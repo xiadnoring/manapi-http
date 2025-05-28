@@ -20,6 +20,7 @@ namespace manapi {
         extern size_t max_stack_depth;
 
         namespace internal {
+            static thread_local std::size_t current_stack_cnt = 0;
             static thread_local std::shared_ptr<cthread> current_cthread_ = nullptr;
             const std::shared_ptr<threadpool<task>> &ethreadpool_(const std::shared_ptr<cthread> &ctx);
         }
@@ -37,7 +38,6 @@ namespace manapi {
             this->exception = std::current_exception();
         }
 
-        int stack_deepth = 0;
         std::coroutine_handle<> waiting;
         std::exception_ptr exception;
     };
@@ -178,13 +178,11 @@ namespace manapi {
                 auto &promise = this->handle.promise();
                 auto &npromise = handle.promise();
 
-                promise.stack_deepth = ++npromise.stack_deepth;
                 promise.waiting = handle;
 
-                if (promise.stack_deepth >= async::max_stack_depth) {
+                if (async::internal::current_stack_cnt >= async::max_stack_depth) {
                     auto &thr = manapi::async::current();
                     if (thr) {
-                        promise.stack_deepth = 0;
                         async::internal::ethreadpool_(thr)->append_task([handle = this->handle] () -> void {
                              handle.resume();
                         });
@@ -193,6 +191,7 @@ namespace manapi {
                     return;
                 }
 
+                async::internal::current_stack_cnt++;
                 this->handle.resume();
             }
 

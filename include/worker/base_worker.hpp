@@ -39,7 +39,7 @@ namespace manapi::net::worker {
 
     typedef std::shared_ptr<worker::connection> shared_conn;
     typedef object_item_pool<bytebuffer, std::size_t> ibuffpool_t;
-    typedef std::move_only_function<void(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize)> worker_watcher_cb;
+    typedef std::move_only_function<void(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)> worker_watcher_cb;
 
     enum net_worker_flags {
         NET_WORKER_CLOSED = 1
@@ -127,7 +127,7 @@ namespace manapi::net::worker {
 
         virtual int event_flags (const shared_conn & conn) = 0;
 
-        virtual void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size) = 0;
+        virtual void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) = 0;
 
         void event_toggle (const shared_conn & conn, bool state, int flag);
 

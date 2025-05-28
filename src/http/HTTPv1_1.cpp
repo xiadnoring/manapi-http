@@ -535,7 +535,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::
                 auto const copy = std::min(size - pos, static_cast<ssize_t>(ctx->left));
                 if (copy) {
                     if (worker->event_flags(conn) & ev::READ) {
-                        worker->feed_event(conn, ev::READ, buffer + pos, copy);
+                        worker->feed_event(conn, ev::READ, buffer + pos, copy, nullptr /* no way :( */);
                     }
                     else {
                         worker::base::connection_io_send(&ctx->top, buffer + pos, copy,
@@ -590,7 +590,7 @@ int manapi::net::http::http_v1_1_chunked_flush(http_v1_1_chunked_t *ctx, worker:
                 ctx->top.deque_current = 0;
             }
 
-            worker->feed_event(conn, ev::READ, obj->data(), obj->size());
+            worker->feed_event(conn, ev::READ, obj->data(), obj->size(), &obj /* yay */);
         }
         else {
             return EHTTP_V1_1_CHUNKED_WAIT;
