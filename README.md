@@ -1,4 +1,4 @@
-# Manapi HTTP Server/Client
+# Manapi Http Server/Client
 
 ## Introduction
 HTTP server written on C++ which support HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC)
