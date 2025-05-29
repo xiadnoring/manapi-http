@@ -188,6 +188,15 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) {
         }
     }
 
+    if (status & ev::READ) {
+        flush_read_ (conn, data);
+
+        if (status & ev::READ
+            && !(status & (CONN_CLOSED|CONN_REMOVED)) && !data->watcher->is_active()) {
+            data->watcher->read_start();
+        }
+    }
+
     if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
         data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
     }
@@ -542,7 +551,8 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
     auto data = conn->as<connection_interface>();
 
     try {
-        while (top->last_deque) {
+        while (top->last_deque
+            && data->status & ev::READ) {
             auto object = std::move(top->deque->buffer);
             top->deque = std::move(top->deque->next);
 
@@ -563,6 +573,11 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
             if (!object->empty()) {
                 tcp_handle_read_data (conn, data, ev::READ, object->data(), object->size(), &object);
             }
+        }
+
+        if (data->status & ev::READ
+            && !(data->status & CONN_CLOSED|CONN_REMOVED) && !data->watcher->is_active()) {
+            data->watcher->read_start();
         }
 
         return CONN_IO_OK;

@@ -416,23 +416,11 @@ std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::TCP
 int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
     auto const data = conn->as<connection_interface>();
     auto &status = data->status;
-    if ((flags & ev::READ)) {
-        if (!(status & (ev::READ|ev::DISCONNECT)) && !data->watcher->is_active()) {
-            assert(!data->watcher->read_start());
-        }
-    }
-    else {
-        if ((status & ev::READ ) && !(status & ev::DISCONNECT) && data->watcher->is_active()) {
-            assert(!data->watcher->read_stop());
-        }
-    }
+
 
     data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
-    auto const prev = std::exchange(status, ((status >> 2) << 2) | flags);
 
-    if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
-        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
-    }
+    auto const prev = std::exchange(status, ((status >> 2) << 2) | flags);
 
     if (status & CONN_HTTP_1_1_CHUNKED && status & ev::READ) {
         /* flush chunked data */
@@ -454,6 +442,23 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
                 break;
             }
         }
+    }
+
+    if ((status & ev::READ)) {
+        flush_read_ (conn, data);
+
+        if (!(prev & (ev::READ|ev::DISCONNECT)) && !data->watcher->is_active()) {
+            assert(!data->watcher->read_start());
+        }
+    }
+    else {
+        if ((prev & ev::READ ) && !(prev & ev::DISCONNECT) && data->watcher->is_active()) {
+            assert(!data->watcher->read_stop());
+        }
+    }
+
+    if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
+        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
     }
 
     return prev;
@@ -516,6 +521,34 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
 
     if (flg) {
 
+    }
+}
+
+void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_interface *data) {
+    if (data->top->recv_size) {
+        while (data->top->recv.last_deque
+            && (data->status & ev::READ)
+            && data->ev_callback) {
+            auto object = std::move(data->top->recv.deque->buffer);
+            data->top->recv.deque = std::move(data->top->recv.deque->next);
+
+            if (!data->top->recv.deque) {
+                data->top->recv.last_deque = nullptr;
+                object->resize(data->top->recv.deque_cursor);
+                data->top->recv.deque_cursor = 0;
+            }
+
+            if (data->top->recv.deque_current) {
+                object->shift_add(data->top->recv.deque_current);
+                data->top->recv.deque_current = 0;
+            }
+
+            data->top->recv_size--;
+
+            if (!object->empty()) {
+                tcp_handle_read_data(conn, data, ev::READ, object->data(), object->size(), &object);
+            }
+        }
     }
 }
 
@@ -791,15 +824,6 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
             switch (http::http_v1_1_work(http_v1_1_ctx, this->config_, &buff, &size)) {
                 case http::EHTTP_V1_1_PROTOCOL_OK: {
                     auto req_ptr = http_v1_1_ctx->req.get();
-                    if (size) {
-                        auto buffer = this->bufferpool()->get();
-
-                        buffer->resize(size);
-                        memcpy (buffer->data(), buff, size);
-
-                        req_ptr->buffer = std::move(buffer);
-                        req_ptr->buffer->shift_add(static_cast<int>(req_ptr->buffer->size() - size));
-                    }
 
                     auto it_header = req_ptr->headers.find(http::HEADER.EXPECT);
                     if (it_header != req_ptr->headers.end()) {

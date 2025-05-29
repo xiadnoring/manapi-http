@@ -88,7 +88,8 @@ struct http_v2_goaway_t {
 
 static constexpr char smlabel[] = "\r\n\r\nSM\r\n";
 static constexpr int maxcnt = 1e9;
-
+static constexpr int conn_max_window_hlf = 2000000 / 2;
+static constexpr int conn_min_stream_summary = 400000;
 
 std::map <int, manapi::json_mask> allow_settings {
         {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
@@ -342,6 +343,7 @@ int http_v2_flush_recv (const manapi::net::worker::shared_conn &conn, manapi::ne
     while (s->recv->last_deque && (s->flags & manapi::ev::READ)) {
         auto b = std::move(s->recv->deque->buffer);
         s->recv->deque = std::move(s->recv->deque->next);
+        s->recv_size--;
 
         if (!s->recv->deque) {
             s->recv->last_deque = nullptr;
@@ -415,6 +417,38 @@ int manapi::net::http::http_v2_on_write(http_v2_t *ctx) {
     }
 
     return 0;
+}
+
+int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi::net::http::http_v2_stream_t *s) {
+    auto ssw = (s->recv_size + 1) * s->ctx->worker->config()->buffer_size;
+    ssw = std::max(static_cast<ssize_t>(0),
+        static_cast<ssize_t>(conn_min_stream_summary - ssw));
+
+    if (s->read_window < ssw) {
+        const auto allow = static_cast<int>(ssw - s->read_window);
+        if (http_v2_send_window_frame(s->ctx, s->id,
+            allow)) {
+            return -1;
+            }
+        s->read_window += allow;
+    }
+
+    if (s->ctx->read_window <= conn_max_window_hlf) {
+        const auto allow = conn_max_window_hlf + conn_max_window_hlf - s->ctx->read_window;
+        if (http_v2_send_window_frame(s->ctx, 0,
+            allow)) {
+            return -1;
+            }
+        s->ctx->read_window += allow;
+    }
+    return 0;
+}
+
+int manapi::net::http::http_v2_on_read_stream(const worker::shared_conn &conn, http_v2_stream_t *s) {
+    if (http_v2_flush_recv (conn, s)) {
+        return -1;
+    }
+    return http_v2_process_window (conn, s);
 }
 
 int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize) {
@@ -1033,29 +1067,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         ctx->read_window -= static_cast<int> (datasize);
 
 
-                        static constexpr int conn_max_window_hlf = 2000000 / 2;
-                        static constexpr int conn_min_stream_summary = 400000;
-
-                        auto ssw = (sdata->recv_size + 1) * config->buffer_size;
-                        ssw = std::max(static_cast<ssize_t>(0),
-                            static_cast<ssize_t>(conn_min_stream_summary - ssw));
-
-                        if (sdata->read_window <= ssw) {
-                            const auto allow = static_cast<int>(ssw - sdata->read_window);
-                            if (http_v2_send_window_frame(ctx, sdata->id,
-                                allow)) {
-                                return EHTTP_V2_PROTOCOL_ERROR;
-                                }
-                            sdata->read_window += allow;
-                        }
-
-                        if (ctx->read_window <= conn_max_window_hlf) {
-                            const auto allow = conn_max_window_hlf + conn_max_window_hlf - ctx->read_window;
-                            if (http_v2_send_window_frame(ctx, 0,
-                                allow)) {
-                                return EHTTP_V2_PROTOCOL_ERROR;
-                                }
-                            ctx->read_window += allow;
+                        if (http_v2_process_window (s->second, sdata)) {
+                            return EHTTP_V2_PROTOCOL_ERROR;
                         }
 
                         sdata->transfered_k += static_cast<int> (datasize);
@@ -1084,15 +1097,15 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                         return EHTTP_V2_PROTOCOL_ERROR;
                                         }
 
-                                    if (sdata->recv_size >= config->max_buffer_stack) {
-                                        ctx->worker->event_toggle(ctx->conn, false, ev::READ);
-                                    }
+                                    // if (sdata->recv_size >= config->max_buffer_stack) {
+                                    //     ctx->worker->event_toggle(ctx->conn, false, ev::READ);
+                                    // }
                                 }
                             }
 
-                            if (sdata->recv_size < config->max_buffer_stack) {
-                                ctx->worker->event_toggle(ctx->conn, true, ev::READ);
-                            }
+                            // if (sdata->recv_size < config->max_buffer_stack) {
+                            //     ctx->worker->event_toggle(ctx->conn, true, ev::READ);
+                            // }
                         }
                     }
 

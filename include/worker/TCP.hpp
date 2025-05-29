@@ -75,6 +75,8 @@ namespace manapi::net::worker {
     protected:
         virtual void flush_write_ (const shared_conn &connection, bool flush = false);
 
+        void flush_read_ (const shared_conn &conn, connection_interface *data);
+
         void tcp_handle_read_data (const shared_conn &conn, connection_interface *data, int flags, const char *buffer, ssize_t size, ibuffpool_t *p);
 
         void update_limit_rate ();

@@ -109,7 +109,7 @@ namespace manapi::net::worker {
 
         static int gen_mint_token_ (char *dcid, size_t dcid_len, char *token, size_t *token_len, const sockaddr *sockaddr_src, const socklen_t &sockaddr_len);
 
-        int quiche_flush_egress_(const shared_conn &connection, connection_t *data);
+        int quiche_flush_egress_(connection_t *data);
 
         static void quiche_timeout_again_(connection_t *connection);
 

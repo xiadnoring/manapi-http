@@ -44,7 +44,7 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
 
 
     // set time
-    //res->header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
+    res->header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
     if (res->request_data()->http < versions::HTTP_v2) {
         auto const keepalive = cdata->worker->config()->keep_alive;
         if (keepalive) {

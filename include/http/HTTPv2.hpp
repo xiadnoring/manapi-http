@@ -121,6 +121,7 @@ namespace manapi::net::http {
     int http_v2_on_close (http_v2_t *ctx);
     int http_v2_on_close_stream (http_v2_t *ctx, int id);
     int http_v2_on_write (http_v2_t *ctx);
+    int http_v2_on_read_stream (const worker::shared_conn &conn, http_v2_stream_t *s);
     int http_v2_work (http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize);
     ssize_t http_v2_write (http_v2_stream_t *s, const void *buffer, ssize_t size, bool finish);
     int http_v2_rst_stream (http_v2_stream_t *s, int errcode);

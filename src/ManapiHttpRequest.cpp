@@ -5,6 +5,7 @@
 #include "ManapiHttpRequest.hpp"
 #include "ManapiJsonBuilder.hpp"
 #include "ManapiHttpMime.hpp"
+#include "async/ManapiAsyncParallelRun.hpp"
 #include "http/base_http.hpp"
 #include "http/ManapiURLParams.hpp"
 #include "include/ManapiDefaultErrors.hpp"
@@ -310,15 +311,10 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
                     }
             });
 
+            prev = worker->event_on(*conn, std::move(cb));
             pflags = worker->event_flags(*conn, ev::READ);
 
-            if (req->buffer) {
-                cb->operator()(*conn, ev::READ, req->buffer->data(), req->buffer->size(), &req->buffer);
-                req->buffer = {};
-            }
 
-
-            prev = worker->event_on(*conn, std::move(cb));
         });
     }
     catch (...) {
@@ -337,27 +333,47 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
 
 manapi::future<> manapi::net::http::request::read_async_body_(worker::base *worker, worker::shared_conn *conn, request_data_t *req, std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t)> handler) {
     using promise = manapi::async::promise<void, std::false_type>;
-    std::unique_ptr<worker::worker_watcher_cb> prev{nullptr};
-    int pflags;
+    using handler_t = decltype(handler);
+
+    struct ctx_cb_t_ {
+        net::worker::base *worker;
+        request_data_t *req;
+        promise::resolve_t resolve;
+        promise::reject_t reject;
+        worker::shared_conn conn;
+        handler_t handler;
+        std::unique_ptr<worker::worker_watcher_cb> prev{nullptr};
+        int pflags;
+        int cnt;
+        async::mutex mx;
+    } ctx_cb {};
+
+    ctx_cb.handler = std::move(handler);
+    ctx_cb.worker = worker;
+    ctx_cb.req = req;
+    ctx_cb.conn = *conn;
+
     std::exception_ptr err;
 
     try {
-        co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
+        co_await promise ([&ctx_cb] (promise::resolve_t resolve, promise::reject_t reject)
             -> void {
+            ctx_cb.resolve = std::move(resolve);
+            ctx_cb.reject = std::move(reject);
+
             auto cb = std::make_unique<worker::worker_watcher_cb>(
-                [worker, req, resolve = std::move(resolve), reject = std::move(reject), handler = std::move(handler)] (
+                [&ctx_cb] (
                 const worker::shared_conn & conn, int flags, const char * buffer, ssize_t nsize, worker::ibuffpool_t *p) mutable -> void {
                     if (flags & ev::DISCONNECT) {
-                        reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(
+                        ctx_cb.reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(
                             manapi::ERR_HTTP_CONNECTION_WAS_CLOSED, manapi::error::default_msgs[manapi::error::ERRMSG_CONNECTION_WAS_CLOSED])));
                         goto finish;
                     }
                     if (flags & ev::READ) {
-                        worker->event_flags(conn, 0);
                         worker::ibuffpool_t buff;
 
                         if (!p) {
-                            buff = worker->bufferpool()->get();
+                            buff = ctx_cb.worker->bufferpool()->get();
                             buff->resize(nsize);
                             memcpy (buff->data(), buffer, nsize);
 
@@ -366,90 +382,95 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
 
                         assert(!((*p)->empty()));
 
+                        ctx_cb.worker->event_flags(conn, 0);
+                        ctx_cb.cnt++;
                         manapi::async::run (manapi::async::invoke(
-                            [] (const worker::shared_conn & conn, worker::ibuffpool_t p, const char * buffer, ssize_t nsize, request_data_t *req, net::worker::base *worker,
-                                promise::resolve_t &resolve, promise::reject_t &reject, decltype(handler) &handler) -> manapi::future<> {
-                            ssize_t size;
+                            [] (const worker::shared_conn & conn, worker::ibuffpool_t p, const char * buffer, ssize_t nsize, ctx_cb_t_ &ctx_cb) -> manapi::future<> {
+                                auto lk = co_await ctx_cb.mx.lock_guard();
 
-                            if (req->body_size >= 0)
-                                size = std::min(req->body_size, static_cast<ssize_t> (nsize));
-                            else
-                                size = static_cast<ssize_t> (nsize);
+                                try {
 
-                            ssize_t rhs = 0;
-                            while (rhs < size) {
-                                auto const copy = size - rhs;
+                                    ssize_t size;
 
-                                auto const res = co_await handler (buffer + rhs, copy);
-                                if (res >= 0) {
-                                    if (copy > res) {
-                                        reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(
+                                    if (ctx_cb.req->body_size >= 0)
+                                        size = std::min(ctx_cb.req->body_size, static_cast<ssize_t> (nsize));
+                                    else
+                                        size = static_cast<ssize_t> (nsize);
+
+                                    ssize_t rhs = 0;
+                                    while (rhs < size) {
+                                        auto const copy = size - rhs;
+
+                                        auto const res = co_await ctx_cb.handler (buffer + rhs, copy);
+                                        if (res >= 0) {
+                                            if (copy > res) {
+                                                ctx_cb.reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(
+                                                    manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
+                                                goto finish;
+                                            }
+
+                                            rhs += res;
+
+                                            ctx_cb.req->body_size -= res;
+
+                                            continue;
+                                        }
+
+                                        ctx_cb.reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
                                             manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
                                         goto finish;
                                     }
 
-                                    rhs += res;
 
-                                    req->body_size -= res;
+                                    if (!ctx_cb.req->body_size) {
+                                        auto const copy = static_cast<int>(size - rhs);
+                                        if (copy) {
+                                            assert(ctx_cb.req->buffer == nullptr);
+                                            auto object = ctx_cb.worker->bufferpool()->get();
+                                            object->resize(size - copy);
+                                            memcpy (object->data(), buffer + copy, size - copy);
+                                            ctx_cb.req->buffer = std::move(object);
+                                        }
+                                        ctx_cb.resolve();
+                                        goto finish;
+                                    }
 
-                                    continue;
+
+                                    ctx_cb.worker->event_flags(conn, ev::READ);
+                                    ctx_cb.cnt--;
+                                    co_return;
+                                    finish: {
+                                        auto &ctx_cb_ = ctx_cb;
+                                        ctx_cb_.worker->event_flags(conn, 0);
+                                        ctx_cb_.worker->event_on(conn, nullptr);
+                                        ctx_cb_.cnt--;
+                                    }
                                 }
-                                reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
-                                    manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
-                                goto finish;
-                            }
-
-                            if (!req->body_size) {
-                                auto const copy = static_cast<int>(size - rhs);
-                                if (copy) {
-                                    assert(req->buffer == nullptr);
-                                    auto object = worker->bufferpool()->get();
-                                    object->resize(size - copy);
-                                    memcpy (object->data(), buffer + copy, size - copy);
-                                    req->buffer = std::move(object);
+                                catch (...) {
+                                    auto &ctx_cb_ = ctx_cb;
+                                    ctx_cb_.reject (std::current_exception());
+                                    ctx_cb_.worker->event_flags(conn, 0);
+                                    ctx_cb_.worker->event_on(conn, nullptr);
+                                    ctx_cb_.cnt--;
                                 }
-                                resolve();
-                                goto finish;
-                            }
-
-                            worker->event_flags(conn, ev::READ);
-
-                            co_return;
-                            finish: {
-                                worker->event_flags(conn, 0);
-                            }
-                        }, conn, std::move(*p), buffer, nsize, req, worker, resolve, reject, handler), [conn, worker, reject] (std::exception_ptr err) -> void {
-                            if (err) {
-                                std::string msg;
-                                manapi::rethrow_exception_ptr(std::move(err), nullptr, &msg, nullptr);
-                                reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
-                                    manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], msg)));
-                                worker->event_flags(conn, 0);
-                            }
-                        });
+                        }, ctx_cb.conn, std::move(*p), buffer, nsize, ctx_cb));
                     }
                     else if (flags & worker::base::CONN_RECV_END) {
-                        resolve();
+                        ctx_cb.resolve();
                         goto finish;
                     }
 
                     return;
                     finish: {
-                        auto const wrk_ = worker;
+                        auto const wrk_ = ctx_cb.worker;
 
                         wrk_->event_on(conn, nullptr);
                         wrk_->event_flags(conn, 0);
                     }
             });
 
-            pflags = worker->event_flags(*conn, ev::READ);
-
-            if (req->buffer) {
-                cb->operator()(*conn, ev::READ, req->buffer->data(), req->buffer->size(), &req->buffer);
-                req->buffer = {};
-            }
-
-            prev = worker->event_on(*conn, std::move(cb));
+            ctx_cb.prev = ctx_cb.worker->event_on(ctx_cb.conn, std::move(cb));
+            ctx_cb.pflags = ctx_cb.worker->event_flags(ctx_cb.conn, ev::READ);
 
 
         });
@@ -458,9 +479,17 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
         err = std::current_exception();
     }
 
-    if (prev) {
-        worker->event_on(*conn, std::move(prev));
-        worker->event_flags(*conn, pflags);
+    while (true) {
+        auto lk = co_await ctx_cb.mx.lock_guard();
+        if (ctx_cb.cnt) {
+            continue;
+        }
+        break;
+    }
+
+    if (ctx_cb.prev) {
+        worker->event_on(ctx_cb.conn, std::move(ctx_cb.prev));
+        worker->event_flags(ctx_cb.conn, ctx_cb.pflags);
     }
 
     if (err) {
