@@ -44,56 +44,65 @@ namespace manapi::ext::pq {
     };
 
     class connection {
-    public:
         struct pgconn_deleter {
             void operator()(PGconn *p) {
                 PQfinish(p);
             }
         };
 
+        struct data_t {
+            async::cancellation_action cancellation{nullptr};
+            std::move_only_function<manapi::future<>(notification notify)> notify_cb_{nullptr};
+            ssize_t timeoutms_;
+            bool init_{true};
+            manapi::fd_t fd_{-1};
+            std::unique_ptr<PGconn, pgconn_deleter> conn{nullptr};
+            async::mutex mx;
+        };
+    public:
         connection () {
-            this->conn = nullptr;
-            this->timeoutms_ = 5000;
+            this->data_ = std::make_shared<data_t>(nullptr,
+                nullptr, 5000, true, -1, nullptr);
         }
 
         ~connection () = default;
 
         manapi::future<> connect (std::string_view uri) {
-            if (std::exchange(this->init_, false)) {
-                this->conn.reset(PQconnectStart(uri.data()));
+            if (std::exchange(this->data_->init_, false)) {
+                this->data_->conn.reset(PQconnectStart(uri.data()));
 
-                if (PQstatus(this->conn.get()) == CONNECTION_BAD) {
+                if (PQstatus(this->data_->conn.get()) == CONNECTION_BAD) {
                     THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "Connection bad");
                 }
 
-                if (PQsetnonblocking(this->conn.get(), 1)) {
+                if (PQsetnonblocking(this->data_->conn.get(), 1)) {
                     THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "set non-blocing failure");
                 }
 
                 PQsetNoticeProcessor(
-                    this->conn.get(), +[](void *, const char *) -> void{}, nullptr);
+                    this->data_->conn.get(), +[](void *, const char *) -> void{}, nullptr);
 
-                this->fd_ = PQsocket(this->conn.get());
+                this->data_->fd_ = PQsocket(this->data_->conn.get());
 
                 while (true) {
-                    auto ret = PQconnectPoll(this->conn.get());
+                    auto ret = PQconnectPoll(this->data_->conn.get());
 
-                    this->cancellation.reset();
+                    this->data_->cancellation.reset();
 
-                    if (this->timeoutms_) {
-                        this->cancellation.timeout(this->timeoutms_);
+                    if (this->data_->timeoutms_) {
+                        this->data_->cancellation.timeout(this->data_->timeoutms_);
                     }
 
                     switch (ret) {
                         case PGRES_POLLING_READING:
-                            this->fd_ = PQsocket(this->conn.get());
-                            if (-1 == co_await async::read_ready(this->fd_, manapi::async::cancellation_action::unit(this->cancellation))) {
+                            this->data_->fd_ = PQsocket(this->data_->conn.get());
+                            if (-1 == co_await async::read_ready(this->data_->fd_, manapi::async::cancellation_action::unit(this->data_->cancellation))) {
                                 THROW_MANAPIHTTP_EXCEPTION2(ERR_CONNECTION_TIMEOUT, "postgre: timeout was reached (read)");
                             }
                         continue;
                         case PGRES_POLLING_WRITING:
-                            this->fd_ = PQsocket(this->conn.get());
-                            if (-1 == co_await async::write_ready(this->fd_, manapi::async::cancellation_action::unit(this->cancellation))) {
+                            this->data_->fd_ = PQsocket(this->data_->conn.get());
+                            if (-1 == co_await async::write_ready(this->data_->fd_, manapi::async::cancellation_action::unit(this->data_->cancellation))) {
                                 THROW_MANAPIHTTP_EXCEPTION2(ERR_CONNECTION_TIMEOUT, "postgre: timeout was reached (write)");
                             }
                         continue;
@@ -115,28 +124,34 @@ namespace manapi::ext::pq {
         }
 
         manapi::future<pq::result> exec (std::string_view sql) {
-            this->_check_conn();
-            if (!PQsendQueryParams(this->conn.get(), sql.data(), 0, nullptr, nullptr, nullptr, nullptr, 1)) {
+            this->check_conn_();
+
+            auto lk = co_await this->data_->mx.lock_guard();
+
+            if (!PQsendQueryParams(this->data_->conn.get(), sql.data(), 0, nullptr, nullptr, nullptr, nullptr, 1)) {
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "send the query failed");
             }
 
-            return this->generic_single_result_query();
+            co_return co_await this->generic_single_result_query();
         }
 
         template<typename ...Args>
         manapi::future<pq::result> exec (std::string_view sql, Args &&...args) {
-            this->_check_conn();
+            this->check_conn_();
+
+            auto lk = co_await this->data_->mx.lock_guard();
+
             std::string buffer;
             auto [t, v, l, f] = pq::serialize(buffer, std::make_tuple(args...));
-            if (!PQsendQueryParams(this->conn.get(), sql.data(), t.size(), t.data(), v.data(), l.data(), f.data(), 1)) {
+            if (!PQsendQueryParams(this->data_->conn.get(), sql.data(), t.size(), t.data(), v.data(), l.data(), f.data(), 1)) {
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "send query failed");
             }
 
-            co_return std::move(co_await this->generic_single_result_query());
+            co_return co_await this->generic_single_result_query();
         }
 
         std::string esc (std::string_view text) {
-            this->_check_conn();
+            this->check_conn_();
             std::string buff;
             buff.resize(text.size() * 2 + 1);
             const auto copied = this->esc_to_buff(text, buff.data());
@@ -145,24 +160,24 @@ namespace manapi::ext::pq {
         }
 
         void close () {
-            this->conn.reset();
-            this->init_ = false;
+            this->data_->conn.reset();
+            this->data_->init_ = false;
         }
 
-        void notify_cb (std::function<manapi::future<>(notification notify)> cb) {
-            this->notify_cb_ = std::move(cb);
+        void notify_cb (std::move_only_function<manapi::future<>(notification notify)> cb) {
+            this->data_->notify_cb_ = std::move(cb);
         }
 
         void timeout (ssize_t ms) {
-            this->timeoutms_ = ms;
+            this->data_->timeoutms_ = ms;
         }
 
         [[nodiscard]] ssize_t timeout () const {
-            return this->timeoutms_;
+            return this->data_->timeoutms_;
         }
     private:
-        void _check_conn () const {
-            if (this->conn) {
+        void check_conn_ () const {
+            if (this->data_->conn) {
                 return;
             }
 
@@ -171,7 +186,7 @@ namespace manapi::ext::pq {
         size_t esc_to_buff (std::string_view text, char *buff) {
             int err{0};
             auto const copied{
-                PQescapeStringConn(this->conn.get(), buff, text.data(), text.size(), &err)};
+                PQescapeStringConn(this->data_->conn.get(), buff, text.data(), text.size(), &err)};
             if (err) {
                 THROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_ERROR, "PQescapeStringConn failed");
             }
@@ -179,7 +194,7 @@ namespace manapi::ext::pq {
         }
 
         future<> flush () {
-            auto rhs = PQflush(this->conn.get());
+            auto rhs = PQflush(this->data_->conn.get());
             if (rhs == -1) {
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "flush failed");
             }
@@ -188,22 +203,22 @@ namespace manapi::ext::pq {
                 co_return;
             }
 
-            this->cancellation.reset();
-            if (this->timeoutms_) {
-                this->cancellation.timeout(this->timeoutms_);
+            this->data_->cancellation.reset();
+            if (this->data_->timeoutms_) {
+                this->data_->cancellation.timeout(this->data_->timeoutms_);
             }
 
             int revents = ev::READ|ev::WRITE;
 
             while (true) {
                 if (revents & ev::READ) {
-                    if (!PQconsumeInput(this->conn.get())) {
+                    if (!PQconsumeInput(this->data_->conn.get())) {
                         THROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_ERROR, "Consume input error");
                     }
                 }
 
                 if (revents & ev::WRITE) {
-                    auto rhs = PQflush(this->conn.get());
+                    auto rhs = PQflush(this->data_->conn.get());
                     if (rhs == -1) {
                         THROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_ERROR, "flush failed");
                     }
@@ -214,8 +229,8 @@ namespace manapi::ext::pq {
                     }
                 }
 
-                if (-1 == (revents = co_await async::custom_ready(ev::READ|ev::WRITE, PQsocket(this->conn.get()),
-                    manapi::async::cancellation_action::unit(this->cancellation)))) {
+                if (-1 == (revents = co_await async::custom_ready(ev::READ|ev::WRITE, PQsocket(this->data_->conn.get()),
+                    manapi::async::cancellation_action::unit(this->data_->cancellation)))) {
                     THROW_MANAPIHTTP_EXCEPTION2 (ERR_CONNECTION_TIMEOUT, "postgre: Timeout was reached");
                 }
             }
@@ -232,30 +247,30 @@ namespace manapi::ext::pq {
             auto sqlstate = result.sqlstate();
 
             if (err != error_code::RESULT_STATUS_OK) {
-                throw pq::sqlexception (sqlstate, PQerrorMessage(this->conn.get()));
+                throw pq::sqlexception (sqlstate, PQerrorMessage(this->data_->conn.get()));
             }
 
             co_return std::move(result);
         }
         future<pq::result> receive_result () {
-            while (PQisBusy(this->conn.get())) {
-                if (!PQconsumeInput(this->conn.get())) {
+            while (PQisBusy(this->data_->conn.get())) {
+                if (!PQconsumeInput(this->data_->conn.get())) {
                     THROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_ERROR, "Consume input failed");
                 }
-                if (!PQisBusy(this->conn.get())) {
+                if (!PQisBusy(this->data_->conn.get())) {
                     break;
                 }
-                this->fd_ = PQsocket(this->conn.get());
-                this->cancellation.reset();
-                if (this->timeoutms_) {
-                    this->cancellation.timeout(this->timeoutms_);
+                this->data_->fd_ = PQsocket(this->data_->conn.get());
+                this->data_->cancellation.reset();
+                if (this->data_->timeoutms_) {
+                    this->data_->cancellation.timeout(this->data_->timeoutms_);
                 }
-                if (-1 == co_await async::read_ready(this->fd_, manapi::async::cancellation_action::unit(this->cancellation))) {
+                if (-1 == co_await async::read_ready(this->data_->fd_, manapi::async::cancellation_action::unit(this->data_->cancellation))) {
                     THROW_MANAPIHTTP_EXCEPTION2 (ERR_CONNECTION_TIMEOUT, "postgre: timeout was reached (read)");
                 }
             }
 
-            auto res = pq::result {PQgetResult(this->conn.get())};
+            auto res = pq::result {PQgetResult(this->data_->conn.get())};
             co_await this->receive_notifications();
 
             co_return std::move(res);
@@ -281,34 +296,29 @@ namespace manapi::ext::pq {
         }
 
         [[nodiscard]] PGconn * native_handle () const {
-            this->_check_conn();
-            return this->conn.get();
+            this->check_conn_();
+            return this->data_->conn.get();
         }
 
         [[nodiscard]] bool connected () const {
-            return this->conn && PQstatus(this->conn.get()) == ConnStatusType::CONNECTION_OK;
+            return this->data_->conn && PQstatus(this->data_->conn.get()) == ConnStatusType::CONNECTION_OK;
         }
 
         manapi::future<> receive_notifications () {
 
             while (true) {
-                notification notify {PQnotifies(this->conn.get())};
+                notification notify {PQnotifies(this->data_->conn.get())};
                 if (!notify) {
                     break;
                 }
 
-                if (this->notify_cb_) {
-                    co_await this->notify_cb_(std::move(notify));
+                if (this->data_->notify_cb_) {
+                    co_await this->data_->notify_cb_(std::move(notify));
                 }
             }
             co_return;
         }
 
-        async::cancellation_action cancellation{nullptr};
-        std::function<manapi::future<>(notification notify)> notify_cb_{nullptr};
-        ssize_t timeoutms_;
-        bool init_{true};
-        int fd_{-1};
-        std::unique_ptr<PGconn, pgconn_deleter> conn{nullptr};
+        std::shared_ptr<data_t> data_;
     };
 };

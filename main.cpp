@@ -53,7 +53,7 @@ int main () {
     manapi::net::http::server_ctx server_ctx;
 
     GCTX_OBJ->run(GCTX_OBJ, loops, [&a, server_ctx] (const std::function<void()> &bind) -> void {
-        auto db = std::make_shared<manapi::ext::pq::connection>();
+        manapi::ext::pq::connection db;
         manapi::net::http::server router (server_ctx);
 
         router.GET ("/", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
@@ -234,16 +234,15 @@ int main () {
         //
         router.GET("/", FOLDER);
 
-        router.GET("/pq/[id]", [db, mx = manapi::async::mutex()](manapi::net::http::request& req, manapi::net::http::response& resp) mutable
+        router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable
             -> manapi::future<> {
-            auto lk = co_await mx.lock_guard();
             try {
-                auto res1 = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
+                auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
             }
             catch (...) {
                 /* already exists */
             }
-            auto res = co_await db->exec("SELECT * FROM for_test;");
+            auto res = co_await db.exec("SELECT * FROM for_test;");
 
             std::string content = "b";
             for (const auto &row: res) {
@@ -254,7 +253,7 @@ int main () {
         });
 
         manapi::async::run([router, db] () mutable -> manapi::future<> {
-            co_await db->connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
+            co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
 
             co_await router.config("./config.json");
             co_await router.start();

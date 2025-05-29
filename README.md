@@ -102,7 +102,7 @@ int main () {
     std::atomic<int> cnt = 0;
     manapi::async::context::run(ctx, 4, [&cnt] (std::function<void> bind) -> void {
         manapi::net::http::server router; 
-        auto db = std::make_shared<manapi::ext::pq::connection>(GCTX_OBJ);
+        manapi::ext::pq::connection db;
 
         router.GET ("/", [&cnt] (manapi::net::http::req &req, manapi::net::http::resp &resp) mutable -> manapi::future<> {
             co_return resp.text(std::format("Hello World! Count: {}", cnt.fetch_add(1)));
@@ -160,15 +160,14 @@ int main () {
             co_return resp.text("10sec");
         });
         
-        router.GET("/pq/[id]", [db, mx = manapi::async::mutex()](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
-            auto lk = co_await mx.lock_guard();
+        router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
             try {
-                auto res1 = co_await db->exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
+                auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
             }
             catch (...) {
                 /* already exists or maybe not... */
             }
-            auto res = co_await db->exec("SELECT * FROM for_test;");
+            auto res = co_await db.exec("SELECT * FROM for_test;");
 
             std::string content = "b";
             for (const auto &row: res) {
@@ -179,7 +178,7 @@ int main () {
         });
     
         manapi::async::run([router, db] () -> manapi::future<> {
-            co_await db->connect("127.0.0.1", "7879", "development", "password", "db");
+            co_await db.connect("127.0.0.1", "7879", "development", "password", "db");
             co_await router.config_object({
                 {"pools", manapi::json::array({
                     {
