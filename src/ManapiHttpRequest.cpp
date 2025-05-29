@@ -378,6 +378,9 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                             memcpy (buff->data(), buffer, nsize);
 
                             p = &buff;
+
+                            buffer = buff->data();
+                            nsize = buff->size();
                         }
 
                         assert(!((*p)->empty()));
@@ -386,8 +389,6 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                         ctx_cb.cnt++;
                         manapi::async::run (manapi::async::invoke(
                             [] (const worker::shared_conn & conn, worker::ibuffpool_t p, const char * buffer, ssize_t nsize, ctx_cb_t_ &ctx_cb) -> manapi::future<> {
-                                auto lk = co_await ctx_cb.mx.lock_guard();
-
                                 try {
 
                                     ssize_t size;
@@ -434,24 +435,23 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                         ctx_cb.resolve();
                                         goto finish;
                                     }
-
-
-                                    ctx_cb.worker->event_flags(conn, ev::READ);
-                                    ctx_cb.cnt--;
-                                    co_return;
-                                    finish: {
-                                        auto &ctx_cb_ = ctx_cb;
-                                        ctx_cb_.worker->event_flags(conn, 0);
-                                        ctx_cb_.worker->event_on(conn, nullptr);
-                                        ctx_cb_.cnt--;
-                                    }
                                 }
                                 catch (...) {
+                                    ctx_cb.reject (std::current_exception());
+                                    goto finish;
+                                }
+
+                                ctx_cb.worker->event_flags(conn, ev::READ);
+                                ctx_cb.cnt--;
+                                ctx_cb.mx.unlock();
+                                co_return;
+
+                                finish: {
                                     auto &ctx_cb_ = ctx_cb;
-                                    ctx_cb_.reject (std::current_exception());
                                     ctx_cb_.worker->event_flags(conn, 0);
                                     ctx_cb_.worker->event_on(conn, nullptr);
                                     ctx_cb_.cnt--;
+                                    ctx_cb_.mx.unlock();
                                 }
                         }, ctx_cb.conn, std::move(*p), buffer, nsize, ctx_cb));
                     }
@@ -480,8 +480,8 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
     }
 
     while (true) {
-        auto lk = co_await ctx_cb.mx.lock_guard();
         if (ctx_cb.cnt) {
+            co_await ctx_cb.mx.lock();
             continue;
         }
         break;

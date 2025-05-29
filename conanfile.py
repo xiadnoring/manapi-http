@@ -26,7 +26,7 @@ class ManapiHttpConan(ConanFile):
         "lib": [True, False]
     }
 
-    default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": True, "openssl_dependency": False, "quiche_dependency": True,
+    default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": False, "openssl_dependency": True, "quiche_dependency": True,
                        "tquic_dependency": False, "lib": False, "curl_dependency": True, "gmp_dependency": True, "zlib_dependency": True, "zstd_dependency": True,
                        "brotli_dependency": True}
 

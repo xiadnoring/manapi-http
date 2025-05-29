@@ -531,6 +531,7 @@ void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_i
             && data->ev_callback) {
             auto object = std::move(data->top->recv.deque->buffer);
             data->top->recv.deque = std::move(data->top->recv.deque->next);
+            data->top->recv_size--;
 
             if (!data->top->recv.deque) {
                 data->top->recv.last_deque = nullptr;
@@ -543,10 +544,10 @@ void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_i
                 data->top->recv.deque_current = 0;
             }
 
-            data->top->recv_size--;
 
             if (!object->empty()) {
-                tcp_handle_read_data(conn, data, ev::READ, object->data(), object->size(), &object);
+                tcp_handle_read_data(conn, data, ev::READ, object->data(),
+                    static_cast<ssize_t>(object->size()), &object);
             }
         }
     }

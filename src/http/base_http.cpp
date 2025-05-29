@@ -77,7 +77,7 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
         default: {
             auto const cdataptr = cdata.get();
             manapi::async::run<ssize_t>(mask_response(cdataptr, res.get(), true),
-                [cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result)
+                [cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *result)
                 -> void {
                     if (err) {
                         /* failed */
@@ -231,7 +231,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                 if (fileSize) {
                     auto task = mask_response(cdata.get(), res.get(), false);
                     manapi::async::run<ssize_t>(std::move(task),
-                        [fileSize, replacers = std::move(replacers), f = std::move(f), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *value) mutable
+                        [res = std::move(res), fileSize, replacers = std::move(replacers), f = std::move(f), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *value) mutable
                         -> void {
                             if (err) {
                                 return;
@@ -250,7 +250,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                 }
                 else {
                     auto task = mask_response(cdata.get(), res.get(), true);
-                    manapi::async::run<ssize_t>(std::move(task), [cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result)
+                    manapi::async::run<ssize_t>(std::move(task), [cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *result)
                         -> void { if (err) { return; } cdata->cb->call(true); });
                 }
             }
@@ -281,7 +281,7 @@ manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_d
 
     auto task = mask_response(cdata.get(), res.get(), plaintext.empty());
     manapi::async::run<ssize_t>(std::move(task),
-        [plaintext = std::move(plaintext), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *value) mutable
+        [plaintext = std::move(plaintext), cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *value) mutable
         -> void {
             if (err) {
                 /* failed */

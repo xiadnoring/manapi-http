@@ -182,12 +182,13 @@ void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, co
 ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, const char *buffer, ssize_t size, object_pool<bytebuffer, std::false_type, std::size_t> *bufferpool, int buffer_size, int *cnt, int max_cnt) {
     ssize_t rhs = 0;
     while (rhs != size) {
-        if (!top->last_deque || top->deque_cursor == buffer_size) {
+        if (!top->last_deque
+            || top->deque_cursor == top->deque->buffer->size()) {
             if (cnt && *cnt >= max_cnt)
                 break;
 
             auto object = std::make_unique<buffer_deque>(bufferpool->get(), nullptr);
-            object->buffer->resize(buffer_size);
+            object->buffer->resize_max(buffer_size);
             if (top->last_deque) {
                 top->last_deque->next = std::move(object);
                 top->last_deque = top->last_deque->next.get();
@@ -249,8 +250,10 @@ ssize_t manapi::net::worker::base::connection_io_recv(connection_io_part *top, c
 
         rhs += copy;
         top->deque_current += static_cast<int>(copy);
+        top->deque->buffer->shift_add(top->deque_current);
+        top->deque_current = 0;
 
-        if (top->deque_current == buffer_size) {
+        if (top->deque->buffer->empty()) {
             top->deque = std::move(top->deque->next);
             if (!top->deque) {
                 top->last_deque = nullptr;

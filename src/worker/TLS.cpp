@@ -514,7 +514,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
             }
 
             top->deque_cursor = 0;
-            flags |= 1 /* an empty buffer was created */;
+            flags = 1 /* an empty buffer was created */;
             if (cnt)
                 (*cnt)++;
         }
@@ -571,12 +571,14 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
                 (*cnt)--;
 
             if (!object->empty()) {
-                tcp_handle_read_data (conn, data, ev::READ, object->data(), object->size(), &object);
+                tcp_handle_read_data (conn, data, ev::READ, object->data(),
+                    static_cast<ssize_t>(object->size()), &object);
             }
         }
 
         if (data->status & ev::READ
-            && !(data->status & CONN_CLOSED|CONN_REMOVED) && !data->watcher->is_active()) {
+            && !(data->status & (CONN_CLOSED|CONN_REMOVED))
+            && !data->watcher->is_active()) {
             data->watcher->read_start();
         }
 
