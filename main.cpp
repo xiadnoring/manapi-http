@@ -53,10 +53,18 @@ int main () {
     manapi::net::http::server_ctx server_ctx;
 
     GCTX_OBJ->run(GCTX_OBJ, loops, [&a, server_ctx] (const std::function<void()> &bind) -> void {
+        using http = manapi::net::http::server;
         manapi::ext::pq::connection db;
         manapi::net::http::server router (server_ctx);
 
-        router.GET ("/", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+
+        router.GET("/", FOLDER);
+
+        router.GET("/", [] (http::req &req, http::resp &resp) -> manapi::future<> {
+            co_return resp.file(FOLDER"index.html");
+        });
+
+        router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             std::cout << "MAIN PAGE\n";
             a.fetch_add(1);
@@ -230,9 +238,6 @@ int main () {
             resp.partial_enabled(true);
             co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
         });
-
-        //
-        router.GET("/", FOLDER);
 
         router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable
             -> manapi::future<> {

@@ -335,7 +335,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
         return;
     }
 
-    auto it = this->connections.find(std::string{dcid, dcid_len});
+    auto it = this->connections.find(std::string_view{dcid, dcid_len});
     if (it == this->connections.end()) {
         // if (this->connections.size() >= this->config_->max_connections()) {
         //     return;
@@ -421,15 +421,13 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
         connection->ipdata->len = sockaddr_len;
 
         this->connections.insert({
-            conn_data->cid,
+            std::string_view{conn_data->cid},
             std::move(connection)
         });
     }
     else {
         conn_data = it->second->as<connection_t>();
     }
-
-    decltype(this->connections)::iterator connection_it;
 
     quiche_recv_info recv_info {
         (sockaddr *)(sockaddr_src),
@@ -454,11 +452,13 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
         }
     }
 
+    quiche_h3_event *event{nullptr};
+
     try {
-        if (conn_data->http3_conn && !(conn_data->flags & (CONN_REMOVED|CONN_CLOSED))) {
+        if (conn_data->http3_conn
+            && !(conn_data->flags & (CONN_REMOVED|CONN_CLOSED))) {
             http_v3_cloudflare_quiche::flush_write_(it->second, conn_data);
 
-            quiche_h3_event *event{nullptr};
 
             while (true) {
                 int64_t stream_id = quiche_h3_conn_poll(conn_data->http3_conn, conn_data->conn, &event);
@@ -471,12 +471,14 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
                     case QUICHE_H3_EVENT_HEADERS: {
                         auto connection = std::make_shared<worker::connection>(new connection_stream_t {
                             .flags = 0,
-                            .id = 0,
-                            .conn = conn_data
+                            .id = stream_id,
+                            .conn = conn_data,
+                            .req = nullptr,
+                            .top = nullptr,
+                            .ev_callback = nullptr,
+                            .speed_min_delay = 0
                         }, +[] (void *ptr)
                             -> void { delete static_cast<connection_stream_t *> (ptr); });
-
-                        std::cout << "NEW CONN\n";
 
                         auto s = connection->as<connection_stream_t>();
 
@@ -522,7 +524,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
                         auto const req_ptr = s->req.get();
                         auto cdata = std::make_unique<http::internal::handle_data_t>(connection, this->self_.lock(),
                             req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
-                            [this, sconn = connection, conn = it->second, req = std::move(s->req)] (bool ok)
+                            [this, sconn = connection, conn = it->second, req = std::move(s->req)] (bool ok) mutable
                             -> void {
                                 auto const s = sconn->as<connection_stream_t>();
                                 auto const conndata = conn->as<connection_t>();
@@ -540,7 +542,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
                                 });
                         }));
 
-                        conn_data->streams->insert({s->id, std::move(connection)});
+                        if (!conn_data->streams->insert({s->id, std::move(connection)}).second) {
+                            goto err;
+                        }
 
                         // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
                         // this->event_flags(conn, 0);
@@ -606,8 +610,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
 
                 quiche_h3_event_free(event);
             }
-        }
 
+            event = nullptr;
+        }
 
 
         /* setup timeout */
@@ -618,6 +623,10 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
         }
     }
     catch (...) {
+        if (event) {
+            quiche_h3_event_free(event);
+            event = nullptr;
+        }
         goto err;
     }
 

@@ -114,7 +114,7 @@ namespace manapi::net::worker {
         static void quiche_timeout_again_(connection_t *connection);
 
         std::weak_ptr<http_v3_cloudflare_quiche> self_;
-        std::map <std::string, shared_conn> connections;
+        std::map <std::string_view, shared_conn> connections;
         quiche_config *quiche_config_{nullptr};
         quiche_h3_config *quiche_h3_config_{nullptr};
         manapi::timer limit_rate_timer{};
