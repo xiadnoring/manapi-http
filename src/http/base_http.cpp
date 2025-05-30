@@ -26,7 +26,7 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
         .compress = res->compress(),
         .compressor_for_file = nullptr,
         .compressor_for_string = nullptr,
-        .replacers = res->replacers()
+        .replacers = std::move(res->replacers())
     };
 
     if (!features.compress.empty() && !res->partial_enabled()) {
@@ -91,7 +91,7 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
 
 manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     std::string filepath;
-    auto resfile = res->file();
+    auto resfile = std::move(res->file());
 
     bool force_compress = false;
 
@@ -265,7 +265,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
 
 manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     // may contains decoded / encoded body
-    std::string plaintext = res->text();
+    std::string plaintext = std::move(res->text());
 
     if (features.compressor_for_string) {
         // encode content !
@@ -275,7 +275,7 @@ manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_d
 
     res->header(HEADER.CONTENT_LENGTH, std::to_string(plaintext.size()));
 
-    if (!res->ref_headers().contains(HEADER.CONTENT_TYPE)) {
+    if (!res->headers().contains(HEADER.CONTENT_TYPE)) {
         res->header(HEADER.CONTENT_TYPE, "text/html; charset=UTF-8");
     }
 
@@ -299,7 +299,7 @@ manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_d
 
 manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
 #ifdef MANAPIHTTP_FETCH_SUPPORT
-    auto proxy = std::make_unique<fetch>(res->url());
+    auto proxy = std::make_unique<fetch>(std::move(res->url()));
     auto proxy_setup = std::move(res->proxy_setup_cb());
 
     if (proxy_setup) {
@@ -366,7 +366,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
 }
 
 manapi::future<> manapi::net::http::internal::send_response_formdata(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
-    auto formdata = res->formdata();
+    auto formdata = std::make_unique<formdata_send>(std::move(res->formdata()));
 
     if (features.compressor_for_file || features.compressor_for_string) {
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "formdata: Compression isn't supported");
@@ -442,7 +442,7 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
 
             if (result && *result >= 0) {
                 const ssize_t reserved = res->config()->buffer_size;
-                auto cb_sync = res->callback_sync();
+                auto cb_sync = std::make_unique<http::response::resp_callback_sync>(std::move(res->callback_sync()));
                 manapi::async::run ([cb_sync = std::move(cb_sync), reserved, cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
                         // TODO: speed up
@@ -483,7 +483,7 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
 
             if (result && *result >= 0) {
                 auto reserved = res->config()->buffer_size;
-                auto cb_async = res->callback_async();
+                auto cb_async = std::make_unique<http::response::resp_callback_async>(std::move(res->callback_async()));
                 manapi::async::run ([reserved, cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
                         // TODO: speed up
@@ -572,7 +572,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                     path += manapi::filesystem::path::delimiter + cdata->req_data->path[i];
                 }
 
-                path = manapi::filesystem::path::join(*data->statics, path);
+                path = manapi::filesystem::path::join(data->statics->folder, path);
 
                 manapi::async::run([status, data = std::move(data), cdata = std::move(cdata), path = std::move(path)] () mutable
                     -> manapi::future<> {
@@ -622,6 +622,11 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                             res->compress_enabled(!binary);
                             res->partial_enabled(binary);
                             res->file(path);
+
+                            if (data->statics->layer
+                                && data->statics->layer->handler) {
+                                co_await data->statics->layer->handler (*req, *res);
+                            }
 
                             try {
                                 send_response(std::move(cdata), std::move(res));

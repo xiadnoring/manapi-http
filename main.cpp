@@ -58,7 +58,12 @@ int main () {
         manapi::net::http::server router (server_ctx);
 
 
-        router.GET("/", FOLDER);
+        router.GET("/", FOLDER, [] (http::req &req, http::resp &resp)
+            -> manapi::future<> {
+            resp.compress_enabled(true);
+            resp.compress("zstd");
+            co_return;
+        });
 
         router.GET("/", [] (http::req &req, http::resp &resp) -> manapi::future<> {
             co_return resp.file(FOLDER"index.html");

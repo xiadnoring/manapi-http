@@ -41,8 +41,8 @@ void manapi::net::worker::http_v2::configure_connection(const shared_conn &conn,
 
 manapi::future<ssize_t> manapi::net::worker::http_v2::response(const shared_conn &connection, http::response *resp, bool finish) {
     auto const data = connection->as<http::http_v2_stream_t>();
-    auto headers = std::move(resp->headers());
-    co_return co_await http::http_v2_response(this, connection, data, resp->status_code(), std::move(headers), finish);
+    co_return co_await http::http_v2_response(this, connection,
+        data, resp->status_code(), std::move(resp->headers()), finish);
 }
 
     int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) {

@@ -12,7 +12,7 @@
 #include "include/ManapiHttpStructs.hpp"
 
 
-manapi::net::http::request::request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::shared_conn *conn, worker::shared_worker worker, const http_handler_functions *handler)  {
+manapi::net::http::request::request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::shared_conn *conn, worker::shared_worker worker, const http_handler_function *handler)  {
     this->conn_ = (conn);
     this->ip_data_ = std::move(ip_data);
     this->request_data = request_data;

@@ -772,13 +772,13 @@ std::string manapi::net::worker::TCP::stringify_headers(manapi::net::http::respo
     std::string data;
 
     std::size_t size = 0;
-    for (const auto &header : res->ref_headers()) {
+    for (const auto &header : res->headers()) {
         size += header.first.size() + (sizeof (": ") - 1) + header.second.size() + delimiter.size();
     }
     data.reserve(size);
 
     // add headers
-    for (const auto &header: res->ref_headers()) {
+    for (const auto &header: res->headers()) {
         data += header.first + ": " + header.second + delimiter;
     }
 

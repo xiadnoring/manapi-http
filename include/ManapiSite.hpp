@@ -30,26 +30,31 @@ namespace manapi::net::http {
 
     struct http_uri_part;
 
-    struct http_handler_functions {
+    struct http_handler_function {
         handler_template_t handler = nullptr;
 
         std::unique_ptr<const json_mask> post_mask = nullptr;
         std::unique_ptr<const json_mask> get_mask = nullptr;
     };
 
+    struct http_static_handler_function {
+        std::string folder;
+        std::unique_ptr<http_handler_function> layer;
+    };
+
     typedef std::map<std::string, std::unique_ptr<http_uri_part>>   handlers_map_t;
     typedef std::pair<std::regex, std::unique_ptr<http_uri_part>>   handlers_regex_pair_t;
     typedef std::map<std::string, handlers_regex_pair_t>            handlers_regex_map_t;
     typedef std::vector<std::string>                                handlers_regex_titles_t;
-    typedef std::map <std::string, std::string>                     handlers_static_types_t;
-    typedef std::map <std::string, http_handler_functions>          handlers_types_t;
+    typedef std::map <std::string, http_static_handler_function>    handlers_static_types_t;
+    typedef std::map <std::string, http_handler_function>           handlers_types_t;
 
 
     struct http_handler_page {
-        http_handler_functions                                      *handler = nullptr;
+        http_handler_function                                       *handler = nullptr;
         std::unique_ptr<http_handler_page>                          error = nullptr;
-        std::vector<http_handler_functions*>                        layer;
-        std::string                                                 *statics = nullptr;
+        std::vector<http_handler_function*>                         layer;
+        http_static_handler_function                                *statics = nullptr;
         size_t                                                      statics_parts_len{};
     };
 
@@ -103,7 +108,7 @@ namespace manapi::net::http {
         site &operator=(const site &n);
 
         http_uri_part *handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
-        http_uri_part *handler (std::string method, std::string uri, std::string folder);
+        http_uri_part *handler (std::string method, std::string uri, std::string folder, handler_template_t handler = nullptr, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
 
         std::unique_ptr<http_handler_page> handler (http::request_data_t *request_data) const;
 
@@ -136,7 +141,7 @@ namespace manapi::net::http {
         std::shared_ptr<data_t> data;
         static std::string default_config_name;
     private:
-        static http_handler_functions default_error_handler;
+        static http_handler_function default_error_handler;
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);

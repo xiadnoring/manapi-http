@@ -99,8 +99,8 @@ void manapi::net::http::server::PATCH(std::string uri, handler_template_t handle
 //     this->set_handler("DELETE", uri, std::move(handler), get_mask, post_mask);
 // }
 
-void manapi::net::http::server::GET(std::string uri, std::string folder) {
-    handler ("GET", std::move(uri), std::move(folder));
+void manapi::net::http::server::GET(std::string uri, std::string folder, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
+    this->handler ("GET", std::move(uri), std::move(folder), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
 manapi::future<void> manapi::net::http::server::stop() {

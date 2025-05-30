@@ -55,7 +55,7 @@ namespace manapi::net::http {
         void PUT (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
         void PATCH (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
 
-        void GET (std::string uri, std::string folder);
+        void GET (std::string uri, std::string folder, handler_template_t handler = nullptr, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
 
         manapi::future<void> stop ();
     private:

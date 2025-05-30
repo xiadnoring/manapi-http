@@ -137,7 +137,7 @@ bool manapi::net::http::response::has_ranges() const {
     return this->ranges_ && !this->ranges_->empty();
 }
 
-std::string manapi::net::http::response::file() {
+std::string &manapi::net::http::response::file() {
     this->check_type_(internal::RESPONSE_FILE);
     return this->body();
 }
@@ -150,18 +150,12 @@ std::string_view manapi::net::http::response::status_message() {
     return status_to_string(this->status_code_);
 }
 
-std::map<std::string, std::string> manapi::net::http::response::headers() {
-    return std::move(this->headers_);
-}
-
-std::string manapi::net::http::response::body() {
-    std::unique_ptr<std::string> storage (static_cast<std::string *> (this->data_));
-    this->type_ = internal::RESPONSE_NO_DATA;
-    return std::move(*storage);
-}
-
-const std::map<std::string, std::string> & manapi::net::http::response::ref_headers() {
+std::map<std::string, std::string> &manapi::net::http::response::headers() {
     return this->headers_;
+}
+
+std::string &manapi::net::http::response::body() {
+    return *static_cast<std::string *> (this->data_);
 }
 
 void manapi::net::http::response::compress(std::string name) {
@@ -184,7 +178,7 @@ std::string manapi::net::http::response::compress() {
         if (it != this->request_data_->headers.end()) {
 
             if (this->compress_) {
-                compress = std::move(*std::exchange(this->compress_, nullptr));
+                compress = *this->compress_;
             }
 
             if (it->second.size() < 1000) {
@@ -203,9 +197,7 @@ std::string manapi::net::http::response::compress() {
         }
     }
 
-    this->compress_.reset();
-
-    return compress;
+    return std::move(compress);
 }
 
 void manapi::net::http::response::detect_ranges () {
@@ -250,8 +242,8 @@ int manapi::net::http::response::data_type() const {
     return this->type_;
 }
 
-std::unique_ptr<std::map<std::string, std::string>> manapi::net::http::response::replacers() {
-    return std::move(this->replacers_);
+std::unique_ptr<std::map<std::string, std::string>> &manapi::net::http::response::replacers() {
+    return this->replacers_;
 }
 
 void manapi::net::http::response::custom_data(custom_data_t data) {
@@ -266,18 +258,14 @@ manapi::net::http::custom_data_t *manapi::net::http::response::custom_data() {
     return this->custom_data_.get();
 }
 
-std::unique_ptr<manapi::net::http::response::resp_callback_async> manapi::net::http::response::callback_async() {
+manapi::net::http::response::resp_callback_async& manapi::net::http::response::callback_async() {
     this->check_type_(internal::RESPONSE_ASYNC_CALLBACK);
-    std::unique_ptr<resp_callback_async> cb (static_cast<resp_callback_async *> (this->data_));
-    this->type_ = internal::RESPONSE_NO_DATA;
-    return std::move(cb);
+    return *static_cast<resp_callback_async *> (this->data_);
 }
 
-std::unique_ptr<manapi::net::http::response::resp_callback_sync> manapi::net::http::response::callback_sync() {
+manapi::net::http::response::resp_callback_sync &manapi::net::http::response::callback_sync() {
     this->check_type_(internal::RESPONSE_SYNC_CALLBACK);
-    std::unique_ptr<resp_callback_sync> cb (static_cast<resp_callback_sync *> (this->data_));
-    this->type_ = internal::RESPONSE_NO_DATA;
-    return std::move(cb);
+    return *static_cast<resp_callback_sync *> (this->data_);
 }
 
 manapi::net::http::request_data_t * manapi::net::http::response::request_data() {
@@ -330,12 +318,12 @@ void manapi::net::http::response::callback_async(resp_callback_async cb) {
     this->data_ = storage.release();
 }
 
-std::string manapi::net::http::response::text() {
+std::string &manapi::net::http::response::text() {
     this->check_type_(internal::RESPONSE_TEXT);
     return this->body();
 }
 
-std::string manapi::net::http::response::url() {
+std::string &manapi::net::http::response::url() {
     this->check_type_(internal::RESPONSE_PROXY);
     return this->body();
 }
@@ -344,16 +332,13 @@ std::unique_ptr<std::vector<std::pair<ssize_t, ssize_t>>> manapi::net::http::res
     return std::move(this->ranges_);
 }
 
-std::unique_ptr<manapi::net::formdata_send> manapi::net::http::response::formdata() {
+manapi::net::formdata_send &manapi::net::http::response::formdata() {
     this->check_type_(internal::RESPONSE_FORMDATA);
-    std::unique_ptr<formdata_send> storage (static_cast<formdata_send *> (this->data_));
-    this->type_ = internal::RESPONSE_NO_DATA;
-
-    return std::move(storage);
+    return *static_cast<formdata_send *> (this->data_);
 }
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
-std::unique_ptr<manapi::net::http::response::resp_proxy_setup_cb> manapi::net::http::response::proxy_setup_cb() {
-    return std::move(this->proxy_setup);
+std::unique_ptr<manapi::net::http::response::resp_proxy_setup_cb> &manapi::net::http::response::proxy_setup_cb() {
+    return this->proxy_setup;
 }
 #endif

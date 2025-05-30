@@ -48,7 +48,6 @@ namespace manapi::net::http {
 
         void status (const size_t &status_code);
 
-
         void status_code (const size_t &status_code);
 
         void replacers (std::map<std::string, std::string> replacers);
@@ -71,9 +70,7 @@ namespace manapi::net::http {
 
         std::string_view status_message ();
 
-        const std::map<std::string, std::string> &ref_headers ();
-
-        std::map<std::string, std::string> headers ();
+        std::map<std::string, std::string> &headers ();
 
         void header (const std::string &key, std::string value);
 
@@ -103,21 +100,21 @@ namespace manapi::net::http {
 
         [[nodiscard]] int data_type() const;
 
-        std::string file ();
+        std::string &file ();
 
-        std::string text ();
+        std::string &text ();
 
-        std::string url ();
+        std::string &url ();
 
         std::unique_ptr<std::vector<std::pair<ssize_t, ssize_t>>> ranges ();
 
-        std::unique_ptr<formdata_send> formdata ();
+        formdata_send &formdata ();
 #ifdef MANAPIHTTP_FETCH_SUPPORT
-        std::unique_ptr<resp_proxy_setup_cb> proxy_setup_cb ();
+        std::unique_ptr<resp_proxy_setup_cb> &proxy_setup_cb ();
 #endif
         std::string compress ();
 
-        std::unique_ptr<std::map <std::string, std::string>> replacers ();
+        std::unique_ptr<std::map <std::string, std::string>> &replacers ();
 
         void custom_data (custom_data_t data);
 
@@ -125,15 +122,15 @@ namespace manapi::net::http {
 
         struct custom_data_t *custom_data ();
 
-        std::unique_ptr<resp_callback_async> callback_async();
+        resp_callback_async &callback_async();
 
-        std::unique_ptr<resp_callback_sync> callback_sync();
+        resp_callback_sync &callback_sync();
 
         request_data_t *request_data ();
     private:
         void check_type_ (int type);
 
-        std::string body ();
+        std::string &body ();
 
         // detect the range header
         void detect_ranges ();

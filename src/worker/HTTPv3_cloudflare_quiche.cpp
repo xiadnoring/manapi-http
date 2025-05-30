@@ -420,10 +420,14 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
         memcpy (connection->ipdata->client.data, sockaddr_src, sockaddr_len);
         connection->ipdata->len = sockaddr_len;
 
-        this->connections.insert({
+        auto res = this->connections.insert({
             std::string_view{conn_data->cid},
             std::move(connection)
         });
+
+        if (res.second) {
+            this->count++;
+        }
     }
     else {
         conn_data = it->second->as<connection_t>();

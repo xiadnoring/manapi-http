@@ -28,7 +28,7 @@ namespace manapi::net {
     };
 }
 
-manapi::net::http::http_handler_functions manapi::net::http::site::default_error_handler
+manapi::net::http::http_handler_function manapi::net::http::site::default_error_handler
     = {
     .handler = [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
         co_return resp.text(std::format("<html>\n\t<head>\n\t\t"
@@ -484,7 +484,7 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
             return handler_page;
         }
 
-        http_handler_functions *handler = &cur->handlers->at (request_data->method);
+        http_handler_function *handler = &cur->handlers->at (request_data->method);
 
         if (handler == nullptr) {
             // TODO: handler error
@@ -555,7 +555,7 @@ manapi::net::http::http_uri_part *manapi::net::http::site::handler(std::string m
 
     http_uri_part *cur      = build_uri_part(uri, type);
 
-    http_handler_functions functions;
+    http_handler_function functions;
 
     if (get_mask.is_enabled())
     {
@@ -603,21 +603,38 @@ manapi::net::http::http_uri_part *manapi::net::http::site::handler(std::string m
     return cur;
 }
 
-manapi::net::http::http_uri_part *manapi::net::http::site::handler(std::string method, std::string uri, std::string folder) {
+manapi::net::http::http_uri_part *manapi::net::http::site::handler(std::string method, std::string uri, std::string folder, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
     size_t  type            = URI_PAGE_DEFAULT;
 
     http_uri_part *cur      = build_uri_part(uri, type);
 
     switch (type) {
-        case URI_PAGE_DEFAULT:
+        case URI_PAGE_DEFAULT: {
             if (cur->statics == nullptr) {
                 cur->statics = std::make_unique<handlers_static_types_t> ();
             }
 
             check_exists_method_on_url(uri, cur->statics, method);
-            cur->statics->insert({std::move(method), std::move(folder)});
+            auto it = cur->statics->insert({std::move(method), {std::move(folder), nullptr}});
+            if (it.second) {
+                if (handler) {
+                    auto &layer = it.first->second.layer;
+                    layer = std::make_unique<http_handler_function>(
+                        std::move(handler), nullptr, nullptr);
+
+                    if (get_mask.is_enabled()) {
+                        layer->get_mask = std::make_unique<decltype(get_mask)>(std::move(get_mask));
+                    }
+
+                    if (post_mask.is_enabled()) {
+                        layer->post_mask = std::make_unique<decltype(post_mask)>(std::move(post_mask));
+                    }
+                }
+            }
+
 
             break;
+        }
         default:
             THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_ADD_PAGE, "{}", "can not use the special pages with the static files");
     }
