@@ -7,7 +7,7 @@ HTTP server written on C++ which support HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC)
 > This project in development!!!
 
 ## About
-This HTTP server need to make easy develop `web applications`, `API-interfaces` and other things.
+This HTTP server should simplify development of `web applications`, `API-interfaces` and other things.
 
 So many important utils will be supported out of the box, for example, `JSON`, `MySQL-client`, `PostgreSQL-client`, `JSON-masks`, `Big Int`, `modules`, `plugins`.
 
