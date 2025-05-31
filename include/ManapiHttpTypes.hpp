@@ -201,6 +201,7 @@ namespace manapi::net::http {
         std::string UPGRADE             = "upgrade";
         std::string EXPECT              = "expect";
         std::string TRANSFER_ENCODING   = "transfer-encoding";
+        std::string PRIORITY            = "priority";
     } HEADER;
 
     std::string_view status_to_string (const std::size_t &status);

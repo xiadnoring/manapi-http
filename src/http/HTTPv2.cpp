@@ -7,6 +7,17 @@
 
 #include "worker/HTTPv2.hpp"
 
+enum http_v2_priority {
+    HTTP2_PRIORITY_0 = 0,
+    HTTP2_PRIORITY_1,
+    HTTP2_PRIORITY_2,
+    HTTP2_PRIORITY_3,
+    HTTP2_PRIORITY_4,
+    HTTP2_PRIORITY_5,
+    HTTP2_PRIORITY_6,
+    HTTP2_PRIORITY_7,
+    HTTP2_PRIORITY_MAX = HTTP2_PRIORITY_7
+};
 
 enum http2_frame_type {
     HTTP2_FRAME_DATA = 0x00,
@@ -232,8 +243,29 @@ int http_v2_send_data_frame (manapi::net::http::http_v2_t *ctx, int stream_id, c
     return http_v2_send_frame(ctx, HTTP2_FRAME_DATA, finish ? HTTP2_FLAG_DATA_END_STREAM : 0, stream_id, &buff, 1);
 }
 
+int http_v2_verify_setting (int key, int value) {
+    auto const it = allow_settings.find(key);
+    if (it != allow_settings.end()) {
+        try {
+            if (it->second.valid(value)) {
+                return 0;
+            }
+        }
+        catch (...) {
+            /* ignore */
+        }
+        /* setting incorrect */
+        return -1;
+    }
+    return 0;
+}
+
 int http_v2_apply_setting (manapi::net::http::http_v2_t *ctx, int key, int value, bool server) {
     auto const settings = server ? ctx->server.get() : ctx->client.get();
+
+    if (http_v2_verify_setting(key, value)) {
+        return -1;
+    }
 
     switch (key) {
         case HTTP2_SETTING_HEADER_TABLE_SIZE: {
@@ -486,6 +518,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                     ctx->decoder = std::make_unique<decltype(ctx->decoder)::element_type>();
                     ctx->encoder = std::make_unique<decltype(ctx->encoder)::element_type>();
+
+                    ctx->priorities = std::make_unique<decltype(ctx->priorities)::element_type>();
 
                     ctx->server->header_table_size = 4096;
                     ctx->server->enable_push = 1;
@@ -922,7 +956,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 sdata = s->second->as<http_v2_stream_t>();
                                 sdata->req = std::make_unique<request_data_t>();
                                 sdata->recv = std::make_unique<worker::base::connection_io_part>();
-                                sdata->speed_min_delay = config->speed_check_delay;
+                                sdata->speed_min_delay = static_cast<int>(config->speed_check_delay);
                             }
                             else {
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
@@ -1019,6 +1053,39 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                             sdata->req->path = url_decoder.result();
                             sdata->req->divided = url_decoder.divided();
+
+                            /**
+                             * RFC9218 (4.1) Urgency
+                             * The urgency (u) parameter value is Integer (see Section 3.3.1 of
+                             * [STRUCTURED-FIELDS]), between 0 and 7 inclusive, in descending order
+                             * of priority.  The default is 3.
+                             *
+                             */
+                            sdata->priority = 3;
+                            try {
+                                hit = sdata->req->headers.find(http::HEADER.PRIORITY);
+                                if (hit != sdata->req->headers.end()) {
+                                    auto const val = parse_header_value(hit->second);
+                                    if (val.size() == 1) {
+                                        auto vit = val[0].params.find("u");
+                                        if (vit != val[0].params.end()) {
+                                            const auto priority = std::stoi(vit->second);
+                                            if (priority >= HTTP2_PRIORITY_0
+                                                && priority <= HTTP2_PRIORITY_MAX)
+                                                sdata->priority = static_cast<uint8_t> (priority);
+                                        }
+                                        vit = val[0].params.find("i");
+                                        if (vit != val[0].params.end()) {
+                                            sdata->flags |= HTTP2_STREAM_PRIORITY_INCR;
+                                        }
+                                    }
+                                }
+                            }
+                            catch (...) {
+                                /* ignore */
+                            }
+
+                            ctx->priorities->insert({sdata->priority, sdata->id});
                         }
 
                         if (ctx->n2) {
@@ -1220,20 +1287,20 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     goto finish;
                                 }
 
-                        if (ctx->frame_length == 0) {
-                            /* ack server settings */
-                            ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                            if (ctx->timeout) {
-                                ctx->timeout.stop();
-                                ctx->timeout = nullptr;
+                            if (ctx->frame_length == 0) {
+                                /* ack server settings */
+                                ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                                if (ctx->timeout) {
+                                    ctx->timeout.stop();
+                                    ctx->timeout = nullptr;
+                                }
+                                else {
+
+                                }
                             }
                             else {
-
+                                ctx->current = HTTP2_CALLBACK_PARSE_SETTING_ID;
                             }
-                        }
-                        else {
-                            ctx->current = HTTP2_CALLBACK_PARSE_SETTING_ID;
-                        }
                         break;
                         case HTTP2_FRAME_GOAWAY:
                             ctx->current = HTTP2_CALLBACK_PARSE_GOAWAY_LAST_STREAM_ID;

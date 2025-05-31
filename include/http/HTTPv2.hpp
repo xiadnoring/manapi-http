@@ -31,7 +31,8 @@ namespace manapi::net::http {
         HTTP2_STREAM_CLOSED = manapi::ev::DISCONNECT,
         HTTP2_STREAM_RECV_END = 8,
         HTTP2_STREAM_SEND_END  = 16,
-        HTTP2_STREAM_REMOVED = 32
+        HTTP2_STREAM_REMOVED = 32,
+        HTTP2_STREAM_PRIORITY_INCR = 64
     };
 
     struct http_v2_t;
@@ -54,6 +55,8 @@ namespace manapi::net::http {
         std::unique_ptr<worker::worker_watcher_cb> ev_callback;
 
         int speed_min_delay;
+
+        uint8_t priority;
     };
 
     struct http_v2_t {
@@ -62,8 +65,8 @@ namespace manapi::net::http {
         std::shared_ptr<worker::http_v2> http_v2_worker;
 
         // private
-        int current;
-        int next;
+        uint8_t current;
+        uint8_t next;
 
         int n2;
         unsigned int pos1;
@@ -90,6 +93,8 @@ namespace manapi::net::http {
         std::unique_ptr<manapi::compress::hpack::encoder_t> encoder;
 
         manapi::timer timeout;
+
+        std::unique_ptr<std::set<std::pair<uint8_t, int>>> priorities;
         std::unique_ptr<std::set<std::string>> pings;
     };
 
