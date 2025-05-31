@@ -1,10 +1,10 @@
 # Manapi Http Server/Client
 
 ## Introduction
-HTTP server written on C++ which support HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC)
+HTTP server written on C++ which supports HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC)
 
 > [!CAUTION]
-> This project in development!!!
+> This project is in development!!!
 
 ## About
 This HTTP server should simplify development of `web applications`, `API-interfaces` and other things.
