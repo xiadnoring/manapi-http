@@ -307,7 +307,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
             connection->status ^= CONN_KEEP_ALIVE;
         }
 
-        connection->status = CONN_REMOVED|CONN_CLOSED;
+        connection->status |= CONN_REMOVED|CONN_CLOSED;
 
         if (connection->t) {
             connection->t.stop();
@@ -679,6 +679,8 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
             switch (rhs) {
                 case http::EHTTP_V2_PROTOCOL_OK: {
                     http::http_v2_on_close (http_v2_ctx);
+                    if (http_v2_ctx->streams->empty())
+                        this->conn_work_finish_(conn, true);
                     break;
                 }
                 case http::EHTTP_V2_PROTOCOL_WANT_READ: {
@@ -723,7 +725,7 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
                                     http::http_v2_on_close_stream(http_v2_ctx, sdata->id);
 
                                     if (http_v2_ctx->streams->empty() &&
-                                        data->status & (CONN_CLOSED|CONN_REMOVED)) {
+                                        http_v2_ctx->current == -1) {
                                         if (http::http_v2_on_close (http_v2_ctx)) {
                                             /* error */
                                         }

@@ -32,7 +32,8 @@ namespace manapi::net::http {
         HTTP2_STREAM_RECV_END = 8,
         HTTP2_STREAM_SEND_END  = 16,
         HTTP2_STREAM_REMOVED = 32,
-        HTTP2_STREAM_PRIORITY_INCR = 64
+        HTTP2_STREAM_PRIORITY_INCR = 64,
+        HTTP2_STREAM_PRIORITY_LOCKED = 128
     };
 
     struct http_v2_t;

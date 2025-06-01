@@ -87,8 +87,8 @@ enum http_v2_callback_type {
     HTTP2_CALLBACK_PARSE_SKIP_N_BYTES,
     HTTP2_CALLBACK_PARSE_FIELD_BLOCK,
     HTTP2_CALLBACK_PARSE_NUMBER,
+    HTTP2_CALLBACK_PARSE_PRI_UPDATE_FIELD,
     HTTP2_CALLBACK_GOAWAY,
-    HTTP2_CALLBACK_FINISH,
     HTTP2_CALLBACK_ERROR
 };
 
@@ -425,17 +425,139 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
     return 0;
 }
 
-int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, int id) {
-    auto it = ctx->streams->find(id);
-    if (it == ctx->streams->end()) {
+int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, manapi::net::http::http_v2_stream_t *sdata) {
+    using namespace manapi::net::http;
+
+    auto const prit = ctx->priorities->insert({sdata->priority, sdata->id});
+    if (prit.second) {
+        bool flg = false;
+        if (prit.first == ctx->priorities->begin()) {
+            if (sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED)
+                sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+
+            flg = true;
+        }
+        else {
+            auto const prev_prit = std::prev(prit.first);
+            if (prev_prit->first == prit.first->first) {
+                /* the priorities are same */
+                auto const prev_sconn = ctx->streams->find(prev_prit->second);
+                assert(prev_sconn != ctx->streams->end());
+                auto prev_sdata = prev_sconn->second->as<http_v2_stream_t>();
+                if (prev_sdata->flags & (HTTP2_STREAM_PRIORITY_LOCKED|HTTP2_STREAM_PRIORITY_INCR)) {
+                    /* it also must be locked or the previous stream has priority incr. flag */
+                    sdata->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+                }
+                else if (!(sdata->flags & HTTP2_STREAM_PRIORITY_INCR)) {
+                    if (sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED)
+                        sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+
+                    flg = true;
+                }
+            }
+            else {
+                /* it has lower priority */
+                sdata->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+            }
+        }
+        if (flg) {
+            /* it's so important to us */
+            for (auto it = std::next(prit.first); it != ctx->priorities->end(); ++it) {
+                auto const s_oth_conn = ctx->streams->find(it->second);
+                assert(s_oth_conn != ctx->streams->end());
+                auto const s_oth_data = s_oth_conn->second->as<http_v2_stream_t>();
+                if (s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
+                    /* no work left */
+                    break;
+                }
+                if (it->first == prit.first->first) {
+                    if (sdata->flags & HTTP2_STREAM_PRIORITY_INCR)
+                        s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+                }
+                else
+                    s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+            }
+        }
+    }
+    assert((ctx->priorities->empty()
+        || !(ctx->streams->find(ctx->priorities->begin()->second)->second->as<http_v2_stream_t>()->flags & HTTP2_STREAM_PRIORITY_LOCKED)));
+
+    return 0;
+}
+
+int http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net::http::http_v2_stream_t *s) {
+    using namespace manapi::net::http;
+
+    try {
+        auto opit = ctx->priorities->find({s->priority, s->id});
+        if (opit != ctx->priorities->end()) {
+            if (opit == ctx->priorities->begin()) {
+                assert(!(s->flags & HTTP2_STREAM_PRIORITY_LOCKED));
+                {
+                    auto pit = std::next(opit);
+                    if (pit != ctx->priorities->end()) {
+                        auto const priority = pit->first;
+                        for (; pit != ctx->priorities->end(); ++pit) {
+                            if (pit->first != priority)
+                                break;
+
+                            auto const sit = ctx->streams->find(pit->second);
+
+                            if (sit == ctx->streams->end()) {
+                                pit = ctx->priorities->erase(pit);
+                                continue;
+                            }
+
+                            auto sdata = sit->second->as<http_v2_stream_t>();
+                            if ((sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED)) {
+                                sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+
+
+                                sdata->ctx->http_v2_worker->feed_event(sit->second, manapi::ev::WRITE, nullptr, 0, nullptr);
+
+                                if (sdata->flags & HTTP2_STREAM_PRIORITY_INCR)
+                                    break;
+                            }
+                        }
+                    }
+                }
+            }
+            ctx->priorities->erase(opit);
+        }
+        assert((ctx->priorities->empty()
+            || !(ctx->streams->find(ctx->priorities->begin()->second)->second->as<http_v2_stream_t>()->flags & HTTP2_STREAM_PRIORITY_LOCKED)));
+    }
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("http2: priority update failed due to {}", e.what());
         return -1;
     }
-    auto s = it->second->as<http_v2_stream_t>();
-    if (!(s->flags & HTTP2_STREAM_SEND_END)) {
-        ctx->concurrent_streams_size--;
-        s->flags |= HTTP2_STREAM_SEND_END;
+
+    return 0;
+}
+
+int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, int id) {
+    try {
+        auto it = ctx->streams->find(id);
+        if (it == ctx->streams->end()) {
+            return -1;
+        }
+        auto s = it->second->as<http_v2_stream_t>();
+        if (!(s->flags & HTTP2_STREAM_SEND_END)) {
+            ctx->concurrent_streams_size--;
+            s->flags |= HTTP2_STREAM_SEND_END;
+        }
+
+        if (http_v2_remove_priority (ctx, s)) {
+            /* ignore */
+        }
+
+        ctx->streams->erase(it);
     }
-    ctx->streams->erase(it);
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("http2: stream erase failed due to {}", e.what());
+        return -1;
+    }
+
     return 0;
 }
 
@@ -613,10 +735,11 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                     break;
                 }
-                case HTTP2_CALLBACK_PARSE_HEADER_TYPE:
+                case HTTP2_CALLBACK_PARSE_HEADER_TYPE: {
                     ctx->frame_type = static_cast<int>(static_cast<unsigned char> (buffer[pos++]));
-                ctx->current = HTTP2_CALLBACK_PARSE_HEADER_FLAG;
-                break;
+                    ctx->current = HTTP2_CALLBACK_PARSE_HEADER_FLAG;
+                    break;
+                }
                 case HTTP2_CALLBACK_SKIP_NULL_OCTECTS: {
                     while (pos != size) {
                         ctx->current = ctx->next;
@@ -664,11 +787,11 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                     }
                     break;
                 }
-                case HTTP2_CALLBACK_PARSE_HEADER_FLAG:
-
+                case HTTP2_CALLBACK_PARSE_HEADER_FLAG: {
                     ctx->frame_flag = static_cast<int>(static_cast<unsigned char>(buffer[pos++]));
-                ctx->current = HTTP2_CALLBACK_PARSE_HEADER_STREAM_ID;
-                break;
+                    ctx->current = HTTP2_CALLBACK_PARSE_HEADER_STREAM_ID;
+                    break;
+                }
                 case HTTP2_CALLBACK_PARSE_GOAWAY_LAST_STREAM_ID: {
                     while (pos != size) {
                         ctx->n1 = static_cast<unsigned int>((static_cast<unsigned int>(ctx->n1 << 8) | static_cast<unsigned char>(buffer[pos++])));
@@ -710,7 +833,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                          * frame_buffer - additional debug data
                          */
 
-                        ctx->current = HTTP2_CALLBACK_FINISH;
+                        ctx->current = -1;
 
                         /* TODO: close connection */
 
@@ -1066,16 +1189,17 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 hit = sdata->req->headers.find(http::HEADER.PRIORITY);
                                 if (hit != sdata->req->headers.end()) {
                                     auto const val = parse_header_value(hit->second);
-                                    if (val.size() == 1) {
-                                        auto vit = val[0].params.find("u");
-                                        if (vit != val[0].params.end()) {
-                                            const auto priority = std::stoi(vit->second);
-                                            if (priority >= HTTP2_PRIORITY_0
-                                                && priority <= HTTP2_PRIORITY_MAX)
-                                                sdata->priority = static_cast<uint8_t> (priority);
+                                    for (const auto &p : val) {
+                                        if (p.value.empty()) {
+                                            auto vit = val[0].params.find("u");
+                                            if (vit != val[0].params.end()) {
+                                                const auto priority = std::stoi(vit->second);
+                                                if (priority >= HTTP2_PRIORITY_0
+                                                    && priority <= HTTP2_PRIORITY_MAX)
+                                                    sdata->priority = static_cast<uint8_t> (priority);
+                                            }
                                         }
-                                        vit = val[0].params.find("i");
-                                        if (vit != val[0].params.end()) {
+                                        else if (p.value == "i") {
                                             sdata->flags |= HTTP2_STREAM_PRIORITY_INCR;
                                         }
                                     }
@@ -1085,7 +1209,12 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 /* ignore */
                             }
 
-                            ctx->priorities->insert({sdata->priority, sdata->id});
+                            if (http_v2_insert_priority (ctx, sdata)) {
+                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_INTERNAL_ERROR;
+                                http_goaway.err_msg = "priority status failed";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                break;
+                            }
                         }
 
                         if (ctx->n2) {
@@ -1217,6 +1346,18 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                 }
                 case HTTP2_CALLBACK_PARSE_FIELD_BLOCK: {
                     switch (ctx->frame_type) {
+                        case HTTP2_FRAME_DATA: {
+                            if (ctx->frame_flag & HTTP2_FLAG_DATA_PADDED) {
+                                ctx->n1 = 1; /* size */
+                                ctx->n2 = 0; /* return value */
+                                ctx->current = HTTP2_CALLBACK_PARSE_NUMBER;
+                                ctx->next = HTTP2_CALLBACK_PARSE_BODY_DATA;
+                            }
+                            else {
+                                ctx->current = HTTP2_CALLBACK_PARSE_BODY_DATA;
+                            }
+                            break;
+                        }
                         case HTTP2_FRAME_HEADERS: {
                             if (ctx->frame_length == 0) {
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
@@ -1261,31 +1402,44 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                             break;
                         }
-                        case HTTP2_FRAME_CONTINUATION:
-                            if (ctx->frame_stream_id == 0) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
-                                http_goaway.err_msg = "0 is reserved";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                goto finish;
+                        case HTTP2_FRAME_PRIORITY: {
+                            if (ctx->frame_stream_id != 0) {
+                                /**
+                                 * RFC9218 (7.1) HTTP/2 PRIORITY_UPDATE Frame
+                                 *
+                                 * The Stream Identifier field (see Section 5.1.1 of [HTTP/2])
+                                 * in the PRIORITY_UPDATE frame header MUST be zero (0x0).
+                                 * Receiving a PRIORITY_UPDATE frame with a field of any
+                                 * other value MUST be treated as a connection error of type PROTOCOL_ERROR.
+                                 *
+                                 * !!! But everyone ignores it (CHROME FOR EXAMPLE) !!!
+                                 */
+
+                                // http_goaway.err_code = manapi::net::http::HTTP2_ERROR_CONNECT_ERROR;
+                                // http_goaway.err_msg = "PRIORITY_UPDATE incorrect";
+                                // ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                // break;
                             }
 
-                            if (ctx->frame_stream_id != ctx->last_stream_id) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
-                                http_goaway.err_msg = "provided stream id isn't handled";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                goto finish;
-                            }
-
-                            ctx->current = HTTP2_CALLBACK_PARSE_HEADER_DATA;
-                        break;
-                        case HTTP2_FRAME_SETTINGS:
+                            /* stream id contains 31 bit (but the last one (32) is reserved) */
+                            ctx->n1 = 4;
+                            ctx->current = HTTP2_CALLBACK_PARSE_NUMBER;
+                            ctx->next = HTTP2_CALLBACK_PARSE_PRI_UPDATE_FIELD;
+                            ctx->frame_length -= ctx->n1;
+                            break;
+                        }
+                        case HTTP2_FRAME_RST_STREAM: {
+                            ctx->current = HTTP2_CALLBACK_PARSE_RST_STREAM_ACTION;
+                            break;
+                        }
+                        case HTTP2_FRAME_SETTINGS: {
                             // setting param size - 6 bytes
-                                if (ctx->frame_length % 6 != 0) {
-                                    http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
-                                    http_goaway.err_msg = "invalid length in frame SETTINGS";
-                                    ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                    goto finish;
-                                }
+                            if (ctx->frame_length % 6 != 0) {
+                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_msg = "invalid length in frame SETTINGS";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
+                            }
 
                             if (ctx->frame_length == 0) {
                                 /* ack server settings */
@@ -1301,11 +1455,29 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             else {
                                 ctx->current = HTTP2_CALLBACK_PARSE_SETTING_ID;
                             }
-                        break;
-                        case HTTP2_FRAME_GOAWAY:
+                            break;
+                        }
+                        case HTTP2_FRAME_PING: {
+                            if (ctx->frame_length != 8) {
+                                /**
+                                 * RFC9113 (6.7) PING
+                                 *
+                                 * Receipt of a PING frame with a length field value other than
+                                 * 8 MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
+                                 */
+                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_msg = "invalid PING";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
+                            }
+                            ctx->current = HTTP2_CALLBACK_PARSE_PING_DATA;
+                            break;
+                        }
+                        case HTTP2_FRAME_GOAWAY: {
                             ctx->current = HTTP2_CALLBACK_PARSE_GOAWAY_LAST_STREAM_ID;
-                        break;
-                        case HTTP2_FRAME_WINDOW_UPDATE:
+                            break;
+                        }
+                        case HTTP2_FRAME_WINDOW_UPDATE: {
                             if (ctx->frame_length != 4) {
                                 /**
                                  * RFC9113 (6.9) WINDOW_UPDATE
@@ -1320,36 +1492,25 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 goto finish;
                             }
-                        ctx->current = HTTP2_CALLBACK_PARSE_WINDOW_UPDATE_VALUE;
-                        break;
-                        case HTTP2_FRAME_RST_STREAM:
-                            ctx->current = HTTP2_CALLBACK_PARSE_RST_STREAM_ACTION;
-                        break;
-                        case HTTP2_FRAME_PING:
-                            if (ctx->frame_length != 8) {
-                                /**
-                                 * RFC9113 (6.7) PING
-                                 *
-                                 * Receipt of a PING frame with a length field value other than
-                                 * 8 MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
-                                 */
+                            ctx->current = HTTP2_CALLBACK_PARSE_WINDOW_UPDATE_VALUE;
+                            break;
+                        }
+                        case HTTP2_FRAME_CONTINUATION: {
+                            if (ctx->frame_stream_id == 0) {
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
-                                http_goaway.err_msg = "invalid PING";
+                                http_goaway.err_msg = "0 is reserved";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 goto finish;
                             }
-                        ctx->current = HTTP2_CALLBACK_PARSE_PING_DATA;
-                        break;
-                        case HTTP2_FRAME_DATA: {
-                            if (ctx->frame_flag & HTTP2_FLAG_DATA_PADDED) {
-                                ctx->n1 = 1; /* size */
-                                ctx->n2 = 0; /* return value */
-                                ctx->current = HTTP2_CALLBACK_PARSE_NUMBER;
-                                ctx->next = HTTP2_CALLBACK_PARSE_BODY_DATA;
+
+                            if (ctx->frame_stream_id != ctx->last_stream_id) {
+                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_msg = "provided stream id isn't handled";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                goto finish;
                             }
-                            else {
-                                ctx->current = HTTP2_CALLBACK_PARSE_BODY_DATA;
-                            }
+
+                            ctx->current = HTTP2_CALLBACK_PARSE_HEADER_DATA;
                             break;
                         }
                         default: {
@@ -1379,6 +1540,99 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                         ctx->n2 = static_cast<int>((static_cast<unsigned int>(ctx->n2) << 8) | static_cast<unsigned char> (buffer[pos++]));
                         ctx->n1--;
+                    }
+
+                    break;
+                }
+                case HTTP2_CALLBACK_PARSE_PRI_UPDATE_FIELD: {
+                    auto copy = std::min(static_cast<ssize_t>(ctx->frame_length), size - pos);
+                    ctx->frame_buffer.append(buffer + pos, copy);
+
+                    pos += copy;
+                    ctx->frame_length -= copy;
+
+                    if (!ctx->frame_length) {
+                        /**
+                         * n2 - Stream ID
+                         */
+
+                        /**
+                         * RFC9218 (7.1) HTTP/2 PRIORITY_UPDATE Frame
+                         *
+                         * The priority update value in ASCII text,
+                         * encoded using Structured Fields.
+                         * This is the same representation as the
+                         * Priority header field value.
+                         */
+
+                        auto const sit = ctx->streams->find(ctx->n2 & 0x7FFFFFFF);
+                        ctx->n2 = 0;
+
+                        ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+
+                        if (sit == ctx->streams->end()) {
+                            /**
+                             * RFC9218 (7.1) HTTP/2 PRIORITY_UPDATE Frame
+                             *
+                             * Servers can discard frames where
+                             * the prioritized stream ID refers
+                             * to a stream in the "half-closed
+                             * (local)" or "closed" state
+                             * (i.e., streams where no further
+                             * data will be sent).
+                             */
+                        }
+                        else {
+                            auto const sdata = sit->second->as<http_v2_stream_t>();
+                            auto val = parse_header_value(ctx->frame_buffer);
+
+                            uint8_t npriority = 3;
+                            bool nincr = false;
+
+                            for (const auto &p : val) {
+                                if (p.value.empty()) {
+                                    auto vit = val[0].params.find("u");
+                                    if (vit != val[0].params.end()) {
+                                        const auto priority = std::stoi(vit->second);
+                                        if (priority >= HTTP2_PRIORITY_0
+                                            && priority <= HTTP2_PRIORITY_MAX)
+                                            npriority = static_cast<uint8_t> (priority);
+                                    }
+                                }
+                                else if (p.value == "i") {
+                                    nincr = true;
+                                }
+                            }
+
+                            auto const prev_sdata_flags = sdata->flags;
+
+                            if (http_v2_remove_priority(ctx, sdata)) {
+                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_msg = "priority update failed";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                break;
+                            }
+
+                            sdata->priority = npriority;
+
+                            if (nincr)
+                                sdata->flags |= HTTP2_STREAM_PRIORITY_INCR;
+                            else if (sdata->flags & HTTP2_STREAM_PRIORITY_INCR)
+                                sdata->flags ^= HTTP2_STREAM_PRIORITY_INCR;
+
+                            if (http_v2_insert_priority(ctx, sdata)) {
+                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_msg = "priority update failed";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                break;
+                            }
+
+                            if ((prev_sdata_flags & HTTP2_STREAM_PRIORITY_LOCKED)
+                                && !(sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED)) {
+                                ctx->http_v2_worker->feed_event(sit->second, ev::WRITE, nullptr, 0, nullptr);
+                            }
+                        }
+
                     }
 
                     break;

@@ -88,7 +88,8 @@ manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v2::ipdata
 
 bool manapi::net::worker::http_v2::is_writable(const shared_conn &conn) {
     auto const s = conn->as<http::http_v2_stream_t>();
-    return s->write_window && s->ctx->write_window;
+    return (s->write_window && s->ctx->write_window)
+        && !(s->flags & http::HTTP2_STREAM_PRIORITY_LOCKED);
 }
 
 bool manapi::net::worker::http_v2::is_valid_connection(worker::connection *connection) {

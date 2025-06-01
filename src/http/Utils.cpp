@@ -247,7 +247,7 @@ std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_
                         i++;
                         rhs = i;
                         state = HTTP_HV_SKIP2;
-                        next = HTTP_HV_VALUE_START;
+                        next = HTTP_HV_KEY_START;
                         data.rbegin()->params.insert({std::move(key), std::move(value)});
                         goto finish;
                     }
