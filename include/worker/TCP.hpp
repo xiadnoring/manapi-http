@@ -95,7 +95,7 @@ namespace manapi::net::worker {
 
         virtual void onaccept_event_ (const worker::shared_conn &conn);
 
-        std::unordered_map <std::uintptr_t, shared_conn> connections;
+        std::map <std::uintptr_t, shared_conn> connections;
         ev::shared_tcp watcher_accept_;
     protected:
         void conn_work_finish_ (worker::shared_conn conn, bool ok, ibuffpool_t buffer = {});
