@@ -395,13 +395,13 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                         ctx_cb.worker->event_flags(conn, 0);
                         ctx_cb.cnt++;
                         manapi::async::run (manapi::async::invoke(
-                            [] (const worker::shared_conn & conn, worker::ibuffpool_t p, const char * buffer, ssize_t nsize, ctx_cb_t_ &ctx_cb) -> manapi::future<> {
+                            [] (const worker::shared_conn & conn, worker::ibuffpool_t p, const char * buffer, ssize_t nsize, ctx_cb_t_ *ctx_cb) -> manapi::future<> {
                                 try {
 
                                     ssize_t size;
 
-                                    if (ctx_cb.req->body_size >= 0)
-                                        size = std::min(ctx_cb.req->body_size, static_cast<ssize_t> (nsize));
+                                    if (ctx_cb->req->body_size >= 0)
+                                        size = std::min(ctx_cb->req->body_size, static_cast<ssize_t> (nsize));
                                     else
                                         size = static_cast<ssize_t> (nsize);
 
@@ -409,59 +409,59 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                     while (rhs < size) {
                                         auto const copy = size - rhs;
 
-                                        auto const res = co_await ctx_cb.handler (buffer + rhs, copy);
+                                        auto const res = co_await ctx_cb->handler (buffer + rhs, copy);
                                         if (res >= 0) {
                                             if (copy > res) {
-                                                ctx_cb.reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(
+                                                ctx_cb->reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(
                                                     manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
                                                 goto finish;
                                             }
 
                                             rhs += res;
 
-                                            ctx_cb.req->body_size -= res;
+                                            ctx_cb->req->body_size -= res;
 
                                             continue;
                                         }
 
-                                        ctx_cb.reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
+                                        ctx_cb->reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
                                             manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
                                         goto finish;
                                     }
 
 
-                                    if (!ctx_cb.req->body_size) {
+                                    if (!ctx_cb->req->body_size) {
                                         auto const copy = static_cast<int>(size - rhs);
                                         if (copy) {
-                                            assert(ctx_cb.req->buffer == nullptr);
-                                            auto object = ctx_cb.worker->bufferpool()->get();
+                                            assert(ctx_cb->req->buffer == nullptr);
+                                            auto object = ctx_cb->worker->bufferpool()->get();
                                             object->resize(size - copy);
                                             memcpy (object->data(), buffer + copy, size - copy);
-                                            ctx_cb.req->buffer = std::move(object);
+                                            ctx_cb->req->buffer = std::move(object);
                                         }
-                                        ctx_cb.resolve();
+                                        ctx_cb->resolve();
                                         goto finish;
                                     }
                                 }
                                 catch (...) {
-                                    ctx_cb.reject (std::current_exception());
+                                    ctx_cb->reject (std::current_exception());
                                     goto finish;
                                 }
 
-                                ctx_cb.worker->waiting(conn, true);
-                                ctx_cb.worker->event_flags(conn, ev::READ);
-                                ctx_cb.cnt--;
-                                ctx_cb.mx.unlock();
+                                ctx_cb->worker->waiting(conn, true);
+                                ctx_cb->worker->event_flags(conn, ev::READ);
+                                ctx_cb->cnt--;
+                                ctx_cb->mx.unlock();
                                 co_return;
 
                                 finish: {
                                     auto &ctx_cb_ = ctx_cb;
-                                    ctx_cb_.worker->event_flags(conn, 0);
-                                    ctx_cb_.worker->event_on(conn, nullptr);
-                                    ctx_cb_.cnt--;
-                                    ctx_cb_.mx.unlock();
+                                    ctx_cb_->worker->event_flags(conn, 0);
+                                    ctx_cb_->worker->event_on(conn, nullptr);
+                                    ctx_cb_->cnt--;
+                                    ctx_cb_->mx.unlock();
                                 }
-                        }, ctx_cb.conn, std::move(*p), buffer, nsize, ctx_cb));
+                        }, ctx_cb.conn, std::move(*p), buffer, nsize, &ctx_cb));
                     }
                     else if (flags & worker::base::CONN_RECV_END) {
                         ctx_cb.resolve();

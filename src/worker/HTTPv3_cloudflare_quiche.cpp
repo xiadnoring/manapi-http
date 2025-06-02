@@ -107,7 +107,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
             reinterpret_cast <const uint8_t *> (QUICHE_H3_APPLICATION_PROTOCOL), sizeof(QUICHE_H3_APPLICATION_PROTOCOL) - 1)) {
             goto err;
         }
-        quiche_config_set_max_idle_timeout(this->quiche_config_, 5000);
+        //quiche_config_set_max_idle_timeout(this->quiche_config_, 15000);
         quiche_config_set_max_recv_udp_payload_size(this->quiche_config_, MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE);
         quiche_config_set_max_send_udp_payload_size(this->quiche_config_, MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE);
         quiche_config_set_initial_max_data(this->quiche_config_, 10000000);
@@ -997,10 +997,15 @@ void manapi::net::worker::http_v3_cloudflare_quiche::flush_write_(const shared_c
 }
 
 manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response(const shared_conn &connection, http::response *resp, bool finish) {
+    struct q_headers_deleter {
+        void operator()(quiche_h3_header *v) {
+           delete[] v;
+        }
+    };
     auto s = connection->as<connection_stream_t>();
 
     auto headers = resp->headers();
-    std::unique_ptr<quiche_h3_header> q_headers (new quiche_h3_header[headers.size() + 1]);
+    std::unique_ptr<quiche_h3_header, q_headers_deleter> q_headers (new quiche_h3_header[headers.size() + 1]);
 
     std::size_t headers_size = headers.size() + 1;
     std::size_t header_cursor = 0;

@@ -214,15 +214,13 @@ namespace manapi::async::internal {
 
 namespace manapi::async {
     template<typename T>
-    std::invoke_result_t <T> invoke (T &&executer) {
-        auto cb (std::forward<decltype(executer)>(executer));
-        co_return co_await cb();
+    std::invoke_result_t <T> invoke (T executer) {
+        co_return co_await executer();
     }
 
     template<typename T, typename ...Args>
-    std::invoke_result_t <T, Args...> invoke (T &&executer, Args &&...args) {
-        auto cb (std::forward<decltype(executer)>(executer));
-        co_return co_await cb(std::forward<decltype(args)>(args)...);
+    std::invoke_result_t <T, Args...> invoke (T executer, Args... args) {
+        co_return co_await executer(std::forward<Args>(args)...);
     }
 
     template<typename T>

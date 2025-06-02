@@ -149,8 +149,8 @@ namespace manapi {
 
         void reset () {
             if (this->handle_) {
-                this->handle_.destroy();
-                this->handle_ = nullptr;
+                // this->handle_.destroy();
+                // this->handle_ = nullptr;
             }
         }
 

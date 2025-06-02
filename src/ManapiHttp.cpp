@@ -159,9 +159,11 @@ manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data
 manapi::future<> manapi::net::http::server::init_pool_() {
     auto &pool = this->data2->pools[std::this_thread::get_id()];
     // init all pools
-    if (this->data->config_.contains("pools"))
+    if (this->data->config_->contains("pools"))
     {
-        for (auto it = this->data->config_["pools"].begin<json::ARRAY>(); it != this->data->config_["pools"].end<json::ARRAY>(); ++it, this->data2->next_pool_id++)
+        auto bb = this->data->config_;
+        auto &pools = bb->at("pools");
+        for (auto it = pools.begin<json::ARRAY>(); it != pools.end<json::ARRAY>(); ++it, this->data2->next_pool_id++)
         {
             std::unique_ptr<http_pool> p;
 

@@ -9,6 +9,7 @@
 #include "ManapiProcess.hpp"
 #include "ManapiString.hpp"
 #include "async/ManapiAsyncTimer.hpp"
+#include "async/ManapiEasyCancellation.hpp"
 
 //#include "extensions/pq/AsyncPostgreClient.hpp"
 
@@ -246,28 +247,44 @@ int main () {
             co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
         });
 
+        router.GET("/timeout", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            co_await manapi::async::delay{5000};
+            co_return resp.text("5000ms");
+        });
+
         router.GET ("/ai", [] (http::req &req, http::resp &resp)
             -> manapi::future<> {
             if (!req.contains_get_param("text")) {
                 co_return resp.text("GET param 'text' doesn't exists");
             }
 
+
+
+            std::string ip = "https://localhost:8888/timeout";
+            int timeout = 2000;
+            if (req.contains_get_param("timeout")) {
+                try {
+                    timeout = std::stoi(req.get("timeout"));
+                }
+                catch (...) {
+
+                }
+            }
+            if (req.contains_get_param("ip"))
+                ip = req.get("ip");
+
             auto text = req.get("text");
-            auto response = co_await manapi::net::fetch2::fetch("https://openrouter.ai/api/v1/chat/completions", {
-                {"method", "POST"},
+            auto response = co_await manapi::net::fetch2::fetch(ip, {
+                {"method", "GET"},
+                {"http", "3"},
+                {"verify_peer", false},
+                {"alpn", false},
                 {"headers", {
                     {"content-type", "application/json"},
                     {"authorization", "Bearer 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"}
                 }}
-            }, manapi::json{
-                {"model", "deepseek/deepseek-r1-0528:free"},
-                {"messages", manapi::json::array({
-                    {
-                        {"role", "user"},
-                        {"content", std::move(text)}
-                    }
-                })}
-            }.dump());
+            }, std::string{}, manapi::async::timeout_cancellation(timeout));
 
             if (!response.ok()) {
                 co_return resp.text(std::format("fetch failed. Http Status: {}", response.status()));

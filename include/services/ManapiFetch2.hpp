@@ -4,6 +4,7 @@
 #include "./ManapiFetch.hpp"
 #include "../ManapiJsonBuilder.hpp"
 #include "../components/ManapiFileTransferInfo.hpp"
+#include "async/ManapiAsyncTimer.hpp"
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
 
@@ -24,8 +25,8 @@ namespace manapi::net {
 
         }
 
-        fetch2 (std::string url) {
-            this->fetchdata = std::make_shared<fetch_data>(manapi::net::fetch{std::move(url)});
+        fetch2 (std::string url, async::cancellation_action cancellation = nullptr) {
+            this->fetchdata = std::make_shared<fetch_data>(manapi::net::fetch{std::move(url), std::move(cancellation)});
         }
 
         fetch2 (fetch2 &&n) noexcept {
@@ -47,24 +48,24 @@ namespace manapi::net {
 
         }
 
-        static manapi::future<fetch2> fetch (std::string url, manapi::json params = manapi::json::object()) {
-            return fetch_(std::move(url), std::move(params), std::optional<std::string> {});
+        static manapi::future<fetch2> fetch (std::string url, manapi::json params = manapi::json::object(), async::cancellation_action cancellation = nullptr) {
+            return fetch_(std::move(url), std::move(params), std::optional<std::string> {}, std::move(cancellation));
         }
 
-        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<curlformdata> body) {
-            return fetch_(std::move(url), std::move(params), std::move(body));
+        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<curlformdata> body, async::cancellation_action cancellation = nullptr) {
+            return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
         }
 
-        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<std::string> body) {
-            return fetch_(std::move(url), std::move(params), std::move(body));
+        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<std::string> body, async::cancellation_action cancellation = nullptr) {
+            return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
         }
 
-        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body) {
-            return fetch_(std::move(url), std::move(params), std::move(body));
+        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body, async::cancellation_action cancellation = nullptr) {
+            return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
         }
 
-        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)>> body) {
-            fetch2 response (std::move(url));
+        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)>> body, async::cancellation_action cancellation = nullptr) {
+            fetch2 response (std::move(url), std::move(cancellation));
             if (body.has_value()) {
                 response.fetchdata->data.async_body(std::move(body.value()));
             }
@@ -73,8 +74,8 @@ namespace manapi::net {
             co_return std::move(response);
         }
 
-        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<file_transfer_info> body) {
-            fetch2 response (std::move(url));
+        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<file_transfer_info> body, async::cancellation_action cancellation = nullptr) {
+            fetch2 response (std::move(url), std::move(cancellation));
             if (body.has_value()) {
                 co_await response.fetchdata->data.body(std::move(body.value()));
             }
@@ -133,8 +134,8 @@ namespace manapi::net {
         }
     private:
         template<typename T>
-        static manapi::future<fetch2> fetch_ (std::string url, manapi::json params, T body) {
-            fetch2 response (std::move(url));
+        static manapi::future<fetch2> fetch_ (std::string url, manapi::json params, T body, async::cancellation_action cancellation = nullptr) {
+            fetch2 response (std::move(url), std::move(cancellation));
             if (body.has_value()) {
                 response.fetchdata->data.body(std::move(body.value()));
             }
@@ -176,7 +177,7 @@ namespace manapi::net {
                         this->fetchdata->data.enable_http2();
                     }
                     else if (version == 3.0) {
-                        this->fetchdata->data.enable_http1_1();
+                        this->fetchdata->data.enable_http3();
                     }
                 }
 
@@ -195,37 +196,53 @@ namespace manapi::net {
         }
         manapi::future<> response () {
             co_await this->fetchdata->mx.lock();
-            co_await async::promise<void> ([this] (manapi::async::promise<void>::resolve_t resolve, manapi::async::promise<void>::reject_t reject) -> manapi::future<> {
-                this->fetchdata->data.handle_async_headers([fetchdata = this->fetchdata.get(), resolve = std::move(resolve)] (std::map<std::string, std::string> headers) mutable
-                    -> manapi::future<bool> {
-                    auto const fetchdata_ = fetchdata;
-                    auto resolve_ = std::move(resolve);
-
-                    fetchdata_->received = true;
-                    resolve_ ();
-                    auto lk = co_await fetchdata_->mx.lock_guard();
-                    co_return fetchdata_->result;
-                });
-
-                this->fetchdata->async_run.run(manapi::async::invoke([reject, fetchdata = this->fetchdata] () -> manapi::future<std::exception_ptr> {
+            std::exception_ptr err{nullptr};
+            try {
+                using promise = async::promise<void, std::false_type>;
+                co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
                     try {
-                        co_await fetchdata->data.async_doit();
+                        auto dd = this;
+                        this->fetchdata->data.handle_async_headers([fetchdata = this->fetchdata, resolve = std::move(resolve)] (std::map<std::string, std::string> headers) mutable
+                            -> manapi::future<bool> {
+                            auto resolve_ = std::move(resolve);
+
+                            fetchdata->received = true;
+                            resolve_ ();
+                            auto lk = co_await fetchdata->mx.lock_guard();
+                            co_return fetchdata->result;
+                        });
+
+                                assert((fetchdata.use_count() <= 100&&fetchdata.use_count()>=0));
+
+                        auto p = manapi::async::invoke([a = (int)78, this, reject, fetchdata = this->fetchdata, b = 78] ()
+                            -> manapi::future<std::exception_ptr> {
+
+                            try {
+                                co_await fetchdata->data.async_doit();
+                            }
+                            catch (...) {
+                                reject(std::current_exception());
+                                co_return std::current_exception();
+                            }
+                            co_return nullptr;
+                        });
+
+                        this->fetchdata->async_run.run(
+                            std::move(p));
                     }
                     catch (...) {
-                        if (!fetchdata->received) {
-                            fetchdata->mx.unlock();
-                            /* headers weren't received */
-                            reject (std::current_exception());
-                        }
-                        else {
-                            co_return std::current_exception();
-                        }
+                        reject(std::current_exception());
                     }
-                    co_return nullptr;
-                }));
+                });
+            }
+            catch (...) {
+                err = std::current_exception();
+            }
 
-                co_return;
-            });
+            if (err) {
+                co_await this->fetchdata->async_run.get();
+                std::rethrow_exception(std::move(err));
+            }
         }
         std::shared_ptr<fetch_data> fetchdata;
     };

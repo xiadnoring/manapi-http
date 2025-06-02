@@ -84,8 +84,8 @@ namespace manapi::net::http {
             std::unique_ptr<async::condition_variable> cache_cv;
             ev::shared_async server_config_notifier;
             std::shared_ptr<worker::server_config_t> server_config;
-            manapi::json cache_config;
-            manapi::json config_;
+            std::shared_ptr<manapi::json> cache_config;
+            std::shared_ptr<manapi::json> config_;
             size_t cache_time;
             size_t config_time;
             std::string config_path;

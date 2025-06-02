@@ -84,37 +84,21 @@ namespace manapi::net {
                 { curl_mime_free(mime); }
         };
 
-        struct shared_data {
-            int flags;
-            std::unique_ptr<async::mutex> async_run;
-            ssize_t async_buffer_cursor{0};
-            object_item_pool<manapi::bytebuffer> async_buffer{};
-            std::unique_ptr<std::move_only_function <void(CURL *)>> handle_custom_setup{nullptr};
-            std::unique_ptr<std::move_only_function <ssize_t(char *, ssize_t)>> handler_recv_body{nullptr};
-            std::unique_ptr<std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)>> async_handler_recv_body{nullptr};
-            std::unique_ptr<std::move_only_function <manapi::future<bool>(std::shared_ptr<shared_data> data, std::map <std::string, std::string>)>> async_handler_headers{nullptr};
-            std::unique_ptr<std::move_only_function <bool(std::map <std::string, std::string>)>> handler_headers{nullptr};
-            std::shared_ptr<CURL> curl {nullptr};
-            std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
-            std::unique_ptr<std::map<std::string, std::string>> headers{};
-            std::unique_ptr<std::move_only_function<manapi::future<>(std::shared_ptr<shared_data> data, bool)>> async_user_body_cb{nullptr};
-            std::unique_ptr<std::move_only_function<ssize_t(char *buffer, ssize_t size)>> sync_user_body_cb{nullptr};
-            std::unique_ptr<std::move_only_function <ssize_t(char *, ssize_t)>> handler_send_body{nullptr};
-            std::unique_ptr<std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)>> async_handler_send_body{nullptr};
-            std::unique_ptr<std::move_only_function<void()>> parallel_task{nullptr};
-        };
+        struct shared_data;
+
     public:
-
-        explicit fetch(std::string url);
-        fetch(fetch &&n) noexcept;
-        ~fetch() override;
-
         enum body_type {
             BODY_NONE = 0,
             BODY_PLAIN = 1,
             BODY_MULTIPART = 2,
             BODY_CALLBACK = 3
         };
+
+        struct data_t;
+
+        explicit fetch(std::string url, manapi::async::cancellation_action cancellation = nullptr);
+        fetch(fetch &&n) noexcept;
+        ~fetch() override;
 
         fetch &operator=(fetch &&n) noexcept;
         void handle_body(std::move_only_function<ssize_t(char *, ssize_t)> handler);
@@ -168,19 +152,7 @@ namespace manapi::net {
 
         future<CURLcode> async_curl_perform ();
 
-        int flags;
-        size_t status_code_ = 200;
-        ssize_t content_length_ = -1;
-
-        std::string url_;
-
-        std::shared_ptr<shared_data> data_{nullptr};
-
-        body_type body_ = BODY_NONE;
-
-        std::string body_default_{};
-        std::string method_{};
-        std::optional<curlformdata> body_formdata_{};
+        std::shared_ptr<data_t> data;
     };
 }
 

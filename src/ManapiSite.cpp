@@ -167,14 +167,14 @@ manapi::future<> manapi::net::http::site::config(std::string path) {
             co_await this->setup_config ();
         }
 
-        this->data->config_ = this->data->server_config->config;
+        this->data->config_ = std::make_shared<manapi::json>(this->data->server_config->config);
     }
     {
         auto lk = co_await this->data->server_config->cache_mx->lock_guard();
         if (this->data->server_config->cache.is_null()) {
             this->data->server_config->cache = manapi::json::object();
         }
-        this->data->cache_config = this->data->server_config->cache;
+        this->data->cache_config = std::make_shared<manapi::json>(this->data->server_config->cache);
     }
     this->data->server_config_notifier->send();
 }
@@ -189,7 +189,7 @@ manapi::future<> manapi::net::http::site::config_object(json config) {
             co_await this->setup_config();
         }
 
-        this->data->config_ = this->data->server_config->config;
+        this->data->config_ = std::make_shared<manapi::json>(this->data->server_config->config);
     }
 
     {
@@ -197,7 +197,7 @@ manapi::future<> manapi::net::http::site::config_object(json config) {
         if (this->data->server_config->cache.is_null()) {
             this->data->server_config->cache = manapi::json::object();
         }
-        this->data->cache_config = this->data->server_config->cache;
+        this->data->cache_config = std::make_shared<json>(this->data->server_config->cache);
     }
     this->data->server_config_notifier->send();
 }
@@ -247,13 +247,13 @@ manapi::future<> manapi::net::http::site::setup_config() {
 
 manapi::future<std::pair<int, std::string>> manapi::net::http::site::get_compressed_cache_file(std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime) {
     while (true) {
-        if (!this->data->cache_config.contains(algorithm))
+        if (!this->data->cache_config->contains(algorithm))
         {
             co_return {1, std::string{}};
         }
 
 
-        auto *files = &this->data->cache_config.at(algorithm);
+        auto *files = &this->data->cache_config->at(algorithm);
 
         if (!files->contains(file))
         {
@@ -265,7 +265,7 @@ manapi::future<std::pair<int, std::string>> manapi::net::http::site::get_compres
         if (file_info->is_bool() && *file_info == false) {
             co_await this->data->cache_cv->wait([&] ()
                 -> bool {
-                files = &this->data->cache_config.at(algorithm);
+                files = &this->data->cache_config->at(algorithm);
                 file_info = &files->operator[](file);
 
                 return !file_info->is_bool();
@@ -286,7 +286,7 @@ manapi::future<std::pair<int, std::string>> manapi::net::http::site::get_compres
 
                     co_await this->data->cache_cv->wait([&] ()
                         -> bool {
-                        return !this->data->cache_config[algorithm][file].is_bool();
+                        return !this->data->cache_config->at(algorithm)[file].is_bool();
                     });
 
                     continue;
@@ -501,7 +501,9 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
 }
 
 manapi::net::http::site::site(server_ctx sctx) {
-    this->data = std::make_shared<data_t>(nullptr, nullptr, nullptr, manapi::json{}, manapi::json{}, 0, 0, std::string{}, std::string{}, std::move(sctx), false, http_uri_part{nullptr, nullptr, nullptr, nullptr, nullptr,nullptr,nullptr});
+    this->data = std::make_shared<data_t>(nullptr, nullptr, nullptr,
+        std::make_shared<manapi::json>(manapi::json::object()),
+        std::make_shared<manapi::json>(manapi::json::object()), 0, 0, std::string{}, std::string{}, std::move(sctx), false, http_uri_part{nullptr, nullptr, nullptr, nullptr, nullptr,nullptr,nullptr});
     this->data->cache_cv = std::make_unique<async::condition_variable>();
     this->data->server_config_notifier = async::current()->eventloop()->create_watcher_async([this] (ev::shared_async &w)
         -> void {
@@ -509,14 +511,14 @@ manapi::net::http::site::site(server_ctx sctx) {
             -> manapi::future<> {
             if (this->data->server_config->config_time != this->data->config_time) {
                 auto lk = co_await this->data->server_config->config_mx->lock_guard();
-                this->data->config_ = this->data->server_config->config;
+                this->data->config_ = std::make_shared<manapi::json>(this->data->server_config->config);
                 this->data->config_time = this->data->server_config->config_time;
 
             }
 
             if (this->data->server_config->cache_time != this->data->cache_time) {
                 auto lk = co_await this->data->server_config->cache_mx->lock_guard();
-                this->data->cache_config = this->data->server_config->cache;
+                this->data->cache_config = std::make_shared<manapi::json>(this->data->server_config->cache);
                 this->data->cache_time = this->data->server_config->cache_time;
 
                 auto const cachedirit = this->data->server_config->config.as_object().find("cache_dir");
