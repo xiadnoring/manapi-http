@@ -2,7 +2,7 @@
 
 #include "uv.h"
 
-#include "ManapiDebug.hpp"
+#include "../ManapiDebug.hpp"
 
 #define MANAPI_EV_NODISCARD [[nodiscard]]
 #define MANAPI_EV_NOEXPECT noexcept(true)

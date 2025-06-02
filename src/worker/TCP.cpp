@@ -145,6 +145,14 @@ err:
     THROW_MANAPIHTTP_EXCEPTION2 (ERR_SOCKET, "tcp: init(...) failed");
 }
 
+void manapi::net::worker::TCP::waiting(const shared_conn &conn, bool state) {
+    auto const d = conn->as<connection_interface>();
+    if (state)
+        d->status |= CONN_IO_WAITING;
+    else if (d->status & CONN_IO_WAITING)
+        d->status ^= CONN_IO_WAITING;
+}
+
 void manapi::net::worker::TCP::configure_connection(const worker::shared_conn &connection, oncont_cb cb) {
     cb.call(true);
 }
@@ -417,7 +425,6 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
     auto const data = conn->as<connection_interface>();
     auto &status = data->status;
 
-
     data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
 
     auto const prev = std::exchange(status, ((status >> 2) << 2) | flags);
@@ -637,7 +644,8 @@ bool manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &s
         conn_data->transfered_k += conn_data->transfered;
 
         if (--conn_data->speed_min_delay == 0) {
-            if (conn_data->transfered_k < this->config_->speed_check_bytes) {
+            if (conn_data->status & (CONN_IO_WAITING)
+                && (conn_data->transfered_k < this->config_->speed_check_bytes)) {
                 this->close_connection(sconn, false);
                 return true;
             }
@@ -699,7 +707,7 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
                      **/
                     auto const s = http_v2_ctx->streams->rbegin();
                     assert((s != http_v2_ctx->streams->rend() && "At least one stream must be"));
-
+                    this->waiting(conn, false);
                     auto const sdata = s->second->as<http::http_v2_stream_t>();
                     auto const req_ptr = sdata->req.get();
                     auto cdata = std::make_unique<http::internal::handle_data_t>(s->second, this->http_v2_worker,
@@ -724,12 +732,16 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
 
                                     http::http_v2_on_close_stream(http_v2_ctx, sdata->id);
 
-                                    if (http_v2_ctx->streams->empty() &&
-                                        http_v2_ctx->current == -1) {
-                                        if (http::http_v2_on_close (http_v2_ctx)) {
-                                            /* error */
+                                    if (http_v2_ctx->streams->empty()) {
+                                        if (http_v2_ctx->current == -1) {
+                                            if (http::http_v2_on_close (http_v2_ctx)) {
+                                                /* error */
+                                            }
+                                            wrk->conn_work_finish_(conn, true);
                                         }
-                                        wrk->conn_work_finish_(conn, true);
+                                        else {
+                                            wrk->waiting(conn, true);
+                                        }
                                     }
                             });
                     }));
@@ -858,6 +870,9 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     }
 
                     data->status |= CONN_LIMIT_RATE;
+                    if (data->status & CONN_IO_WAITING)
+                        data->status ^= CONN_IO_WAITING;
+
                     auto cdata = std::make_unique<http::internal::handle_data_t>(conn, this->self_.lock(), req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
                         [this, conn, req = std::move(http_v1_1_ctx->req)] (bool ok)
                         -> void {
@@ -896,6 +911,9 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                             http2_ctx->conn = conn;
                             http2_ctx->worker = this;
                             http2_ctx->http_v2_worker = this->http_v2_worker;
+
+                            if (data->status & CONN_IO_WAITING)
+                                data->status ^= CONN_IO_WAITING;
 
                             data->status |= CONN_LIMIT_RATE;
                             data->data = http2_ctx.get();
@@ -950,6 +968,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
 void manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) {
     auto http_v1_1_ctx = std::make_unique<http::http_v1_1_t>(http::http_v1_1_t{});
 
+    this->waiting(conn, true);
     this->event_on(conn,
         std::make_unique<worker_watcher_cb>([this, http_v1_1_ctx = std::move(http_v1_1_ctx)]
         (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable

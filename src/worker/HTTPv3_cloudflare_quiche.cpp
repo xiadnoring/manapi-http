@@ -21,7 +21,8 @@ enum http_v3_stream_flags {
     HTTP_V3_STREAM_WANT_WRITE = manapi::ev::WRITE,
     HTTP_V3_STREAM_CLOSED = manapi::ev::DISCONNECT,
     HTTP_V3_STREAM_RECV_END = 8,
-    HTTP_V3_STREAM_REMOVED = 16
+    HTTP_V3_STREAM_REMOVED = 16,
+    HTTP_V3_STREAM_IO_WAITING = 32
 };
 
 template<typename T>
@@ -280,6 +281,14 @@ int manapi::net::worker::http_v3_cloudflare_quiche::quiche_flush_egress_(connect
     }
 
     return 0;
+}
+
+void manapi::net::worker::http_v3_cloudflare_quiche::waiting(const shared_conn &conn, bool state) {
+    auto const d = conn->as<http_v3_cloudflare_quiche::connection_stream_t>();
+    if (state)
+        d->flags |= HTTP_V3_STREAM_IO_WAITING;
+    else if (d->flags & HTTP_V3_STREAM_IO_WAITING)
+        d->flags ^= HTTP_V3_STREAM_IO_WAITING;
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::quiche_timeout_again_(connection_t *connection) {
@@ -783,7 +792,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
         conn_data->transfered_k += conn_data->transfered;
 
         if (--conn_data->speed_min_delay == 0) {
-            if (conn_data->transfered_k < this->config_->speed_check_bytes) {
+            if (conn_data->flags & HTTP_V3_STREAM_IO_WAITING
+                && conn_data->transfered_k < this->config_->speed_check_bytes) {
                 this->close_connection(conn, false);
                 return;
             }

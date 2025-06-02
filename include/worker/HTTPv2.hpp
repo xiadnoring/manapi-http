@@ -18,6 +18,8 @@ namespace manapi::net::worker {
 
         ~http_v2 ();
 
+        void waiting(const shared_conn &conn, bool state) override;
+
         void feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) override;
 
         void close_connection(shared_conn conn, bool clean_disconnect) override;

@@ -237,6 +237,8 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
     int pflags;
     std::exception_ptr err;
 
+    worker->waiting(*conn, true);
+
     try {
         co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
             -> void {
@@ -321,6 +323,8 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
         err = std::current_exception();
     }
 
+    worker->waiting(*conn, false);
+
     if (prev) {
         worker->event_on(*conn, std::move(prev));
         worker->event_flags(*conn, pflags);
@@ -355,6 +359,8 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
 
     std::exception_ptr err;
 
+    worker->waiting(*conn, true);
+
     try {
         co_await promise ([&ctx_cb] (promise::resolve_t resolve, promise::reject_t reject)
             -> void {
@@ -385,6 +391,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
 
                         assert(!((*p)->empty()));
 
+                        ctx_cb.worker->waiting(conn, false);
                         ctx_cb.worker->event_flags(conn, 0);
                         ctx_cb.cnt++;
                         manapi::async::run (manapi::async::invoke(
@@ -441,6 +448,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                     goto finish;
                                 }
 
+                                ctx_cb.worker->waiting(conn, true);
                                 ctx_cb.worker->event_flags(conn, ev::READ);
                                 ctx_cb.cnt--;
                                 ctx_cb.mx.unlock();
@@ -486,6 +494,8 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
         }
         break;
     }
+
+    worker->waiting(*conn, false);
 
     if (ctx_cb.prev) {
         worker->event_on(ctx_cb.conn, std::move(ctx_cb.prev));

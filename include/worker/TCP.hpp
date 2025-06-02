@@ -27,7 +27,8 @@ namespace manapi::net::worker {
         };
 
         enum conn_tcp_flags {
-            CONN_HTTP_1_1_CHUNKED   = 0b100000000
+            CONN_HTTP_1_1_CHUNKED   = 0b100000000,
+            CONN_IO_WAITING         = 0b1000000000
         };
 
         struct connection_data_t {
@@ -41,6 +42,8 @@ namespace manapi::net::worker {
         bool is_valid_connection(worker::connection *connection) override;
 
         void init () override;
+
+        void waiting(const shared_conn &conn, bool state) override;
 
         void configure_connection (const shared_conn & connection, oncont_cb cb) override;
 

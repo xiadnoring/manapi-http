@@ -7,6 +7,8 @@
 #include "crypto/ManapiAEAD.hpp"
 #include "ManapiHash.hpp"
 #include "ManapiProcess.hpp"
+#include "ManapiString.hpp"
+#include "async/ManapiAsyncTimer.hpp"
 
 //#include "extensions/pq/AsyncPostgreClient.hpp"
 
@@ -244,6 +246,37 @@ int main () {
             co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
         });
 
+        router.GET ("/ai", [] (http::req &req, http::resp &resp)
+            -> manapi::future<> {
+            if (!req.contains_get_param("text")) {
+                co_return resp.text("GET param 'text' doesn't exists");
+            }
+
+            auto text = req.get("text");
+            auto response = co_await manapi::net::fetch2::fetch("https://openrouter.ai/api/v1/chat/completions", {
+                {"method", "POST"},
+                {"headers", {
+                    {"content-type", "application/json"},
+                    {"authorization", "Bearer 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"}
+                }}
+            }, manapi::json{
+                {"model", "deepseek/deepseek-r1-0528:free"},
+                {"messages", manapi::json::array({
+                    {
+                        {"role", "user"},
+                        {"content", std::move(text)}
+                    }
+                })}
+            }.dump());
+
+            if (!response.ok()) {
+                co_return resp.text(std::format("fetch failed. Http Status: {}", response.status()));
+            }
+
+            auto data = co_await response.text();
+            co_return resp.text(std::move(data));
+        });
+
         router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable
             -> manapi::future<> {
             try {
@@ -265,7 +298,7 @@ int main () {
         manapi::async::run([router, db] () mutable -> manapi::future<> {
             co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
 
-            co_await router.config("./config.json");
+            co_await router.config("config.json");
             co_await router.start();
         });
 

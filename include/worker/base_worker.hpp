@@ -113,6 +113,8 @@ namespace manapi::net::worker {
 
         virtual bool is_writable (const shared_conn &conn) = 0;
 
+        virtual void waiting (const shared_conn &conn, bool state) = 0;
+
         manapi::future<ssize_t> write (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
 
         manapi::future<ssize_t> fwrite (const shared_conn &conn, const void *buff, ssize_t size, bool finish);

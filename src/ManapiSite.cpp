@@ -185,6 +185,7 @@ manapi::future<> manapi::net::http::site::config_object(json config) {
         auto lk = co_await this->data->server_config->config_mx->lock_guard();
 
         if (this->data->server_config->config.is_null()) {
+            this->data->server_config->config = std::move(config);
             co_await this->setup_config();
         }
 

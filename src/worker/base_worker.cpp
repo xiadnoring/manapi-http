@@ -35,36 +35,47 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
     int prev_flags;
     std::unique_ptr<worker_watcher_cb> prev_cb;
 
-    rhs = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
-        -> void {
-        prev_cb = this->event_on(conn, std::make_unique<worker_watcher_cb>([this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]
-            (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) -> void {
-                try {
-                    if (flags & ev::DISCONNECT) {
+    this->waiting(conn, true);
+
+    try {
+        rhs = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
+            -> void {
+            prev_cb = this->event_on(conn, std::make_unique<worker_watcher_cb>([this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]
+                (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) -> void {
+                    try {
+                        if (flags & ev::DISCONNECT) {
+                            resolve(-1);
+                            goto finish;
+                        }
+
+                        if (flags & ev::WRITE) {
+                            auto const rhs = this->sync_write(conn, buff, size, finish);
+                            if (rhs) {
+                                resolve(rhs);
+                                goto finish;
+                            }
+                            return;
+                        }
+                    }
+                    catch (...) {
+                        //reject(std::current_exception());
                         resolve(-1);
                         goto finish;
                     }
 
-                    if (flags & ev::WRITE) {
-                        auto const rhs = this->sync_write(conn, buff, size, finish);
-                        if (rhs) {
-                            resolve(rhs);
-                            goto finish;
-                        }
-                        return;
-                    }
-                }
-                catch (...) {
-                    //reject(std::current_exception());
-                    resolve(-1);
-                    goto finish;
-                }
+                    return;
+                    finish: this->event_flags(conn, 0);
+            }));
+            prev_flags = this->event_flags(conn, ev::WRITE);
+        });
+    }
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("write(...) failed due to {}", e.what());
 
-                return;
-                finish: this->event_flags(conn, 0);
-        }));
-        prev_flags = this->event_flags(conn, ev::WRITE);
-    });
+        rhs = -1;
+    }
+
+    this->waiting(conn, false);
 
     this->event_on(conn, std::move(prev_cb));
     this->event_flags(conn, prev_flags);

@@ -23,25 +23,30 @@ std::map <std::string, CURLoption> manapi::net::fetch::http_method_to_enum {
 
 size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata)
 {
-    auto f = static_cast <fetch::shared_data *> (userdata);
-    /**
-     * clear body send callback
-     */
-    f->async_buffer_cursor = 0;
+    auto const f = static_cast <fetch::shared_data *> (userdata);
+    try {
+        /**
+         * clear body send callback
+         */
+        f->async_buffer_cursor = 0;
 
-    std::string str (buffer, size * n_items);
+        if (f->flags & FLAG_STATUS_PASSED) {
+            std::string_view const str (buffer, size * n_items - 2);
+            if (!str.empty()) {
+                auto header = manapi::net::http::parse_header(str);
+                f->headers->insert(std::move(header));
+            }
+        }
+        else {
+            f->flags |= FLAG_STATUS_PASSED;
+        }
 
-    // delete \r\n at the end of the header
-    if (str.size() >= 2)
-    {
-        str.pop_back(); // \n
-        str.pop_back(); // \r
+        return n_items * size;
     }
-
-    auto header = manapi::net::http::parse_header(str);
-    f->headers->insert(std::move(header));
-
-    return n_items * size;
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("fetch error: {}", e.what());
+    }
+    return -1;
 }
 
 size_t manapi::net::fetch::curl_write_handler (char *buffer, size_t size, size_t nitems, void *user_p) {
@@ -320,6 +325,7 @@ void manapi::net::fetch::clear_() {
     this->status_code_=200;
     this->body_ = BODY_NONE;
     this->body_formdata_.reset();
+    this->flags = 0;
     this->body_default_.clear();
     (*this->data_) = {};
 

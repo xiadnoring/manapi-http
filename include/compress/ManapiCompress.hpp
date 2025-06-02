@@ -2,7 +2,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../async/ManapiAsyncContext.hpp"
-#include "async/ManapiCancellation.hpp"
+#include "../async/ManapiCancellation.hpp"
 
 namespace manapi::compress {
 #if MANAPIHTTP_ZLIB_DEPENDENCY

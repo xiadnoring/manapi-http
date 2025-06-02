@@ -621,7 +621,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
     try {
         while (pos != size) {
-            switch(ctx->current) {
+            repeat: switch(ctx->current) {
                 case HTTP2_CALLBACK_INIT: {
                     ctx->current = HTTP2_CALLBACK_SKIP_MSG;
                     ctx->next = HTTP2_CALLBACK_ERROR;
@@ -782,7 +782,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 ctx->current = HTTP2_CALLBACK_PARSE_FIELD_BLOCK;
                             }
 
-                            break;
+                            goto repeat;
                         }
                     }
                     break;

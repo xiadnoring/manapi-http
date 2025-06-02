@@ -7,6 +7,14 @@ manapi::net::worker::http_v2::http_v2(net::http::site site, bufferpool_t bufferp
 
 manapi::net::worker::http_v2::~http_v2() = default;
 
+void manapi::net::worker::http_v2::waiting(const shared_conn &conn, bool state) {
+    auto const d = conn->as<http::http_v2_stream_t>();
+    if (state)
+        d->flags |= http::HTTP2_STREAM_IO_WAITING;
+    else if (d->flags & http::HTTP2_STREAM_IO_WAITING)
+        d->flags ^= http::HTTP2_STREAM_IO_WAITING;
+}
+
 void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) {
     auto const data = conn->as<http::http_v2_stream_t>();
     if (data->ev_callback) {
@@ -113,7 +121,8 @@ void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &c
     auto const conn_data = conn->as<http::http_v2_stream_t>();
 
     if (--conn_data->speed_min_delay == 0) {
-        if (conn_data->transfered_k < this->config_->speed_check_bytes) {
+        if (conn_data->flags & http::HTTP2_STREAM_IO_WAITING
+            && conn_data->transfered_k < this->config_->speed_check_bytes) {
             this->close_connection(conn, false);
             return;
         }

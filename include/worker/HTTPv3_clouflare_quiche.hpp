@@ -111,6 +111,8 @@ namespace manapi::net::worker {
 
         int quiche_flush_egress_(connection_t *data);
 
+        void waiting(const shared_conn &conn, bool state) override;
+
         static void quiche_timeout_again_(connection_t *connection);
 
         std::weak_ptr<http_v3_cloudflare_quiche> self_;

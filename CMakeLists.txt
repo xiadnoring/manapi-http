@@ -378,6 +378,9 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
     add_compile_definitions(MANAPIHTTP_HTTP_AS_EXECUTABLE)
     add_executable(${PROJECT_NAME} main.cpp ${MANAPIHTTP_HTTP_FILES})
 else ()
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
+
     # LIB
     message(STATUS "Build type 'lib'")
 

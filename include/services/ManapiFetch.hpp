@@ -63,7 +63,8 @@ namespace manapi::net {
         enum status_flags {
             FLAG_TRANSFER_ENCODING = 0b1,
             FLAG_CONTENT_LENGTH = 0b10,
-            FLAG_WAS_USED = 0b100
+            FLAG_WAS_USED = 0b100,
+            FLAG_STATUS_PASSED = 0b1000
         };
         enum status_data_flags {
             FLAG_DATA_EOF = 0b1,
