@@ -60,7 +60,7 @@ paru -Sy gmp openssl zlib curl
 
 ### For Windows
 
-No support (will be soon)
+MSVC C++ (Tested)
 
 ### For MacOs
 

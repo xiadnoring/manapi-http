@@ -12,7 +12,7 @@
 #include "ManapiString.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
 
-#define CHUNK_SIZE 1024
+#define CHUNK_SIZE 65536
 
 
 void manapi::compress::throw_could_not_compress_file (const std::string &name, const std::string &src, const std::string &dest)
@@ -111,11 +111,10 @@ manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std
     uint8_t buffIn[CHUNK_SIZE], buffOut[CHUNK_SIZE];
 
     std::size_t const toRead = buffInSize;
+    uint8_t* buffOutNext = buffOut;
+
     for (;;) {
         const uint8_t *buffInNext = buffIn;
-        uint8_t* buffOutNext = buffOut;
-
-        buffOutSize = CHUNK_SIZE;
 
         auto read = co_await input.read(buffIn, static_cast<ssize_t>(toRead));
 
@@ -143,7 +142,7 @@ manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std
                 goto err;
             }
             auto written = CHUNK_SIZE - buffOutSize;
-            if (written) {
+            if (!buffOutSize||(mmode==BROTLI_OPERATION_FINISH&&written)) {
 
                 co_await output.fwrite(buffOut, static_cast<ssize_t>(written));
 
@@ -151,7 +150,7 @@ manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std
                 buffOutSize = CHUNK_SIZE;
             }
         }
-        while (buffInSize || ::BrotliEncoderHasMoreOutput (cctx));
+        while (buffInSize || (mmode==BROTLI_OPERATION_FINISH&&::BrotliEncoderHasMoreOutput (cctx)));
 
         if (lastChunk) {
             break;
