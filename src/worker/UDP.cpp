@@ -64,9 +64,15 @@ void manapi::net::worker::udp::init() {
         }
     }
 
-    if (auto rhs = this->udp_accept_->s_bind(reinterpret_cast<sockaddr *>(&this->sockaddrin), ev::UDP_REUSEPORT|ev::UDP_REUSEADDR)) {
-        manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't bind socket due to result - {}", rhs);
-        goto err;
+    {
+        int bind_flags = ev::UDP_REUSEADDR;
+#if defined(__unix__) && !defined(__APPLE__)
+        bind_flags |= ev::UDP_REUSEPORT;
+#endif
+        if (auto rhs = this->udp_accept_->s_bind(reinterpret_cast<sockaddr *>(&this->sockaddrin), bind_flags)) {
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't bind socket due to result - {}", rhs);
+            goto err;
+        }
     }
 
 
@@ -77,7 +83,7 @@ err:
 
 void manapi::net::worker::udp::stop(std::function<void()> cb) {
     this->udp_accept_->recv_stop();
-    manapi::async::current()->eventloop()->stop_callback<ev::udp>(this->udp_accept_,
+    manapi::async::current()->eventloop()->stop_callback(this->udp_accept_,
         [cb = std::move(cb)] (const ev::shared_udp &w) -> void {
         cb ();
     });

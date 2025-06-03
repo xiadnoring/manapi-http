@@ -75,8 +75,8 @@ err:
 }
 
 manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std::string dest, int quality, int window, int mode, manapi::async::cancellation_action cancellation) {
-    filesystem::fstream input (src, manapi::async::cancellation_action(cancellation));
-    filesystem::fstream output (dest, manapi::async::cancellation_action(cancellation));
+    filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
+    filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -107,15 +107,15 @@ manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std
         THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "brotli: couldn't set the window param");
     }
 
-    std::size_t buffInSize = BUFSIZ, buffOutSize = BUFSIZ;
-    uint8_t buffIn[BUFSIZ], buffOut[BUFSIZ];
+    std::size_t buffInSize = CHUNK_SIZE, buffOutSize = CHUNK_SIZE;
+    uint8_t buffIn[CHUNK_SIZE], buffOut[CHUNK_SIZE];
 
     std::size_t const toRead = buffInSize;
     for (;;) {
         const uint8_t *buffInNext = buffIn;
         uint8_t* buffOutNext = buffOut;
 
-        buffOutSize = BUFSIZ;
+        buffOutSize = CHUNK_SIZE;
 
         auto read = co_await input.read(buffIn, static_cast<ssize_t>(toRead));
 
@@ -142,9 +142,11 @@ manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std
             if (!remaining) {
                 goto err;
             }
-            auto written = BUFSIZ - buffOutSize;
+            auto written = CHUNK_SIZE - buffOutSize;
             if (written) {
+
                 co_await output.fwrite(buffOut, static_cast<ssize_t>(written));
+
                 buffOutNext = buffOut;
             }
         }
@@ -162,8 +164,8 @@ err:
 }
 
 manapi::future<void> manapi::compress::brotli_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
-    filesystem::fstream input (src, manapi::async::cancellation_action(cancellation));
-    filesystem::fstream output (dest, manapi::async::cancellation_action(cancellation));
+    filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
+    filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -226,8 +228,8 @@ std::string manapi::compress::zstd_compress_string(std::string_view src, int lev
 }
 
 manapi::future<> manapi::compress::zstd_compress_file(std::string src, std::string dest, int level, int additional_threads, manapi::async::cancellation_action cancellation) {
-    filesystem::fstream input (src, manapi::async::cancellation_action(cancellation));
-    filesystem::fstream output (dest, manapi::async::cancellation_action(cancellation));
+    filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
+    filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -317,8 +319,8 @@ err:
 }
 
 manapi::future<> manapi::compress::zstd_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
-filesystem::fstream input (src, manapi::async::cancellation_action(cancellation));
-    filesystem::fstream output (dest, manapi::async::cancellation_action(cancellation));
+filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
+    filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -414,8 +416,8 @@ err:
 #if MANAPIHTTP_ZLIB_DEPENDENCY
 
 manapi::future<void> manapi::compress::deflate_compress_file(std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation) {
-    filesystem::fstream input (src, manapi::async::cancellation_action(cancellation));
-    filesystem::fstream output (dest, manapi::async::cancellation_action(cancellation));
+    filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
+    filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -492,8 +494,8 @@ excep:
 
 /* decompress */
 manapi::future<void> manapi::compress::deflate_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation){
-    filesystem::fstream input (src, manapi::async::cancellation_action(cancellation));
-    filesystem::fstream output (dest, manapi::async::cancellation_action(cancellation));
+    filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
+    filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -733,8 +735,8 @@ std::string manapi::compress::gzip_decompress_string(std::string_view compressed
 
 manapi::future<void> manapi::compress::gzip_compress_file(std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation)
 {
-    filesystem::fstream input (src, manapi::async::cancellation_action(cancellation));
-    filesystem::fstream output (dest, manapi::async::cancellation_action(cancellation));
+    filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
+    filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())
@@ -811,8 +813,8 @@ excep:
 }
 
 manapi::future<void> manapi::compress::gzip_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
-    filesystem::fstream input (src, manapi::async::cancellation_action(cancellation));
-    filesystem::fstream output (dest, manapi::async::cancellation_action(cancellation));
+    filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
+    filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     co_await input.open(ev::FS_O_RDONLY);
     if (!input.is_open())

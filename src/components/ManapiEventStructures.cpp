@@ -103,6 +103,10 @@ int manapi::ev::check::stop() MANAPI_EV_NOEXPECT {
     return uv_check_stop(&this->s_);
 }
 
+manapi::ev::io::io () : s_ () {
+    
+}
+
 int manapi::ev::io::start(int revents, uv_poll_cb cb) MANAPI_EV_NOEXPECT {
     return uv_poll_start(&this->s_, revents, cb);
 }
@@ -125,7 +129,11 @@ int manapi::ev::io::stop() MANAPI_EV_NOEXPECT {
 }
 
 int manapi::ev::io::events() MANAPI_EV_NOEXPECT {
+#ifdef _WIN32
+    return 0;
+#else
     return this->custom()->io_watcher.pevents & (ev::WRITE|ev::READ);
+#endif
 }
 
 manapi::ev::write::write() : s_() {
@@ -169,8 +177,10 @@ int manapi::ev::tcp::read_stop() MANAPI_EV_NOEXPECT {
 }
 
 ssize_t manapi::ev::tcp::try_write(const void *buff, ssize_t len) MANAPI_EV_NOEXPECT {
-    ev::buff_t buffs[1] = {{.base = (char*)buff, .len = static_cast<std::size_t>(len)}};
-    return uv_try_write(MANAPI_EV_CAST_STREAM(&this->s_), buffs, 1);
+    ev::buff_t buffs;
+    buffs.base = (char*)buff;
+    buffs.len = static_cast<std::size_t>(len);
+    return uv_try_write(MANAPI_EV_CAST_STREAM(&this->s_), &buffs, 1);
 }
 
 int manapi::ev::tcp::s_bind(sockaddr *addr, int flags) MANAPI_EV_NOEXPECT {
@@ -329,13 +339,14 @@ int manapi::ev::fs::write(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff,
 }
 
 int manapi::ev::fs::write(ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT {
-    return this->read(fileno, buff, nbuff, offset, callback_watcher_fs);
+    return this->write(fileno, buff, nbuff, offset, callback_watcher_fs);
 }
 
 ssize_t manapi::ev::fs::try_write(ev::file fileno, const void *buff, ssize_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT {
     ssize_t r;
 
 #if defined(_WIN32)
+    return 0;
     HANDLE handle;
     OVERLAPPED overlapped, *overlapped_ptr;
     LARGE_INTEGER offset_;
@@ -398,7 +409,7 @@ ssize_t manapi::ev::fs::try_write(ev::file fileno, const void *buff, ssize_t nbu
         if (error == ERROR_ACCESS_DENIED) {
             error = ERROR_INVALID_FLAGS;
         }
-        r = uv_translate_write_sys_error(error);
+        r = uv_translate_sys_error(error);
     }
 #else
     if (offset < 0) {

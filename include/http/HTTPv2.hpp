@@ -8,7 +8,7 @@
 #include "../compress/ManapiHPack.hpp"
 
 namespace manapi::net::worker {
-    struct http_v2;
+    class http_v2;
 }
 
 namespace manapi::net::http {

@@ -9,7 +9,6 @@
 #include <vector>
 #include <map>
 #include <functional>
-#include <curl/curl.h>
 
 #include "../ManapiUtils.hpp"
 #include "ManapiTask.hpp"

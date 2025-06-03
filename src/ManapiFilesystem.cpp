@@ -373,26 +373,26 @@ const char *fserr2msg (int num) {
     }
 }
 
-std::string manapi::filesystem::path::basename(const std::string& path) {
+std::string manapi::filesystem::path::basename(std::string_view path) {
     size_t pos = path.find_last_of(std::filesystem::path::preferred_separator);
 
     if (pos != std::string::npos)
     {
-        return path.substr(pos + 1);
+        return std::string{path.substr(pos + 1)};
     }
 
-    return path;
+    return std::string{path};
 }
 
-std::string manapi::filesystem::path::extension(const std::string& path) {
+std::string manapi::filesystem::path::extension(std::string_view path) {
     size_t pos = path.find_last_of('.');
 
     if (pos != std::string::npos)
     {
-        return path.substr(pos + 1);
+        return std::string{path.substr(pos + 1)};
     }
 
-    return "";
+    return std::string{};
 }
 
 
@@ -489,7 +489,14 @@ manapi::future<std::chrono::system_clock::time_point> manapi::filesystem::async_
     bool exists = co_await filesystem::async_stat(std::move(path), [&mtime, &exists] (ev::stat_t *stat)
         -> void { mtime.tv_nsec = stat->st_mtim.tv_nsec; mtime.tv_sec = stat->st_mtim.tv_sec; }, std::move(cancellation));
     if (!exists) { THROW_MANAPIHTTP_EXCEPTION2(ERR_FS_IO, manapi::error::default_msgs[manapi::error::ERRMSG_FILE_NOT_FOUND]); }
-    co_return std::chrono::system_clock::time_point (std::chrono::seconds{mtime.tv_sec} + std::chrono::nanoseconds{mtime.tv_nsec});
+    /**
+     * Windows doesn't accept std::nano in the time_point,
+     * so we need to remove it.
+     * 
+     * also we can continue using it in the Linux system
+     * to saving accuracy
+     */
+    co_return std::chrono::system_clock::time_point (std::chrono::seconds{mtime.tv_sec}/* + std::chrono::nanoseconds{mtime.tv_nsec} */);
 }
 
 manapi::future<void> manapi::filesystem::async_mkdir(std::string path, int mode, bool recursive, manapi::async::cancellation_action cancellation) {
@@ -507,7 +514,7 @@ manapi::future<void> manapi::filesystem::async_mkdir(std::string path, int mode,
 
             size += part.size();
 
-            async::cancellation_action cancellation2 (cancellation);
+            async::cancellation_action cancellation2 = async::cancellation_action::unit (cancellation);
 
             co_await async_fs_operation<void>([path = path.substr(0, size), mode, cancellation2, cancellation](std::shared_ptr<ev::fs> w) mutable
                 -> bool {
@@ -521,7 +528,7 @@ manapi::future<void> manapi::filesystem::async_mkdir(std::string path, int mode,
                 -> void {
                     cancel.disable_cancellation();
                     auto rhs = w->result();
-                    if ((rhs != ev::FS_EEXIST) && async_fs_operation_result_error<void>(w, reject, cancel)) {
+                    if ((rhs != ev::FS_EEXIST&&rhs != ev::FS_EPERM) && async_fs_operation_result_error<void>(w, reject, cancel)) {
                         return;
                     }
                     resolve();
@@ -536,7 +543,8 @@ manapi::future<void> manapi::filesystem::async_mkdir(std::string path, int mode,
             +[](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel)
             -> void {
                 cancel.disable_cancellation();
-                if (async_fs_operation_result_error<void>(w,  reject, cancel)) {
+                auto rhs = w->result();
+                if ((rhs != ev::FS_EEXIST&&rhs != ev::FS_EPERM) && async_fs_operation_result_error<void>(w,  reject, cancel)) {
                     return;
                 }
                 resolve();
@@ -546,7 +554,7 @@ manapi::future<void> manapi::filesystem::async_mkdir(std::string path, int mode,
 
 manapi::future<manapi::ev::file> manapi::filesystem::async_open(std::string path, int flags, int mode, manapi::async::cancellation_action cancellation) {
     using promise = manapi::async::promise<ev::file>;
-
+    
     auto fileno = co_await async_fs_operation<ev::file>([path = std::move(path), flags, mode] (std::shared_ptr<ev::fs> w)
         -> bool {
         return !w->open(path.data(), flags, mode);
@@ -558,7 +566,6 @@ manapi::future<manapi::ev::file> manapi::filesystem::async_open(std::string path
         }
         resolve (w->result());
     }, cancellation);
-
     co_return fileno;
 }
 
@@ -593,17 +600,20 @@ manapi::future<ssize_t> manapi::filesystem::async_write(ev::file file, const voi
 
     struct async_write_data_t {
         ssize_t result;
-        uv_buf_t buff[1];
+        uv_buf_t buff;
         ev::file file;
         int64_t offset;
         async_fs_operation_event_cb<ssize_t> event_cb;
     } dd {
         rhs,
-        {{(char *)data, static_cast<std::size_t>(size)}},
+        {},
         file,
         offset,
         nullptr
     };
+
+    dd.buff.base = (char*)data;
+    dd.buff.len = static_cast<std::size_t>(size);
 
     dd.event_cb = [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel)
         -> void {
@@ -624,7 +634,7 @@ manapi::future<ssize_t> manapi::filesystem::async_write(ev::file file, const voi
 
         dd.result += rhs;
 
-        if (rhs < dd.buff->len) {
+        if (rhs < dd.buff.len) {
             /* retry */
             auto w = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, reject, cancel] (std::shared_ptr<ev::fs> w) mutable
                 -> void {
@@ -635,10 +645,10 @@ manapi::future<ssize_t> manapi::filesystem::async_write(ev::file file, const voi
                 dd.offset += rhs;
             }
 
-            dd.buff->base += rhs;
-            dd.buff->len -= rhs;
+            dd.buff.base += rhs;
+            dd.buff.len -= rhs;
 
-            if (w->write(dd.file, dd.buff, 1, dd.offset)) {
+            if (w->write(dd.file, &dd.buff, 1, dd.offset)) {
                 reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_FS_IO,manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_INIT])));
                 return;
             }
@@ -656,7 +666,7 @@ manapi::future<ssize_t> manapi::filesystem::async_write(ev::file file, const voi
 
     rhs = co_await async_fs_operation<ssize_t>([&dd] (std::shared_ptr<ev::fs> w)
         -> bool {
-            return !w->write(dd.file, dd.buff, 1, dd.offset);
+            return !w->write(dd.file, &dd.buff, 1, dd.offset);
         }, [&dd] (std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) -> void {
             dd.event_cb(std::move(w), resolve, reject, cancel);
         }, cancellation);
@@ -680,17 +690,20 @@ manapi::future<ssize_t> manapi::filesystem::async_read(ev::file file, void *data
 
     struct async_read_data_t {
         ssize_t result;
-        uv_buf_t buff[1];
+        uv_buf_t buff;
         ev::file file;
         int64_t offset;
         async_fs_operation_event_cb<ssize_t> event_cb;
     } dd {
             rhs,
-            {{(char *)data, static_cast<std::size_t>(size)}},
+            {},
             file,
             offset,
             nullptr
-        };
+    };
+
+    dd.buff.base = (char*)data;
+    dd.buff.len = static_cast<std::size_t>(size);
 
     dd.event_cb = [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel)
         -> void {
@@ -711,7 +724,7 @@ manapi::future<ssize_t> manapi::filesystem::async_read(ev::file file, void *data
 
         dd.result += rhs;
 
-        if (rhs && rhs < dd.buff->len) {
+        if (rhs && rhs < dd.buff.len) {
             /* retry */
             auto w  = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, reject, cancel] (std::shared_ptr<ev::fs> w) mutable
                 -> void {
@@ -722,10 +735,10 @@ manapi::future<ssize_t> manapi::filesystem::async_read(ev::file file, void *data
                 dd.offset += rhs;
             }
 
-            dd.buff->base += rhs;
-            dd.buff->len -= rhs;
+            dd.buff.base += rhs;
+            dd.buff.len -= rhs;
 
-            if (w->read(dd.file, dd.buff, 1, dd.offset)) {
+            if (w->read(dd.file, &dd.buff, 1, dd.offset)) {
                 reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_FS_IO, manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_INIT])));
                 return;
             }
@@ -743,7 +756,7 @@ manapi::future<ssize_t> manapi::filesystem::async_read(ev::file file, void *data
 
     rhs = co_await async_fs_operation<ssize_t>([&dd] (std::shared_ptr<ev::fs> w)
         -> bool {
-            return !w->read(dd.file, dd.buff, 1, dd.offset);
+            return !w->read(dd.file, &dd.buff, 1, dd.offset);
         }, [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel)
         -> void {
             dd.event_cb(std::move(w), resolve, reject, cancel);
@@ -914,7 +927,7 @@ std::string manapi::filesystem::path::back (std::string str) {
     return str;
 }
 
-std::string manapi::filesystem::path::clean (const std::string &str) {
+std::string manapi::filesystem::path::clean (std::string_view str) {
     std::string cleaned;
     size_t size = str.size();
 
@@ -977,7 +990,7 @@ std::string manapi::filesystem::path::clean (const std::string &str) {
         cleaned += str[i];
     }
 
-    return cleaned;
+    return std::move(cleaned);
 }
 
 manapi::future<void> manapi::filesystem::async_unlink (std::string path, async::cancellation_action cancellation) {

@@ -142,7 +142,7 @@ namespace manapi::async {
 
     template<typename T>
     requires(std::is_same_v<T, void>)
-    manapi::future<T> manapi::async::blank_future () {
+    manapi::future<T> blank_future () {
         co_return;
     }
 }
@@ -220,19 +220,19 @@ namespace manapi::async {
 
     template<typename T, typename ...Args>
     std::invoke_result_t <T, Args...> invoke (T executer, Args... args) {
-        co_return co_await executer(std::forward<Args>(args)...);
+        co_return co_await executer(std::move(args)...);
     }
 
     template<typename T>
     requires(std::is_same_v<T, void>)
     void run (auto && executor,  std::move_only_function<void(std::exception_ptr err)> onfinish ) {
-        async::run<T> (invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
+        async::run<T> (manapi::async::invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
     }
 
     template<typename T>
     requires(!std::is_same_v<T, void>)
     void run (auto &&executor, run_cb_with_value<T> onfinish) {
-        async::run<T> (invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
+        async::run<T> (manapi::async::invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
     }
 
     template<typename T>

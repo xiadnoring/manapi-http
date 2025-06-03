@@ -9,8 +9,7 @@
 
 namespace manapi::net::worker {
     struct sockaddr_st {
-        char data[std::max(sizeof (struct sockaddr_in),
-            sizeof (struct sockaddr_in6))];
+        char data[std::max(sizeof (struct sockaddr_in), sizeof (struct sockaddr_in6))];
     };
 
     class connection {
@@ -37,9 +36,9 @@ namespace manapi::net::worker {
         std::unique_ptr<void, void(*)(void *)> ptr;
     };
 
-    typedef std::shared_ptr<worker::connection> shared_conn;
-    typedef object_item_pool<bytebuffer, std::size_t> ibuffpool_t;
-    typedef std::move_only_function<void(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)> worker_watcher_cb;
+    using shared_conn = std::shared_ptr<worker::connection>;
+    using ibuffpool_t = object_item_pool<bytebuffer, std::size_t>;
+    using worker_watcher_cb = std::move_only_function<void(const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)>;
 
     enum net_worker_flags {
         NET_WORKER_CLOSED = 1
@@ -52,7 +51,7 @@ namespace manapi::net::worker {
             unsigned int transfered_k;
         };
 
-        typedef std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>> bufferpool_t;
+        using bufferpool_t = std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>>;
 
         struct buffer_deque {
             object_item_pool<bytebuffer, std::size_t> buffer;
@@ -159,7 +158,7 @@ namespace manapi::net::worker {
         bufferpool_t bufferpool_;
     };
 
-    typedef std::shared_ptr<worker::base> shared_worker;
-    typedef std::unique_ptr<worker::connection> unique_conn;
+    using shared_worker = std::shared_ptr<worker::base>;
+    using unique_conn = std::unique_ptr<worker::connection>;
 
 }

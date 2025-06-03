@@ -113,11 +113,20 @@ manapi::future<manapi::json> manapi::net::http::request::json()
     // TODO: check with json_mask during processing read_mask()
     const auto &post_mask = this->post_mask();
 
-    json_builder builder = post_mask ? json_builder (*post_mask) : json_builder ();
-    co_await read_body_(this->worker_.get(), this->conn_, this->request_data,[&builder] (const char *data, ssize_t size)
-        -> ssize_t { builder << std::string_view (data, size); return size; });
+    if (post_mask) {
+        json_builder builder = json_builder (*post_mask);
+        co_await read_body_(this->worker_.get(), this->conn_, this->request_data,[&builder] (const char *data, ssize_t size)
+            -> ssize_t { builder << std::string_view (data, size); return size; });
 
-    co_return std::move(builder.get());
+        co_return std::move(builder.get());
+    }
+    else {
+        json_builder builder = json_builder ();
+        co_await read_body_(this->worker_.get(), this->conn_, this->request_data,[&builder] (const char *data, ssize_t size)
+            -> ssize_t { builder << std::string_view (data, size); return size; });
+
+        co_return std::move(builder.get());
+    }
 }
 
 manapi::future<> manapi::net::http::request::form (formdata_recv::onparam_cb_t cb) {

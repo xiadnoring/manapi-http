@@ -157,13 +157,19 @@ manapi::future<> manapi::net::http::site::config(std::string path) {
 
         if (this->data->server_config->config.is_null()) {
 
-            if (!co_await manapi::filesystem::async_exists(this->data->config_path))
-            {
-                std::string data = this->data->server_config->config.dump(4);
-                co_await manapi::filesystem::async_write(this->data->config_path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+            try {
+                if (!co_await manapi::filesystem::async_exists(this->data->config_path))
+                {
+                    std::string data = manapi::json::object().dump(4);
+                    co_await manapi::filesystem::async_write(this->data->config_path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+                }
+                this->data->server_config->config = manapi::json(co_await manapi::filesystem::async_read ( this->data->config_path), true);
+                if (!this->data->server_config->config.is_object())
+                    this->data->server_config->config = manapi::json::object();
             }
-
-            this->data->server_config->config = manapi::json(co_await manapi::filesystem::async_read ( this->data->config_path), true);
+            catch (std::exception const &e) {
+                MANAPIHTTP_LOG("server router: config read failed due to {}", e.what());
+            }
             co_await this->setup_config ();
         }
 
@@ -221,7 +227,7 @@ manapi::future<> manapi::net::http::site::setup_config() {
 
     try {
         if (this->data->config_cache_dir.empty()) {
-            this->data->config_cache_dir = manapi::filesystem::path::join(std::filesystem::temp_directory_path(), MANAPIHTTP_NAME, "cache");
+            this->data->config_cache_dir = manapi::filesystem::path::join(std::filesystem::temp_directory_path().string(), MANAPIHTTP_NAME, "cache");
         }
 
         co_await manapi::filesystem::async_mkdir(this->data->config_cache_dir, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
@@ -238,7 +244,8 @@ manapi::future<> manapi::net::http::site::setup_config() {
         }
     }
     catch (manapi::exception const &e) {
-        manapi::async::current()->logger()->error(manapi::logger::default_service, e.err_num(), "The configuration directory couldn't be created due to {}.", e.what());
+        manapi::async::current()->logger()->error(manapi::logger::default_service, e.err_num(), "The configuration directory ({}) couldn't be created due to {}.",
+         this->data->config_cache_dir, e.what());
     }
 
     manapi::net::http::server_ctx::next_time(&this->data->server_config->cache_time);
@@ -526,7 +533,7 @@ manapi::net::http::site::site(server_ctx sctx) {
                     this->data->config_cache_dir = cachedirit->second.as_string();
                 }
                 else {
-                    this->data->config_cache_dir = manapi::filesystem::path::join(std::filesystem::temp_directory_path(), MANAPIHTTP_NAME, "cache");
+                    this->data->config_cache_dir = manapi::filesystem::path::join(std::filesystem::temp_directory_path().string(), MANAPIHTTP_NAME, "cache");
                 }
 
                 manapi::filesystem::path::append_delimiter(this->data->config_cache_dir);

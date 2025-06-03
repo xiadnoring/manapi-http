@@ -562,7 +562,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
                         // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
                         // this->event_flags(conn, 0);
 
-                        net::http::internal::handle_income_request(std::move(cdata), this->site().handler(req_ptr), http::OK_200);
+                        cdata->router = this->site().handler(req_ptr);
+                        net::http::internal::handle_income_request(std::move(cdata), http::OK_200);
 
                         break;
                     }

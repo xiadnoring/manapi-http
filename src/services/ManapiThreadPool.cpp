@@ -176,7 +176,7 @@ namespace manapi {
             }
             else
             {
-                manapi::async::internal::current_stack_cnt = 0;
+                manapi::async::internal::current_stack_cnt_set(0);
                 task_doit(std::move(task), this->logger_.get());
             }
         }
@@ -200,7 +200,7 @@ namespace manapi {
         auto task = std::move(this->tasks.front());
         this->tasks.pop_front();
 
-        manapi::async::internal::current_stack_cnt = 0;
+        manapi::async::internal::current_stack_cnt_set(0);
         task_doit(std::move(task), this->logger_.get());
         return true;
     }

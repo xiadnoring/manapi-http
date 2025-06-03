@@ -1,4 +1,5 @@
 from conan import ConanFile
+from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import CMake, CMakeDeps, cmake_layout, CMakeToolchain
 from conan.tools.apple import fix_apple_shared_install_name
 from conan.errors import ConanInvalidConfiguration
@@ -53,7 +54,7 @@ class ManapiHttpConan(ConanFile):
                     self.options["wolfssl"].with_curl = True
                     self.options["libcurl"].with_ssl = 'wolfssl'
 
-        if not self.options.get_safe("lib", False):
+        if self.settings.os != 'Windows' and not self.options.get_safe("lib", False):
             self.options["wolfssl"].shared = True
             self.options["openssl"].shared = True
             self.options["libev"].shared = True
@@ -61,11 +62,11 @@ class ManapiHttpConan(ConanFile):
             self.options["tquic"].shared = True
             self.options["zlib"].shared = True
             self.options["libcurl"].shared = True
-            self.options["gmp"].shared = True
+            self.options["gmp"].shared = self.settings.compiler != 'msvc'
             self.options["libpq"].shared = True
             self.options["cpptrace"].shared = True
             self.options["brotli"].shared = True
-            self.options["zstd"].shared = True
+            self.options["zstd"].shared = self.settings.compiler != 'msvc'
 
         self.options["libcurl"].with_nghttp2 = True
 
@@ -93,6 +94,9 @@ class ManapiHttpConan(ConanFile):
 
         deps = CMakeDeps(self)
         deps.generate()
+
+    def validate(self):
+        check_min_cppstd(self, 23)
 
     def build(self):
         cmake = CMake(self)

@@ -17,13 +17,13 @@
 #   include <processthreadsapi.h>
 #endif
 
-#define MANAPI_EV_UNWATCHER(classname, ctxname) template<> void manapi::event_loop::event_loop::stop_watcher(ev::classname *w) { \
+#define MANAPI_EV_UNWATCHER(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) { \
     if (w->data()) { \
         w->unbind(+[](uv_handle_t *handle) -> void { auto data = static_cast<ev::internal::ctxname *>(handle->data); \
         handle->data = nullptr; if (data) { data->s_.reset(); delete data; } }); \
     } }
 
-#define MANAPI_EV_UNWATCHER2(classname, ctxname) template<> void manapi::event_loop::event_loop::stop_watcher(ev::classname *w) { \
+#define MANAPI_EV_UNWATCHER2(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) { \
     if (w->data()) { \
         w->unbind(+[](uv_handle_t *handle) -> void { auto data = static_cast<ev::internal::ctxname *>(handle->data); \
         handle->data = nullptr; if (data->close_cb) { data->close_cb->operator()(data->s_); } if (data) { data->s_.reset(); delete data; } }); \
@@ -1014,7 +1014,7 @@ void manapi::event_loop::custom_watcher_callback_async(std::shared_ptr<ev::async
 
 #if MANAPIHTTP_CURL_DEPENDENCY
 std::shared_ptr<manapi::ev::io> manapi::event_loop::handle_curl_watcher_gen (manapi::event_loop * data, manapi::socket_t fd) {
-    return data->create_watcher_fd(fd, [data, fd] (std::shared_ptr<ev::io> &w, int status, int revents)
+    return data->create_watcher_socket(fd, [data, fd] (std::shared_ptr<ev::io> &w, int status, int revents)
             -> void {
         auto data2 = data;
         //MANAPIHTTP_LOG("CURL EV: {} {}", revents, (int)fd);
@@ -1197,8 +1197,12 @@ void manapi::event_loop::interrupt() {
     manapi::event_loop::events.clear();
 }
 
-std::shared_ptr<manapi::ev::io> manapi::event_loop::create_watcher_fd(fd_t fd, ev::io_cb callback) {
-    auto w = std::make_shared<ev::io>(this->loop_.get(), fd);
+std::shared_ptr<manapi::ev::io> manapi::event_loop::create_watcher_fd(int fd, ev::io_cb callback) {
+    auto w = std::make_shared<ev::io>();
+    if (const auto rhs = w->bind(this->loop_.get(), fd))
+        throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
+            std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
+    
     w->data(new ev::internal::io_ctx  {.s_ = w, .cb = std::move(callback)});
     return std::move(w);
 }
@@ -1214,7 +1218,10 @@ std::shared_ptr<manapi::ev::idle> manapi::event_loop::create_watcher_idle(ev::id
 }
 
 std::shared_ptr<manapi::ev::io> manapi::event_loop::create_watcher_socket(socket_t sock, ev::io_cb callback) {
-    auto w = std::make_shared<ev::io>(this->loop_.get(), sock);
+    auto w = std::make_shared<ev::io>();
+    if (auto const rhs = w->bind(this->loop_.get(), sock))
+        throw manapi::exception (manapi::ERR_WATCHER_BIND, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED],
+            std::make_unique<manapi::json>(manapi::json{{"rhs", rhs}}));
     w->data(new ev::internal::io_ctx {.s_ = w, .cb = std::move(callback)});
     return std::move(w);
 }
@@ -1275,7 +1282,6 @@ std::shared_ptr<manapi::ev::write> manapi::event_loop::create_watcher_write(ev::
     return std::move(w);
 }
 
-template<>
 void manapi::event_loop::stop_callback(const std::shared_ptr<ev::tcp> &s, ev::close_cb_t<ev::tcp> cb) {
     auto const data = static_cast<ev::internal::tcp_ctx*> (s->data());
     if (data) {
@@ -1283,7 +1289,6 @@ void manapi::event_loop::stop_callback(const std::shared_ptr<ev::tcp> &s, ev::cl
     }
 }
 
-template<>
 void manapi::event_loop::stop_callback(const std::shared_ptr<ev::udp> &s, ev::close_cb_t<ev::udp> cb) {
     auto const data = static_cast<ev::internal::udp_ctx*> (s->data());
     if (data) {
@@ -1299,8 +1304,7 @@ MANAPI_EV_UNWATCHER(check, check_ctx);
 MANAPI_EV_UNWATCHER(timer, timer_ctx);
 MANAPI_EV_UNWATCHER(prepare, prepare_ctx);
 
-template<>
-void manapi::event_loop::event_loop::stop_watcher(ev::fs *w) {
+void manapi::event_loop::event_loop::stop_watcher_ptr(ev::fs *w) {
     if (w->data()) {
         w->cancel();
 
@@ -1314,8 +1318,7 @@ void manapi::event_loop::event_loop::stop_watcher(ev::fs *w) {
     }
 }
 
-template<>
-void manapi::event_loop::event_loop::stop_watcher(ev::random *w) {
+void manapi::event_loop::event_loop::stop_watcher_ptr(ev::random *w) {
     if (w->data()) {
         w->cancel();
 
@@ -1329,7 +1332,7 @@ void manapi::event_loop::event_loop::stop_watcher(ev::random *w) {
     }
 }
 
-template<> void manapi::event_loop::event_loop::stop_watcher(ev::write *w) {
+void manapi::event_loop::event_loop::stop_watcher_ptr(ev::write *w) {
     if (w->data()) {
         auto data = static_cast<ev::internal::write_ctx *>(w->data());
         w->data(nullptr);
@@ -1340,7 +1343,7 @@ template<> void manapi::event_loop::event_loop::stop_watcher(ev::write *w) {
     }
 }
 
-template<> void manapi::event_loop::event_loop::stop_watcher(ev::udp_send *w) {
+void manapi::event_loop::event_loop::stop_watcher_ptr(ev::udp_send *w) {
     if (w->data()) {
         auto data = static_cast<ev::internal::udp_send_ctx *>(w->data());
         w->data( nullptr);

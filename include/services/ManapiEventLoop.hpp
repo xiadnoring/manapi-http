@@ -1,8 +1,14 @@
 #pragma once
 
-#include "../ManapiUtils.hpp"
 #include <set>
 #include <stack>
+
+#include "../ManapiUtils.hpp"
+#if MANAPIHTTP_CURL_DEPENDENCY
+#   define CURL_STATICLIB
+#   include <curl/curl.h>
+#endif
+
 #include "../ManapiInt.hpp"
 #include "../ManapiAsync.hpp"
 #include "./ManapiTask.hpp"
@@ -14,8 +20,11 @@
 #include "../components/ManapiEventStructures.hpp"
 
 
-#if MANAPIHTTP_CURL_DEPENDENCY
-#   include <curl/curl.h>
+
+#ifdef _WIN32
+#   pragma comment(lib, "crypt32")
+#   pragma comment(lib, "ws2_32.lib")
+#   pragma comment(lib, "wldap32.lib")
 #endif
 
 namespace manapi::ev {
@@ -113,7 +122,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_WATCHER_BIND code
          */
-        std::shared_ptr<ev::io> create_watcher_fd (fd_t fd, ev::io_cb callback);
+        std::shared_ptr<ev::io> create_watcher_fd (int fd, ev::io_cb callback);
 
         /**
          *
@@ -178,17 +187,26 @@ namespace manapi {
          */
         std::shared_ptr<ev::write> create_watcher_write (ev::tcp *conn, ev::write_cb callback, const ev::buff_t *bufs, uint32_t nbuf);
 
-        template<typename T>
-        void stop_watcher (T *w) { perror("not implemented"); }
-
+        void stop_watcher_ptr (ev::io *w);
+        void stop_watcher_ptr (ev::async *w);
+        void stop_watcher_ptr (ev::idle *w);
+        void stop_watcher_ptr (ev::udp *w);
+        void stop_watcher_ptr (ev::check *w);
+        void stop_watcher_ptr (ev::timer *w);
+        void stop_watcher_ptr (ev::prepare *w);
+        void stop_watcher_ptr (ev::write *w);
+        void stop_watcher_ptr (ev::random *w);
+        void stop_watcher_ptr (ev::udp_send *w);
+        void stop_watcher_ptr (ev::fs *w);
+        
         template<typename T>
         void stop_watcher (std::shared_ptr<T> w) {
-            if (!w) { return; }
-            this->stop_watcher(w.get());
+            this->stop_watcher_ptr(w.get());
         }
 
-        template<typename T>
-        void stop_callback (const std::shared_ptr<T> &s, ev::close_cb_t<T> cb) { perror("not implemented"); }
+        void stop_callback (const std::shared_ptr<ev::tcp> &s, ev::close_cb_t<ev::tcp> cb);
+        
+        void stop_callback (const std::shared_ptr<ev::udp> &s, ev::close_cb_t<ev::udp> cb);
 
         void stop_watcher_tcp_accept (std::shared_ptr<ev::tcp> s);
         void stop_watcher_tcp_connection (std::shared_ptr<ev::tcp> s);

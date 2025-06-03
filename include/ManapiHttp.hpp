@@ -22,7 +22,7 @@
 #include "services/ManapiEventLoop.hpp"
 
 namespace manapi::net::http {
-    typedef std::map<std::thread::id, std::map<size_t, std::unique_ptr<http_pool>>> pools_t;
+    using pools_t = std::map<std::thread::id, std::map<size_t, std::unique_ptr<http_pool>>>;
     class server : public site {
         struct data2_t {
             std::unique_ptr<async::mutex> mx;

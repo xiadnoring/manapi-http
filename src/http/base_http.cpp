@@ -123,8 +123,16 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
         co_await f.open(ev::FS_O_RDONLY);
 
         if (!f.is_open()) {
-            force_compress = true;
-            MANAPIHTTP_LOG("Failed to open the file: {}", filepath);
+            if (force_compress) {
+                /** no way */
+                cdata->router = std::move(cdata->router->error);
+                send_error_response(std::move(cdata), http::INTERNAL_SERVER_ERROR_500);
+                co_return;
+            }
+            else {
+                force_compress = true;
+                MANAPIHTTP_LOG("Failed to open the file: {}", filepath);
+            }
             continue;
         }
 
@@ -556,25 +564,25 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
     return -1;
 }
 
-void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, std::unique_ptr<http_handler_page> data, int status) {
+void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, int status) {
     try {
         // handler function not be found
-        if (!data->handler) {
+        if (!cdata->router->handler) {
             // check exists static folder/file
-            if (data->statics) {
+            if (cdata->router->statics) {
                 // if statics exists
                 std::string path;
 
                 auto maxsize = static_cast<size_t> (cdata->req_data->divided >= 0
                     ? cdata->req_data->divided : cdata->req_data->path.size());
 
-                for (size_t i = data->statics_parts_len; i < maxsize; i++) {
+                for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
                     path += manapi::filesystem::path::delimiter + cdata->req_data->path[i];
                 }
 
-                path = manapi::filesystem::path::join(data->statics->folder, path);
+                path = manapi::filesystem::path::join(cdata->router->statics->folder, path);
 
-                manapi::async::run([status, data = std::move(data), cdata = std::move(cdata), path = std::move(path)] () mutable
+                manapi::async::run([status, cdata = std::move(cdata), path = std::move(path)] () mutable
                     -> manapi::future<> {
                     bool exists = true;
                     uint64_t st_mode = 0;
@@ -606,11 +614,11 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                                 co_return;
                             }
 
-                            auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, data->handler);
+                            auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
                             auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());
 
                             // handle layers
-                            for (auto &layer: data->layer) {
+                            for (auto &layer: cdata->router->layer) {
                                 co_await layer->handler(*req, *res);
 
                                 if (!req->propagation()) {
@@ -623,9 +631,9 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                             res->partial_enabled(binary);
                             res->file(path);
 
-                            if (data->statics->layer
-                                && data->statics->layer->handler) {
-                                co_await data->statics->layer->handler (*req, *res);
+                            if (cdata->router->statics->layer
+                                && cdata->router->statics->layer->handler) {
+                                co_await cdata->router->statics->layer->handler (*req, *res);
                             }
 
                             try {
@@ -641,12 +649,14 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 
                         }
 
-                        send_error_response(std::move(cdata), std::move(data->error), http::FORBIDDEN_403);
+                        cdata->router = std::move(cdata->router->error);
+                        send_error_response(std::move(cdata), http::FORBIDDEN_403);
 
                         co_return;
                     }
 
-                    send_error_response(std::move(cdata), std::move(data->error), http::NOT_FOUND_404);
+                    cdata->router = std::move(cdata->router->error);
+                    send_error_response(std::move(cdata), http::NOT_FOUND_404);
                 },
                 [] (std::exception_ptr err) mutable
                     -> void {
@@ -656,7 +666,8 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                 });
             }
             else {
-                send_error_response(std::move(cdata), std::move(data->error), http::NOT_FOUND_404);
+                cdata->router = std::move(cdata->router->error);
+                send_error_response(std::move(cdata), http::NOT_FOUND_404);
             }
             return;
         }
@@ -669,10 +680,10 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
             manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
         }
 
-        auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, data->handler);
+        auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
         auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());
 
-        auto task = [req = std::move(req), res = res.get(), data = data.get()] () -> future<> {
+        auto task = [req = std::move(req), res = res.get(), data = cdata->router.get()] () -> future<> {
 
             // handle layers
             for (const auto &layer: data->layer) {
@@ -688,14 +699,15 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
         };
 
         manapi::async::run( std::move(task),
-            [res = std::move(res), data = std::move(data), cdata = std::move(cdata)] (std::exception_ptr err) mutable
+            [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err) mutable
                 -> void {
                 if (err) {
                     std::string msg;
                     manapi::rethrow_exception_ptr(std::move(err), nullptr, &msg, nullptr);
                     manapi::async::current()->logger()->error(manapi::logger::default_service,
                         manapi::ERR_FATAL, "an error occurred while processing the HTTP request due to {}", msg);
-                    send_error_response(std::move(cdata), std::move(data->error), http::SERVICE_UNAVAILABLE_503);
+                    cdata->router = std::move(cdata->router->error);
+                    send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
                     return;
                 }
 
@@ -715,18 +727,19 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
         MANAPIHTTP_LOG("Unexpected error: {}", e.what());
     }
 
-    send_error_response(std::move(cdata), std::move(data->error), http::SERVICE_UNAVAILABLE_503);
+    cdata->router = std::move(cdata->router->error);
+    send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
 }
 
-void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, std::unique_ptr<http_handler_page> error, int status) {
-    if (!error) {
+void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, int status) {
+    if (!cdata->router) {
         // TODO: Default error page
         return;
     }
 
     assert((cdata));
 
-    handle_income_request(std::move(cdata), std::move(error), status);
+    handle_income_request(std::move(cdata), status);
 }
 
 manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size) {
@@ -1038,7 +1051,13 @@ manapi::future<std::string> manapi::net::http::internal::compress_file(net::http
 
     if (cached.first) {
         try {
-            co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR);
+            try {
+                if (!co_await filesystem::async_exists (folder))
+                    co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR);
+            }
+            catch (std::exception const &e) {
+                THROW_MANAPIHTTP_EXCEPTION (ERR_FS_IO, "mkdir cache directory failed due to {}", e.what());
+            }
             filepath = folder + generate_cache_name(file, compress);
 
             co_await (*compressor)(file, filepath);

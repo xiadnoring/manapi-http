@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 project(manapihttp VERSION 0.0.2 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
 
+cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0070 NEW)
+
+include(./build/generators/conan_toolchain.cmake)
 
 add_compile_options(-fmerge-all-constants -fuse-ld=gold)
 

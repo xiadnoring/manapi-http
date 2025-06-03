@@ -206,14 +206,18 @@ int http_v2_send_window_frame (manapi::net::http::http_v2_t *ctx,  int stream_id
 
     char out[4];
     stringify_number<int>(size, out, 4);
-    manapi::ev::buff_t const buff = {out, 4};
+    manapi::ev::buff_t buff;
+    buff.base = out;
+    buff.len = static_cast<size_t>(4);
 
     return http_v2_send_frame(ctx,  HTTP2_FRAME_WINDOW_UPDATE, 0, stream_id, &buff, 1);
 }
 
 int http_v2_send_ping_frame (manapi::net::http::http_v2_t *ctx, char *data) {
     if (data) {
-        manapi::ev::buff_t const buf = {.base = data, .len = 8};
+        manapi::ev::buff_t buf;
+        buf.base = data;
+        buf.len = 8;
 
         if (http_v2_send_frame(ctx, HTTP2_FRAME_PING, HTTP2_FLAG_PING_ACK, 0,&buf, 1)) {
             return -1;
@@ -224,7 +228,9 @@ int http_v2_send_ping_frame (manapi::net::http::http_v2_t *ctx, char *data) {
         if (!ctx->pings) {
             ctx->pings = std::make_unique<decltype(ctx->pings)::element_type>();
         }
-        manapi::ev::buff_t const buf = {.base = s.data(), .len = 8};
+        manapi::ev::buff_t buf;
+        buf.base = s.data();
+        buf.len = static_cast<size_t>(8);
         if (http_v2_send_frame(ctx, HTTP2_FRAME_PING, 0, 0, &buf, 1)) {
             return -1;
         }
@@ -239,7 +245,9 @@ int http_v2_send_data_frame (manapi::net::http::http_v2_t *ctx,  int stream_id, 
 }
 
 int http_v2_send_data_frame (manapi::net::http::http_v2_t *ctx, int stream_id, const char *data, ssize_t size, bool finish) {
-    manapi::ev::buff_t buff = {.base = (char*)(data), .len = static_cast<size_t>(size)};
+    manapi::ev::buff_t buff;
+    buff.base = (char*)(data);
+    buff.len = static_cast<size_t>(size);
     return http_v2_send_frame(ctx, HTTP2_FRAME_DATA, finish ? HTTP2_FLAG_DATA_END_STREAM : 0, stream_id, &buff, 1);
 }
 
@@ -343,16 +351,19 @@ int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<
     }
 
     size_t const len = options.size() * 6;
-    char buffer[len];
+    std::string buffer;
+    buffer.reserve(len);
     for (int i = 0; i < options.size(); ++i) {
         if (http_v2_apply_setting(ctx, options[i].first, options[i].second, true)) {
             return -1;
         }
 
-        stringify_number<short>(options[i].first, buffer + i * 6);
-        stringify_number<int>(options[i].second, buffer + i * 6 + 2);
+        stringify_number<short>(options[i].first, buffer.data() + i * 6);
+        stringify_number<int>(options[i].second, buffer.data() + i * 6 + 2);
     }
-    manapi::ev::buff_t const bufs = {.base = buffer, .len = len};
+    manapi::ev::buff_t bufs;
+    bufs.base = buffer.data();
+    bufs.len = len;
     if (http_v2_send_frame(ctx, HTTP2_FRAME_SETTINGS, 0, 0, &bufs, 1)) {
         return -1;
     }
@@ -404,7 +415,9 @@ int http_v2_flush_recv (const manapi::net::worker::shared_conn &conn, manapi::ne
 int http_v2_rst_stream_ex (manapi::net::http::http_v2_t *ctx, int stream_id, int errcode) {
     char errid[4];
     stringify_stream_id(stream_id, errid);
-    manapi::ev::buff_t buff = {.base = errid, .len = 4};
+    manapi::ev::buff_t buff;
+    buff.base = errid;
+    buff.len = 4;
     return http_v2_send_frame(ctx, HTTP2_FRAME_RST_STREAM, 0, stream_id, &buff, 1);
 }
 
@@ -1713,7 +1726,9 @@ ssize_t manapi::net::http::http_v2_write(http_v2_stream_t *s, const void *buffer
         finish = size == copy;
     }
 
-    ev::buff_t buff = {.base = (char*)buffer, .len = static_cast<size_t>(copy)};
+    ev::buff_t buff;
+    buff.base = (char*)buffer;
+    buff.len = static_cast<size_t>(copy);
 
     auto rend = buff.base + copy;
     while (rend != buff.base) {
@@ -1779,7 +1794,9 @@ manapi::future<ssize_t> manapi::net::http::http_v2_response(worker::base *worker
         if (cnt + left == data.size()) {
             cflag |= HTTP2_FLAG_HEADERS_END_HEADERS;
         }
-        ev::buff_t const buf = {.base = (char*)data.data() + cnt, .len = static_cast<std::size_t>(left)};
+        ev::buff_t buf;
+        buf.base = (char*)data.data() + cnt;
+        buf.len = static_cast<std::size_t>(left);
         if (http_v2_send_frame(s->ctx, ft, cflag, s->id, &buf, 1)) {
             co_return -1;
         }

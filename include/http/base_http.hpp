@@ -21,6 +21,7 @@ namespace manapi::net::http::internal {
         worker::shared_worker worker;
         request_data_t * req_data;
         cont_callback_t cb;
+        std::unique_ptr<http_handler_page> router;
     };
 
     typedef std::unique_ptr<handle_data_t> uq_handle_data_t;
@@ -33,8 +34,8 @@ namespace manapi::net::http::internal {
     void send_response_sync_cb (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
     void send_response_async_cb (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
     future<ssize_t> mask_response (handle_data_t* cdata, response *res, bool finish);
-    void handle_income_request (uq_handle_data_t cdata, std::unique_ptr<http_handler_page> data, int status);
-    void send_error_response (uq_handle_data_t cdata, std::unique_ptr<http_handler_page> error, int status = http::INTERNAL_SERVER_ERROR_500);
+    void handle_income_request (uq_handle_data_t cdata, int status);
+    void send_error_response (uq_handle_data_t cdata, int status = http::INTERNAL_SERVER_ERROR_500);
     future<void> send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size, std::vector<replace_founded_item> replacers);
     future<void> send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size);
     future<void> send_text(uq_handle_data_t cdata, std::string text);

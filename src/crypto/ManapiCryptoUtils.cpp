@@ -12,18 +12,18 @@ void random_string_ (char *rnd, std::size_t len) {
         {
             if (!CryptReleaseContext(h_crypt_prov, 0))
             {
-                THROW_MANAPIHTTP_EXCEPTION2 (ERR_ALGORITHM_INIT_FAIL, "Error during CryptReleaseContext.");
+                THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_ALGORITHM_INIT_FAIL, "Error during CryptReleaseContext.");
             }
         }
         else
         {
             if (CryptReleaseContext(h_crypt_prov, 0))
             {
-                THROW_MANAPIHTTP_EXCEPTION2 (ERR_ALGORITHM_INIT_FAIL, "Error during CryptGenRandom.");
+                THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_ALGORITHM_INIT_FAIL, "Error during CryptGenRandom.");
             }
             else
             {
-                THROW_MANAPIHTTP_EXCEPTION2 (ERR_ALGORITHM_INIT_FAIL, "Error during CryptReleaseContext.");
+                THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_ALGORITHM_INIT_FAIL, "Error during CryptReleaseContext.");
             }
         }
     }

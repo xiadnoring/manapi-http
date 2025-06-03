@@ -28,9 +28,9 @@ namespace manapi::net::http {
 
     class response {
     public:
-        typedef std::move_only_function<ssize_t(char *buffer, ssize_t size, bool&)> resp_callback_sync;
-        typedef std::move_only_function<manapi::future<ssize_t>(char *buffer, ssize_t size, bool&)> resp_callback_async;
-        typedef std::move_only_function<void(class manapi::net::fetch &)> resp_proxy_setup_cb;
+        using resp_callback_sync = std::move_only_function<ssize_t(char *buffer, ssize_t size, bool&)>;
+        using resp_callback_async = std::move_only_function<manapi::future<ssize_t>(char *buffer, ssize_t size, bool&)>;
+        using resp_proxy_setup_cb = std::move_only_function<void(class manapi::net::fetch &)>;
 
         response (manapi::net::http::request_data_t *request_data, int status, http::config *config);
 

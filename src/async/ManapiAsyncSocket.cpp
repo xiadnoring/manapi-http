@@ -32,8 +32,8 @@ manapi::ev::io_cb pio_ready_mk_(int flags, const int &fd,manapi::async::promise<
         };
 }
 
-void pio_ready (manapi::fd_t fd, int flags, manapi::ev::io_cb cb, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
-    auto w = manapi::async::current()->eventloop()->create_watcher_fd(fd, std::move(cb));
+void pio_ready (manapi::socket_t fd, int flags, manapi::ev::io_cb cb, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
+    auto w = manapi::async::current()->eventloop()->create_watcher_socket(fd, std::move(cb));
 
     if (cancellation.contains_cancel_callback()) {
         cancellation.cancel_callback([w, reject] () mutable
@@ -49,12 +49,7 @@ void pio_ready (manapi::fd_t fd, int flags, manapi::ev::io_cb cb, manapi::async:
 }
 
 #if MANAPIHTTP_NONUNIX
-void manapi::async::set_non_blocking(fd_t fd) {
 
-}
-void manapi::async::close_descriptor(fd_t fd) {
-    assert((false && "close_descriptor(...) without realization"))
-}
 #endif
 
 void manapi::async::set_non_blocking(socket_t fd) {
@@ -108,23 +103,23 @@ void manapi::async::close_descriptor(socket_t fd) {
 #endif
 }
 
-manapi::future<int> manapi::async::custom_ready(fd_t flags, fd_t fd) {
+manapi::future<int> manapi::async::custom_ready(socket_t flags, socket_t fd) {
     co_return co_await promise<int, std::false_type> ([flags, fd] (promise<int>::resolve_t resolve, promise<int>::reject_t reject) -> void {
         auto cb = pio_ready_mk_(flags, fd, std::move(resolve), std::move(reject), nullptr);
-        auto s = async::current()->eventloop()->create_watcher_fd(fd, std::move(cb));
+        auto s = async::current()->eventloop()->create_watcher_socket(fd, std::move(cb));
         s->start(flags);
     });
 }
 
-manapi::future<int> manapi::async::read_ready(fd_t fd) {
+manapi::future<int> manapi::async::read_ready(socket_t fd) {
     return custom_ready(ev::READ, fd);
 }
 
-manapi::future<int> manapi::async::write_ready(fd_t fd) {
+manapi::future<int> manapi::async::write_ready(socket_t fd) {
     return custom_ready(ev::WRITE, fd);
 }
 
-manapi::future<int> manapi::async::custom_ready(int flags, fd_t fd, cancellation_action cancellation) {
+manapi::future<int> manapi::async::custom_ready(int flags, socket_t fd, cancellation_action cancellation) {
     auto res = co_await promise<int> ([flags, fd, cancellation] (promise<int>::resolve_t resolve, promise<int>::reject_t reject) mutable -> manapi::future<> {
             auto cb = pio_ready_mk_(flags, fd, resolve, reject, cancellation);
             pio_ready(fd, flags, std::move(cb), std::move(reject), cancellation);
@@ -136,10 +131,10 @@ manapi::future<int> manapi::async::custom_ready(int flags, fd_t fd, cancellation
     co_return res;
 }
 
-manapi::future<int> manapi::async::read_ready(fd_t fd,cancellation_action cancellation) {
+manapi::future<int> manapi::async::read_ready(socket_t fd,cancellation_action cancellation) {
     return custom_ready(ev::READ, fd, std::move(cancellation));
 }
 
-manapi::future<int> manapi::async::write_ready(fd_t fd,cancellation_action cancellation) {
+manapi::future<int> manapi::async::write_ready(socket_t fd,cancellation_action cancellation) {
     return custom_ready(ev::WRITE, fd, std::move(cancellation));
 }

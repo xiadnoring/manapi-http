@@ -108,16 +108,16 @@ namespace manapi::filesystem::path {
     static char delimiter = std::filesystem::path::preferred_separator;
     static std::string string_delimiter (&delimiter, 1);
 
-    std::string basename (const std::string &path);
-    std::string extension (const std::string &path);
+    std::string basename (std::string_view path);
+    std::string extension (std::string_view path);
 
     void append_delimiter(std::string &path);
 
-    std::string clean (const std::string &str);
+    std::string clean (std::string_view str);
     std::string back (std::string str);
 
     template <class... Args>
-    inline std::string join(const std::string &path, Args&&...args) {
-        return clean(path + (... + (string_delimiter + std::forward<Args>(args))));
+    inline std::string join(std::string_view path, Args&&...args) {
+        return clean(std::string{path} + (... + (string_delimiter + std::forward<Args>(args))));
     }
 }

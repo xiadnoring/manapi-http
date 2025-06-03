@@ -1,5 +1,7 @@
 #pragma once
 
+#define NOMINMAX
+
 #include <string>
 #include <vector>
 #include <deque>
@@ -12,8 +14,8 @@
 #include <list>
 #include <forward_list>
 #include <typeinfo>
+#include "ManapiInt.hpp"
 #include "ManapiParams.hpp"
-
 
 //#include "./extensions/jemallocator.hpp"
 

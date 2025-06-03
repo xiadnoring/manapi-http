@@ -1,8 +1,8 @@
 #include "ManapiHttp.hpp"
 #include "services/ManapiFetch2.hpp"
-#include "ext/pq/AsyncPostgreClient.hpp"
+// #include "ext/pq/AsyncPostgreClient.hpp"
 
-#define FOLDER "/home/Timur/Downloads/anime-main/"
+#define FOLDER ".\\data\\"
 //#define FOLDER "/home/Timur/Documents/http2priorities/"
 #include "crypto/ManapiAEAD.hpp"
 #include "ManapiHash.hpp"
@@ -20,18 +20,18 @@ manapi::future<int> test () {
 }
 
 int main () {
-    int threads = 16;
+    int threads = 2;
     try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS")); }
     catch (...) {  }
 
     manapi::async::context::threadpoolfs(threads);
     manapi::async::context::gbs = manapi::async::context::blockedsignals();
 
-    int loops = 14;
+    int loops = 0;
     try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS")); }
     catch (...) {  }
 
-    GCTX_OBJ = manapi::async::context::create(threads);
+    GCTX_OBJ = manapi::async::context::create(0);
     GCTX_OBJ->eventloop()->setup_handle_interrupt();
 
     auto mx = std::make_shared<manapi::async::tmutex>();
@@ -57,14 +57,14 @@ int main () {
 
     GCTX_OBJ->run(GCTX_OBJ, loops, [&a, server_ctx] (const std::function<void()> &bind) -> void {
         using http = manapi::net::http::server;
-        manapi::ext::pq::connection db;
+        //manapi::ext::pq::connection db;
         manapi::net::http::server router (server_ctx);
 
 
         router.GET("/", FOLDER, [] (http::req &req, http::resp &resp)
             -> manapi::future<> {
             resp.compress_enabled(true);
-            resp.compress("zstd");
+            resp.compress("br");
             co_return;
         });
 
@@ -294,26 +294,26 @@ int main () {
             co_return resp.text(std::move(data));
         });
 
-        router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable
-            -> manapi::future<> {
-            try {
-                auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
-            }
-            catch (...) {
-                /* already exists */
-            }
-            auto res = co_await db.exec("SELECT * FROM for_test;");
+        // router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable
+        //     -> manapi::future<> {
+        //     try {
+        //         auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
+        //     }
+        //     catch (...) {
+        //         /* already exists */
+        //     }
+        //     auto res = co_await db.exec("SELECT * FROM for_test;");
 
-            std::string content = "b";
-            for (const auto &row: res) {
-                content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
-            }
+        //     std::string content = "b";
+        //     for (const auto &row: res) {
+        //         content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+        //     }
 
-            co_return resp.text(std::move(content));
-        });
+        //     co_return resp.text(std::move(content));
+        // });
 
-        manapi::async::run([router, db] () mutable -> manapi::future<> {
-            co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
+        manapi::async::run([router] () mutable -> manapi::future<> {
+           //co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
 
             co_await router.config("config.json");
             co_await router.start();
@@ -321,6 +321,7 @@ int main () {
 
         bind();
     });
+    return 0;
 }
 
 // using namespace std;

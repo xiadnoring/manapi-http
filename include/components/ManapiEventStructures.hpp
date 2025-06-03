@@ -4,6 +4,10 @@
 
 #include "../ManapiDebug.hpp"
 
+#ifdef _WIN32
+#   include <io.h>
+#endif
+
 #define MANAPI_EV_NODISCARD [[nodiscard]]
 #define MANAPI_EV_NOEXPECT noexcept(true)
 #define MANAPI_EV_CAST_STREAM(x) reinterpret_cast<uv_stream_t *> (x)
@@ -98,20 +102,29 @@ namespace manapi::ev {
 
 #if defined(_WIN32)
     enum fs_o_modes {
-        IRUSR = 0,
-        IWUSR = 0,
-        IXUSR = 0,
-        IRWXU = 0,
+        IRUSR = S_IREAD,
+        IWUSR = S_IWRITE,
+        IXUSR = S_IEXEC,
+        IRWXU = S_IREAD|S_IWRITE|S_IEXEC,
 
-        IRGRP = 0,
-        IWGRP = 0,
-        IXGRP = 0,
-        IRWXG = 0,
+        IRGRP = S_IREAD,
+        IWGRP = S_IWRITE,
+        IXGRP = S_IEXEC,
+        IRWXG = S_IREAD|S_IWRITE|S_IEXEC,
 
-        IROTH = 0,
-        IWOTH = 0,
-        IXOTH = 0,
-        IRWXO = 0
+        IROTH = S_IREAD,
+        IWOTH = S_IWRITE,
+        IXOTH = S_IEXEC,
+        IRWXO = S_IREAD|S_IWRITE|S_IEXEC,
+
+        IFREG = S_IFREG,
+        IFSOCK = 0,
+        IFLNK = 0,
+        IFBLK = 0,
+        IFDIR = S_IFDIR,
+        IFCHR = S_IFCHR,
+        IFIFO = 0,
+        IFMT = S_IFMT
     };
 #else
     enum fs_o_stat {
@@ -307,14 +320,16 @@ namespace manapi::ev {
     public:
         MANAPI_EV_DEFAULT(io, uv_poll_t)
 
-        template<typename T1 = manapi::fd_t>
-        requires(sizeof (manapi::fd_t) != sizeof (manapi::socket_t))
-        io (loop_ref loop, manapi::socket_t fd) : s_() {
-            MANAPI_EV_CHECK(uv_poll_init_socket(loop, &this->s_, fd));
+        io ();
+
+        int bind (loop_ref loop, manapi::socket_t fd) {
+            return (uv_poll_init_socket(loop, &this->s_, fd));
         }
 
-        io (loop_ref loop, manapi::fd_t fd) : s_() {
-            MANAPI_EV_CHECK(uv_poll_init(loop, &this->s_, fd));
+        template<typename T1 = manapi::fd_t>
+        requires(std::is_same_v<int, manapi::socket_t>)
+        int bind (loop_ref loop, int fd) {
+            return uv_poll_init(loop, &this->s_, fd);
         }
 
         int start (int revents, uv_poll_cb cb) MANAPI_EV_NOEXPECT;
@@ -586,18 +601,18 @@ namespace manapi::ev {
         uv_random_t s_;
     };
 
-    typedef std::shared_ptr<async> shared_async;
-    typedef std::shared_ptr<tcp> shared_tcp;
-    typedef std::shared_ptr<udp> shared_udp;
-    typedef std::shared_ptr<check> shared_check;
-    typedef std::shared_ptr<prepare> shared_prepare;
-    typedef std::shared_ptr<idle> shared_idle;
-    typedef std::shared_ptr<random> shared_random;
-    typedef std::shared_ptr<fs> shared_fs;
-    typedef std::shared_ptr<timer> shared_timer;
-    typedef std::shared_ptr<io> shared_io;
-    typedef std::shared_ptr<write> shared_write;
-    typedef std::shared_ptr<udp_send> shared_udp_send;
+    using shared_async = std::shared_ptr<async>;
+    using shared_tcp = std::shared_ptr<tcp>;
+    using shared_udp = std::shared_ptr<udp>;
+    using shared_check = std::shared_ptr<check>;
+    using shared_prepare = std::shared_ptr<prepare>;
+    using shared_idle = std::shared_ptr<idle>;
+    using shared_random = std::shared_ptr<random>;
+    using shared_fs = std::shared_ptr<fs>;
+    using shared_timer = std::shared_ptr<timer>;
+    using shared_io = std::shared_ptr<io>;
+    using shared_write = std::shared_ptr<write>;
+    using shared_udp_send = std::shared_ptr<udp_send>;
 }
 
 #undef MANAPI_EV_CAST_HANDLE

@@ -122,9 +122,15 @@ void manapi::net::worker::TCP::init() {
             goto err;
         }
 
-        if (auto rhs = this->watcher_accept_->s_bind(reinterpret_cast<sockaddr *> (&this->sockaddrin), ev::TCP_REUSEPORT)) {
-            manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't bind socket due to result - {}", rhs);
-            goto err;
+        {
+            int bind_flags = 0;
+#if defined(__unix__) && !defined(__APPLE__)
+            bind_flags |= ev::TCP_REUSEPORT;
+#endif
+            if (auto rhs = this->watcher_accept_->s_bind(reinterpret_cast<sockaddr *> (&this->sockaddrin), flags)) {
+                manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't bind socket due to result - {} {}", rhs, uv_err_name (rhs));
+                goto err;
+            }
         }
 
         if (auto rhs = this->watcher_accept_->listen(this->config_->max_backlog)) {
@@ -158,8 +164,7 @@ void manapi::net::worker::TCP::configure_connection(const worker::shared_conn &c
 }
 
 manapi::future<ssize_t> manapi::net::worker::TCP::response(const worker::shared_conn &connection, http::response *resp, bool finish) {
-    static constexpr std::string delimiter = "\r\n";
-    const auto response = manapi::net::worker::TCP::stringify_http_info(resp, connection->version, delimiter) + this->stringify_headers(resp, delimiter) + delimiter;
+    const auto response = manapi::net::worker::TCP::stringify_http_info(resp, connection->version, "\r\n") + this->stringify_headers(resp, "\r\n") + "\r\n";
 
     const auto rhs = co_await this->write (connection, response.data(), response.size(), finish);
     co_return rhs;
@@ -348,7 +353,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
 void manapi::net::worker::TCP::stop(std::function<void()> cb) {
     if (this->watcher_accept_) {
         manapi::async::current()->eventloop()
-            ->stop_callback<ev::tcp>(this->watcher_accept_, [this, cb = std::move(cb)] (const ev::shared_tcp &w) -> void {
+            ->stop_callback(this->watcher_accept_, [this, cb = std::move(cb)] (const ev::shared_tcp &w) -> void {
                 this->flags |= NET_WORKER_CLOSED;
                 this->finish = std::move(cb);
 
@@ -497,7 +502,9 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
             conn->top->send.deque_current = 0;
         }
 
-        auto s = std::make_unique<ev::buff_t>(object->data(), static_cast<std::size_t>(object->size()));
+        auto s = std::make_unique<ev::buff_t>();
+        s->base = object->data();
+        s->len = static_cast<std::size_t>(object->size());
 
         auto w = manapi::async::current()->eventloop()
             ->create_watcher_write(conn->watcher.get(), [connection, b = std::move(object), s = std::move(s)]
@@ -749,7 +756,8 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
                     // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
                     // this->event_flags(conn, 0);
 
-                    net::http::internal::handle_income_request(std::move(cdata), this->site().handler(req_ptr), http::OK_200);
+                    cdata->router = this->site().handler(req_ptr);
+                    net::http::internal::handle_income_request(std::move(cdata), http::OK_200);
 
                     continue;
                 }
@@ -885,7 +893,8 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     connection_io_send(&data->top->recv, buff, size,
                         this->bufferpool().get(), this->config_->buffer_size, &data->top->recv_size, 1e5);
 
-                    net::http::internal::handle_income_request(std::move(cdata), this->site().handler(req_ptr), http::OK_200);
+                    cdata->router = this->site().handler(req_ptr);
+                    net::http::internal::handle_income_request(std::move(cdata), http::OK_200);
 
                     break;
                 }

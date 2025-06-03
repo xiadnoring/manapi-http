@@ -55,7 +55,7 @@ namespace manapi::ext::pq {
             std::move_only_function<manapi::future<>(notification notify)> notify_cb_{nullptr};
             ssize_t timeoutms_;
             bool init_{true};
-            manapi::fd_t fd_{-1};
+            manapi::socket_t fd_{-1};
             std::unique_ptr<PGconn, pgconn_deleter> conn{nullptr};
             async::mutex mx;
         };
