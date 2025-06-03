@@ -128,14 +128,15 @@ manapi::future<ssize_t> manapi::filesystem::fstream::write(const void *buff, ssi
 }
 
 manapi::future<> manapi::filesystem::fstream::fwrite(const void *buff, ssize_t buff_size) {
-    while (buff_size > 0) {
-        auto rhs = co_await this->write(buff, buff_size);
+    ssize_t res = 0;
+    while (res != buff_size) {
+        auto const rhs = co_await this->write(static_cast<const char *>(buff) + res, buff_size - res);
 
         if (rhs <= 0) {
             THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to write to a file. code: {}", rhs);
         }
 
-        buff_size -= rhs;
+        res += rhs;
     }
 }
 

@@ -4,7 +4,9 @@ project(manapihttp VERSION 0.0.2 DESCRIPTION "Fast HTTP Server/Client Library fo
 cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0070 NEW)
 
-include(./build/generators/conan_toolchain.cmake)
+if (EXISTS "./build/generators/conan_toolchain.cmake")
+    include(./build/generators/conan_toolchain.cmake)
+endif ()
 
 add_compile_options(-fmerge-all-constants -fuse-ld=gold)
 

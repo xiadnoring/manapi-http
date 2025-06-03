@@ -127,7 +127,7 @@ void manapi::net::worker::TCP::init() {
 #if defined(__unix__) && !defined(__APPLE__)
             bind_flags |= ev::TCP_REUSEPORT;
 #endif
-            if (auto rhs = this->watcher_accept_->s_bind(reinterpret_cast<sockaddr *> (&this->sockaddrin), flags)) {
+            if (auto rhs = this->watcher_accept_->s_bind(reinterpret_cast<sockaddr *> (&this->sockaddrin), bind_flags)) {
                 manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't bind socket due to result - {} {}", rhs, uv_err_name (rhs));
                 goto err;
             }

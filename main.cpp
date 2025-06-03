@@ -1,8 +1,11 @@
 #include "ManapiHttp.hpp"
 #include "services/ManapiFetch2.hpp"
 // #include "ext/pq/AsyncPostgreClient.hpp"
-
-#define FOLDER ".\\data\\"
+#ifdef _WIN32
+#   define FOLDER ".\\data\\"
+#else
+#   define FOLDER "/home/Timur/Downloads/anime-main/"
+#endif
 //#define FOLDER "/home/Timur/Documents/http2priorities/"
 #include "crypto/ManapiAEAD.hpp"
 #include "ManapiHash.hpp"
@@ -31,7 +34,7 @@ int main () {
     try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS")); }
     catch (...) {  }
 
-    GCTX_OBJ = manapi::async::context::create(0);
+    GCTX_OBJ = manapi::async::context::create(loops);
     GCTX_OBJ->eventloop()->setup_handle_interrupt();
 
     auto mx = std::make_shared<manapi::async::tmutex>();

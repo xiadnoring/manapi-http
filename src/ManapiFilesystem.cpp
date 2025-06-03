@@ -636,7 +636,7 @@ manapi::future<ssize_t> manapi::filesystem::async_write(ev::file file, const voi
 
         if (rhs < dd.buff.len) {
             /* retry */
-            auto w = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, reject, cancel] (std::shared_ptr<ev::fs> w) mutable
+            auto w1 = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, reject, cancel] (std::shared_ptr<ev::fs> w) mutable
                 -> void {
                 async_fs_operation_event_handler<ssize_t>(std::move(w), std::move(resolve), std::move(reject), std::move(cancel), dd.event_cb);
             });
@@ -648,13 +648,13 @@ manapi::future<ssize_t> manapi::filesystem::async_write(ev::file file, const voi
             dd.buff.base += rhs;
             dd.buff.len -= rhs;
 
-            if (w->write(dd.file, &dd.buff, 1, dd.offset)) {
+            if (w1->write(dd.file, &dd.buff, 1, dd.offset)) {
                 reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_FS_IO,manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_INIT])));
                 return;
             }
 
             if (cancel.contains_cancel_callback()) {
-                cancel.cancel_callback([w = std::move(w)] () mutable
+                cancel.cancel_callback([w = std::move(w1)] () mutable
                     -> void { manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
             }
         }

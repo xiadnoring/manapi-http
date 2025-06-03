@@ -132,13 +132,13 @@ manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std
          * since it knows it is compressing the entire source in one pass.
          */
         int const lastChunk = read == 0;
-        BrotliEncoderOperation const mode = lastChunk ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS;
+        BrotliEncoderOperation const mmode = lastChunk ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS;
 
         do {
             /* Compress into the output buffer and write all of the output to
              * the file so we can reuse the buffer next iteration.
              */
-            int const remaining = BrotliEncoderCompressStream(cctx, mode, &buffInSize, &buffInNext, &buffOutSize, &buffOutNext, nullptr);
+            int const remaining = BrotliEncoderCompressStream(cctx, mmode, &buffInSize, &buffInNext, &buffOutSize, &buffOutNext, nullptr);
             if (!remaining) {
                 goto err;
             }
@@ -148,9 +148,10 @@ manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std
                 co_await output.fwrite(buffOut, static_cast<ssize_t>(written));
 
                 buffOutNext = buffOut;
+                buffOutSize = CHUNK_SIZE;
             }
         }
-        while (buffInSize);
+        while (buffInSize || ::BrotliEncoderHasMoreOutput (cctx));
 
         if (lastChunk) {
             break;
@@ -160,7 +161,7 @@ manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std
     co_return;
 err:
     BrotliEncoderDestroyInstance(cctx);
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "zstd: compress failed");
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_COMPRESS_DATA, "brotli: compress failed");
 }
 
 manapi::future<void> manapi::compress::brotli_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
