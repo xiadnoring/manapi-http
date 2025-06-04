@@ -77,7 +77,7 @@ constexpr int version_compare_job_(
                 (i1++)
                 :
                 (
-                    isdigit(str1[index]) ?
+                    (str1[index] >= '0' && str1[index] <= '9') ?
                     (
                         i1 == 0 ? ((major1 *= 10) += (str1[index] - '0'))
                         :
@@ -103,7 +103,7 @@ constexpr int version_compare_job_(
                 (i2++)
                 :
                 (
-                    isdigit(str2[index]) ?
+                    (str2[index] >= '0' && str2[index] <= '9') ?
                         (
                         i2 == 0 ? ((major2 *= 10) += (str2[index] - '0'))
                         :

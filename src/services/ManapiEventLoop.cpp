@@ -603,6 +603,11 @@ void manapi::event_loop::sync_start(std::shared_ptr<event_loop> le) {
 
 void manapi::event_loop::setup_handle_interrupt() {
 #ifdef _WIN32
+    signal (SIGSEGV, handler_interrupt);
+    signal (SIGFPE, handler_interrupt);
+    signal (SIGINT, handler_interrupt);
+    signal (SIGBREAK, handler_interrupt);
+    signal (SIGILL, handler_interrupt);
 #else
     signal (SIGPIPE, SIG_IGN);
     signal (SIGKILL, handler_interrupt);

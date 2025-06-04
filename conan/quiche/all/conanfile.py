@@ -1,7 +1,7 @@
 import shutil
 
 from conan import ConanFile
-from conan.tools.files import files, get, copy
+from conan.tools.files import files, get, copy, replace_in_file
 from conan.tools.scm import Git
 from conan.errors import ConanInvalidConfiguration
 from conan.tools.system.package_manager import Apt, PacMan, Brew, Zypper, Yum, Dnf, Apk, Chocolatey
@@ -28,13 +28,16 @@ class QuciheConan(ConanFile):
     package_type = "library"
 
     def system_requirements(self):
-        PacMan(self).install(["rust"], update=True, check=True)
-        Brew(self).install(["rustup"], update=True, check=True)
-        Zypper(self).install(["cargo"], update=True, check=True)
-        Yum(self).install(["rust-toolset"], update=True, check=True)
-        Dnf(self).install(["rust-toolset"], update=True, check=True)
-        Apk(self).install(["rust"], update=True, check=True)
-        Chocolatey(self).install(["rustup.install"], update=True, check=True)
+        try:
+            PacMan(self).install(["rust"], update=True, check=True)
+            Brew(self).install(["rustup"], update=True, check=True)
+            Zypper(self).install(["cargo"], update=True, check=True)
+            Yum(self).install(["rust-toolset"], update=True, check=True)
+            Dnf(self).install(["rust-toolset"], update=True, check=True)
+            Apk(self).install(["rust"], update=True, check=True)
+            Chocolatey(self).install(["rustup.install"], update=True, check=True)
+        except Exception as e:
+            print (f"package manager not found due to {str(e)}")
 
         apt = Apt(self)
         apt.update()
@@ -82,7 +85,7 @@ class QuciheConan(ConanFile):
     def generate(self):
         if not self.command_exists('cargo'):
             raise ConanInvalidConfiguration ("This project made on rust, so the OS must provide the 'cargo'. Can not find the 'cargo' (which cargo)")
-
+        
     def build(self):
         args = ['cargo', 'build', '--manifest-path', os.path.join('src', 'Cargo.toml'), '--lib', '--release']
 
@@ -94,9 +97,15 @@ class QuciheConan(ConanFile):
 
         if result != 0:
             raise ConanInvalidConfiguration ("Cargo sent an invalid code. can not compile a src")
+        
 
     def package_id(self):
         self.info.clear()
+
+    def remove_if_exists (self, path: str):
+        return
+        if os.path.exists(path):
+            os.remove(path)
         
     def package(self):
         release = os.path.join ('src', 'target', 'release')
@@ -113,7 +122,7 @@ class QuciheConan(ConanFile):
         include = os.path.join ('src', 'quiche', 'include')
 
         # lib*
-        for item in glob.glob (os.path.join (release, 'lib*')):
+        for item in glob.glob (os.path.join (release, '*lib*')):
             result = files.shutil.copy (item, libpkg)
 
             if len(item) > 3 and item[-3:] == '.so':
@@ -123,7 +132,28 @@ class QuciheConan(ConanFile):
         for item in glob.glob (os.path.join (release, '*dll')):
             files.shutil.copy (item, libpkg)
 
+        for item in glob.glob (os.path.join (release, 'quiche.d')):
+            files.shutil.copy (item, libpkg)
+
+        if os.path.exists (os.path.join (release, 'deps')):
+            files.shutil.move (os.path.join (release, 'deps'), os.path.join(libpkg, 'deps'))
+
         files.shutil.copy (os.path.join(include, 'quiche.h'), includepkg)
+
+        if self.settings.get_safe("shared"):
+            self.remove_if_exists (os.path.join (libpkg, 'quiche.a'))
+            self.remove_if_exists (os.path.join (libpkg, 'quiche.lib'))
+
+            self.remove_if_exists (os.path.join (libpkg, 'libquiche.a'))
+            self.remove_if_exists (os.path.join (libpkg, 'libquiche.lib'))
+        else:
+            self.remove_if_exists (os.path.join (libpkg, 'quiche.dll'))
+            self.remove_if_exists (os.path.join (libpkg, 'quiche.so'))
+            self.remove_if_exists (os.path.join (libpkg, 'quiche.so.0'))
+
+            self.remove_if_exists (os.path.join (libpkg, 'libquiche.dll'))
+            self.remove_if_exists (os.path.join (libpkg, 'libquiche.so'))
+            self.remove_if_exists (os.path.join (libpkg, 'libquiche.so.0'))
 
         # License
         copy (self, 'COPYING', src=os.path.join(self.source_folder, 'src'), dst=os.path.join(self.package_folder, 'licenses', 'quiche'))

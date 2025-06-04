@@ -32,7 +32,6 @@ OPTION(MANAPIHTTP_BUILD_METHOD "Build method" "default")
 OPTION(MANAPIHTTP_WOLFSSL_WITH_ALPN "WolfSSL with ALPN" ON)
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
-
 message(STATUS "MANAPIHTTP_BUILD_METHOD: ${MANAPIHTTP_BUILD_METHOD}")
 message(STATUS "The QUIC Implementation by Cloudflare: ${MANAPIHTTP_QUICHE_DEPENDENCY}")
 message(STATUS "The QUIC Implementation by Tencent: ${MANAPIHTTP_TQUIC_DEPENDENCY}")
@@ -42,7 +41,6 @@ message(STATUS "TLS, QUIC and etc implementations by WolfSSL: ${MANAPIHTTP_WOLFS
 message(STATUS "BigInt support by GMP: ${MANAPIHTTP_GMP_DEPENDENCY}")
 message(STATUS "Fetch support by CURL: ${MANAPIHTTP_CURL_DEPENDENCY}")
 message(STATUS "Some compresses support by zlib: ${MANAPIHTTP_ZLIB_DEPENDENCY}")
-
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Build type: Debug")
     add_compile_definitions(MANAPIHTTP_HTTP_BUILD_DEBUG)

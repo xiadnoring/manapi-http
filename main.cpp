@@ -43,13 +43,8 @@ int main () {
         -> void {
         manapi::async::run(manapi::async::invoke(+[](std::shared_ptr<manapi::async::tmutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
             auto lk = co_await mx->lock_guard();
-            if (type == manapi::logger_type::LOGGER_ERROR) {
-                std::cerr << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
-            }
-            else {
-                std::cout << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
-            }
-            co_return;
+            (type == manapi::logger_type::LOGGER_ERROR ? std::cerr : std::cout)
+                << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
         }, mx, type, service, error_code, std::move(msg)));
     });
 
@@ -67,7 +62,7 @@ int main () {
         router.GET("/", FOLDER, [] (http::req &req, http::resp &resp)
             -> manapi::future<> {
             resp.compress_enabled(true);
-            resp.compress("br");
+            resp.compress("zstd");
             co_return;
         });
 

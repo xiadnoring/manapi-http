@@ -36,7 +36,6 @@ requires(version_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 bool manapi_quiche_h3_event_headers_has_more_frames_ (T event) {
     return quiche_h3_event_headers_has_body(static_cast<T>(event));
 }
-
 template<typename ...Args>
 requires(version_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 ssize_t manapi_quiche_h3_send_additional_headers_(Args&&...args) {
@@ -273,7 +272,9 @@ int manapi::net::worker::http_v3_cloudflare_quiche::quiche_flush_egress_(connect
             return -2;
         }
 
-        ev::buff_t buff = {.base = reinterpret_cast<char *> (out), .len = static_cast<std::size_t>(written)};
+        ev::buff_t buff;
+        buff.base = reinterpret_cast<char *> (out);
+        buff.len = static_cast<std::size_t>(written);
         ssize_t const sent = this->udp_accept_->try_send(&buff, 1, reinterpret_cast<sockaddr *>(&send_info.to));
         if (sent < 0) {
             return -1;
@@ -358,8 +359,10 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
                  return;
              }
 
-             ev::buff_t buff2[1] = {{.base = reinterpret_cast<char *> (out), .len = static_cast<std::size_t>(written)}};
-             ssize_t rhs = this->udp_accept_->try_send(buff2, 1, reinterpret_cast<sockaddr *>(sockaddr_src));
+             ev::buff_t buff2;
+             buff2.base = reinterpret_cast<char *> (out);
+             buff2.len = static_cast<std::size_t>(written);
+             ssize_t rhs = this->udp_accept_->try_send(&buff2, 1, reinterpret_cast<sockaddr *>(sockaddr_src));
 
              if (rhs != written) {
                  /* failed to send */
@@ -383,8 +386,10 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
                 return;
             }
 
-            ev::buff_t buff2[1] = {{.base = reinterpret_cast<char *> (out), .len = static_cast<std::size_t>(written)}};
-            ssize_t rhs = this->udp_accept_->try_send(buff2, 1, reinterpret_cast<sockaddr *>(sockaddr_src));
+            ev::buff_t buff2;
+            buff2.base = reinterpret_cast<char *> (out);
+            buff2.len = static_cast<std::size_t>(written);
+            ssize_t rhs = this->udp_accept_->try_send(&buff2, 1, reinterpret_cast<sockaddr *>(sockaddr_src));
 
             if (rhs != written) {
                 /* failed to send */

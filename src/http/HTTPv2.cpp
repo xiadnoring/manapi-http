@@ -505,7 +505,11 @@ int http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net::htt
         auto opit = ctx->priorities->find({s->priority, s->id});
         if (opit != ctx->priorities->end()) {
             if (opit == ctx->priorities->begin()) {
-                assert(!(s->flags & HTTP2_STREAM_PRIORITY_LOCKED));
+                if (!(s->flags & HTTP2_STREAM_PRIORITY_LOCKED)) {
+                    manapi::async::current()->logger()->error(manapi::logger::default_service,
+                        manapi::ERR_BUG, "assertation failed: !(s->flags & HTTP2_STREAM_PRIORITY_LOCKED)");
+                }
+
                 {
                     auto pit = std::next(opit);
                     if (pit != ctx->priorities->end()) {

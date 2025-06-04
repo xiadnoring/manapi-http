@@ -5,7 +5,6 @@
 
 #include "../ManapiUtils.hpp"
 #if MANAPIHTTP_CURL_DEPENDENCY
-#   define CURL_STATICLIB
 #   include <curl/curl.h>
 #endif
 

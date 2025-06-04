@@ -3,6 +3,7 @@
 
 int main (int argc, char *argv[])
 {
+    printf ("WELL START\n");
     auto q_config = quiche_config_new(QUICHE_PROTOCOL_VERSION);
     quiche_config_set_initial_max_data                      (q_config, 10000000);
     quiche_config_set_initial_max_stream_data_bidi_local    (q_config, 1000000);
