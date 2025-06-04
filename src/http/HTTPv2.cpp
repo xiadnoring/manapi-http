@@ -492,8 +492,18 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, manapi::net::htt
             }
         }
     }
-    assert((ctx->priorities->empty()
-        || !(ctx->streams->find(ctx->priorities->begin()->second)->second->as<http_v2_stream_t>()->flags & HTTP2_STREAM_PRIORITY_LOCKED)));
+
+    if (!ctx->priorities->empty()) {
+        auto const it = ctx->streams->find(ctx->priorities->begin()->second);
+        if (it->first != sdata->id) {
+            assert(it != ctx->streams->end());
+            auto const s_oth_data = it->second->as<http_v2_stream_t>();
+            if (s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
+                s_oth_data->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+                ctx->http_v2_worker->feed_event(it->second, manapi::ev::WRITE, nullptr, 0, nullptr);
+            }
+        }
+    }
 
     return 0;
 }
@@ -505,11 +515,6 @@ int http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net::htt
         auto opit = ctx->priorities->find({s->priority, s->id});
         if (opit != ctx->priorities->end()) {
             if (opit == ctx->priorities->begin()) {
-                if (!(s->flags & HTTP2_STREAM_PRIORITY_LOCKED)) {
-                    manapi::async::current()->logger()->error(manapi::logger::default_service,
-                        manapi::ERR_BUG, "assertation failed: !(s->flags & HTTP2_STREAM_PRIORITY_LOCKED)");
-                }
-
                 {
                     auto pit = std::next(opit);
                     if (pit != ctx->priorities->end()) {
@@ -541,8 +546,18 @@ int http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net::htt
             }
             ctx->priorities->erase(opit);
         }
-        assert((ctx->priorities->empty()
-            || !(ctx->streams->find(ctx->priorities->begin()->second)->second->as<http_v2_stream_t>()->flags & HTTP2_STREAM_PRIORITY_LOCKED)));
+
+        if (!ctx->priorities->empty()) {
+            auto const it = ctx->streams->find(ctx->priorities->begin()->second);
+            if (it->first != s->id) {
+                assert(it != ctx->streams->end());
+                auto const s_oth_data = it->second->as<http_v2_stream_t>();
+                if (s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
+                    s_oth_data->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+                    ctx->http_v2_worker->feed_event(it->second, manapi::ev::WRITE, nullptr, 0, nullptr);
+                }
+            }
+        }
     }
     catch (std::exception const &e) {
         MANAPIHTTP_LOG("http2: priority update failed due to {}", e.what());
