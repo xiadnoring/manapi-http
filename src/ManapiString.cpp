@@ -113,3 +113,10 @@ bool manapi::string::equals(std::string_view lhs, std::string_view rhs, int flag
 
     return res;
 }
+
+void manapi::string::lower_ascii(std::string &n) {
+    for (auto &c : n) {
+        if (c >= 'A' && c <= 'Z')
+            c = c - ('Z' - 'z');
+    }
+}

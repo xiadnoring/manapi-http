@@ -11,6 +11,7 @@
 #include "ManapiHttp.hpp"
 
 #include "async/ManapiAsyncPromise.hpp"
+#include "ManapiString.hpp"
 
 // Utils
 
@@ -72,7 +73,9 @@ size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_
             std::string_view const str (buffer, size * n_items - 2);
             if (!str.empty()) {
                 auto header = manapi::net::http::parse_header(str);
-                f->headers->insert(std::move(header));
+                auto key = std::string{header.first};
+                manapi::string::lower_ascii(key);
+                f->headers->insert({std::move(key), std::string{header.second}});
             }
         }
         else {

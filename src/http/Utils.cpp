@@ -307,7 +307,7 @@ std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_
                         case ' ': rhs++; break;
                         case ',': {
                             if (next != HTTP_HV_FIELD_START
-                                || next != HTTP_HV_VALUE_START)
+                                && next != HTTP_HV_VALUE_START)
                                 goto err;
                             rhs++;
                             state = HTTP_HV_FIELD_START;
@@ -316,7 +316,7 @@ std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_
                         }
                         case ';': {
                             if (next != HTTP_HV_VALUE_START
-                                || next != HTTP_HV_FIELD_START)
+                                && next != HTTP_HV_FIELD_START)
                                 goto err;
                             rhs++;
                             state = HTTP_HV_KEY_START;
@@ -372,6 +372,9 @@ std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_
         }
         case HTTP_HV_VALUE: {
             data.rbegin()->params.insert({std::move(key), std::move(value)});
+            break;
+        }
+        case HTTP_HV_SKIP: {
             break;
         }
         default: {

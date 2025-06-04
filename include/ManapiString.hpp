@@ -39,4 +39,6 @@ namespace manapi::string {
      * @return
      */
     bool equals(std::string_view lhs, std::string_view rhs, int flags = 0);
+
+    void lower_ascii (std::string &n);
 }

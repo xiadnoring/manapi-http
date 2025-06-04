@@ -22,3 +22,5 @@ conan/tquic/all/test_package/CMakeUserPresets.json
 curl_lib
 libuv
 .vscode
+test_package/build
+test_package/CMakeUserPresets.json

@@ -69,6 +69,7 @@ class ManapiHttpConan(ConanFile):
             self.options["zstd"].shared = self.settings.compiler != 'msvc'
 
         self.options["libcurl"].with_nghttp2 = True
+        self.options["quiche"].shared = True
 
     def layout(self):
         cmake_layout(self)
