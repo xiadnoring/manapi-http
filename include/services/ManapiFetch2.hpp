@@ -4,7 +4,7 @@
 #include "./ManapiFetch.hpp"
 #include "../ManapiJsonBuilder.hpp"
 #include "../components/ManapiFileTransferInfo.hpp"
-#include "async/ManapiAsyncTimer.hpp"
+#include "../async/ManapiAsyncTimer.hpp"
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
 
