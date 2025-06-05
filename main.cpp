@@ -39,9 +39,14 @@ int main (int argc, char *argv[]) {
         using http = manapi::net::http::server;
         http router (server_ctx);
 
-        manapi::net::http::config config {manapi::json::object()};
-        manapi::net::http::http_v1_1_t ctx{};
-        manapi::net::http::http_v1_1_work(ctx, &config, );
+        manapi::async::run ([] () -> manapi::future<> {
+            auto fetch = co_await manapi::net::fetch2::fetch("https://www.wikipedia.org", {
+                {"method", "GET"},
+                {"verify_peer", false},
+                {"verify_host", false}
+            });
+            std::cout << co_await fetch.text() << "\n";
+        });
 
         bind();
     });

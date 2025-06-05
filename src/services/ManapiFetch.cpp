@@ -829,11 +829,17 @@ void manapi::net::fetch::custom_setup(std::move_only_function<void(CURL *curl)> 
     this->data->data_->handle_custom_setup = std::make_unique<decltype(func)>(std::move(func));
 }
 
-void manapi::net::fetch::enable_ssl_verify(const bool &status) {
+void manapi::net::fetch::enable_verify_peer(const bool &status) {
     auto lstatus = static_cast<long> (status);
     curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYPEER, lstatus);
+    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
+}
+
+void manapi::net::fetch::enable_verify_host(const bool &status) {
+    auto lstatus = static_cast<long> (status);
     curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYHOST, lstatus);
     curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
+
 }
 
 void manapi::net::fetch::verbose(bool status) {

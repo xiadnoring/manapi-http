@@ -112,11 +112,11 @@ manapi::future<int> manapi::async::custom_ready(socket_t flags, socket_t fd) {
 }
 
 manapi::future<int> manapi::async::read_ready(socket_t fd) {
-    return custom_ready(ev::READ, fd);
+    co_return co_await custom_ready(ev::READ, fd);
 }
 
 manapi::future<int> manapi::async::write_ready(socket_t fd) {
-    return custom_ready(ev::WRITE, fd);
+    co_return co_await custom_ready(ev::WRITE, fd);
 }
 
 manapi::future<int> manapi::async::custom_ready(int flags, socket_t fd, cancellation_action cancellation) {

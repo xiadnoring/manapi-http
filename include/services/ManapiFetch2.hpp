@@ -155,21 +155,37 @@ namespace manapi::net {
         }
         void setup_fetch (manapi::json params) {
             try {
-                if (params.contains("method")) {
-                    this->fetchdata->data.method(std::move(params["method"].as_string()));
+                auto it = params.as_object().find("method");
+                if (it != params.as_object().end()) {
+                    this->fetchdata->data.method(std::move(it->second.as_string()));
                 }
-                if (params.contains("verify_peer")) {
-                    this->fetchdata->data.enable_ssl_verify(params["verify_peer"].as_bool());
+
+                it = params.as_object().find("verify_peer");
+                if (it != params.as_object().end()) {
+                    this->fetchdata->data.enable_verify_peer(it->second.as_bool_cast());
                 }
-                if (params.contains("verbose")) {
-                    this->fetchdata->data.verbose(params["verbose"].as_bool());
+
+                it = params.as_object().find("verify_host");
+                if (it != params.as_object().end()) {
+                    this->fetchdata->data.enable_verify_host(it->second.as_bool_cast());
                 }
-                if (params.contains("alpn")) {
+
+                it = params.as_object().find("verbose");
+                if (it != params.as_object().end()) {
+                    this->fetchdata->data.verbose(it->second.as_bool_cast());
+                }
+                it = params.as_object().find("alpn");
+                if (it != params.as_object().end()) {
                     this->fetchdata->data.enable_alpn(params["alpn"].as_bool());
                 }
 
-                if (params.contains("http")) {
-                    auto const version = std::stold(params["http"].as_string_cast());
+                it = params.as_object().find("timeout");
+                if (it != params.as_object().end())
+                    this->fetchdata->data.timeout(it->second.as_integer_cast());
+
+                it = params.as_object().find("http");
+                if (it != params.as_object().end()) {
+                    auto const version = std::stold(it->second.as_string_cast());
                     if (version >= 0.9 && version <= 1.1) {
                         this->fetchdata->data.enable_http1_1();
                     }
@@ -181,8 +197,10 @@ namespace manapi::net {
                     }
                 }
 
-                if (params.contains("headers") && params["headers"].is_object()) {
-                    this->fetchdata->data.json_headers(std::move(params["headers"]));
+                it = params.as_object().find("headers");
+                if (it != params.as_object().end()
+                    && it->second.is_object()) {
+                    this->fetchdata->data.json_headers(std::move(it->second));
                 }
             }
             catch (std::exception const &e) {

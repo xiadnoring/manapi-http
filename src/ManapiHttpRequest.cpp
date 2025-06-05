@@ -135,11 +135,11 @@ manapi::future<> manapi::net::http::request::form (formdata_recv::onparam_cb_t c
 }
 
 manapi::future<> manapi::net::http::request::callback_sync( std::move_only_function<ssize_t(const char *buffer, ssize_t size)> callback) {
-    return this->read_body_(this->worker_.get(), this->conn_, this->request_data,std::move(callback));
+    co_return co_await this->read_body_(this->worker_.get(), this->conn_, this->request_data,std::move(callback));
 }
 
 manapi::future<> manapi::net::http::request::callback_async(std::move_only_function<manapi::future<ssize_t>(const char *buffer, ssize_t size)> callback) {
-    return this->read_async_body_(this->worker_.get(), this->conn_, this->request_data,std::move(callback));
+    co_return co_await this->read_async_body_(this->worker_.get(), this->conn_, this->request_data,std::move(callback));
 }
 
 manapi::future<> manapi::net::http::request::file(std::string filepath) {

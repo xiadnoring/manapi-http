@@ -104,7 +104,7 @@ void manapi::net::http::server::GET(std::string uri, std::string folder, handler
 }
 
 manapi::future<void> manapi::net::http::server::stop() {
-    return this->stop_(this->data, this->data2, false);
+    co_return co_await this->stop_(this->data, this->data2, false);
 }
 
 manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data_t> data, std::shared_ptr<data2_t> data2, bool evloop) {

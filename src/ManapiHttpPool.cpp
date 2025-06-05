@@ -50,7 +50,7 @@ manapi::future<> manapi::net::http_pool::stop() {
 }
 
 manapi::future<void> manapi::net::http_pool::run() {
-    return this->_pool();
+    co_return co_await this->_pool();
 }
 
 manapi::future<void> manapi::net::http_pool::_pool() {

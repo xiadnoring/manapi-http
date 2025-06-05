@@ -117,7 +117,8 @@ namespace manapi::net {
         void headers (std::map <std::string, std::string> headers);
         void json_headers (manapi::json headers);
         void custom_setup (std::move_only_function<void(CURL *curl)> func);
-        void enable_ssl_verify (const bool &status);
+        void enable_verify_peer (const bool &status);
+        void enable_verify_host (const bool &status);
         void verbose (bool status);
         void timeout (const std::size_t &seconds);
 

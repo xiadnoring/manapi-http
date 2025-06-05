@@ -159,9 +159,9 @@ manapi::future<ssize_t> manapi::filesystem::fstream::fread(void *buff, ssize_t b
 
 manapi::future<> manapi::filesystem::fstream::close() {
     if (this->data->status.fetch_or(FILE_CLOSED) & FILE_CLOSED) {
-        return async::blank_future<void>();
+        co_return;
     }
-    return fstream::close_(std::exchange(this->data->file, -1));
+    co_return co_await fstream::close_(std::exchange(this->data->file, -1));
 }
 
 ssize_t manapi::filesystem::fstream::tellg() const {
