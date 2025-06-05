@@ -4,7 +4,6 @@
 
 enum status_flags {
     FLAG_CANCEL = 0x1,
-    FLAG_READY = 0x2,
     FLAG_DISABLED = 0x4,
     FLAG_ASK_CANCEL = 0x8,
 };
@@ -14,7 +13,6 @@ struct manapi::async::cancellation_action::data_t {
     size_t timeout_; /* ms */
     manapi::timer timeout_struct_;
     std::unique_ptr<std::move_only_function<void()>> cancel_sync_callback_;
-    std::unique_ptr<std::move_only_function<void()>> ready_callback_;
     std::unique_ptr<manapi::chain<cancellation_action>> unites;
     manapi::chain<cancellation_action>::iterator it;
     cancellation_action *parent;
@@ -26,7 +24,7 @@ manapi::async::cancellation_action::cancellation_action(nullptr_t) {
 
 manapi::async::cancellation_action::cancellation_action() {
     this->data = std::make_shared<data_t>(0, 0UL, manapi::timer{nullptr},
-            nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr);
 }
 
 manapi::async::cancellation_action manapi::async::cancellation_action::unit(cancellation_action cancellation) {
@@ -92,20 +90,12 @@ manapi::async::cancellation_action &manapi::async::cancellation_action::operator
 
 void manapi::async::cancellation_action::reset() {
     this->data = std::make_shared<data_t>(0, 0UL, manapi::timer{nullptr},
-            nullptr, nullptr, nullptr, nullptr, nullptr);
-}
-
-void manapi::async::cancellation_action::handle_ready(std::move_only_function<void()> callback) {
-    if (this->data) {
-        this->data->ready_callback_ = std::make_unique<std::move_only_function<void()>>(std::move(callback));
-    }
+            nullptr, nullptr, nullptr, nullptr);
 }
 
 void manapi::async::cancellation_action::cancel_callback (std::move_only_function<void()> callback) {
     if (this->data) {
         this->data->cancel_sync_callback_ = std::make_unique<decltype(callback)>(std::move(callback));
-
-        this->ready();
     }
 }
 
@@ -146,25 +136,6 @@ void manapi::async::cancellation_action::cancel() {
         this->data->status_ |= FLAG_CANCEL;
 
         this->send_async_();
-    }
-}
-
-void manapi::async::cancellation_action::ready() {
-    if (this->data) {
-        if ((this->data->status_ & FLAG_READY)) {
-            return;
-        }
-
-        this->data->status_ |= FLAG_READY;
-
-        if (this->data->ready_callback_) {
-            this->data->ready_callback_->operator()();
-            this->data->ready_callback_.reset();
-        }
-
-        if (this->data->status_ & (FLAG_CANCEL)) {
-            this->cancel_(this->data);
-        }
     }
 }
 
@@ -210,7 +181,7 @@ void manapi::async::cancellation_action::disable_cancellation() {
 }
 
 void manapi::async::cancellation_action::send_async_() {
-    if (this->data && (this->data->status_ & (FLAG_READY))) {
+    if (this->data) {
         if (this->data->status_ & FLAG_CANCEL) {
             cancellation_action::cancel_(std::move(this->data));
         }

@@ -869,6 +869,26 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                         /* TODO: close connection */
 
+                        /**
+                         * DEEPSEEK SAID
+                         *
+                         * "The last-stream-id in the GOAWAY frame contains the highest-numbered stream
+                         * identifier for which the sender of the GOAWAY frame might
+                         * have taken some action on or might yet take action on."
+                         * "Endpoints MUST NOT open additional streams on the connection,
+                         * but a new connection can be established for new streams.
+                         * If additional data is received for streams whose
+                         * identifiers are higher than the indicated
+                         * last-stream-id, the receiver of the GOAWAY
+                         * frame MUST treat those streams as though they
+                         * had never been created at all..."
+                         *
+                         * BUT I THINK IT'S LIE
+                         */
+                        for (auto it = ctx->streams->upper_bound(ctx->n2); it != ctx->streams->end(); ++it) {
+                            ctx->http_v2_worker->close_connection(it->second, false);
+                        }
+
                         manapi::async::current()->logger()->debug(manapi::logger::default_service, "HTTP2: GOAWAY RECV. "
                                                                                                    "err code: {}, stream id: {}, msg: {}", ctx->n1, ctx->n2, ctx->frame_buffer);
 
@@ -969,14 +989,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                                 }
                                 else {
-                                    auto const sdata = s->second->as<http_v2_stream_t>();
-                                    sdata->flags |= http::HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_REMOVED;
-
-                                    if (sdata->ev_callback) {
-                                        sdata->ev_callback->operator()(s->second, ev::DISCONNECT, nullptr, 0, nullptr);
-                                    }
-
-                                    s->second->cancellation.cancel();
+                                    ctx->http_v2_worker->close_connection(s->second, false);
                                 }
                             }
 

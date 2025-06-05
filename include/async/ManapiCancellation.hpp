@@ -40,13 +40,6 @@ namespace manapi::async {
         void reset ();
 
         /**
-         * Set a callback which will be called after preparation
-         *
-         * @param callback Callback that will be called after preparation
-         */
-        void handle_ready (std::move_only_function<void()> callback);
-
-        /**
          * Set a callback that will be called while canceling
          *
          * @param callback Callback that will be called while canceling
@@ -102,11 +95,6 @@ namespace manapi::async {
          */
         void disable_cancellation ();
     private:
-        /**
-         * Send a ready status message
-         * It will call the ready callback in the @code event loop thread @endcode
-         */
-        void ready ();
         void send_async_();
         static void stop_timeout_ (std::shared_ptr<data_t> data);
         static void cancel_ (std::shared_ptr<data_t> data);

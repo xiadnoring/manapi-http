@@ -247,8 +247,10 @@ int main () {
 
         router.GET("/timeout", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
-            co_await manapi::async::delay{5000};
-            co_return resp.text("5000ms");
+            std::cout << "wait\n";
+            co_await manapi::async::delay{50000, manapi::async::cancellation_action::unit(req.cancellation())};
+            std::cout << "YAY (cancelled?)\n";
+            co_return resp.text("50000ms");
         });
 
         router.GET ("/ai", [] (http::req &req, http::resp &resp)
