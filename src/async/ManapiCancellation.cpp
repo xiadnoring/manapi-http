@@ -16,8 +16,8 @@ struct manapi::async::cancellation_action::data_t {
     std::unique_ptr<std::move_only_function<void()>> cancel_sync_callback_;
     std::unique_ptr<std::move_only_function<void()>> ready_callback_;
     std::unique_ptr<manapi::chain<cancellation_action>> unites;
+    manapi::chain<cancellation_action>::iterator it;
     cancellation_action *parent;
-    manapi::chain<manapi::async::cancellation_action>::iterator element;
 };
 
 manapi::async::cancellation_action::cancellation_action(nullptr_t) {
@@ -59,12 +59,22 @@ manapi::async::cancellation_action & manapi::async::cancellation_action::operato
 }
 
 manapi::async::cancellation_action::~cancellation_action() {
-    if (this->data) {
+    if (this->data
+        && this->data.use_count() == 1) {
+        if (this->data->parent) {
+            assert(this->data->it);
+
+            this->data->parent->data->unites->erase(this->data->it);
+            this->data->it = nullptr;
+            this->data->parent = nullptr;
+        }
+
         if (this->data->unites) {
             while (!this->data->unites->empty()) {
                 auto it = std::move(this->data->unites->back());
                 this->data->unites->pop_back();
 
+                it.data->it = nullptr;
                 it.data->parent = nullptr;
             }
         }
@@ -102,9 +112,12 @@ void manapi::async::cancellation_action::cancel_callback (std::move_only_functio
 void manapi::async::cancellation_action::cancel_callback(cancellation_action cancellation) {
     if (this->data && cancellation) {
         if (cancellation.data->parent) {
-            cancellation.data->parent->data->unites->erase(cancellation.data->element);
+            assert(cancellation.data);
+            cancellation.data->parent->data->unites->erase(cancellation.data->it);
             cancellation.data->parent = nullptr;
+            cancellation.data->it = nullptr;
         }
+
         if (this->data->status_ & FLAG_CANCEL) {
             /* already! BOOM! */
             cancellation.ask_cancel_callback();
@@ -118,8 +131,8 @@ void manapi::async::cancellation_action::cancel_callback(cancellation_action can
             cancellation.ask_cancel_callback();
 
             cancellation.data->parent = this;
+            cancellation.data->it = this->data->unites->rbegin();
             this->data->unites->push_back((cancellation));
-            cancellation.data->element = this->data->unites->rbegin();
         }
     }
 }
@@ -237,6 +250,8 @@ void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) {
         while (!data->unites->empty()) {
             auto it = std::move(data->unites->back());
             data->unites->pop_back();
+
+            it.data->parent = nullptr;
 
             try {
                 it.cancel();

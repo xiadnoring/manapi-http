@@ -58,6 +58,10 @@ namespace manapi {
                 std::swap(lhs.src_, rhs.src_);
             }
 
+            operator bool () noexcept {
+                return this->src_ != nullptr;
+            }
+
             chain_item_ptr src_;
         };
 
