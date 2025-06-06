@@ -654,6 +654,12 @@ int manapi::net::http::http_v2_on_read_stream(const worker::shared_conn &conn, h
     return http_v2_process_window (conn, s);
 }
 
+void http_v2_setup_goaway (manapi::net::http::http_v2_t *ctx, http_v2_goaway_t &http_goaway, int errnum, const char *msg) {
+    http_goaway.err_code = errnum;
+    http_goaway.err_msg = msg;
+    ctx->current = HTTP2_CALLBACK_GOAWAY;
+}
+
 int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize) {
     http_v2_goaway_t http_goaway;
 
@@ -876,8 +882,6 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                          * frame_buffer - additional debug data
                          */
 
-                        ctx->current = -1;
-
                         /* TODO: close connection */
 
                         /**
@@ -895,6 +899,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                          * had never been created at all..."
                          *
                          * BUT I THINK IT'S LIE
+                         * ITS TRUE!
                          */
                         for (auto it = ctx->streams->upper_bound(ctx->n2); it != ctx->streams->end(); ++it) {
                             ctx->http_v2_worker->close_connection(it->second, false);
@@ -907,7 +912,10 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         ctx->n2 = 0;
                         ctx->frame_buffer.clear();
 
-                        return EHTTP_V2_PROTOCOL_OK;
+                        ctx->flags |= HTTP2_CTX_FLAG_WANT_CLOSE;
+
+                        if (ctx->streams->empty())
+                            return EHTTP_V2_PROTOCOL_OK;
                     }
 
                     break;
@@ -946,10 +954,10 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 auto const s = ctx->streams->find(ctx->frame_stream_id);
 
                                 if (s == ctx->streams->end()) {
-                                    ctx->n1 = 0;
-                                    http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
-                                    http_goaway.err_msg = "stream id is invalid";
-                                    ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                    // ctx->n1 = 0;
+                                    // http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                    // http_goaway.err_msg = "stream id is invalid";
+                                    // ctx->current = HTTP2_CALLBACK_GOAWAY;
                                     break;
                                 }
 
@@ -1113,6 +1121,15 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         if (ctx->frame_type == HTTP2_FRAME_HEADERS) {
                             s = ctx->streams->find(ctx->frame_stream_id);
                             if (s == ctx->streams->end()) {
+                                if (ctx->flags & HTTP2_CTX_FLAG_WANT_CLOSE) {
+                                    ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+
+                                    http_v2_setup_goaway(ctx, http_goaway, HTTP2_ERROR_PROTOCOL_ERROR,
+                                        "conn was closed");
+
+                                    ctx->n2 = 0;
+                                    break;
+                                }
 
                                 auto sconn = std::make_shared<worker::connection> (new http_v2_stream_t{
                                     0,
@@ -1141,9 +1158,38 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "CONTINUATION frame instead of HEADERS frame";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->n2 = 0;
                                 break;
                             }
 
+                        }
+
+                        if (s == ctx->streams->end()) {
+                            s = ctx->streams->find(ctx->frame_stream_id);
+
+                            if (s == ctx->streams->end()) {
+                                if (ctx->frame_stream_id <= ctx->last_stream_id) {
+                                    if (ctx->frame_stream_id + 1 >= ctx->last_stream_id) {
+                                        if (http_v2_rst_stream_ex(ctx, ctx->frame_stream_id, HTTP2_ERROR_STREAM_CLOSED)) {
+                                            http_v2_setup_goaway (ctx, http_goaway,
+                                                HTTP2_ERROR_INTERNAL_ERROR, "internal error");
+                                        }
+                                    }
+                                    else
+                                        http_v2_setup_goaway(ctx, http_goaway,
+                                            HTTP2_ERROR_ENHANCE_YOUR_CALM, "enchance your calm");
+                                }
+                                else
+                                    http_v2_setup_goaway(ctx, http_goaway,
+                                        HTTP2_ERROR_PROTOCOL_ERROR, "stream wasn't created");
+
+                                // http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                // http_goaway.err_msg = "stream doesn't exists";
+                                // ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                break;
+                            }
+
+                            sdata = s->second->as<http_v2_stream_t>();
                         }
 
                         bool const flg = ctx->frame_flag & HTTP2_FLAG_HEADERS_END_HEADERS;
@@ -1158,19 +1204,6 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             }
 
                             ctx->frame_buffer.clear();
-
-                            if (s == ctx->streams->end()) {
-                                s = ctx->streams->find(ctx->frame_stream_id);
-
-                                if (s == ctx->streams->end()) {
-                                    http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
-                                    http_goaway.err_msg = "stream doesn't exists";
-                                    ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                    break;
-                                }
-
-                                sdata = s->second->as<http_v2_stream_t>();
-                            }
 
                             auto headers = ctx->decoder->headers();
                             while (!headers.empty()) {
@@ -1307,9 +1340,20 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                         auto s = ctx->streams->find(ctx->frame_stream_id);
                         if (s == ctx->streams->end()) {
-                            http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
-                            http_goaway.err_msg = "stream doesn't exists";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
+                            if (ctx->frame_stream_id <= ctx->last_stream_id) {
+                                if (ctx->frame_stream_id + 1 >= ctx->last_stream_id) {
+                                    if (http_v2_rst_stream_ex(ctx, ctx->frame_stream_id, HTTP2_ERROR_STREAM_CLOSED)) {
+                                        http_v2_setup_goaway (ctx, http_goaway,
+                                            HTTP2_ERROR_INTERNAL_ERROR, "internal error");
+                                    }
+                                }
+                                else
+                                    http_v2_setup_goaway(ctx, http_goaway,
+                                        HTTP2_ERROR_ENHANCE_YOUR_CALM, "enchance your calm");
+                            }
+                            else
+                                http_v2_setup_goaway(ctx, http_goaway,
+                                    HTTP2_ERROR_PROTOCOL_ERROR, "stream wasn't created");
                             break;
                         }
                         auto const sdata = s->second->as<http_v2_stream_t>();
@@ -1719,12 +1763,17 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                      */
 
                     ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
+                    ctx->flags |= HTTP2_CTX_FLAG_WANT_CLOSE;
 
                     if (http_v2_send_goaway (ctx, &http_goaway)) {
                         return EHTTP_V2_PROTOCOL_ERROR;
                     }
 
-                    return EHTTP_V2_PROTOCOL_OK;
+                    if (ctx->streams->empty()
+                        || ctx->flags & HTTP2_CTX_FLAG_REALY_CLOSE)
+                        return EHTTP_V2_PROTOCOL_OK;
+
+                    break;
                 }
                 case HTTP2_CALLBACK_ERROR: {
                     return EHTTP_V2_PROTOCOL_ERROR;

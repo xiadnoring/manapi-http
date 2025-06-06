@@ -38,7 +38,9 @@ namespace manapi::net::http {
     };
 
     enum http2_ctx_flags {
-        HTTP2_CTX_FLAG_BLOCK_WRITE = 1
+        HTTP2_CTX_FLAG_BLOCK_WRITE = 1,
+        HTTP2_CTX_FLAG_WANT_CLOSE = 2,
+        HTTP2_CTX_FLAG_REALY_CLOSE = 4
     };
 
     struct http_v2_t;
