@@ -47,8 +47,8 @@ namespace manapi::net::worker {
     class base {
     public:
         struct connection_base_t {
-            unsigned int transfered;
-            unsigned int transfered_k;
+            ssize_t transfered;
+            ssize_t transfered_k;
         };
 
         using bufferpool_t = std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>>;

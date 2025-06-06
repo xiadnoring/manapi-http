@@ -20,7 +20,6 @@ const std::map <std::string, manapi::net::http::versions::http> http_version_to_
 };
 
 manapi::net::http::config::config(const json &config) {
-    this->max_buffer_stack=(5);
     this->max_plain_param_length=(16000UL);
     this->max_file_param_length=(2147483648UL);
 
@@ -31,6 +30,13 @@ manapi::net::http::config::config(const json &config) {
     }
     else {
         this->partial_data_min_size=(0UL);
+    }
+
+    if (config.contains("max_buffer_stack")) {
+        this->max_buffer_stack = config["max_buffer_stack"].as_integer_cast();
+    }
+    else {
+        this->max_buffer_stack=(5);
     }
 
     /* http versions */

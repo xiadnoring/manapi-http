@@ -167,6 +167,13 @@ int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint
         }
     }
 
+    if (!(ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_BLOCK_WRITE)
+        && !ctx->worker->is_writable(ctx->conn)) {
+        ctx->flags |= manapi::net::http::HTTP2_CTX_FLAG_BLOCK_WRITE;
+        ctx->worker->event_toggle(ctx->conn,
+            true, manapi::ev::WRITE);
+    }
+
     return 0;
 }
 
@@ -594,6 +601,10 @@ int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, int id) {
 }
 
 int manapi::net::http::http_v2_on_write(http_v2_t *ctx) {
+    if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE) {
+        ctx->flags ^= HTTP2_CTX_FLAG_BLOCK_WRITE;
+    }
+
     bool no_one = true;
     for (const auto &s : *ctx->streams) {
         auto const data = s.second->as<http_v2_stream_t>();

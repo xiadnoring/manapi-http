@@ -261,7 +261,7 @@ int main () {
 
 
 
-            std::string ip = "https://localhost:8888/timeout";
+            std::string ip = "https://localhost:8885/video";
             int timeout = 2000;
             if (req.contains_get_param("timeout")) {
                 try {
@@ -275,16 +275,20 @@ int main () {
                 ip = req.get("ip");
 
             auto text = req.get("text");
+
             auto response = co_await manapi::net::fetch2::fetch(ip, {
                 {"method", "GET"},
-                {"http", "3"},
+                {"http", "2"},
                 {"verify_peer", false},
                 {"alpn", false},
+                {"verbose", true},
                 {"headers", {
                     {"content-type", "application/json"},
                     {"authorization", "Bearer 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"}
                 }}
-            }, std::string{}, manapi::async::timeout_cancellation(timeout));
+            });
+
+            co_return resp.text("yes");
 
             if (!response.ok()) {
                 co_return resp.text(std::format("fetch failed. Http Status: {}", response.status()));

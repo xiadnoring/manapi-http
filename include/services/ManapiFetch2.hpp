@@ -10,19 +10,39 @@
 
 namespace manapi::net {
     class fetch2 {
+        enum fetch_data_flags {
+            FETCH2_DATA_FLAG_RECEIVED = 1,
+            FETCH2_DATA_FLAG_RESULT = 2,
+            FETCH2_DATA_FLAG_SETUP = 4
+        };
         struct fetch_data {
             manapi::net::fetch data;
             manapi::async::parallel_run<std::exception_ptr> async_run{};
             async::mutex mx{};
-            bool result {true};
-            bool received {false};
-            bool setup {false};
+            int flags {0};
         };
 
 
     public:
         ~fetch2() {
+            if (this->fetchdata
+                && this->fetchdata.use_count() == 1
+                && !(this->fetchdata->flags & FETCH2_DATA_FLAG_RESULT)) {
+                /* was skipped, need to be cancelled */
+                std::cout << "CANCEN\n";
 
+                manapi::async::run(
+                    fetch2::continue_receiving(std::move(this->fetchdata)),
+                    +[] (std::exception_ptr err) -> void {
+                        std::string msg;
+                        if (err) {
+                            manapi::rethrow_exception_ptr(err, nullptr, &msg, nullptr);
+                            manapi::async::current()->logger()->error(
+                                manapi::logger::default_service, ERR_BUG,
+                                "fetch2: failed to close stalled or cancelled connection due to {}", msg);
+                        }
+                    });
+            }
         }
 
         fetch2 (std::string url, async::cancellation_action cancellation = nullptr) {
@@ -98,15 +118,17 @@ namespace manapi::net {
         }
 
         manapi::future<> callback_async (std::function<manapi::future<ssize_t>(char *buffer, ssize_t size)> cb) {
-            if (!this->fetchdata->setup) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "fetch2 must be initialized fetch2::fetch(...) only"); }
+            if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "fetch2 must be initialized fetch2::fetch(...) only"); }
             this->fetchdata->data.handle_async_body(std::move(cb));
-            co_await continue_receiving();
+            this->fetchdata->flags |= FETCH2_DATA_FLAG_RESULT;
+            co_await continue_receiving(this->fetchdata);
         }
 
         manapi::future<> callback_sync (std::function<ssize_t(char *buffer, ssize_t size)> cb) {
-            if (!this->fetchdata->setup) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "fetch2 must be initialized fetch2::fetch(...) only"); }
+            if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "fetch2 must be initialized fetch2::fetch(...) only"); }
             this->fetchdata->data.handle_body(std::move(cb));
-            co_await continue_receiving();
+            this->fetchdata->flags |= FETCH2_DATA_FLAG_RESULT;
+            co_await continue_receiving(this->fetchdata);
         }
 
         manapi::future<std::string> text () {
@@ -148,11 +170,12 @@ namespace manapi::net {
             this->fetchdata->data.body(std::forward<decltype(data)>(data));
         }
 
-        manapi::future<> continue_receiving () {
-            this->fetchdata->mx.unlock();
-            auto exception = co_await this->fetchdata->async_run.get();
+        static manapi::future<> continue_receiving (std::shared_ptr<fetch2::fetch_data> fetchdata) {
+            fetchdata->mx.unlock();
+            auto exception = co_await fetchdata->async_run.get_or(std::exception_ptr{nullptr});
             if (exception) { std::rethrow_exception(exception); }
         }
+
         void setup_fetch (manapi::json params) {
             try {
                 auto it = params.as_object().find("method");
@@ -207,9 +230,9 @@ namespace manapi::net {
                 THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_CONFIG_ERROR, "param is invalid: {}", e.what());
             }
 
-            this->fetchdata->setup = true;
+            this->fetchdata->flags |= FETCH2_DATA_FLAG_SETUP;
 
-            this->fetchdata->data.handle_body([fetchdata = this->fetchdata] (char *buffer, ssize_t size)
+            this->fetchdata->data.handle_body([fetchdata = this->fetchdata.get()] (char *buffer, ssize_t size)
                 -> ssize_t { return size; });
         }
         manapi::future<> response () {
@@ -219,20 +242,19 @@ namespace manapi::net {
                 using promise = async::promise<void, std::false_type>;
                 co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
                     try {
-                        auto dd = this;
-                        this->fetchdata->data.handle_async_headers([fetchdata = this->fetchdata, resolve = std::move(resolve)] (std::map<std::string, std::string> headers) mutable
+                        this->fetchdata->data.handle_async_headers([fetchdata = this->fetchdata.get(), resolve = std::move(resolve)] (std::map<std::string, std::string> headers) mutable
                             -> manapi::future<bool> {
                             auto resolve_ = std::move(resolve);
 
-                            fetchdata->received = true;
+                            fetchdata->flags |= FETCH2_DATA_FLAG_RECEIVED;
                             resolve_ ();
                             auto lk = co_await fetchdata->mx.lock_guard();
-                            co_return fetchdata->result;
+                            co_return fetchdata->flags & FETCH2_DATA_FLAG_RESULT;
                         });
 
                                 assert((fetchdata.use_count() <= 100&&fetchdata.use_count()>=0));
 
-                        auto p = manapi::async::invoke([a = (int)78, this, reject, fetchdata = this->fetchdata, b = 78] ()
+                        auto p = manapi::async::invoke([reject, fetchdata = this->fetchdata.get()] ()
                             -> manapi::future<std::exception_ptr> {
 
                             try {

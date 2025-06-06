@@ -18,7 +18,9 @@ constexpr char JSON_NULL[] = "null";
 const constexpr char *json_type_to_str (manapi::json::types type) {
     switch (type) {
         case manapi::json::type_array: return "array";
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
         case manapi::json::type_bigint: return "bigint";
+#endif
         case manapi::json::type_boolean: return "boolean";
         case manapi::json::type_decimal: return "decimal";
         case manapi::json::type_integer: return "integer";

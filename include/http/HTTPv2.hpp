@@ -37,10 +37,14 @@ namespace manapi::net::http {
         HTTP2_STREAM_IO_WAITING = 256
     };
 
+    enum http2_ctx_flags {
+        HTTP2_CTX_FLAG_BLOCK_WRITE = 1
+    };
+
     struct http_v2_t;
 
     struct http_v2_stream_t {
-        int transfered_k;
+        ssize_t transfered_k;
 
         int id;
         int flags;
@@ -65,6 +69,8 @@ namespace manapi::net::http {
         worker::shared_conn conn;
         worker::base *worker;
         std::shared_ptr<worker::http_v2> http_v2_worker;
+
+        char flags;
 
         // private
         uint8_t current;

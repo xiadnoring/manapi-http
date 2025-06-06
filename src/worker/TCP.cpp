@@ -782,7 +782,7 @@ void manapi::net::worker::TCP::http2_work_(http::http_v2_t *http_v2_ctx, const w
 
 bool manapi::net::worker::TCP::is_writable(const shared_conn &conn) {
     auto const data = conn->as<connection_interface>();
-    return data->top->recv_size <= this->config_->max_buffer_stack
+    return data->top->send_size <= this->config_->max_buffer_stack
         && data->transfered < this->config_->speed_limit_rate;
 }
 

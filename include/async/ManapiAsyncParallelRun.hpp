@@ -19,8 +19,8 @@ namespace manapi::async {
                 return std::move(v1);
             }
 
-            T get_or (T &&v) {
-                auto v1 = std::move(this->value.value_or(std::forward<decltype(v)>(v)));
+            T get_or (T v) {
+                auto v1 = std::move(this->value.value_or(std::move(v)));
                 this->value.reset();
                 return std::move(v1);
             }
@@ -46,7 +46,7 @@ namespace manapi::async {
         [[nodiscard]] manapi::future<T> get () const;
         template<typename T1 = T>
         requires(!std::is_same_v<T1, void>)
-        [[nodiscard]] manapi::future<T1> get_or (T1 &&v) const;
+        [[nodiscard]] manapi::future<T1> get_or (T1 v) const;
         manapi::future<void> async_run_with_prepare(std::move_only_function<manapi::future<T>()> task, std::move_only_function<void()> cb);
     private:
         std::shared_ptr<value_t> value{nullptr};
@@ -113,11 +113,11 @@ namespace manapi::async {
     template<typename T>
     template<typename T1>
     requires(!std::is_same_v<T1, void>)
-    manapi::future<T1> parallel_run<T>::get_or(T1 &&v) const {
+    manapi::future<T1> parallel_run<T>::get_or(T1 v) const {
         auto lk = co_await this->mx->lock_guard();
         if (this->value) {
-            co_return this->value->get_or(std::forward<decltype(v)>(v));
+            co_return this->value->get_or(std::move(v));
         }
-        co_return std::forward<decltype(v)>(v);
+        co_return std::move(v);
     }
 }
