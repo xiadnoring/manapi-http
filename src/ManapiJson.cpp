@@ -11,12 +11,30 @@
 #include "encoding/ManapiUnicode.hpp"
 #include "ManapiJsonBuilder.hpp"
 
-const static std::string JSON_TRUE   = "true";
-const static std::string JSON_FALSE  = "false";
-const static std::string JSON_NULL   = "null";
+constexpr char JSON_TRUE[] = "true";
+constexpr char JSON_FALSE[] = "false";
+constexpr char JSON_NULL[] = "null";
+
+const constexpr char *json_type_to_str (manapi::json::types type) {
+    switch (type) {
+        case manapi::json::type_array: return "array";
+        case manapi::json::type_bigint: return "bigint";
+        case manapi::json::type_boolean: return "boolean";
+        case manapi::json::type_decimal: return "decimal";
+        case manapi::json::type_integer: return "integer";
+        case manapi::json::type_null: return "null";
+        case manapi::json::type_number: return "number";
+        case manapi::json::type_object: return "object";
+        case manapi::json::type_pair: return "pair";
+        case manapi::json::type_string: return "string";
+    }
+
+    return "none";
+}
 
 #define RETHROW_MANAPIHTTP_JSON_ERROR(errnum, msg, ...) manapi::json_parse_exception (errnum, std::format(msg, __VA_ARGS__));
-#define THROW_MANAPIHTTP_JSON_MISSING_FUNCTION throw RETHROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_UNSUPPORTED_TYPE, "json object with type {} could not use func: {}", static_cast <int> (this->type), __FUNCTION__)
+#define THROW_MANAPIHTTP_JSON_MISSING_FUNCTION throw RETHROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_UNSUPPORTED_TYPE, "json object with type {}({}) could not use func: {}", \
+    json_type_to_str(this->type), static_cast <int> (this->type), __FUNCTION__)
 #define THROW_MANAPIHTTP_JSON_ERROR(errnum, msg, ...) throw RETHROW_MANAPIHTTP_JSON_ERROR(errnum, msg, __VA_ARGS__)
 
 manapi::json::json() = default;
@@ -870,11 +888,23 @@ manapi::json manapi::json::array() {
 manapi::json manapi::json::object(const std::initializer_list<json> &data) {
     auto obj = json::object();
 
-    for (const auto & it : data)
-    {
-        auto &key = static_cast <PAIR *> (it.src)->first.as_string();
-        json value = static_cast <PAIR *> (it.src)->second;
-        obj.as_object().insert({key, std::move(value)});
+    if (data.size() == 1
+        && data.begin()->is_object()) {
+        obj = *data.begin();
+    }
+    else {
+        for (const auto & it : data)
+        {
+            if (it.type == manapi::json::type_pair) {
+                auto &key = static_cast <PAIR *> (it.src)->first.as_string();
+                json value = static_cast <PAIR *> (it.src)->second;
+                obj.as_object().insert({key, std::move(value)});
+            }
+            else {
+                THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_UNSUPPORTED_TYPE,
+                    "a pair and an object are supported for processing in json::object(...), but got {}({}) type", json_type_to_str(it.type), static_cast<int>(it.type));
+            }
+        }
     }
 
     return std::move(obj);
