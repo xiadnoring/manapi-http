@@ -28,7 +28,7 @@ OPTION(MANAPIHTTP_OPENSSL_DEPENDENCY "TLS, QUIC and etc implementations by OpenS
 OPTION(MANAPIHTTP_WOLFSSL_DEPENDENCY "TLS, QUIC and etc implementations by WolfSSL" ON)
 OPTION(MANAPIHTTP_GRPC_DEPENDENCY "gPRC implementations by Google" OFF)
 OPTION(MANAPIHTTP_BROTLI_DEPENDENCY "Brotli Enabled" OFF)
-OPTION(MANAPIHTTP_ZSTD_DEPENDENCY "ZSTD Enabled" "")
+OPTION(MANAPIHTTP_ZSTD_DEPENDENCY "ZSTD Enabled" OFF)
 OPTION(MANAPIHTTP_BUILD_METHOD "Build method" "default")
 OPTION(MANAPIHTTP_WOLFSSL_WITH_ALPN "WolfSSL with ALPN" ON)
 
@@ -188,7 +188,7 @@ else ()
     if (MANAPIHTTP_ZSTD_DEPENDENCY)
         include(./cmake/FindZSTD.cmake)
         if (NOT ZSTD_FOUND)
-            set(MANAPIHTTP_ZSTD_DEPENDENCY "")
+            set(MANAPIHTTP_ZSTD_DEPENDENCY OFF)
         endif ()
     endif ()
 endif ()
@@ -401,9 +401,101 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
         endif ()
 
         set (PROTOS protobuf/helloworld.proto)
-        execute_process(COMMAND bash -c
-                "${Protobuf_PROTOC_EXECUTABLE} --cpp_out :${CMAKE_BINARY_DIR}/include -I ${CMAKE_SOURCE_DIR} ${PROTOS}")
-        FILE(GLOB PROTO_SRCS ${CMAKE_BINARY_DIR}/include/protobuf/*)
+
+        foreach (FIL IN LISTS PROTOS)
+            get_filename_component(ABS_FIL ${FIL} ABSOLUTE)
+            get_filename_component(FIL_WE ${FIL} NAME_WE)
+            if(NOT PROTOBUF_GENERATE_CPP_APPEND_PATH)
+                get_filename_component(FIL_DIR ${FIL} DIRECTORY)
+                if(FIL_DIR)
+                    set(FIL_WE "${FIL_DIR}/${FIL_WE}")
+                endif()
+            endif()
+
+            list(APPEND PROTO_SRCS "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.cc")
+            list(APPEND PROTO_HDRS "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h")
+
+            list(APPEND PROTO_SRCS "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.pb.cc")
+            list(APPEND PROTO_HDRS "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.pb.h")
+
+            if (DEFINED grpc_LIB_DIRS_DEBUG)
+                set(MANAPI_grpc_LIB_DIRS ${grpc_LIB_DIRS_DEBUG})
+            else ()
+                set(MANAPI_grpc_LIB_DIRS ${grpc_LIB_DIRS_RELEASE})
+            endif ()
+
+            if (DEFINED protobuf_LIB_DIRS_DEBUG)
+                set(MANAPI_protobuf_LIB_DIRS ${protobuf_LIB_DIRS_DEBUG})
+            else ()
+                set(MANAPI_protobuf_LIB_DIRS ${protobuf_LIB_DIRS_RELEASE})
+            endif ()
+
+            add_custom_command(
+                    OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.pb.cc"
+                            "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.pb.h"
+                    COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+                    ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --cpp_out=${CMAKE_BINARY_DIR}/generated
+                    DEPENDS ${Protobuf_PROTOC_EXECUTABLE}
+                    VERBATIM
+            )
+
+            if (WIN32)
+                add_custom_command(
+                        OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.cc"
+                                "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
+                        COMMAND set "PATH=${MANAPI_grpc_LIB_DIRS};${MANAPI_protobuf_LIB_DIRS};%PATH%"
+                        COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+                        ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+                        DEPENDS ${Protobuf_PROTOC_EXECUTABLE}
+                        VERBATIM
+                )
+            elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+                add_custom_command(
+                        OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.cc"
+                                "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
+                        COMMAND export LD_LIBRARY_PATH=${MANAPI_grpc_LIB_DIRS}:${MANAPI_protobuf_LIB_DIRS}
+                        COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+                        ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+                        DEPENDS ${Protobuf_PROTOC_EXECUTABLE}
+                        VERBATIM
+                )
+            else ()
+                add_custom_command(
+                        OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.cc"
+                                "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
+                        COMMAND LD_LIBRARY_PATH=${MANAPI_grpc_LIB_DIRS}:${MANAPI_protobuf_LIB_DIRS} ${Protobuf_PROTOC_EXECUTABLE}
+                        ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+                        DEPENDS ${Protobuf_PROTOC_EXECUTABLE}
+                        VERBATIM
+                )
+            endif ()
+        endforeach ()
+
+#        foreach (X IN LISTS PROTOS)
+#            execute_process(COMMAND bash -c
+#                    "${Protobuf_PROTOC_EXECUTABLE} --cpp_out :${CMAKE_BINARY_DIR}/include -I ${CMAKE_SOURCE_DIR} ${X}")
+#        endforeach ()
+#
+        # FILE(GLOB PROTO_SRCS ${CMAKE_BINARY_DIR}/include/protobuf/*.pb.*)
+
+#        protobuf_generate(
+#                ${PROJECT_NAME}
+#                LANGUAGE grpc
+#                OUT_VAR PROTO_SRCS
+#                PROTOS ${PROTOS}
+#                GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc
+#                PROTOC_OUT_DIR ${CMAKE_BINARY_DIR}/include
+#                PLUGIN protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+#        )
+
+        message(STATUS "${Protobuf_PROTOC_EXECUTABLE} ${PROTO_SRCS} ${PROTO_HDRS}")
+
+#        foreach (X IN LISTS PROTOS)
+#            execute_process(COMMAND bash -c
+#                    "${Protobuf_PROTOC_EXECUTABLE} --grpc_out :${CMAKE_BINARY_DIR}/include/grpc -I ${CMAKE_SOURCE_DIR} ${X} --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>")
+#        endforeach ()
+#
+#        FILE(GLOB PROTO_SRCS ${CMAKE_BINARY_DIR}/include/grpc/protobuf/*.pb.*)
 
 #        protobuf_generate(${PROJECT_NAME} LANGUAGE cpp OUT_VAR PROTO_SRCS PROTOS protobuf/helloworld.proto
 #            PROTOC_OUT_DIR ${CMAKE_BINARY_DIR}/include
@@ -412,7 +504,7 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
 
 
     add_compile_definitions(MANAPIHTTP_HTTP_AS_EXECUTABLE)
-    add_executable(${PROJECT_NAME} main.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS})
+    add_executable(${PROJECT_NAME} main.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
 else ()
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
@@ -482,17 +574,16 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     endif ()
 
     if (MANAPIHTTP_GRPC_DEPENDENCY)
-        target_link_libraries(${PROJECT_NAME} PUBLIC protobuf::libprotobuf $<IF:$<TARGET_EXISTS:gRPC::grpc++_unsecure>,gRPC::grpc++_unsecure,gRPC::grpc++>)
+        target_link_libraries(${PROJECT_NAME} PUBLIC protobuf::libprotobuf gRPC::grpc gRPC::grpc++_reflection)
     endif ()
 
     if (MANAPIHTTP_ZSTD_DEPENDENCY)
-        message(STATUS "ZSTD build type: ${MANAPIHTTP_ZSTD_DEPENDENCY}")
-        if (MANAPIHTTP_ZSTD_DEPENDENCY STREQUAL "shared")
-            target_link_libraries(${PROJECT_NAME} PUBLIC zstd::libzstd_shared)
-        else ()
-            target_link_libraries(${PROJECT_NAME} PUBLIC zstd::libzstd_static)
-        endif ()
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${zstd_COMPONENT_NAMES})
     endif ()
+
+    target_link_libraries(${PROJECT_NAME} PUBLIC
+            ${CONAN_LIBS}
+    )
 
     add_compile_definitions(MANAPIHTTP_CPPTRACE_DEPENDENCY=True)
 else ()
@@ -577,6 +668,7 @@ endif()
 # Include public headers from the folder
 target_include_directories  (${PROJECT_NAME} PRIVATE include)
 target_include_directories  (${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/include)
+target_include_directories  (${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/generated)
 
 if (WIN32)
     # set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} "/FS")

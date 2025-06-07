@@ -3,6 +3,7 @@ from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import CMake, CMakeDeps, cmake_layout, CMakeToolchain
 from conan.tools.apple import fix_apple_shared_install_name
 from conan.errors import ConanInvalidConfiguration
+from conan.tools.env import VirtualBuildEnv, VirtualRunEnv
 
 class ManapiHttpConan(ConanFile):
     name = "manapihttp"
@@ -77,12 +78,16 @@ class ManapiHttpConan(ConanFile):
         cmake_layout(self)
 
     def generate(self):
+        VirtualBuildEnv(self).generate()
+
+        runenv = VirtualRunEnv(self)
+        runenv.generate()
+
         tc = CMakeToolchain(self)
         tc.variables['MANAPIHTTP_BUILD_METHOD'] = "conan"
         tc.variables['MANAPIHTTP_JSON_DEBUG'] = self.options.get_safe('json_debug', False)
         tc.variables['MANAPIHTTP_BROTLI_DEPENDENCY'] = self.options.get_safe('brotli_dependency', False)
-        tc.variables['MANAPIHTTP_ZSTD_DEPENDENCY'] = ("shared" if self.options["zstd"].get_safe("shared", False)
-           else "static") if self.options.get_safe('zstd_dependency', False) else False
+        tc.variables['MANAPIHTTP_ZSTD_DEPENDENCY'] =self.options.get_safe('zstd_dependency', False)
         tc.variables['MANAPIHTTP_WOLFSSL_DEPENDENCY'] = self.options.get_safe('wolfssl_dependency', False)
         tc.variables['MANAPIHTTP_OPENSSL_DEPENDENCY'] = self.options.get_safe('openssl_dependency', False)
         tc.variables['MANAPIHTTP_QUICHE_DEPENDENCY'] = self.options.get_safe('quiche_dependency', False)
@@ -106,6 +111,10 @@ class ManapiHttpConan(ConanFile):
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
+
+    def build_requirements(self):
+        if self.options.get_safe('grpc_dependency', False):
+            self.tool_requires("protobuf/<host_version>")
 
     def package(self):
         cmake = CMake(self)
