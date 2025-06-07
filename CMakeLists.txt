@@ -26,6 +26,7 @@ OPTION(MANAPIHTTP_TQUIC_DEPENDENCY "The QUIC Implementation by Tencent" ON)
 OPTION(MANAPIHTTP_MSQUIC_DEPENDENCY "The QUIC Implementation by Microsoft" ON)
 OPTION(MANAPIHTTP_OPENSSL_DEPENDENCY "TLS, QUIC and etc implementations by OpenSSL" ON)
 OPTION(MANAPIHTTP_WOLFSSL_DEPENDENCY "TLS, QUIC and etc implementations by WolfSSL" ON)
+OPTION(MANAPIHTTP_GRPC_DEPENDENCY "gPRC implementations by Google" OFF)
 OPTION(MANAPIHTTP_BROTLI_DEPENDENCY "Brotli Enabled" OFF)
 OPTION(MANAPIHTTP_ZSTD_DEPENDENCY "ZSTD Enabled" "")
 OPTION(MANAPIHTTP_BUILD_METHOD "Build method" "default")
@@ -33,6 +34,7 @@ OPTION(MANAPIHTTP_WOLFSSL_WITH_ALPN "WolfSSL with ALPN" ON)
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 message(STATUS "MANAPIHTTP_BUILD_METHOD: ${MANAPIHTTP_BUILD_METHOD}")
+message(STATUS "gPRC implementations by Google: ${MANAPIHTTP_GRPC_DEPENDENCY}")
 message(STATUS "The QUIC Implementation by Cloudflare: ${MANAPIHTTP_QUICHE_DEPENDENCY}")
 message(STATUS "The QUIC Implementation by Tencent: ${MANAPIHTTP_TQUIC_DEPENDENCY}")
 message(STATUS "The QUIC Implementation by Microsoft: ${MANAPIHTTP_MSQUIC_DEPENDENCY}")
@@ -81,11 +83,16 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     endif ()
 
     if (MANAPIHTTP_BROTLI_DEPENDENCY)
-        find_package(brotli)
+        find_package(brotli REQUIRED)
     endif ()
 
     if (MANAPIHTTP_ZSTD_DEPENDENCY)
-        find_package(zstd)
+        find_package(zstd REQUIRED)
+    endif ()
+
+    if (MANAPIHTTP_GRPC_DEPENDENCY)
+        find_package(protobuf REQUIRED)
+        find_package(gRPC REQUIRED)
     endif ()
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
@@ -171,6 +178,13 @@ else ()
         endif ()
     endif ()
 
+    if (MANAPIHTTP_GRPC_DEPENDENCY)
+        pkg_check_modules(GRPC grpc)
+        if (NOT GRPC_FOUND)
+            set(MANAPIHTTP_GRPC_DEPENDENCY OFF)
+        endif ()
+    endif ()
+
     if (MANAPIHTTP_ZSTD_DEPENDENCY)
         include(./cmake/FindZSTD.cmake)
         if (NOT ZSTD_FOUND)
@@ -198,6 +212,7 @@ string(REPLACE "{{ VAR_MANAPIHTTP_WOLFSSL_WITH_ALPN }}" $<BOOL:${MANAPIHTTP_WOLF
 string(REPLACE "{{ VAR_MANAPIHTTP_WOLFSSL_WITH_ALPN }}" $<BOOL:${MANAPIHTTP_WOLFSSL_WITH_ALPN}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_WOLFSSL_WITH_ALPN }}" $<BOOL:${MANAPIHTTP_WOLFSSL_WITH_ALPN}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_BROTLI_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_BROTLI_DEPENDENCY}> TEXT "${TEXT}")
+string(REPLACE "{{ VAR_MANAPIHTTP_GRPC_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_GRPC_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_ZSTD_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_ZSTD_DEPENDENCY}> TEXT "${TEXT}")
 
 file(GENERATE OUTPUT include/ManapiParams.hpp CONTENT "${TEXT}")
@@ -378,8 +393,26 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
     # EXE
     message(STATUS "Build type 'exe'")
 
+    if (MANAPIHTTP_GRPC_DEPENDENCY)
+        if (DEFINED protobuf_BIN_DIRS_DEBUG)
+            set(Protobuf_PROTOC_EXECUTABLE ${protobuf_BIN_DIRS_DEBUG}/protoc)
+        else ()
+            set(Protobuf_PROTOC_EXECUTABLE ${protobuf_BIN_DIRS_RELEASE}/protoc)
+        endif ()
+
+        set (PROTOS protobuf/helloworld.proto)
+        execute_process(COMMAND bash -c
+                "${Protobuf_PROTOC_EXECUTABLE} --cpp_out :${CMAKE_BINARY_DIR}/include -I ${CMAKE_SOURCE_DIR} ${PROTOS}")
+        FILE(GLOB PROTO_SRCS ${CMAKE_BINARY_DIR}/include/protobuf/*)
+
+#        protobuf_generate(${PROJECT_NAME} LANGUAGE cpp OUT_VAR PROTO_SRCS PROTOS protobuf/helloworld.proto
+#            PROTOC_OUT_DIR ${CMAKE_BINARY_DIR}/include
+#            PROTOC_EXE ${Protobuf_PROTOC_EXECUTABLE})
+    endif ()
+
+
     add_compile_definitions(MANAPIHTTP_HTTP_AS_EXECUTABLE)
-    add_executable(${PROJECT_NAME} main.cpp ${MANAPIHTTP_HTTP_FILES})
+    add_executable(${PROJECT_NAME} main.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS})
 else ()
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
@@ -448,6 +481,10 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
         target_link_libraries(${PROJECT_NAME} PUBLIC brotli::brotli)
     endif ()
 
+    if (MANAPIHTTP_GRPC_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC protobuf::libprotobuf $<IF:$<TARGET_EXISTS:gRPC::grpc++_unsecure>,gRPC::grpc++_unsecure,gRPC::grpc++>)
+    endif ()
+
     if (MANAPIHTTP_ZSTD_DEPENDENCY)
         message(STATUS "ZSTD build type: ${MANAPIHTTP_ZSTD_DEPENDENCY}")
         if (MANAPIHTTP_ZSTD_DEPENDENCY STREQUAL "shared")
@@ -511,6 +548,11 @@ else ()
     if (MANAPIHTTP_ZSTD_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${ZSTD_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${ZSTD_INCLUDE_DIRS})
+    endif ()
+
+    if (MANAPIHTTP_GRPC_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${GRPC_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${GRPC_INCLUDE_DIRS})
     endif ()
 
 endif ()

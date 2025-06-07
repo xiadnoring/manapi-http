@@ -24,12 +24,13 @@ class ManapiHttpConan(ConanFile):
         "gmp_dependency": [True, False],
         "zstd_dependency": [True, False],
         "brotli_dependency": [True, False],
+        "grpc_dependency": [True, False],
         "lib": [True, False]
     }
 
     default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": False, "openssl_dependency": True, "quiche_dependency": True,
                        "tquic_dependency": False, "lib": False, "curl_dependency": True, "gmp_dependency": True, "zlib_dependency": True, "zstd_dependency": True,
-                       "brotli_dependency": True}
+                       "brotli_dependency": True, "grpc_dependency": True}
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
 
@@ -67,6 +68,7 @@ class ManapiHttpConan(ConanFile):
             self.options["cpptrace"].shared = True
             self.options["brotli"].shared = True
             self.options["zstd"].shared = self.settings.compiler != 'msvc'
+            self.options["grpc"].shared = True
 
         self.options["libcurl"].with_nghttp2 = True
         self.options["quiche"].shared = True
@@ -89,6 +91,7 @@ class ManapiHttpConan(ConanFile):
         tc.variables['MANAPIHTTP_GMP_DEPENDENCY'] = self.options.get_safe('gmp_dependency', False)
         tc.variables['MANAPIHTTP_ZLIB_DEPENDENCY'] = self.options.get_safe('zlib_dependency', False)
         tc.variables['MANAPIHTTP_MSQUIC_DEPENDENCY'] = self.options.get_safe('msquic_dependency', False)
+        tc.variables['MANAPIHTTP_GRPC_DEPENDENCY'] = self.options.get_safe('grpc_dependency', False)
         tc.variables['MANAPIHTTP_BUILD_TYPE'] = 'lib' if self.options.get_safe('lib', False) else 'exe'
         tc.cache_variables["CMAKE_TRY_COMPILE_CONFIGURATION"] = str(self.settings.build_type)
         tc.generate()
@@ -117,7 +120,11 @@ class ManapiHttpConan(ConanFile):
             self.requires("brotli/[>=1.1.0 <2]")
 
         if self.options.get_safe('zstd_dependency', False):
-            self.requires("zstd/[>=1.5.7 <2]")
+            self.requires("zstd/[>=1.5.5 <1.5.7]")
+
+        if self.options.get_safe('grpc_dependency', False):
+            self.requires("grpc/[>=1.72.0 <2]")
+            self.requires("protobuf/[>=4.25.3 <6]")
 
         if not self.options.get_safe('lib', False):
             self.requires("libpq/16.8")
