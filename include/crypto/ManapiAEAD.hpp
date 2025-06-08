@@ -52,7 +52,7 @@ namespace manapi::crypto {
                 cipher = EVP_aes_256_cbc();
             break;
             default:
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_ALGORITHM_NO_SUPPORT, "Available: [AES_256_GCM, AES_128_GCM]");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "Available: [AES_256_GCM, AES_128_GCM]");
         }
 
         EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
@@ -126,7 +126,7 @@ namespace manapi::crypto {
                 cipher = wolfSSL_EVP_aes_256_cbc();
             break;
             default:
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_ALGORITHM_NO_SUPPORT, "Available: [AES_256_GCM, AES_128_GCM]");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "Available: [AES_256_GCM, AES_128_GCM]");
         }
 
         WOLFSSL_EVP_CIPHER_CTX *ctx = wolfSSL_EVP_CIPHER_CTX_new();
@@ -207,7 +207,7 @@ namespace manapi::crypto {
                 cipher = EVP_aes_256_cbc();
             break;
             default:
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_ALGORITHM_NO_SUPPORT, "Available: [AES_256_GCM, AES_128_GCM, AES_128_CBC, AES_256_CBC]");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "Available: [AES_256_GCM, AES_128_GCM, AES_128_CBC, AES_256_CBC]");
         }
 
         EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
@@ -281,7 +281,7 @@ namespace manapi::crypto {
                 cipher = wolfSSL_EVP_aes_256_cbc();
             break;
             default:
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_ALGORITHM_NO_SUPPORT, "Available: [AES_256_GCM, AES_128_GCM, AES_128_CBC, AES_256_CBC]");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "Available: [AES_256_GCM, AES_128_GCM, AES_128_CBC, AES_256_CBC]");
         }
 
         WOLFSSL_EVP_CIPHER_CTX *ctx = wolfSSL_EVP_CIPHER_CTX_new();

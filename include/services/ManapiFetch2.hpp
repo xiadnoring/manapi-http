@@ -36,9 +36,9 @@ namespace manapi::net {
                     +[] (std::exception_ptr err) -> void {
                         std::string msg;
                         if (err) {
-                            manapi::rethrow_exception_ptr(err, nullptr, &msg, nullptr);
+                            manapi::extract_exception_ptr(err, nullptr, &msg, nullptr);
                             manapi::async::current()->logger()->error(
-                                manapi::logger::default_service, ERR_BUG,
+                                manapi::logger::default_service, ERR_INTERNAL,
                                 "fetch2: failed to close stalled or cancelled connection due to {}", msg);
                         }
                     });
@@ -118,14 +118,14 @@ namespace manapi::net {
         }
 
         manapi::future<> callback_async (std::function<manapi::future<ssize_t>(char *buffer, ssize_t size)> cb) {
-            if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "fetch2 must be initialized fetch2::fetch(...) only"); }
+            if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "fetch2 must be initialized fetch2::fetch(...) only"); }
             this->fetchdata->data.handle_async_body(std::move(cb));
             this->fetchdata->flags |= FETCH2_DATA_FLAG_RESULT;
             co_await continue_receiving(this->fetchdata);
         }
 
         manapi::future<> callback_sync (std::function<ssize_t(char *buffer, ssize_t size)> cb) {
-            if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "fetch2 must be initialized fetch2::fetch(...) only"); }
+            if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "fetch2 must be initialized fetch2::fetch(...) only"); }
             this->fetchdata->data.handle_body(std::move(cb));
             this->fetchdata->flags |= FETCH2_DATA_FLAG_RESULT;
             co_await continue_receiving(this->fetchdata);
@@ -227,7 +227,7 @@ namespace manapi::net {
                 }
             }
             catch (std::exception const &e) {
-                THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_CONFIG_ERROR, "param is invalid: {}", e.what());
+                THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FAILED_PRECONDITION, "param is invalid: {}", e.what());
             }
 
             this->fetchdata->flags |= FETCH2_DATA_FLAG_SETUP;

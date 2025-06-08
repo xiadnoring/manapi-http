@@ -2,7 +2,9 @@
 
 #include <string>
 
+#include "ManapiErrors.hpp"
+
 namespace manapi::process {
-    void set_env (std::string_view name, std::string_view key);
-    std::string get_env (std::string_view name);
+    manapi::error::status set_env (std::string_view name, std::string_view key);
+    manapi::error::status_or<std::string> get_env (std::string_view name);
 }

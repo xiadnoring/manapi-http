@@ -88,7 +88,7 @@ manapi::future<void> manapi::net::http_pool::_pool() {
             }
         }
         MANAPIHTTP_LOG("implementation by {} not found in {}. Available: [{}]", implementation, transport, available);
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "implementation not found");
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "implementation not found");
     }
 }
 

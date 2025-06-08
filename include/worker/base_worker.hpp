@@ -26,7 +26,7 @@ namespace manapi::net::worker {
             if (const auto pointer = static_cast <T *> (this->ptr.get())) {
                 return pointer;
             }
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Pointer is null");
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "Pointer is null");
         }
 
         manapi::async::cancellation_action cancellation;

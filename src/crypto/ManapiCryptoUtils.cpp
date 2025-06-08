@@ -48,7 +48,7 @@ manapi::future<void> manapi::crypto::async_random_string(async::shared_cthread c
                 [resolve, reject] (std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size) mutable
                 -> void {
                     if (status) {
-                        reject(std::make_exception_ptr(manapi::exception(manapi::ERR_WATCHER_ERROR,
+                        reject(std::make_exception_ptr(manapi::exception(manapi::ERR_INTERNAL,
                            manapi::error::default_msgs[error::ERRMSG_RANDOM_STRING_FAILED], std::make_unique<json>(manapi::json{{"rhs", status}}))));
                         return;
                     }

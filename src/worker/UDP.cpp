@@ -26,7 +26,7 @@ void manapi::net::worker::udp::init() {
     auto &port = this->config_->port;
 
     if (getaddrinfo(address.data(), port.data(), &hints, &this->local) != 0) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "{}", "failed to resolve host");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "failed to resolve host");
     }
 
     this->config_->server_len=(this->local->ai_addrlen);
@@ -53,13 +53,13 @@ void manapi::net::worker::udp::init() {
 
     if (this->local->ai_family == ev::IPv4) {
         if (auto rhs = this->udp_accept_->ip4_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in *>(&this->sockaddrin))) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't set ipv4 addr due to result - {}", rhs);
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set ipv4 addr due to result - {}", rhs);
             goto err;
         }
     }
     else if (this->local->ai_family == ev::IPv6) {
         if (auto rhs = this->udp_accept_->ip6_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin))) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't set ipv6 addr due to result - {}", rhs);
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set ipv6 addr due to result - {}", rhs);
             goto err;
         }
     }
@@ -70,7 +70,7 @@ void manapi::net::worker::udp::init() {
         bind_flags |= ev::UDP_REUSEPORT;
 #endif
         if (auto rhs = this->udp_accept_->s_bind(reinterpret_cast<sockaddr *>(&this->sockaddrin), bind_flags)) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't bind socket due to result - {}", rhs);
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't bind socket due to result - {}", rhs);
             goto err;
         }
     }
@@ -78,7 +78,7 @@ void manapi::net::worker::udp::init() {
 
     return;
 err:
-    THROW_MANAPIHTTP_EXCEPTION2 (ERR_SOCKET, "couldn't initialize udp connection");
+    THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "couldn't initialize udp connection");
 }
 
 void manapi::net::worker::udp::stop(std::function<void()> cb) {

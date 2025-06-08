@@ -57,7 +57,7 @@ void manapi::net::http::site::compressor_for_string(const std::string &name, std
 std::move_only_function<manapi::future<void>(std::string src, std::string dest)> & manapi::net::http::site::compressor_for_file(const std::string &name) {
     auto it = this->data->compressors_for_file.find(name);
     if (it == this->data->compressors_for_file.end()) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FUNCTION_IS_NULL, "The compressor {} doesn't exists", name);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_DATA_LOSS, "The compressor {} doesn't exists", name);
     }
 
     return it->second;
@@ -70,7 +70,7 @@ bool manapi::net::http::site::contains_compressor_for_file(const std::string &na
 std::move_only_function<std::string(std::string_view)> & manapi::net::http::site::compressor_for_string(const std::string &name) {
     auto it = this->data->compressors_for_string.find(name);
     if (it == this->data->compressors_for_string.end()) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FUNCTION_IS_NULL, "The compress {} doesn't exists", name);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_DATA_LOSS, "The compress {} doesn't exists", name);
     }
     return it->second;
 }
@@ -240,7 +240,7 @@ manapi::future<> manapi::net::http::site::setup_config() {
             }
         }
         catch (std::exception const &e) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_CONFIG_ERROR, "cached data couldn't be loaded from the config due to {}", e.what());
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "cached data couldn't be loaded from the config due to {}", e.what());
         }
     }
     catch (manapi::exception const &e) {
@@ -374,12 +374,12 @@ manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> da
 }
 
 void manapi::net::http::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_ADD_PAGE, "The method {} already contains in the url {}", method, url); }
+    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "The method {} already contains in the url {}", method, url); }
 }
 
 void manapi::net::http::site::check_exists_method_on_url(const std::string &url,
     const std::unique_ptr<handlers_static_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_ADD_PAGE, "The method {} already contains in the static url {}", method, url); }
+    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "The method {} already contains in the static url {}", method, url); }
 }
 
 std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::handler(http::request_data_t *request_data) const {
@@ -646,7 +646,7 @@ manapi::net::http::http_uri_part *manapi::net::http::site::handler(std::string m
             break;
         }
         default:
-            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_ADD_PAGE, "{}", "can not use the special pages with the static files");
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "{}", "can not use the special pages with the static files");
     }
 
 

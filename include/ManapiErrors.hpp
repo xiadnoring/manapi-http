@@ -9,80 +9,29 @@
 namespace manapi {
     enum err_num {
         ERR_OK = 0,
-        ERR_FATAL = 1,
-        ERR_UNDEFINED = 2,
-        ERR_DEBUG = 3,
-        ERR_COMPRESS_DATA = 4,
-        ERR_FILE_EXISTS = 5,
-        ERR_FILE_IO = 6,
-        ERR_HTTP_PARAM_MISSING = 7,
-        ERR_HTTP_BODY_MISSING = 8,
-        ERR_HTTP_BODY_TOO_LONG = 9,
-        ERR_HTTP_CONTENT_TYPE_MISSING = 10,
-        ERR_HTTP_BODY_BOUNDARY_MISSING = 12,
-        ERR_HTTP_INVALID_CONTENT_TYPE = 13,
-        ERR_HTTP_BODY_MASK_FAILED = 14,
-        ERR_HTTP_BODY_NOT_CONTAINS_FILE = 15,
-        ERR_HTTP_IMPORTANT_HEADER_MISSING = 16,
-        ERR_HTTP_PROTOCOL_ERROR = 17,
-        ERR_HTTP_QUERY_PARAM_MISSING = 18,
-        ERR_DIVIDED_BY_ZERO = 19,
-        ERR_EXTERNAL_LIB_CRASH = 20,
-        ERR_CONFIG_ERROR = 21,
-        ERR_HTTP_HEADER_MISSING = 22,
-        ERR_HTTP_HEADER_INVALID = 23,
-        ERR_HTTP_ADD_PAGE = 24,
-        ERR_HTTP_SETTINGS_INCOMPATIBILITY = 25,
-        ERR_HTTP_UNSUPPORTED = 26,
-        ERR_UNSUPPORTED = 27,
-        ERR_STORAGE_OBJECT_IS_NULL = 28,
-        ERR_FUNCTION_IS_NULL = 29,
-        ERR_HTTP_CONNECTION_WAS_CLOSED = 30,
-        ERR_HTTP_PARSER_BUG = 31,
-        ERR_ALGORITHM_NO_SUPPORT = 32,
-        ERR_ALGORITHM_INIT_FAIL = 33,
-        ERR_QUIC_PROTOCOL_ERROR = 34,
-        ERR_BUG = 35,
-        ERR_SUBSCRIBE_FAILURE = 36,
-        ERR_INTERRUPTED = 37,
-        ERR_THREAD_SAFE = 38,
-        ERR_POSTGRE_ERROR = 39,
-        ERR_POSTGRE_RESULT = 40,
-        ERR_CONNECTION_TIMEOUT = 41,
-        ERR_PARSE_ERROR = 42,
-        ERR_PARSE_INVALID_SYMBOL = 43,
-        ERR_PARSE_UNEXPECTED_END = 44,
-        ERR_PARSE_INVALID_CHAR = 45,
-        ERR_HTTP_GET_PARAMS_MASK_FAILED = 46,
-        ERR_SOCKET = 47,
-        ERR_FILE_DESCRIPTOR = 48,
-        ERR_INCOMPATIBLE_SETTING = 49,
-        ERR_CANCELLED = 50,
-        ERR_CANCELLATION_FAILED = 51,
-        ERR_FS_IO = 52,
-        ERR_FS_IO_RESULT = 53,
-        ERR_FILE_NOT_FOUND = 54,
-        ERR_TIMER_ERROR = 55,
-        ERR_WATCHER_ERROR = 56,
-        ERR_WATCHER_BIND = 57,
-        ERR_UNHANDLED_EXCEPTION = 58,
-        ERR_IP = 59,
-        ERR_SSL_CONNECTION = 60,
-        ERR_ASYNC = 61,
-        ERR_OS_ENV = 62
+        ERR_UNKNOWN,
+        ERR_INVALID_ARGUMENT,
+        ERR_NOT_FOUND,
+        ERR_CANCELLED,
+        ERR_DEADLINE_EXCEEDED,
+        ERR_ALREADY_EXISTS,
+        ERR_PERMISSION_DENIED,
+        ERR_UNAUTHENTICATED,
+        ERR_RESOURCE_EXHAUSTED,
+        ERR_FAILED_PRECONDITION,
+        ERR_ABORTED,
+        ERR_UNAVAILABLE,
+        ERR_OUT_OF_RANGE,
+        ERR_UNIMPLEMENTED,
+        ERR_INTERNAL,
+        ERR_DATA_LOSS,
+        ERR_FILESYSTEM_FAILED,
+        ERR_PARSE_FAILED
     };
 
-    extern const std::map <err_num, std::string> err_msg;
+    std::string_view get_msg_by_err_num(err_num errnum);
 
-    const inline std::string & get_msg_by_err_num(const err_num &errnum) {
-        if (err_msg.contains(errnum))
-        {
-            return err_msg.at(errnum);
-        }
-        return err_msg.at(ERR_UNDEFINED);
-    }
-
-    void rethrow_exception_ptr (std::exception_ptr err, int *errnum, std::string *msg, class json *data);
+    void extract_exception_ptr (std::exception_ptr err, int *errnum, std::string *msg, class json *data);
 
     class exception : public std::exception {
     public:
@@ -96,6 +45,77 @@ namespace manapi {
         std::string message;
         std::shared_ptr<json> data_;
     };
+
+    namespace error {
+        class status {
+        public:
+            status ();
+            status (err_num code, std::string_view msg);
+
+            [[nodiscard]] std::string_view msg () const;
+            [[nodiscard]] err_num code () const;
+            [[nodiscard]] bool ok () const;
+        private:
+            std::string_view msg_;
+            err_num code_;
+        };
+
+        template<typename T>
+        requires(!std::is_same_v<status, T>)
+        class status_or {
+        public:
+            status_or (T value) : err_() {
+                this->value_ = std::move(value);
+            }
+
+            status_or (status status) {
+                this->err_ = std::move(status);
+            }
+
+            [[nodiscard]] manapi::err_num code () const {
+                return this->err_.code();
+            }
+
+            [[nodiscard]] std::string_view status_msg () const {
+                return get_msg_by_err_num(this->err_.code());
+            }
+
+            [[nodiscard]] std::string_view message () const {
+                return this->err_.msg();
+            }
+
+            T value () {
+                return this->value_.value();
+            }
+
+            [[nodiscard]] bool ok () const {
+                return this->err_.code() == manapi::ERR_OK;
+            }
+        private:
+            std::optional<T> value_;
+            status err_;
+        };
+
+        status status_ok ();
+        status status_unknown (std::string_view msg);
+        status status_cancelled (std::string_view msg);
+        status status_invalid_argument (std::string_view msg);
+        status status_deadline_exceeded (std::string_view msg);
+        status status_not_found (std::string_view msg);
+        status status_already_exists (std::string_view msg);
+        status status_permission_denied (std::string_view msg);
+        status status_unauthenticated (std::string_view msg);
+        status status_resource_exhausted (std::string_view msg);
+        status status_failed_precondition (std::string_view msg);
+        status status_aborted (std::string_view msg);
+        status status_unavailable (std::string_view msg);
+        status status_out_of_range (std::string_view msg);
+        status status_unimplemented (std::string_view msg);
+        status status_internal (std::string_view msg);
+        status status_data_loss (std::string_view msg);
+        status status_filesystem_failed (std::string_view msg);
+        status status_parse_failed (std::string_view msg);
+    }
 }
 
 template <>

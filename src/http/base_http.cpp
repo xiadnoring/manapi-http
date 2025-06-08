@@ -98,7 +98,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
     while (true) {
         if (features.compressor_for_file) {
             if (features.replacers) {
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be using during compress");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "replacers can not be using during compress");
             }
 
             try {
@@ -168,14 +168,14 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
             // partial enabled
             if (res->partial_enabled() && res->config()->partial_data_min_size <= fileSize) {
                 if (features.compressor_for_file) {
-                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_SETTINGS_INCOMPATIBILITY,
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION,
                                            "the compress '{}' with the partial content is not supported.",
                                            features.compress);
                 }
 
 
                 if (features.replacers) {
-                    THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_SETTINGS_INCOMPATIBILITY, "replacers can not be use with partial");
+                    THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "replacers can not be use with partial");
                 }
 
                 res->status(http::PARTIAL_CONTENT_206);
@@ -207,7 +207,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                         break;
 
                     default:
-                        THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_UNSUPPORTED, "multi bytes not supported");
+                        THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "multi bytes not supported");
                 }
 
                 size = back - start + 1;
@@ -358,7 +358,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
             if (err) {
                 /* failed */
                 std::string msg;
-                manapi::rethrow_exception_ptr(std::move(err), nullptr, &msg, nullptr);
+                manapi::extract_exception_ptr(std::move(err), nullptr, &msg, nullptr);
                 std::cerr << msg << "\n";
                 return;
             }
@@ -369,7 +369,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
 
     co_return;
 #else
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "Fetch is required");
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "Fetch is required");
 #endif
 }
 
@@ -377,11 +377,11 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(uq_handle_d
     auto formdata = std::make_unique<formdata_send>(std::move(res->formdata()));
 
     if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "formdata: Compression isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "formdata: Compression isn't supported");
     }
 
     if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "formdata: Replacers isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "formdata: Replacers isn't supported");
     }
 
     auto size = co_await formdata->payload_size();
@@ -411,7 +411,7 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(uq_handle_d
                          * FINISH !!
                          */
                         if (co_await cdata->worker->fwrite(cdata->conn, buffer, size, false) < 0) {
-                            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_CONNECTION_WAS_CLOSED, "failed to write");
+                            THROW_MANAPIHTTP_EXCEPTION2(ERR_ABORTED, "failed to write");
                         }
                     });
 
@@ -432,11 +432,11 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(uq_handle_d
 
 void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Compression isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Compression isn't supported");
     }
 
     if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Replacers isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
     }
 
     auto task = mask_response(cdata.get(), res.get(), false);
@@ -462,7 +462,7 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
                         while (!finish) {
                             auto rhs = cb_sync->operator()(buffer.data(), reserved, finish);
                             if (rhs < 0) {
-                                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "The callback returned an invalid length");
+                                THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
                             }
                             co_await cdata->worker->fwrite(cdata->conn, buffer.data(), rhs, finish);
                         }
@@ -473,11 +473,11 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
 
 void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Compression isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Compression isn't supported");
     }
 
     if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_UNSUPPORTED, "Replacers isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
     }
 
     auto task = mask_response(cdata.get(), res.get(), false);
@@ -504,7 +504,7 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
                         while (!finish) {
                             auto rhs = co_await cb_async->operator()(buffer.data(), reserved, finish);
                             if (rhs < 0) {
-                                THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "The callback returned an invalid length");
+                                THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
                             }
                             co_await cdata->worker->fwrite(cdata->conn, buffer.data(), rhs, finish);
                         }
@@ -610,7 +610,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 
                             if (handle_request_stringify_ip(client.get(), cdata->worker.get(), cdata->conn.get())) {
                                 /* error */
-                                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
+                                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "stringify_ip(): ip get failed");
                                 co_return;
                             }
 
@@ -677,7 +677,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
         if (handle_request_stringify_ip(client.get(),
             cdata->worker.get(), cdata->conn.get())) {
             /* error */
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_IP, "stringify_ip(): ip get failed");
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "stringify_ip(): ip get failed");
         }
 
         auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
@@ -703,9 +703,9 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                 -> void {
                 if (err) {
                     std::string msg;
-                    manapi::rethrow_exception_ptr(std::move(err), nullptr, &msg, nullptr);
+                    manapi::extract_exception_ptr(std::move(err), nullptr, &msg, nullptr);
                     manapi::async::current()->logger()->error(manapi::logger::default_service,
-                        manapi::ERR_FATAL, "an error occurred while processing the HTTP request due to {}", msg);
+                        manapi::ERR_INTERNAL, "an error occurred while processing the HTTP request due to {}", msg);
                     cdata->router = std::move(cdata->router->error);
                     send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
                     return;
@@ -717,7 +717,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
     }
     catch (const manapi::exception &e) {
         switch (e.err_num()) {
-            case ERR_HTTP_CONNECTION_WAS_CLOSED:
+            case ERR_ABORTED:
                 return;
             default:
                 MANAPIHTTP_LOG("Unexpected error: {}", e.what());
@@ -992,12 +992,12 @@ manapi::future<void> manapi::net::http::internal::send_text(uq_handle_data_t cda
         const ssize_t result = co_await cdata->worker->write(cdata->conn, current, sent, true);
 
         if (result <= 0) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Could not send the text: mask_write(...) = {}. Size: {}",
+            THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "Could not send the text: mask_write(...) = {}. Size: {}",
                                    result, sent);
         }
 
         if (result > sent) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PROTOCOL_ERROR, "Total sent size > prepared sent size. {} > {}", result,
+            THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "Total sent size > prepared sent size. {} > {}", result,
                                    sent);
         }
 
@@ -1052,7 +1052,7 @@ manapi::future<std::string> manapi::net::http::internal::compress_file(net::http
                     co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR);
             }
             catch (std::exception const &e) {
-                THROW_MANAPIHTTP_EXCEPTION (ERR_FS_IO, "mkdir cache directory failed due to {}", e.what());
+                THROW_MANAPIHTTP_EXCEPTION (ERR_FILESYSTEM_FAILED, "mkdir cache directory failed due to {}", e.what());
             }
             filepath = folder + generate_cache_name(file, compress);
 
@@ -1061,7 +1061,7 @@ manapi::future<std::string> manapi::net::http::internal::compress_file(net::http
             co_await site.set_compressed_cache_file(file, filepath, compress, filetime);
         }
         catch (std::exception const &e) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_COMPRESS_DATA, "file compress failed due to {}", e.what());
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "file compress failed due to {}", e.what());
             co_return file;
         }
     }

@@ -25,7 +25,7 @@ std::shared_ptr<manapi::net::worker::worker_config_t> manapi::net::http::server_
             std::make_unique<async::tmutex>()));
     }
     else if (this->data_->workers.size() < id) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_BUG, "provided id doesn't exists or can't be init");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_INTERNAL, "provided id doesn't exists or can't be init");
     }
 
     return this->data_->workers[id];

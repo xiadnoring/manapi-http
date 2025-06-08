@@ -91,18 +91,18 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
             auto const hit = this->req_->headers.find(http::HEADER.CONTENT_TYPE);
 
             if (hit == this->req_->headers.end()) {
-                THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_HTTP_PARSER_BUG, "Content-Type header is missing");
+                THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_INVALID_ARGUMENT, "Content-Type header is missing");
             }
 
             auto hparams = http::parse_header_value(hit->second);
             if (hparams.size() != 1) {
-                THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_HTTP_PARSER_BUG, "Content-Type header is invalid");
+                THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_INVALID_ARGUMENT, "Content-Type header is invalid");
             }
 
             if (manapi::string::equals(hparams[0].value, mime::types.MULTIPART_FORM_DATA, 0b10)) {
                 auto pit = hparams[0].params.find("boundary");
                 if (pit == hparams[0].params.end()) {
-                    THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_HTTP_PARSER_BUG, "boundary is missing");
+                    THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_INVALID_ARGUMENT, "boundary is missing");
                 }
 
                 this->ctx_->boundary = "\r\n--" + pit->second;
@@ -113,7 +113,7 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
                 type = CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED;
             }
             else {
-                THROW_MANAPIHTTP_EXCEPTION (manapi::ERR_HTTP_PARSER_BUG, "FormData is not supported for the following Content-Type: {}", hparams[0].value);
+                THROW_MANAPIHTTP_EXCEPTION (manapi::ERR_INVALID_ARGUMENT, "FormData is not supported for the following Content-Type: {}", hparams[0].value);
             }
         }
 
@@ -133,7 +133,7 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
 
                 if (this->ctx_->current != FORMDATA_URLEN_VALUE
                     && this->ctx_->current != FORMDATA_URLEN_INIT) {
-                    THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PARSER_BUG,
+                    THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
                         "x-www-form-urlencoded data is not complete");
                 }
 
@@ -148,7 +148,7 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
                             auto const rhs = co_await ucb (this->ctx_->hctx->s2.data() + res,
                                 size - res);
                             if (rhs < 0) {
-                                THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_PARSER_BUG,
+                                THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
                                     "user callback returned an invalid result");
                             }
 
@@ -797,7 +797,7 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
             co_await f.open(ev::FS_O_RDONLY);
 
             if (!f.is_open()) {
-                THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read file ({}) to send it as form data parameter", param.second.data);
+                THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to read file ({}) to send it as form data parameter", param.second.data);
             }
 
             std::exception_ptr err{nullptr};
@@ -811,7 +811,7 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
                 while (fsize) {
                     auto rhs = co_await f.read(buffer.data(), buffer_size);
                     if (rhs < 0) {
-                        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read file ({}) to send it as formdata parameter", param.second.data);
+                        THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to read file ({}) to send it as formdata parameter", param.second.data);
                     }
                     if (rhs == 0) {
                         continue;

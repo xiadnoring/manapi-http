@@ -1548,7 +1548,7 @@ void manapi::json::delete_value_static(const short &type, void *src) {
         case type_null:
             break;
         case type_number:
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_BUG, "type_number is a complex type");
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "type_number is a complex type");
             break;
         case type_array:
             delete static_cast<ARRAY  *> (src);

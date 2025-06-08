@@ -82,7 +82,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     udp::init();
     do {
         if (auto rhs = this->udp_accept_->recv_start()) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_SOCKET, "couldn't start recv due to result - {}", rhs);
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't start recv due to result - {}", rhs);
             goto err;
         }
 
@@ -92,15 +92,15 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         auto const ssl_config = &this->config_->ssl_config;
 
         if (!ssl_config->enabled) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "QUICHE: QUIC requires SSL be enabled");
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "QUICHE: QUIC requires SSL be enabled");
         }
 
         if (quiche_config_load_cert_chain_from_pem_file(this->quiche_config_, ssl_config->cert.data())) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "QUICHE: failed to load cert chain from pem file: {}", ssl_config->cert);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load cert chain from pem file: {}", ssl_config->cert);
         }
 
         if (quiche_config_load_priv_key_from_pem_file(this->quiche_config_, ssl_config->key.data())) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "QUICHE: failed to load priv key from pem file: {}", ssl_config->key);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load priv key from pem file: {}", ssl_config->key);
         }
 
         if(quiche_config_set_application_protos(this->quiche_config_,
@@ -136,7 +136,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
                 case http::versions::QUIC_CC_RENO:    algo = QUICHE_CC_RENO;      break;
                 case http::versions::QUIC_CC_BBR:     algo = QUICHE_CC_BBR;       break;
                 case http::versions::QUIC_CC_BBR2:    algo = QUICHE_CC_BBR2;      break;
-                default: THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo: {}",
+                default: THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "invalid quic_cc_algo: {}",
                         static_cast<int>(this->config_->quic_cc_algo));
             }
 
@@ -150,7 +150,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     while (0);
     return;
 err:
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_SOCKET, "quiche: init(...) failed");
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "quiche: init(...) failed");
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::stop(std::function<void()> cb) {
@@ -1024,7 +1024,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response
         size_t header_value_cursor = 0;
         while (true) {
             if (header->first.size() > max_header_value_len) {
-                THROW_MANAPIHTTP_EXCEPTION (ERR_FATAL, "header key is too long. Size: {}", header->first.size());
+                THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "header key is too long. Size: {}", header->first.size());
             }
             auto len = std::min(max_header_value_len - header->first.size(), header->second.size() - header_value_cursor);
             quiche_set_header_(q_headers.get() + (i++), header->first, std::string_view{header->second.data() + header_value_cursor, len});
@@ -1038,7 +1038,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response
                 q_headers.reset(nheaders);
             }
             else {
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_FATAL, "failed to realloc(...) headers buffer");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "failed to realloc(...) headers buffer");
             }
         }
     }

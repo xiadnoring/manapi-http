@@ -16,7 +16,7 @@ manapi::ev::name_class::~name_class () = default;
 int manapi::ev::name_class::listen (int backlog, uv_connection_cb cb) MANAPI_EV_NOEXPECT {  return uv_listen(MANAPI_EV_CAST_STREAM(&this->s_), backlog, cb); } \
 int manapi::ev::name_class::ip4_addr (const char *ip, int port, sockaddr_in *addr) MANAPI_EV_NOEXPECT { return uv_ip4_addr(ip, port, addr); } \
 int manapi::ev::name_class::ip6_addr (const char *ip, int port, sockaddr_in6 *addr) MANAPI_EV_NOEXPECT {  return uv_ip6_addr(ip, port, addr); }
-#define MANAPI_EV_CHECK(expr) { auto rhs = expr; if (rhs) { std::cout << rhs << "\n"; THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_EXTERNAL_LIB_CRASH, #expr); } }
+#define MANAPI_EV_CHECK(expr) { auto rhs = expr; if (rhs) { std::cout << rhs << "\n"; THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_INTERNAL, #expr); } }
 
 MANAPI_EV_DEFAULT(async, uv_async_t)
 MANAPI_EV_DEFAULT(timer, uv_timer_t)

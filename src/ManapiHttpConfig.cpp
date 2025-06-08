@@ -166,7 +166,7 @@ manapi::net::http::config::config(const json &config) {
             this->tls_version=(versions::TLS_v1_3);
         }
         else {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid tls_version in config: {}", tls_version_string);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "invalid tls_version in config: {}", tls_version_string);
         }
     }
     else {
@@ -198,7 +198,7 @@ manapi::net::http::config::config(const json &config) {
             this->quic_cc_algo=(versions::QUIC_CC_NONE);
         }
         else {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo param in the config: {}", quic_cc_algo_string);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "invalid quic_cc_algo param in the config: {}", quic_cc_algo_string);
         }
     }
     else {
@@ -297,7 +297,7 @@ int manapi::net::http::config::recommended_http_version() {
 
 bool manapi::net::http::config::contains_compressor(const std::string &name) {
     if (!this->function_contains_compressor_) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FATAL, "function_contains_compressor = {}. We need to set function before call", "nullptr");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "function_contains_compressor = {}. We need to set function before call", "nullptr");
     }
     return this->function_contains_compressor_ (name);
 }

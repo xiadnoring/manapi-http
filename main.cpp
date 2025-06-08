@@ -18,14 +18,14 @@
 
 int main () {
     int threads = 2;
-    try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS")); }
+    try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").value()); }
     catch (...) {  }
 
     manapi::async::context::threadpoolfs(threads);
     manapi::async::context::gbs = manapi::async::context::blockedsignals();
 
     int loops = 0;
-    try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS")); }
+    try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS").value()); }
     catch (...) {  }
 
     GCTX_OBJ = manapi::async::context::create(loops);

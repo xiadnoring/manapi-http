@@ -80,15 +80,15 @@ void manapi::net::worker::http_v3_tquic::init() {
     auto ssl_config = this->config->ssl_config();
 
     if (!ssl_config->enabled) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_CONFIG_ERROR, "QUICHE: QUIC requires SSL be enabled");
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "QUICHE: QUIC requires SSL be enabled");
     }
 
     if (0 != quic_tls_config_set_certificate_file(this->_quic_tls_config, ssl_config->cert.data())) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "QUICHE: failed to load cert chain from pem file: {}", ssl_config->cert);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load cert chain from pem file: {}", ssl_config->cert);
     }
 
     if (0 != quic_tls_config_set_private_key_file(this->_quic_tls_config, ssl_config->key.data())) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "QUICHE: failed to load priv key from pem file: {}", ssl_config->key);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load priv key from pem file: {}", ssl_config->key);
     }
     char *application_protos[] = {application_h3_proto.data()};
     quic_tls_config_set_application_protos(this->_quic_tls_config, application_protos, sizeof(application_protos));
@@ -128,7 +128,7 @@ void manapi::net::worker::http_v3_tquic::init() {
         {
             case http::versions::QUIC_CC_CUBIC:   algo = QUIC_CONGESTION_CONTROL_ALGORITHM_CUBIC;     break;
             case http::versions::QUIC_CC_BBR:     algo = QUIC_CONGESTION_CONTROL_ALGORITHM_BBR;       break;
-            default: THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "invalid quic_cc_algo: {}",
+            default: THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "invalid quic_cc_algo: {}",
                     static_cast<int>(this->config->quic_cc_algo().load()));
         }
 

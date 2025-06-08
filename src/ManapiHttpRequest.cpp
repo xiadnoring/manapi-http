@@ -52,7 +52,7 @@ const std::string &manapi::net::http::request::param(const std::string &param) c
     if (this->request_data->params.contains(param))
         return this->request_data->params.at(param);
 
-    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_PARAM_MISSING, "cannot find param '{}'", param);
+    THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "cannot find param '{}'", param);
 }
 
 std::string manapi::net::http::request::dump() const {
@@ -78,14 +78,14 @@ std::string manapi::net::http::request::dump() const {
 manapi::future<std::string> manapi::net::http::request::text() {
     if (!(this->request_data->flags & internal::REQ_DATA_FLAG_HAS_BODY))
     {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "{}", "this method cannot have a body");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "{}", "this method cannot have a body");
     }
 
     std::string body;
 
     if (this->request_data->body_size > this->max_plain_body_size_)
     {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_TOO_LONG, "plain body can have only {} length", max_plain_body_size_);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "plain body can have only {} length", max_plain_body_size_);
     }
 
     if (this->request_data->body_size >= 0) {
@@ -147,7 +147,7 @@ manapi::future<> manapi::net::http::request::file(std::string filepath) {
     co_await f.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_TRUNC);
 
     if (!f.is_open()) {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_FILE_IO, "http request: Failed to open the file ({}) to write", filepath);
+        THROW_MANAPIHTTP_EXCEPTION (ERR_FILESYSTEM_FAILED, "http request: Failed to open the file ({}) to write", filepath);
     }
 
     std::exception_ptr err{nullptr};
@@ -176,7 +176,7 @@ const std::string & manapi::net::http::request::get(const std::string &key) {
 
     auto it = this->get_params_->find(key);
     if (it == this->get_params_->end()) {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PARAM_MISSING, "GET param {} is missing", key);
+        THROW_MANAPIHTTP_EXCEPTION (ERR_INVALID_ARGUMENT, "GET param {} is missing", key);
     }
 
     return it->second;
@@ -210,7 +210,7 @@ void manapi::net::http::request::prepare_get_params_() {
         // verify params
         auto &mask = this->get_mask();
         if (mask && !mask->valid(*this->get_params_)) {
-            THROW_MANAPIHTTP_EXCEPTION2 (ERR_HTTP_GET_PARAMS_MASK_FAILED, "GET params verify failed");
+            THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT, "GET params verify failed");
         }
     }
 }
@@ -256,7 +256,7 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
                 const worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, worker::ibuffpool_t *p) mutable -> void {
                     if (flags & ev::DISCONNECT) {
                         reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(
-                            manapi::ERR_HTTP_CONNECTION_WAS_CLOSED, manapi::error::default_msgs[manapi::error::ERRMSG_CONNECTION_WAS_CLOSED])));
+                            manapi::ERR_ABORTED, manapi::error::default_msgs[manapi::error::ERRMSG_CONNECTION_WAS_CLOSED])));
                         goto finish;
                     }
                     if (flags & ev::READ) {
@@ -275,7 +275,7 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
                                 if (res >= 0) {
                                     if (copy > res) {
                                         reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(
-                                            manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
+                                            manapi::ERR_INVALID_ARGUMENT, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
                                         goto finish;
                                     }
 
@@ -286,7 +286,7 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
                                     continue;
                                 }
                                 reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
-                                    manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
+                                    manapi::ERR_INVALID_ARGUMENT, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
                                 goto finish;
                             }
 
@@ -304,7 +304,7 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
                         }
                         catch (std::exception const &e) {
                             reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
-                                manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], e.what())));
+                                manapi::ERR_INVALID_ARGUMENT, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], e.what())));
                             goto finish;
                         }
                     }
@@ -380,7 +380,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                 const worker::shared_conn & conn, int flags, const char * buffer, ssize_t nsize, worker::ibuffpool_t *p) mutable -> void {
                     if (flags & ev::DISCONNECT) {
                         ctx_cb.reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(
-                            manapi::ERR_HTTP_CONNECTION_WAS_CLOSED, manapi::error::default_msgs[manapi::error::ERRMSG_CONNECTION_WAS_CLOSED])));
+                            manapi::ERR_ABORTED, manapi::error::default_msgs[manapi::error::ERRMSG_CONNECTION_WAS_CLOSED])));
                         goto finish;
                     }
                     if (flags & ev::READ) {
@@ -420,7 +420,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                         if (res >= 0) {
                                             if (copy > res) {
                                                 ctx_cb->reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(
-                                                    manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
+                                                    manapi::ERR_INVALID_ARGUMENT, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
                                                 goto finish;
                                             }
 
@@ -432,7 +432,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                         }
 
                                         ctx_cb->reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
-                                            manapi::ERR_HTTP_PROTOCOL_ERROR, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
+                                            manapi::ERR_INVALID_ARGUMENT, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
                                         goto finish;
                                     }
 

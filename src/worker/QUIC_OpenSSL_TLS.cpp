@@ -65,12 +65,12 @@
 // void manapi::net::worker::quic_openssl_tls::ssl_configure_context(SSL_CTX *ctx) {
 //     if (SSL_CTX_use_certificate_file(ctx, "/home/Timur/Documents/ssl/quic/cert.crt", SSL_FILETYPE_PEM) <= 0)
 //     {
-//         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use cert file openssl");
+//         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot use cert file openssl");
 //     }
 //
 //     if (SSL_CTX_use_PrivateKey_file(ctx, "/home/Timur/Documents/ssl/quic/cert.key", SSL_FILETYPE_PEM) <= 0)
 //     {
-//         THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use private key file openssl");
+//         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot use private key file openssl");
 //     }
 // }
 //

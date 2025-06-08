@@ -12,7 +12,7 @@ std::pair<std::string_view, std::string_view> manapi::net::http::parse_header(st
     auto const pos = header.find(':');
 
     if (std::string::npos == pos) {
-        THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_HTTP_PARSER_BUG, "invalid header: semicolon is missing");
+        THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_INVALID_ARGUMENT, "invalid header: semicolon is missing");
     }
 
     parsed.first = header.substr(0, pos);
@@ -378,13 +378,13 @@ std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_
             break;
         }
         default: {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PARSER_BUG, "header value: unexpected end");
+            THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "header value: unexpected end");
         }
     }
 
     return std::move(data);
 
-err: THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PARSER_BUG, "error was occurred");
+err: THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "error was occurred");
 }
 
 std::string manapi::net::http::stringify_header_value (const std::vector <header_value_t> &header_value) {
@@ -441,7 +441,7 @@ manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net
     co_await f.open(ev::FS_O_RDONLY);
     if (!f.is_open())
     {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Could not open the following file for finding replacers ({})", path);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Could not open the following file for finding replacers ({})", path);
     }
 
     f.seekg(start);
@@ -456,7 +456,7 @@ manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net
         auto rhs = co_await f.read (buffer.data(), static_cast<ssize_t>(buffer_size));
         if (rhs <= 0) {
             co_await f.close();
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read the file: {}", path);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to read the file: {}", path);
         }
         fsize -= rhs;
         for (size_t j = 0; j < rhs; j++) {

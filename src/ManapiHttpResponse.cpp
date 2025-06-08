@@ -68,7 +68,7 @@ const std::string &manapi::net::http::response::header(const std::string &key) {
         return this->headers_[key];
     }
 
-    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_HEADER_MISSING, "The header '{}' could not be found", key);
+    THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "The header '{}' could not be found", key);
 }
 
 void manapi::net::http::response::text(std::string plain_text) {
@@ -221,7 +221,7 @@ void manapi::net::http::response::detect_ranges () {
 
             if (pos_delimiter == std::string::npos)
             {
-                THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_HEADER_INVALID, "invalid the header range: {}", range_str);
+                THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "invalid the header range: {}", range_str);
             }
 
             // trans 2 size_t range
@@ -274,7 +274,7 @@ manapi::net::http::request_data_t * manapi::net::http::response::request_data() 
 
 void manapi::net::http::response::check_type_(int type) {
     if (this->type_ != type || !this->data_) {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_HTTP_PROTOCOL_ERROR, "data is missing in the response. type = {}", static_cast<int>(this->type_));
+        THROW_MANAPIHTTP_EXCEPTION (ERR_INVALID_ARGUMENT, "data is missing in the response. type = {}", static_cast<int>(this->type_));
     }
 }
 

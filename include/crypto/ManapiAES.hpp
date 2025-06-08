@@ -36,7 +36,7 @@ namespace manapi::crypto {
                 algorithm_cb = EVP_aes_256_ecb();
             break;
             default:
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_ALGORITHM_NO_SUPPORT, "Algorithm is invalid. "
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "Algorithm is invalid. "
                                                                       "Available: [AES_128_CBC, AES_128_GBC]");
         }
         EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
@@ -79,7 +79,7 @@ namespace manapi::crypto {
 
         return std::move(out);
 #else
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_ALGORITHM_NO_SUPPORT, "openssl or wolfssl is required");
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "openssl or wolfssl is required");
 #endif
     }
 
@@ -106,7 +106,7 @@ namespace manapi::crypto {
                 algorithm_cb = EVP_aes_256_ecb();
             break;
             default:
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_ALGORITHM_NO_SUPPORT, "Algorithm is invalid. "
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "Algorithm is invalid. "
                                                                       "Available: [AES_128_CBC, AES_128_GBC]");
         }
 
@@ -152,7 +152,7 @@ namespace manapi::crypto {
 
         return std::move(out);
 #else
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_ALGORITHM_NO_SUPPORT, "openssl or wolfssl is required");
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "openssl or wolfssl is required");
 #endif
     }
 }

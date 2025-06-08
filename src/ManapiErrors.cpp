@@ -1,30 +1,32 @@
 #include "ManapiErrors.hpp"
 #include "ManapiJson.hpp"
 
-const std::map <manapi::err_num, std::string> manapi::err_msg {
-    {ERR_OK, "OK"},
-    {ERR_FATAL, "Fatal"},
-    {ERR_UNDEFINED, "Undefined"},
-    {ERR_DEBUG, "Debug"},
-    {ERR_ALGORITHM_NO_SUPPORT, "Algotihtm not supported"},
-    {ERR_ALGORITHM_INIT_FAIL, "Failed to init an algorithm"},
-    {ERR_QUIC_PROTOCOL_ERROR, "QUIC Protocol Error"},
-    {ERR_BUG, "BUG"},
-    {ERR_SUBSCRIBE_FAILURE, "Failed to subscribe"},
-    {ERR_INTERRUPTED, "App was interrupted"},
-    {ERR_THREAD_SAFE, "That method isn't thread safe"},
-    {ERR_POSTGRE_ERROR, "PostgreSQL error"},
-    {ERR_CONNECTION_TIMEOUT, "Connection Timeout"},
-    {ERR_PARSE_ERROR, "Parse: Error"},
-    {ERR_PARSE_INVALID_CHAR, "Parse: invalid char"},
-    {ERR_PARSE_INVALID_SYMBOL, "Parse: invalid symbol"},
-    {ERR_PARSE_UNEXPECTED_END, "Parse: Unexpected end"},
-    {ERR_SOCKET, "Socket Error"},
-    {ERR_FILE_DESCRIPTOR, "FD error"},
-    {ERR_INCOMPATIBLE_SETTING, "Incompatible setting"}
-};
+std::string_view get_msg_by_err_num (manapi::err_num err) {
+    switch (err) {
+        case manapi::ERR_OK: return "ERR_OK";
+        case manapi::ERR_ABORTED: return "ERR_ABORTED";
+        case manapi::ERR_UNKNOWN: return "ERR_UNKNOWN";
+        case manapi::ERR_DATA_LOSS: return "ERR_DATA_LOSS";
+        case manapi::ERR_INTERNAL: return "ERR_INTERNAL";
+        case manapi::ERR_NOT_FOUND: return "ERR_NOT_FOUND";
+        case manapi::ERR_CANCELLED: return "ERR_CANCELLED";
+        case manapi::ERR_OUT_OF_RANGE: return "ERR_OUT_OF_RANGE";
+        case manapi::ERR_UNAVAILABLE: return "ERR_UNAVAILABLE";
+        case manapi::ERR_ALREADY_EXISTS: return "ERR_ALREADY_EXISTS";
+        case manapi::ERR_UNIMPLEMENTED: return "ERR_UNIMPLEMENTED";
+        case manapi::ERR_INVALID_ARGUMENT: return "ERR_INVALID_ARGUMENT";
+        case manapi::ERR_UNAUTHENTICATED: return "ERR_UNAUTHENTICATED";
+        case manapi::ERR_DEADLINE_EXCEEDED: return "ERR_DEADLINE_EXCEEDED";
+        case manapi::ERR_PERMISSION_DENIED: return "ERR_PERMISSION_DENIED";
+        case manapi::ERR_RESOURCE_EXHAUSTED: return "ERR_RESOURCE_EXHAUSTED";
+        case manapi::ERR_FAILED_PRECONDITION: return "ERR_FAILED_PRECONDITION";
+        case manapi::ERR_FILESYSTEM_FAILED: return "ERR_FILESYSTEM_FAILED";
+    }
 
-void manapi::rethrow_exception_ptr(std::exception_ptr err, int *errnum, std::string *msg, json *data) {
+    return "ERR_UNKNOWN";
+}
+
+void manapi::extract_exception_ptr(std::exception_ptr err, int *errnum, std::string *msg, json *data) {
     try {
         std::rethrow_exception(std::move(err));
     }
@@ -40,7 +42,7 @@ void manapi::rethrow_exception_ptr(std::exception_ptr err, int *errnum, std::str
     }
     catch (std::exception const &e) {
         if (errnum)
-            *errnum = ERR_UNHANDLED_EXCEPTION;
+            *errnum = ERR_UNKNOWN;
 
         if (msg)
             *msg = e.what();
@@ -73,3 +75,99 @@ std::shared_ptr<manapi::json> manapi::exception::data() {
     return this->data_;
 }
 
+manapi::error::status::status() {
+    this->code_ = manapi::ERR_OK;
+}
+
+manapi::error::status::status(err_num code, std::string_view msg) {
+    this->code_ = code;
+    this->msg_ = msg;
+}
+
+std::string_view manapi::error::status::msg() const {
+    return this->msg_;
+}
+
+manapi::err_num manapi::error::status::code() const {
+    return this->code_;
+}
+
+bool manapi::error::status::ok() const {
+    return this->code_ == manapi::ERR_OK;
+}
+
+manapi::error::status manapi::error::status_ok() {
+    return {};
+}
+
+manapi::error::status manapi::error::status_unknown(std::string_view msg) {
+    return {ERR_UNKNOWN, msg};
+}
+
+manapi::error::status manapi::error::status_cancelled(std::string_view msg) {
+    return {ERR_CANCELLED, msg};
+}
+
+manapi::error::status manapi::error::status_invalid_argument(std::string_view msg) {
+    return {ERR_INVALID_ARGUMENT, msg};
+}
+
+manapi::error::status manapi::error::status_deadline_exceeded(std::string_view msg) {
+    return {ERR_DEADLINE_EXCEEDED, msg};
+}
+
+manapi::error::status manapi::error::status_not_found(std::string_view msg) {
+    return {ERR_NOT_FOUND, msg};
+}
+
+manapi::error::status manapi::error::status_already_exists(std::string_view msg) {
+    return {ERR_ALREADY_EXISTS, msg};
+}
+
+manapi::error::status manapi::error::status_permission_denied(std::string_view msg) {
+    return {ERR_PERMISSION_DENIED, msg};
+}
+
+manapi::error::status manapi::error::status_unauthenticated(std::string_view msg) {
+    return {ERR_UNAUTHENTICATED, msg};
+}
+
+manapi::error::status manapi::error::status_resource_exhausted(std::string_view msg) {
+    return {ERR_RESOURCE_EXHAUSTED, msg};
+}
+
+manapi::error::status manapi::error::status_failed_precondition(std::string_view msg) {
+    return {ERR_FAILED_PRECONDITION, msg};
+}
+
+manapi::error::status manapi::error::status_aborted(std::string_view msg) {
+    return {ERR_ABORTED, msg};
+}
+
+manapi::error::status manapi::error::status_unavailable(std::string_view msg) {
+    return {ERR_UNAVAILABLE, msg};
+}
+
+manapi::error::status manapi::error::status_out_of_range(std::string_view msg) {
+    return {ERR_OUT_OF_RANGE, msg};
+}
+
+manapi::error::status manapi::error::status_unimplemented(std::string_view msg) {
+    return {ERR_UNIMPLEMENTED, msg};
+}
+
+manapi::error::status manapi::error::status_internal(std::string_view msg) {
+    return {ERR_INTERNAL, msg};
+}
+
+manapi::error::status manapi::error::status_data_loss(std::string_view msg) {
+    return {ERR_DATA_LOSS, msg};
+}
+
+manapi::error::status manapi::error::status_filesystem_failed(std::string_view msg) {
+    return {ERR_FILESYSTEM_FAILED, msg};
+}
+
+manapi::error::status manapi::error::status_parse_failed(std::string_view msg) {
+    return {ERR_PARSE_FAILED, msg};
+}

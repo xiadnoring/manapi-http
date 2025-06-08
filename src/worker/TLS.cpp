@@ -367,7 +367,7 @@ void manapi::net::worker::TLS::accept_work_(const shared_conn &conn, int flags, 
     }
     catch (std::exception const &e) {
         manapi::async::current()->logger()->error(manapi::logger::default_service,
-            ERR_SSL_CONNECTION, "TLS: accept_work_(): {}", e.what());
+            ERR_FAILED_PRECONDITION, "TLS: accept_work_(): {}", e.what());
     }
     err: {
         this->close_connection(conn, false);

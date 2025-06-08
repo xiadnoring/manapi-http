@@ -30,7 +30,7 @@ int manapi::net::http::url_decode_stream::operator<<(std::string_view data) {
 
 std::vector<std::string> manapi::net::http::url_decode_stream::result() {
     if (this->hex_index != -1) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_PARSE_UNEXPECTED_END, "this->hex_index != -1");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_PARSE_FAILED, "this->hex_index != -1");
     }
     this->cleanup_uri_();
     return std::move(this->result_);

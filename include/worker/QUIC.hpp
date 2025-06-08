@@ -31,7 +31,7 @@
 //         static T parse_number_ (std::string_view buffer, ssize_t &i) {
 //             const int s = sizeof (T);
 //             if (i + s >= buffer.size()) {
-//                 THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "Can not parse number");
+//                 THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "Can not parse number");
 //             }
 //             T res = 0;
 //             for (int j = 0; j < s; j++, i++) {

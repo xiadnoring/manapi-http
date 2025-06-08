@@ -46,15 +46,15 @@ manapi::future<> manapi::filesystem::fstream::open(int flags, int mode) {
             async::cancellation_action::unit(this->data->cancellation));
     }
     catch (manapi::exception const &e) {
-        if (e.err_num() == manapi::ERR_FS_IO_RESULT || e.err_num() == manapi::ERR_FS_IO) {
+        if (e.err_num() == manapi::ERR_FILESYSTEM_FAILED ) {
             this->data->file = -1;
             co_return;
         }
 
-        THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FS_IO, "file open failed due to {}", e.what());
+        THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FILESYSTEM_FAILED, "file open failed due to {}", e.what());
     }
     catch (std::exception const &e) {
-        THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FS_IO, "file open failed due to {}", e.what());
+        THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FILESYSTEM_FAILED, "file open failed due to {}", e.what());
     }
 }
 
@@ -94,7 +94,7 @@ manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t bu
     }
     catch (std::exception const &e) {
         manapi::async::current()->logger()->error(manapi::logger::default_service,
-            ERR_FS_IO, "fs: read() failed due to {}", e.what());
+            ERR_FILESYSTEM_FAILED, "fs: read() failed due to {}", e.what());
     }
 
     co_return -1;
@@ -133,7 +133,7 @@ manapi::future<> manapi::filesystem::fstream::fwrite(const void *buff, ssize_t b
         auto const rhs = co_await this->write(static_cast<const char *>(buff) + res, buff_size - res);
 
         if (rhs <= 0) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to write to a file. code: {}", rhs);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to write to a file. code: {}", rhs);
         }
 
         res += rhs;
@@ -146,7 +146,7 @@ manapi::future<ssize_t> manapi::filesystem::fstream::fread(void *buff, ssize_t b
     while (total < buff_size) {
         auto rhs = co_await this->read(static_cast<uint8_t *>(buff) + total, buff_size - total);
         if (rhs < 0) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to read from the file. rhs: {}", rhs);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to read from the file. rhs: {}", rhs);
         }
         if (rhs == 0 && this->eof()) {
             break;

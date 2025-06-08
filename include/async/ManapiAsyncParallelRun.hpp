@@ -75,7 +75,7 @@ namespace manapi::async {
             });
         }
         else {
-            THROW_MANAPIHTTP_EXCEPTION2 (ERR_SUBSCRIBE_FAILURE, "parallel run is busy");
+            THROW_MANAPIHTTP_EXCEPTION2 (ERR_INTERNAL, "parallel run is busy");
         }
     }
 

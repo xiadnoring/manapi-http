@@ -65,7 +65,7 @@ void manapi::async::set_non_blocking(socket_t fd) {
 
 manapi::socket_t manapi::async::create_socket(int family, int protocol, int socktype, sockaddr *addr, socklen_t addrlen) {
     socket_t fd = socket(family, socktype, protocol);
-    if (fd < 0) { THROW_MANAPIHTTP_EXCEPTION(ERR_SOCKET, "socket(...) returned an invalid value: {}", fd); }
+    if (fd < 0) { THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "socket(...) returned an invalid value: {}", fd); }
 
     before_delete bd ([fd] ()
         -> void { close_descriptor(fd); });
@@ -79,12 +79,12 @@ manapi::socket_t manapi::async::create_socket(int family, int protocol, int sock
 #endif
 
     if (0 > setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &param_true, sizeof(param_true))) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_SOCKET, "setsockopt(...) failed: reuseaddr option. fd = {}", fd);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "setsockopt(...) failed: reuseaddr option. fd = {}", fd);
     }
 
     if (protocol == IPPROTO_TCP) {
         // if (0 > setsockopt(fd, protocol, TCP_NODELAY, &param_true, sizeof(param_true))) {
-        //     THROW_MANAPIHTTP_EXCEPTION(ERR_SOCKET, "setsockopt(...) failed: tcp nodelay option. fd = {}", fd);
+        //     THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "setsockopt(...) failed: tcp nodelay option. fd = {}", fd);
         // }
     }
 

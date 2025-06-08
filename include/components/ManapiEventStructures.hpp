@@ -26,7 +26,7 @@
         int listen (int backlog, uv_connection_cb cb) MANAPI_EV_NOEXPECT; \
         static int ip4_addr (const char *ip, int port, sockaddr_in *addr) MANAPI_EV_NOEXPECT; \
         static int ip6_addr (const char *ip, int port, sockaddr_in6 *addr) MANAPI_EV_NOEXPECT;
-#define MANAPI_EV_CHECK(expr) if (expr) { THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_EXTERNAL_LIB_CRASH, #expr); }
+#define MANAPI_EV_CHECK(expr) if (expr) { THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_INTERNAL, #expr); }
 
 namespace manapi {
     typedef uv_os_fd_t fd_t;

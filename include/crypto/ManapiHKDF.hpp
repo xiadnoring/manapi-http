@@ -34,7 +34,7 @@ namespace manapi::crypto {
                 algorithm = EVP_sha512();
             break;
             default:
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_ALGORITHM_NO_SUPPORT, "Available: [SHA256, SHA512]");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_UNIMPLEMENTED, "Available: [SHA256, SHA512]");
         }
 
         HMAC(

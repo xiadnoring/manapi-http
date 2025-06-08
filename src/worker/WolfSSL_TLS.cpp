@@ -175,7 +175,7 @@ void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &versio
         case http::versions::TLS_v1_2:    method = wolfTLSv1_2_server_method();   break;
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         case http::versions::TLS_v1_3:    method = wolfTLS_server_method();       break;
-        default: THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR,
+        default: THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION,
             "can not find the initialization method openssl (tls_version): {}", version);
     }
 
@@ -184,7 +184,7 @@ void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &versio
 
     if (!ctx)
     {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot create the openssl context for the tcp connection");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot create the openssl context for the tcp connection");
     }
 
     //SSL_CTX_set_mode(ctx, SSL_MODE_ASYNC);
@@ -205,12 +205,12 @@ void manapi::net::worker::WolfSSL_TLS::ssl_configure_context() {
     auto sslconfig = &this->config_->ssl_config;
     if (wolfSSL_CTX_use_certificate_file(static_cast<WOLFSSL_CTX *>(this->ctx), sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use cert file openssl");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot use cert file openssl");
     }
 
     if (wolfSSL_CTX_use_PrivateKey_file(static_cast<WOLFSSL_CTX *>(this->ctx), sslconfig->key.data(), SSL_FILETYPE_PEM) <= 0)
     {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "{}", "cannot use private key file openssl");
+        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot use private key file openssl");
     }
 
     if (!wolfSSL_CTX_check_private_key(static_cast<WOLFSSL_CTX *>(this->ctx))) {

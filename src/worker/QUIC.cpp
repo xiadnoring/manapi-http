@@ -269,7 +269,7 @@
 //
 // std::string_view manapi::net::worker::quic::parse_string_(std::string_view buffer, ssize_t &i, const ssize_t &len) {
 //     if (len + i > buffer.size()) {
-//         THROW_MANAPIHTTP_EXCEPTION2(ERR_HTTP_PROTOCOL_ERROR, "No enough left space");
+//         THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "No enough left space");
 //     }
 //     auto j = i;
 //     i += len;

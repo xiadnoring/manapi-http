@@ -99,35 +99,35 @@ namespace manapi {
          *
          * @param callback Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::tcp> create_watcher_tcp_accept (ev::tcp_accept_cb callback);
         /**
          *
          * @param read Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::tcp> create_watcher_tcp_connection (ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb);
         /**
          *
          * @param read Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::pair<std::shared_ptr<ev::connect>, std::shared_ptr<ev::tcp>> connect_tcp (const sockaddr *addr, ev::connect_tcp_cb on_connect, ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb);
         /**
          *
          * @param recv Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::udp> create_watcher_udp (ev::udp_cb recv, ev::udp_alloc_cb alloc_cb);
         /**
          *
          * @param callback Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::io> create_watcher_fd (int fd, ev::io_cb callback);
 
@@ -135,7 +135,7 @@ namespace manapi {
          *
          * @param callback Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::idle> create_watcher_idle (ev::idle_cb callback);
 
@@ -143,35 +143,35 @@ namespace manapi {
          *
          * @param callback Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::io> create_watcher_socket (socket_t sock, ev::io_cb callback);
         /**
          *
          * @param callback Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::async> create_watcher_async (ev::async_cb callback);
         /**
          *
          * @param callback Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::timer> create_watcher_timer (ev::timer_cb callback);
         /**
          *
          * @param callback Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::prepare> create_watcher_prepare (ev::prepare_cb callback);
         /**
          *
          * @param callback Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::fs> create_watcher_fs (ev::fs_cb callback);
 
@@ -179,7 +179,7 @@ namespace manapi {
          *
          * @param callback Callback
          * @return
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          */
         std::shared_ptr<ev::random> create_watcher_random (ev::random_cb callback, char *buff, std::size_t size);
 
@@ -189,7 +189,7 @@ namespace manapi {
          * @param callback Callback
          * @param bufs
          * @param nbuf
-         * @throws manapi::exception with ERR_WATCHER_BIND code
+         * @throws manapi::exception with ERR_INTERNAL code
          * @return
          */
         std::shared_ptr<ev::write> create_watcher_write (ev::tcp *conn, ev::write_cb callback, const ev::buff_t *bufs, uint32_t nbuf);

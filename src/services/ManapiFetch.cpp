@@ -199,14 +199,14 @@ manapi::future<void> manapi::net::fetch::async_doit() {
     std::unique_ptr<curl_mime, curl_mime_deleter> form {nullptr};
 
     if (this->data->flags & FLAG_WAS_USED) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_CONFIG_ERROR, "fetch was already used. create another fetch object or reinit current. {}", this->data->url_);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "fetch was already used. create another fetch object or reinit current. {}", this->data->url_);
     }
 
     this->data->flags |= FLAG_WAS_USED;
 
     if (!this->data->data_->curl)
     {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_EXTERNAL_LIB_CRASH, "curl can not be init: {}", this->data->url_);
+        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "curl can not be init: {}", this->data->url_);
     }
 
     std::exception_ptr err{nullptr};
@@ -325,7 +325,7 @@ manapi::future<void> manapi::net::fetch::async_doit() {
 
         if (resp != CURLE_OK)
         {
-            THROW_MANAPIHTTP_EXCEPTION (ERR_FATAL, "Connection failed: {}. Error code: {}. Error msg: {}", this->data->url_, static_cast<int> (resp), curl_easy_strerror(resp));
+            THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "Connection failed: {}. Error code: {}. Error msg: {}", this->data->url_, static_cast<int> (resp), curl_easy_strerror(resp));
         }
 
         if (this->data->data_->headers && !this->data->data_->headers->empty()) {
@@ -545,7 +545,7 @@ void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::futur
 
             if (rhs < 0) {
                 if (finish) {
-                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "handle_async_body(...): Write handler error : {}", rhs);
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "handle_async_body(...): Write handler error : {}", rhs);
                 }
 
                 data->async_buffer_cursor = 0;
@@ -652,7 +652,7 @@ manapi::future<> manapi::net::fetch::body(file_transfer_info file_info) {
     auto file = std::make_shared <manapi::filesystem::fstream> (file_info.filelocal());
     co_await file->open(ev::FS_O_RDONLY);
     if (!file->is_open()) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FILE_IO, "Failed to open the file: {}", file_info.filelocal());
+        THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to open the file: {}", file_info.filelocal());
     }
 
     curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDS, nullptr);
@@ -702,7 +702,7 @@ void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize
             if (rhs < 0) {
                 /* error */
                 if (finish) {
-                    THROW_MANAPIHTTP_EXCEPTION(ERR_HTTP_BODY_MISSING, "set_async_body(...): read handler error : {}", rhs);
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "set_async_body(...): read handler error : {}", rhs);
                 }
 
                 data->async_buffer_cursor = 0;
