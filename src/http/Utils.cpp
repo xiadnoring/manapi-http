@@ -37,7 +37,7 @@ std::string manapi::net::http::stringify_header (const std::pair<std::string, st
 }
 
 void manapi::net::http::request_data_clear(request_data_t &data) {
-    data.buffer = {nullptr};
+    data.buffer.clear();
     data.headers = {};
     data.http = {};
     data.method = {};

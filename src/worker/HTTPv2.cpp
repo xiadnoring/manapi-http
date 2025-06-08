@@ -3,7 +3,7 @@
 
 #include "ManapiHttpResponse.hpp"
 
-manapi::net::worker::http_v2::http_v2(net::http::site site, bufferpool_t bufferpool, std::shared_ptr<worker::worker_config_t> worker_data, http::config *config) : base(std::move(site), std::move(bufferpool), std::move(worker_data), config) {}
+manapi::net::worker::http_v2::http_v2(net::http::site site, std::shared_ptr<worker::worker_config_t> worker_data, http::config *config) : base(std::move(site), std::move(worker_data), config) {}
 
 manapi::net::worker::http_v2::~http_v2() = default;
 

@@ -232,8 +232,8 @@ void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {
 }
 
 void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) {
-    auto buff = buffer->as<char>();
-    auto size = static_cast<ssize_t>(buffer->size());
+    auto buff = buffer.as<char>();
+    auto size = static_cast<ssize_t>(buffer.size());
     auto const data = conn->as<TLS::connection_interface>();
 
     if (data->status & CONN_LIMIT_RATE) {
@@ -321,8 +321,8 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
 // }
 
 void manapi::net::worker::TLS::accept_work_(const shared_conn &conn, int flags, ibuffpool_t buffer) {
-    auto buff = buffer->as<char>();
-    auto size = static_cast<ssize_t>(buffer->size());
+    auto buff = buffer.as<char>();
+    auto size = static_cast<ssize_t>(buffer.size());
 
     auto data = conn->as<TLS::connection_interface>();
 
@@ -391,7 +391,7 @@ void manapi::net::worker::TLS::flush_write_(const shared_conn &connection, bool 
         /* in the stack */
         auto &buffer = data->top->send.deque->buffer;
         auto copy = static_cast<int>(data->top->send.deque_cursor - data->top->send.deque_current);
-        auto const rhs = data->watcher->try_write(buffer->data() + data->top->send.deque_current, copy);
+        auto const rhs = data->watcher->try_write(buffer.data() + data->top->send.deque_current, copy);
         if (rhs >= 0) {
             if (rhs == copy) {
                 data->top->send.deque = nullptr;
@@ -425,14 +425,13 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
     buffer_deque *parent = nullptr;
 
     do {
-        if (!top->last_deque || top->last_deque->buffer->size() == top->deque_cursor) {
+        if (!top->last_deque || top->last_deque->buffer.size() == top->deque_cursor) {
             this->flush_write_(conn, false);
 
             if (cnt && *cnt >= max_cnt)
                 return CONN_IO_WANT_WRITE;
 
-            auto buffer = this->bufferpool()->get();
-            buffer->resize_max(this->config_->buffer_size);
+            auto buffer = this->bufferpool().slice(1, this->config_->buffer_size);
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
             if (top->last_deque) {
@@ -455,8 +454,8 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
         else
             flags = 0;
 
-        rhs = this->ssl_bio_read_(wbio, top->last_deque->buffer->data() + top->deque_cursor,
-            static_cast<int>(top->last_deque->buffer->size() - top->deque_cursor));
+        rhs = this->ssl_bio_read_(wbio, top->last_deque->buffer.data() + top->deque_cursor,
+            static_cast<int>(top->last_deque->buffer.size() - top->deque_cursor));
 
         if (rhs > 0) {
             top->deque_cursor += rhs;
@@ -485,7 +484,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
     auto data = conn->as<TLS::connection_interface>();
 
     do {
-        if (!top->last_deque || top->last_deque->buffer->size() == top->deque_cursor) {
+        if (!top->last_deque || top->last_deque->buffer.size() == top->deque_cursor) {
             if (auto const res = ssl_flush_recv(conn, top, cnt)) {
                 return res;
             }
@@ -497,8 +496,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
             if (cnt && *cnt >= max_cnt)
                 return CONN_IO_WANT_READ;
 
-            auto buffer = this->bufferpool()->get();
-            buffer->resize_max(this->config_->buffer_size);
+            auto buffer = this->bufferpool().slice(1, this->config_->buffer_size);
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
             if (top->last_deque) {
@@ -521,8 +519,8 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
         else
             flags = 0;
 
-        rhs = this->ssl_read_(data->ssl, top->last_deque->buffer->data() + top->deque_cursor,
-            static_cast<int>(top->last_deque->buffer->size() - top->deque_cursor));
+        rhs = this->ssl_read_(data->ssl, top->last_deque->buffer.data() + top->deque_cursor,
+            static_cast<int>(top->last_deque->buffer.size() - top->deque_cursor));
 
         if (rhs >= 0) {
             top->deque_cursor += rhs;
@@ -557,22 +555,22 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
             top->deque = std::move(top->deque->next);
 
             if (!top->deque) {
-                object->resize(top->deque_cursor);
+                object.resize(top->deque_cursor);
                 top->last_deque = nullptr;
                 top->deque_cursor = 0;
             }
 
             if (top->deque_current) {
-                object->shift_add(top->deque_current);
+                object.shift_add(top->deque_current);
                 top->deque_current = 0;
             }
 
             if (cnt)
                 (*cnt)--;
 
-            if (!object->empty()) {
-                tcp_handle_read_data (conn, data, ev::READ, object->data(),
-                    static_cast<ssize_t>(object->size()), &object);
+            if (!object.empty()) {
+                tcp_handle_read_data (conn, data, ev::READ, object.data(),
+                    static_cast<ssize_t>(object.size()), &object);
             }
         }
 

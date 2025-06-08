@@ -8,7 +8,7 @@
 #include "../async/ManapiAsyncContext.hpp"
 #include "../compress/ManapiCompress.hpp"
 #include "../components/Buffer.hpp"
-#include "../components/ObjectPool.hpp"
+#include "../components/ManapiObjectPool.hpp"
 
 namespace manapi::net::http {
     struct response_features_t {
@@ -54,7 +54,7 @@ namespace manapi::net::http {
 
         int flags;
 
-        object_item_pool<bytebuffer, std::size_t> buffer{};
+        bytebuffer buffer{};
     };
 
     struct replace_founded_item {

@@ -745,11 +745,8 @@ void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, in
 manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size) {
     auto const block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size);
 
-    auto write_block = cdata->worker->bufferpool()->get();
-    auto read_block = cdata->worker->bufferpool()->get();
-
-    write_block->resize(block_size);
-    read_block->resize(block_size);
+    auto write_block = cdata->worker->bufferpool().slice(block_size);
+    auto read_block = cdata->worker->bufferpool().slice(block_size);
 
     ssize_t current = f.tellg();
 
@@ -760,7 +757,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
     ssize_t rhs;
     std::exception_ptr error{nullptr};
 
-    if ((rhs = co_await f.read(write_block->data(), std::min(block_size, size - current))) <= 0) {
+    if ((rhs = co_await f.read(write_block.data(), std::min(block_size, size - current))) <= 0) {
         co_return;
     }
 
@@ -770,10 +767,10 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
             current += rhs;
             bool readsome = size > current;
             if (readsome) {
-                parallel.run(f.read(read_block->data(), std::min(block_size, size - current)));
+                parallel.run(f.read(read_block.data(), std::min(block_size, size - current)));
             }
 
-            if ((rhs = co_await cdata->worker->fwrite (cdata->conn, write_block->data(), rhs, !readsome)) <= 0) {
+            if ((rhs = co_await cdata->worker->fwrite (cdata->conn, write_block.data(), rhs, !readsome)) <= 0) {
                 /* failed to send */
                 rhs = co_await parallel.get_or(0);
                 break;
@@ -805,10 +802,9 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
 }
 
 manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size, std::vector<replace_founded_item> replacers) {
-    auto block = cdata->worker->bufferpool()->get();
-    auto block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size);
 
-    block->resize(block_size);
+    auto block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size);
+    auto block = cdata->worker->bufferpool().slice(block_size);
 
     ssize_t current = f.tellg();
 
@@ -821,13 +817,13 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
     while (size > current) {
         const ssize_t left = size - current;
 
-        block_size = static_cast<ssize_t>(block->size());
+        block_size = static_cast<ssize_t>(block.size());
 
         if (left < block_size) {
             block_size = left;
         }
 
-        auto rhs = co_await f.read(block->data(), block_size);
+        auto rhs = co_await f.read(block.data(), block_size);
         block_size = rhs;
 
         index = f.tellg();
@@ -843,7 +839,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
 
             for (; index_in_block < block_size && current_key_index < key_size; index_in_block++, current_key_index++) {
                 if (current_key_index < replacers[replacer_index].value->size()) {
-                    block->at(index_in_block) = replacers.at(replacer_index).value->at(current_key_index);
+                    block.at(index_in_block) = replacers.at(replacer_index).value->at(current_key_index);
                     continue;
                 }
 
@@ -860,7 +856,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
                 // shift chars
                 ssize_t i = shifted_index_in_block;
                 for (; i < block_size; i++, index_in_block++) {
-                    block->at(index_in_block) = block->at(i);
+                    block.at(index_in_block) = block.at(i);
                 }
 
                 if (index_in_block < block_size) {
@@ -872,7 +868,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
                         current = (index - block_size) + i;
 
                         f.seekg(current);
-                        co_await f.read(block->data() + index_in_block, needed);
+                        co_await f.read(block.data() + index_in_block, needed);
                     }
                     else {
                         // no data left
@@ -912,8 +908,8 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
                 if (free_space < value_left_size) {
                     block_size += value_left_size - free_space;
 
-                    if (block_size >= block->size()) {
-                        block_size = static_cast<ssize_t>(block->size());
+                    if (block_size >= block.size()) {
+                        block_size = static_cast<ssize_t>(block.size());
                         repeat = true;
                     }
                 }
@@ -921,11 +917,11 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
                 for (; i < block_size && current_key_index < replacers[replacer_index].value->size();
                        i++, current_key_index++) {
                     char a = replacers[replacer_index].value->at(current_key_index);
-                    block->at(i) = a;
+                    block.at(i) = a;
                 }
 
                 if (repeat) {
-                    ssize_t sent = co_await cdata->worker->fwrite(cdata->conn, block->data(), block_size, (current + block_size) >= size);
+                    ssize_t sent = co_await cdata->worker->fwrite(cdata->conn, block.data(), block_size, (current + block_size) >= size);
 
                     if (sent < 0) {
                         // cannot to send
@@ -947,11 +943,11 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
                 }
                 else {
                     free_space = block_size - i;
-                    const ssize_t can_read = static_cast<ssize_t> (block->size()) - i;
+                    const ssize_t can_read = static_cast<ssize_t> (block.size()) - i;
 
                     // we want to read chars by size can_read
                     f.seekg(current + index_in_block - shift);
-                    const ssize_t read = co_await f.read (block->data() + i, can_read);
+                    const ssize_t read = co_await f.read (block.data() + i, can_read);
 
                     block_size += read - free_space;
 
@@ -973,7 +969,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
         }
 
 
-        ssize_t sent = co_await cdata->worker->fwrite(cdata->conn, block->data(), block_size, (current + block_size) >= size);
+        ssize_t sent = co_await cdata->worker->fwrite(cdata->conn, block.data(), block_size, (current + block_size) >= size);
 
         if (sent < 0) {
             // cannot to send

@@ -22,7 +22,8 @@ enum http_v3_stream_flags {
     HTTP_V3_STREAM_CLOSED = manapi::ev::DISCONNECT,
     HTTP_V3_STREAM_RECV_END = 8,
     HTTP_V3_STREAM_REMOVED = 16,
-    HTTP_V3_STREAM_IO_WAITING = 32
+    HTTP_V3_STREAM_SEND_END = 32,
+    HTTP_V3_STREAM_IO_WAITING = 64
 };
 
 template<typename T>
@@ -276,7 +277,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::quiche_flush_egress_(connect
         buff.base = reinterpret_cast<char *> (out);
         buff.len = static_cast<std::size_t>(written);
         ssize_t const sent = this->udp_accept_->try_send(&buff, 1, reinterpret_cast<sockaddr *>(&send_info.to));
-        if (sent < 0) {
+        if (sent != written) {
             return -1;
         }
     }
@@ -808,6 +809,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
         }
         conn_data->transfered = 0;
     }
+    if (conn_data->flags & ev::WRITE)
+        conn_data->ev_callback->operator()(conn, ev::WRITE, nullptr, 0, nullptr);
 }
 
 int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_buffers_(const shared_conn &conn, connection_stream_t *s, connection_io_part *top, int *cnt) {
@@ -820,13 +823,13 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_buffers_(const sh
             top->deque = std::move(top->deque->next);
 
             if (!top->deque) {
-                object->resize(top->deque_cursor);
+                object.resize(top->deque_cursor);
                 top->last_deque = nullptr;
                 top->deque_cursor = 0;
             }
 
             if (top->deque_current) {
-                object->shift_add(top->deque_current);
+                object.shift_add(top->deque_current);
                 top->deque_current = 0;
             }
 
@@ -834,10 +837,10 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_buffers_(const sh
                 (*cnt)--;
 
 
-            auto const size = object->size();
+            auto const size = object.size();
             if (size) {
-                data->transfered += size;
-                s->ev_callback->operator()(conn, ev::READ, object->data(), static_cast<ssize_t>(object->size()), &object);
+                data->transfered += static_cast<ssize_t>(size);
+                s->ev_callback->operator()(conn, ev::READ, object.data(), static_cast<ssize_t>(size), &object);
             }
         }
 
@@ -859,7 +862,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
     int const maxcnt = this->config_->max_buffer_stack;
 
     do {
-        if (!top->last_deque || top->last_deque->buffer->size() == top->deque_cursor) {
+        if (!top->last_deque || top->last_deque->buffer.size() == top->deque_cursor) {
             if (auto const res = this->flush_read_buffers_(stream, s, top, &s->top->recv_size)) {
                 return res;
             }
@@ -867,8 +870,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
             if (s->top->recv_size >= maxcnt)
                 return CONN_IO_WANT_READ;
 
-            auto buffer = this->bufferpool()->get();
-            buffer->resize_max(this->config_->buffer_size);
+            auto buffer = this->bufferpool().slice(1, this->config_->buffer_size);;
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
             if (top->last_deque) {
@@ -890,8 +892,8 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
         else
             flags = 0;
 
-        rhs = quiche_h3_recv_body(s->conn->http3_conn, s->conn->conn, s->id, reinterpret_cast<uint8_t *>(top->last_deque->buffer->data() + top->deque_cursor),
-            static_cast<int>(top->last_deque->buffer->size() - top->deque_cursor));
+        rhs = quiche_h3_recv_body(s->conn->http3_conn, s->conn->conn, s->id, reinterpret_cast<uint8_t *>(top->last_deque->buffer.data() + top->deque_cursor),
+            static_cast<int>(top->last_deque->buffer.size() - top->deque_cursor));
 
         if (rhs >= 0) {
             top->deque_cursor += static_cast<int>(rhs);
@@ -994,7 +996,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::flush_write_(const shared_c
         //MANAPIHTTP_LOG("WRITE STREAM:{}", stream_id);
         if (stream_it != conn_data->streams->end()) {
             auto const s = stream_it->second->as<connection_stream_t>();
-            if (s->flags & ev::WRITE && s->ev_callback) {
+            if ((s->flags & ev::WRITE) && s->ev_callback) {
                 s->ev_callback->operator()(stream_it->second, ev::WRITE, nullptr, 0, nullptr);
             }
         }

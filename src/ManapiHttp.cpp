@@ -184,30 +184,6 @@ manapi::future<> manapi::net::http::server::init_pool_() {
     }
 }
 
-manapi::future<> manapi::net::http::server::call_in_thread_(const async::shared_cthread &thr, std::move_only_function<manapi::future<>()> cb) {
-    using promise = manapi::async::promise<void>;
-    co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> manapi::future<> {
-        auto w = async::current()->eventloop()->create_watcher_async([resolve = std::move(resolve)] (ev::shared_async &w) mutable
-            -> void {
-            auto cb = std::move(resolve);
-            async::current()->eventloop()->stop_watcher(w);
-            /* -- [ DELETED ] -- */
-            cb();
-        });
-
-        /* run the callback in other event loop */
-        co_await thr->eventloop()->custom_callback([this, cb = std::move(cb), w = std::move(w)] (event_loop *ev) mutable
-            -> void {
-            manapi::async::run(std::move(cb), [w = std::move(w)] (std::exception_ptr err) -> void {
-                    if (err) {
-                        /* error */
-                    }
-                    w->send();
-                });
-        });
-    });
-}
-
 void manapi::net::http::server::pool_(std::move_only_function<void()> cb) {
     this->data2->init_watcher = async::current()->eventloop()->create_watcher_async([data2 = this->data2, cb = std::move(cb)] (std::shared_ptr<ev::async> &w) mutable
         -> void {
@@ -229,8 +205,6 @@ void manapi::net::http::server::clean_up(std::shared_ptr<data2_t> data2) {
 
 manapi::future<> manapi::net::http::server::stop_pool(std::shared_ptr<data2_t> data2) {
     auto &pools = data2->pools[std::this_thread::get_id()];
-    MANAPIHTTP_LOG2("cv_stopping -> pass");
-
     // stop all pools
     for (const auto &pool: pools)
     {
@@ -238,7 +212,4 @@ manapi::future<> manapi::net::http::server::stop_pool(std::shared_ptr<data2_t> d
         co_await pool.second->stop();
         MANAPIHTTP_LOG ("pool #{} stopped successfully", pool.first);
     }
-
-    std::cout << "7878\n";
-    MANAPIHTTP_LOG2("7878 pools(...) -> pass");
 }

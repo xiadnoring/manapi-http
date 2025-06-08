@@ -24,6 +24,14 @@ MANAPI_EV_DEFAULT(io, uv_poll_t)
 MANAPI_EV_DEFAULT(check, uv_check_t)
 MANAPI_EV_DEFAULT(prepare, uv_prepare_t)
 MANAPI_EV_DEFAULT(idle, uv_idle_t)
+MANAPI_EV_DEFAULT(connect, uv_connect_t)
+
+manapi::ev::connect::connect() : s_() {
+}
+
+int manapi::ev::connect::bind(uv_tcp_t *p, const sockaddr *addr, uv_connect_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_tcp_connect(&this->s_, p, addr, cb);
+}
 
 MANAPI_EV_DEFAULT(tcp, uv_tcp_t)
 
@@ -35,6 +43,10 @@ MANAPI_EV_DEFAULT(fs, uv_fs_t)
 
 MANAPI_EV_STREAM(udp, uv_udp_t)
 MANAPI_EV_STREAM(tcp, uv_tcp_t)
+
+void manapi::ev::buffer_deleter::operator()(manapi::ev::buff_t *data) {
+    delete[] data;
+}
 
 manapi::ev::async::async() : s_() {}
 
@@ -156,8 +168,12 @@ int manapi::ev::tcp::listen(int backlog) MANAPI_EV_NOEXPECT {
     return this->listen(backlog, reinterpret_cast<uv_connection_cb>(ev::callback_watcher_tcp_accept));
 }
 
-int manapi::ev::tcp::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
+int manapi::ev::tcp::bind(loop_ref loop) noexcept(true) {
     return uv_tcp_init(loop, &this->s_);
+}
+
+int manapi::ev::tcp::connect(uv_connect_t *connect, const sockaddr *addr, uv_connect_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_tcp_connect(connect, &this->s_, addr, cb);
 }
 
 int manapi::ev::tcp::accept(tcp *parent) MANAPI_EV_NOEXPECT {
@@ -183,7 +199,7 @@ ssize_t manapi::ev::tcp::try_write(const void *buff, ssize_t len) MANAPI_EV_NOEX
     return uv_try_write(MANAPI_EV_CAST_STREAM(&this->s_), &buffs, 1);
 }
 
-int manapi::ev::tcp::s_bind(sockaddr *addr, int flags) MANAPI_EV_NOEXPECT {
+int manapi::ev::tcp::s_bind(const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT {
     return uv_tcp_bind(&this->s_, addr, flags);
 }
 
@@ -223,7 +239,7 @@ int manapi::ev::udp::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
     return uv_udp_init(loop, &this->s_);
 }
 
-int manapi::ev::udp::s_bind(sockaddr *addr, int flags) MANAPI_EV_NOEXPECT{
+int manapi::ev::udp::s_bind(const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT{
     return uv_udp_bind(&this->s_, addr, flags);
 }
 
@@ -237,6 +253,10 @@ int manapi::ev::udp::recv_start(uv_alloc_cb alloc, uv_udp_recv_cb cb) MANAPI_EV_
 
 int manapi::ev::udp::recv_stop() MANAPI_EV_NOEXPECT{
     return uv_udp_recv_stop(&this->s_);
+}
+
+int manapi::ev::udp::connect(const sockaddr *addr) MANAPI_EV_NOEXPECT {
+    return uv_udp_connect(&this->s_, addr);
 }
 
 int manapi::ev::udp::try_send(const uv_buf_t *buf, uint32_t nbuf, sockaddr *addr) MANAPI_EV_NOEXPECT {

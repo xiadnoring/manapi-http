@@ -14,44 +14,7 @@
 #include "async/ManapiAsyncTimer.hpp"
 #include "async/ManapiEasyCancellation.hpp"
 
-#include <grpcpp/ext/proto_server_reflection_plugin.h>
-#include <grpcpp/grpcpp.h>
-#include <grpcpp/health_check_service_interface.h>
-
-#include "protobuf/helloworld.grpc.pb.h"
-
 //#include "extensions/pq/AsyncPostgreClient.hpp"
-
-// Logic and data behind the server's behavior.
-class GreeterServiceImpl final : public helloworld::Greeter::Service {
-    grpc::Status SayHello(grpc::ServerContext* context, const helloworld::HelloRequest* request,
-                    helloworld::HelloReply* reply) override {
-        std::string prefix("Hello ");
-        reply->set_message(prefix + request->name());
-        return grpc::Status::OK;
-    }
-};
-
-void runServer(uint16_t port = 8888) {
-    std::string server_address = absl::StrFormat("0.0.0.0:%d", port);
-    GreeterServiceImpl service;
-
-    grpc::EnableDefaultHealthCheckService(true);
-    grpc::reflection::InitProtoReflectionServerBuilderPlugin();
-    grpc::ServerBuilder builder;
-    // Listen on the given address without any authentication mechanism.
-    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-    // Register "service" as the instance through which we'll communicate with
-    // clients. In this case it corresponds to an *synchronous* service.
-    builder.RegisterService(&service);
-    // Finally assemble the server.
-    std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-    std::cout << "Server listening on " << server_address << std::endl;
-
-    // Wait for the server to shutdown. Note that some other thread must be
-    // responsible for shutting down the server for this call to ever return.
-    server->Wait();
-}
 
 int main () {
     int threads = 2;
@@ -85,770 +48,258 @@ int main () {
     manapi::net::http::server_ctx server_ctx;
 
     GCTX_OBJ->run(GCTX_OBJ, loops, [&a, server_ctx] (const std::function<void()> &bind) -> void {
-        // using http = manapi::net::http::server;
-        // //manapi::ext::pq::connection db;
-        // manapi::net::http::server router (server_ctx);
-        //
-        //
-        // router.GET("/", FOLDER, [] (http::req &req, http::resp &resp)
-        //     -> manapi::future<> {
-        //     resp.compress_enabled(true);
-        //     resp.compress("zstd");
-        //     co_return;
-        // });
-        //
-        // router.GET("/", [] (http::req &req, http::resp &resp) -> manapi::future<> {
-        //     co_return resp.file(FOLDER"index.html");
-        // });
-        //
-        // router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     std::cout << "MAIN PAGE\n";
-        //     a.fetch_add(1);
-        //     resp.compress_enabled(false);
-        //     co_return resp.text("");
-        // });
-        //
-        // router.GET ("/stat", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     std::cout << "/stat\n";
-        //     resp.compress_enabled(false);
-        //     co_return resp.text(std::to_string(a.load()));
-        // });
-        //
-        // router.GET ("/favicon.ico", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     resp.compress_enabled(false);
-        //     co_return resp.text("no");
-        // });
-        //
-        // router.GET ("/zstd", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     resp.compress("zstd");
-        //     resp.compress_enabled(true);
-        //     co_return resp.file("./test.html");
-        // });
-        //
-        // router.GET ("/brotli", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     resp.compress("br");
-        //     resp.compress_enabled(true);
-        //     co_return resp.file("./test.html");
-        // });
-        //
-        // router.GET ("/gzip", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     resp.compress("gzip");
-        //     resp.compress_enabled(true);
-        //     co_return resp.file("./test.html");
-        // });
-        //
-        // router.GET ("/deflate", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     resp.compress("deflate");
-        //     resp.compress_enabled(true);
-        //     co_return resp.file("./test.html");
-        // });
-        //
-        // router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable
-        //     -> manapi::future<> {
-        //     resp.compress_enabled(false);
-        //     co_return resp.text(std::to_string(cnt->fetch_add(1)));
-        // });
-        //
-        // router.GET("/random", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-        //     try {
-        //         std::string data;
-        //         data.resize(64);
-        //         manapi::async::cancellation_action cancellation;
-        //         cancellation.timeout(5000);
-        //         co_await manapi::crypto::async_random_string(GCTX(data.data(), data.size(), std::move(cancellation)));
-        //         data = manapi::crypto::strdec2strhex(data);
-        //         co_return resp.text(std::move(data));
-        //     }
-        //     catch (...) {
-        //         co_return resp.text("error");
-        //     }
-        // });
-        //
-        // router.POST ("/formdata", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     ssize_t result = 0;
-        //     manapi::net::hash::SHA256 hash{};
-        //     hash.init();
-        //     try {
-        //         co_await req.form([&result, &hash] (std::string name) -> manapi::net::formdata_recv::ondata_cb_t {
-        //             return manapi::net::formdata_recv::save_file(std::move(name));
-        //         });
-        //     }
-        //     catch (std::exception const &e) {
-        //         std::cout << e.what() << "\n";
-        //     }
-        //
-        //     std::string b;
-        //     b.resize(36);
-        //     hash.final(reinterpret_cast<uint8_t *>(b.data()));
-        //
-        //     b = manapi::crypto::strdec2strhex(b);
-        //
-        //     std::cout << result << " " << b << "\n";
-        //
-        //     co_return resp.text(std::format("{} : {}", result, b));
-        // });
-        //
-        // router.GET ("/chunked", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     try {
-        //         auto cancellation = manapi::async::cancellation_action::unit(req.cancellation());
-        //         cancellation.timeout(5000);
-        //         cancellation.ask_cancel_callback();
-        //         manapi::filesystem::fstream file ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
-        //             std::move(cancellation));
-        //         co_await file.open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
-        //         if (!file.is_open()) {
-        //             co_return resp.text("failed to open the file");
-        //         }
-        //
-        //         auto fetch = co_await manapi::net::fetch2::fetch("https://localhost:8888/upload", {
-        //             {"http", "1.1"},
-        //             {"verify_peer", false},
-        //             {"verbose", false},
-        //             {"alpn", false},
-        //             {"method", "POST"},
-        //             {"headers", {
-        //                 {"transfer-encoding", "chunked"}
-        //                 // {"content-length", "298512394"}
-        //             }}
-        //         }, [file] (char *body, ssize_t size) mutable -> manapi::future<ssize_t> {
-        //             return file.read(body, size);
-        //         });
-        //
-        //         co_await file.close();
-        //
-        //         if (!fetch.ok()) {
-        //             co_return resp.text(std::format("status : {}", fetch.status()));
-        //         }
-        //         co_return resp.text(co_await fetch.text());
-        //     }
-        //     catch (std::exception const &e) {
-        //         co_return resp.text(e.what());
-        //     }
-        // });
-        //
-        // router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     ssize_t result = 0;
-        //     manapi::net::hash::SHA256 hash{};
-        //     hash.init();
-        //     try {
-        //         co_await req.callback_async([&result, &hash] (const char *buffer, ssize_t size)
-        //             -> manapi::future<ssize_t> {
-        //             hash.update(reinterpret_cast<const uint8_t *>(buffer), size);
-        //             result += size;
-        //             co_return size;
-        //         });
-        //     }
-        //     catch (std::exception const &e) {
-        //         std::cout << e.what() << "\n";
-        //     }
-        //
-        //     std::string b;
-        //     b.resize(36);
-        //     hash.final(reinterpret_cast<uint8_t *>(b.data()));
-        //
-        //     b = manapi::crypto::strdec2strhex(b);
-        //
-        //     std::cout << result << " " << b << "\n";
-        //
-        //     co_return resp.text(std::format("{} : {}", result, b));
-        // });
-        //
-        // router.GET("/download", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
-        // });
-        //
-        // router.GET("/video", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     std::cout<<"video send to "<<req.ip_data().ip <<":"<<(int)req.ip_data().port<<"\n";
-        //     resp.compress_enabled(false);
-        //     resp.partial_enabled(true);
-        //     co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
-        // });
-        //
-        // router.GET("/timeout", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
-        //     -> manapi::future<> {
-        //     std::cout << "wait\n";
-        //     co_await manapi::async::delay{50000, manapi::async::cancellation_action::unit(req.cancellation())};
-        //     std::cout << "YAY (cancelled?)\n";
-        //     co_return resp.text("50000ms");
-        // });
-        //
-        // router.GET ("/ai", [] (http::req &req, http::resp &resp)
-        //     -> manapi::future<> {
-        //     if (!req.contains_get_param("text")) {
-        //         co_return resp.text("GET param 'text' doesn't exists");
-        //     }
-        //
-        //
-        //
-        //     std::string ip = "https://localhost:8885/video";
-        //     int timeout = 2000;
-        //     if (req.contains_get_param("timeout")) {
-        //         try {
-        //             timeout = std::stoi(req.get("timeout"));
-        //         }
-        //         catch (...) {
-        //
-        //         }
-        //     }
-        //     if (req.contains_get_param("ip"))
-        //         ip = req.get("ip");
-        //
-        //     auto text = req.get("text");
-        //
-        //     auto response = co_await manapi::net::fetch2::fetch(ip, {
-        //         {"method", "GET"},
-        //         {"http", "2"},
-        //         {"verify_peer", false},
-        //         {"alpn", false},
-        //         {"verbose", true},
-        //         {"headers", {
-        //             {"content-type", "application/json"},
-        //             {"authorization", "Bearer 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"}
-        //         }}
-        //     });
-        //
-        //     co_return resp.text("yes");
-        //
-        //     if (!response.ok()) {
-        //         co_return resp.text(std::format("fetch failed. Http Status: {}", response.status()));
-        //     }
-        //
-        //     auto data = co_await response.text();
-        //     co_return resp.text(std::move(data));
-        // });
-        //
-        // // router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable
-        // //     -> manapi::future<> {
-        // //     try {
-        // //         auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
-        // //     }
-        // //     catch (...) {
-        // //         /* already exists */
-        // //     }
-        // //     auto res = co_await db.exec("SELECT * FROM for_test;");
-        //
-        // //     std::string content = "b";
-        // //     for (const auto &row: res) {
-        // //         content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
-        // //     }
-        //
-        // //     co_return resp.text(std::move(content));
-        // // });
-        //
-        // manapi::async::run([router] () mutable -> manapi::future<> {
-        //    //co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
-        //
-        //     co_await router.config("config.json");
-        //     co_await router.start();
-        // });
-        runServer();
+
+        using http = manapi::net::http::server;
+        //manapi::ext::pq::connection db;
+        manapi::net::http::server router (server_ctx);
+
+        router.GET("/", FOLDER, [] (http::req &req, http::resp &resp)
+            -> manapi::future<> {
+            resp.compress_enabled(true);
+            resp.compress("zstd");
+            co_return;
+        });
+
+        router.GET("/", [] (http::req &req, http::resp &resp) -> manapi::future<> {
+            co_return resp.file(FOLDER"index.html");
+        });
+
+        router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            std::cout << "MAIN PAGE\n";
+            a.fetch_add(1);
+            resp.compress_enabled(false);
+            co_return resp.text("");
+        });
+
+        router.GET ("/stat", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            std::cout << "/stat\n";
+            resp.compress_enabled(false);
+            co_return resp.text(std::to_string(a.load()));
+        });
+
+        router.GET ("/favicon.ico", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress_enabled(false);
+            co_return resp.text("no");
+        });
+
+        router.GET ("/zstd", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress("zstd");
+            resp.compress_enabled(true);
+            co_return resp.file("./test.html");
+        });
+
+        router.GET ("/brotli", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress("br");
+            resp.compress_enabled(true);
+            co_return resp.file("./test.html");
+        });
+
+        router.GET ("/gzip", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress("gzip");
+            resp.compress_enabled(true);
+            co_return resp.file("./test.html");
+        });
+
+        router.GET ("/deflate", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            resp.compress("deflate");
+            resp.compress_enabled(true);
+            co_return resp.file("./test.html");
+        });
+
+        router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable
+            -> manapi::future<> {
+            resp.compress_enabled(false);
+            co_return resp.text(std::to_string(cnt->fetch_add(1)));
+        });
+
+        router.GET("/random", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+            try {
+                std::string data;
+                data.resize(64);
+                manapi::async::cancellation_action cancellation;
+                cancellation.timeout(5000);
+                co_await manapi::crypto::async_random_string(GCTX(data.data(), data.size(), std::move(cancellation)));
+                data = manapi::crypto::strdec2strhex(data);
+                co_return resp.text(std::move(data));
+            }
+            catch (...) {
+                co_return resp.text("error");
+            }
+        });
+
+        router.POST ("/formdata", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            ssize_t result = 0;
+            manapi::net::hash::SHA256 hash{};
+            hash.init();
+            try {
+                co_await req.form([&result, &hash] (std::string name) -> manapi::net::formdata_recv::ondata_cb_t {
+                    return manapi::net::formdata_recv::save_file(std::move(name));
+                });
+            }
+            catch (std::exception const &e) {
+                std::cout << e.what() << "\n";
+            }
+
+            std::string b;
+            b.resize(36);
+            hash.final(reinterpret_cast<uint8_t *>(b.data()));
+
+            b = manapi::crypto::strdec2strhex(b);
+
+            std::cout << result << " " << b << "\n";
+
+            co_return resp.text(std::format("{} : {}", result, b));
+        });
+
+        router.GET ("/chunked", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            try {
+                auto cancellation = manapi::async::cancellation_action::unit(req.cancellation());
+                cancellation.timeout(5000);
+                cancellation.ask_cancel_callback();
+                manapi::filesystem::fstream file ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
+                    std::move(cancellation));
+                co_await file.open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
+                if (!file.is_open()) {
+                    co_return resp.text("failed to open the file");
+                }
+
+                auto fetch = co_await manapi::net::fetch2::fetch("https://localhost:8888/upload", {
+                    {"http", "1.1"},
+                    {"verify_peer", false},
+                    {"verbose", false},
+                    {"alpn", false},
+                    {"method", "POST"},
+                    {"headers", {
+                        {"transfer-encoding", "chunked"}
+                        // {"content-length", "298512394"}
+                    }}
+                }, [file] (char *body, ssize_t size) mutable -> manapi::future<ssize_t> {
+                    return file.read(body, size);
+                });
+
+                co_await file.close();
+
+                if (!fetch.ok()) {
+                    co_return resp.text(std::format("status : {}", fetch.status()));
+                }
+                co_return resp.text(co_await fetch.text());
+            }
+            catch (std::exception const &e) {
+                co_return resp.text(e.what());
+            }
+        });
+
+        router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            ssize_t result = 0;
+            manapi::net::hash::SHA256 hash{};
+            hash.init();
+            try {
+                co_await req.callback_async([&result, &hash] (const char *buffer, ssize_t size)
+                    -> manapi::future<ssize_t> {
+                    hash.update(reinterpret_cast<const uint8_t *>(buffer), size);
+                    result += size;
+                    co_return size;
+                });
+            }
+            catch (std::exception const &e) {
+                std::cout << e.what() << "\n";
+            }
+
+            std::string b;
+            b.resize(36);
+            hash.final(reinterpret_cast<uint8_t *>(b.data()));
+
+            b = manapi::crypto::strdec2strhex(b);
+
+            std::cout << result << " " << b << "\n";
+
+            co_return resp.text(std::format("{} : {}", result, b));
+        });
+
+        router.GET("/download", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            co_return resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
+        });
+
+        router.GET("/video", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            std::cout<<"video send to "<<req.ip_data().ip <<":"<<(int)req.ip_data().port<<"\n";
+            resp.compress_enabled(false);
+            resp.partial_enabled(true);
+            co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+        });
+
+        router.GET("/timeout", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            std::cout << "wait\n";
+            co_await manapi::async::delay{50000, manapi::async::cancellation_action::unit(req.cancellation())};
+            std::cout << "YAY (cancelled?)\n";
+            co_return resp.text("50000ms");
+        });
+
+        router.GET ("/ai", [] (http::req &req, http::resp &resp)
+            -> manapi::future<> {
+            if (!req.contains_get_param("text")) {
+                co_return resp.text("GET param 'text' doesn't exists");
+            }
+
+
+
+            std::string ip = "https://localhost:8885/video";
+            int timeout = 2000;
+            if (req.contains_get_param("timeout")) {
+                try {
+                    timeout = std::stoi(req.get("timeout"));
+                }
+                catch (...) {
+
+                }
+            }
+            if (req.contains_get_param("ip"))
+                ip = req.get("ip");
+
+            auto text = req.get("text");
+
+            auto response = co_await manapi::net::fetch2::fetch(ip, {
+                {"method", "GET"},
+                {"http", "2"},
+                {"verify_peer", false},
+                {"alpn", false},
+                {"verbose", true},
+                {"headers", {
+                    {"content-type", "application/json"},
+                    {"authorization", "Bearer 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"}
+                }}
+            });
+
+            co_return resp.text("yes");
+
+            if (!response.ok()) {
+                co_return resp.text(std::format("fetch failed. Http Status: {}", response.status()));
+            }
+
+            auto data = co_await response.text();
+            co_return resp.text(std::move(data));
+        });
+
+        manapi::async::run([router] () mutable -> manapi::future<> {
+           //co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
+
+            co_await router.config("config.json");
+            co_await router.start();
+        });
 
         bind();
     });
     return 0;
 }
-
-// using namespace std;
-// using namespace manapi::net;
-// int main (int argc, char *argv[]) {
-//     manapi::debug::debug_print_memory("start");
-//
-//
-//     {
-//         auto ctx = manapi::async::context::create(16, 0.01);
-//         ctx->eventloop()->setup_handle_interrupt();
-//
-//
-//         auto task = std::make_unique<manapi::function_task> ([] ()
-//             -> void { std::cout << "Hello World\n"; });
-//         ctx->taskpool()->append_task(std::move(task));
-//
-//         http::server server (ctx);
-//         server.config("./config.json");
-//
-//         server.GET ("/", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/index.html");
-//             co_return;
-//         }, nullptr, nullptr);
-//
-//         server.GET ("/http-test", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.text("hello world");
-//             co_return;
-//         }, nullptr, nullptr);
-//
-//         server.GET ("/test78", [&server, ctx] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//
-//             co_await ctx->timerpool()->async_append_timer_async(500, [ctx] (manapi::timer t) -> manapi::future<> {
-//                 /**
-//                  * called in the event loop thread.
-//                  * from other threads (which aren't an event loop) it will be undefined behaviour (UB)
-//                  */
-//                 co_await ctx->timerpool()->async_append_interval_sync(500, [ctx, index = 0] (manapi::timer t) mutable
-//                     -> void { std::cout << std::format("interval: cnt {}\n", index++); });
-//             });
-//
-//             co_return resp.text("timer has been added");
-//         });
-//
-//         server.GET ("/lenar", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.compress_enabled(false);
-//             resp.file ("/opt/clion.zip");
-//             co_return;
-//         });
-//
-//         server.GET ("+layer", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.header("test", "test");
-//             co_return;
-//         });
-//
-//         server.OPTIONS("+error", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.header("allow", "OPTIONS, GET, POST");
-//             resp.status(204);
-//             co_return;
-//         });
-//
-//         server.GET ("/test2", [ctx] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             fetch response (ctx, "http://localhost:8889");
-//             response.method("GET");
-//             // response.set_body(json2form({
-//             //     {"first-name", "Timur"},
-//             //     {"last-name", "Zajnullin"},
-//             //     {"file", "lol OK ??&?45=ersdf--  \\"}
-//             // }));
-//             response.enable_ssl_verify(false);
-//             // response.set_custom_setup([] (CURL *curl) -> void {
-//             //     curl_easy_setopt(curl, CURLOPT_HTTP_VERSION,
-//             //          (long)CURL_HTTP_VERSION_3);
-//             // });
-//             resp.text(co_await response.text());
-//             co_return;
-//         });
-//
-//         server.GET ("/video", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.compress_enabled(false);
-//             resp.partial_enabled(true);
-//             resp.header(http::HEADER.CONTENT_TYPE, manapi::mime::types.VIDEO_MP4);
-//
-//             resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
-//             co_return;
-//         });
-//
-//         server.POST("/custom-cb", [&] (REQ(req), RESP(resp)) -> manapi::future<> {
-//             ssize_t s = 0;
-//             for (auto &header : req.headers()) {
-//                 std::cout << header.first << ": " << header.second << "\n";
-//             }
-//             std::string result;
-//
-//             co_await req.callback_sync([&result, &s] (const char *buffer, ssize_t size)
-//                 -> ssize_t {
-//                 s += size;
-//                 result += std::format("result = {}</br>", size); return size;
-//             });
-//             result = std::to_string(s) + "<hr>" + result;
-//             resp.text(std::move(result));
-//         });
-//
-//         server.GET ("/test-custom-cb2", [ctx] (REQ(req), RESP(resp)) -> manapi::future<> {
-//             if (!req.contains_get_param("file")) {
-//                 co_return resp.text("msg: GET parameter 'file' not found in the URL");
-//             }
-//             manapi::filesystem::fstream fio (ctx, req.get("file"));
-//             co_await fio.open(fio.FILE_READ);
-//             if (!fio.is_open()) {
-//                 co_return resp.text("hnnn");
-//             }
-//             ssize_t ff = 0;
-//             auto response = co_await manapi::net::fetch2::fetch (ctx,  "https://localhost:8080", {
-//                 {"alpn", true},
-//                 {"http2", true},
-//                 {"ssl_verify", false},
-//                 {"method", "POST"},
-//                 {"verbose", true},
-//                 {"headers", {
-//                         {"content-length", fio.total_size()},
-//                     {"content-type", manapi::mime::types.TEXT_PLAIN}
-//                 }}
-//             }, [fio, &ff] (char *buffer, ssize_t size) mutable
-//                 -> manapi::future<ssize_t> {
-//                 auto rhs = co_await fio.read(buffer, size);
-//                 ff+=rhs;
-//                 if (rhs <= 0) {
-//                     std::cout << "we are here: " << ff <<" ? " << fio.tellg() << "/" << fio.total_size()<<"\n";
-//                 }
-//                 co_return rhs;
-//             });
-//             std::cout << "skip\n";
-//             co_return resp.text(co_await response.text());
-//         }, {{"file", "{string|none}"}});
-//
-//         server.GET ("/ansar", "/home/Timur/ansar");
-//
-//         server.GET ("/test-custom-cb", [ctx] (REQ(req), RESP(resp)) -> manapi::future<> {
-//             if (!req.contains_get_param("file")) {
-//                 co_return resp.text("msg: GET parameter 'file' not found in the URL");
-//             }
-//             manapi::filesystem::fstream fio (ctx, req.get("file"));
-//             co_await fio.open(fio.FILE_READ);
-//             if (!fio.is_open()) {
-//                 co_return resp.text("hnnn");
-//             }
-//             ssize_t ff = 0;
-//             auto response = co_await manapi::net::fetch2::fetch (ctx,  "https://localhost:8888/custom-cb/", {
-//                 {"alpn", false},
-//                 {"http2", true},
-//                 {"ssl_verify", false},
-//                 {"method", "POST"},
-//                 {"verbose", true},
-//                 {"headers", {
-//                         {"content-length", fio.total_size()},
-//                     {"content-type", manapi::mime::types.TEXT_PLAIN}
-//                 }}
-//             }, [fio, &ff] (char *buffer, ssize_t size) mutable
-//                 -> manapi::future<ssize_t> {
-//                 auto rhs = co_await fio.read(buffer, size);
-//                 ff+=rhs;
-//                 if (rhs <= 0) {
-//                     std::cout << "we are here: " << ff <<" ? " << fio.tellg() << "/" << fio.total_size()<<"\n";
-//                 }
-//                 co_return rhs;
-//             });
-//             std::cout << "skip\n";
-//             co_return resp.text(co_await response.text());
-//         }, {{"file", "{string|none}"}});
-//
-//         // server.GET ("/bigfile", [] (REQ(req), RESP(resp)) {
-//         //     resp.compress_enabled(false);
-//         //     resp.partial_enabled(false);
-//         //
-//         //     resp.file("/home/Timur/Downloads/Фотосессия Иглино.zip");
-//         // });
-//
-//         server.POST("/sha256sum", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-//             manapi::net::hash::SHA256 sha256;
-//
-//             ssize_t s = 0;
-//             sha256.init();
-//             co_await req.callback_sync([&sha256, &s] (const void *buffer, ssize_t size)
-//                 -> ssize_t {
-//
-//                 sha256.update(static_cast<const uint8_t *>(buffer), size);
-//
-//                 s += size;
-//                 return size;
-//             });
-//
-//             std::string diggest;
-//             diggest.resize(32);
-//             sha256.final(reinterpret_cast <uint8_t *>(diggest.data()));
-//             auto a = manapi::crypto::strdec2strhex(std::move(diggest));
-//             resp.text(std::format("hex={} size={}", a, s));
-//         });
-//
-//         server.GET("/proxy", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             manapi::json jp = {
-//                     {"error", false},
-//                     {"message", "this is a list"},
-//                     {"hello", nullptr}
-//             };
-//
-//             try {
-//                 jp["hello"] = req.get("hello");
-//             }
-//             catch (const manapi::exception &e)
-//             {
-//                 std::cerr << e.what() << "\n";
-//             }
-//
-//             resp.compress_enabled(false);
-//             resp.header(http::HEADER.CONTENT_TYPE, manapi::mime::types.APPLICATION_JS + ";charset=UTF-8");
-//
-//             resp.json (jp, 4);
-//             co_return;
-//         });
-//
-//         server.POST ("/json", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             auto res = co_await req.json();
-//             res[0]["hello"] = "world";
-//             resp.json(std::move(res));
-//         });
-//
-//         server.POST ("/file", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             co_await req.file("/home/Timur/test.docx");
-//             co_return resp.text("OK");
-//         });
-//
-//         server.POST ("/formdata", [&] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             formdata_send formdata (ctx);
-//             formdata.append_text("hello", "world");
-//             formdata.append_file("file", "/home/Timur/test.docx");
-//             co_return resp.form(std::move(formdata));
-//         });
-//
-//         server.POST ("/exit", [&] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             exit(-1);
-//             co_return;
-//         });
-//
-//         server.POST ("/test_fetch", [&] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             auto fetch = co_await manapi::net::fetch2::fetch(ctx, "https://localhost:8888/formdata");
-//             resp.text(co_await fetch.text());
-//         });
-//
-//         server.GET ("/text", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             MANAPIHTTP_LOG("{}", "REQ GET");
-//             resp.compress_enabled(false);
-//             resp.header(http::HEADER.CONTENT_TYPE, manapi::mime::types.TEXT_PLAIN);
-//
-//             std::ifstream f ("/home/Timur/.p10k.zsh");
-//
-//             if (!f.is_open()) {
-//                 resp.json({
-//                     {"error", "could not open the file"}
-//                 });
-//
-//                 co_return;
-//             }
-//
-//             std::string content;
-//             while (f) {
-//                 std::string line;
-//                 std::getline(f, line);
-//                 content += line + "\n";
-//             }
-//
-//             resp.text (content);
-//             co_return;
-//         });
-//
-//         server.GET ("/+error", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.replacers({
-//                    {"status_code", std::to_string(resp.status_code())},
-//                    {"status_message", std::string{resp.status_message()}},
-//                    {"url", "/noooo"}
-//             });
-//
-//             resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/error.html");
-//             co_return;
-//         });
-//
-//         server.POST ("/+error", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.header(http::HEADER.CONTENT_TYPE, manapi::mime::types.APPLICATION_JSON);
-//             resp.json({
-//                               {"error", true},
-//                               {"message", "just a error"}
-//             });
-//             co_return;
-//         });
-//
-//         server.GET ("/noooo", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.header(http::HEADER.CONTENT_TYPE, manapi::mime::types.VIDEO_MP4);
-//             resp.partial_enabled(true);
-//             resp.compress_enabled(false);
-//
-//             resp.file("/home/Timur/Downloads/VideoDownloader/no.mp4");
-//             co_return;
-//         });
-//
-//         server.GET ("/nonoo", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.partial_enabled(true);
-//             resp.compress_enabled(false);
-//             resp.header(http::HEADER.CONTENT_TYPE, manapi::mime::types.VIDEO_MP4);
-//
-//             resp.file("/home/Timur/Downloads/VideoDownloader/nono.mp4");
-//             co_return;
-//         });
-//
-//         // server.GET ("/[filename]-[extension]", [](REQ(req), RESP(resp)) {
-//         //     auto &filename     = req.get_param("filename");
-//         //     auto &extension    = req.get_param("extension");
-//         //
-//         //     resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test/" + filename + '.' + extension);
-//         // });
-//         //
-//         // server.GET ("/[filename]-[extension]/+error", [](REQ(req), RESP(resp)) {
-//         //     resp.replacers({
-//         //            {"status_code", std::to_string(resp.get_status_code())},
-//         //            {"status_message", resp.get_status_message()},
-//         //            {"url", "/nonoo"}
-//         //    });
-//         //
-//         //     resp.file ("/home/Timur/Desktop/WorkSpace/oneworld/error.html");
-//         // });
-//         server.GET ("/bigfile", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             std::cout << req.dump() << '\n';
-//             resp.partial_enabled(false);
-//             resp.compress_enabled(false);
-//
-//             resp.file("/home/Timur/Desktop/WorkSpace/oneworld/test.ISO");
-//             co_return;
-//         });
-//
-//         server.GET ("/мем4", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.partial_enabled(true);
-//             resp.file ("/home/Timur/Downloads/video3.mp4");
-//             co_return;
-//         });
-//
-//         server.GET("мемs", "/home/Timur/Downloads/VideoDownloader");
-//
-//         server.GET ("/favicon.ico", [](REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.file("/home/Timur/Documents/leon.ico");
-//             co_return;
-//         });
-//
-//         server.GET("/test", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             // fetch fetch ("http://127.0.0.1:8887/response");
-//             // fetch.set_method("GET");1
-//             // resp.text(fetch.text());
-//                 std::cout << req.header("test").size() << "\n";
-//             co_return;
-//         });
-//
-//
-//         const manapi::json_mask form_mask = {
-//             {"first-name", "{string(>=5 <50)}"},
-//             {"last-name", "{string(>=5 <70)}"}
-//         };
-//
-//         server.GET("/stop", [&server] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             co_await server.stop();
-//
-//             resp.text("OK");
-//             co_return;
-//         });
-//
-//         server.GET("/audio", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//
-//             resp.partial_enabled(true);
-//             resp.compress_enabled(true);
-//             resp.compress("gzip");
-//             resp.file("/home/Timur/Music/Death By Glamour.mp3");
-//             co_return;
-//         });
-//
-//         server.GET("/pproxy", [&ctx](http::server::req &req, http::server::resp &resp) -> manapi::future<> {
-//             auto fetch = co_await manapi::net::fetch2::fetch (ctx, "https://localhost:8888", {
-//                 {"ssl_verify", false},
-//                 {"alpn", false},
-//                 {"method", "GET"},
-//                 {"http1_1", true}
-//             });
-//
-//             if (!fetch.ok()) {
-//                 co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
-//             }
-//
-//             co_return resp.text(co_await fetch.text());
-//         });
-//
-//         server.GET("/cat/[id]", [&ctx](http::server::req &req, http::server::resp &resp) -> manapi::future<> {
-//             auto fetch = co_await manapi::net::fetch2::fetch (ctx, "https://dragonball-api.com/api/planets/" + req.param("id"), {
-//                 {"enable_ssl_verify", false},
-//                 {"enable_alpn", true},
-//                 {"method", "GET"}
-//             });
-//
-//             if (!fetch.ok()) {
-//                 co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
-//             }
-//
-//             auto data = co_await fetch.json();
-//
-//             co_return resp.text(std::move(data["description"].as_string()));
-//         });
-//
-//         server.GET("/download/[id]", [&ctx] (http::server::req &req, http::server::resp &resp) -> manapi::future<> {
-//             co_return resp.proxy("http://www.fileconvoy.com/gf.php?id=g80195ca999d418791000586375.1836287cfc9eb241a43a68c&sts=17439984947779173102dccc3e2f7eed59ab7329055cde9bb6d0");
-//         });
-//
-//         server.GET("/freeze", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.text(std::to_string(1));
-//             co_return;
-//         });
-//
-//         server.GET ("/largeheader", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             resp.header("set-cookie", manapi::string::random(8000));
-//             resp.text("hehehehe");
-//             co_return;
-//         });
-//
-//         server.POST ("/form", [] (REQ(req), RESP(resp)) -> manapi::future<void> {
-//             auto formData = co_await req.form();
-//
-//             resp.compress_enabled(false);
-//
-//             resp.header(http::HEADER.CONTENT_TYPE, manapi::mime::types.APPLICATION_JSON + ";charset=UTF-8");
-//
-//             manapi::json obj = manapi::json::object();
-//
-//             do {
-//                 if (formData.next_param()) {
-//                     auto data = co_await formData.get_param();
-//                     obj.insert(data.first, data.second);
-//                     continue;
-//                 }
-//                 if (formData.next_file()) {
-//                     auto data = formData.about_file();
-//                     obj.insert(data.param_name, std::format("[binary({})]", data.file_name));
-//                     co_await formData.get_file([] (const char *buff, const size_t &size) -> void {});
-//                     continue;
-//                 }
-//                 break;
-//             } while (true);
-//             cout << obj.dump(2) << "\n";
-//             resp.json (obj, 4);
-//             co_return;
-//         });
-//
-//         server.GET ("/music", [ctx](REQ(req), RESP(resp)) -> manapi::future<void> {
-//             std::string response;
-//             response += manapi::crypto::strdec2strhex(co_await manapi::crypto::async_random_string(ctx, 100)) + "<hr />";
-//             for (const auto &file: std::filesystem::directory_iterator ("/home/Timur/Music")) {
-//                 std::string filename = file.path().filename().string();
-//                 response += std::format("<a href=\"/music/{}\">{}</a><br />", manapi::unicode::escape_string(filename), file.path().filename().string());
-//             }
-//             resp.text(response);
-//             co_return;
-//         });
-//
-//         server.GET("/music", "/home/Timur/Music");
-//
-//         server.GET ("/", "/home/Timur/Desktop/WorkSpace/oneworld/");
-//
-//         manapi::debug::debug_print_memory("pool");
-//
-//         manapi::async::run (ctx, server.start());
-//
-//         ctx->sync_start();
-//
-//         manapi::debug::debug_print_memory("preend");
-//
-//         // manapi::debug::debug_print_memory("preend 2");
-//
-//         auto &b = manapi::async::async_tasks;
-//         printf("ASYNC STACK: %zi. ctx: %zi\n", b.size(), ctx.use_count());
-//
-//         manapi::debug::debug_print_memory("preend 8");
-//     }
-//
-//     manapi::async::async_tasks = std::move(typeof (manapi::async::async_tasks){});
-//
-//     //sleep(2);
-//
-//     manapi::debug::debug_print_memory("end");
-//
-//     return 0;
-// }

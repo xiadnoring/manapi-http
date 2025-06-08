@@ -36,6 +36,7 @@ namespace manapi::ev {
     typedef std::move_only_function<void(std::shared_ptr<ev::check> &)> check_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::idle> &)> idle_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::io> &, int status, int revents)> io_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::tcp> &, int status)> connect_tcp_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::tcp> &, ssize_t nread, const uv_buf_t *buf)> tcp_connection_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::udp> &, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags)> udp_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::udp_send> &, int status)> udp_send_cb;
@@ -108,6 +109,13 @@ namespace manapi {
          * @throws manapi::exception with ERR_WATCHER_BIND code
          */
         std::shared_ptr<ev::tcp> create_watcher_tcp_connection (ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb);
+        /**
+         *
+         * @param read Callback
+         * @return
+         * @throws manapi::exception with ERR_WATCHER_BIND code
+         */
+        std::pair<std::shared_ptr<ev::connect>, std::shared_ptr<ev::tcp>> connect_tcp (const sockaddr *addr, ev::connect_tcp_cb on_connect, ev::tcp_connection_cb read, ev::tcp_alloc_cb alloc_cb);
         /**
          *
          * @param recv Callback
@@ -207,8 +215,11 @@ namespace manapi {
         
         void stop_callback (const std::shared_ptr<ev::udp> &s, ev::close_cb_t<ev::udp> cb);
 
-        void stop_watcher_tcp_accept (std::shared_ptr<ev::tcp> s);
-        void stop_watcher_tcp_connection (std::shared_ptr<ev::tcp> s);
+        void read_callback (const std::shared_ptr<ev::tcp> &s, ev::tcp_connection_cb cb);
+
+        void alloc_callback (const std::shared_ptr<ev::tcp> &s, ev::tcp_alloc_cb cb);
+
+        void stop_watcher (std::shared_ptr<ev::tcp> s);
 
         [[nodiscard]] const std::shared_ptr<threadpool<task>> &taskpool () const;
 #if MANAPIHTTP_CURL_DEPENDENCY

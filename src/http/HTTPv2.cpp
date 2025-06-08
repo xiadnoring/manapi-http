@@ -400,19 +400,19 @@ int http_v2_flush_recv (const manapi::net::worker::shared_conn &conn, manapi::ne
 
         if (!s->recv->deque) {
             s->recv->last_deque = nullptr;
-            b->resize(s->recv->deque_cursor);
+            b.resize(s->recv->deque_cursor);
 
             s->recv->deque_cursor = 0;
         }
 
         if (s->recv->deque_current) {
-            b->shift_add(s->recv->deque_current);
+            b.shift_add(s->recv->deque_current);
             s->recv->deque_current = 0;
         }
 
-        sz = static_cast<ssize_t>(b->size());
+        sz = static_cast<ssize_t>(b.size());
         if (sz) {
-            s->ev_callback->operator()(conn, manapi::ev::READ, b->data(), sz, &b);
+            s->ev_callback->operator()(conn, manapi::ev::READ, b.data(), sz, &b);
         }
     }
 
@@ -1397,7 +1397,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 }
                                 else {
                                     if (datasize != worker::base::connection_io_send(sdata->recv.get(), buffer + pos,
-                                        datasize, sdata->ctx->worker->bufferpool().get(), static_cast<int>(config->buffer_size), &sdata->recv_size, maxcnt)) {
+                                        datasize, &sdata->ctx->worker->bufferpool(), static_cast<int>(config->buffer_size), &sdata->recv_size, maxcnt)) {
                                         return EHTTP_V2_PROTOCOL_ERROR;
                                         }
 

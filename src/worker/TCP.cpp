@@ -139,8 +139,7 @@ void manapi::net::worker::TCP::init() {
         }
 
 
-        this->http_v2_worker = std::make_shared<net::worker::http_v2>(this->site(),
-            this->bufferpool(), this->worker_data(), this->config_);
+        this->http_v2_worker = std::make_shared<net::worker::http_v2>(this->site(), this->worker_data(), this->config_);
         return;
     }
     catch (std::exception const &e) {
@@ -206,7 +205,7 @@ void manapi::net::worker::TCP::onaccept(std::shared_ptr<ev::tcp> &watcher, int s
 
 void manapi::net::worker::TCP::onrecv(std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer) {
     auto const connection = conn->as<connection_interface>();
-    auto const size = static_cast<int>(buffer->size());
+    auto const size = static_cast<int>(buffer.size());
     if (connection->status & CONN_LIMIT_RATE) {
         connection->transfered += size;
         if (connection->transfered >= this->config_->speed_limit_rate) {
@@ -215,7 +214,7 @@ void manapi::net::worker::TCP::onrecv(std::shared_ptr<ev::tcp> &watcher, const w
     }
 
 
-    tcp_handle_read_data(conn, connection, ev::READ, buffer->data(), size, &buffer);
+    tcp_handle_read_data(conn, connection, ev::READ, buffer.data(), size, &buffer);
 }
 
 std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
@@ -238,12 +237,14 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
                 }
 
                 if (nread < 0) {
+                    /* maybe EOF */
                     this->close_connection(connection, false);
                     return;
                 }
 
-                auto object = this->bufferpool()->get(std::make_unique<bytebuffer>(buf->base, buf->len));
-                object->resize(nread);
+                auto object = this->bufferpool().slice(buf->base, buf->len);
+                object.resize(nread);
+
                 this->onrecv(w, connection, std::move(object));
             }
             catch (std::exception const &e) {
@@ -251,23 +252,20 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
                     manapi::ERR_FATAL, "tcp: onrecv(...) unexpected error: {}", e.what());
             }
     }, [this] (std::shared_ptr<ev::tcp> &, size_t suggested_size, ev::buff_t *buff) -> void {
-        auto buffer = this->bufferpool()->get();
-        buffer->resize(suggested_size);
-        auto object = buffer.release();
-
-        buff->len = object->realsize();
-        buff->base = static_cast<char *>(object->release());
+        auto buffer = this->bufferpool().slice(suggested_size);
+        buff->len = buffer.size();
+        buff->base = static_cast<char *>(buffer.release());
     });
 
 
     if (client->accept(w.get())) {
-        manapi::async::current()->eventloop()->stop_watcher_tcp_connection(std::move(client));
+        manapi::async::current()->eventloop()->stop_watcher(std::move(client));
         return nullptr;
     }
 
     if (auto rhs = client->keepalive(!!this->config_->keep_alive, this->config_->keep_alive)) {
         manapi::async::current()->logger()->error(logger::default_service, ERR_SOCKET, "couldn't set keep-alive due to result - {}", rhs);
-        manapi::async::current()->eventloop()->stop_watcher_tcp_connection(std::move(client));
+        manapi::async::current()->eventloop()->stop_watcher(std::move(client));
         return nullptr;
     }
 
@@ -331,7 +329,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
             connection->ev_callback->operator()(conn, ev::DISCONNECT, nullptr, 0, nullptr);
         }
         connection->watcher->read_stop();
-        manapi::async::current()->eventloop()->stop_watcher_tcp_connection(std::move(connection->watcher));
+        manapi::async::current()->eventloop()->stop_watcher(std::move(connection->watcher));
 
         this->connections.erase(reinterpret_cast<uintptr_t> (conn.get()));
     }
@@ -362,7 +360,7 @@ void manapi::net::worker::TCP::stop(std::function<void()> cb) {
                 }
             });
         manapi::async::current()->eventloop()
-            ->stop_watcher_tcp_accept(std::move(this->watcher_accept_));
+            ->stop_watcher (std::move(this->watcher_accept_));
     }
 }
 
@@ -398,7 +396,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
 
 
     if (rhs != size) {
-        rhs += connection_io_send (&connection->top->send, static_cast<const char *>(buff) + rhs, size - rhs, this->bufferpool().get(),
+        rhs += connection_io_send (&connection->top->send, static_cast<const char *>(buff) + rhs, size - rhs, &this->bufferpool(),
             this->config_->buffer_size, &connection->top->send_size, maxcnt);
 
         connection->transfered += rhs;
@@ -485,7 +483,7 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
     bool flg = false;
 
     while (conn->top->send.last_deque && ((conn->top->send.deque.get() != conn->top->send.last_deque
-        || (conn->top->send.deque->buffer->size() == conn->top->send.deque_cursor)) || flush)) {
+        || (conn->top->send.deque->buffer.size() == conn->top->send.deque_cursor)) || flush)) {
         flg = true;
 
         auto object = std::move(conn->top->send.deque->buffer);
@@ -493,18 +491,18 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
 
         if (!conn->top->send.deque) {
             conn->top->send.last_deque = nullptr;
-            object->resize(conn->top->send.deque_cursor);
+            object.resize(conn->top->send.deque_cursor);
             conn->top->send.deque_cursor = 0;
         }
 
         if (conn->top->send.deque_current) {
-            object->shift_add(conn->top->send.deque_current);
+            object.shift_add(conn->top->send.deque_current);
             conn->top->send.deque_current = 0;
         }
 
         auto s = std::make_unique<ev::buff_t>();
-        s->base = object->data();
-        s->len = static_cast<std::size_t>(object->size());
+        s->base = object.data();
+        s->len = static_cast<std::size_t>(object.size());
 
         auto w = manapi::async::current()->eventloop()
             ->create_watcher_write(conn->watcher.get(), [connection, b = std::move(object), s = std::move(s)]
@@ -549,19 +547,19 @@ void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_i
 
             if (!data->top->recv.deque) {
                 data->top->recv.last_deque = nullptr;
-                object->resize(data->top->recv.deque_cursor);
+                object.resize(data->top->recv.deque_cursor);
                 data->top->recv.deque_cursor = 0;
             }
 
             if (data->top->recv.deque_current) {
-                object->shift_add(data->top->recv.deque_current);
+                object.shift_add(data->top->recv.deque_current);
                 data->top->recv.deque_current = 0;
             }
 
 
-            if (!object->empty()) {
-                tcp_handle_read_data(conn, data, ev::READ, object->data(),
-                    static_cast<ssize_t>(object->size()), &object);
+            if (!object.empty()) {
+                tcp_handle_read_data(conn, data, ev::READ, object.data(),
+                    static_cast<ssize_t>(object.size()), &object);
             }
         }
     }
@@ -811,7 +809,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
     auto connection = static_cast<connection_interface *> (ptr);
     if (connection->watcher) {
         connection->watcher->read_stop();
-        manapi::async::current()->eventloop()->stop_watcher_tcp_connection(std::move(connection->watcher));
+        manapi::async::current()->eventloop()->stop_watcher(std::move(connection->watcher));
     }
 
     //std::cout << "CLOSE 2\n";
@@ -891,7 +889,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     this->event_flags(conn, 0);
 
                     connection_io_send(&data->top->recv, buff, size,
-                        this->bufferpool().get(), this->config_->buffer_size, &data->top->recv_size, 1e5);
+                        &this->bufferpool(), this->config_->buffer_size, &data->top->recv_size, 1e5);
 
                     cdata->router = this->site().handler(req_ptr);
                     net::http::internal::handle_income_request(std::move(cdata), http::OK_200);
@@ -948,7 +946,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     }
 
                     connection_io_send(&data->top->recv, buff, size,
-                        this->bufferpool().get(), this->config_->buffer_size, &data->top->recv_size, 1e5);
+                        &this->bufferpool(), this->config_->buffer_size, &data->top->recv_size, 1e5);
 
                     break;
                 }
@@ -1036,7 +1034,7 @@ void manapi::net::worker::TCP::conn_work_finish_(worker::shared_conn conn, bool 
             this->event_flags(conn, ev::READ);
 
 
-            if (buffer != nullptr && !buffer->empty()) {
+            if (buffer && !buffer.empty()) {
                 this->onrecv(data->watcher, conn, std::move(buffer));
             }
             else {

@@ -19,7 +19,7 @@ struct manapi::net::fetch::shared_data {
     int flags{0};
     std::unique_ptr<async::mutex> async_run{nullptr};
     ssize_t async_buffer_cursor{0};
-    object_item_pool<manapi::bytebuffer> async_buffer{};
+    manapi::bytebuffer async_buffer{};
     std::unique_ptr<std::move_only_function <void(CURL *)>> handle_custom_setup{nullptr};
     std::unique_ptr<std::move_only_function <ssize_t(char *, ssize_t)>> handler_recv_body{nullptr};
     std::unique_ptr<std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)>> async_handler_recv_body{nullptr};
@@ -51,8 +51,6 @@ struct manapi::net::fetch::data_t {
     std::string method_{};
     std::optional<curlformdata> body_formdata_{};
 };
-
-manapi::object_pool<manapi::bytebuffer, std::true_type> manapi::net::fetch::bufferpool {};
 
 std::map <std::string, CURLoption> manapi::net::fetch::http_method_to_enum {
     {"POST", CURLOPT_POST},
@@ -407,7 +405,7 @@ manapi::future<void> manapi::net::fetch::handle_sync_body_finish(std::shared_ptr
         /* cached */
         ssize_t current = 0, rhs = 0;
         while (current < data->async_buffer_cursor) {
-            if ((rhs = data->handler_recv_body->operator()(data->async_buffer->as<char>() + current, data->async_buffer_cursor - current)) < 0) {
+            if ((rhs = data->handler_recv_body->operator()(data->async_buffer.as<char>() + current, data->async_buffer_cursor - current)) < 0) {
                 data->async_buffer_cursor = 0;
                 manapi::async::current()->eventloop()->unwatch_curl(data->curl);
                 data->async_run->unlock();
@@ -517,10 +515,9 @@ manapi::future<manapi::json> manapi::net::fetch::json() {
 
 
 void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler) {
-    if (!this->data->data_->async_buffer) {
-        this->data->data_->async_buffer = fetch::bufferpool.get();
+    if (!this->data->data_->async_buffer.realsize()) {
+        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().slice(65536);
     }
-    this->data->data_->async_buffer->resize(65536);
     this->data->data_->sync_user_body_cb.reset();
     this->data->data_->async_buffer_cursor = 0;
 
@@ -534,7 +531,7 @@ void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::futur
             ssize_t rhs = -1;
 
             try {
-                rhs = co_await handler (data->async_buffer->as<char>() + total, data->async_buffer_cursor - total);
+                rhs = co_await handler (data->async_buffer.as<char>() + total, data->async_buffer_cursor - total);
             }
             catch (std::exception const &e) {
                 // DEBUG
@@ -586,10 +583,10 @@ void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::futur
 
     this->data->data_->handler_recv_body
     = std::make_unique<decltype(this->data->data_->handler_recv_body)::element_type>([this] (char *buffer, ssize_t size) -> ssize_t {
-        if (this->data->data_->async_buffer_cursor < this->data->data_->async_buffer->size()
-            && this->data->data_->async_buffer->size() - this->data->data_->async_buffer_cursor >= size) {
+        if (this->data->data_->async_buffer_cursor < this->data->data_->async_buffer.size()
+            && this->data->data_->async_buffer.size() - this->data->data_->async_buffer_cursor >= size) {
             const auto copy = size;
-            memcpy(this->data->data_->async_buffer->as<char>() + this->data->data_->async_buffer_cursor, buffer, copy);
+            memcpy(this->data->data_->async_buffer.as<char>() + this->data->data_->async_buffer_cursor, buffer, copy);
             this->data->data_->async_buffer_cursor += copy;
 
             return copy;
@@ -687,18 +684,17 @@ manapi::future<> manapi::net::fetch::body(file_transfer_info file_info) {
 void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler) {
     this->data->body_ = BODY_CALLBACK;
 
-    if (!this->data->data_->async_buffer) {
-        this->data->data_->async_buffer = fetch::bufferpool.get();
+    if (!this->data->data_->async_buffer.realsize()) {
+        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().slice(65536);
     }
-    this->data->data_->async_buffer->resize(65536);
     this->data->data_->async_buffer_cursor = 0;
 
     this->data->data_->async_handler_send_body
     = std::make_unique<decltype(this->data->data_->async_handler_send_body)::element_type>([handler = std::move(handler)] (std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
-        while (data->async_buffer_cursor < data->async_buffer->size()) {
+        while (data->async_buffer_cursor < data->async_buffer.size()) {
             ssize_t rhs = -1;
             try {
-                rhs = co_await handler (data->async_buffer->as<char>() + data->async_buffer_cursor, static_cast<ssize_t>(data->async_buffer->size() - data->async_buffer_cursor));
+                rhs = co_await handler (data->async_buffer.as<char>() + data->async_buffer_cursor, static_cast<ssize_t>(data->async_buffer.size() - data->async_buffer_cursor));
             }
             catch (std::exception const &e) {
                 MANAPIHTTP_LOG( "set_async_body(...) failed: {}", e.what());
@@ -737,7 +733,7 @@ void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize
     = std::make_unique<decltype(this->data->data_->handler_send_body)::element_type>([this, index = ssize_t{0}, result = 0] (char *buffer, ssize_t size) mutable -> ssize_t {
         size = std::min(this->data->data_->async_buffer_cursor-index, size);
         if (size > 0) {
-            memcpy(buffer, this->data->data_->async_buffer->as<char>() + index, size);
+            memcpy(buffer, this->data->data_->async_buffer.as<char>() + index, size);
             index += size;
 
             if (this->data->data_->async_buffer_cursor == index) {

@@ -70,6 +70,10 @@ const std::shared_ptr<manapi::logger> & manapi::async::cthread::logger() {
     return this->logger_;
 }
 
+manapi::object_pool & manapi::async::cthread::memory_fabric() {
+    return this->memory_fabric_;
+}
+
 manapi::async::context::context(shared_eventloop eventloop, std::shared_ptr<mthreadpool<task>> taskpool, shared_timerpool timerpool, shared_logger logger)
     : cthread(std::move(eventloop), std::move(taskpool), std::move(timerpool), std::move(logger))  {
 

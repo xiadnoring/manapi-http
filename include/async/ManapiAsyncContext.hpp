@@ -4,6 +4,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
+#include "../components/ManapiObjectPool.hpp"
 
 namespace manapi::async {
     class context;
@@ -39,6 +40,7 @@ namespace manapi::async {
 }
 
 namespace manapi {
+    class object_pool;
 #if defined (__unix__) || defined(__APPLE__)
     struct sigset_t : public ::sigset_t {};
 #else
@@ -86,6 +88,8 @@ namespace manapi::async {
 
         [[nodiscard]] const shared_logger &logger();
 
+        [[nodiscard]] object_pool &memory_fabric ();
+
         //manapi::future<void> start ();
 
         virtual void sync_start ();
@@ -99,6 +103,8 @@ namespace manapi::async {
         shared_timerpool timerpool_;
         shared_taskpool taskpool_;
         shared_logger logger_;
+
+        object_pool memory_fabric_;
     };
 
     typedef std::shared_ptr<cthread> shared_async_thread;

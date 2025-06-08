@@ -241,6 +241,10 @@ namespace manapi::ev {
         FS_ERRNO_MAX = UV_ERRNO_MAX/* -4096 */
     };
 
+    struct buffer_deleter {
+        void operator()(ev::buff_t *data);
+    };
+
     typedef uv_dir_t dir_t;
     typedef uv_file file;
     typedef uv_loop_t *loop_ref;
@@ -262,6 +266,7 @@ namespace manapi::ev {
     void callback_watcher_tcp_read (uv_stream_t *s,  ssize_t nread, const uv_buf_t *buf);
     void callback_watcher_udp_recv (uv_udp_t *s, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags);
     void callback_watcher_udp_send (uv_udp_send_t *s, int status);
+    void callback_watcher_connect_tcp (uv_connect_t *s, int status);
     void callback_watcher_write (uv_write_t *s, int status);
     void callback_watcher_fs (uv_fs_t *req);
     void callback_watcher_random (uv_random_t *s, int status, void *buf, size_t buflen);
@@ -355,6 +360,18 @@ namespace manapi::ev {
         uv_write_t s_{};
     };
 
+    class connect {
+        MANAPI_EV_DEFAULT_PRIVATE_VAR(write, uv_write_t)
+    public:
+        MANAPI_EV_DEFAULT(connect, uv_connect_t)
+
+        connect ();
+
+        int bind (uv_tcp_t *p, const struct sockaddr *addr, uv_connect_cb cb) MANAPI_EV_NOEXPECT;
+    private:
+        uv_connect_t s_{};
+    };
+
     class tcp {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(tcp, uv_tcp_t)
     public:
@@ -364,7 +381,11 @@ namespace manapi::ev {
         tcp ();
 
         int listen (int backlog) MANAPI_EV_NOEXPECT;
+
         int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+
+        int connect (uv_connect_t *connect, const struct sockaddr *addr, uv_connect_cb cb) MANAPI_EV_NOEXPECT;
+
         int accept (tcp *parent) MANAPI_EV_NOEXPECT;
 
         int read_start () MANAPI_EV_NOEXPECT;
@@ -373,7 +394,7 @@ namespace manapi::ev {
         int read_stop () MANAPI_EV_NOEXPECT;
 
         ssize_t try_write (const void *buff, ssize_t len) MANAPI_EV_NOEXPECT;
-        int s_bind (sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
+        int s_bind (const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
         int getpeername (sockaddr *name, int *namelen) MANAPI_EV_NOEXPECT;
         int getsockname (sockaddr *name, int *namelen) MANAPI_EV_NOEXPECT;
         int close_reset (uv_close_cb close_cb) MANAPI_EV_NOEXPECT;
@@ -394,12 +415,14 @@ namespace manapi::ev {
         udp ();
 
         int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
-        int s_bind (sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
+        int s_bind (const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
 
         int recv_start () MANAPI_EV_NOEXPECT;
         int recv_start (uv_alloc_cb alloc, uv_udp_recv_cb cb) MANAPI_EV_NOEXPECT;
 
         int recv_stop () MANAPI_EV_NOEXPECT;
+
+        int connect (const struct sockaddr *addr) MANAPI_EV_NOEXPECT;
 
         int try_send (const uv_buf_t *buf, uint32_t nbuf, sockaddr *addr) MANAPI_EV_NOEXPECT;
     private:

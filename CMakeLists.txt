@@ -355,7 +355,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/ext/jemallocator.hpp
         include/components/Buffer.hpp
         src/components/Buffer.cpp
-        include/components/ObjectPool.hpp
+        include/components/ManapiObjectPool.hpp
         src/ManapiInitTools.cpp
         include/components/ManapiFileTransferInfo.hpp
         include/components/ManapiMemoryPool.hpp
@@ -387,6 +387,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/async/ManapiAsyncThreadsMutex.cpp
         include/async/ManapiEasyCancellation.hpp
         src/async/ManapiEasyCancellation.cpp
+        src/components/ManapiObjectPool.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

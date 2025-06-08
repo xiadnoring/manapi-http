@@ -3,12 +3,30 @@
 #include <typeinfo>
 #include <cstdint>
 
+#include <uv.h>
+
 namespace manapi {
+    enum bytebuffer_flags {
+        BYTEBUFFER_FLAG_OBJECT_POOL = 1
+    };
     class bytebuffer {
+        struct slices_data {
+            uv_buf_t *slices;
+            int slices_cnt;
+        };
+        union buff_data {
+            slices_data slices;
+            uint8_t *src;
+        };
+
     public:
         bytebuffer ();
 
+        bool operator==(const std::nullptr_t &) const;
+
         bytebuffer (void *src, std::size_t size);
+
+        bytebuffer (void *src, std::size_t size, char flags);
 
         bytebuffer (std::size_t size);
 
@@ -30,6 +48,8 @@ namespace manapi {
 
         [[nodiscard]] const char *data () const;
 
+        operator bool () const;
+
         template<typename T>
         T*as() { return reinterpret_cast<T *> (this->src) + this->shift_; }
 
@@ -47,7 +67,9 @@ namespace manapi {
 
         void *release ();
 
-        int shift () const;
+        [[nodiscard]] int shift () const;
+
+        int count ();
 
         void shift (int n);
 
@@ -55,9 +77,12 @@ namespace manapi {
 
         [[nodiscard]] bool empty () const;
     private:
-        uint8_t *src;
+        char flags;
+        int shift_;
+
         int s;
         int reserved;
-        int shift_;
+
+        uint8_t *src;
     };
 }

@@ -37,7 +37,7 @@ namespace manapi::net::worker {
     };
 
     using shared_conn = std::shared_ptr<worker::connection>;
-    using ibuffpool_t = object_item_pool<bytebuffer, std::size_t>;
+    using ibuffpool_t = bytebuffer;
     using worker_watcher_cb = std::move_only_function<void(const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)>;
 
     enum net_worker_flags {
@@ -51,10 +51,8 @@ namespace manapi::net::worker {
             ssize_t transfered_k;
         };
 
-        using bufferpool_t = std::shared_ptr<object_pool<bytebuffer, std::false_type, std::size_t>>;
-
         struct buffer_deque {
-            object_item_pool<bytebuffer, std::size_t> buffer;
+            bytebuffer buffer;
             std::unique_ptr<buffer_deque> next;
         };
 
@@ -93,8 +91,6 @@ namespace manapi::net::worker {
         };
 
         base (net::http::site site, std::shared_ptr<worker::worker_config_t> worker_data, manapi::net::http::config *config);
-
-        base (net::http::site site, bufferpool_t bufferpool, std::shared_ptr<worker::worker_config_t> worker_data, manapi::net::http::config *config);
 
         virtual ~base ();
 
@@ -138,7 +134,7 @@ namespace manapi::net::worker {
 
         net::http::config *config ();
 
-        const bufferpool_t &bufferpool();
+        object_pool &bufferpool();
 
         const std::shared_ptr<worker_config_t> &worker_data ();
 
@@ -146,7 +142,7 @@ namespace manapi::net::worker {
 
         static ssize_t connection_io_recv (struct connection_io_part *top, char *buffer, ssize_t size, int *cnt);
 
-        static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool<bytebuffer, std::false_type, std::size_t> *bufferpool, int buffer_size, int *cnt, int max_cnt);
+        static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, int *cnt, int max_cnt);
 
         static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, int *cnt);
     protected:
@@ -155,7 +151,6 @@ namespace manapi::net::worker {
 
         net::http::site site_;
         manapi::net::http::config *config_;
-        bufferpool_t bufferpool_;
     };
 
     using shared_worker = std::shared_ptr<worker::base>;

@@ -11,13 +11,6 @@ manapi::net::worker::connection::connection(void *ptr, void(*eraser)(void*)): pt
 }
 
 manapi::net::worker::base::base(net::http::site site, std::shared_ptr<worker::worker_config_t> data, manapi::net::http::config *config) : site_(std::move(site)), config_(config), worker_data_(std::move(data)) {
-    this->bufferpool_ = std::make_shared<decltype(this->bufferpool_)::element_type>();
-    // initialization object pools
-    this->bufferpool()->init(0);
-}
-
-manapi::net::worker::base::base(net::http::site site, bufferpool_t bufferpool,
-    std::shared_ptr<worker::worker_config_t> worker_data, manapi::net::http::config *config) : site_(std::move(site)), worker_data_(std::move(worker_data)), config_(config), bufferpool_(std::move(bufferpool)) {
 
 }
 
@@ -124,8 +117,8 @@ manapi::net::http::config *manapi::net::worker::base::config() {
     return this->config_;
 }
 
-const manapi::net::worker::base::bufferpool_t & manapi::net::worker::base::bufferpool() {
-    return this->bufferpool_;
+manapi::object_pool & manapi::net::worker::base::bufferpool() {
+    return manapi::async::current()->memory_fabric();
 }
 
 const std::shared_ptr<manapi::net::worker::worker_config_t> & manapi::net::worker::base::worker_data() {
@@ -140,7 +133,7 @@ void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, co
         }
 
         if (src->deque_current) {
-            auto size = src->deque->buffer->size();
+            auto size = src->deque->buffer.size();
 
             if (src->deque.get() == src->last_deque) {
                 src->deque_cursor -= src->deque_current;
@@ -150,11 +143,11 @@ void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, co
                 size -= src->deque_current;
             }
 
-            memcpy (src->deque->buffer->data(), src->deque->buffer->data() + src->deque_current, size);
+            memcpy (src->deque->buffer.data(), src->deque->buffer.data() + src->deque_current, size);
             src->deque_current = 0;
 
             if (src->deque.get() != src->last_deque) {
-                src->deque->buffer->resize(size);
+                src->deque->buffer.resize(size);
             }
         }
 
@@ -164,18 +157,18 @@ void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, co
         auto prev_deque_cursor = dest->deque_cursor;
 
         if (src->deque) {
-            dest->deque_cursor = static_cast<int>(obj->buffer->size());
+            dest->deque_cursor = static_cast<int>(obj->buffer.size());
         }
         else {
             dest->deque_cursor = src->deque_cursor;
-            obj->buffer->resize(src->deque_cursor);
+            obj->buffer.resize(src->deque_cursor);
             src->last_deque = nullptr;
             src->deque_cursor = 0;
         }
 
         if (dest->last_deque) {
-            if (dest->last_deque->buffer->size() != prev_deque_cursor) {
-                dest->last_deque->buffer->resize(prev_deque_cursor);
+            if (dest->last_deque->buffer.size() != prev_deque_cursor) {
+                dest->last_deque->buffer.resize(prev_deque_cursor);
             }
             dest->last_deque->next = std::move(obj);
             dest->last_deque = dest->last_deque->next.get();
@@ -190,16 +183,16 @@ void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, co
     }
 }
 
-ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, const char *buffer, ssize_t size, object_pool<bytebuffer, std::false_type, std::size_t> *bufferpool, int buffer_size, int *cnt, int max_cnt) {
+ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, int *cnt, int max_cnt) {
     ssize_t rhs = 0;
     while (rhs != size) {
         if (!top->last_deque
-            || top->deque_cursor == top->deque->buffer->size()) {
+            || top->deque_cursor == top->deque->buffer.size()) {
             if (cnt && *cnt >= max_cnt)
                 break;
 
-            auto object = std::make_unique<buffer_deque>(bufferpool->get(), nullptr);
-            object->buffer->resize_max(buffer_size);
+            auto object = std::make_unique<buffer_deque>(bufferpool->slice(1, buffer_size), nullptr);
+
             if (top->last_deque) {
                 top->last_deque->next = std::move(object);
                 top->last_deque = top->last_deque->next.get();
@@ -214,8 +207,8 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
                 (*cnt)++;
         }
 
-        auto const copy = std::min(size - rhs, static_cast<ssize_t>(top->last_deque->buffer->size() - top->deque_cursor));
-        memcpy (top->last_deque->buffer->data() + top->deque_cursor, buffer + rhs, copy);
+        auto const copy = std::min(size - rhs, static_cast<ssize_t>(top->last_deque->buffer.size() - top->deque_cursor));
+        memcpy (top->last_deque->buffer.data() + top->deque_cursor, buffer + rhs, copy);
         rhs += copy;
         top->deque_cursor += copy;
     }
@@ -226,7 +219,7 @@ void manapi::net::worker::base::connection_io_trim(struct connection_io_part *to
     if (!top->deque_cursor && top->last_deque) {
         if (parent) {
             parent->next = nullptr;
-            top->deque_cursor = static_cast<int>(parent->buffer->size());
+            top->deque_cursor = static_cast<int>(parent->buffer.size());
             top->last_deque = parent;
         }
         else {
@@ -253,18 +246,18 @@ ssize_t manapi::net::worker::base::connection_io_recv(connection_io_part *top, c
 
         auto buffer_size = (top->last_deque == top->deque.get()
             ? static_cast<ssize_t>(top->deque_cursor)
-            : static_cast<ssize_t>(top->deque->buffer->size()));
+            : static_cast<ssize_t>(top->deque->buffer.size()));
 
         auto copy = std::min(size - rhs, buffer_size - top->deque_current);
         memcpy(static_cast<char *>(buffer) + rhs,
-            top->deque->buffer->data() + top->deque_current, copy);
+            top->deque->buffer.data() + top->deque_current, copy);
 
         rhs += copy;
         top->deque_current += static_cast<int>(copy);
-        top->deque->buffer->shift_add(top->deque_current);
+        top->deque->buffer.shift_add(top->deque_current);
         top->deque_current = 0;
 
-        if (top->deque->buffer->empty()) {
+        if (top->deque->buffer.empty()) {
             top->deque = std::move(top->deque->next);
             if (!top->deque) {
                 top->last_deque = nullptr;
