@@ -59,6 +59,8 @@ manapi::bytebuffer::bytebuffer(bytebuffer &&n) noexcept {
 }
 
 manapi::bytebuffer & manapi::bytebuffer::operator=(bytebuffer &&n) noexcept {
+    this->clear();
+
     this->s = std::exchange(n.s, 0);
     this->reserved = std::exchange(n.reserved, 0);
     this->src = std::exchange(n.src, nullptr);

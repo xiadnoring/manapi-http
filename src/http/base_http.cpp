@@ -74,6 +74,9 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
         case internal::RESPONSE_SYNC_CALLBACK:
             send_response_sync_cb(std::move(cdata), std::move(res), std::move(features));
         break;
+        case internal::RESPONSE_STREAM:
+            send_response_stream_cb(std::move(cdata), std::move(res), std::move(features));
+        break;
         default: {
             auto const cdataptr = cdata.get();
             manapi::async::run<ssize_t>(mask_response(cdataptr, res.get(), true),
@@ -470,6 +473,38 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
             }
         });
 }
+
+void manapi::net::http::internal::send_response_stream_cb(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
+    if (features.compressor_for_file || features.compressor_for_string) {
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Compression isn't supported");
+    }
+
+    if (features.replacers) {
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
+    }
+
+    auto task = mask_response(cdata.get(), res.get(), false);
+    manapi::async::run<ssize_t> (std::move(task),
+        [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result) mutable
+        -> void {
+            if (err) {
+
+                return;
+            }
+
+            if (result && *result >= 0) {
+                auto reserved = res->config()->buffer_size;
+                auto cb_async = std::make_unique<http::response::resp_stream>(std::move(res->callback_stream()));
+                manapi::async::run ([reserved, cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
+                    -> manapi::future<> {
+                        co_await cb_async->operator()([&cdata] (const void *buffer, ssize_t size, bool fin) -> manapi::future<ssize_t> {
+                            co_return co_await cdata->worker->fwrite(cdata->conn, buffer, size, fin);
+                        });
+                    });
+            }
+        });
+}
+
 
 void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     if (features.compressor_for_file || features.compressor_for_string) {

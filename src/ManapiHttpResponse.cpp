@@ -336,7 +336,7 @@ void manapi::net::http::response::callback_async(resp_callback_async cb) {
 
 void manapi::net::http::response::callback_stream(resp_stream cb) {
     auto storage = std::make_unique<resp_stream>(std::move(cb));
-    this->type_ = internal::RESPONSE_ASYNC_CALLBACK;
+    this->type_ = internal::RESPONSE_STREAM;
     this->data_ = storage.release();
 }
 

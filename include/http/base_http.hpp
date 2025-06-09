@@ -32,6 +32,7 @@ namespace manapi::net::http::internal {
     future<void> send_response_proxy (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
     future<void> send_response_formdata (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
     void send_response_sync_cb (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
+    void send_response_stream_cb (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
     void send_response_async_cb (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
     future<ssize_t> mask_response (handle_data_t* cdata, response *res, bool finish);
     void handle_income_request (uq_handle_data_t cdata, int status);

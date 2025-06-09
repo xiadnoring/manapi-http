@@ -228,6 +228,7 @@ int main () {
 
         router.POST ("/upload2", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
+            resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, req.header(manapi::net::http::HEADER.CONTENT_LENGTH));
             co_return resp.callback_stream([&req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
                 co_await req.callback_async([cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
                     -> manapi::future<ssize_t> {

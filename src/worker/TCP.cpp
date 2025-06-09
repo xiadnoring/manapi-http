@@ -230,6 +230,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
         [this, weak = std::weak_ptr(connection)] (std::shared_ptr<ev::tcp> &w, ssize_t nread, const uv_buf_t *buf)
         -> void {
             try {
+                auto object = this->bufferpool().slice(buf->base, buf->len);
                 auto const connection = weak.lock();
 
                 if (!nread) {
@@ -242,7 +243,6 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
                     return;
                 }
 
-                auto object = this->bufferpool().slice(buf->base, buf->len);
                 object.resize(nread);
 
                 this->onrecv(w, connection, std::move(object));
