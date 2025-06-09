@@ -120,14 +120,14 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
         switch (type) {
             case CONTENT_TYPE_MULTIPART_FORM_DATA: {
                 co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
-                    [this] (const char *buffer, ssize_t size) -> manapi::future<ssize_t> {
+                    [this] (const char *buffer, ssize_t size, bool fin) -> manapi::future<ssize_t> {
                         return this->onrecv_multipart_(buffer, size);
                 });
                 break;
             }
             case CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: {
                 co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
-                    [this] (const char *buffer, ssize_t size) -> manapi::future<ssize_t> {
+                    [this] (const char *buffer, ssize_t size, bool fin) -> manapi::future<ssize_t> {
                         return this->onrecv_urlencoded_(buffer, size);
                 });
 

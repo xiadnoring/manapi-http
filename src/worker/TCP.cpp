@@ -396,8 +396,14 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
 
 
     if (rhs != size) {
-        rhs += connection_io_send (&connection->top->send, static_cast<const char *>(buff) + rhs, size - rhs, &this->bufferpool(),
+        auto const result = connection_io_send (&connection->top->send, static_cast<const char *>(buff) + rhs, size - rhs, &this->bufferpool(),
             this->config_->buffer_size, &connection->top->send_size, maxcnt);
+
+        if (result < 0) {
+            return -1;
+        }
+
+        rhs += result;
 
         connection->transfered += rhs;
 
@@ -555,35 +561,33 @@ void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_i
                 object.shift_add(data->top->recv.deque_current);
                 data->top->recv.deque_current = 0;
             }
+        }
+    }
+}
 
-
-            if (!object.empty()) {
-                tcp_handle_read_data(conn, data, ev::READ, object.data(),
-                    static_cast<ssize_t>(object.size()), &object);
-            }
+void manapi::net::worker::TCP::tcp_handle_read_chunked(const shared_conn &conn, connection_interface *data, int flags, const char *buffer, ssize_t size, ibuffpool_t *p) {
+    switch (auto rhs = http::http_v1_1_chunked_read(static_cast<connection_data_t *>(data->data)->chunked_ctx.get(),
+            this, conn, this->config_, buffer, size)) {
+        case http::EHTTP_V1_1_CHUNKED_OK: {
+            data->status |= CONN_RECV_END;
+            this->feed_event(conn, CONN_RECV_END, nullptr, 0, nullptr);
+            break;
+        }
+        case http::EHTTP_V1_1_CHUNKED_READ: {
+            break;
+        }
+        case http::EHTTP_V1_1_CHUNKED_ERR:
+        default: {
+        /* error */
+        this->close_connection(conn, false);
+        break;
         }
     }
 }
 
 void manapi::net::worker::TCP::tcp_handle_read_data(const shared_conn &conn, connection_interface *data, int flags, const char *buffer, ssize_t size, ibuffpool_t *p) {
     if (data->status & CONN_HTTP_1_1_CHUNKED) {
-        switch (auto rhs = http::http_v1_1_chunked_read(static_cast<connection_data_t *>(data->data)->chunked_ctx.get(),
-            this, conn, this->config_, buffer, size)) {
-            case http::EHTTP_V1_1_CHUNKED_OK: {
-                data->status |= CONN_RECV_END;
-                this->feed_event(conn, CONN_RECV_END, nullptr, 0, nullptr);
-                break;
-            }
-            case http::EHTTP_V1_1_CHUNKED_READ: {
-                break;
-            }
-            case http::EHTTP_V1_1_CHUNKED_ERR:
-                default: {
-                /* error */
-                this->close_connection(conn, false);
-                break;
-                }
-            }
+        this->tcp_handle_read_chunked(conn, data, flags, buffer, size, p);
     }
     else {
         data->ev_callback->operator()(conn, ev::READ, buffer, size, p);
@@ -888,8 +892,17 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
                     this->event_flags(conn, 0);
 
-                    connection_io_send(&data->top->recv, buff, size,
-                        &this->bufferpool(), this->config_->buffer_size, &data->top->recv_size, 1e5);
+                    if (data->status & CONN_HTTP_1_1_CHUNKED) {
+                        this->tcp_handle_read_chunked(conn, data, ev::READ, buff, size, nullptr);
+                    }
+                    else {
+                        if (size != connection_io_send(&data->top->recv, buff, size,
+                            &this->bufferpool(), this->config_->buffer_size, &data->top->recv_size, 1e5)) {
+                            goto err;
+                        }
+                    }
+                    buff += size;
+                    size = 0;
 
                     cdata->router = this->site().handler(req_ptr);
                     net::http::internal::handle_income_request(std::move(cdata), http::OK_200);
@@ -945,8 +958,13 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                         }
                     }
 
-                    connection_io_send(&data->top->recv, buff, size,
-                        &this->bufferpool(), this->config_->buffer_size, &data->top->recv_size, 1e5);
+                    if (size != connection_io_send(&data->top->recv, buff, size,
+                        &this->bufferpool(), this->config_->buffer_size, &data->top->recv_size, 1e5)) {
+                        goto err;
+                    }
+
+                    buff += size;
+                    size = 0;
 
                     break;
                 }

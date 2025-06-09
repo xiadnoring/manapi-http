@@ -20,10 +20,10 @@ enum http_v3_stream_flags {
     HTTP_V3_STREAM_WANT_READ = manapi::ev::READ,
     HTTP_V3_STREAM_WANT_WRITE = manapi::ev::WRITE,
     HTTP_V3_STREAM_CLOSED = manapi::ev::DISCONNECT,
-    HTTP_V3_STREAM_RECV_END = 8,
+    HTTP_V3_STREAM_IO_WAITING = 8,
     HTTP_V3_STREAM_REMOVED = 16,
     HTTP_V3_STREAM_SEND_END = 32,
-    HTTP_V3_STREAM_IO_WAITING = 64
+    HTTP_V3_STREAM_RECV_END = manapi::net::worker::base::CONN_RECV_END
 };
 
 template<typename T>

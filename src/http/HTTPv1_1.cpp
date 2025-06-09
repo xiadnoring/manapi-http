@@ -538,8 +538,10 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::
                         worker->feed_event(conn, ev::READ, buffer + pos, copy, nullptr /* no way :( */);
                     }
                     else {
-                        worker::base::connection_io_send(&ctx->top, buffer + pos, copy,
-                            &worker->bufferpool(), static_cast<int>(config->buffer_size), nullptr, 0);
+                        if (copy != worker::base::connection_io_send(&ctx->top, buffer + pos, copy,
+                            &worker->bufferpool(), static_cast<int>(config->buffer_size), nullptr, 0)) {
+                            return EHTTP_V1_1_CHUNKED_ERR;
+                        }
                     }
 
                     pos += copy;
@@ -590,7 +592,8 @@ int manapi::net::http::http_v1_1_chunked_flush(http_v1_1_chunked_t *ctx, worker:
                 ctx->top.deque_current = 0;
             }
 
-            worker->feed_event(conn, ev::READ, obj.data(), obj.size(), &obj /* yay */);
+            if (!obj.empty())
+                worker->feed_event(conn, ev::READ, obj.data(), obj.size(), &obj /* yay */);
         }
         else {
             return EHTTP_V1_1_CHUNKED_WAIT;

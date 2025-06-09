@@ -615,11 +615,11 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                             }
 
                             auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
-                            auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());
+                            auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config(), std::move(req));
 
                             // handle layers
                             for (auto &layer: cdata->router->layer) {
-                                co_await layer->handler(*req, *res);
+                                co_await layer->handler(*res->req(), *res);
 
                                 if (!req->propagation()) {
                                     // skip other layers and handlers
@@ -633,7 +633,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 
                             if (cdata->router->statics->layer
                                 && cdata->router->statics->layer->handler) {
-                                co_await cdata->router->statics->layer->handler (*req, *res);
+                                co_await cdata->router->statics->layer->handler (*res->req(), *res);
                             }
 
                             try {
@@ -681,21 +681,21 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
         }
 
         auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
-        auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config());
+        auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config(), std::move(req));
 
-        auto task = [req = std::move(req), res = res.get(), data = cdata->router.get()] () -> future<> {
+        auto task = [res = res.get(), data = cdata->router.get()] () -> future<> {
 
             // handle layers
             for (const auto &layer: data->layer) {
-                co_await layer->handler(*req, *res);
+                co_await layer->handler(*res->req(), *res);
 
-                if (!req->propagation()) {
+                if (!res->req()->propagation()) {
                     // skip other layers and handlers
                     break;
                 }
             }
 
-            co_await data->handler->handler(*req, *res);
+            co_await data->handler->handler(*res->req(), *res);
         };
 
         manapi::async::run( std::move(task),
@@ -1013,7 +1013,7 @@ void manapi::net::http::internal::expect_header(uq_handle_data_t cdata) {
     const auto expect = cdata->req_data->headers.find(HEADER.EXPECT);
     if (expect != cdata->req_data->headers.end()) {
         if (expect->second == "100-continue") {
-            auto resp = std::make_unique<http::response>(cdata->req_data, http::CONTINUE_100, cdata->worker->config());
+            auto resp = std::make_unique<http::response>(cdata->req_data, http::CONTINUE_100, cdata->worker->config(), nullptr);
             send_response(std::move(cdata), std::move(resp));
         }
         else {

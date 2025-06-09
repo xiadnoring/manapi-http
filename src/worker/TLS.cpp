@@ -160,7 +160,7 @@ ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, const void
     return this->sync_write_ex(conn, buff, size, finish, static_cast<int>(this->config_->max_buffer_stack));
 }
 
-int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) {
+int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) noexcept(true) {
     auto const data = conn->as<TLS::connection_interface>();
     auto &status = data->status;
     data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
@@ -228,7 +228,7 @@ void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {
         && !wrk->count
         && wrk->finish) {
         wrk->finish();
-        }
+    }
 }
 
 void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) {
@@ -257,9 +257,44 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
 
         while (true) {
             if (ssl_is_init_fininshed_(data->ssl)) {
-                if (auto const res = this->ssl_bio_flush_read_(conn, data->wbio, &data->top->recv, &data->top->recv_size, 1e5)) {
-                    if (res == CONN_IO_ERROR)
-                        goto err;
+                if (data->status & CONN_HTTP_1_1_CHUNKED) {
+                    int cursor = 0;
+
+                    while (true) {
+                        bytebuffer buf{};
+
+                        if (!buf)
+                            buf = this->bufferpool().slice(this->config_->buffer_size);
+
+                        auto nread = this->ssl_read_(data->ssl, buf.data() + cursor, static_cast<int>(buf.size()) - cursor);
+
+                        if (nread < 0) {
+                            auto const err = this->ssl_get_error_(data->ssl, rhs);
+                            if (err == this->ssl_error_ssl_ || err == this->ssl_error_syscall_) {
+                                goto err;
+                            }
+                            nread = 0;
+                        }
+
+                        cursor += nread;
+
+                        if (cursor == buf.size() || !nread) {
+                            if (cursor)
+                                this->tcp_handle_read_chunked(conn, data, ev::READ, buf.data(), cursor, &buf);
+
+                            cursor = 0;
+
+                            if (!nread) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                else {
+                    if (auto const res = this->ssl_bio_flush_read_(conn, data->wbio, &data->top->recv, &data->top->recv_size, 1e5)) {
+                        if (res == CONN_IO_ERROR)
+                            goto err;
+                    }
                 }
             }
             else {
@@ -424,56 +459,64 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
     int flags = 0;
     buffer_deque *parent = nullptr;
 
-    do {
-        if (!top->last_deque || top->last_deque->buffer.size() == top->deque_cursor) {
-            this->flush_write_(conn, false);
+    try {
+        do {
+            if (!top->last_deque || top->last_deque->buffer.size() == top->deque_cursor) {
+                this->flush_write_(conn, false);
 
-            if (cnt && *cnt >= max_cnt)
-                return CONN_IO_WANT_WRITE;
+                if (cnt && *cnt >= max_cnt)
+                    return CONN_IO_WANT_WRITE;
 
-            auto buffer = this->bufferpool().slice(1, this->config_->buffer_size);
+                auto buffer = this->bufferpool().slice(1, this->config_->buffer_size);
 
-            auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
-            if (top->last_deque) {
-                parent = top->last_deque;
-                top->last_deque->next = std::move(obj);
-                top->last_deque = top->last_deque->next.get();
+                auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
+                if (top->last_deque) {
+                    parent = top->last_deque;
+                    top->last_deque->next = std::move(obj);
+                    top->last_deque = top->last_deque->next.get();
+                }
+                else {
+                    parent = nullptr;
+                    top->deque = std::move(obj);
+                    top->last_deque = top->deque.get();
+                    top->deque_current = 0;
+                }
+
+                top->deque_cursor = 0;
+                flags |= 1 /* an empty buffer was created */;
+                if (cnt)
+                    (*cnt)++;
+            }
+            else
+                flags = 0;
+
+            rhs = this->ssl_bio_read_(wbio, top->last_deque->buffer.data() + top->deque_cursor,
+                static_cast<int>(top->last_deque->buffer.size() - top->deque_cursor));
+
+            if (rhs > 0) {
+                top->deque_cursor += rhs;
             }
             else {
-                parent = nullptr;
-                top->deque = std::move(obj);
-                top->last_deque = top->deque.get();
-                top->deque_current = 0;
+                if (!this->ssl_bio_should_retry_(wbio)) {
+                    return CONN_IO_ERROR;
+                }
             }
 
-            top->deque_cursor = 0;
-            flags |= 1 /* an empty buffer was created */;
-            if (cnt)
-                (*cnt)++;
-        }
-        else
-            flags = 0;
-
-        rhs = this->ssl_bio_read_(wbio, top->last_deque->buffer.data() + top->deque_cursor,
-            static_cast<int>(top->last_deque->buffer.size() - top->deque_cursor));
-
-        if (rhs > 0) {
-            top->deque_cursor += rhs;
-        }
-        else {
-            if (!this->ssl_bio_should_retry_(wbio)) {
-                return CONN_IO_ERROR;
+            if (!rhs && (flags /* an empty buffer was created */ )) {
+                /* remove an empty buffer at the end */
+                connection_io_trim(top, parent, cnt);
             }
         }
+        while (rhs > 0);
 
-        if (!rhs && (flags /* an empty buffer was created */ )) {
-            /* remove an empty buffer at the end */
-            connection_io_trim(top, parent, cnt);
-        }
+        return CONN_IO_OK;
     }
-    while (rhs > 0);
+    catch (std::exception const &e) {
+        manapi::async::current()->logger()->error(manapi::logger::default_service,
+            manapi::ERR_INTERNAL, "TLS::ssl_bio_flush_write_(...): {}", e.what());
+    }
 
-    return CONN_IO_OK;
+    return CONN_IO_ERROR;
 }
 
 int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void *rbio, connection_io_part *top, int *cnt, int max_cnt) {
@@ -569,8 +612,8 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
                 (*cnt)--;
 
             if (!object.empty()) {
-                tcp_handle_read_data (conn, data, ev::READ, object.data(),
-                    static_cast<ssize_t>(object.size()), &object);
+                data->ev_callback->operator()(conn, ev::READ, object.data(),
+                    static_cast<int>(object.size()), &object);
             }
         }
 

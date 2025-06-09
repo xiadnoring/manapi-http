@@ -11,7 +11,13 @@
 #include "ManapiHttpTypes.hpp"
 #include "ManapiHttpMime.hpp"
 
-manapi::net::http::response::response(manapi::net::http::request_data_t * request_data, int status, http::config *config): config_(config), status_code_(status) {
+void manapi::net::http::custom_data_deleter_t::operator()(custom_data_t *n) {
+    if (n && n->clean)
+        n->clean(n->src);
+}
+
+manapi::net::http::response::response(manapi::net::http::request_data_t * request_data, int status, http::config *config, std::unique_ptr<http::request> req):
+    req_(std::move(req)), config_(config), status_code_(status) {
     this->request_data_ = request_data;
     this->type_ = internal::RESPONSE_NO_DATA;
     this->flags = 0;
@@ -268,8 +274,18 @@ manapi::net::http::response::resp_callback_sync &manapi::net::http::response::ca
     return *static_cast<resp_callback_sync *> (this->data_);
 }
 
+manapi::net::http::response::resp_stream & manapi::net::http::response::callback_stream() {
+    this->check_type_(internal::RESPONSE_STREAM);
+    return *static_cast<resp_stream *> (this->data_);
+}
+
 manapi::net::http::request_data_t * manapi::net::http::response::request_data() {
     return this->request_data_;
+}
+
+manapi::net::http::request * manapi::net::http::response::req() {
+    assert(this->req_.get());
+    return this->req_.get();
 }
 
 void manapi::net::http::response::check_type_(int type) {
@@ -314,6 +330,12 @@ void manapi::net::http::response::callback_sync(resp_callback_sync cb) {
 
 void manapi::net::http::response::callback_async(resp_callback_async cb) {
     auto storage = std::make_unique<resp_callback_async>(std::move(cb));
+    this->type_ = internal::RESPONSE_ASYNC_CALLBACK;
+    this->data_ = storage.release();
+}
+
+void manapi::net::http::response::callback_stream(resp_stream cb) {
+    auto storage = std::make_unique<resp_stream>(std::move(cb));
     this->type_ = internal::RESPONSE_ASYNC_CALLBACK;
     this->data_ = storage.release();
 }

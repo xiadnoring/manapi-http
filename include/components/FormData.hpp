@@ -21,7 +21,7 @@ namespace manapi::net {
 
         typedef std::move_only_function<ondata_cb_t(std::string name)> onparam_cb_t;
 
-        typedef manapi::future<> (*onrecv_cb_t)(worker::base *worker, worker::shared_conn *conn, http::request_data_t *req, std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t )> handler);
+        typedef manapi::future<> (*onrecv_cb_t)(worker::base *worker, worker::shared_conn *conn, http::request_data_t *req, std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t , bool fin)> handler);
 
         formdata_recv (onrecv_cb_t onrecv_cb, manapi::net::worker::base *worker, worker::shared_conn *conn, http::request_data_t *req);
 

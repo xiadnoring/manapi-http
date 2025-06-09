@@ -20,19 +20,18 @@ namespace manapi::net::http {
     };
 
     struct custom_data_deleter_t {
-        void operator()(custom_data_t *n) {
-             if (n && n->clean)
-                 n->clean(n->src);
-        }
+        void operator()(custom_data_t *n);
     };
 
     class response {
     public:
         using resp_callback_sync = std::move_only_function<ssize_t(char *buffer, ssize_t size, bool&)>;
         using resp_callback_async = std::move_only_function<manapi::future<ssize_t>(char *buffer, ssize_t size, bool&)>;
+        using resp_stream_cb = std::move_only_function<manapi::future<ssize_t>(const void *buffer, ssize_t size, bool)>;
+        using resp_stream = std::move_only_function<manapi::future<>(resp_stream_cb cb)>;
         using resp_proxy_setup_cb = std::move_only_function<void(class manapi::net::fetch &)>;
 
-        response (manapi::net::http::request_data_t *request_data, int status, http::config *config);
+        response (manapi::net::http::request_data_t *request_data, int status, http::config *config, std::unique_ptr<http::request> req);
 
         ~response ();
 
@@ -59,12 +58,14 @@ namespace manapi::net::http {
 #ifdef MANAPIHTTP_FETCH_SUPPORT
         void proxy (std::string url);
 
-        void proxy (std::string url, std::move_only_function<void(class fetch &)> cb);
+        void proxy (std::string url, resp_proxy_setup_cb cb);
 #endif
 
-        void callback_sync (std::move_only_function<ssize_t(char *, ssize_t, bool&)> cb);
+        void callback_sync (resp_callback_sync cb);
 
-        void callback_async (std::move_only_function<manapi::future<ssize_t>(char *, ssize_t, bool&)> cb);
+        void callback_async (resp_callback_async cb);
+
+        void callback_stream (resp_stream cb);
 
         [[nodiscard]] int status_code () const;
 
@@ -126,7 +127,11 @@ namespace manapi::net::http {
 
         resp_callback_sync &callback_sync();
 
+        resp_stream &callback_stream();
+
         request_data_t *request_data ();
+
+        http::request *req ();
     private:
         void check_type_ (int type);
 
@@ -155,6 +160,8 @@ namespace manapi::net::http {
         manapi::net::http::request_data_t * request_data_;
 
         std::unique_ptr<std::map<std::string, std::string>> replacers_;
+
+        std::unique_ptr<http::request> req_;
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
         std::unique_ptr<std::move_only_function<void(class manapi::net::fetch &)>> proxy_setup;

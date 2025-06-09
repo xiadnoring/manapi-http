@@ -15,6 +15,7 @@ manapi::bytebuffer::bytebuffer() {
     this->s = 0;
     this->shift_ = 0;
     this->reserved = 0;
+    this->flags = 0;
 }
 
 bool manapi::bytebuffer::operator==(const std::nullptr_t &) const {

@@ -29,10 +29,10 @@ namespace manapi::net::http {
         HTTP2_STREAM_WANT_READ = manapi::ev::READ,
         HTTP2_STREAM_WANT_WRITE = manapi::ev::WRITE,
         HTTP2_STREAM_CLOSED = manapi::ev::DISCONNECT,
-        HTTP2_STREAM_RECV_END = 8,
-        HTTP2_STREAM_SEND_END  = 16,
-        HTTP2_STREAM_REMOVED = 32,
-        HTTP2_STREAM_PRIORITY_INCR = 64,
+        HTTP2_STREAM_PRIORITY_INCR = 8,
+        HTTP2_STREAM_REMOVED = 16,
+        HTTP2_STREAM_SEND_END  = 32,
+        HTTP2_STREAM_RECV_END = worker::base::CONN_RECV_END,
         HTTP2_STREAM_PRIORITY_LOCKED = 128,
         HTTP2_STREAM_IO_WAITING = 256
     };

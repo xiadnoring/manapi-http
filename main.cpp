@@ -204,7 +204,7 @@ int main () {
             manapi::net::hash::SHA256 hash{};
             hash.init();
             try {
-                co_await req.callback_async([&result, &hash] (const char *buffer, ssize_t size)
+                co_await req.callback_async([&result, &hash] (const char *buffer, ssize_t size, bool fin)
                     -> manapi::future<ssize_t> {
                     hash.update(reinterpret_cast<const uint8_t *>(buffer), size);
                     result += size;
@@ -224,6 +224,16 @@ int main () {
             std::cout << result << " " << b << "\n";
 
             co_return resp.text(std::format("{} : {}", result, b));
+        });
+
+        router.POST ("/upload2", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            co_return resp.callback_stream([&req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
+                co_await req.callback_async([cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
+                    -> manapi::future<ssize_t> {
+                    co_return co_await cb (buffer, size, fin);
+                });
+            });
         });
 
         router.GET("/download", [] (manapi::net::http::request &req, manapi::net::http::response &resp)

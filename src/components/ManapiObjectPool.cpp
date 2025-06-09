@@ -76,12 +76,16 @@ manapi::bytebuffer manapi::object_pool::slice(std::size_t suggested) {
             auto it = bufferpool.back();
             bufferpool.pop_back();
 
-            return this->slice(it.first, it.second);
+            auto b = this->slice(it.first, it.second);
+            b.resize(suggested);
+            return std::move(b);
         }
 
         auto m = manapi::memory::alloc<char>(size);
         assert(m && "buffer is null");
-        return this->slice(m, size);
+        auto b = this->slice(m, size);
+        b.resize(suggested);
+        return std::move(b);
     }
 }
 

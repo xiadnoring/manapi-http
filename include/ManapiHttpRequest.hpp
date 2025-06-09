@@ -18,6 +18,9 @@
 namespace manapi::net::http {
     class request {
     public:
+        using onrecv_sync_cb = std::move_only_function<ssize_t(const char *buffer, ssize_t size, bool fin)>;
+        using onrecv_async_cb = std::move_only_function<manapi::future<ssize_t>(const char *buffer, ssize_t size, bool fin)>;
+
         request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::shared_conn *conn, worker::shared_worker worker, const http_handler_function *handler);
 
         ~request();
@@ -44,9 +47,9 @@ namespace manapi::net::http {
 
         future<> form (formdata_recv::onparam_cb_t cb);
 
-        future<void> callback_sync (std::move_only_function<ssize_t(const char *buffer, ssize_t size)> callback);
+        future<void> callback_sync (onrecv_sync_cb callback);
 
-        future<void> callback_async (std::move_only_function<manapi::future<ssize_t>(const char *buffer, ssize_t size)> callback);
+        future<void> callback_async (onrecv_async_cb callback);
 
         future<void> file (std::string filepath);
 
@@ -72,8 +75,8 @@ namespace manapi::net::http {
 
         [[nodiscard]] bool propagation () const;
     private:
-        static future<void> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, std::move_only_function<ssize_t(const char *, ssize_t )> handler);
-        static future<void> read_async_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t )> handler);
+        static future<void> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler);
+        static future<void> read_async_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_async_cb handler);
 
         std::unique_ptr<std::map<std::string, std::string>> get_params_;
 

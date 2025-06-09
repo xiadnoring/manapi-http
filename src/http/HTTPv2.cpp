@@ -412,7 +412,10 @@ int http_v2_flush_recv (const manapi::net::worker::shared_conn &conn, manapi::ne
 
         sz = static_cast<ssize_t>(b.size());
         if (sz) {
-            s->ev_callback->operator()(conn, manapi::ev::READ, b.data(), sz, &b);
+            int flags = manapi::ev::READ;
+            if ((s->flags & manapi::net::http::HTTP2_STREAM_RECV_END) && !s->recv_size)
+                flags |= manapi::net::http::HTTP2_STREAM_RECV_END;
+            s->ev_callback->operator()(conn, flags, b.data(), sz, &b);
         }
     }
 
@@ -1393,18 +1396,32 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 if ((sdata->flags & ev::READ)
                                     && sdata->ev_callback
                                     && !sdata->recv_size) {
-                                    sdata->ev_callback->operator()(s->second, ev::READ, buffer + pos, datasize, nullptr);
+                                    int flags = ev::READ;
+                                    if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
+                                        sdata->flags |= HTTP2_STREAM_RECV_END;
+                                        flags |= HTTP2_STREAM_RECV_END;
+                                    }
+                                    sdata->ev_callback->operator()(s->second, flags, buffer + pos, datasize, nullptr);
                                 }
                                 else {
+                                    if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
+                                        sdata->flags |= HTTP2_STREAM_RECV_END;
+                                    }
+
                                     if (datasize != worker::base::connection_io_send(sdata->recv.get(), buffer + pos,
                                         datasize, &sdata->ctx->worker->bufferpool(), static_cast<int>(config->buffer_size), &sdata->recv_size, maxcnt)) {
                                         return EHTTP_V2_PROTOCOL_ERROR;
-                                        }
+                                    }
 
                                     // if (sdata->recv_size >= config->max_buffer_stack) {
                                     //     ctx->worker->event_toggle(ctx->conn, false, ev::READ);
                                     // }
                                 }
+                            }
+                            else if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
+                                sdata->flags |= HTTP2_STREAM_RECV_END;
+                                if (!sdata->recv_size && (sdata->flags & ev::READ) && sdata->ev_callback)
+                                    sdata->ev_callback->operator()(s->second, HTTP2_FLAG_DATA_END_STREAM, buffer + pos, datasize, nullptr);
                             }
 
                             // if (sdata->recv_size < config->max_buffer_stack) {

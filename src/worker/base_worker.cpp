@@ -184,35 +184,43 @@ void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, co
 }
 
 ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, int *cnt, int max_cnt) {
-    ssize_t rhs = 0;
-    while (rhs != size) {
-        if (!top->last_deque
-            || top->deque_cursor == top->deque->buffer.size()) {
-            if (cnt && *cnt >= max_cnt)
-                break;
+    try {
+        ssize_t rhs = 0;
+        while (rhs != size) {
+            if (!top->last_deque
+                || top->deque_cursor == top->deque->buffer.size()) {
+                if (cnt && *cnt >= max_cnt)
+                    break;
 
-            auto object = std::make_unique<buffer_deque>(bufferpool->slice(1, buffer_size), nullptr);
+                auto object = std::make_unique<buffer_deque>(bufferpool->slice(1, buffer_size), nullptr);
 
-            if (top->last_deque) {
-                top->last_deque->next = std::move(object);
-                top->last_deque = top->last_deque->next.get();
-            }
-            else {
-                top->deque = std::move(object);
-                top->last_deque = top->deque.get();
-            }
-            top->deque_cursor = 0;
+                if (top->last_deque) {
+                    top->last_deque->next = std::move(object);
+                    top->last_deque = top->last_deque->next.get();
+                }
+                else {
+                    top->deque = std::move(object);
+                    top->last_deque = top->deque.get();
+                }
+                top->deque_cursor = 0;
 
-            if (cnt)
-                (*cnt)++;
+                if (cnt)
+                    (*cnt)++;
+                }
+
+            auto const copy = std::min(size - rhs, static_cast<ssize_t>(top->last_deque->buffer.size() - top->deque_cursor));
+            memcpy (top->last_deque->buffer.data() + top->deque_cursor, buffer + rhs, copy);
+            rhs += copy;
+            top->deque_cursor += copy;
         }
-
-        auto const copy = std::min(size - rhs, static_cast<ssize_t>(top->last_deque->buffer.size() - top->deque_cursor));
-        memcpy (top->last_deque->buffer.data() + top->deque_cursor, buffer + rhs, copy);
-        rhs += copy;
-        top->deque_cursor += copy;
+        return rhs;
     }
-    return rhs;
+    catch (std::exception const &e) {
+        manapi::async::current()->logger()->error(manapi::logger::default_service,
+            manapi::ERR_INTERNAL, "connection_io_send(...): {}", e.what());
+    }
+
+    return -1;
 }
 
 void manapi::net::worker::base::connection_io_trim(struct connection_io_part *top, buffer_deque *parent, int *cnt) {
