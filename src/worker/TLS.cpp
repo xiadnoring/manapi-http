@@ -414,7 +414,7 @@ void manapi::net::worker::TLS::accept_work_(const shared_conn &conn, int flags, 
             std::make_unique<worker_watcher_cb>([this, http_v1_1_ctx = std::move(http_v1_1_ctx)]
             (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
             -> void {
-                this->http_work_ (http_v1_1_ctx.get(), conn, flags, buffer, nsize);
+                this->http_work_ (http_v1_1_ctx.get(), conn, flags, buffer, nsize, p);
         }));
         this->event_flags(conn, ev::READ);
     }

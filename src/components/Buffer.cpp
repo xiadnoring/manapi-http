@@ -159,7 +159,9 @@ void manapi::bytebuffer::clear() {
         this->src = nullptr;
     }
     else {
-        manapi::memory::free(std::exchange(this->src, nullptr));
+        if (this->src) {
+            manapi::memory::free(std::exchange(this->src, nullptr));
+        }
         this->s = 0;
         this->reserved = 0;
     }

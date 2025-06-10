@@ -230,10 +230,13 @@ int main () {
             -> manapi::future<> {
             resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, req.header(manapi::net::http::HEADER.CONTENT_LENGTH));
             co_return resp.callback_stream([&req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
-                co_await req.callback_async([cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
+                ssize_t rhs = 0;
+                co_await req.callback_async([&rhs, cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
                     -> manapi::future<ssize_t> {
-                    co_return co_await cb (buffer, size, fin);
+                    rhs += size;
+                    co_return size;
                 });
+                std::cout << rhs <<  "\n";
             });
         });
 

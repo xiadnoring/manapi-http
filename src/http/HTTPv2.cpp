@@ -749,6 +749,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
                             http_goaway.err_msg = "invalid sm label";
                             ctx->current = HTTP2_CALLBACK_GOAWAY;
+                            ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                             break;
                         }
 
@@ -950,6 +951,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "invalid WINDOW_UPDATE";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 break;
                             }
 
@@ -1084,6 +1086,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "setting is invalid";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 break;
                             }
 
@@ -1161,11 +1164,14 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "CONTINUATION frame instead of HEADERS frame";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 ctx->n2 = 0;
                                 break;
                             }
 
                         }
+
+                        bool flg = ctx->frame_flag & HTTP2_FLAG_HEADERS_END_HEADERS;
 
                         if (s == ctx->streams->end()) {
                             s = ctx->streams->find(ctx->frame_stream_id);
@@ -1189,13 +1195,11 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 // http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
                                 // http_goaway.err_msg = "stream doesn't exists";
                                 // ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                break;
+                                flg = false;
                             }
-
-                            sdata = s->second->as<http_v2_stream_t>();
+                            else
+                                sdata = s->second->as<http_v2_stream_t>();
                         }
-
-                        bool const flg = ctx->frame_flag & HTTP2_FLAG_HEADERS_END_HEADERS;
 
                         if (flg) {
 
@@ -1203,6 +1207,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_INTERNAL_ERROR;
                                 http_goaway.err_msg = "hpack: failed to decode headers";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 break;
                             }
 
@@ -1226,6 +1231,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = ":method is missing";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 break;
                             }
                             sdata->req->method = std::move(hv.mapped());
@@ -1235,6 +1241,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = ":path is missing";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 break;
                             }
                             sdata->req->uri = std::move(hv.mapped());
@@ -1255,6 +1262,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     http_goaway.err_code = manapi::net::http::HTTP2_ERROR_REFUSED_STREAM;
                                     http_goaway.err_msg = "invalid content length";
                                     ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                    ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                     break;
                                 }
                             }
@@ -1305,6 +1313,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_INTERNAL_ERROR;
                                 http_goaway.err_msg = "priority status failed";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 break;
                             }
                         }
@@ -1357,76 +1366,80 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             else
                                 http_v2_setup_goaway(ctx, http_goaway,
                                     HTTP2_ERROR_PROTOCOL_ERROR, "stream wasn't created");
-                            break;
-                        }
-                        auto const sdata = s->second->as<http_v2_stream_t>();
 
-                        if (sdata->read_window < datasize || ctx->read_window < datasize) {
-                            http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FLOW_CONTROL_ERROR;
-                            http_goaway.err_msg = "read buffer overflow";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            break;
-                        }
-
-                        sdata->read_window -= static_cast<int> (datasize);
-                        ctx->read_window -= static_cast<int> (datasize);
-
-
-                        if (http_v2_process_window (s->second, sdata)) {
-                            return EHTTP_V2_PROTOCOL_ERROR;
-                        }
-
-                        sdata->transfered_k += static_cast<int> (datasize);
-
-                        if ((sdata->flags & ev::DISCONNECT)) {
-                            http_goaway.err_code = manapi::net::http::HTTP2_ERROR_REFUSED_STREAM;
-                            http_goaway.err_msg = "stream was closed";
-                            ctx->current = HTTP2_CALLBACK_GOAWAY;
-                            break;
                         }
                         else {
-                            /**
-                             * recv data
-                             */
-                            if (http_v2_flush_recv (s->second, sdata)) {
+                            auto const sdata = s->second->as<http_v2_stream_t>();
+
+                            if (sdata->read_window < datasize || ctx->read_window < datasize) {
+                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FLOW_CONTROL_ERROR;
+                                http_goaway.err_msg = "read buffer overflow";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+                                break;
+                            }
+
+                            sdata->read_window -= static_cast<int> (datasize);
+                            ctx->read_window -= static_cast<int> (datasize);
+
+
+                            if (http_v2_process_window (s->second, sdata)) {
                                 return EHTTP_V2_PROTOCOL_ERROR;
                             }
 
-                            if (datasize) {
-                                if ((sdata->flags & ev::READ)
-                                    && sdata->ev_callback
-                                    && !sdata->recv_size) {
-                                    int flags = ev::READ;
-                                    if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
-                                        sdata->flags |= HTTP2_STREAM_RECV_END;
-                                        flags |= HTTP2_STREAM_RECV_END;
-                                    }
-                                    sdata->ev_callback->operator()(s->second, flags, buffer + pos, datasize, nullptr);
-                                }
-                                else {
-                                    if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
-                                        sdata->flags |= HTTP2_STREAM_RECV_END;
-                                    }
+                            sdata->transfered_k += static_cast<int> (datasize);
 
-                                    if (datasize != worker::base::connection_io_send(sdata->recv.get(), buffer + pos,
-                                        datasize, &sdata->ctx->worker->bufferpool(), static_cast<int>(config->buffer_size), &sdata->recv_size, maxcnt)) {
-                                        return EHTTP_V2_PROTOCOL_ERROR;
-                                    }
-
-                                    // if (sdata->recv_size >= config->max_buffer_stack) {
-                                    //     ctx->worker->event_toggle(ctx->conn, false, ev::READ);
-                                    // }
-                                }
+                            if ((sdata->flags & ev::DISCONNECT)) {
+                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_REFUSED_STREAM;
+                                http_goaway.err_msg = "stream was closed";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+                                break;
                             }
-                            else if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
-                                sdata->flags |= HTTP2_STREAM_RECV_END;
-                                if (!sdata->recv_size && (sdata->flags & ev::READ) && sdata->ev_callback)
-                                    sdata->ev_callback->operator()(s->second, HTTP2_FLAG_DATA_END_STREAM, buffer + pos, datasize, nullptr);
-                            }
+                            else {
+                                /**
+                                 * recv data
+                                 */
+                                if (http_v2_flush_recv (s->second, sdata)) {
+                                    return EHTTP_V2_PROTOCOL_ERROR;
+                                }
 
-                            // if (sdata->recv_size < config->max_buffer_stack) {
-                            //     ctx->worker->event_toggle(ctx->conn, true, ev::READ);
-                            // }
+                                if (datasize) {
+                                    if ((sdata->flags & ev::READ)
+                                        && sdata->ev_callback
+                                        && !sdata->recv_size) {
+                                        int flags = ev::READ;
+                                        if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
+                                            sdata->flags |= HTTP2_STREAM_RECV_END;
+                                            flags |= HTTP2_STREAM_RECV_END;
+                                        }
+                                        sdata->ev_callback->operator()(s->second, flags, buffer + pos, datasize, nullptr);
+                                        }
+                                    else {
+                                        if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
+                                            sdata->flags |= HTTP2_STREAM_RECV_END;
+                                        }
+
+                                        if (datasize != worker::base::connection_io_send(sdata->recv.get(), buffer + pos,
+                                            datasize, &sdata->ctx->worker->bufferpool(), static_cast<int>(config->buffer_size), &sdata->recv_size, maxcnt)) {
+                                            return EHTTP_V2_PROTOCOL_ERROR;
+                                            }
+
+                                        // if (sdata->recv_size >= config->max_buffer_stack) {
+                                        //     ctx->worker->event_toggle(ctx->conn, false, ev::READ);
+                                        // }
+                                    }
+                                }
+                                else if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
+                                    sdata->flags |= HTTP2_STREAM_RECV_END;
+                                    if (!sdata->recv_size && (sdata->flags & ev::READ) && sdata->ev_callback)
+                                        sdata->ev_callback->operator()(s->second, HTTP2_FLAG_DATA_END_STREAM, buffer + pos, datasize, nullptr);
+                                }
+
+                                // if (sdata->recv_size < config->max_buffer_stack) {
+                                //     ctx->worker->event_toggle(ctx->conn, true, ev::READ);
+                                // }
+                            }
                         }
                     }
 
@@ -1434,7 +1447,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                     ctx->frame_length -= datasize;
                     pos += datasize;
 
-                    if (!ctx->frame_length) {
+                    if (!(ctx->frame_length-ctx->n2)) {
                         if (ctx->n2) {
                             ctx->n1 = ctx->n2;
                             ctx->n2 = 0;
@@ -1480,6 +1493,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "HEADER frame is empty";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 goto finish;
                             }
 
@@ -1487,6 +1501,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "0 is reserved";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 goto finish;
                             }
 
@@ -1494,6 +1509,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "unexpected stream id";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 goto finish;
                             }
 
@@ -1502,6 +1518,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_REFUSED_STREAM;
                                 http_goaway.err_msg = std::format("max concurrent streams-{}", ctx->server->max_concurret_streams);
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 goto finish;
                             }
 
@@ -1552,6 +1569,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         case HTTP2_FRAME_SETTINGS: {
                             // setting param size - 6 bytes
                             if (ctx->frame_length % 6 != 0) {
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "invalid length in frame SETTINGS";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -1584,6 +1602,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                  */
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "invalid PING";
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 goto finish;
                             }
@@ -1604,6 +1623,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                  * a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
                                  */
 
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "invalid WINDOW_UPDATE";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -1614,6 +1634,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         }
                         case HTTP2_FRAME_CONTINUATION: {
                             if (ctx->frame_stream_id == 0) {
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "0 is reserved";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -1621,6 +1642,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             }
 
                             if (ctx->frame_stream_id != ctx->last_stream_id) {
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "provided stream id isn't handled";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -1639,6 +1661,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                     }
 
                     if (ctx->frame_length > ctx->server->max_frame_size) {
+                        ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                         http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
                         http_goaway.err_msg = "frame length is invalid";
                         ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -1780,10 +1803,12 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                      */
 
                     ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
-                    ctx->flags |= HTTP2_CTX_FLAG_WANT_CLOSE;
+                    if (!(ctx->flags & HTTP2_CTX_FLAG_WANT_CLOSE)) {
+                        ctx->flags |= HTTP2_CTX_FLAG_WANT_CLOSE;
 
-                    if (http_v2_send_goaway (ctx, &http_goaway)) {
-                        return EHTTP_V2_PROTOCOL_ERROR;
+                        if (http_v2_send_goaway (ctx, &http_goaway)) {
+                            return EHTTP_V2_PROTOCOL_ERROR;
+                        }
                     }
 
                     if (ctx->streams->empty()
@@ -1810,12 +1835,12 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
     return EHTTP_V2_PROTOCOL_WANT_READ;
 }
 
-ssize_t manapi::net::http::http_v2_write(http_v2_stream_t *s, const void *buffer, ssize_t size, bool finish) {
+ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, http_v2_stream_t *s, const void *buffer, ssize_t size, bool finish) {
     if (s->flags & ev::DISCONNECT) {
         return -1;
     }
 
-    if (!s->ctx->worker->is_writable(s->ctx->conn)) {
+    if (!s->ctx->http_v2_worker->is_writable(conn)) {
         return 0;
     }
 
@@ -1851,7 +1876,7 @@ ssize_t manapi::net::http::http_v2_write(http_v2_stream_t *s, const void *buffer
         buff.base += buff.len;
         copy -= static_cast<int>(buff.len);
 
-        if (!s->ctx->worker->is_writable(s->ctx->conn)) {
+        if (!s->ctx->http_v2_worker->is_writable(conn)) {
             break;
         }
     }

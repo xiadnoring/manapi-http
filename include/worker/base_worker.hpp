@@ -144,6 +144,8 @@ namespace manapi::net::worker {
 
         static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, int *cnt, int max_cnt);
 
+        static void connection_io_send_start (struct connection_io_part *top, ibuffpool_t buff, int *cnt);
+
         static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, int *cnt);
     protected:
 

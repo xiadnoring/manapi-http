@@ -230,8 +230,12 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
         [this, weak = std::weak_ptr(connection)] (std::shared_ptr<ev::tcp> &w, ssize_t nread, const uv_buf_t *buf)
         -> void {
             try {
-                auto object = this->bufferpool().slice(buf->base, buf->len);
+                bytebuffer object;
                 auto const connection = weak.lock();
+
+                if (buf->base) {
+                    object = this->bufferpool().slice(buf->base, buf->len);
+                }
 
                 if (!nread) {
                     return;
@@ -242,6 +246,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
                     this->close_connection(connection, false);
                     return;
                 }
+
 
                 object.resize(nread);
 
@@ -312,7 +317,6 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
 
     conn->cancellation.cancel();
 
-    connection->data = nullptr;
     if (connection->watcher && !clean_disconnect) {
         if (connection->status & CONN_KEEP_ALIVE) {
             connection->status ^= CONN_KEEP_ALIVE;
@@ -667,8 +671,10 @@ bool manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &s
     if (conn_data->data) {
         if (sconn->version == http::versions::HTTP_v2) {
             auto const http_v2_ctx = static_cast<http::http_v2_t *> (conn_data->data);
-            for (const auto &s : *http_v2_ctx->streams) {
-                this->http_v2_worker->update_limit_rate_stream(s.second);
+            if (http_v2_ctx->streams) {
+                for (const auto &s : *http_v2_ctx->streams) {
+                    this->http_v2_worker->update_limit_rate_stream(s.second);
+                }
             }
         }
     }
@@ -836,7 +842,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(void *ptr) {
     }
 }
 
-void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, const worker::shared_conn &conn, int flags, const char *buff, ssize_t size) {
+void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, const worker::shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) {
     auto data = conn->as<connection_interface>();
 
     if (flags & ev::DISCONNECT) {
@@ -896,10 +902,16 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                         this->tcp_handle_read_chunked(conn, data, ev::READ, buff, size, nullptr);
                     }
                     else {
-                        if (size != connection_io_send(&data->top->recv, buff, size,
-                            &this->bufferpool(), this->config_->buffer_size, &data->top->recv_size, 1e5)) {
-                            goto err;
+                        bytebuffer obj;
+                        if (p) {
+                            p->shift_add(static_cast<int>(buff-p->data()));
                         }
+                        else {
+                            obj = this->bufferpool().slice(size);
+                            p = &obj;
+                            memcpy (p->data(), buff, size);
+                        }
+                        connection_io_send_start(&data->top->recv, std::move(*p), &data->top->recv_size);
                     }
                     buff += size;
                     size = 0;
@@ -944,6 +956,7 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                                 -> void {
                                 this->http2_work_(ctx.get(), conn, flags, buffer, nsize);
                             }));
+
                             this->event_flags(conn, ev::READ|ev::WRITE);
 
 
@@ -958,10 +971,20 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                         }
                     }
 
-                    if (size != connection_io_send(&data->top->recv, buff, size,
-                        &this->bufferpool(), this->config_->buffer_size, &data->top->recv_size, 1e5)) {
-                        goto err;
+                    bytebuffer obj;
+                    if (!p) {
+                        p->shift_add(static_cast<int>(buff-p->data()));
+                        assert(p->size() == size && p->data() == buff);
                     }
+                    else {
+                        obj = this->bufferpool().slice(
+                            std::max(this->config_->buffer_size, size + 5));
+                        p = &obj;
+                        memcpy (p->data() + 5, buff, size);
+                        p->resize(size + 5);
+                        p->shift_add(5);
+                    }
+                    connection_io_send_start(&data->top->recv, std::move(*p), &data->top->recv_size);
 
                     buff += size;
                     size = 0;
@@ -998,7 +1021,7 @@ void manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) 
         std::make_unique<worker_watcher_cb>([this, http_v1_1_ctx = std::move(http_v1_1_ctx)]
         (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
         -> void {
-            this->http_work_ (http_v1_1_ctx.get(), conn, flags, buffer, nsize);
+            this->http_work_ (http_v1_1_ctx.get(), conn, flags, buffer, nsize, p);
     }));
 
     this->event_flags(conn, ev::READ);
@@ -1007,7 +1030,6 @@ void manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) 
 void manapi::net::worker::TCP::conn_work_finish_(worker::shared_conn conn, bool ok, ibuffpool_t buffer) {
     auto const data = conn->as<connection_interface>();
 
-    data->data = nullptr;
 
     if (data->status & CONN_LIMIT_RATE)
         data->status ^= CONN_LIMIT_RATE;
@@ -1016,6 +1038,8 @@ void manapi::net::worker::TCP::conn_work_finish_(worker::shared_conn conn, bool 
         data->status ^= CONN_HTTP_1_1_CHUNKED;
         delete static_cast<connection_data_t *>(std::exchange(data->data, nullptr));
     }
+
+    data->data = nullptr;
 
     //std::cout << "CLOSE\n";
 

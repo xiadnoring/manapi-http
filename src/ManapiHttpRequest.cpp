@@ -419,7 +419,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                         assert(!(p->empty()));
 
                         ctx_cb.worker->waiting(conn, false);
-                        ctx_cb.worker->event_flags(conn, 0);
+                        ctx_cb.worker->event_toggle(conn, false, ev::READ);
                         ctx_cb.cnt++;
                         manapi::async::run (manapi::async::invoke(
                             [] (const worker::shared_conn & conn, worker::ibuffpool_t p, const char * buffer, ssize_t nsize, ctx_cb_t_ *ctx_cb, int flags) -> manapi::future<> {
@@ -476,7 +476,6 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                         goto finish;
                                     }
 
-
                                     if (!ctx_cb->req->body_size) {
                                         auto const copy = static_cast<int>(size - rhs);
                                         if (copy) {
@@ -495,7 +494,8 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                     goto finish;
                                 }
 
-                                ctx_cb->worker->event_flags(conn, ev::READ);
+                                ctx_cb->worker->waiting(conn, true);
+                                ctx_cb->worker->event_toggle(conn, true, ev::READ);
                                 ctx_cb->cnt--;
                                 ctx_cb->mx.unlock();
 

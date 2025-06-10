@@ -115,7 +115,7 @@ ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, const 
 
 ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {
     auto const data = conn->as<http::http_v2_stream_t>();
-    return http::http_v2_write(data, buff, size, finish);
+    return http::http_v2_write(conn, data, buff, size, finish);
 }
 
 void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &conn) {

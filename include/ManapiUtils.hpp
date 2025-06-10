@@ -40,6 +40,7 @@ namespace manapi::sockets {
 namespace manapi::memory {
     template<typename T>
     constexpr T *alloc (std::size_t size) {
+        printf("alloc()\n");
         auto p = static_cast<T *> (::malloc(size));
         if (!p) { throw std::bad_alloc(); }
         return p;
@@ -51,6 +52,7 @@ namespace manapi::memory {
 
     template<typename T>
     constexpr T *realloc (T *n, std::size_t size) {
+        printf("realloc()\n");
         auto p = static_cast<T *> (::realloc(n, size));
         if (!p) { throw std::bad_alloc(); }
         return p;

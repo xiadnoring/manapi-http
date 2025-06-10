@@ -96,7 +96,7 @@ namespace manapi::net::worker {
 
         bool is_writable(const shared_conn &conn) override;
 
-        virtual void http_work_ (http::http_v1_1_t *http_v1_1_ctx, const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize);
+        virtual void http_work_ (http::http_v1_1_t *http_v1_1_ctx, const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p);
 
         virtual void onaccept_event_ (const worker::shared_conn &conn);
 

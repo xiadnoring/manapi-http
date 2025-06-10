@@ -36,6 +36,8 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
             prev_cb = this->event_on(conn, std::make_unique<worker_watcher_cb>([this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]
                 (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) -> void {
                     try {
+                        assert(!buffer && !nsize);
+
                         if (flags & ev::DISCONNECT) {
                             resolve(-1);
                             goto finish;
@@ -223,11 +225,35 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
     return -1;
 }
 
+void manapi::net::worker::base::connection_io_send_start(connection_io_part *top, ibuffpool_t buff, int *cnt) {
+    if (top->deque) {
+        if (top->deque_current > buff.size()) {
+            top->deque_current -= static_cast<int>(buff.size());
+            memcpy (top->deque->buffer.data() + top->deque_current, buff.data(), buff.size());
+        }
+        else {
+            top->deque->buffer.shift_add(top->deque_current);
+            top->deque_current = 0;
+            auto obj = std::make_unique<buffer_deque>(std::move(buff), std::move(top->deque));
+            top->deque = std::move(obj);
+            (*cnt)++;
+        }
+    }
+    else {
+        top->deque = std::make_unique<buffer_deque>(std::move(buff), nullptr);
+        top->last_deque = top->deque.get();
+        top->deque_current = 0;
+        top->deque_cursor = static_cast<int>(top->deque->buffer.size() + top->deque->buffer.shift());
+        top->deque->buffer.resize(top->deque->buffer.realsize());
+        (*cnt)++;
+    }
+}
+
 void manapi::net::worker::base::connection_io_trim(struct connection_io_part *top, buffer_deque *parent, int *cnt) {
     if (!top->deque_cursor && top->last_deque) {
         if (parent) {
             parent->next = nullptr;
-            top->deque_cursor = static_cast<int>(parent->buffer.size());
+            top->deque_cursor = static_cast<int>(parent->buffer.size()+parent->buffer.shift());
             top->last_deque = parent;
         }
         else {
