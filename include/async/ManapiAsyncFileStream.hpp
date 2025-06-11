@@ -31,12 +31,12 @@ namespace manapi::filesystem {
         fstream &operator=(fstream &&n) noexcept;
         fstream (const fstream &n);
         fstream &operator=(const fstream &n);
-        future<> open (int flags, int mode = 0644);
+        future<manapi::error::status> open (int flags, int mode = 0644);
         [[nodiscard]] bool is_open () const;
         ~fstream();
         future<ssize_t> read (void *buff, ssize_t buff_size);
         future<ssize_t> write (const void *buff, ssize_t buff_size);
-        future<> fwrite (const void *buff, ssize_t buff_size);
+        future<ssize_t> fwrite (const void *buff, ssize_t buff_size);
         future<ssize_t> fread (void *buff, ssize_t buff_size);
         future<> close ();
         [[nodiscard]] ssize_t tellg() const;

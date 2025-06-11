@@ -4,7 +4,9 @@
 #include <string>
 #include <memory>
 #include <format>
+
 #include "ManapiUtils.hpp"
+#include "ManapiJson.hpp"
 
 namespace manapi {
     enum err_num {
@@ -31,19 +33,16 @@ namespace manapi {
 
     std::string_view get_msg_by_err_num(err_num errnum);
 
-    void extract_exception_ptr (std::exception_ptr err, int *errnum, std::string *msg, class json *data);
+    void extract_exception_ptr (std::exception_ptr err, int *errnum, std::string *msg);
 
     class exception : public std::exception {
     public:
         exception (manapi::err_num errnum, std::string message);
-        exception (manapi::err_num errnum, std::string message, std::unique_ptr<class json> data);
         [[nodiscard]] const char * what() const noexcept override;
         [[nodiscard]] int err_num () const;
-        [[nodiscard]] std::shared_ptr<manapi::json> data();
     private:
         manapi::err_num errnum_;
         std::string message;
-        std::shared_ptr<json> data_;
     };
 
     namespace error {
@@ -51,11 +50,17 @@ namespace manapi {
         public:
             status ();
             status (err_num code, std::string_view msg);
+            status (err_num code, std::string_view msg, manapi::json data);
+
+            status (status &&n) noexcept;
+            status& operator= (status &&n) noexcept;
 
             [[nodiscard]] std::string_view msg () const;
             [[nodiscard]] err_num code () const;
+            [[nodiscard]] manapi::json &data ();
             [[nodiscard]] bool ok () const;
         private:
+            manapi::json data_;
             std::string_view msg_;
             err_num code_;
         };
@@ -115,6 +120,26 @@ namespace manapi {
         status status_data_loss (std::string_view msg);
         status status_filesystem_failed (std::string_view msg);
         status status_parse_failed (std::string_view msg);
+
+        status status_ok (manapi::json data);
+        status status_unknown (std::string_view msg, manapi::json data);
+        status status_cancelled (std::string_view msg, manapi::json data);
+        status status_invalid_argument (std::string_view msg, manapi::json data);
+        status status_deadline_exceeded (std::string_view msg, manapi::json data);
+        status status_not_found (std::string_view msg, manapi::json data);
+        status status_already_exists (std::string_view msg, manapi::json data);
+        status status_permission_denied (std::string_view msg, manapi::json data);
+        status status_unauthenticated (std::string_view msg, manapi::json data);
+        status status_resource_exhausted (std::string_view msg, manapi::json data);
+        status status_failed_precondition (std::string_view msg, manapi::json data);
+        status status_aborted (std::string_view msg, manapi::json data);
+        status status_unavailable (std::string_view msg, manapi::json data);
+        status status_out_of_range (std::string_view msg, manapi::json data);
+        status status_unimplemented (std::string_view msg, manapi::json data);
+        status status_internal (std::string_view msg, manapi::json data);
+        status status_data_loss (std::string_view msg, manapi::json data);
+        status status_filesystem_failed (std::string_view msg, manapi::json data);
+        status status_parse_failed (std::string_view msg, manapi::json data);
     }
 }
 

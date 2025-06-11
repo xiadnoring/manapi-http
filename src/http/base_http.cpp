@@ -123,9 +123,9 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
         }
 
         filesystem::fstream f (filepath);
-        co_await f.open(ev::FS_O_RDONLY);
+        auto fres = co_await f.open(ev::FS_O_RDONLY);
 
-        if (!f.is_open()) {
+        if (!fres.ok()) {
             if (force_compress) {
                 /** no way */
                 cdata->router = std::move(cdata->router->error);
@@ -361,7 +361,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
             if (err) {
                 /* failed */
                 std::string msg;
-                manapi::extract_exception_ptr(std::move(err), nullptr, &msg, nullptr);
+                manapi::extract_exception_ptr(std::move(err), nullptr, &msg);
                 std::cerr << msg << "\n";
                 return;
             }
@@ -454,7 +454,7 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
             if (result && *result >= 0) {
                 const ssize_t reserved = res->config()->buffer_size;
                 auto cb_sync = std::make_unique<http::response::resp_callback_sync>(std::move(res->callback_sync()));
-                manapi::async::run ([cb_sync = std::move(cb_sync), reserved, cdata = std::move(cdata)] () mutable
+                manapi::async::run ([res = std::move(res), cb_sync = std::move(cb_sync), reserved, cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
                         // TODO: speed up
                         std::string buffer;
@@ -495,7 +495,7 @@ void manapi::net::http::internal::send_response_stream_cb(uq_handle_data_t cdata
             if (result && *result >= 0) {
                 auto reserved = res->config()->buffer_size;
                 auto cb_async = std::make_unique<http::response::resp_stream>(std::move(res->callback_stream()));
-                manapi::async::run ([reserved, cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
+                manapi::async::run ([res = std::move(res), reserved, cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
                         co_await cb_async->operator()([&cdata] (const void *buffer, ssize_t size, bool fin) -> manapi::future<ssize_t> {
                             co_return co_await cdata->worker->fwrite(cdata->conn, buffer, size, fin);
@@ -541,7 +541,9 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
                             if (rhs < 0) {
                                 THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
                             }
-                            co_await cdata->worker->fwrite(cdata->conn, buffer.data(), rhs, finish);
+                            if (rhs != co_await cdata->worker->fwrite(cdata->conn, buffer.data(), rhs, finish)) {
+                                THROW_MANAPIHTTP_EXCEPTION2(ERR_ABORTED, "Write failed");
+                            }
                         }
                     });
             }
@@ -738,7 +740,7 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
                 -> void {
                 if (err) {
                     std::string msg;
-                    manapi::extract_exception_ptr(std::move(err), nullptr, &msg, nullptr);
+                    manapi::extract_exception_ptr(std::move(err), nullptr, &msg);
                     manapi::async::current()->logger()->error(manapi::logger::default_service,
                         manapi::ERR_INTERNAL, "an error occurred while processing the HTTP request due to {}", msg);
                     cdata->router = std::move(cdata->router->error);

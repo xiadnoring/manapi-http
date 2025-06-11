@@ -33,7 +33,7 @@ namespace manapi::error {
         "watcher command failed",
         "fs watcher bind failed",
         "random string failed",
-        "unhandled exception. errnum: {}; errmsg: {}; data: {}",
+        "unhandled exception. errnum: {}; errmsg: {};",
         "connection was closed",
         "custom callback failed due to {}"
     };

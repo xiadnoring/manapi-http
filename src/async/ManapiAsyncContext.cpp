@@ -197,12 +197,11 @@ manapi::async::context::~context() = default;
 void manapi::async::internal::run_prepare_error_(std::exception_ptr err) {
     int errnum = manapi::ERR_OK;
     std::string errmsg;
-    manapi::json data;
 
-    manapi::extract_exception_ptr(std::move(err), &errnum, &errmsg, &data);
+    manapi::extract_exception_ptr(std::move(err), &errnum, &errmsg);
 
     manapi::async::current()->logger()->error(manapi::logger::default_service, manapi::ERR_UNKNOWN,
-        manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], errnum, std::move(errmsg), data.dump());
+        manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], errnum, std::move(errmsg));
 }
 
 
@@ -214,7 +213,7 @@ void manapi::async::internal::run_prepare_std_exception_(std::exception const &e
 
 void manapi::async::internal::run_prepare_manapi_exception_(manapi::exception &e) {
     manapi::async::current()->logger()->error(manapi::logger::default_service, manapi::ERR_UNKNOWN,
-                    manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], e.err_num(), e.what(), e.data()->dump());
+                    manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], e.err_num(), e.what());
 }
 
 const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::internal::ethreadpool_(const shared_cthread &ctx) {

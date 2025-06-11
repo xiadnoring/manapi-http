@@ -26,7 +26,7 @@ std::string_view get_msg_by_err_num (manapi::err_num err) {
     return "ERR_UNKNOWN";
 }
 
-void manapi::extract_exception_ptr(std::exception_ptr err, int *errnum, std::string *msg, json *data) {
+void manapi::extract_exception_ptr(std::exception_ptr err, int *errnum, std::string *msg) {
     try {
         std::rethrow_exception(std::move(err));
     }
@@ -36,9 +36,6 @@ void manapi::extract_exception_ptr(std::exception_ptr err, int *errnum, std::str
 
         if (msg)
             *msg = e.what();
-
-        if (data && e.data())
-            *data = std::move(*e.data());
     }
     catch (std::exception const &e) {
         if (errnum)
@@ -46,22 +43,13 @@ void manapi::extract_exception_ptr(std::exception_ptr err, int *errnum, std::str
 
         if (msg)
             *msg = e.what();
-
-        if (data)
-            *data = nullptr;
     }
 }
 
 manapi::exception::exception(manapi::err_num errnum, std::string message): message(std::move(message)) {
     this->errnum_ = errnum;
-    this->data_ = nullptr;
 }
 
-manapi::exception::exception(manapi::err_num errnum, std::string message, std::unique_ptr<manapi::json> data) {
-    this->errnum_ = errnum;
-    this->message = std::move(message);
-    this->data_ = std::move(data);
-}
 
 const char *manapi::exception::what() const noexcept {
     return this->message.data();
@@ -69,10 +57,6 @@ const char *manapi::exception::what() const noexcept {
 
 int manapi::exception::err_num() const {
     return this->errnum_;
-}
-
-std::shared_ptr<manapi::json> manapi::exception::data() {
-    return this->data_;
 }
 
 manapi::error::status::status() {
@@ -84,12 +68,26 @@ manapi::error::status::status(err_num code, std::string_view msg) {
     this->msg_ = msg;
 }
 
+manapi::error::status::status(err_num code, std::string_view msg, manapi::json data) {
+    this->code_ = code;
+    this->msg_ = msg;
+    this->data_ = std::move(data);
+}
+
+manapi::error::status::status(status &&n) noexcept = default;
+
+manapi::error::status & manapi::error::status::operator=(status &&n) noexcept = default;
+
 std::string_view manapi::error::status::msg() const {
     return this->msg_;
 }
 
 manapi::err_num manapi::error::status::code() const {
     return this->code_;
+}
+
+manapi::json &manapi::error::status::data() {
+    return this->data_;
 }
 
 bool manapi::error::status::ok() const {
@@ -170,4 +168,80 @@ manapi::error::status manapi::error::status_filesystem_failed(std::string_view m
 
 manapi::error::status manapi::error::status_parse_failed(std::string_view msg) {
     return {ERR_PARSE_FAILED, msg};
+}
+
+manapi::error::status manapi::error::status_ok(manapi::json data) {
+    return {ERR_OK, "ok", std::move(data)};
+}
+
+manapi::error::status manapi::error::status_unknown(std::string_view msg, manapi::json data) {
+    return {ERR_UNKNOWN, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_cancelled(std::string_view msg, manapi::json data) {
+    return {ERR_CANCELLED, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_invalid_argument(std::string_view msg, manapi::json data) {
+    return {ERR_INVALID_ARGUMENT, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_deadline_exceeded(std::string_view msg, manapi::json data) {
+    return {ERR_DEADLINE_EXCEEDED, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_not_found(std::string_view msg, manapi::json data) {
+    return {ERR_NOT_FOUND, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_already_exists(std::string_view msg, manapi::json data) {
+    return {ERR_ALREADY_EXISTS, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_permission_denied(std::string_view msg, manapi::json data) {
+    return {ERR_PERMISSION_DENIED, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_unauthenticated(std::string_view msg, manapi::json data) {
+    return {ERR_UNAUTHENTICATED, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_resource_exhausted(std::string_view msg, manapi::json data) {
+    return {ERR_RESOURCE_EXHAUSTED, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_failed_precondition(std::string_view msg, manapi::json data) {
+    return {ERR_FAILED_PRECONDITION, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_aborted(std::string_view msg, manapi::json data) {
+    return {ERR_ABORTED, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_unavailable(std::string_view msg, manapi::json data) {
+    return {ERR_UNAVAILABLE, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_out_of_range(std::string_view msg, manapi::json data) {
+    return {ERR_OUT_OF_RANGE, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_unimplemented(std::string_view msg, manapi::json data) {
+    return {ERR_UNIMPLEMENTED, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_internal(std::string_view msg, manapi::json data) {
+    return {ERR_INTERNAL, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_data_loss(std::string_view msg, manapi::json data) {
+    return {ERR_DATA_LOSS, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_filesystem_failed(std::string_view msg, manapi::json data) {
+    return {ERR_FILESYSTEM_FAILED, msg, std::move(data)};
+}
+
+manapi::error::status manapi::error::status_parse_failed(std::string_view msg, manapi::json data) {
+    return {ERR_PARSE_FAILED, msg, std::move(data)};
 }

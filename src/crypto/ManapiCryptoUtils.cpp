@@ -49,7 +49,7 @@ manapi::future<void> manapi::crypto::async_random_string(async::shared_cthread c
                 -> void {
                     if (status) {
                         reject(std::make_exception_ptr(manapi::exception(manapi::ERR_INTERNAL,
-                           manapi::error::default_msgs[error::ERRMSG_RANDOM_STRING_FAILED], std::make_unique<json>(manapi::json{{"rhs", status}}))));
+                           manapi::error::default_msgs[error::ERRMSG_RANDOM_STRING_FAILED])));
                         return;
                     }
                     resolve();

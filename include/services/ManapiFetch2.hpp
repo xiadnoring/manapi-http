@@ -36,7 +36,7 @@ namespace manapi::net {
                     +[] (std::exception_ptr err) -> void {
                         std::string msg;
                         if (err) {
-                            manapi::extract_exception_ptr(err, nullptr, &msg, nullptr);
+                            manapi::extract_exception_ptr(err, nullptr, &msg);
                             manapi::async::current()->logger()->error(
                                 manapi::logger::default_service, ERR_INTERNAL,
                                 "fetch2: failed to close stalled or cancelled connection due to {}", msg);

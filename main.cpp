@@ -7,6 +7,8 @@
 #   define FOLDER "/home/Timur/Downloads/anime-main/"
 #endif
 //#define FOLDER "/home/Timur/Documents/http2priorities/"
+#include <cstring>
+
 #include "crypto/ManapiAEAD.hpp"
 #include "ManapiHash.hpp"
 #include "ManapiProcess.hpp"
@@ -229,14 +231,20 @@ int main () {
         router.POST ("/upload2", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, req.header(manapi::net::http::HEADER.CONTENT_LENGTH));
-            co_return resp.callback_stream([&req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
-                ssize_t rhs = 0;
-                co_await req.callback_async([&rhs, cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
+            co_return resp.callback_stream([&resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
+                manapi::filesystem::fstream f ("/home/Timur/Downloads/test.txt", req.cancellation());
+                auto res = co_await f.open(manapi::ev::FS_O_RDONLY);
+                if (!res.ok()) {
+                    co_return;
+                }
+                co_await req.callback_async([f, cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
                     -> manapi::future<ssize_t> {
-                    rhs += size;
-                    co_return size;
+                    //auto buffer1 = manapi::async::current()->memory_fabric().slice(size);
+                    //auto res = co_await f.fread(buffer1.data(), buffer1.size());
+                    //assert(res == buffer1.size());
+                    //assert(memcmp(buffer1.data(), buffer, size) == 0);
+                    co_return co_await cb (buffer, size, fin);
                 });
-                std::cout << rhs <<  "\n";
             });
         });
 

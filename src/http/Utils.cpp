@@ -438,8 +438,8 @@ manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net
 
     // find replacers
     filesystem::fstream f (path);
-    co_await f.open(ev::FS_O_RDONLY);
-    if (!f.is_open())
+    auto res = co_await f.open(ev::FS_O_RDONLY);
+    if (!res.ok())
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Could not open the following file for finding replacers ({})", path);
     }

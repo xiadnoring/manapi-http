@@ -33,7 +33,7 @@ manapi::filesystem::fstream & manapi::filesystem::fstream::operator=(const fstre
     return *this;
 }
 
-manapi::future<> manapi::filesystem::fstream::open(int flags, int mode) {
+manapi::future<manapi::error::status> manapi::filesystem::fstream::open(int flags, int mode) {
     if ((mode & ev::FS_O_WRONLY) && !(mode & (ev::FS_O_RDONLY|ev::FS_O_RDWR))) {
         this->data->off_ = -1;
     }
@@ -46,16 +46,15 @@ manapi::future<> manapi::filesystem::fstream::open(int flags, int mode) {
             async::cancellation_action::unit(this->data->cancellation));
     }
     catch (manapi::exception const &e) {
-        if (e.err_num() == manapi::ERR_FILESYSTEM_FAILED ) {
-            this->data->file = -1;
-            co_return;
-        }
-
-        THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FILESYSTEM_FAILED, "file open failed due to {}", e.what());
+        this->data->file = -1;
+        co_return manapi::error::status_filesystem_failed("file open failed", {{"errmsg", e.what()}});
     }
     catch (std::exception const &e) {
-        THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FILESYSTEM_FAILED, "file open failed due to {}", e.what());
+        this->data->file = -1;
+        co_return manapi::error::status_filesystem_failed("file open failed", {{"errmsg", e.what()}});
     }
+
+    co_return manapi::error::status_ok();
 }
 
 bool manapi::filesystem::fstream::is_open() const {
@@ -127,17 +126,18 @@ manapi::future<ssize_t> manapi::filesystem::fstream::write(const void *buff, ssi
     co_return -1;
 }
 
-manapi::future<> manapi::filesystem::fstream::fwrite(const void *buff, ssize_t buff_size) {
+manapi::future<ssize_t> manapi::filesystem::fstream::fwrite(const void *buff, ssize_t buff_size) {
     ssize_t res = 0;
     while (res != buff_size) {
         auto const rhs = co_await this->write(static_cast<const char *>(buff) + res, buff_size - res);
 
         if (rhs <= 0) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to write to a file. code: {}", rhs);
+            co_return -1;
         }
 
         res += rhs;
     }
+    co_return res;
 }
 
 manapi::future<ssize_t> manapi::filesystem::fstream::fread(void *buff, ssize_t buff_size) {
@@ -146,7 +146,7 @@ manapi::future<ssize_t> manapi::filesystem::fstream::fread(void *buff, ssize_t b
     while (total < buff_size) {
         auto rhs = co_await this->read(static_cast<uint8_t *>(buff) + total, buff_size - total);
         if (rhs < 0) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to read from the file. rhs: {}", rhs);
+            co_return -1;
         }
         if (rhs == 0 && this->eof()) {
             break;

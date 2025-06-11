@@ -188,8 +188,8 @@ manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_file(st
                 co_return co_await stream.write(buffer, size);
 
 
-            co_await stream.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_NONBLOCK, mode);
-            if (!stream.is_open())
+            auto res = co_await stream.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_NONBLOCK, mode);
+            if (!res.ok())
                 co_return -1;
         }
     };
@@ -794,9 +794,9 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
             co_await write (nline, sizeof (nline) - 1);
 
             manapi::filesystem::fstream f (param.second.data);
-            co_await f.open(ev::FS_O_RDONLY);
+            auto res = co_await f.open(ev::FS_O_RDONLY);
 
-            if (!f.is_open()) {
+            if (!res.ok()) {
                 THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to read file ({}) to send it as form data parameter", param.second.data);
             }
 

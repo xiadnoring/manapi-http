@@ -4,6 +4,7 @@
 #include <map>
 #include <functional>
 #include <vector>
+
 #include "ManapiUtils.hpp"
 #include "ManapiBigint.hpp"
 #include "ManapiInt.hpp"
@@ -650,7 +651,7 @@ namespace manapi {
                     _debug_string_src = this->as_string().data();
                 break;
                 default:
-                break;
+                    break;
             }
         }
 #else

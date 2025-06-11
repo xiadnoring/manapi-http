@@ -144,9 +144,9 @@ manapi::future<> manapi::net::http::request::callback_async(onrecv_async_cb call
 
 manapi::future<> manapi::net::http::request::file(std::string filepath) {
     manapi::filesystem::fstream f (filepath);
-    co_await f.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_TRUNC);
+    auto res = co_await f.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_TRUNC);
 
-    if (!f.is_open()) {
+    if (!res.ok()) {
         THROW_MANAPIHTTP_EXCEPTION (ERR_FILESYSTEM_FAILED, "http request: Failed to open the file ({}) to write", filepath);
     }
 
@@ -550,6 +550,6 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
     }
 
     if (err) {
-        std::rethrow_exception(std::move(err));
+        std::rethrow_exception(err);
     }
 }
