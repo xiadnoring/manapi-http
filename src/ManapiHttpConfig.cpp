@@ -23,6 +23,38 @@ manapi::net::http::config::config(const json &config) {
     this->max_plain_param_length=(16000UL);
     this->max_file_param_length=(2147483648UL);
 
+    auto &obj = config.as_object();
+
+    auto it = obj.find("max_concurrent_streams");
+    if (it != obj.end())
+        this->max_concurrent_streams = it->second.as_integer_cast();
+    else
+        this->max_concurrent_streams = -1;
+
+    it = obj.find("max_frame_size");
+    if (it != obj.end())
+        this->max_frame_size = it->second.as_integer_cast();
+    else
+        this->max_frame_size = -1;
+
+    it = obj.find("max_hpack_table_size");
+    if (it != obj.end())
+        this->max_hpack_table_size = it->second.as_integer_cast();
+    else
+        this->max_hpack_table_size = -1;
+
+    it = obj.find("max_hpack_list_size");
+    if (it != obj.end())
+        this->max_hpack_list_size = it->second.as_integer_cast();
+    else
+        this->max_hpack_list_size = -1;
+
+    it = obj.find("initial_window_size");
+    if (it != obj.end())
+        this->initial_window_size = it->second.as_integer_cast();
+    else
+        this->initial_window_size = -1;
+
     /* partial data min size */
     if (config.contains("partial_data_min_size"))
     {

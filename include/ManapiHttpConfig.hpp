@@ -69,6 +69,12 @@ namespace manapi::net::http {
         static http::versions::http parse_http_version (const std::string &version);
 
         // settings
+        int max_concurrent_streams;
+        int max_frame_size;
+        int max_hpack_table_size;
+        int max_hpack_list_size;
+        int initial_window_size;
+
         bool simultaneous_accepts;
         bool quic_debug;
         size_t quic_cc_algo;
