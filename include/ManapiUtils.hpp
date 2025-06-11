@@ -38,22 +38,22 @@ namespace manapi::sockets {
 }
 
 namespace manapi::memory {
+    namespace internal {
+        void *alloc (std::size_t size);
+        void *realloc (void *n, std::size_t size);
+    }
     template<typename T>
-    constexpr T *alloc (std::size_t size) {
-        printf("alloc()\n");
-        auto p = static_cast<T *> (::malloc(size));
+    T *alloc (std::size_t size) {
+        auto p = static_cast<T *> (internal::alloc(size));
         if (!p) { throw std::bad_alloc(); }
         return p;
     }
 
-    inline void free (void *p) {
-        ::free(p);
-    }
+    void free (void *p);
 
     template<typename T>
-    constexpr T *realloc (T *n, std::size_t size) {
-        printf("realloc()\n");
-        auto p = static_cast<T *> (::realloc(n, size));
+    T *realloc (T *n, std::size_t size) {
+        auto p = static_cast<T *> (internal::realloc(n, size));
         if (!p) { throw std::bad_alloc(); }
         return p;
     }

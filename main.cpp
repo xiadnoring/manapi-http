@@ -117,8 +117,7 @@ int main () {
 
         router.GET ("/http-test", [cnt = std::make_shared<std::atomic<int>>(0)] (manapi::net::http::request &req, manapi::net::http::response &resp) mutable
             -> manapi::future<> {
-            resp.compress_enabled(false);
-            co_return resp.text(std::to_string(cnt->fetch_add(1)));
+            co_return resp.text("");
         });
 
         router.GET("/random", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
