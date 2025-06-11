@@ -33,8 +33,8 @@ namespace manapi::net::http {
         HTTP2_STREAM_REMOVED = 16,
         HTTP2_STREAM_SEND_END  = 32,
         HTTP2_STREAM_RECV_END = worker::base::CONN_RECV_END,
-        HTTP2_STREAM_PRIORITY_LOCKED = 128,
-        HTTP2_STREAM_IO_WAITING = 256
+        HTTP2_STREAM_IO_WAITING = 256,
+        HTTP2_STREAM_PRIORITY_LOCKED = 2048,
     };
 
     enum http2_ctx_flags {

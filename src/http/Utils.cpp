@@ -7,12 +7,12 @@
 #include "encoding/ManapiUnicode.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
 
-std::pair<std::string_view, std::string_view> manapi::net::http::parse_header(std::string_view header) {
+manapi::error::status_or<std::pair<std::string_view, std::string_view>> manapi::net::http::parse_header(std::string_view header) {
     std::pair <std::string_view, std::string_view> parsed;
     auto const pos = header.find(':');
 
     if (std::string::npos == pos) {
-        THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_INVALID_ARGUMENT, "invalid header: semicolon is missing");
+        return manapi::error::status_invalid_argument("invalid header: semicolon is missing");
     }
 
     parsed.first = header.substr(0, pos);

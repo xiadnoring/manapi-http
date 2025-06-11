@@ -451,12 +451,29 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
 int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, manapi::net::http::http_v2_stream_t *sdata) {
     using namespace manapi::net::http;
 
+    //std::cout << "INSERT " << (int)sdata->priority << " " <<  sdata->id << "\n";
+    if (!ctx->priorities->empty()) {
+        auto const it = ctx->streams->find(ctx->priorities->begin()->second);
+        if (it->first != sdata->id) {
+            assert(it != ctx->streams->end());
+            auto const s_oth_data = it->second->as<http_v2_stream_t>();
+            assert(!(s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED));
+            if (s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
+                           // std::cout << "unlock " << (int)s_oth_data->priority << " " <<  s_oth_data->id << " " << (int)s_oth_data->flags << "\n";
+                //s_oth_data->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+                ctx->http_v2_worker->feed_event(it->second, manapi::ev::WRITE, nullptr, 0, nullptr);
+            }
+        }
+    }
+
+    bool flg = false;
     auto const prit = ctx->priorities->insert({sdata->priority, sdata->id});
     if (prit.second) {
-        bool flg = false;
         if (prit.first == ctx->priorities->begin()) {
-            if (sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED)
-                sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+            if (sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
+                            //std::cout << "unlock " << (int)sdata->priority << " " <<  sdata->id << " " << (int)sdata->flags << "\n";
+                //sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+            }
 
             flg = true;
         }
@@ -469,18 +486,22 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, manapi::net::htt
                 auto prev_sdata = prev_sconn->second->as<http_v2_stream_t>();
                 if (prev_sdata->flags & (HTTP2_STREAM_PRIORITY_LOCKED|HTTP2_STREAM_PRIORITY_INCR)) {
                     /* it also must be locked or the previous stream has priority incr. flag */
-                    sdata->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+                            //std::cout << "lock " << (int)sdata->priority << " " <<  sdata->id << " " << (int)sdata->flags << "\n";
+                    //sdata->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
                 }
                 else if (!(sdata->flags & HTTP2_STREAM_PRIORITY_INCR)) {
-                    if (sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED)
-                        sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+                    if (sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
+                        //std::cout << "unlock " << (int)sdata->priority << " " <<  sdata->id << " " << (int)sdata->flags << "\n";
+                        //sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+                    }
 
                     flg = true;
                 }
             }
             else {
+                            //std::cout << "lock " << (int)sdata->priority << " " <<  sdata->id << " " << (int)sdata->flags << "\n";
                 /* it has lower priority */
-                sdata->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+               // sdata->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
             }
         }
         if (flg) {
@@ -494,11 +515,15 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, manapi::net::htt
                     break;
                 }
                 if (it->first == prit.first->first) {
-                    if (sdata->flags & HTTP2_STREAM_PRIORITY_INCR)
-                        s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+                    if (sdata->flags & HTTP2_STREAM_PRIORITY_INCR) {
+                            //std::cout << "lock " << (int)s_oth_data->priority << " " <<  s_oth_data->id << " " << (int)s_oth_data->flags << "\n";
+                      //  s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+                    }
                 }
-                else
-                    s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+                else {
+                           // std::cout << "lock " << (int)s_oth_data->priority << " " <<  s_oth_data->id << " " << (int)s_oth_data->flags << "\n";
+                    //s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+                }
             }
         }
     }
@@ -508,11 +533,15 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, manapi::net::htt
         if (it->first != sdata->id) {
             assert(it != ctx->streams->end());
             auto const s_oth_data = it->second->as<http_v2_stream_t>();
+            assert(!(s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED));
             if (s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
-                s_oth_data->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+                            //std::cout << "unlock " << (int)s_oth_data->priority << " " <<  s_oth_data->id << " " << (int)s_oth_data->flags << "\n";
+                //s_oth_data->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
                 ctx->http_v2_worker->feed_event(it->second, manapi::ev::WRITE, nullptr, 0, nullptr);
             }
         }
+        auto const s_oth_data = it->second->as<http_v2_stream_t>();
+            assert(!(s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED));
     }
 
     return 0;
@@ -521,11 +550,21 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, manapi::net::htt
 int http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net::http::http_v2_stream_t *s) {
     using namespace manapi::net::http;
 
+    //std::cout << "remove " << (int)s->priority << " " <<  s->id << "\n";
     try {
+        if (!ctx->priorities->empty()) {
+            auto const it = ctx->streams->find(ctx->priorities->begin()->second);
+
+            assert(it != ctx->streams->end());
+            auto const s_oth_data = it->second->as<http_v2_stream_t>();
+            assert(!(s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED));
+        }
+
         auto opit = ctx->priorities->find({s->priority, s->id});
         if (opit != ctx->priorities->end()) {
             if (opit == ctx->priorities->begin()) {
                 {
+                    int cnt = 0;
                     auto pit = std::next(opit);
                     if (pit != ctx->priorities->end()) {
                         auto const priority = pit->first;
@@ -535,17 +574,19 @@ int http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net::htt
 
                             auto const sit = ctx->streams->find(pit->second);
 
-                            if (sit == ctx->streams->end()) {
-                                pit = ctx->priorities->erase(pit);
-                                continue;
-                            }
+                            assert(sit != ctx->streams->end());
 
                             auto sdata = sit->second->as<http_v2_stream_t>();
                             if ((sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED)) {
-                                sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+                                if (cnt && (sdata->flags & HTTP2_STREAM_PRIORITY_INCR))
+                                    break;
 
+                                cnt += 1;
+                               // sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
 
+                            //std::cout << "unlock " << (int)sdata->priority << " " <<  sdata->id << " " << (int)sdata->flags << "\n";
                                 sdata->ctx->http_v2_worker->feed_event(sit->second, manapi::ev::WRITE, nullptr, 0, nullptr);
+
 
                                 if (sdata->flags & HTTP2_STREAM_PRIORITY_INCR)
                                     break;
@@ -562,11 +603,16 @@ int http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net::htt
             if (it->first != s->id) {
                 assert(it != ctx->streams->end());
                 auto const s_oth_data = it->second->as<http_v2_stream_t>();
+            assert(!(s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED));
                 if (s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
-                    s_oth_data->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
+                            //std::cout << "unlock " << (int)s_oth_data->priority << " " <<  s_oth_data->id << " " << (int)s_oth_data->flags << "\n";
+                    //s_oth_data->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
                     ctx->http_v2_worker->feed_event(it->second, manapi::ev::WRITE, nullptr, 0, nullptr);
                 }
             }
+
+            auto const s_oth_data = it->second->as<http_v2_stream_t>();
+            assert(!(s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED));
         }
     }
     catch (std::exception const &e) {
@@ -584,6 +630,7 @@ int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, int id) {
             return -1;
         }
         auto s = it->second->as<http_v2_stream_t>();
+        int flags = s->flags;
         if (!(s->flags & HTTP2_STREAM_SEND_END)) {
             ctx->concurrent_streams_size--;
             s->flags |= HTTP2_STREAM_SEND_END;
@@ -594,6 +641,14 @@ int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, int id) {
         }
 
         ctx->streams->erase(it);
+
+        if (!ctx->priorities->empty()) {
+            auto const it = ctx->streams->find(ctx->priorities->begin()->second);
+
+            assert(it != ctx->streams->end());
+            auto const s_oth_data = it->second->as<http_v2_stream_t>();
+            assert(!(s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED));
+        }
     }
     catch (std::exception const &e) {
         MANAPIHTTP_LOG("http2: stream erase failed due to {}", e.what());
@@ -1167,6 +1222,10 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 ctx->n2 = 0;
                                 break;
+                            }
+
+                            if (ctx->frame_flag & HTTP2_FLAG_HEADERS_END_STREAM) {
+                                sdata->flags |= HTTP2_STREAM_RECV_END;
                             }
 
                         }

@@ -78,7 +78,7 @@ namespace manapi {
 
         explicit object_pool();
 
-        ~object_pool() = default;
+        ~object_pool();
 
         bytebuffer slice (std::size_t min, std::size_t max);
 

@@ -4,9 +4,9 @@
 #ifdef _WIN32
 #   define FOLDER ".\\data\\"
 #else
-#   define FOLDER "/home/Timur/Downloads/anime-main/"
+//#   define FOLDER "/home/Timur/Downloads/anime-main/"
 #endif
-//#define FOLDER "/home/Timur/Documents/http2priorities/"
+#define FOLDER "/home/Timur/Documents/http2priorities/"
 #include <cstring>
 
 #include "crypto/ManapiAEAD.hpp"
@@ -30,11 +30,11 @@ int main () {
     try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS").value()); }
     catch (...) {  }
 
-    GCTX_OBJ = manapi::async::context::create(loops);
-    GCTX_OBJ->eventloop()->setup_handle_interrupt();
+    auto ctx = manapi::async::context::create(loops);
+    ctx->eventloop()->setup_handle_interrupt();
 
     auto mx = std::make_shared<manapi::async::tmutex>();
-    GCTX_OBJ->logger()->callback(
+    ctx->logger()->callback(
         [mx = std::move(mx)](manapi::logger_type type, std::string_view service, int error_code, std::string msg)
         -> void {
         manapi::async::run(manapi::async::invoke(+[](std::shared_ptr<manapi::async::tmutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
@@ -49,7 +49,7 @@ int main () {
 
     manapi::net::http::server_ctx server_ctx;
 
-    GCTX_OBJ->run(GCTX_OBJ, loops, [&a, server_ctx] (const std::function<void()> &bind) -> void {
+    manapi::async::context::run(ctx, loops, [&a, server_ctx] (const std::function<void()> &bind) -> void {
 
         using http = manapi::net::http::server;
         //manapi::ext::pq::connection db;
@@ -174,15 +174,16 @@ int main () {
                     co_return resp.text("failed to open the file");
                 }
 
-                auto fetch = co_await manapi::net::fetch2::fetch("https://localhost:8888/upload", {
-                    {"http", "1.1"},
+                auto fetch = co_await manapi::net::fetch2::fetch("https://localhost:8885/upload", {
+                    {"http", "2"},
                     {"verify_peer", false},
                     {"verbose", false},
                     {"alpn", false},
                     {"method", "POST"},
+                    {"timeout", 20},
                     {"headers", {
-                        {"transfer-encoding", "chunked"}
-                        // {"content-length", "298512394"}
+                        //{"transfer-encoding", "chunked"}
+                        {"content-length", "298512394"}
                     }}
                 }, [file] (char *body, ssize_t size) mutable -> manapi::future<ssize_t> {
                     return file.read(body, size);

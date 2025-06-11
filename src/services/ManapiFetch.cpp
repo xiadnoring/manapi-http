@@ -70,10 +70,13 @@ size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_
         if (f->flags & FLAG_STATUS_PASSED) {
             std::string_view const str (buffer, size * n_items - 2);
             if (!str.empty()) {
-                auto header = manapi::net::http::parse_header(str);
-                auto key = std::string{header.first};
-                manapi::string::lower_ascii(key);
-                f->headers->insert({std::move(key), std::string{header.second}});
+                auto res = manapi::net::http::parse_header(str);
+                if (res.ok()) {
+                    auto header = res.value();
+                    auto key = std::string{header.first};
+                    manapi::string::lower_ascii(key);
+                    f->headers->insert({std::move(key), std::string{header.second}});
+                }
             }
         }
         else {

@@ -53,9 +53,24 @@ void manapi::internal::object_item_pool_return(const std::shared_ptr<internal::o
     data->buffers[bufflen2level(real_size)].push_back({buffer, real_size});
 }
 
+struct object_pool_deleter {
+    void operator () (manapi::internal::object_pool_data_t *p) {
+        for (auto &buffs : p->buffers) {
+            while (!buffs.empty()) {
+                auto p = std::move(buffs.back());
+                buffs.pop_back();
+
+                delete static_cast<char *>(p.first);
+            }
+        }
+    }
+};
+
 manapi::object_pool::object_pool() {
-    this->data = std::make_shared<internal::object_pool_data_t>();
+    this->data = decltype(this->data) (new internal::object_pool_data_t{}, object_pool_deleter{});
 }
+
+manapi::object_pool::~object_pool() = default;
 
 manapi::bytebuffer manapi::object_pool::slice(std::size_t min, std::size_t max) {
     return this->slice(max);
