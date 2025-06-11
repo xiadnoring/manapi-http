@@ -243,8 +243,8 @@ void manapi::net::worker::base::connection_io_send_start(connection_io_part *top
         top->deque = std::make_unique<buffer_deque>(std::move(buff), nullptr);
         top->last_deque = top->deque.get();
         top->deque_current = 0;
-        top->deque_cursor = static_cast<int>(top->deque->buffer.size() + top->deque->buffer.shift());
-        top->deque->buffer.resize(top->deque->buffer.realsize());
+        top->deque_cursor = static_cast<int>(top->deque->buffer.size());
+        top->deque->buffer.realresize(top->deque->buffer.realsize());
         (*cnt)++;
     }
 }
@@ -253,7 +253,7 @@ void manapi::net::worker::base::connection_io_trim(struct connection_io_part *to
     if (!top->deque_cursor && top->last_deque) {
         if (parent) {
             parent->next = nullptr;
-            top->deque_cursor = static_cast<int>(parent->buffer.size()+parent->buffer.shift());
+            top->deque_cursor = static_cast<int>(parent->buffer.size());
             top->last_deque = parent;
         }
         else {

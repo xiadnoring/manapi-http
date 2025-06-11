@@ -527,6 +527,9 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
     auto data = conn->as<TLS::connection_interface>();
 
     do {
+        if (top->last_deque) {
+            assert (top->last_deque->buffer.size() >= top->deque_cursor);
+        }
         if (!top->last_deque || top->last_deque->buffer.size() == top->deque_cursor) {
             if (auto const res = ssl_flush_recv(conn, top, cnt)) {
                 return res;
@@ -569,7 +572,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
             top->deque_cursor += rhs;
             if (!rhs && (flags /* an empty buffer was created */ )) {
                 /* remove an empty buffer at the end */
-                connection_io_trim(top, parent, cnt);
+                //connection_io_trim(top, parent, cnt);
             }
         }
         else {

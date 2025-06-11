@@ -57,6 +57,8 @@ namespace manapi {
 
         [[nodiscard]] std::size_t realsize () const;
 
+        void realresize (std::size_t s);
+
         void resize (std::size_t s);
 
         void resize_max (std::size_t s);

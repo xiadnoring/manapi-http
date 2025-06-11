@@ -206,11 +206,11 @@ int main () {
             manapi::net::hash::SHA256 hash{};
             hash.init();
             try {
-                co_await req.callback_async([&result, &hash] (const char *buffer, ssize_t size, bool fin)
-                    -> manapi::future<ssize_t> {
+                co_await req.callback_sync([&result, &hash] (const char *buffer, ssize_t size, bool fin)
+                    -> ssize_t {
                     hash.update(reinterpret_cast<const uint8_t *>(buffer), size);
                     result += size;
-                    co_return size;
+                    return size;
                 });
             }
             catch (std::exception const &e) {
@@ -232,17 +232,8 @@ int main () {
             -> manapi::future<> {
             resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, req.header(manapi::net::http::HEADER.CONTENT_LENGTH));
             co_return resp.callback_stream([&resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
-                manapi::filesystem::fstream f ("/home/Timur/Downloads/test.txt", req.cancellation());
-                auto res = co_await f.open(manapi::ev::FS_O_RDONLY);
-                if (!res.ok()) {
-                    co_return;
-                }
-                co_await req.callback_async([f, cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
+                co_await req.callback_async([cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
                     -> manapi::future<ssize_t> {
-                    //auto buffer1 = manapi::async::current()->memory_fabric().slice(size);
-                    //auto res = co_await f.fread(buffer1.data(), buffer1.size());
-                    //assert(res == buffer1.size());
-                    //assert(memcmp(buffer1.data(), buffer, size) == 0);
                     co_return co_await cb (buffer, size, fin);
                 });
             });

@@ -105,7 +105,7 @@ std::size_t manapi::bytebuffer::realsize() const {
     return this->reserved < 0 ? this->s : this->reserved;
 }
 
-void manapi::bytebuffer::resize(std::size_t s) {
+void manapi::bytebuffer::realresize(std::size_t s) {
     if (this->s == s)
         return;
 
@@ -144,6 +144,10 @@ void manapi::bytebuffer::resize(std::size_t s) {
     }
 
     this->shift_ = std::min(this->shift_, this->s);
+}
+
+void manapi::bytebuffer::resize(std::size_t s) {
+    this->realresize(s + this->shift_);
 }
 
 void manapi::bytebuffer::resize_max(std::size_t s) {

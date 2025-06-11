@@ -565,7 +565,17 @@ void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_i
                 object.shift_add(data->top->recv.deque_current);
                 data->top->recv.deque_current = 0;
             }
+
+            if (!object.empty()) {
+                data->ev_callback->operator()(conn, ev::READ, object.data(),
+                    static_cast<int>(object.size()), &object);
+            }
         }
+    }
+    if (data->status & ev::READ
+            && !(data->status & (CONN_CLOSED|CONN_REMOVED))
+            && !data->watcher->is_active()) {
+        data->watcher->read_start();
     }
 }
 
@@ -972,17 +982,15 @@ void manapi::net::worker::TCP::http_work_(http::http_v1_1_t *http_v1_1_ctx, cons
                     }
 
                     bytebuffer obj;
-                    if (!p) {
+                    if (p) {
                         p->shift_add(static_cast<int>(buff-p->data()));
                         assert(p->size() == size && p->data() == buff);
                     }
                     else {
                         obj = this->bufferpool().slice(
-                            std::max(this->config_->buffer_size, size + 5));
+                            std::max(this->config_->buffer_size, size));
                         p = &obj;
-                        memcpy (p->data() + 5, buff, size);
-                        p->resize(size + 5);
-                        p->shift_add(5);
+                        memcpy (p->data(), buff, size);
                     }
                     connection_io_send_start(&data->top->recv, std::move(*p), &data->top->recv_size);
 
