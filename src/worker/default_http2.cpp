@@ -1,11 +1,23 @@
-#include "worker/HTTPv2.hpp"
+#include "worker/default_http2.hpp"
 #include "http/HTTPv2.hpp"
 
 #include "ManapiHttpResponse.hpp"
 
-manapi::net::worker::http_v2::http_v2(net::http::site site, std::shared_ptr<worker::worker_config_t> worker_data, http::config *config) : base(std::move(site), std::move(worker_data), config) {}
+manapi::net::worker::http_v2::http_v2(worker::base *w) : w(w) {}
 
 manapi::net::worker::http_v2::~http_v2() = default;
+
+const std::shared_ptr<manapi::net::worker::worker_config_t> & manapi::net::worker::http_v2::worker_data() {
+    return this->w->worker_data();
+}
+
+manapi::net::http::config * manapi::net::worker::http_v2::config() {
+    return this->w->config();
+}
+
+manapi::net::http::site & manapi::net::worker::http_v2::site() {
+    return this->w->site();
+}
 
 void manapi::net::worker::http_v2::waiting(const shared_conn &conn, bool state) {
     auto const d = conn->as<http::http_v2_stream_t>();
@@ -17,7 +29,17 @@ void manapi::net::worker::http_v2::waiting(const shared_conn &conn, bool state) 
 
 void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) {
     auto const data = conn->as<http::http_v2_stream_t>();
-    if (data->ev_callback) {
+    if (flags & ev::READ) {
+        if (flags & CONN_TOP_READ) {
+            this->feed_event_read_ (conn, data->ev_callback.get(), data->recv.get(), &data->recv_size, data->flags, flags, buff, size, p);
+            http::http_v2_on_read_stream (conn, data);
+        }
+        else {
+            http::http_v2_on_read_stream (conn, data);
+            this->feed_event_read_ (conn, data->ev_callback.get(), data->recv.get(), &data->recv_size, data->flags, flags, buff, size,  p);
+        }
+    }
+    else {
         data->ev_callback->operator()(conn, flags, buff, size, p);
     }
 }
@@ -55,13 +77,13 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::response(const shared_conn
 
     int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) {
     auto const data = conn->as<http::http_v2_stream_t>();
-    data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
-    return data->flags & (ev::READ|ev::WRITE|ev::DISCONNECT);
+    data->speed_min_delay = static_cast<int>(this->w->config()->speed_check_delay);
+    return data->flags & CONN_MASK_GETTING;
 }
 
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flags) {
     auto const data = conn->as<http::http_v2_stream_t>();
-    auto const prev = std::exchange(data->flags, ((data->flags >> 2) << 2) | (flags & 0b11));
+    auto const prev = std::exchange(data->flags, ((data->flags >> 2) << 2) | (flags & CONN_MASK_UPDATE));
 
     if ((data->flags & http::HTTP2_STREAM_CLOSED) && flags && data->ev_callback) {
         data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0, nullptr);
@@ -110,7 +132,7 @@ void manapi::net::worker::http_v2::stop(std::function<void()> cb) {
 }
 
 ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
-    return sync_write_ex (conn, buff, size, finish, static_cast<int>(this->config_->max_buffer_stack));
+    return sync_write_ex (conn, buff, size, finish, static_cast<int>(this->w->config()->max_buffer_stack));
 }
 
 ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {
@@ -123,11 +145,11 @@ void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &c
 
     if (--conn_data->speed_min_delay == 0) {
         if (conn_data->flags & http::HTTP2_STREAM_IO_WAITING
-            && conn_data->transfered_k < this->config_->speed_check_bytes) {
+            && conn_data->transfered_k < this->w->config()->speed_check_bytes) {
             this->close_connection(conn, false);
             return;
         }
         conn_data->transfered_k = 0;
-        conn_data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
+        conn_data->speed_min_delay = static_cast<int>(this->w->config()->speed_check_delay);
     }
 }

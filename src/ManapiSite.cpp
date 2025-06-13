@@ -6,20 +6,24 @@
 #include "worker/TCP.hpp"
 #include "worker/OpenSSL_TLS.hpp"
 #include "worker/QUIC.hpp"
-#include "worker/HTTPv2.hpp"
 #include "ManapiUtils.hpp"
 
 #include "services/ManapiTaskFunction.hpp"
 #include "services/ManapiThreadPool.hpp"
 #include "worker/HTTPv3_clouflare_quiche.hpp"
-#include "worker/HTTPv3_tquic.hpp"
 #include "worker/WolfSSL_TLS.hpp"
 
 #include "ManapiHttpResponse.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "async/ManapiEasyCancellation.hpp"
+#include "worker/default_wrk_http1.hpp"
+#include "worker/default_wrk_http2.hpp"
 
 namespace manapi::net {
+    namespace worker {
+        struct wrk_http2_ctx_global_t;
+    }
+
     // default, +error, +layout in url
     enum uri_page_type {
         URI_PAGE_DEFAULT    = 0,
@@ -47,16 +51,16 @@ std::string manapi::net::http::site::default_config_name      = "config_.json";
 // ======================[ configs funcs]==========================
 
 void manapi::net::http::site::compressor_for_file(const std::string &name, std::move_only_function<future<void>(std::string src, std::string dest)> handler) {
-    this->data->compressors_for_file[name] = std::move(handler);
+    (*this->data->compressors_for_file)[name] = std::move(handler);
 }
 
 void manapi::net::http::site::compressor_for_string(const std::string &name, std::move_only_function<std::string(std::string_view data)> handler) {
-    this->data->compressors_for_string[name] = std::move(handler);
+    (*this->data->compressors_for_string)[name] = std::move(handler);
 }
 
 std::move_only_function<manapi::future<void>(std::string src, std::string dest)> & manapi::net::http::site::compressor_for_file(const std::string &name) {
-    auto it = this->data->compressors_for_file.find(name);
-    if (it == this->data->compressors_for_file.end()) {
+    auto it = this->data->compressors_for_file->find(name);
+    if (it == this->data->compressors_for_file->end()) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_DATA_LOSS, "The compressor {} doesn't exists", name);
     }
 
@@ -64,38 +68,50 @@ std::move_only_function<manapi::future<void>(std::string src, std::string dest)>
 }
 
 bool manapi::net::http::site::contains_compressor_for_file(const std::string &name) const {
-    return this->data->compressors_for_file.contains(name);
+    return this->data->compressors_for_file->contains(name);
 }
 
 std::move_only_function<std::string(std::string_view)> & manapi::net::http::site::compressor_for_string(const std::string &name) {
-    auto it = this->data->compressors_for_string.find(name);
-    if (it == this->data->compressors_for_string.end()) {
+    auto it = this->data->compressors_for_string->find(name);
+    if (it == this->data->compressors_for_string->end()) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_DATA_LOSS, "The compress {} doesn't exists", name);
     }
     return it->second;
 }
 
 bool manapi::net::http::site::contains_compressor_for_string(const std::string &name) const {
-    return this->data->compressors_for_string.contains(name);
+    return this->data->compressors_for_string->contains(name);
 }
 
 void manapi::net::http::site::transport_protocol_worker(const std::string &type, const std::string &name, implement_create_cb worker) {
-    this->data->transport_protocol_workers[type][name] = std::move(worker);
+    (*this->data->transport_protocol_workers)[type][name] = std::move(worker);
 }
 
 const std::map<std::string, manapi::net::http::site::implement_create_cb> &manapi::net::http::site::transport_protocol_worker(const std::string &type) {
-    return this->data->transport_protocol_workers[type];
+    return (*this->data->transport_protocol_workers)[type];
+}
+
+void manapi::net::http::site::http_protocol_worker(http::versions::http type, const std::string &name, implemenet_http_cb worker) {
+    (*this->data->http_protocol_workers)[type][name] = std::move(worker);
+}
+
+const std::map<std::string, manapi::net::http::site::implemenet_http_cb> & manapi::net::http::site::http_protocol_worker(http::versions::http type) {
+    return (*this->data->http_protocol_workers)[type];
 }
 
 const std::string & manapi::net::http::site::config_cache_dir() {
     return this->data->config_cache_dir;
 }
 
-void manapi::net::http::site::setup() {
-    // fast ios
-    // std::ios_base::sync_with_stdio(false);
-    // std::cout.tie(nullptr);
+manapi::error::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_http_protocol_worker (manapi::net::worker::base *w, manapi::error::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w)) {
+    auto p = std::make_unique<manapi::net::worker::wrk_interface_global_t>();
+    auto res = init_global_cb (p.get(), w);
+    if (!res.ok())
+        return std::move(res);
+    return std::move(p);
+}
 
+void manapi::net::http::site::setup() {
 #if MANAPIHTTP_ZLIB_DEPENDENCY
     this->compressor_for_file("deflate", +[] (std::string src, std::string dest)
         -> future<void> { return manapi::compress::deflate_compress_file( std::move(src), std::move(dest)); });
@@ -138,14 +154,14 @@ void manapi::net::http::site::setup() {
     this->transport_protocol_worker("quic", "quiche", worker::http_v3_cloudflare_quiche::create);
 #endif
 
-#if MANAPIHTTP_TQUIC_DEPENDENCY
-    this->transport_protocol_worker("quic", "tquic", worker::http_v3_tquic::create);
-#endif
-
 #ifdef MANAPIHTTP_DEFAULT_QUIC
     this->transport_protocol_worker("quic", "default", worker::quic::create);
 #endif
 
+    this->http_protocol_worker(http::versions::HTTP_v1_1, "default", [] (worker::base *w)
+        { return create_http_protocol_worker (w, worker::default_wrk_http1_global_init); });
+    this->http_protocol_worker(http::versions::HTTP_v2, "default", [] (worker::base *w)
+        { return create_http_protocol_worker (w, worker::default_wrk_http2_global_init); });
 }
 
 manapi::future<> manapi::net::http::site::config(std::string path) {
@@ -512,6 +528,12 @@ manapi::net::http::site::site(server_ctx sctx) {
         std::make_shared<manapi::json>(manapi::json::object()),
         std::make_shared<manapi::json>(manapi::json::object()), 0, 0, std::string{}, std::string{}, std::move(sctx), false, http_uri_part{nullptr, nullptr, nullptr, nullptr, nullptr,nullptr,nullptr});
     this->data->cache_cv = std::make_unique<async::condition_variable>();
+
+    this->data->compressors_for_file = std::make_unique<decltype(this->data->compressors_for_file)::element_type>();
+    this->data->compressors_for_string = std::make_unique<decltype(this->data->compressors_for_string)::element_type>();
+    this->data->transport_protocol_workers = std::make_unique<decltype(this->data->transport_protocol_workers)::element_type>();
+    this->data->http_protocol_workers = std::make_unique<decltype(this->data->http_protocol_workers)::element_type>();
+
     this->data->server_config_notifier = async::current()->eventloop()->create_watcher_async([this] (ev::shared_async &w)
         -> void {
         manapi::async::run ([this] ()

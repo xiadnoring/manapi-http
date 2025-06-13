@@ -60,7 +60,7 @@ namespace manapi::net::worker {
 
         bool update_limit_rate_connection(const shared_conn &sconn) override;
 
-        static void connection_interface_eraser(void *data);
+        static void connection_interface_eraser(worker::connection *data);
 
         virtual void* ssl_create_context (const size_t &version) = 0;
 

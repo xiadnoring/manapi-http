@@ -272,21 +272,6 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
                             else
                                 size = static_cast<ssize_t> (nsize);
 
-                            if (flags & worker::base::CONN_RECV_END) {
-                                flags ^= worker::base::CONN_RECV_END;
-                                flg = true;
-
-                                if (!nsize) {
-                                    if (handler (nullptr, 0, flg) < 0) {
-                                        reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
-                                            manapi::ERR_INVALID_ARGUMENT, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
-                                        goto finish;
-                                    }
-                                    resolve();
-                                    goto finish;
-                                }
-                            }
-
                             ssize_t rhs = 0;
                             while (rhs < size) {
                                 auto const copy = size - rhs;
@@ -437,21 +422,6 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                         size = static_cast<ssize_t> (nsize);
                                     }
 
-                                    if (flags & worker::base::CONN_RECV_END) {
-                                        flags ^= worker::base::CONN_RECV_END;
-                                        flg = true;
-
-                                        if (!nsize) {
-                                            if (co_await ctx_cb->handler (nullptr, 0, flg) < 0) {
-                                                ctx_cb->reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION (
-                                                    manapi::ERR_INVALID_ARGUMENT, manapi::error::default_msgs[manapi::error::ERRMSG_CUSTOM_CALLBACK_ERR1], "invalid result")));
-                                                goto finish;
-                                            }
-                                            ctx_cb->resolve();
-                                            goto finish;
-                                        }
-                                    }
-
                                     ssize_t rhs = 0;
                                     while (rhs < size) {
                                         auto const copy = size - rhs;
@@ -476,7 +446,8 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                         goto finish;
                                     }
 
-                                    if (!ctx_cb->req->body_size) {
+                                    if (!ctx_cb->req->body_size
+                                        || (flags & worker::base::CONN_RECV_END)) {
                                         auto const copy = static_cast<int>(size - rhs);
                                         if (copy) {
                                             assert(ctx_cb->req->buffer == nullptr);

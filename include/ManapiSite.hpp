@@ -18,6 +18,7 @@
 
 namespace manapi::net::worker {
     class base;
+    struct wrk_interface_global_t;
 }
 
 namespace manapi::net::http {
@@ -79,6 +80,7 @@ namespace manapi::net::http {
     class site {
     public:
         typedef std::function<std::shared_ptr<worker::base>(site site, std::shared_ptr<manapi::net::worker::worker_config_t> wdata, std::shared_ptr<http::config> config)> implement_create_cb;
+        typedef std::function<manapi::error::status_or<std::unique_ptr<worker::wrk_interface_global_t>> (worker::base *w)> implemenet_http_cb;
     protected:
         struct data_t {
             std::unique_ptr<async::condition_variable> cache_cv;
@@ -93,9 +95,10 @@ namespace manapi::net::http {
             server_ctx sctx;
             bool enabled_save_config;
             http_uri_part handlers;
-            std::map <std::string, std::move_only_function<future<void>(std::string src, std::string dest)>> compressors_for_file{};
-            std::map <std::string, std::move_only_function<std::string(std::string_view data)>> compressors_for_string{};
-            std::map <std::string, std::map <std::string, implement_create_cb>> transport_protocol_workers{};
+            std::unique_ptr<std::map <std::string, std::move_only_function<future<void>(std::string src, std::string dest)>>> compressors_for_file{};
+            std::unique_ptr<std::map <std::string, std::move_only_function<std::string(std::string_view data)>>> compressors_for_string{};
+            std::unique_ptr<std::map <std::string, std::map <std::string, implement_create_cb>>> transport_protocol_workers{};
+            std::unique_ptr<std::map <http::versions::http, std::map <std::string, implemenet_http_cb>>> http_protocol_workers{};
             std::mutex loopmx{};
         };
     public:
@@ -123,6 +126,9 @@ namespace manapi::net::http {
 
         void transport_protocol_worker (const std::string &type, const std::string &name, implement_create_cb worker);
         const std::map <std::string, implement_create_cb> &transport_protocol_worker (const std::string &type);
+
+        void http_protocol_worker (http::versions::http type, const std::string &name, implemenet_http_cb worker);
+        const std::map <std::string, implemenet_http_cb> &http_protocol_worker (http::versions::http type);
 
         manapi::future<> config (std::string path);
         manapi::future<> config_object (json config);

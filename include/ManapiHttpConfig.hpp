@@ -56,12 +56,15 @@ namespace manapi::net::http {
     class config {
     public:
         config (const json &config);
+
         ~config ();
 
         bool contains_http_version (int version);
+
         int recommended_http_version ();
 
         [[nodiscard]] bool contains_compressor (const std::string &name);
+
         void function_contains_compressor (std::move_only_function<bool(const std::string &name)> func);
 
         static const std::string &stringify_http_version (const int &version);
@@ -106,5 +109,8 @@ namespace manapi::net::http {
         bool verify_peer;
         std::move_only_function<bool(const std::string &name)> function_contains_compressor_ = nullptr;
         std::string cipher_list;
+        std::string http1_implementation;
+        std::string http2_implementation;
+        std::string http3_implementation;
     };
 }

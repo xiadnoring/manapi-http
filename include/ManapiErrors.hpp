@@ -59,6 +59,8 @@ namespace manapi {
             [[nodiscard]] err_num code () const;
             [[nodiscard]] manapi::json &data ();
             [[nodiscard]] bool ok () const;
+            [[nodiscard]] std::string_view status_msg () const;
+            void throw_it () const;
         private:
             manapi::json data_;
             std::string_view msg_;
@@ -82,7 +84,7 @@ namespace manapi {
             }
 
             [[nodiscard]] std::string_view status_msg () const {
-                return get_msg_by_err_num(this->err_.code());
+                return this->err_.status_msg();
             }
 
             [[nodiscard]] std::string_view message () const {
@@ -90,11 +92,15 @@ namespace manapi {
             }
 
             T value () {
-                return this->value_.value();
+                return std::move(this->value_.value());
             }
 
             [[nodiscard]] bool ok () const {
                 return this->err_.code() == manapi::ERR_OK;
+            }
+
+            void throw_it () const {
+                this->err_.throw_it();
             }
         private:
             std::optional<T> value_;

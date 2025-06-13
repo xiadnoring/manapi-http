@@ -6,9 +6,10 @@
 
 #include "../ManapiUtils.hpp"
 #include "./base_worker.hpp"
+#include "./interface_worker.hpp"
 
 namespace manapi::net::worker {
-    class udp : public worker::base {
+    class udp : public worker::interface_worker {
     public:
         explicit udp(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config);
         ~udp() override;

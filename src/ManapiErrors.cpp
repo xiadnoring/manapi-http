@@ -1,7 +1,9 @@
 #include "ManapiErrors.hpp"
+
+#include "ManapiDebug.hpp"
 #include "ManapiJson.hpp"
 
-std::string_view get_msg_by_err_num (manapi::err_num err) {
+std::string_view manapi::get_msg_by_err_num (manapi::err_num err) {
     switch (err) {
         case manapi::ERR_OK: return "ERR_OK";
         case manapi::ERR_ABORTED: return "ERR_ABORTED";
@@ -92,6 +94,14 @@ manapi::json &manapi::error::status::data() {
 
 bool manapi::error::status::ok() const {
     return this->code_ == manapi::ERR_OK;
+}
+
+std::string_view manapi::error::status::status_msg() const {
+    return get_msg_by_err_num(this->code_);
+}
+
+void manapi::error::status::throw_it() const {
+    THROW_MANAPIHTTP_EXCEPTION2(this->code_, "msg: {}, data: {}", this->msg_, this->data_.dump());
 }
 
 manapi::error::status manapi::error::status_ok() {

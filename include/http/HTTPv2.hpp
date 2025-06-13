@@ -29,12 +29,13 @@ namespace manapi::net::http {
         HTTP2_STREAM_WANT_READ = manapi::ev::READ,
         HTTP2_STREAM_WANT_WRITE = manapi::ev::WRITE,
         HTTP2_STREAM_CLOSED = manapi::ev::DISCONNECT,
-        HTTP2_STREAM_PRIORITY_INCR = 8,
-        HTTP2_STREAM_REMOVED = 16,
-        HTTP2_STREAM_SEND_END  = 32,
+        HTTP2_STREAM_REMOVED = manapi::net::worker::base::CONN_REMOVED,
         HTTP2_STREAM_RECV_END = worker::base::CONN_RECV_END,
-        HTTP2_STREAM_IO_WAITING = 256,
-        HTTP2_STREAM_PRIORITY_LOCKED = 2048,
+        HTTP2_STREAM_SEND_END  = manapi::net::worker::base::CONN_SEND_END,
+        HTTP2_STREAM_IO_WAITING = worker::base::CONN_IO_WAITING,
+        HTTP2_STREAM_TOP_READ = worker::base::CONN_TOP_READ,
+        HTTP2_STREAM_PRIORITY_INCR = 256,
+        HTTP2_STREAM_PRIORITY_LOCKED = 512,
     };
 
     enum http2_ctx_flags {
@@ -56,7 +57,7 @@ namespace manapi::net::http {
         int write_window;
         int read_window;
 
-        std::unique_ptr<worker::base::connection_io_part> recv;
+        std::unique_ptr<worker::connection_io_part> recv;
         int recv_size;
 
         std::unique_ptr<request_data_t> req;
@@ -70,7 +71,7 @@ namespace manapi::net::http {
     struct http_v2_t {
         worker::shared_conn conn;
         worker::base *worker;
-        std::shared_ptr<worker::http_v2> http_v2_worker;
+        worker::http_v2 *http_v2_worker;
 
         char flags;
 

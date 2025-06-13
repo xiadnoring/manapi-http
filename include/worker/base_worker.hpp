@@ -12,6 +12,21 @@ namespace manapi::net::worker {
         char data[std::max(sizeof (struct sockaddr_in), sizeof (struct sockaddr_in6))];
     };
 
+    template<typename T>
+    void http_wrk_data_deleter (void *pointer) {
+        delete static_cast<T *>(pointer);
+    }
+
+    enum wrk_interface_flags {
+        WRK_INTERFACE_CUSTOM_READ = 1,
+        WRK_INTERFACE_CUSTOM_RATE_LIMIT = 2
+    };
+
+    struct wrk_interface_t {
+        uint8_t flags;
+        void *data;
+    };
+
     class connection {
     public:
         struct ipdata_t {
@@ -19,11 +34,11 @@ namespace manapi::net::worker {
             socklen_t len{};
         };
 
-        connection (void *ptr, void(*eraser)(void*));
+        connection (void *ptr);
 
         template <typename T>
         T *as () {
-            if (const auto pointer = static_cast <T *> (this->ptr.get())) {
+            if (const auto pointer = static_cast <T *> (this->ptr)) {
                 return pointer;
             }
             THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "Pointer is null");
@@ -32,17 +47,49 @@ namespace manapi::net::worker {
         manapi::async::cancellation_action cancellation;
         std::unique_ptr<ipdata_t> ipdata;
         int version = http::versions::HTTP_v1_1;
+        wrk_interface_t wrk;
     private:
-        std::unique_ptr<void, void(*)(void *)> ptr;
+        void *ptr;
     };
 
     using shared_conn = std::shared_ptr<worker::connection>;
     using ibuffpool_t = bytebuffer;
     using worker_watcher_cb = std::move_only_function<void(const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)>;
 
+    struct wrk_interface_global_t {
+        void *data;
+        void (*init_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
+        void (*cleanup_cb)(worker::connection *conn, wrk_interface_global_t *global, worker::base *w);
+        void (*cleanup_global_cb)(wrk_interface_global_t *data, worker::base *w);
+        void (*flush_custom_read_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
+        void (*accept_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w);
+        void (*custom_read_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w);
+        bool (*update_limit_rate)(const manapi::net::worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
+    };
+
     enum net_worker_flags {
         NET_WORKER_CLOSED = 1
     };
+
+    struct buffer_deque {
+        bytebuffer buffer;
+        std::unique_ptr<buffer_deque> next;
+    };
+
+    struct connection_io_part {
+        int deque_current;
+        int deque_cursor;
+        std::unique_ptr<buffer_deque> deque;
+        buffer_deque *last_deque;
+    };
+
+    struct connection_io {
+        connection_io_part send;
+        int send_size;
+        connection_io_part recv;
+        int recv_size;
+    };
+
 
     class base {
     public:
@@ -51,36 +98,20 @@ namespace manapi::net::worker {
             ssize_t transfered_k;
         };
 
-        struct buffer_deque {
-            bytebuffer buffer;
-            std::unique_ptr<buffer_deque> next;
-        };
-
-        struct connection_io_part {
-            int deque_current;
-            int deque_cursor;
-            std::unique_ptr<buffer_deque> deque;
-            buffer_deque *last_deque;
-        };
-
-        struct connection_io {
-            connection_io_part send;
-            int send_size;
-            connection_io_part recv;
-            int recv_size;
-        };
-
         typedef vbefore_delete<bool, false> oncont_cb;
 
         enum connection_status {
-            CONN_READ           = 0b00000001,
-            CONN_WRITE          = 0b00000010,
-            CONN_CLOSED         = 0b00000100,
-            CONN_REMOVED        = 0b00001000,
-            CONN_KEEP_ALIVE     = 0b00010000,
-            CONN_LIMIT_RATE     = 0b00100000,
-            CONN_RECV_END       = 0b01000000,
-            CONN_RESERVED       = 0b10000000
+            CONN_READ           = manapi::ev::READ,
+            CONN_WRITE          = manapi::ev::WRITE,
+            CONN_CLOSED         = 4,
+            CONN_REMOVED        = 8,
+            CONN_RECV_END       = 16,
+            CONN_SEND_END       = 32,
+            CONN_IO_WAITING     = 64,
+            CONN_TOP_READ       = 128,
+
+            CONN_MASK_UPDATE    = CONN_READ | CONN_WRITE | CONN_RECV_END | CONN_SEND_END,
+            CONN_MASK_GETTING   = CONN_READ | CONN_WRITE | CONN_CLOSED | CONN_RECV_END | CONN_SEND_END
         };
 
         enum connection_io_status {
@@ -90,9 +121,15 @@ namespace manapi::net::worker {
             CONN_IO_WANT_WRITE = -1001
         };
 
-        base (net::http::site site, std::shared_ptr<worker::worker_config_t> worker_data, manapi::net::http::config *config);
+        base ();
 
         virtual ~base ();
+
+        virtual http::site &site() = 0;
+
+        virtual http::config *config() = 0;
+
+        virtual const std::shared_ptr<worker_config_t> & worker_data() = 0;
 
         virtual bool is_valid_connection (worker::connection *connection) = 0;
 
@@ -130,13 +167,7 @@ namespace manapi::net::worker {
 
         virtual connection::ipdata_t *ipdata (worker::connection *conn);
 
-        net::http::site &site ();
-
-        net::http::config *config ();
-
         object_pool &bufferpool();
-
-        const std::shared_ptr<worker_config_t> &worker_data ();
 
         static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt);
 
@@ -144,15 +175,11 @@ namespace manapi::net::worker {
 
         static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, int *cnt, int max_cnt);
 
-        static void connection_io_send_start (struct connection_io_part *top, ibuffpool_t buff, int *cnt);
+        static void connection_io_send_start (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, ibuffpool_t *buff, int *cnt);
 
         static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, int *cnt);
     protected:
-
-        std::shared_ptr<worker::worker_config_t> worker_data_;
-
-        net::http::site site_;
-        manapi::net::http::config *config_;
+        void feed_event_read_ (const shared_conn &conn, worker_watcher_cb *cb, connection_io_part *recv, int *recv_size, int conn_flags, int flags, const char *buff, ssize_t size, ibuffpool_t *p);
     };
 
     using shared_worker = std::shared_ptr<worker::base>;

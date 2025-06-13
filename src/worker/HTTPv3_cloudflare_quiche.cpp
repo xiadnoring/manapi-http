@@ -20,10 +20,10 @@ enum http_v3_stream_flags {
     HTTP_V3_STREAM_WANT_READ = manapi::ev::READ,
     HTTP_V3_STREAM_WANT_WRITE = manapi::ev::WRITE,
     HTTP_V3_STREAM_CLOSED = manapi::ev::DISCONNECT,
-    HTTP_V3_STREAM_IO_WAITING = 8,
-    HTTP_V3_STREAM_REMOVED = 16,
-    HTTP_V3_STREAM_SEND_END = 32,
-    HTTP_V3_STREAM_RECV_END = manapi::net::worker::base::CONN_RECV_END
+    HTTP_V3_STREAM_REMOVED = manapi::net::worker::base::CONN_REMOVED,
+    HTTP_V3_STREAM_RECV_END = manapi::net::worker::base::CONN_RECV_END,
+    HTTP_V3_STREAM_SEND_END = manapi::net::worker::base::CONN_SEND_END,
+    HTTP_V3_STREAM_IO_WAITING = manapi::net::worker::base::CONN_IO_WAITING,
 };
 
 template<typename T>
@@ -299,6 +299,17 @@ void manapi::net::worker::http_v3_cloudflare_quiche::quiche_timeout_again_(conne
     connection->timeout.again(repeat > 0 ? repeat : 200);
 }
 
+void manapi::net::worker::http_v3_cloudflare_quiche::connection_interface_eraser(connection *ptr) {
+    auto uptr = std::unique_ptr<manapi::net::worker::connection> (ptr);
+    delete uptr->as<connection_t>();
+    std::cout << "CONN CLOSE\n";
+}
+
+void manapi::net::worker::http_v3_cloudflare_quiche::stream_interface_eraser(worker::connection *ptr) {
+    auto uptr = std::unique_ptr<manapi::net::worker::connection> (ptr);
+    delete uptr->as<connection_stream_t>();
+}
+
 void quiche_set_header_(quiche_h3_header *header, std::string_view key, std::string_view value) {
     *header = {
         .name = reinterpret_cast<const uint8_t *> (key.data()),
@@ -307,7 +318,6 @@ void quiche_set_header_(quiche_h3_header *header, std::string_view key, std::str
         .value_len = value.size()
     };
 }
-
 
 void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) {
     socklen_t sockaddr_len = 0;
@@ -353,23 +363,23 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
         // }
 
         if (!quiche_version_is_supported(version)) {
-             const int64_t written = quiche_negotiate_version(reinterpret_cast<uint8_t *> (scid),
-                 scid_len, reinterpret_cast<uint8_t *> (dcid), dcid_len, out, sizeof (out));
+            const int64_t written = quiche_negotiate_version(reinterpret_cast<uint8_t *> (scid),
+                scid_len, reinterpret_cast<uint8_t *> (dcid), dcid_len, out, sizeof (out));
 
-             if (written < 0) {
-                 return;
-             }
+            if (written < 0) {
+                return;
+            }
 
-             ev::buff_t buff2;
-             buff2.base = reinterpret_cast<char *> (out);
-             buff2.len = static_cast<std::size_t>(written);
-             ssize_t rhs = this->udp_accept_->try_send(&buff2, 1, reinterpret_cast<sockaddr *>(sockaddr_src));
+            ev::buff_t buff2;
+            buff2.base = reinterpret_cast<char *> (out);
+            buff2.len = static_cast<std::size_t>(written);
+            ssize_t rhs = this->udp_accept_->try_send(&buff2, 1, reinterpret_cast<sockaddr *>(sockaddr_src));
 
-             if (rhs != written) {
-                 /* failed to send */
-             }
+            if (rhs != written) {
+                /* failed to send */
+            }
 
-             return;
+            return;
         }
 
         if (!token_len) {
@@ -415,12 +425,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
             return;
         }
 
-        auto connection = std::make_shared<worker::connection>(new connection_t {
-            .flags = 0, .worker = this, .conn = quiche_conn_, .http3_conn = nullptr, .streams = {}}, +[] (void *conn_data) {
-                std::cout << "CONN CLOSE\n";
-                delete static_cast<connection_t*>(conn_data);
-            }
-        );
+        auto p = std::make_unique<connection_t>(std::string{}, 0, this, quiche_conn_, nullptr, nullptr);
+        auto connection = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
+        p.release();
 
         conn_data = connection->as<connection_t>();
 
@@ -488,16 +495,14 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
 
                 switch (quiche_h3_event_type(event)) {
                     case QUICHE_H3_EVENT_HEADERS: {
-                        auto connection = std::make_shared<worker::connection>(new connection_stream_t {
-                            .flags = 0,
-                            .id = stream_id,
-                            .conn = conn_data,
-                            .req = nullptr,
-                            .top = nullptr,
-                            .ev_callback = nullptr,
-                            .speed_min_delay = 0
-                        }, +[] (void *ptr)
-                            -> void { delete static_cast<connection_stream_t *> (ptr); });
+
+                        auto p = std::make_unique<connection_stream_t>();
+
+                        p->id = stream_id;
+                        p->conn = conn_data;
+
+                        auto connection = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, stream_interface_eraser);
+                        p.release();
 
                         auto s = connection->as<connection_stream_t>();
 
@@ -541,7 +546,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
                         s->req->divided = url_decoder.divided();
 
                         auto const req_ptr = s->req.get();
-                        auto cdata = std::make_unique<http::internal::handle_data_t>(connection, this->self_.lock(),
+                        auto cdata = std::make_unique<http::internal::handle_data_t>(connection, this->copy(),
                             req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
                             [this, sconn = connection, conn = it->second, req = std::move(s->req)] (bool ok) mutable
                             -> void {
@@ -711,14 +716,14 @@ void manapi::net::worker::http_v3_cloudflare_quiche::configure_connection(const 
 }
 
 int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_conn &conn) {
-    return conn->as<connection_stream_t>()->flags & 0b111;
+    return conn->as<connection_stream_t>()->flags & CONN_MASK_GETTING;
 }
 
 int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_conn &conn, int flags) {
     auto const data = conn->as<connection_stream_t>();
     auto &flags_ = data->flags;
     data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
-    auto const prev = std::exchange(flags_, ((flags_ >> 2) << 2) | flags);
+    auto const prev = std::exchange(flags_, ((flags_ >> 2) << 2) | (flags & CONN_MASK_UPDATE));
     if ((flags_ & ev::READ)
         && !(flags_ & ev::DISCONNECT)
         && data->ev_callback) {
@@ -739,7 +744,17 @@ std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::htt
 
 void manapi::net::worker::http_v3_cloudflare_quiche::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) {
     auto const data = conn->as<connection_stream_t>();
-    if (data->ev_callback) {
+    if (flags & ev::READ) {
+        if (flags & CONN_TOP_READ) {
+            this->feed_event_read_ (conn, data->ev_callback.get(), &data->top->recv, &data->top->recv_size, data->flags, flags, buff, size, p);
+            this->flush_read_(conn);
+        }
+        else {
+            this->flush_read_(conn);
+            this->feed_event_read_ (conn, data->ev_callback.get(), &data->top->recv, &data->top->recv_size, data->flags, flags, buff, size, p);
+        }
+    }
+    else {
         data->ev_callback->operator()(conn, flags, buff, size, p);
     }
 }

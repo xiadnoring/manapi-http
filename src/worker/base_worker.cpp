@@ -6,13 +6,9 @@
 #include <fcntl.h>
 #include <memory>
 
-manapi::net::worker::connection::connection(void *ptr, void(*eraser)(void*)): ptr (ptr, eraser) {
+manapi::net::worker::connection::connection(void *ptr): ptr (ptr), wrk(), version(), ipdata(), cancellation() {}
 
-}
-
-manapi::net::worker::base::base(net::http::site site, std::shared_ptr<worker::worker_config_t> data, manapi::net::http::config *config) : site_(std::move(site)), config_(config), worker_data_(std::move(data)) {
-
-}
+manapi::net::worker::base::base() = default;
 
 manapi::net::worker::base::~base() = default;
 
@@ -111,21 +107,11 @@ manapi::net::worker::connection::ipdata_t * manapi::net::worker::base::ipdata(wo
     return conn->ipdata.get();
 }
 
-manapi::net::http::site & manapi::net::worker::base::site() {
-    return this->site_;
-}
-
-manapi::net::http::config *manapi::net::worker::base::config() {
-    return this->config_;
-}
-
 manapi::object_pool & manapi::net::worker::base::bufferpool() {
     return manapi::async::current()->memory_fabric();
 }
 
-const std::shared_ptr<manapi::net::worker::worker_config_t> & manapi::net::worker::base::worker_data() {
-    return this->worker_data_;
-}
+
 
 
 void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt) {
@@ -225,27 +211,63 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
     return -1;
 }
 
-void manapi::net::worker::base::connection_io_send_start(connection_io_part *top, ibuffpool_t buff, int *cnt) {
-    if (top->deque) {
-        if (top->deque_current > buff.size()) {
-            top->deque_current -= static_cast<int>(buff.size());
-            memcpy (top->deque->buffer.data() + top->deque_current, buff.data(), buff.size());
-        }
-        else {
-            top->deque->buffer.shift_add(top->deque_current);
-            top->deque_current = 0;
-            auto obj = std::make_unique<buffer_deque>(std::move(buff), std::move(top->deque));
-            top->deque = std::move(obj);
-            (*cnt)++;
-        }
+void manapi::net::worker::base::connection_io_send_start(connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, ibuffpool_t *buff, int *cnt) {
+    if (top->deque && top->deque_current >= size) {
+        top->deque_current -= static_cast<int>(size);
+        memcpy (top->deque->buffer.data() + top->deque_current, buffer, size);
+        return;
+    }
+
+    ibuffpool_t tmp;
+    if (buff) {
+        buff->shift_add(static_cast<int>(buff->size() - size));
     }
     else {
-        top->deque = std::make_unique<buffer_deque>(std::move(buff), nullptr);
+        tmp = bufferpool->slice (size, buffer_size);
+        buff = &tmp;
+        memcpy (buff->data(), buffer, size);
+    }
+
+    if (top->deque) {
+        top->deque->buffer.shift_add(top->deque_current);
+        top->deque_current = 0;
+        auto obj = std::make_unique<buffer_deque>(std::move(*buff), std::move(top->deque));
+        top->deque = std::move(obj);
+        (*cnt)++;
+    }
+    else {
+        top->deque = std::make_unique<buffer_deque>(std::move(*buff), nullptr);
         top->last_deque = top->deque.get();
         top->deque_current = 0;
         top->deque_cursor = static_cast<int>(top->deque->buffer.size());
         top->deque->buffer.realresize(top->deque->buffer.realsize());
         (*cnt)++;
+    }
+}
+
+void manapi::net::worker::base::feed_event_read_(const shared_conn &conn, worker_watcher_cb *cb, connection_io_part *recv, int *recv_size, int conn_flags, int flags, const char *buff, ssize_t size, ibuffpool_t *p) {
+    bool processed = false;
+    if (conn_flags & ev::READ && cb) {
+        if (flags & manapi::net::worker::base::CONN_TOP_READ) {
+            if (conn_flags & ev::READ) {
+                cb->operator()(conn, flags, buff, size, p);
+                processed = true;
+            }
+        }
+        else {
+            if (conn_flags & ev::READ) {
+                cb->operator()(conn, flags, buff, size, p);
+                processed = true;
+            }
+        }
+    }
+    if (!processed && size) {
+        if (conn_flags & CONN_TOP_READ) {
+            connection_io_send_start(recv, buff, size, &this->bufferpool(), this->config()->buffer_size, p, recv_size);
+        }
+        else {
+            connection_io_send(recv, buff, size, &this->bufferpool(), this->config()->buffer_size, recv_size, 1e5);
+        }
     }
 }
 

@@ -55,6 +55,24 @@ manapi::net::http::config::config(const json &config) {
     else
         this->initial_window_size = -1;
 
+    it = obj.find("http1_implementation");
+    if (it != obj.end())
+        this->http1_implementation = it->second.as_string_cast();
+    else
+        this->http1_implementation = "default";
+
+    it = obj.find("http2_implementation");
+    if (it != obj.end())
+        this->http2_implementation = it->second.as_string_cast();
+    else
+        this->http2_implementation = "default";
+
+    it = obj.find("http3_implementation");
+    if (it != obj.end())
+        this->http3_implementation = it->second.as_string_cast();
+    else
+        this->http3_implementation = "default";
+
     /* partial data min size */
     if (config.contains("partial_data_min_size"))
     {

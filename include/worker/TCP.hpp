@@ -7,13 +7,14 @@
 #endif
 
 #include "./base_worker.hpp"
+#include "./interface_worker.hpp"
 #include "./ManapiAsync.hpp"
 #include "../http/HTTPv2.hpp"
 #include "../http/HTTPv1_1.hpp"
 #include "../async/ManapiCancellation.hpp"
 
 namespace manapi::net::worker {
-    class TCP : public worker::base {
+    class TCP : public worker::interface_worker {
     public:
         struct connection_interface : base::connection_base_t {
             manapi::timer t;
@@ -23,16 +24,11 @@ namespace manapi::net::worker {
             std::unique_ptr<struct connection_io> top;
             std::unique_ptr<worker_watcher_cb> ev_callback;
             int speed_min_delay;
-            void *data;
         };
 
-        enum conn_tcp_flags {
-            CONN_HTTP_1_1_CHUNKED   = 0b100000000,
-            CONN_IO_WAITING         = 0b1000000000
-        };
-
-        struct connection_data_t {
-            std::unique_ptr<http::http_v1_1_chunked_t> chunked_ctx;
+        enum connection_status {
+            CONN_KEEP_ALIVE     = 256,
+            CONN_LIMIT_RATE     = 512,
         };
 
         TCP (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config);
@@ -75,14 +71,11 @@ namespace manapi::net::worker {
 
         int event_flags(const shared_conn & conn) override;
 
+
     protected:
         virtual void flush_write_ (const shared_conn &connection, bool flush = false);
 
         void flush_read_ (const shared_conn &conn, connection_interface *data);
-
-        void tcp_handle_read_chunked (const shared_conn &conn, connection_interface *data, int flags, const char *buffer, ssize_t size, ibuffpool_t *p);
-
-        virtual void tcp_handle_read_data (const shared_conn &conn, connection_interface *data, int flags, const char *buffer, ssize_t size, ibuffpool_t *p);
 
         void update_limit_rate ();
 
@@ -92,34 +85,32 @@ namespace manapi::net::worker {
 
         virtual bool update_limit_rate_connection (const shared_conn &sconn);
 
-        virtual void http2_work_ (http::http_v2_t *http_v2_ctx, const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize);
-
         bool is_writable(const shared_conn &conn) override;
-
-        virtual void http_work_ (http::http_v1_1_t *http_v1_1_ctx, const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p);
 
         virtual void onaccept_event_ (const worker::shared_conn &conn);
 
         std::map <std::uintptr_t, shared_conn> connections;
+
         ev::shared_tcp watcher_accept_;
     protected:
-        void conn_work_finish_ (worker::shared_conn conn, bool ok, ibuffpool_t buffer = {});
-
         int count;
 
         int flags;
-        std::function<void()> finish;
 
-        std::weak_ptr<base> self_;
-        std::shared_ptr<net::worker::http_v2> http_v2_worker;
+        std::function<void()> finish;
     private:
-        static std::string stringify_http_info (manapi::net::http::response *res, const int &version, const std::string &delimiter) ;
-        static std::string stringify_headers (manapi::net::http::response *res, const std::string &delimiter) ;
-        static void connection_interface_eraser (void *ptr);
+        static std::string stringify_http_info (manapi::net::http::response *res, const int &version, const std::string &delimiter);
+
+        static std::string stringify_headers (manapi::net::http::response *res, const std::string &delimiter);
+
+        static void connection_interface_eraser (worker::connection *ptr);
 
         sockaddr_storage sockaddrin{};
+
         addrinfo *local;
+
         timer limit_rate_timer{};
+
         timeval recv_timeout{}, send_timeout{};
     };
 }

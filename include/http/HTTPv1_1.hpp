@@ -19,7 +19,7 @@ namespace manapi::net::http {
         int left;
         int state;
         int next;
-        worker::base::connection_io_part top;
+        worker::connection_io_part top;
     };
 
     enum http_v1_1_errs {

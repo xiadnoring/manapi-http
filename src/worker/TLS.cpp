@@ -41,7 +41,10 @@ void manapi::net::worker::TLS::configure_connection(const shared_conn & connecti
 
 manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(ev::shared_tcp &w) {
     auto connection = TCP::accept(w, [this] () -> shared_conn {
-        auto ms = std::make_shared<net::worker::connection>(new TLS::connection_interface {}, connection_interface_eraser);
+        auto p = std::make_unique<TLS::connection_interface>();
+        auto ms = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
+        p.release();
+
         auto connection = ms->as<TLS::connection_interface>();
 
         connection->ssl = this->ssl_new_(this->ctx);
@@ -164,40 +167,20 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) n
     auto const data = conn->as<TLS::connection_interface>();
     auto &status = data->status;
     data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
-    auto const prev = std::exchange(status, ((status >> 2) << 2) | flags);
+    auto const prev = std::exchange(status, ((status >> 2) << 2) | (flags & CONN_MASK_UPDATE));
 
-    if (status & CONN_HTTP_1_1_CHUNKED && status & ev::READ) {
-        /* flush chunked data */
-        switch (http::http_v1_1_chunked_flush(static_cast<TCP::connection_data_t *> (data->data)->chunked_ctx.get(),
-            this, conn)) {
-            case http::EHTTP_V1_1_CHUNKED_OK: {
-                data->status |= CONN_RECV_END;
-                this->feed_event(conn, CONN_RECV_END, nullptr, 0, nullptr);
-                break;
-            }
-            case http::EHTTP_V1_1_CHUNKED_ERR: {
-                this->close_connection(conn, false);
-                break;
-            }
-            case http::EHTTP_V1_1_CHUNKED_READ: {
-                break;
-            }
-            case http::EHTTP_V1_1_CHUNKED_WAIT: {
-                break;
-            }
-        }
-    }
+    if (status & ev::READ & flags) {
+        if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
+            this->global_.flush_custom_read_cb(conn, &this->global_, this);
 
-    if (status & ev::READ) {
         flush_read_ (conn, data);
 
-        if (status & ev::READ
-            && !(status & (CONN_CLOSED|CONN_REMOVED)) && !data->watcher->is_active()) {
+        if (!(status & (CONN_CLOSED|CONN_REMOVED)) && !data->watcher->is_active()) {
             data->watcher->read_start();
         }
     }
 
-    if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
+    if ((status & CONN_RECV_END) && (status & CONN_READ & flags) && data->ev_callback) {
         data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
     }
 
@@ -208,8 +191,9 @@ bool manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &s
     return TCP::update_limit_rate_connection(sconn);
 }
 
-void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {
-    auto connection = static_cast<TLS::connection_interface *> (ptr);
+void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *ptr) {
+    auto uptr = std::unique_ptr<worker::connection> (ptr);
+    auto connection = std::unique_ptr<connection_interface> (uptr->as<connection_interface>());
 
     if (connection->ssl) {
         auto ssl = std::exchange(connection->ssl, nullptr);
@@ -221,8 +205,6 @@ void manapi::net::worker::TLS::connection_interface_eraser(void *ptr) {
 
     wrk->count--;
     wrk->worker_data()->count.fetch_sub(1);
-
-    delete connection;
 
     if (wrk->flags & NET_WORKER_CLOSED
         && !wrk->count
@@ -236,11 +218,9 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
     auto size = static_cast<ssize_t>(buffer.size());
     auto const data = conn->as<TLS::connection_interface>();
 
-    if (data->status & CONN_LIMIT_RATE) {
-        data->transfered += size;
-        if (data->transfered >= this->config_->speed_limit_rate) {
-            data->watcher->read_stop();
-        }
+    data->transfered += size;
+    if (data->transfered >= this->config_->speed_limit_rate) {
+        data->watcher->read_stop();
     }
 
     while (size) {
@@ -257,7 +237,7 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
 
         while (true) {
             if (ssl_is_init_fininshed_(data->ssl)) {
-                if (data->status & CONN_HTTP_1_1_CHUNKED) {
+                if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ) {
                     int cursor = 0;
 
                     while (true) {
@@ -280,7 +260,7 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
 
                         if (cursor == buf.size() || !nread) {
                             if (cursor)
-                                this->tcp_handle_read_chunked(conn, data, ev::READ, buf.data(), cursor, &buf);
+                                this->global_.custom_read_cb(conn, ev::READ, buf.data(), cursor, &buf, &this->global_, this);
 
                             cursor = 0;
 
@@ -414,7 +394,9 @@ void manapi::net::worker::TLS::accept_work_(const shared_conn &conn, int flags, 
             std::make_unique<worker_watcher_cb>([this, http_v1_1_ctx = std::move(http_v1_1_ctx)]
             (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
             -> void {
-                this->http_work_ (http_v1_1_ctx.get(), conn, flags, buffer, nsize, p);
+                auto const data = conn->as<TLS::connection_interface>();
+                this->global_.accept_cb (conn, flags, buffer, nsize, p,
+                    &this->global_, this);
         }));
         this->event_flags(conn, ev::READ);
     }

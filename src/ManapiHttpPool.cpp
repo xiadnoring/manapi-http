@@ -18,6 +18,9 @@
 #include "http/HTTPv1_1.hpp"
 #include <http/HTTPv2.hpp>
 
+#include "worker/default_wrk_http1.hpp"
+#include "worker/interface_worker.hpp"
+
 manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<worker::worker_config_t> worker_config, class http::site site, const size_t &id, std::shared_ptr<event_loop> events) : site(std::move(site)) {
     this->events = std::move(events);
     this->config = std::make_shared <http::config> (config);
@@ -53,6 +56,21 @@ manapi::future<void> manapi::net::http_pool::run() {
     co_return co_await this->_pool();
 }
 
+template<typename T>
+std::string concat_keys_in_map (const std::map<std::string, T> &m) {
+    std::string available;
+    if (!m.empty()) {
+        auto it = m.begin();
+        goto skip;
+        for (; it != m.end(); ++it) {
+            available += ',';
+            skip:
+            available += it->first;
+        }
+    }
+    return std::move(available);
+}
+
 manapi::future<void> manapi::net::http_pool::_pool() {
     MANAPIHTTP_LOG("pool init #{}", this->id);
 
@@ -70,6 +88,47 @@ manapi::future<void> manapi::net::http_pool::_pool() {
             auto generate = implementations[implementation];
             this->worker = generate (this->site, this->worker_config, this->config);
             this->worker->init();
+
+
+            worker::wrk_interface_global_t wrk{};
+            auto res = worker::default_wrk_http_all_global_init(&wrk, this->worker.get());
+            auto workerptr = dynamic_cast<worker::interface_worker *> (this->worker.get());
+
+            if (!res.ok())
+                res.throw_it();
+
+            workerptr->wrk_global(&wrk);
+            auto wrkptr = workerptr->wrk_global();
+
+            if (implementation != "quiche") {
+                for (auto version : this->config->http_versions) {
+                    if (version >= http::versions::HTTP_v0_9 && version < http::versions::HTTP_v1_1)
+                        version = http::versions::HTTP_v1_1;
+
+                    auto &http_implementation = this->site.http_protocol_worker(static_cast<http::versions::http>(version));
+                    std::string *http_impl_name{nullptr};
+                    switch (version) {
+                        case http::versions::HTTP_v1_1: http_impl_name = &this->config->http1_implementation; break;
+                        case http::versions::HTTP_v2: http_impl_name = &this->config->http2_implementation; break;
+                        case http::versions::HTTP_v3: http_impl_name = &this->config->http3_implementation; break;
+                    }
+
+                    assert(http_impl_name);
+
+                    auto it_http_impl = http_implementation.find(*http_impl_name);
+                    if (it_http_impl == http_implementation.end()) {
+                        MANAPIHTTP_LOG("http implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
+                        THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "http implementation not found");
+                    }
+                    auto httpwrk = it_http_impl->second (workerptr);
+                    if (!httpwrk.ok())
+                        httpwrk.throw_it();
+
+                    res = worker::default_wrk_http_all_global_add_version(wrkptr, version, std::move(httpwrk.value()));
+                    if (!res.ok())
+                        res.throw_it();
+                }
+            }
         }
         catch (std::exception const &e) {
             MANAPIHTTP_LOG("worker init failed due to {}", e.what());
@@ -77,17 +136,7 @@ manapi::future<void> manapi::net::http_pool::_pool() {
     }
     else
     {
-        std::string available;
-        if (!implementations.empty()) {
-            auto it = implementations.begin();
-            goto skip;
-            for (; it != implementations.end(); ++it) {
-                available += ',';
-                skip:
-                available += it->first;
-            }
-        }
-        MANAPIHTTP_LOG("implementation by {} not found in {}. Available: [{}]", implementation, transport, available);
+        MANAPIHTTP_LOG("implementation by {} not found in {}. Available: [{}]", implementation, transport, concat_keys_in_map(implementations));
         THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "implementation not found");
     }
 }

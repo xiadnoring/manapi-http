@@ -7,7 +7,7 @@
 
 #include "async/ManapiAsyncSocket.hpp"
 
-manapi::net::worker::udp::udp(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : worker::base(std::move(site), std::move(wdata), config) {
+manapi::net::worker::udp::udp(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : worker::interface_worker(std::move(site), std::move(wdata), config) {
 
 }
 
@@ -32,7 +32,7 @@ void manapi::net::worker::udp::init() {
     this->config_->server_len=(this->local->ai_addrlen);
     memcpy (&this->config_->server_addr,this->local->ai_addr, this->local->ai_addrlen);
 
-    MANAPIHTTP_LOG("HTTP UDP PORT USED: {}. https://{}:{}", port, address, port);
+    MANAPIHTTP_LOG("UDP PORT USED: {}. {}:{}", port, address, port);
 
     this->udp_accept_ = manapi::async::current()->eventloop()->create_watcher_udp([this] (std::shared_ptr<ev::udp> &w, ssize_t nread, const ev::buff_t *buf, const sockaddr *addr, unsigned flags)
         -> void {

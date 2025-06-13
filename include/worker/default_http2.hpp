@@ -12,11 +12,17 @@ namespace manapi::net::http {
 }
 
 namespace manapi::net::worker {
-    class http_v2 : public worker::base {
+    class http_v2 final : public worker::base {
     public:
-        http_v2 (net::http::site site, std::shared_ptr<worker::worker_config_t> worker_data, http::config *config);
+        http_v2 (worker::base *w);
 
         ~http_v2 ();
+
+        const std::shared_ptr<worker_config_t> &worker_data() override;
+
+        http::config *config() override;
+
+        http::site &site() override;
 
         void waiting(const shared_conn &conn, bool state) override;
 
@@ -49,5 +55,7 @@ namespace manapi::net::worker {
         ssize_t sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) override;
 
         void update_limit_rate_stream (const shared_conn &conn);
+    private:
+        worker::base *w;
     };
 }

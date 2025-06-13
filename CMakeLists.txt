@@ -31,6 +31,8 @@ OPTION(MANAPIHTTP_BROTLI_DEPENDENCY "Brotli Enabled" OFF)
 OPTION(MANAPIHTTP_ZSTD_DEPENDENCY "ZSTD Enabled" OFF)
 OPTION(MANAPIHTTP_BUILD_METHOD "Build method" "default")
 OPTION(MANAPIHTTP_WOLFSSL_WITH_ALPN "WolfSSL with ALPN" ON)
+OPTION(MANAPIHTTP_NGHTTP2_DEPENDENCY "nghttp2 by NGINX" OFF)
+OPTION(MANAPIHTTP_NGHTTP3_DEPENDENCY "nghttp3 by NGINX" OFF)
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 message(STATUS "MANAPIHTTP_BUILD_METHOD: ${MANAPIHTTP_BUILD_METHOD}")
@@ -43,6 +45,9 @@ message(STATUS "TLS, QUIC and etc implementations by WolfSSL: ${MANAPIHTTP_WOLFS
 message(STATUS "BigInt support by GMP: ${MANAPIHTTP_GMP_DEPENDENCY}")
 message(STATUS "Fetch support by CURL: ${MANAPIHTTP_CURL_DEPENDENCY}")
 message(STATUS "Some compresses support by zlib: ${MANAPIHTTP_ZLIB_DEPENDENCY}")
+message(STATUS "nghttp2 by NGINX" ${MANAPIHTTP_NGHTTP2_DEPENDENCY})
+message(STATUS "nghttp3 by NGINX" ${MANAPIHTTP_NGHTTP3_DEPENDENCY})
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Build type: Debug")
     add_compile_definitions(MANAPIHTTP_HTTP_BUILD_DEBUG)
@@ -93,6 +98,14 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     if (MANAPIHTTP_GRPC_DEPENDENCY)
         find_package(protobuf REQUIRED)
         find_package(gRPC REQUIRED)
+    endif ()
+
+    if (MANAPIHTTP_NGHTTP2_DEPENDENCY)
+        find_package(libnghttp2::libnghttp2 REQUIRED)
+    endif ()
+
+    if (MANAPIHTTP_NGHTTP3_DEPENDENCY)
+        find_package(nghttp3::nghttp3 REQUIRED)
     endif ()
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
@@ -214,6 +227,8 @@ string(REPLACE "{{ VAR_MANAPIHTTP_WOLFSSL_WITH_ALPN }}" $<BOOL:${MANAPIHTTP_WOLF
 string(REPLACE "{{ VAR_MANAPIHTTP_BROTLI_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_BROTLI_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_GRPC_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_GRPC_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_ZSTD_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_ZSTD_DEPENDENCY}> TEXT "${TEXT}")
+string(REPLACE "{{ VAR_MANAPIHTTP_NGHTTP2_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_NGHTTP2_DEPENDENCY}> TEXT "${TEXT}")
+string(REPLACE "{{ VAR_MANAPIHTTP_NGHTTP3_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_NGHTTP3_DEPENDENCY}> TEXT "${TEXT}")
 
 file(GENERATE OUTPUT include/ManapiParams.hpp CONTENT "${TEXT}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS include/ManapiParams.hpp)
@@ -250,9 +265,10 @@ set(MANAPIHTTP_HTTP_FILES
         include/http/base_http.hpp
         include/worker/OpenSSL_TLS.hpp
         include/http/HTTPv1_1.hpp
-        include/http/HTTPv1_1.hpp
+        include/http/HTTPv2.hpp
         include/compress/ManapiHPack.hpp
-        include/worker/HTTPv2.hpp
+        include/worker/default_wrk_http2.hpp
+        include/worker/default_wrk_http1.hpp
         include/ManapiHttpMime.hpp
         include/components/Atomic.hpp
         include/worker/QUIC.hpp
@@ -286,7 +302,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/OpenSSL_TLS.cpp
         src/http/HTTPv1_1.cpp
         src/http/HTTPv2.cpp
-        src/worker/HTTPv2.cpp
+        src/worker/default_wrk_http2.cpp
         src/ManapiHttpMime.cpp
         src/worker/QUIC.cpp
         src/worker/TCP.cpp
@@ -314,8 +330,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiInitTools.hpp
         include/worker/HTTPv3_clouflare_quiche.hpp
         src/worker/HTTPv3_cloudflare_quiche.cpp
-        src/worker/HTTPv3_tquic.cpp
-        include/worker/HTTPv3_tquic.hpp
         include/async/ManapiAsyncPromise.hpp
         include/encoding/ManapiURL.hpp
         include/ManapiErrors.hpp
@@ -388,6 +402,11 @@ set(MANAPIHTTP_HTTP_FILES
         include/async/ManapiEasyCancellation.hpp
         src/async/ManapiEasyCancellation.cpp
         src/components/ManapiObjectPool.cpp
+        include/worker/default_http2.hpp
+        src/worker/default_http2.cpp
+        src/worker/default_wrk_http1.cpp
+        include/worker/interface_worker.hpp
+        src/worker/interface_worker.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

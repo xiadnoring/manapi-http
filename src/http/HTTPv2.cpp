@@ -5,7 +5,7 @@
 #include "encoding/ManapiURL.hpp"
 #include "components/ManapiURLDecodeStream.hpp"
 
-#include "worker/HTTPv2.hpp"
+#include "worker/default_http2.hpp"
 
 enum http_v2_priority {
     HTTP2_PRIORITY_0 = 0,
@@ -646,6 +646,11 @@ void http_v2_setup_goaway (manapi::net::http::http_v2_t *ctx, http_v2_goaway_t &
     ctx->current = HTTP2_CALLBACK_GOAWAY;
 }
 
+void connection_interface_eraser (manapi::net::worker::connection *ptr) {
+    auto uptr = std::unique_ptr<manapi::net::worker::connection> (ptr);
+    delete uptr->as<manapi::net::http::http_v2_stream_t>();
+}
+
 int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize) {
     http_v2_goaway_t http_goaway;
 
@@ -1128,8 +1133,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     break;
                                 }
 
-                                auto sconn = std::make_shared<worker::connection> (new http_v2_stream_t{
-                                    0,
+                                auto p = std::make_unique<http_v2_stream_t>(0,
                                     ctx->frame_stream_id,
                                     0,
                                     ctx,
@@ -1138,17 +1142,15 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     nullptr,
                                     0,
                                     nullptr,
-                                    nullptr}, +[] (void *s)
-                                        -> void {
-                                        auto const p = static_cast<http::http_v2_stream_t *> (s);
-                                        delete p;
-                                    });
+                                    nullptr);
+                                auto sconn = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
+                                p.release();
 
                                 s = ctx->streams->insert({ctx->frame_stream_id, std::move(sconn)}).first;
                                 ctx->concurrent_streams_size++;
                                 sdata = s->second->as<http_v2_stream_t>();
                                 sdata->req = std::make_unique<request_data_t>();
-                                sdata->recv = std::make_unique<worker::base::connection_io_part>();
+                                sdata->recv = std::make_unique<worker::connection_io_part>();
                                 sdata->speed_min_delay = static_cast<int>(config->speed_check_delay);
                             }
                             else {
@@ -1428,7 +1430,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 else if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
                                     sdata->flags |= HTTP2_STREAM_RECV_END;
                                     if (!sdata->recv_size && (sdata->flags & ev::READ) && sdata->ev_callback)
-                                        sdata->ev_callback->operator()(s->second, HTTP2_FLAG_DATA_END_STREAM, buffer + pos, datasize, nullptr);
+                                        sdata->ev_callback->operator()(s->second, HTTP2_STREAM_RECV_END, buffer + pos, datasize, nullptr);
                                 }
 
                                 // if (sdata->recv_size < config->max_buffer_stack) {
