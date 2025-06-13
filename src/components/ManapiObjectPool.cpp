@@ -4,6 +4,8 @@
 
 // static(soon) | 32 64 128 | 256 512 1024 | 2048 4096 8192 | 16384 32768 | 65536
 
+// thread_local std::set<void *> pointers;
+
 enum buffer_level {
     BUFF_LEVEL_32 = 0,
     BUFF_LEVEL_256,
@@ -50,6 +52,7 @@ int level2bufflen (int lvl) {
 
 void manapi::internal::object_item_pool_return(const std::shared_ptr<internal::object_pool_data_t> &data, void *buffer, int real_size) {
     assert((buffer && real_size));
+    //assert(pointers.contains(buffer));
     data->buffers[bufflen2level(real_size)].push_back({buffer, real_size});
 }
 
@@ -57,12 +60,14 @@ struct object_pool_deleter {
     void operator () (manapi::internal::object_pool_data_t *p) {
         for (auto &buffs : p->buffers) {
             while (!buffs.empty()) {
-                auto p = std::move(buffs.back());
+                auto pn = std::move(buffs.back());
                 buffs.pop_back();
 
-                delete static_cast<char *>(p.first);
+                delete static_cast<char *>(pn.first);
             }
         }
+
+        delete p;
     }
 };
 
@@ -98,6 +103,7 @@ manapi::bytebuffer manapi::object_pool::slice(std::size_t suggested) {
 
         auto m = manapi::memory::alloc<char>(size);
         assert(m && "buffer is null");
+        //pointers.insert(m);
         auto b = this->slice(m, size);
         b.resize(suggested);
         return std::move(b);
