@@ -220,10 +220,9 @@ void default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, 
                         nsize = 0;
                     }
 
+                    wrk_data->ctx.reset();
                     cdata->router = w->site().handler(req_ptr);
                     manapi::net::http::internal::handle_income_request(std::move(cdata), manapi::net::http::OK_200);
-
-                    wrk_data->ctx.reset();
 
                     break;
                 }
