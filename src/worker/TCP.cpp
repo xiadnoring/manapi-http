@@ -507,6 +507,8 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
 
         flush_read_ (conn, data);
 
+    }
+    if (status & ev::READ) {
         if (!data->watcher->is_active()) {
             assert(!data->watcher->read_start());
         }

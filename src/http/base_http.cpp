@@ -346,9 +346,8 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
         auto rhs = co_await cdata->worker->fwrite (cdata->conn, buffer,
             size, content_length <= size);
 
-        if (rhs < 0) {
+        if (rhs < 0)
             co_return -1;
-        }
 
         content_length -= rhs;
         co_return rhs;
@@ -452,22 +451,28 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
             }
 
             if (result && *result >= 0) {
-                const ssize_t reserved = res->config()->buffer_size;
                 auto cb_sync = std::make_unique<http::response::resp_callback_sync>(std::move(res->callback_sync()));
-                manapi::async::run ([res = std::move(res), cb_sync = std::move(cb_sync), reserved, cdata = std::move(cdata)] () mutable
+                manapi::async::run ([res = std::move(res), cb_sync = std::move(cb_sync), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
-                        // TODO: speed up
-                        std::string buffer;
-                        buffer.reserve(reserved);
+                        auto buffer = manapi::async::current()->memory_fabric().buffer (res->config()->buffer_size);
 
                         bool finish = false;
+                        std::size_t cursor = 0;
 
                         while (!finish) {
-                            auto rhs = cb_sync->operator()(buffer.data(), reserved, finish);
+                            auto rhs = cb_sync->operator()(buffer.data() + cursor, buffer.size() - cursor, finish);
                             if (rhs < 0) {
                                 THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
                             }
-                            co_await cdata->worker->fwrite(cdata->conn, buffer.data(), rhs, finish);
+                            rhs = co_await cdata->worker->write(cdata->conn, buffer.data() + cursor, rhs, finish);
+
+                            if (rhs <= 0)
+                                co_return;
+
+                            cursor += rhs;
+
+                            if (buffer.size() == cursor)
+                                cursor = 0;
                         }
                     });
             }
@@ -526,25 +531,27 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
             }
 
             if (result && *result >= 0) {
-                auto reserved = res->config()->buffer_size;
                 auto cb_async = std::make_unique<http::response::resp_callback_async>(std::move(res->callback_async()));
-                manapi::async::run ([reserved, cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
+                manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
-                        // TODO: speed up
-                        std::string buffer;
-                        buffer.reserve(reserved);
+                        auto buffer = manapi::async::current()->memory_fabric().buffer(res->config()->buffer_size);
 
-
+                        std::size_t cursor = 0;
                         bool finish = false;
 
                         while (!finish) {
-                            auto rhs = co_await cb_async->operator()(buffer.data(), reserved, finish);
-                            if (rhs < 0) {
+                            auto rhs = co_await cb_async->operator()(buffer.data() + cursor, buffer.size() - cursor, finish);
+                            if (rhs < 0)
                                 THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
-                            }
-                            if (rhs != co_await cdata->worker->fwrite(cdata->conn, buffer.data(), rhs, finish)) {
-                                THROW_MANAPIHTTP_EXCEPTION2(ERR_ABORTED, "Write failed");
-                            }
+
+                            rhs = co_await cdata->worker->write(cdata->conn, buffer.data() + cursor, rhs, finish);
+                            if (rhs <= 0)
+                                co_return;
+
+                            cursor += rhs;
+
+                            if (cursor == buffer.size())
+                                cursor = 0;
                         }
                     });
             }

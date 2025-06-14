@@ -121,7 +121,7 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
             case CONTENT_TYPE_MULTIPART_FORM_DATA: {
                 co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
                     [this] (const char *buffer, ssize_t size, bool fin) -> manapi::future<ssize_t> {
-                        return this->onrecv_multipart_(buffer, size);
+                        co_return co_await this->onrecv_multipart_(buffer, size);
                 });
                 break;
             }
@@ -480,7 +480,7 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(const char
                         if (!n1) {
                             auto const beyond = (pos - n1);
                             auto const copy = beyond - this->ctx_->n2;
-
+                            assert((copy >= 0));
                             if (this->ondata_cb_) {
                                 ssize_t res = 0;
 

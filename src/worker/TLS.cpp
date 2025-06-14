@@ -175,7 +175,8 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) n
 
         flush_read_ (conn, data);
 
-        if (!(status & (CONN_CLOSED|CONN_REMOVED)) && !data->watcher->is_active()) {
+        if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == CONN_READ
+            && !data->watcher->is_active()) {
             data->watcher->read_start();
         }
     }

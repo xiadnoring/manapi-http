@@ -261,13 +261,13 @@ int main () {
 
         router.POST ("/upload2", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
-            resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, req.header(manapi::net::http::HEADER.CONTENT_LENGTH));
+            //resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, req.header(manapi::net::http::HEADER.CONTENT_LENGTH));
             co_return resp.callback_stream([&resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
-                std::size_t sum = 0;
-                co_await req.callback_async([&sum, cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
+
+                co_await req.callback_async([cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
                     -> manapi::future<ssize_t> {
-                    sum += size;
-                    std::cout << sum << " " << size << " " << fin << "\n";
+                    //sum += size;
+                    //std::cout << sum << " " << size << " " << fin << "\n";
                     co_return co_await cb (buffer, size, fin);
                 });
             });
