@@ -75,7 +75,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v2::response(const shared_conn
         data, resp->status_code(), std::move(resp->headers()), finish);
 }
 
-    int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) {
+int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) {
     auto const data = conn->as<http::http_v2_stream_t>();
     data->speed_min_delay = static_cast<int>(this->w->config()->speed_check_delay);
     return data->flags & CONN_MASK_GETTING;

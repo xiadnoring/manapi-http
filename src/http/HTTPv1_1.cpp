@@ -534,7 +534,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::
             case HTTP_V1_1_CHUNK_BODY: {
                 auto const copy = std::min(size - pos, static_cast<ssize_t>(ctx->left));
                 if (copy) {
-                    if (worker->event_flags(conn) & ev::READ) {
+                    if (!ctx->top.last_deque && worker->event_flags(conn) & ev::READ) {
                         worker->feed_event(conn, ev::READ, buffer + pos, copy, nullptr /* no way :( */);
                     }
                     else {

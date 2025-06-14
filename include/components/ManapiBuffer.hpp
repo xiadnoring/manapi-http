@@ -18,7 +18,7 @@ namespace manapi {
 
     public:
         enum flags {
-            BYTEBUFFER_FLAG_OBJECT_POOL
+            BYTEBUFFER_FLAG_OBJECT_POOL = 1
         };
 
         bytebuffer ();

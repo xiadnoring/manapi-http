@@ -15,6 +15,7 @@
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpResponse.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
+#include "crypto/ManapiCryptoUtils.hpp"
 
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 
@@ -432,6 +433,57 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(uq_handle_d
     co_return;
 }
 
+bool http_v1_1_is_chunked_data (manapi::net::http::internal::uq_handle_data_t &cdata, manapi::net::http::response *resp) {
+    if (cdata->conn->version == manapi::net::http::versions::HTTP_v1_1
+        && !resp->headers().contains(manapi::net::http::HEADER.CONTENT_LENGTH)) {
+        return true;
+    }
+    return false;
+}
+
+manapi::future<> send_http_v1_1_chunked_data (manapi::net::http::internal::uq_handle_data_t &cdata, ssize_t rhs, const void *buffer, std::size_t size, bool &finish) {
+    if (rhs < 0)
+        THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
+
+    std::string_view const msg = {"0\r\n\r\n"};
+
+    if (rhs) {
+        char header[20];
+
+        auto res = std::to_chars(header, header + sizeof (header), rhs, 16);
+
+        if (res.ec != std::errc())
+            THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_INTERNAL, "to_chars failed: {}", std::make_error_code(res.ec).message());
+
+        auto len = static_cast<ssize_t>(res.ptr - header);
+
+        if (len + 2 > sizeof (header) - 1)
+            /* TODO: think */
+            goto err;
+
+        memcpy (header + len, static_cast<const char *>("\r\n"), 2);
+        len += 2;
+
+        if (co_await cdata->worker->fwrite(cdata->conn, header, len, false) <= 0)
+            goto err;
+
+        if (co_await cdata->worker->fwrite(cdata->conn, buffer, rhs, false) <= 0)
+            goto err;
+
+        if (co_await cdata->worker->fwrite(cdata->conn, msg.data() + 1, 2, false) <= 0)
+            goto err;
+    }
+
+    if (finish) {
+        if (co_await cdata->worker->fwrite(cdata->conn, msg.data(),
+                static_cast<ssize_t>(msg.size()), rhs == 0) <= 0)
+            goto err;
+    }
+    co_return;
+err:
+    THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_ABORTED, "write(...) failed");
+}
+
 void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     if (features.compressor_for_file || features.compressor_for_string) {
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Compression isn't supported");
@@ -440,6 +492,10 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
     if (features.replacers) {
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
     }
+
+
+    if (http_v1_1_is_chunked_data(cdata, res.get()))
+        res->header(http::HEADER.TRANSFER_ENCODING, "chunked");
 
     auto task = mask_response(cdata.get(), res.get(), false);
     manapi::async::run<ssize_t> ( std::move(task),
@@ -454,25 +510,35 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
                 auto cb_sync = std::make_unique<http::response::resp_callback_sync>(std::move(res->callback_sync()));
                 manapi::async::run ([res = std::move(res), cb_sync = std::move(cb_sync), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
-                        auto buffer = manapi::async::current()->memory_fabric().buffer (res->config()->buffer_size);
+                        auto buffer = manapi::async::current()->memory_fabric().buffer (
+                            std::max(res->config()->buffer_size, 64L));
 
                         bool finish = false;
                         std::size_t cursor = 0;
 
-                        while (!finish) {
-                            auto rhs = cb_sync->operator()(buffer.data() + cursor, buffer.size() - cursor, finish);
-                            if (rhs < 0) {
-                                THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
+
+                        if (http_v1_1_is_chunked_data(cdata, res.get())) {
+                            while (!finish) {
+                                auto rhs = cb_sync->operator()(buffer.data(), buffer.size(), finish);
+                                co_await send_http_v1_1_chunked_data(cdata, rhs, buffer.data(), buffer.size(), finish);
                             }
-                            rhs = co_await cdata->worker->write(cdata->conn, buffer.data() + cursor, rhs, finish);
+                        }
+                        else {
+                            while (!finish) {
+                                auto rhs = cb_sync->operator()(buffer.data() + cursor, buffer.size() - cursor, finish);
+                                if (rhs < 0) {
+                                    THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
+                                }
+                                rhs = co_await cdata->worker->write(cdata->conn, buffer.data() + cursor, rhs, finish);
 
-                            if (rhs <= 0)
-                                co_return;
+                                if (rhs <= 0)
+                                    co_return;
 
-                            cursor += rhs;
+                                cursor += rhs;
 
-                            if (buffer.size() == cursor)
-                                cursor = 0;
+                                if (buffer.size() == cursor)
+                                    cursor = 0;
+                            }
                         }
                     });
             }
@@ -488,6 +554,9 @@ void manapi::net::http::internal::send_response_stream_cb(uq_handle_data_t cdata
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
     }
 
+    if (http_v1_1_is_chunked_data(cdata, res.get()))
+        res->header(http::HEADER.TRANSFER_ENCODING, "chunked");
+
     auto task = mask_response(cdata.get(), res.get(), false);
     manapi::async::run<ssize_t> (std::move(task),
         [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result) mutable
@@ -498,13 +567,24 @@ void manapi::net::http::internal::send_response_stream_cb(uq_handle_data_t cdata
             }
 
             if (result && *result >= 0) {
-                auto reserved = res->config()->buffer_size;
                 auto cb_async = std::make_unique<http::response::resp_stream>(std::move(res->callback_stream()));
-                manapi::async::run ([res = std::move(res), reserved, cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
+                manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
-                        co_await cb_async->operator()([&cdata] (const void *buffer, ssize_t size, bool fin) -> manapi::future<ssize_t> {
-                            co_return co_await cdata->worker->fwrite(cdata->conn, buffer, size, fin);
-                        });
+                        if (http_v1_1_is_chunked_data(cdata, res.get())) {
+                            co_await cb_async->operator()([&cdata]
+                                (const void *buffer, ssize_t size, bool fin)
+                                -> manapi::future<ssize_t> {
+                                co_await send_http_v1_1_chunked_data(cdata, size, buffer, size, fin);
+                                co_return size;
+                            });
+                        }
+                        else {
+                            co_await cb_async->operator()([&cdata]
+                                (const void *buffer, ssize_t size, bool fin)
+                                -> manapi::future<ssize_t> {
+                                co_return co_await cdata->worker->fwrite(cdata->conn, buffer, size, fin);
+                            });
+                        }
                         cdata->cb->call(true);
                     });
             }
@@ -521,6 +601,9 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
         THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
     }
 
+    if (http_v1_1_is_chunked_data(cdata, res.get()))
+        res->header(http::HEADER.TRANSFER_ENCODING, "chunked");
+
     auto task = mask_response(cdata.get(), res.get(), false);
     manapi::async::run<ssize_t> (std::move(task),
         [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result) mutable
@@ -534,24 +617,33 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
                 auto cb_async = std::make_unique<http::response::resp_callback_async>(std::move(res->callback_async()));
                 manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
-                        auto buffer = manapi::async::current()->memory_fabric().buffer(res->config()->buffer_size);
+                        auto buffer = manapi::async::current()->memory_fabric().buffer(
+                            std::max(res->config()->buffer_size, 64L));
 
-                        std::size_t cursor = 0;
                         bool finish = false;
 
-                        while (!finish) {
-                            auto rhs = co_await cb_async->operator()(buffer.data() + cursor, buffer.size() - cursor, finish);
-                            if (rhs < 0)
-                                THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
+                        if (http_v1_1_is_chunked_data(cdata, res.get())) {
+                            while (!finish) {
+                                auto rhs = co_await cb_async->operator()(buffer.data(), buffer.size(), finish);
+                                co_await send_http_v1_1_chunked_data(cdata, rhs, buffer.data(), buffer.size(), finish);
+                            }
+                        }
+                        else {
+                            std::size_t cursor = 0;
+                            while (!finish) {
+                                auto rhs = co_await cb_async->operator()(buffer.data() + cursor, buffer.size() - cursor, finish);
+                                if (rhs < 0)
+                                    THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
 
-                            rhs = co_await cdata->worker->write(cdata->conn, buffer.data() + cursor, rhs, finish);
-                            if (rhs <= 0)
-                                co_return;
+                                rhs = co_await cdata->worker->write(cdata->conn, buffer.data() + cursor, rhs, finish);
+                                if (rhs <= 0)
+                                    co_return;
 
-                            cursor += rhs;
+                                cursor += rhs;
 
-                            if (cursor == buffer.size())
-                                cursor = 0;
+                                if (cursor == buffer.size())
+                                    cursor = 0;
+                            }
                         }
                     });
             }

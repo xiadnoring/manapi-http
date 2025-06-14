@@ -181,6 +181,11 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) n
         }
     }
 
+    if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == 0
+            && data->watcher->is_active()) {
+        data->watcher->read_stop();
+    }
+
     if ((status & CONN_RECV_END) && (status & CONN_READ & flags) && data->ev_callback) {
         data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
     }
@@ -604,8 +609,7 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
             }
         }
 
-        if (data->status & ev::READ
-            && !(data->status & (CONN_CLOSED|CONN_REMOVED))
+        if (data->status & ((CONN_READ|CONN_CLOSED|CONN_REMOVED)) == CONN_READ
             && !data->watcher->is_active()) {
             data->watcher->read_start();
         }
