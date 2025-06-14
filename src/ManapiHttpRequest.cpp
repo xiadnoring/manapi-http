@@ -299,7 +299,7 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
                                 auto const copy = static_cast<int>(size - rhs);
                                 if (copy) {
                                     assert(req->buffer == nullptr);
-                                    auto object = worker->bufferpool().slice(nsize - copy);
+                                    auto object = worker->bufferpool().buffer(nsize - copy);
                                     memcpy(object.data(), buffer + copy, nsize - copy);
                                     req->buffer = std::move(object);
                                 }
@@ -392,13 +392,12 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                         worker::ibuffpool_t buff;
 
                         if (!p) {
-                            buff = ctx_cb.worker->bufferpool().slice(nsize);
+                            buff = ctx_cb.worker->bufferpool().buffer(nsize);
                             memcpy (buff.data(), buffer, nsize);
 
                             p = &buff;
 
                             buffer = buff.data();
-                            nsize = buff.size();
                         }
 
                         assert(!(p->empty()));
@@ -451,7 +450,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                         auto const copy = static_cast<int>(size - rhs);
                                         if (copy) {
                                             assert(ctx_cb->req->buffer == nullptr);
-                                            auto object = ctx_cb->worker->bufferpool().slice(size - copy);
+                                            auto object = ctx_cb->worker->bufferpool().buffer(size - copy);
                                             memcpy (object.data(), buffer + copy, size - copy);
                                             ctx_cb->req->buffer = std::move(object);
                                         }

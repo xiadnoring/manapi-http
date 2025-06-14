@@ -183,6 +183,7 @@ void default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, 
                         }
                     }
 
+                    w->waiting(conn, false);
                     it_header = req_ptr->headers.find(manapi::net::http::HEADER.TRANSFER_ENCODING);
                     if (it_header != req_ptr->headers.end()) {
                         auto const values = manapi::net::http::parse_header_value(it_header->second);

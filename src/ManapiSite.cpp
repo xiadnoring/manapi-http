@@ -508,7 +508,13 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
             return handler_page;
         }
 
-        http_handler_function *handler = &cur->handlers->at (request_data->method);
+        auto it = cur->handlers->find (request_data->method);
+
+        http_handler_function *handler{nullptr};
+
+        if (it != cur->handlers->end()) {
+            handler = &it->second;
+        }
 
         if (handler == nullptr) {
             // TODO: handler error

@@ -1,38 +1,45 @@
 #pragma once
+
 #include <mutex>
 
-#include "Buffer.hpp"
+#include "ManapiSlice.hpp"
+#include "ManapiBuffer.hpp"
 #include "ManapiChain.hpp"
 
 namespace manapi {
     namespace internal {
         struct object_pool_data_t;
 
-        void object_item_pool_return (const std::shared_ptr<internal::object_pool_data_t> &, void *buffer, int real_size);
+        void object_item_pool_return (const std::shared_ptr<internal::object_pool_data_t> &data, void *buffer, std::size_t size);
+
+        void object_item_pool_return (void *buffer, std::size_t size);
     }
 
     template<typename T>
     class object_item_pool {
     public:
-        object_item_pool () : data(nullptr), object(nullptr) {}
+        object_item_pool () : object(nullptr) {}
 
-        object_item_pool (std::shared_ptr<internal::object_pool_data_t> data, T *object, int real_size)
-            : data(std::move(data)), object(object), real_size_(real_size) {}
+        object_item_pool (T *object)
+            :  object(object) {}
 
         object_item_pool (object_item_pool &&n)  noexcept {
             this->object = std::move(n.object);
-            this->data = std::move(n.data);
         }
 
         object_item_pool &operator=(object_item_pool &&n) noexcept {
             this->object = std::exchange(n.object, 0);
-            this->data = std::move(n.data);
-            this->real_size_ = std::exchange(n.real_size_, 0);
             return *this;
         }
 
+        ~object_item_pool() {
+            if (this->object) {
+                internal::object_item_pool_return(this->object, sizeof (T));
+            }
+        }
+
         bool operator==(const nullptr_t &) const noexcept {
-            return this->data == nullptr;
+            return this->object == nullptr;
         }
 
         bool operator!=(const nullptr_t &) const noexcept {
@@ -53,49 +60,52 @@ namespace manapi {
             return *this->object;
         }
 
-        std::pair<T *, int> release () {
-            return {std::exchange(this->object, nullptr), std::exchange(this->real_size_, 0)};
-        }
-
-        ~object_item_pool() {
-            if (this->object
-                && this->data) {
-                delete this->object;
-                internal::object_item_pool_return (std::move(this->data),
-                    std::exchange(this->object, nullptr), std::exchange(this->real_size_, 0));
-            }
+        T *release () {
+            return std::exchange(this->object, nullptr);
         }
     private:
-        std::shared_ptr<internal::object_pool_data_t> data;
         T *object;
-        int real_size_;
     };
 
     class object_pool {
         std::shared_ptr<internal::object_pool_data_t> data;
     public:
-        typedef std::unique_ptr<bytebuffer> item;
+        typedef std::unique_ptr<manapi::slice> item;
 
         explicit object_pool();
 
         ~object_pool();
 
-        bytebuffer slice (std::size_t min, std::size_t max);
+        //manapi::slice slice (std::size_t min, std::size_t max);
 
-        bytebuffer slice (std::size_t suggested);
+        manapi::slice slice (std::size_t suggested);
 
-        bytebuffer slice (void *pointer, std::size_t suggested);
+        manapi::bytebuffer buffer (std::size_t min, std::size_t max);
+
+        manapi::bytebuffer buffer (std::size_t suggested);
+
+        manapi::bytebuffer buffer (void *pointer, std::size_t suggested);
+
+        void *alloc (std::size_t size);
+
+        void free (void *ptr, std::size_t size);
 
         template<typename T, typename ...Args>
-        std::enable_if<std::has_virtual_destructor_v<T>, object_item_pool<T>> get (Args&&...args) {
-            auto b = this->slice (sizeof (T));
-            auto const size = b.realsize();
-            auto const data = new(b.release()) T (std::forward<decltype(args)>(args)...);
-            return object_item_pool<T> (this->data, b.release(), size);
+        std::enable_if<std::has_virtual_destructor_v<T>, manapi::error::status_or<object_item_pool<T>>> get (Args&&...args) {
+            auto b = this->alloc (sizeof (T));
+            try {
+                auto const data = new(b) T (std::forward<decltype(args)>(args)...);
+                return object_item_pool<T> (this->data, b, sizeof (T));
+            }
+            catch (std::exception const &e) {
+                this->free(b, sizeof (T));
+                return manapi::error::status_internal("object init failed", {"msg", e.what()});
+            }
         }
 
-        void unit (bytebuffer buffer);
-
-        void object_item_pool_return (void *pointer, int size);
+        template<typename T>
+        std::enable_if<!std::is_same_v<T, void>> free (T *pointer) {
+            return this->free(pointer, sizeof (T));
+        }
     };
 }

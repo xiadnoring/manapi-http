@@ -4,7 +4,7 @@
 #include "../ManapiUtils.hpp"
 #include "../ManapiSite.hpp"
 #include "./base_worker.hpp"
-#include "components/Buffer.hpp"
+#include "../components/ManapiBuffer.hpp"
 
 namespace manapi::net::http {
     struct http_v2_t;

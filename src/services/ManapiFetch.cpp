@@ -306,8 +306,9 @@ manapi::future<void> manapi::net::fetch::async_doit() {
         try {
             if (this->data->cancellation.contains_cancel_callback()) {
                 this->data->cancellation.cancel_callback([data = this->data->data_->curl] () mutable -> void {
-                    if (data)
+                    if (data) {
                         manapi::async::current()->eventloop()->unwatch_curl(std::move(data));
+                    }
                 });
             }
 
@@ -519,7 +520,7 @@ manapi::future<manapi::json> manapi::net::fetch::json() {
 
 void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler) {
     if (!this->data->data_->async_buffer.realsize()) {
-        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().slice(65536);
+        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().buffer(65536);
     }
     this->data->data_->sync_user_body_cb.reset();
     this->data->data_->async_buffer_cursor = 0;
@@ -688,7 +689,7 @@ void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize
     this->data->body_ = BODY_CALLBACK;
 
     if (!this->data->data_->async_buffer.realsize()) {
-        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().slice(65536);
+        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().buffer(65536);
     }
     this->data->data_->async_buffer_cursor = 0;
 
@@ -702,6 +703,7 @@ void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize
             catch (std::exception const &e) {
                 MANAPIHTTP_LOG( "set_async_body(...) failed: {}", e.what());
             }
+
             if (rhs < 0) {
                 /* error */
                 if (finish) {

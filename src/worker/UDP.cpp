@@ -93,12 +93,12 @@ void manapi::net::worker::udp::stop(std::function<void()> cb) {
 
 void manapi::net::worker::udp::recv_buffer_dealloc_(const ev::buff_t *buf) {
     /* free */
-    this->bufferpool().object_item_pool_return(buf->base, buf->len);
+    this->bufferpool().free(buf->base, buf->len);
 
 }
 
 void manapi::net::worker::udp::recv_buffer_alloc_(ssize_t nread, ev::buff_t *buff) {
-    auto buffer = this->bufferpool().slice(1, nread);
+    auto buffer = this->bufferpool().buffer(1, nread);
     buff->len = buffer.realsize();
     buff->base = static_cast<char *>(buffer.release());
 }

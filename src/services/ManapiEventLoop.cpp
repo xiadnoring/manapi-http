@@ -1179,11 +1179,11 @@ void manapi::event_loop::unwatch_curl(std::shared_ptr<CURL> curl) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL,
             "Failed to remove the curl handle. curl_multi_remove_handle(...) = {}", static_cast<int>(mcode));
     }
-
-    if (curl_data.mapped().watcher) {
+    auto &mapped = curl_data.mapped();
+    if (mapped.watcher) {
         this->stop_watcher(curl_data.mapped().watcher);
     }
-    curl_data.mapped().finish(CURLE_ABORTED_BY_CALLBACK);
+    mapped.finish(CURLE_ABORTED_BY_CALLBACK);
 
     this->etaskpool_->append_task([this] () -> void {
         this->handle_curl_exec_connections();

@@ -885,7 +885,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
             if (s->top->recv_size >= maxcnt)
                 return CONN_IO_WANT_READ;
 
-            auto buffer = this->bufferpool().slice(1, this->config_->buffer_size);;
+            auto buffer = this->bufferpool().buffer(this->config_->buffer_size);;
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
             if (top->last_deque) {

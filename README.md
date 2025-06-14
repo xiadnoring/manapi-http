@@ -211,6 +211,26 @@ int main () {
 }
 ```
 
+## Params
+
+| Option name                    | Description              | Values        |
+|:-------------------------------|:-------------------------|:--------------|
+| MANAPIHTTP_GMP_DEPENDENCY      | Bigint Support           | ON/OFF        |
+| MANAPIHTTP_CURL_DEPENDENCY     | Fetch Support            | ON/OFF        |
+| MANAPIHTTP_ZLIB_DEPENDENCY     | gzip/deflate Support     | ON/OFF        |
+| MANAPIHTTP_QUICHE_DEPENDENCY   | HTTP3/QUIC by Cloudflare | ON/OFF        | 
+| MANAPIHTTP_OPENSSL_DEPENDENCY  | TLS by OpenSSL           | ON/OFF        |
+| MANAPIHTTP_WOLFSSL_DEPENDENCY  | TLS by WolfSSL           | ON/OFF        |
+| MANAPIHTTP_GRPC_DEPENDENCY     | gRPC Support             | ON/OFF        |
+| MANAPIHTTP_BROTLI_DEPENDENCY   | brotli Support           | ON/OFF        |
+| MANAPIHTTP_ZSTD_DEPENDENCY     | zstd Support             | ON/OFF        |
+| MANAPIHTTP_WOLFSSL_WITH_ALPN   | WolfSSL with ALPN        | ON/OFF        |
+| MANAPIHTTP_NGHTTP2_DEPENDENCY  | HTTP2/TLS by NGINX       | ON/OFF        |
+| MANAPIHTTP_NGHTTP3_DEPENDENCY  | HTTP3/QUIC by NGINX      | ON/OFF        |
+| MANAPIHTTP_JSON_DEBUG          | JSON debug symbols       | ON/OFF        |
+| BUILD_SHARED_LIBS              | Build as a shared lib    | ON/OFF        |
+| MANAPIHTTP_BUILD_METHOD        | Build Method             | conan/default | 
+
 ## TODO
 
 - [ ] Async

@@ -68,51 +68,30 @@ manapi::filesystem::fstream::~fstream() {
 }
 
 manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t buff_size) {
-    try {
-        while (true) {
-            ssize_t rhs;
+    while (true) {
+        ssize_t rhs;
 
-            rhs = co_await manapi::filesystem::async_read(this->data->file, buff, buff_size, this->data->off_,
-                manapi::async::cancellation_action::unit(this->data->cancellation));
+        rhs = co_await manapi::filesystem::async_read(this->data->file, buff, buff_size, this->data->off_,
+            manapi::async::cancellation_action::unit(this->data->cancellation));
 
+        if (rhs < 0)
+            break;
 
-            if (rhs < 0) {
-                break;
-            }
+        if (rhs == 0)
+            this->data->status |= FILE_EOF;
 
-            if (rhs == 0) {
-                this->data->status |= FILE_EOF;
-            }
+        if (this->data->off_ >= 0)
+            this->data->off_ += rhs;
 
-            if (this->data->off_ >= 0) {
-                this->data->off_ += rhs;
-            }
-
-            co_return rhs;
-        }
+        co_return rhs;
     }
-    catch (std::exception const &e) {
-        manapi::async::current()->logger()->error(manapi::logger::default_service,
-            ERR_FILESYSTEM_FAILED, "fs: read() failed due to {}", e.what());
-    }
-
     co_return -1;
 }
 
 manapi::future<ssize_t> manapi::filesystem::fstream::write(const void *buff, ssize_t buff_size) {
     while (true) {
         ssize_t rhs;
-        // auto rhs = static_cast<ssize_t> (::write(this->data->file, buff, buff_size));
-        //
-        // if (rhs < 0) {
-        //     if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        //
-        //
-        //         continue;
-        //     }
-        //
-        //     break;
-        // }
+
         rhs = co_await manapi::filesystem::async_write(this->data->file, buff, buff_size, this->data->off_,
             manapi::async::cancellation_action::unit(this->data->cancellation));
 
@@ -155,6 +134,77 @@ manapi::future<ssize_t> manapi::filesystem::fstream::fread(void *buff, ssize_t b
     }
 
     co_return total;
+}
+
+manapi::future<ssize_t> manapi::filesystem::fstream::read(manapi::slice_view slice) {
+    while (true) {
+        ssize_t rhs;
+
+        rhs = co_await manapi::filesystem::async_read(this->data->file, slice, this->data->off_,
+            manapi::async::cancellation_action::unit(this->data->cancellation));
+
+
+        if (rhs < 0)
+            break;
+
+        if (rhs == 0)
+            this->data->status |= FILE_EOF;
+
+        if (this->data->off_ >= 0)
+            this->data->off_ += rhs;
+
+        co_return rhs;
+    }
+    co_return -1;
+}
+
+manapi::future<ssize_t> manapi::filesystem::fstream::write(manapi::slice_view slice) {
+    while (true) {
+        ssize_t rhs;
+
+        rhs = co_await manapi::filesystem::async_write(this->data->file, slice, this->data->off_,
+            manapi::async::cancellation_action::unit(this->data->cancellation));
+
+        if (this->data->off_ >= 0)
+            this->data->off_ += rhs;
+
+        co_return rhs;
+    }
+
+    co_return -1;
+}
+
+manapi::future<ssize_t> manapi::filesystem::fstream::fread(manapi::slice_view slice) {
+    ssize_t total = 0;
+
+    while (slice.size()) {
+        auto rhs = co_await this->read(slice);
+        if (rhs < 0)
+            co_return -1;
+
+        if (rhs == 0
+            && this->eof())
+            break;
+
+        slice.shift_add(rhs);
+        total += rhs;
+    }
+
+    co_return total;
+}
+
+manapi::future<ssize_t> manapi::filesystem::fstream::fwrite(manapi::slice_view slice) {
+    ssize_t res = 0;
+    while (slice.size()) {
+        auto const rhs = co_await this->write(slice);
+
+        if (rhs <= 0)
+            co_return -1;
+
+        slice.shift_add(rhs);
+        res += rhs;
+    }
+    co_return res;
 }
 
 manapi::future<> manapi::filesystem::fstream::close() {

@@ -65,7 +65,52 @@ namespace manapi {
             chain_item_ptr src_;
         };
 
+        class chain_const_iterator {
+        public:
+
+            chain_const_iterator (chain_item_ptr n) {
+                this->src_ = n;
+            }
+
+            chain_const_iterator &operator++(int) {
+                this->src_ = this->src_ ? this->src_->next.get() : nullptr;
+                return *this;
+            }
+
+            chain_const_iterator &operator--(int) {
+                this->src_ = this->src_ ? this->src_->prev : nullptr;
+                return *this;
+            }
+
+            value_type const &operator*() {
+                return this->src_->src;
+            }
+
+            pointer const operator->() {
+                return &this->src_->src;
+            }
+
+            bool operator==(const chain_const_iterator &_n) const {
+                return this->src_ == _n.src_;
+            }
+
+            bool operator!=(const chain_const_iterator &_n) const {
+                return false == this->operator==(_n);
+            }
+
+            friend void swap (chain_const_iterator &lhs, chain_const_iterator &rhs) noexcept {
+                std::swap(lhs.src_, rhs.src_);
+            }
+
+            operator bool () noexcept {
+                return this->src_ != nullptr;
+            }
+
+            chain_item_ptr src_;
+        };
+
         using iterator = chain_iterator;
+        using const_iterator = chain_const_iterator;
 
         chain () {
             this->src_ = nullptr;
@@ -243,6 +288,22 @@ namespace manapi {
 
         iterator end () {
             return iterator{nullptr};
+        }
+
+        const_iterator begin () const {
+            return const_iterator{this->src_.get()};
+        }
+
+        const_iterator end () const {
+            return const_iterator{nullptr};
+        }
+
+        const_iterator rbegin () const {
+            return const_iterator{this->last_};
+        }
+
+        const_iterator rend () const {
+            return const_iterator{nullptr};
         }
 
         iterator rbegin () {

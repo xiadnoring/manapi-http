@@ -28,6 +28,34 @@ namespace manapi::filesystem {
 
     future<std::string> async_read (std::string path, int flags = ev::FS_O_RDONLY, int64_t offset = -1, manapi::async::cancellation_action cancellation = nullptr);
 
+    /**
+     * Async Write
+     *
+     * @param file
+     * @param buff
+     * @param nbuff
+     * @param offset
+     * @param cancellation
+     * @return
+     */
+    future<ssize_t> async_write (ev::file file, ev::buff_t *buff, uint32_t nbuff, int64_t offset = -1, async::cancellation_action cancellation = nullptr);
+
+    /**
+     * Async Read
+     *
+     * @param file
+     * @param buff
+     * @param nbuff
+     * @param offset
+     * @param cancellation
+     * @return
+     */
+    future<ssize_t> async_read (ev::file file, ev::buff_t *buff, uint32_t nbuff, int64_t offset = -1, async::cancellation_action cancellation = nullptr);
+
+    future<ssize_t> async_write (ev::file file, slice_view slice, int64_t offset = -1, async::cancellation_action cancellation = nullptr);
+
+    future<ssize_t> async_read (ev::file file, slice_view slice, int64_t offset = -1, async::cancellation_action cancellation = nullptr);
+
     future<ssize_t> async_file_size (std::string path, manapi::async::cancellation_action cancellation = nullptr);
 
     future<void> async_unlink (std::string path, async::cancellation_action cancellation = nullptr);

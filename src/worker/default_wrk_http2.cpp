@@ -117,6 +117,7 @@ void default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, 
             /* error */
         }
         if (http_v2_ctx->streams->empty()) {
+            w->waiting(conn, true);
             http_v2_ctx->conn = nullptr;
             w->close_connection(conn, false);
         }

@@ -27,21 +27,45 @@ namespace manapi::filesystem {
         };
 
         fstream (std::string path, async::cancellation_action cancellation = nullptr);
+
         fstream (fstream &&n) noexcept;
+
         fstream &operator=(fstream &&n) noexcept;
+
         fstream (const fstream &n);
+
         fstream &operator=(const fstream &n);
+
         future<manapi::error::status> open (int flags, int mode = 0644);
+
         [[nodiscard]] bool is_open () const;
+
         ~fstream();
+
         future<ssize_t> read (void *buff, ssize_t buff_size);
+
         future<ssize_t> write (const void *buff, ssize_t buff_size);
+
         future<ssize_t> fwrite (const void *buff, ssize_t buff_size);
+
         future<ssize_t> fread (void *buff, ssize_t buff_size);
+
+        future<ssize_t> read (manapi::slice_view slice);
+
+        future<ssize_t> write (manapi::slice_view slice);
+
+        future<ssize_t> fread (manapi::slice_view slice);
+
+        future<ssize_t> fwrite (manapi::slice_view slice);
+
         future<> close ();
+
         [[nodiscard]] ssize_t tellg() const;
+
         ssize_t seekg (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START);
+
         [[nodiscard]] manapi::future<ssize_t> size () const;
+
         [[nodiscard]] bool eof () const;
     private:
         ssize_t seekg_ (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START) const;

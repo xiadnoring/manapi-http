@@ -6,9 +6,6 @@
 #include <uv.h>
 
 namespace manapi {
-    enum bytebuffer_flags {
-        BYTEBUFFER_FLAG_OBJECT_POOL = 1
-    };
     class bytebuffer {
         struct slices_data {
             uv_buf_t *slices;
@@ -20,6 +17,10 @@ namespace manapi {
         };
 
     public:
+        enum flags {
+            BYTEBUFFER_FLAG_OBJECT_POOL
+        };
+
         bytebuffer ();
 
         bool operator==(const std::nullptr_t &) const;
@@ -69,21 +70,19 @@ namespace manapi {
 
         void *release ();
 
-        [[nodiscard]] int shift () const;
+        [[nodiscard]] std::size_t shift () const;
 
-        int count ();
+        void shift (std::size_t n);
 
-        void shift (int n);
-
-        void shift_add (int n);
+        void shift_add (std::size_t n);
 
         [[nodiscard]] bool empty () const;
     private:
-        char flags;
-        int shift_;
+        uint8_t flags;
+        uint32_t shift_;
 
-        int s;
-        int reserved;
+        uint32_t s;
+        uint32_t reserved;
 
         uint8_t *src;
     };

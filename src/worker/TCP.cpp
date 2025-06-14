@@ -233,7 +233,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
                 auto const connection = weak.lock();
 
                 if (buf->base) {
-                    object = this->bufferpool().slice(buf->base, buf->len);
+                    object = this->bufferpool().buffer(buf->base, buf->len);
                 }
 
                 if (!nread) {
@@ -256,7 +256,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
                     manapi::ERR_INTERNAL, "tcp: onrecv(...) unexpected error: {}", e.what());
             }
     }, [this] (std::shared_ptr<ev::tcp> &, size_t suggested_size, ev::buff_t *buff) -> void {
-        auto buffer = this->bufferpool().slice(suggested_size);
+        auto buffer = this->bufferpool().buffer(suggested_size);
         buff->len = buffer.size();
         buff->base = static_cast<char *>(buffer.release());
     });

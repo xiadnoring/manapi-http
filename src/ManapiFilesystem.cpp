@@ -586,183 +586,36 @@ manapi::future<void> manapi::filesystem::async_close(ev::file file, async::cance
 }
 
 manapi::future<ssize_t> manapi::filesystem::async_write(ev::file file, const void *data, ssize_t size, int64_t offset, manapi::async::cancellation_action cancellation) {
-    using promise = manapi::async::promise<ssize_t>;
-
-    if (!size) {
-        co_return size;
-    }
-
-    ssize_t rhs = ev::fs::try_write(file, data, size, offset);
-    if (rhs > 0) {
-        co_return rhs;
-    }
-    rhs = 0;
-
-    struct async_write_data_t {
-        ssize_t result;
-        uv_buf_t buff;
-        ev::file file;
-        int64_t offset;
-        async_fs_operation_event_cb<ssize_t> event_cb;
-    } dd {
-        rhs,
-        {},
-        file,
-        offset,
-        nullptr
-    };
-
-    dd.buff.base = (char*)data;
-    dd.buff.len = static_cast<std::size_t>(size);
-
-    dd.event_cb = [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel)
-        -> void {
-        if (async_fs_operation_result_error<ssize_t>(w, reject, cancel)) {
-            return;
-        }
-
-        auto rhs = w->result();
-
-        if (rhs < 0) {
-            if (dd.result) {
-                rhs = dd.result;
-            }
-            cancel.disable_cancellation();
-            resolve(rhs);
-            return;
-        }
-
-        dd.result += rhs;
-
-        if (rhs < dd.buff.len) {
-            /* retry */
-            auto w1 = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, reject, cancel] (std::shared_ptr<ev::fs> w) mutable
-                -> void {
-                async_fs_operation_event_handler<ssize_t>(std::move(w), std::move(resolve), std::move(reject), std::move(cancel), dd.event_cb);
-            });
-
-            if (dd.offset >= 0) {
-                dd.offset += rhs;
-            }
-
-            dd.buff.base += rhs;
-            dd.buff.len -= rhs;
-
-            if (w1->write(dd.file, &dd.buff, 1, dd.offset)) {
-                reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_FILESYSTEM_FAILED,manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_INIT])));
-                return;
-            }
-
-            if (cancel.contains_cancel_callback()) {
-                cancel.cancel_callback([w = std::move(w1)] () mutable
-                    -> void { manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
-            }
-        }
-        else {
-            cancel.disable_cancellation();
-            resolve(dd.result);
-        }
-    };
-
-    rhs = co_await async_fs_operation<ssize_t>([&dd] (std::shared_ptr<ev::fs> w)
-        -> bool {
-            return !w->write(dd.file, &dd.buff, 1, dd.offset);
-        }, [&dd] (std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) -> void {
-            dd.event_cb(std::move(w), resolve, reject, cancel);
-        }, cancellation);
-
-    co_return rhs;
+    ev::buff_t buff;
+    buff.base = (char *)(data);
+    buff.len = static_cast<std::size_t>(size);
+    co_return co_await async_write(file, &buff, 1,  offset, std::move(cancellation));
 }
 
+struct async_read_data_t {
+    ssize_t result;
+    manapi::ev::buff_t *buff;
+    uint32_t nbuff;
+    manapi::ev::file file;
+    int64_t offset;
+    async_fs_operation_event_cb<ssize_t> event_cb;
+};
+
+struct async_write_data_t {
+    ssize_t result;
+    manapi::ev::buff_t *buff;
+    uint32_t nbuff;
+    manapi::ev::file file;
+    int64_t offset;
+    async_fs_operation_event_cb<ssize_t> event_cb;
+};
+
+
 manapi::future<ssize_t> manapi::filesystem::async_read(ev::file file, void *data, ssize_t size, int64_t offset, manapi::async::cancellation_action cancellation) {
-    using promise = manapi::async::promise<ssize_t>;
-
-    if (!size) {
-        co_return size;
-    }
-
-    ssize_t rhs = ev::fs::try_read(file, data, size, offset);
-    if (rhs > 0) {
-        co_return rhs;
-    }
-
-    rhs = 0;
-
-    struct async_read_data_t {
-        ssize_t result;
-        uv_buf_t buff;
-        ev::file file;
-        int64_t offset;
-        async_fs_operation_event_cb<ssize_t> event_cb;
-    } dd {
-            rhs,
-            {},
-            file,
-            offset,
-            nullptr
-    };
-
-    dd.buff.base = (char*)data;
-    dd.buff.len = static_cast<std::size_t>(size);
-
-    dd.event_cb = [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel)
-        -> void {
-        if (async_fs_operation_result_error<ssize_t>(w, reject, cancel)) {
-            return;
-        }
-
-        auto rhs = w->result();
-
-        if (rhs < 0) {
-            if (dd.result) {
-                rhs = dd.result;
-            }
-            cancel.disable_cancellation();
-            resolve(rhs);
-            return;
-        }
-
-        dd.result += rhs;
-
-        if (rhs && rhs < dd.buff.len) {
-            /* retry */
-            auto w  = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, reject, cancel] (std::shared_ptr<ev::fs> w) mutable
-                -> void {
-                async_fs_operation_event_handler<ssize_t>( std::move(w), std::move(resolve), std::move(reject), std::move(cancel), dd.event_cb);
-            });
-
-            if (dd.offset >= 0) {
-                dd.offset += rhs;
-            }
-
-            dd.buff.base += rhs;
-            dd.buff.len -= rhs;
-
-            if (w->read(dd.file, &dd.buff, 1, dd.offset)) {
-                reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_FILESYSTEM_FAILED, manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_INIT])));
-                return;
-            }
-
-            if (cancel.contains_cancel_callback()) {
-                cancel.cancel_callback([w = std::move(w)] () mutable
-                    -> void { manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
-            }
-        }
-        else {
-            cancel.disable_cancellation();
-            resolve(dd.result);
-        }
-    };
-
-    rhs = co_await async_fs_operation<ssize_t>([&dd] (std::shared_ptr<ev::fs> w)
-        -> bool {
-            return !w->read(dd.file, &dd.buff, 1, dd.offset);
-        }, [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel)
-        -> void {
-            dd.event_cb(std::move(w), resolve, reject, cancel);
-        }, cancellation);
-
-    co_return rhs;
+    ev::buff_t buff;
+    buff.base = static_cast<char*>(data);
+    buff.len = size;
+    co_return co_await async_read (file, &buff, 1, offset, std::move(cancellation));
 }
 
 manapi::future<> manapi::filesystem::async_write(std::string path, std::string data, int mode, int flags, int64_t offset, manapi::async::cancellation_action cancellation) {
@@ -821,6 +674,235 @@ manapi::future<std::string> manapi::filesystem::async_read(std::string path, int
     }
 
     co_return std::move(data);
+}
+
+manapi::future<ssize_t> manapi::filesystem::async_write(ev::file file, ev::buff_t *buff, uint32_t nbuff, int64_t offset, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<ssize_t>;
+
+    if (!nbuff)
+        co_return 0;
+
+    ssize_t res = 0;
+    std::size_t shift = 0;
+
+    while (nbuff) {
+        auto rhs = ev::fs::try_write(file, buff->base + shift, buff->len - shift, offset);
+
+        if (rhs > 0)
+            co_return rhs;
+
+        if (!rhs)
+            break;
+
+        if (offset >= 0)
+            offset += rhs;
+
+        res += rhs;
+        shift += rhs;
+
+        if (shift == buff[0].len) {
+            nbuff--;
+            buff++;
+            shift = 0;
+        }
+    }
+
+    if (res)
+        co_return res;
+
+    async_write_data_t dd{};
+
+    buff->base += shift;
+    buff->len -= shift;
+
+    dd.event_cb = nullptr;
+    dd.buff = buff;
+    dd.result = res;
+    dd.nbuff = nbuff;
+    dd.file = file;
+    dd.offset = offset;
+    dd.event_cb = [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel)
+        -> void {
+        if (async_fs_operation_result_error<ssize_t>(w, reject, cancel)) {
+            return;
+        }
+
+        auto rhs = w->result();
+
+        if (rhs < 0) {
+            /* ignore ? */
+            if (dd.result) {
+                rhs = dd.result;
+            }
+            cancel.disable_cancellation();
+            resolve(rhs);
+            return;
+        }
+
+        dd.result += rhs;
+
+        if (dd.offset >= 0)
+            dd.offset += rhs;
+
+        while (dd.nbuff
+            && rhs >= dd.buff->len) {
+            rhs -= dd.buff->len;
+            dd.buff++;
+            dd.nbuff--;
+        }
+
+        if (dd.nbuff) {
+            /* retry */
+            auto w1 = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, reject, cancel] (std::shared_ptr<ev::fs> w) mutable
+                -> void {
+                async_fs_operation_event_handler<ssize_t>(std::move(w), std::move(resolve), std::move(reject), std::move(cancel), dd.event_cb);
+            });
+
+            dd.buff->base += rhs;
+            dd.buff->len -= rhs;
+
+            if (w1->write(dd.file, dd.buff, dd.nbuff, dd.offset)) {
+                reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_FILESYSTEM_FAILED,manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_INIT])));
+                return;
+            }
+
+            if (cancel.contains_cancel_callback()) {
+                cancel.cancel_callback([w = std::move(w1)] () mutable
+                    -> void { manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
+            }
+        }
+        else {
+            cancel.disable_cancellation();
+            resolve(dd.result);
+        }
+    };
+
+    res = co_await async_fs_operation<ssize_t>([&dd] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->write(dd.file, dd.buff, dd.nbuff, dd.offset);
+        }, [&dd] (std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel) -> void {
+            dd.event_cb(std::move(w), resolve, reject, cancel);
+        }, cancellation);
+
+    co_return res;
+}
+
+manapi::future<ssize_t> manapi::filesystem::async_read(ev::file file, ev::buff_t *buff, uint32_t nbuff, int64_t offset, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<ssize_t>;
+
+    if (!nbuff)
+        co_return 0;
+
+    ssize_t res = 0;
+    std::size_t shift = 0;
+
+    while (nbuff) {
+        ssize_t rhs = ev::fs::try_read(file, buff->base + shift, buff->len - shift, offset);
+
+        if (rhs > 0)
+            co_return rhs;
+
+        if (!rhs)
+            break;
+
+        shift += rhs;
+        res += rhs;
+
+        if (shift == buff->len) {
+            shift = 0;
+            buff++;
+            nbuff--;
+        }
+    }
+
+    if (!nbuff)
+        co_return res;
+
+    async_read_data_t dd {};
+
+    buff->base += shift;
+    buff->len -= shift;
+
+    dd.result = res;
+    dd.file = file;
+    dd.offset = offset;
+    dd.nbuff = nbuff;
+    dd.buff = buff;
+
+    dd.event_cb = [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel)
+        -> void {
+        if (async_fs_operation_result_error<ssize_t>(w, reject, cancel)) {
+            return;
+        }
+
+        auto rhs = w->result();
+
+        if (rhs < 0) {
+            if (dd.result) {
+                rhs = dd.result;
+            }
+            cancel.disable_cancellation();
+            resolve(rhs);
+            return;
+        }
+
+        if (dd.offset >= 0)
+            dd.offset += rhs;
+
+        dd.result += rhs;
+
+        while (dd.nbuff
+            && rhs >= dd.buff->len) {
+            rhs -= dd.buff->len;
+            dd.nbuff--;
+            dd.buff++;
+        }
+
+        if (dd.nbuff && rhs) {
+            /* retry */
+            auto w  = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, reject, cancel] (std::shared_ptr<ev::fs> w) mutable
+                -> void {
+                async_fs_operation_event_handler<ssize_t>( std::move(w), std::move(resolve), std::move(reject), std::move(cancel), dd.event_cb);
+            });
+
+            dd.buff->base += rhs;
+            dd.buff->len -= rhs;
+
+            if (w->read(dd.file, dd.buff, dd.nbuff, dd.offset)) {
+                reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_FILESYSTEM_FAILED, manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_INIT])));
+                return;
+            }
+
+            if (cancel.contains_cancel_callback()) {
+                cancel.cancel_callback([w = std::move(w)] () mutable
+                    -> void { manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
+            }
+        }
+        else {
+            cancel.disable_cancellation();
+            resolve(dd.result);
+        }
+    };
+
+    res = co_await async_fs_operation<ssize_t>([&dd] (std::shared_ptr<ev::fs> w)
+        -> bool {
+            return !w->read(dd.file, dd.buff, dd.nbuff, dd.offset);
+        }, [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, promise::reject_t &reject, manapi::async::cancellation_action &cancel)
+        -> void {
+            dd.event_cb(std::move(w), resolve, reject, cancel);
+        }, cancellation);
+
+    co_return res;
+}
+
+manapi::future<ssize_t> manapi::filesystem::async_write(ev::file file, slice_view slice, int64_t offset, async::cancellation_action cancellation) {
+    auto buffs = slice.slices_buffs();
+    co_return co_await async_write(file, buffs.get(), slice.slices_size(), offset, std::move(cancellation));
+}
+
+manapi::future<ssize_t> manapi::filesystem::async_read(ev::file file, slice_view slice, int64_t offset, async::cancellation_action cancellation) {
+    auto buffs = slice.slices_buffs();
+    co_return co_await async_read(file, buffs.get(), slice.slices_size(), offset, std::move(cancellation));
 }
 
 manapi::future<ssize_t> manapi::filesystem::async_file_size(std::string path, manapi::async::cancellation_action cancellation) {

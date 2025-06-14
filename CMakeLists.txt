@@ -367,8 +367,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/components/TimerObject.hpp
         src/components/TimerObject.cpp
         include/ext/jemallocator.hpp
-        include/components/Buffer.hpp
-        src/components/Buffer.cpp
+        include/components/ManapiBuffer.hpp
+        src/components/ManapiBuffer.cpp
         include/components/ManapiObjectPool.hpp
         src/ManapiInitTools.cpp
         include/components/ManapiFileTransferInfo.hpp
@@ -407,6 +407,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/default_wrk_http1.cpp
         include/worker/interface_worker.hpp
         src/worker/interface_worker.cpp
+        include/components/ManapiSlice.hpp
+        src/components/ManapiSlice.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

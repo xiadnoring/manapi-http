@@ -240,11 +240,12 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
                 if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ) {
                     int cursor = 0;
 
+                    bytebuffer buf{};
+
                     while (true) {
-                        bytebuffer buf{};
 
                         if (!buf)
-                            buf = this->bufferpool().slice(this->config_->buffer_size);
+                            buf = this->bufferpool().buffer(this->config_->buffer_size);
 
                         auto nread = this->ssl_read_(data->ssl, buf.data() + cursor, static_cast<int>(buf.size()) - cursor);
 
@@ -449,7 +450,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
                 if (cnt && *cnt >= max_cnt)
                     return CONN_IO_WANT_WRITE;
 
-                auto buffer = this->bufferpool().slice(1, this->config_->buffer_size);
+                auto buffer = this->bufferpool().buffer(1, this->config_->buffer_size);
 
                 auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
                 if (top->last_deque) {
@@ -524,7 +525,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, void 
             if (cnt && *cnt >= max_cnt)
                 return CONN_IO_WANT_READ;
 
-            auto buffer = this->bufferpool().slice(1, this->config_->buffer_size);
+            auto buffer = this->bufferpool().buffer(1, this->config_->buffer_size);
 
             auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
             if (top->last_deque) {

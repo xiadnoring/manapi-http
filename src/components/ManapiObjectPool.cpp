@@ -2,6 +2,9 @@
 
 #include <assert.h>
 
+#include "ManapiAsync.hpp"
+#include "async/ManapiAsyncContext.hpp"
+
 // static(soon) | 32 64 128 | 256 512 1024 | 2048 4096 8192 | 16384 32768 | 65536
 
 // thread_local std::set<void *> pointers;
@@ -14,6 +17,8 @@ enum buffer_level {
     BUFF_LEVEL_65536,
     BUFF_LEVEL_MAX
 };
+
+constexpr int area_size = 4096;
 
 struct manapi::internal::object_pool_data_t {
     manapi::chain<std::pair<void*, int>> buffers[BUFF_LEVEL_MAX + 1];
@@ -50,10 +55,14 @@ int level2bufflen (int lvl) {
     return 65536;
 }
 
-void manapi::internal::object_item_pool_return(const std::shared_ptr<internal::object_pool_data_t> &data, void *buffer, int real_size) {
-    assert((buffer && real_size));
+void manapi::internal::object_item_pool_return(const std::shared_ptr<internal::object_pool_data_t> &data, void *buffer, std::size_t size) {
+    assert((buffer && size));
     //assert(pointers.contains(buffer));
-    data->buffers[bufflen2level(real_size)].push_back({buffer, real_size});
+    data->buffers[bufflen2level(size)].push_back({buffer, size});
+}
+
+void manapi::internal::object_item_pool_return(void *buffer, std::size_t size) {
+    manapi::async::current()->memory_fabric().free(buffer, size);
 }
 
 struct object_pool_deleter {
@@ -77,50 +86,105 @@ manapi::object_pool::object_pool() {
 
 manapi::object_pool::~object_pool() = default;
 
-manapi::bytebuffer manapi::object_pool::slice(std::size_t min, std::size_t max) {
-    return this->slice(max);
-}
-
-manapi::bytebuffer manapi::object_pool::slice(std::size_t suggested) {
+void object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr, std::size_t *ptr_size, std::size_t suggested) {
     auto const lvl = bufflen2level(static_cast<int>(suggested));
     auto size = level2bufflen(lvl);
     if (size < suggested) {
         size = static_cast<int>(suggested);
         auto m = manapi::memory::alloc<char>(size);
         assert(m && "buffer is null");
-        return this->slice(m, size);
+        *ptr = m;
+        *ptr_size = size;
+        return;
     }
-    else {
-        auto &bufferpool = this->data->buffers[lvl];
-        if (!bufferpool.empty()) {
-            auto it = bufferpool.back();
-            bufferpool.pop_back();
 
-            auto b = this->slice(it.first, it.second);
-            b.resize(suggested);
-            return std::move(b);
+    auto &bufferpool = data->buffers[lvl];
+    if (!bufferpool.empty()) {
+        auto it = bufferpool.back();
+        bufferpool.pop_back();
+
+        *ptr = it.first;
+        *ptr_size = it.second;
+        return;
+    }
+
+    auto m = manapi::memory::alloc<char>(size);
+    assert(m && "buffer is null");
+    //pointers.insert(m);
+
+    *ptr = m;
+    *ptr_size = size;
+}
+
+manapi::slice manapi::object_pool::slice(std::size_t suggested) {
+    std::size_t cnt = suggested / area_size;
+    std::size_t const left = suggested - cnt * area_size;
+
+    std::unique_ptr<slice_part_t, slice::slice_part_deleter> buffs{};
+
+    slice_part_t *cur{nullptr};
+
+    for (std::size_t i =0 ; i < cnt; i++) {
+        if (cur) {
+            cur->next = new slice_part_t ({}, nullptr);
+            cur = cur->next;
+        }
+        else {
+            buffs.reset(new slice_part_t ({}, nullptr));
+            buffs->buff.len = 0;
+            cur = buffs.get();
         }
 
-        auto m = manapi::memory::alloc<char>(size);
-        assert(m && "buffer is null");
-        //pointers.insert(m);
-        auto b = this->slice(m, size);
-        b.resize(suggested);
-        return std::move(b);
+        void *buffptr;
+        std::size_t buffsize;
+
+        object_pool_malloc(this->data.get(), &buffptr, &buffsize, left);
+
+        cur->buff.base = static_cast<char *>(buffptr);
+        cur->buff.len = buffsize;
     }
+
+    if (left) {
+        if (cur) {
+            cur->next = new slice_part_t ({}, nullptr);
+            cur = cur->next;
+        }
+        else {
+            buffs.reset(new slice_part_t ({}, nullptr));
+            buffs->buff.len = 0;
+            cur = buffs.get();
+        }
+
+        void *buffptr;
+        std::size_t buffsize;
+
+        object_pool_malloc(this->data.get(), &buffptr, &buffsize, left);
+
+        cur->buff.base = static_cast<char *>(buffptr);
+        cur->buff.len = buffsize;
+
+        cnt ++;
+    }
+
+    return slice_base(std::move(buffs), cnt);
 }
 
-manapi::bytebuffer manapi::object_pool::slice(void *pointer, std::size_t suggested) {
-    return {pointer, suggested, BYTEBUFFER_FLAG_OBJECT_POOL};
+manapi::bytebuffer manapi::object_pool::buffer(std::size_t min, std::size_t max) {
+    return this->buffer(max);
 }
 
-void manapi::object_pool::unit(bytebuffer buffer) {
-    auto const size = buffer.realsize();
-    auto const pointer = buffer.release();
-    this->object_item_pool_return(pointer, static_cast<int>(size));
+manapi::bytebuffer manapi::object_pool::buffer(std::size_t suggested) {
+    void *buffer;
+    std::size_t size;
+    object_pool_malloc (this->data.get(), &buffer, &size, suggested);
+    return this->buffer(buffer, size);
 }
 
-void manapi::object_pool::object_item_pool_return(void *pointer, int size) {
+manapi::bytebuffer manapi::object_pool::buffer(void *pointer, std::size_t suggested) {
+    return {pointer, suggested, bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL};
+}
+
+void manapi::object_pool::free(void *pointer, std::size_t size) {
     return manapi::internal::object_item_pool_return(this->data, pointer, size);
 }
 

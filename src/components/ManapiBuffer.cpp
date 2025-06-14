@@ -1,4 +1,4 @@
-#include "./components/Buffer.hpp"
+#include "components/ManapiBuffer.hpp"
 
 #include <any>
 #include <cstring>
@@ -129,7 +129,7 @@ void manapi::bytebuffer::realresize(std::size_t s) {
 
         this->reserved = this->s;
 
-        manapi::async::current()->memory_fabric().object_item_pool_return(nm, nsize);
+        manapi::async::current()->memory_fabric().free(nm, nsize);
     }
     else {
         if (this->src) {
@@ -156,7 +156,7 @@ void manapi::bytebuffer::resize_max(std::size_t s) {
 
 void manapi::bytebuffer::clear() {
     if (this->flags & BYTEBUFFER_FLAG_OBJECT_POOL) {
-        manapi::async::current()->memory_fabric().object_item_pool_return(reinterpret_cast<void*>(this->src), this->reserved);
+        manapi::async::current()->memory_fabric().free(reinterpret_cast<void*>(this->src), this->reserved);
         this->s = 0;
         this->reserved = 0;
         this->flags ^= BYTEBUFFER_FLAG_OBJECT_POOL;
@@ -183,15 +183,15 @@ void * manapi::bytebuffer::release() {
     return std::exchange(this->src, nullptr);
 }
 
-int manapi::bytebuffer::shift() const {
+std::size_t manapi::bytebuffer::shift() const {
     return this->shift_;
 }
 
-void manapi::bytebuffer::shift(int n) {
+void manapi::bytebuffer::shift(std::size_t n) {
     this->shift_ = n;
 }
 
-void manapi::bytebuffer::shift_add(int n) {
+void manapi::bytebuffer::shift_add(std::size_t n) {
     this->shift_ += n;
 }
 

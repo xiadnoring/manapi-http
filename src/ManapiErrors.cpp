@@ -101,7 +101,8 @@ std::string_view manapi::error::status::status_msg() const {
 }
 
 void manapi::error::status::throw_it() const {
-    THROW_MANAPIHTTP_EXCEPTION2(this->code_, "msg: {}, data: {}", this->msg_, this->data_.dump());
+    if (this->code_ != ERR_OK)
+        THROW_MANAPIHTTP_EXCEPTION2(this->code_, "msg: {}, data: {}", this->msg_, this->data_.dump());
 }
 
 manapi::error::status manapi::error::status_ok() {

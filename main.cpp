@@ -167,7 +167,7 @@ int main () {
                 cancellation.timeout(5000);
                 cancellation.ask_cancel_callback();
                 manapi::filesystem::fstream file ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
-                    std::move(cancellation));
+                    cancellation);
                 co_await file.open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
                 if (!file.is_open()) {
                     co_return resp.text("failed to open the file");
@@ -179,14 +179,14 @@ int main () {
                     {"verbose", false},
                     {"alpn", false},
                     {"method", "POST"},
-                    {"timeout", 20},
+                    {"timeout", 5},
                     {"headers", {
                         //{"transfer-encoding", "chunked"}
                         {"content-length", "298512394"}
                     }}
                 }, [file] (char *body, ssize_t size) mutable -> manapi::future<ssize_t> {
                     return file.read(body, size);
-                });
+                }, manapi::async::cancellation_action::unit(cancellation));
 
                 co_await file.close();
 
@@ -208,6 +208,9 @@ int main () {
             try {
                 co_await req.callback_sync([&result, &hash] (const char *buffer, ssize_t size, bool fin)
                     -> ssize_t {
+                    if (fin) {
+                        std::cout << "FINSH\n";
+                    }
                     hash.update(reinterpret_cast<const uint8_t *>(buffer), size);
                     result += size;
                     return size;
@@ -228,12 +231,43 @@ int main () {
             co_return resp.text(std::format("{} : {}", result, b));
         });
 
+        router.POST ("/upload_async", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            ssize_t result = 0;
+            manapi::filesystem::fstream f ("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+            (co_await f.open(manapi::ev::FS_O_RDONLY)).throw_it();
+            try {
+                co_await req.callback_async([f, &result] (const char *buffer, ssize_t size, bool fin) mutable
+                    -> manapi::future<ssize_t> {
+                    if (fin) {
+                        std::cout << "FINSH\n";
+                    }
+                    auto buffer2 = manapi::async::current()->memory_fabric().buffer(size);
+                    co_await f.fread(buffer2.data(), size);
+                    for (int i = 0; i < size; i++) {
+                        assert(buffer[i] == buffer2[i]);
+                    }
+                    result += size;
+                    co_return size;
+                });
+            }
+            catch (std::exception const &e) {
+                std::cout << e.what() << "\n";
+            }
+
+
+            co_return resp.text(std::format("{}", result));
+        });
+
         router.POST ("/upload2", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, req.header(manapi::net::http::HEADER.CONTENT_LENGTH));
             co_return resp.callback_stream([&resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
-                co_await req.callback_async([cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
+                std::size_t sum = 0;
+                co_await req.callback_async([&sum, cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
                     -> manapi::future<ssize_t> {
+                    sum += size;
+                    std::cout << sum << " " << size << " " << fin << "\n";
                     co_return co_await cb (buffer, size, fin);
                 });
             });

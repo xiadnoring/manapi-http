@@ -500,6 +500,7 @@ void manapi::net::http::internal::send_response_stream_cb(uq_handle_data_t cdata
                         co_await cb_async->operator()([&cdata] (const void *buffer, ssize_t size, bool fin) -> manapi::future<ssize_t> {
                             co_return co_await cdata->worker->fwrite(cdata->conn, buffer, size, fin);
                         });
+                        cdata->cb->call(true);
                     });
             }
         });
@@ -782,8 +783,8 @@ void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, in
 manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size) {
     auto const block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size);
 
-    auto write_block = cdata->worker->bufferpool().slice(block_size);
-    auto read_block = cdata->worker->bufferpool().slice(block_size);
+    auto write_block = cdata->worker->bufferpool().buffer(block_size);
+    auto read_block = cdata->worker->bufferpool().buffer(block_size);
 
     ssize_t current = f.tellg();
 
@@ -836,189 +837,6 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
     if (error) {
         std::rethrow_exception(error);
     }
-}
-
-manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size, std::vector<replace_founded_item> replacers) {
-
-    auto block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size);
-    auto block = cdata->worker->bufferpool().slice(block_size);
-
-    ssize_t current = f.tellg();
-
-    size += current;
-
-    ssize_t index;
-    ssize_t replacer_index = 0;
-    ssize_t current_key_index = 0;
-
-    while (size > current) {
-        const ssize_t left = size - current;
-
-        block_size = static_cast<ssize_t>(block.size());
-
-        if (left < block_size) {
-            block_size = left;
-        }
-
-        auto rhs = co_await f.read(block.data(), block_size);
-        block_size = rhs;
-
-        index = f.tellg();
-
-        ssize_t shift = 0;
-
-        while (replacer_index != replacers.size() && index > replacers[replacer_index].pos.first + shift) {
-            const ssize_t key_size = replacers[replacer_index].pos.second - replacers[replacer_index].pos.first + 1;
-            const ssize_t start_index_in_block =
-                    block_size - (index - (replacers[replacer_index].pos.first + shift + current_key_index));
-
-            ssize_t index_in_block = start_index_in_block;
-
-            for (; index_in_block < block_size && current_key_index < key_size; index_in_block++, current_key_index++) {
-                if (current_key_index < replacers[replacer_index].value->size()) {
-                    block.at(index_in_block) = replacers.at(replacer_index).value->at(current_key_index);
-                    continue;
-                }
-
-                break;
-            }
-
-            // if KEY_SIZE >= VALUE_SIZE
-            if (current_key_index == replacers[replacer_index].value->size()) {
-                // shift <<
-                // key_size <- the shift
-                const ssize_t shifted_index_in_block = start_index_in_block + key_size;
-                const ssize_t key_left_size = key_size - current_key_index;
-
-                // shift chars
-                ssize_t i = shifted_index_in_block;
-                for (; i < block_size; i++, index_in_block++) {
-                    block.at(index_in_block) = block.at(i);
-                }
-
-                if (index_in_block < block_size) {
-                    const auto needed = block_size - index_in_block;
-
-                    // we want to align block to block_size if it possible
-                    if (index < size) {
-                        // + 1 bcz we dont want to grab } special symbol at the end of the special key {{KEY}}
-                        current = (index - block_size) + i;
-
-                        f.seekg(current);
-                        co_await f.read(block.data() + index_in_block, needed);
-                    }
-                    else {
-                        // no data left
-                        //shift -= key_left_size;
-                        // decrease block_size
-                        block_size -= key_left_size;
-                    }
-
-                    // update current
-                    current = f.tellg() - block_size;
-                } else {
-                    current += key_left_size;
-                    f.seekg(current);
-                }
-
-                index = f.tellg();
-
-                replacer_index++;
-
-                current_key_index = 0;
-
-                continue;
-            }
-            // if KEY_SIZE < VALUE_SIZE
-            if (current_key_index == key_size && current_key_index < replacers[replacer_index].value->size()) {
-            next:
-                // shift >>
-                bool repeat = false;
-
-                const auto value_left_size = static_cast<ssize_t>(replacers[replacer_index].value->size()) -
-                                             current_key_index;
-
-                // replace
-                ssize_t i = index_in_block;
-                ssize_t free_space = block_size - i;
-
-                if (free_space < value_left_size) {
-                    block_size += value_left_size - free_space;
-
-                    if (block_size >= block.size()) {
-                        block_size = static_cast<ssize_t>(block.size());
-                        repeat = true;
-                    }
-                }
-
-                for (; i < block_size && current_key_index < replacers[replacer_index].value->size();
-                       i++, current_key_index++) {
-                    char a = replacers[replacer_index].value->at(current_key_index);
-                    block.at(i) = a;
-                }
-
-                if (repeat) {
-                    ssize_t sent = co_await cdata->worker->fwrite(cdata->conn, block.data(), block_size, (current + block_size) >= size);
-
-                    if (sent < 0) {
-                        // cannot to send
-                        co_return;
-                    }
-
-                    current += sent;
-
-                    shift += block_size - index_in_block;
-
-                    // resolve
-                    index_in_block = 0;
-
-                    goto next;
-                }
-
-                if (i > block_size) {
-                    // -printf("OK\n");
-                }
-                else {
-                    free_space = block_size - i;
-                    const ssize_t can_read = static_cast<ssize_t> (block.size()) - i;
-
-                    // we want to read chars by size can_read
-                    f.seekg(current + index_in_block - shift);
-                    const ssize_t read = co_await f.read (block.data() + i, can_read);
-
-                    block_size += read - free_space;
-
-                    current = f.tellg() - block_size;
-
-                    shift = 0;
-                }
-
-                index = f.tellg();
-
-                replacer_index++;
-
-                current_key_index = 0;
-
-                continue;
-            }
-
-            break;
-        }
-
-
-        ssize_t sent = co_await cdata->worker->fwrite(cdata->conn, block.data(), block_size, (current + block_size) >= size);
-
-        if (sent < 0) {
-            // cannot to send
-            break;
-        }
-
-        current += sent;
-
-        f.seekg(current);
-    }
-
-    cdata->cb->call(size <= current);
 }
 
 manapi::future<void> manapi::net::http::internal::send_text(uq_handle_data_t cdata, std::string text) {

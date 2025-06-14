@@ -438,11 +438,7 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
     }
 
     for (const auto &s : *ctx->streams) {
-        auto const data = s.second->as<http_v2_stream_t>();
-        data->flags |= ev::DISCONNECT;
-        if (data->ev_callback) {
-            data->ev_callback->operator()(s.second, ev::DISCONNECT, nullptr, 0, nullptr);
-        }
+        ctx->http_v2_worker->close_connection(s.second, false);
     }
 
     return 0;

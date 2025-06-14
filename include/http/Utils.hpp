@@ -7,7 +7,7 @@
 #include "../ManapiAsync.hpp"
 #include "../async/ManapiAsyncContext.hpp"
 #include "../compress/ManapiCompress.hpp"
-#include "../components/Buffer.hpp"
+#include "../components/ManapiBuffer.hpp"
 #include "../components/ManapiObjectPool.hpp"
 
 namespace manapi::net::http {

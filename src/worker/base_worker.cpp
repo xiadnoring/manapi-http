@@ -180,7 +180,7 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
                 if (cnt && *cnt >= max_cnt)
                     break;
 
-                auto object = std::make_unique<buffer_deque>(bufferpool->slice(1, buffer_size), nullptr);
+                auto object = std::make_unique<buffer_deque>(bufferpool->buffer(buffer_size), nullptr);
 
                 if (top->last_deque) {
                     top->last_deque->next = std::move(object);
@@ -223,7 +223,7 @@ void manapi::net::worker::base::connection_io_send_start(connection_io_part *top
         buff->shift_add(static_cast<int>(buff->size() - size));
     }
     else {
-        tmp = bufferpool->slice (size, buffer_size);
+        tmp = bufferpool->buffer (size, buffer_size);
         buff = &tmp;
         memcpy (buff->data(), buffer, size);
     }
