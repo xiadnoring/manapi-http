@@ -101,7 +101,9 @@ manapi::future<void> manapi::net::http_pool::_pool() {
             auto wrkptr = workerptr->wrk_global();
 
             if (implementation != "quiche") {
-                for (auto version : this->config->http_versions) {
+                auto versions = this->config->http_versions;
+                versions.insert(http::versions::HTTP_v1_1);
+                for (auto version : versions) {
                     if (version >= http::versions::HTTP_v0_9 && version < http::versions::HTTP_v1_1)
                         version = http::versions::HTTP_v1_1;
 

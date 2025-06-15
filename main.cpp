@@ -280,11 +280,13 @@ int main () {
 
         router.GET("/video", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
-            std::cout<<"video send to "<<req.ip_data().ip <<":"<<(int)req.ip_data().port<<"\n";
+            std::cout<<"video is sending to "<<req.ip_data().ip <<":"<<(int)req.ip_data().port<<"\n";
             resp.compress_enabled(false);
             resp.partial_enabled(true);
             co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
         });
+
+        router.GET("/mem", "/home/Timur/Downloads/VideoDownloader");
 
         router.GET("/timeout", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
@@ -299,8 +301,6 @@ int main () {
             if (!req.contains_get_param("text")) {
                 co_return resp.text("GET param 'text' doesn't exists");
             }
-
-
 
             std::string ip = "https://localhost:8885/video";
             int timeout = 2000;

@@ -92,6 +92,7 @@ namespace manapi {
             }
 
             T value () {
+                this->throw_it();
                 return std::move(this->value_.value());
             }
 

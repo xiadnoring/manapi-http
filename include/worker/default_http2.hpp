@@ -50,9 +50,10 @@ namespace manapi::net::worker {
 
         void stop(std::function<void()> cb) override;
 
-        ssize_t sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
+        ssize_t sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) override;
 
-        ssize_t sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) override;
+        /* size must always be -1 */
+        ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) override;
 
         void update_limit_rate_stream (const shared_conn &conn);
     private:

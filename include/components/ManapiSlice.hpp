@@ -29,6 +29,8 @@ namespace manapi {
         void *buffer ();
 
         [[nodiscard]] std::size_t size () const;
+
+        [[nodiscard]] bool is_last () const;
     private:
         slice_part_t *part;
         slice_base *base_;

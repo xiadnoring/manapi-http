@@ -799,11 +799,11 @@ manapi::future<ssize_t> manapi::filesystem::async_read(ev::file file, ev::buff_t
     while (nbuff) {
         ssize_t rhs = ev::fs::try_read(file, buff->base + shift, buff->len - shift, offset);
 
-        if (rhs > 0)
-            co_return rhs;
-
         if (!rhs)
             break;
+
+        if (offset >= 0)
+            offset += rhs;
 
         shift += rhs;
         res += rhs;
@@ -815,7 +815,7 @@ manapi::future<ssize_t> manapi::filesystem::async_read(ev::file file, ev::buff_t
         }
     }
 
-    if (!nbuff)
+    if (res || !nbuff)
         co_return res;
 
     async_read_data_t dd {};

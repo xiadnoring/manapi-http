@@ -664,51 +664,52 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
     }
 }
 
-ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
+ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) {
     auto data = conn->as<connection_stream_t>();
-    size = std::min(size, this->config_->speed_limit_rate - data->transfered);
 
-    if (size <= 0) {
+    auto const size = this->buffs_cut_by_size(buff, nbuff, this->config_->speed_limit_rate - data->transfered, finish);
+
+    if (!size)
         return 0;
-    }
 
-    return sync_write_ex (conn, buff, size, finish, static_cast<int>(this->config_->max_buffer_stack));
+    return sync_write_ex (conn, buff, nbuff, size, finish, static_cast<int>(this->config_->max_buffer_stack));
 }
 
-ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {
+ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) {
     auto s = conn->as<connection_stream_t>();
-    if (s->flags & ev::DISCONNECT) {
+    if (s->flags & ev::DISCONNECT)
         return -1;
-    }
 
-    auto const copy = size;
+    ssize_t res = 0;
 
-    if (!copy) {
-        return copy;
-    }
+    for (uint32_t i = 0; i < nbuff; ++i) {
+        auto rhs = quiche_h3_send_body(s->conn->http3_conn, s->conn->conn, s->id,
+            reinterpret_cast <const uint8_t *> (buff[i].base), buff[i].len, finish && (res + buff[i].len == size));
 
-    auto rhs = quiche_h3_send_body(s->conn->http3_conn, s->conn->conn, s->id, static_cast<const uint8_t *> (buff), size, finish);
-
-    if (rhs < 0) {
-        switch (rhs) {
-            case QUICHE_H3_ERR_DONE: {
-                rhs = 0;
-                break;
-            }
-            default: {
-                return -1;
+        if (rhs < 0) {
+            switch (rhs) {
+                case QUICHE_H3_ERR_DONE: {
+                    rhs = 0;
+                    break;
+                }
+                default: {
+                    return -1;
+                }
             }
         }
-    }
-    else {
-        s->transfered += rhs;
+
+        if (rhs)
+            s->transfered += rhs;
+        else
+            break;
+
+        if (s->conn->worker->quiche_flush_egress_(s->conn))
+            return -1;
+
+        res += rhs;
     }
 
-    if (s->conn->worker->quiche_flush_egress_(s->conn)) {
-        return -1;
-    }
-
-    return rhs;
+    return res;
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::configure_connection(const shared_conn &conn, oncont_cb cb)  {

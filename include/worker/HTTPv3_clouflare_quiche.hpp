@@ -48,9 +48,9 @@ namespace manapi::net::worker {
 
         void onrecv(std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) override;
 
-        ssize_t sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
+        ssize_t sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) override;
 
-        ssize_t sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) override;
+        ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) override;
 
         void close_connection(shared_conn conn, bool clean_disconnect) override;
 

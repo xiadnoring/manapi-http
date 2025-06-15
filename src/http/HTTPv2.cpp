@@ -141,13 +141,12 @@ void stringify_number (T n, char *buffer, int size = sizeof (T)) {
  * @param stream_id Stream ID
  * @return 0 on success, -1 on write error
  */
-int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint8_t flags, int stream_id, const manapi::ev::buff_t buffs[], int nbuff) {
+int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint8_t flags, int stream_id, const manapi::ev::buff_t buffs[], uint32_t nbuff) {
     char header[9];
     int size = 0;
 
-    for (int i = 0; i < nbuff; ++i) {
+    for (uint32_t i = 0; i < nbuff; ++i)
         size += static_cast<int>(buffs[i].len);
-    }
 
     stringify_stream_id(stream_id, header + 5);
     stringify_number <int> (size, header, 3);
@@ -247,7 +246,7 @@ int http_v2_send_ping_frame (manapi::net::http::http_v2_t *ctx, char *data) {
     return 0;
 }
 
-int http_v2_send_data_frame (manapi::net::http::http_v2_t *ctx,  int stream_id, manapi::ev::buff_t const buffs[], int nbuff, bool finish) {
+int http_v2_send_data_frame (manapi::net::http::http_v2_t *ctx,  int stream_id, manapi::ev::buff_t const buffs[], uint32_t nbuff, bool finish) {
     return http_v2_send_frame(ctx, HTTP2_FRAME_DATA, finish ? HTTP2_FLAG_DATA_END_STREAM : 0, stream_id, buffs, nbuff);
 }
 
@@ -1828,64 +1827,86 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
     return EHTTP_V2_PROTOCOL_WANT_READ;
 }
 
-ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, http_v2_stream_t *s, const void *buffer, ssize_t size, bool finish) {
-    if (s->flags & ev::DISCONNECT) {
+ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, http_v2_stream_t *s, ev::buff_t *buff, uint32_t nbuff, bool finish) {
+    if (s->flags & ev::DISCONNECT)
         return -1;
-    }
 
-    if (!s->ctx->http_v2_worker->is_writable(conn)) {
+    if (!s->ctx->http_v2_worker->is_writable(conn))
         return 0;
-    }
 
-    auto copy = std::min(
-        static_cast<ssize_t>(std::min(s->write_window, s->ctx->write_window)), size);
+    auto copy = worker::base::buffs_cut_by_size (buff, nbuff,
+        static_cast<ssize_t>(std::min(s->write_window, s->ctx->write_window)), finish);
 
     assert((copy >= 0));
 
-    if (!copy) {
+    if (!copy)
         return 0;
-    }
 
     s->write_window -= static_cast<int>(copy);
     s->ctx->write_window -= static_cast<int>(copy);
 
-    if (finish) {
-        finish = size == copy;
-    }
+    ssize_t res = 0;
 
-    ev::buff_t buff;
-    buff.base = (char*)buffer;
-    buff.len = static_cast<size_t>(copy);
+    while (res != copy) {
+        auto frame_size = static_cast<std::size_t>(s->ctx->client->max_frame_size);
 
-    auto rend = buff.base + copy;
-    while (rend != buff.base) {
-        buff.len = std::min(static_cast<size_t>(copy),
-            static_cast<size_t>(s->ctx->client->max_frame_size));
+        bool fin = finish;
+        uint32_t pnbuff = nbuff;
+        std::size_t lencut = 0;
+        ssize_t size = 0;
 
-        if (http_v2_send_data_frame(s->ctx, s->id, &buff, 1, finish && (buff.base + buff.len) == rend)) {
+        for (uint32_t i = 0; i < pnbuff; ++i) {
+            auto const want = (frame_size - size);
+
+            if (buff[i].len >= want) {
+                /* cut it */
+                lencut = buff[i].len - (want);
+                buff[i].len = want;
+                /* current number */
+                pnbuff = i + 1;
+                /* obviously */
+                size = static_cast<ssize_t>(frame_size);
+                /* was cut */
+                if (fin)
+                    fin = pnbuff == nbuff && lencut == 0;
+
+                break;
+            }
+
+            size += static_cast<ssize_t>(buff[i].len);
+        }
+
+        if (http_v2_send_data_frame(s->ctx, s->id, buff, pnbuff, fin))
             return -1;
-        }
 
-        buff.base += buff.len;
-        copy -= static_cast<int>(buff.len);
+        res += size;
 
-        if (!s->ctx->http_v2_worker->is_writable(conn)) {
+        if (!s->ctx->http_v2_worker->is_writable(conn))
             break;
+
+        if (lencut) {
+            pnbuff--;
+
+            /* pnbuff as i since now */
+            buff[pnbuff].base += (buff[pnbuff].len - lencut);
+            buff[pnbuff].len = lencut;
         }
+
+        buff += pnbuff;
+        nbuff -= pnbuff;
     }
 
-    const auto rhs = reinterpret_cast<std::ptrdiff_t>(buff.base) - reinterpret_cast<std::ptrdiff_t>(buffer);
-    s->transfered_k += static_cast<int>(rhs);
+    s->transfered_k += static_cast<int>(res);
 
     if (finish
-        && (rhs == copy)
+        && (res == copy)
         && !(s->flags & HTTP2_STREAM_SEND_END)) {
         /* yay */
         s->flags |= HTTP2_STREAM_SEND_END;
         s->ctx->concurrent_streams_size--;
     }
 
-    return rhs;
+    return res;
 }
 
 int manapi::net::http::http_v2_rst_stream(http_v2_stream_t *s, int errcode) {

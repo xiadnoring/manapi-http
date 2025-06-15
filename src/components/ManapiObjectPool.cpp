@@ -12,7 +12,7 @@
 enum buffer_level {
     BUFF_LEVEL_32 = 0,
     BUFF_LEVEL_256,
-    BUFF_LEVEL_2048,
+    BUFF_LEVEL_4096,
     BUFF_LEVEL_16384,
     BUFF_LEVEL_65536,
     BUFF_LEVEL_MAX
@@ -31,8 +31,8 @@ int bufflen2level (int len) {
     if (len <= 256) {
         return BUFF_LEVEL_256;
     }
-    if (len <= 2048) {
-        return BUFF_LEVEL_2048;
+    if (len <= 4096) {
+        return BUFF_LEVEL_4096;
     }
     if (len <= 16384) {
         return BUFF_LEVEL_16384;
@@ -48,7 +48,7 @@ int level2bufflen (int lvl) {
     switch (lvl) {
         case BUFF_LEVEL_32: return 32;
         case BUFF_LEVEL_256: return 256;
-        case BUFF_LEVEL_2048: return 2048;
+        case BUFF_LEVEL_4096: return 4096;
         case BUFF_LEVEL_16384: return 16384;
         case BUFF_LEVEL_65536: return 65536;
     }
@@ -138,7 +138,7 @@ manapi::slice manapi::object_pool::slice(std::size_t suggested) {
         void *buffptr;
         std::size_t buffsize;
 
-        object_pool_malloc(this->data.get(), &buffptr, &buffsize, left);
+        object_pool_malloc(this->data.get(), &buffptr, &buffsize, area_size);
 
         cur->buff.base = static_cast<char *>(buffptr);
         cur->buff.len = buffsize;

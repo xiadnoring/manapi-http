@@ -283,4 +283,11 @@ int main () {
   - [ ] Windows
 
 ## Tested
-- Tested on Hyprland Arch Linux x86_64 kernel 6.9.3-zen1-1-zen wayland
+- Hyprland Arch Linux x86_64 kernel 6.9.3-zen1-1-zen wayland Debug/Release
+- Windows 11 Pro 22h2 x86_64 MSVC Debug
+
+## Made by
+
+[![ГБОУ РИЛИ](assets/rili.png)](https://rilirb.ru)
+
+[![Башкортостан](assets/rb2.png)](https://ru.wikipedia.org/wiki/%D0%91%D0%B0%D1%88%D0%BA%D0%BE%D1%80%D1%82%D0%BE%D1%81%D1%82%D0%B0%D0%BD)

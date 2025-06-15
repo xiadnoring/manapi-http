@@ -199,6 +199,10 @@ ssize_t manapi::ev::tcp::try_write(const void *buff, ssize_t len) MANAPI_EV_NOEX
     return uv_try_write(MANAPI_EV_CAST_STREAM(&this->s_), &buffs, 1);
 }
 
+ssize_t manapi::ev::tcp::try_write(const ev::buff_t *buff, uint32_t nbuff) noexcept(true) {
+    return uv_try_write(MANAPI_EV_CAST_STREAM(&this->s_), buff, nbuff);
+}
+
 int manapi::ev::tcp::s_bind(const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT {
     return uv_tcp_bind(&this->s_, addr, flags);
 }

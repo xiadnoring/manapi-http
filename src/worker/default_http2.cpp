@@ -39,7 +39,7 @@ void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags
             this->feed_event_read_ (conn, data->ev_callback.get(), data->recv.get(), &data->recv_size, data->flags, flags, buff, size,  p);
         }
     }
-    else {
+    else if (data->ev_callback) {
         data->ev_callback->operator()(conn, flags, buff, size, p);
     }
 }
@@ -131,13 +131,13 @@ void manapi::net::worker::http_v2::stop(std::function<void()> cb) {
     cb();
 }
 
-ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
-    return sync_write_ex (conn, buff, size, finish, static_cast<int>(this->w->config()->max_buffer_stack));
+ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) {
+    return sync_write_ex (conn, buff, nbuff, -1 /* no need */, finish, static_cast<int>(this->w->config()->max_buffer_stack));
 }
 
-ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {
+ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) {
     auto const data = conn->as<http::http_v2_stream_t>();
-    return http::http_v2_write(conn, data, buff, size, finish);
+    return http::http_v2_write(conn, data, buff, nbuff, finish);
 }
 
 void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &conn) {

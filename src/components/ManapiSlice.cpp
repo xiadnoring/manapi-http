@@ -47,7 +47,7 @@ manapi::slice_base::slice_base(slice_part_t *first, slice_part_t *last, uint32_t
     this->shift_ = shift;
     this->rshift_ = rshift;
 
-    assert(this->size_ == size);
+    assert(this->size() == size);
 }
 
 manapi::slice_iterator::slice_iterator(slice_part_t *part, slice_base *base) {
@@ -81,9 +81,13 @@ std::size_t manapi::slice_iterator::size() const {
     std::size_t s = this->part->buff.len;
     if (this->base_->slices_begin() == this->part)
         s -= this->base_->shift();
-    if (this->base_->slices_end() == this->part->next)
+    if (this->is_last())
         s -= this->base_->rshift();
     return s;
+}
+
+bool manapi::slice_iterator::is_last() const {
+    return this->base_->slices_end() == this->part->next;
 }
 
 void manapi::slice_base::slice_part_deleter::operator()(slice_part_t *ptr) {
@@ -244,6 +248,10 @@ manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::s
     if (!size)
         size = this->size_ - pos;
 
+    if (pos == this->shift_ && size == this->size_ - this->shift_) {
+        return *this;
+    }
+
     if (pos + size > this->size_) {
         return manapi::error::status_out_of_range("subslice size is too large");
     }
@@ -259,7 +267,7 @@ manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::s
     if (current == this->last) {
         return manapi::slice_base{nullptr, nullptr, 0, 0, 0, 0};
     }
-    size += this->shift_;
+    size += pos;
     auto scurrent = current;
     while (this->last != scurrent
         && scurrent->buff.len <= size) {
@@ -270,19 +278,18 @@ manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::s
     if (size && this->last == scurrent)
         return error::status_out_of_range("pos and size too large");
 
-    std::size_t rshift;
+    ssize_t rshift;
 
     if (size) {
         rshift = scurrent->buff.len - size;
         cnt++;
-        size=0;
         scurrent=scurrent->next;
     }
     else {
         rshift = 0;
     }
 
-    return manapi::slice_base{current, scurrent, cnt, pos, rshift, tmp_size};
+    return manapi::slice_base{current, scurrent, cnt, pos, static_cast<std::size_t>(rshift), tmp_size};
 }
 
 std::size_t manapi::slice_base::shift() const {
@@ -377,9 +384,34 @@ manapi::slice::slice(slice_base n) : slice_base(std::move(n)) {
 
 }
 
-manapi::slice::slice(slice &&n) noexcept = default;
+manapi::slice::slice(slice &&n) noexcept : slice() {
+    this->first = n.first;
+    this->last = n.last;
+    this->count = n.count;
+    this->rshift_ = n.rshift_;
+    this->shift_ = n.shift_;
 
-manapi::slice & manapi::slice::operator=(slice &&n) noexcept = default;
+    n.shift_ = 0;
+    n.rshift_ = 0;
+    n.count = 0;
+    n.first = nullptr;
+    n.last = nullptr;
+}
+
+manapi::slice & manapi::slice::operator=(slice &&n) noexcept {
+    this->first = n.first;
+    this->last = n.last;
+    this->count = n.count;
+    this->rshift_ = n.rshift_;
+    this->shift_ = n.shift_;
+
+    n.shift_ = 0;
+    n.rshift_ = 0;
+    n.count = 0;
+    n.first = nullptr;
+    n.last = nullptr;
+    return *this;
+}
 
 manapi::slice::~slice() {
     this->clear();

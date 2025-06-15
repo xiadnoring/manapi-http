@@ -6,6 +6,7 @@
 #include "../include/ManapiHttpStructs.hpp"
 #include "services/ManapiFetch.hpp"
 #include "ManapiFilesystem.hpp"
+#include "ManapiHash.hpp"
 #include "ManapiHttpMime.hpp"
 #include "ManapiString.hpp"
 #include "ManapiTime.hpp"
@@ -880,10 +881,10 @@ void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, in
 }
 
 manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size) {
-    auto const block_size = static_cast<ssize_t>(cdata->worker->config()->buffer_size);
+    ssize_t const block_size = 4096 * 16;
 
-    auto write_block = cdata->worker->bufferpool().buffer(block_size);
-    auto read_block = cdata->worker->bufferpool().buffer(block_size);
+    auto write_block = cdata->worker->bufferpool().slice(block_size);
+    auto read_block = cdata->worker->bufferpool().slice(block_size);
 
     ssize_t current = f.tellg();
 
@@ -894,7 +895,11 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
     ssize_t rhs;
     std::exception_ptr error{nullptr};
 
-    if ((rhs = co_await f.read(write_block.data(), std::min(block_size, size - current))) <= 0) {
+    manapi::filesystem::fstream ff ("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+    (co_await ff.open(ev::FS_O_RDONLY)).throw_it();
+
+    if ((rhs = co_await f.read(write_block.subslice(0,
+        std::min(block_size, size - current)).value())) <= 0) {
         co_return;
     }
 
@@ -904,14 +909,21 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
             current += rhs;
             bool readsome = size > current;
             if (readsome) {
-                parallel.run(f.read(read_block.data(), std::min(block_size, size - current)));
+                parallel.run(f.read(read_block.subslice(0,
+                    std::min(block_size, size - current)).value()));
             }
 
-            if ((rhs = co_await cdata->worker->fwrite (cdata->conn, write_block.data(), rhs, !readsome)) <= 0) {
+            auto sv = write_block.subslice(0, rhs).value();
+            // for (auto it = sv.begin(); it != sv.end(); it++) {
+            //     if ((co_await cdata->worker->fwrite (cdata->conn, it.buffer(), it.size(), !readsome && it.is_last())) <= 0)
+            //         /* failed to send */
+            //         goto err;
+            // }
+
+
+            if ((co_await cdata->worker->fwrite (cdata->conn, sv, !readsome)) <= 0)
                 /* failed to send */
-                rhs = co_await parallel.get_or(0);
-                break;
-            }
+                    goto err;
 
             if ((rhs = co_await parallel.get_or(0)) <= 0) {
                 break;
@@ -931,7 +943,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
         error = std::current_exception();
     }
 
-    co_await parallel.get_or(0);
+    err: co_await parallel.get_or(0);
 
     if (error) {
         std::rethrow_exception(error);

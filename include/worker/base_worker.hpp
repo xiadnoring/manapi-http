@@ -139,9 +139,13 @@ namespace manapi::net::worker {
 
         virtual void configure_connection (const shared_conn &conn, oncont_cb cb) = 0;
 
-        virtual ssize_t sync_write_ex (const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) = 0;
+        virtual ssize_t sync_write_ex (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) = 0;
 
-        virtual ssize_t sync_write (const shared_conn &conn, const void *buff, ssize_t size, bool finish) = 0;
+        virtual ssize_t sync_write (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) = 0;
+
+        ssize_t sync_write_ex (const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt);
+
+        ssize_t sync_write (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
 
         virtual bool is_writable (const shared_conn &conn) = 0;
 
@@ -149,7 +153,11 @@ namespace manapi::net::worker {
 
         manapi::future<ssize_t> write (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
 
+        manapi::future<ssize_t> write (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish);
+
         manapi::future<ssize_t> fwrite (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
+
+        manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice_view slice, bool finish);
 
         virtual future<ssize_t> response (const shared_conn &connection, http::response *resp, bool finish);
 
@@ -178,7 +186,10 @@ namespace manapi::net::worker {
         static void connection_io_send_start (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, ibuffpool_t *buff, int *cnt);
 
         static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, int *cnt);
+
+        static ssize_t buffs_cut_by_size (ev::buff_t *buff, uint32_t &nbuff, ssize_t limit_size, bool &fin);
     protected:
+
         void feed_event_read_ (const shared_conn &conn, worker_watcher_cb *cb, connection_io_part *recv, int *recv_size, int conn_flags, int flags, const char *buff, ssize_t size, ibuffpool_t *p);
     };
 

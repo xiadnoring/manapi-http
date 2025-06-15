@@ -434,12 +434,11 @@ void manapi::net::worker::TCP::feed_event(const shared_conn &conn, int flags, co
     }
 }
 
-ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {
+ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) {
     auto connection = conn->as<connection_interface>();
 
-    if (connection->status & CONN_CLOSED) {
+    if (connection->status & CONN_CLOSED)
         return CONN_IO_ERROR;
-    }
 
     ssize_t rhs;
 
@@ -447,28 +446,44 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
         rhs = 0;
     }
     else {
-        rhs = connection->watcher->try_write(buff, size);
+        rhs = connection->watcher->try_write(buff, nbuff);
 
-        if (rhs < 0) {
+        if (rhs < 0)
             rhs = 0;
-        }
-        else {
+        else
             connection->transfered += rhs;
-        }
     }
 
 
     if (rhs != size) {
-        auto const result = connection_io_send (&connection->top->send, static_cast<const char *>(buff) + rhs, size - rhs, &this->bufferpool(),
-            this->config_->buffer_size, &connection->top->send_size, maxcnt);
+        if (rhs) {
+            auto skip = rhs;
+            while (skip >= buff->len) {
+                skip -= buff->len;
+                buff++;
+                nbuff--;
+            }
 
-        if (result < 0) {
-            return -1;
+            assert((nbuff > 0));
+
+            buff->base += skip;
+            buff->len -= skip;
         }
 
-        rhs += result;
+        for (uint32_t i = 0; i < nbuff; i++) {
+            auto const result = connection_io_send (&connection->top->send, static_cast<const char *>(buff[i].base), buff[i].len, &this->bufferpool(),
+                this->config_->buffer_size, &connection->top->send_size, maxcnt);
 
-        connection->transfered += rhs;
+            if (result < 0)
+                return -1;
+
+            if (!result)
+                break;
+
+            rhs += result;
+
+            connection->transfered += rhs;
+        }
 
         this->flush_write_(conn, finish);
     }
@@ -476,15 +491,16 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
     return rhs;
 }
 
-ssize_t manapi::net::worker::TCP::sync_write(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish) {
+ssize_t manapi::net::worker::TCP::sync_write(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) {
     auto const connection = conn->as<connection_interface>();
-    size = std::min(size, this->config_->speed_limit_rate - connection->transfered);
+    ssize_t const limit_size = this->config_->speed_limit_rate - connection->transfered;
 
-    if (size <= 0) {
+    auto const size = buffs_cut_by_size (buff, nbuff, limit_size, finish);
+
+    if (!size)
         return 0;
-    }
 
-    return sync_write_ex(conn, buff, size, finish, this->config_->max_buffer_stack);
+    return sync_write_ex(conn, buff, nbuff, size, finish, this->config_->max_buffer_stack);
 }
 
 std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::TCP::event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) {
@@ -508,19 +524,21 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
         flush_read_ (conn, data);
 
     }
-    if (status & ev::READ) {
-        if (!data->watcher->is_active()) {
-            assert(!data->watcher->read_start());
+    if (!(status & CONN_CLOSED|CONN_WRITE)) {
+        if (status & ev::READ) {
+            if (!data->watcher->is_active()) {
+                assert(!data->watcher->read_start());
+            }
         }
-    }
-    else {
-        if (data->watcher->is_active()) {
-            assert(!data->watcher->read_stop());
+        else {
+            if (data->watcher->is_active()) {
+                assert(!data->watcher->read_stop());
+            }
         }
-    }
 
-    if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
-        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
+        if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
+            data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
+        }
     }
 
     return prev;

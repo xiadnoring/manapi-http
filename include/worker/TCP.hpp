@@ -61,9 +61,9 @@ namespace manapi::net::worker {
 
         void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) override;
 
-        ssize_t sync_write_ex(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt);
+        ssize_t sync_write_ex(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) override;
 
-        ssize_t sync_write(const worker::shared_conn &conn, const void *buff, ssize_t size, bool finish) override;
+        ssize_t sync_write(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) override;
 
         std::unique_ptr<worker_watcher_cb> event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) override;
 

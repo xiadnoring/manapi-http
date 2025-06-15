@@ -389,18 +389,29 @@ namespace manapi::ev {
         int accept (tcp *parent) MANAPI_EV_NOEXPECT;
 
         int read_start () MANAPI_EV_NOEXPECT;
+
         int read_start (uv_alloc_cb alloc, uv_read_cb cb) MANAPI_EV_NOEXPECT;
 
         int read_stop () MANAPI_EV_NOEXPECT;
 
         ssize_t try_write (const void *buff, ssize_t len) MANAPI_EV_NOEXPECT;
+
+        ssize_t try_write (const ev::buff_t *buff, uint32_t nbuff) MANAPI_EV_NOEXPECT;
+
         int s_bind (const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
+
         int getpeername (sockaddr *name, int *namelen) MANAPI_EV_NOEXPECT;
+
         int getsockname (sockaddr *name, int *namelen) MANAPI_EV_NOEXPECT;
+
         int close_reset (uv_close_cb close_cb) MANAPI_EV_NOEXPECT;
+
         int close_reset () MANAPI_EV_NOEXPECT;
+
         int keepalive (int enable, unsigned int delay) MANAPI_EV_NOEXPECT;
+
         int nodelay (int enable) MANAPI_EV_NOEXPECT;
+
         int simultaneous_accepts (int enable) MANAPI_EV_NOEXPECT;
     private:
         uv_tcp_t s_;
