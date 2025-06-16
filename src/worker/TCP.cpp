@@ -597,8 +597,11 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
             conn->top->cur_send_size = 0;
         }
         else {
-            if (rhs < 0)
+            if (rhs < 0) {
+                conn->top->send_size -= conn->top->cur_send_size;
+                conn->top->cur_send_size = 0;
                 return CONN_IO_ERROR;
+            }
 
 
             uint32_t cursor = 0;

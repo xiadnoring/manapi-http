@@ -84,7 +84,7 @@ namespace manapi::net::worker {
     private:
         int check_read_stack_full_ (connection_interface *data);
 
-        int ssl_bio_flush_write_ (const shared_conn &conn, void *wbio, connection_io *m, int max_cnt);
+        int ssl_bio_flush_write_ (const shared_conn &conn, TLS::connection_interface *m, int max_cnt);
 
         int ssl_bio_flush_read_ (const shared_conn &conn, void *rbio, connection_io_part *top, int *cnt, int max_cnt);
 
