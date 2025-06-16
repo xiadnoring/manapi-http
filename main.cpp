@@ -286,6 +286,22 @@ int main () {
             co_return resp.file("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
         });
 
+        router.GET("/noise", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            ssize_t len = 10737418240;
+
+            resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, std::to_string(len));
+            co_return resp.callback_sync([current = (ssize_t)0, len] (char *buffer, ssize_t size, bool &flg) mutable
+                    -> ssize_t {
+                size = std::min(size, len - current);
+                memset(buffer, '\0', size);
+                len -= size;
+                if (!len)
+                    flg = true;
+                return size;
+            });
+        });
+
         router.GET("/mem", "/home/Timur/Downloads/VideoDownloader");
 
         router.GET("/timeout", [] (manapi::net::http::request &req, manapi::net::http::response &resp)

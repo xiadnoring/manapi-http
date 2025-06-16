@@ -487,7 +487,8 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
             connection->transfered += rhs;
         }
 
-        this->flush_write_(conn, finish);
+        if (this->flush_write_(conn, finish))
+            return -1;
     }
 
     return rhs;
@@ -550,11 +551,11 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn) {
     return (conn->as<connection_interface>()->status) & CONN_MASK_GETTING;
 }
 
-void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection, bool flush) {
+int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection, bool flush) {
     auto conn = connection->as<connection_interface>();
 
-    if ((conn->top->cur_send_size >= this->config_->max_merge_buffer_stack
-        && ((conn->top->send.last_deque->buffer.size() == conn->top->send.deque_cursor)))
+    if ((conn->top->cur_send_size > this->config_->max_merge_buffer_stack)
+        || ((conn->top->cur_send_size == this->config_->max_merge_buffer_stack) && (conn->top->send.last_deque->buffer.size() == conn->top->send.deque_cursor))
         || (flush && conn->top->cur_send_size)) {
         std::unique_ptr<ev::buff_t, ev::buffer_deleter> s;
         s.reset(new ev::buff_t[conn->top->cur_send_size]);
@@ -596,6 +597,10 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
             conn->top->cur_send_size = 0;
         }
         else {
+            if (rhs < 0)
+                return CONN_IO_ERROR;
+
+
             uint32_t cursor = 0;
             while (cursor != conn->top->cur_send_size
                 && rhs >= buffptr[cursor].len) {
@@ -652,6 +657,8 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
             }
         }
     }
+
+    return CONN_IO_OK;
 }
 
 void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_interface *data) {

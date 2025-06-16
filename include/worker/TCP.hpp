@@ -73,7 +73,7 @@ namespace manapi::net::worker {
 
 
     protected:
-        virtual void flush_write_ (const shared_conn &connection, bool flush = false);
+        virtual int flush_write_ (const shared_conn &connection, bool flush = false);
 
         void flush_read_ (const shared_conn &conn, connection_interface *data);
 

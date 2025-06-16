@@ -79,8 +79,6 @@ namespace manapi::net::worker {
 
         void onrecv(std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) override;
 
-        void flush_write_(const shared_conn &connection, bool flush) override;
-
         void *ctx = nullptr;
         int ssl_session_ctx_id{1};
     private:

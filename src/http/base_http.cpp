@@ -511,34 +511,47 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
                 auto cb_sync = std::make_unique<http::response::resp_callback_sync>(std::move(res->callback_sync()));
                 manapi::async::run ([res = std::move(res), cb_sync = std::move(cb_sync), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
-                        auto buffer = manapi::async::current()->memory_fabric().buffer (
-                            std::max(res->config()->buffer_size, 64L));
 
                         bool finish = false;
                         std::size_t cursor = 0;
 
-
                         if (http_v1_1_is_chunked_data(cdata, res.get())) {
+                            auto buffer = manapi::async::current()->memory_fabric().buffer (
+                                std::max(res->config()->buffer_size, 64L));
                             while (!finish) {
                                 auto rhs = cb_sync->operator()(buffer.data(), buffer.size(), finish);
                                 co_await send_http_v1_1_chunked_data(cdata, rhs, buffer.data(), buffer.size(), finish);
                             }
                         }
                         else {
+                            auto slices = cdata->worker->bufferpool().slice(4096 * 16);
                             while (!finish) {
-                                auto rhs = cb_sync->operator()(buffer.data() + cursor, buffer.size() - cursor, finish);
-                                if (rhs < 0) {
-                                    THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
+                                ssize_t total = 0;
+                                for (auto it = slices.begin(); it != slices.end() && !finish; ) {
+                                    auto rhs = cb_sync->operator()(static_cast<char *>(it.buffer()) + cursor,
+                                        it.size() - cursor, finish);
+
+                                    if (rhs < 0)
+                                        THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
+
+                                    cursor += rhs;
+
+                                    if (cursor == it.size()) {
+                                        total += cursor;
+                                        cursor = 0;
+                                        it++;
+                                    }
                                 }
-                                rhs = co_await cdata->worker->write(cdata->conn, buffer.data() + cursor, rhs, finish);
+                                if (cursor) {
+                                    total += cursor;
+                                    cursor = 0;
+                                }
+
+                                auto const rhs = co_await cdata->worker->fwrite(
+                                    cdata->conn, slices.subslice(0, total).value(), finish);
 
                                 if (rhs <= 0)
                                     co_return;
-
-                                cursor += rhs;
-
-                                if (buffer.size() == cursor)
-                                    cursor = 0;
                             }
                         }
                     });
