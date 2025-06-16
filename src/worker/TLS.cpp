@@ -95,9 +95,8 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
         ssize_t res = 0;
 
         while (res != buff[i].len) {
-            if (connection->top->send_size >= maxcnt) {
-                return res;
-            }
+            if (connection->top->send_size > maxcnt)
+                return total;
 
             auto rhs = this->ssl_write_(connection->ssl, static_cast<const char *> (buff[i].base) + res,
                 static_cast<int>(buff[i].len - res));
@@ -118,17 +117,17 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
             }
 
             else if (err == this->ssl_error_want_read_) {
-                return res;
+                return total;
             }
 
             else if (err == this->ssl_error_want_write_) {
                 err = this->ssl_bio_flush_write_(conn, connection->wbio,
-                    &connection->top->send, &connection->top->send_size, maxcnt);
+                    connection->top.get(), maxcnt);
 
                 if (err) {
                     if (err == CONN_IO_WANT_WRITE) {
                         this->flush_write_(conn, cfinish);
-                        return res;
+                        return total;
                     }
 
                     return CONN_IO_ERROR;
@@ -143,12 +142,12 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
             }
 
             err = this->ssl_bio_flush_write_(conn, connection->wbio,
-                    &connection->top->send, &connection->top->send_size, maxcnt);
+                    connection->top.get(), maxcnt);
 
             if (err) {
                 if (err == CONN_IO_WANT_WRITE) {
                     this->flush_write_(conn, cfinish);
-                    return res;
+                    return total;
                 }
 
                 return CONN_IO_ERROR;
@@ -300,7 +299,7 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
 
                 if (status == this->ssl_error_want_read_ || status == this->ssl_error_want_write_) {
                     /* force write all data */
-                    if (this->ssl_bio_flush_write_(conn, data->wbio, &data->top->send, &data->top->send_size, 1e5)) {
+                    if (this->ssl_bio_flush_write_(conn, data->wbio, data->top.get(), 1e5)) {
                         goto err;
                     }
 
@@ -380,7 +379,7 @@ void manapi::net::worker::TLS::accept_work_(const shared_conn &conn, int flags, 
 
                 if (status == this->ssl_error_want_write_ || status == this->ssl_error_want_read_) {
                     /* force write all data */
-                    if (this->ssl_bio_flush_write_(conn, data->wbio, &data->top->send, &data->top->send_size, 1e5)) {
+                    if (this->ssl_bio_flush_write_(conn, data->wbio, data->top.get(), 1e5)) {
                         goto err;
                     }
 
@@ -421,7 +420,8 @@ void manapi::net::worker::TLS::accept_work_(const shared_conn &conn, int flags, 
 
 void manapi::net::worker::TLS::flush_write_(const shared_conn &connection, bool flush) {
     auto const data = connection->as<TLS::connection_interface>();
-    if (data->top->send_size == 1 && data->top->send.last_deque) {
+    if (flush && data->top->send_size == 1) {
+        assert(data->top->send.last_deque);
         /* in the stack */
         auto &buffer = data->top->send.deque->buffer;
         auto copy = static_cast<int>(data->top->send.deque_cursor - data->top->send.deque_current);
@@ -433,6 +433,7 @@ void manapi::net::worker::TLS::flush_write_(const shared_conn &connection, bool 
                 data->top->send.deque_current = 0;
                 data->top->send.deque_cursor = 0;
                 data->top->send_size--;
+                data->top->cur_send_size--;
                 return;
             }
 
@@ -453,20 +454,21 @@ int manapi::net::worker::TLS::check_read_stack_full_(connection_interface *data)
     return 0;
 }
 
-int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void *wbio, connection_io_part *top, int *cnt, int max_cnt) {
+int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void *wbio, connection_io *m, int max_cnt) {
     int rhs;
     int flags = 0;
     buffer_deque *parent = nullptr;
+    auto top = &m->send;
 
     try {
         do {
             if (!top->last_deque || top->last_deque->buffer.size() == top->deque_cursor) {
                 this->flush_write_(conn, false);
 
-                if (cnt && *cnt >= max_cnt)
+                if (m->send_size > max_cnt)
                     return CONN_IO_WANT_WRITE;
 
-                auto buffer = this->bufferpool().buffer(1, this->config_->buffer_size);
+                auto buffer = this->bufferpool().buffer(this->config_->buffer_size);
 
                 auto obj = std::make_unique<buffer_deque>(std::move(buffer), nullptr);
                 if (top->last_deque) {
@@ -483,8 +485,8 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
 
                 top->deque_cursor = 0;
                 flags |= 1 /* an empty buffer was created */;
-                if (cnt)
-                    (*cnt)++;
+                m->send_size++;
+                m->cur_send_size++;
             }
             else
                 flags = 0;
@@ -503,7 +505,9 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, void
 
             if (!rhs && (flags /* an empty buffer was created */ )) {
                 /* remove an empty buffer at the end */
-                connection_io_trim(top, parent, cnt);
+                auto const prev = m->send_size;
+                connection_io_trim(top, parent, &m->send_size);
+                m->cur_send_size -= prev - m->send_size;
             }
         }
         while (rhs > 0);

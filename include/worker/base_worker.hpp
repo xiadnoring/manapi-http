@@ -86,6 +86,7 @@ namespace manapi::net::worker {
     struct connection_io {
         connection_io_part send;
         int send_size;
+        int cur_send_size;
         connection_io_part recv;
         int recv_size;
     };
