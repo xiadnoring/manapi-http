@@ -66,7 +66,7 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_new_(void *ctx) {
 }
 
 int manapi::net::worker::OpenSSL_TLS::ssl_write_(void *ssl, const void *buff, int size) {
-    ERR_clear_error();
+    //ERR_clear_error();
     return SSL_write(static_cast<SSL*>(ssl), buff, size);
 }
 
@@ -141,6 +141,7 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     }
 
 
+
     ERR_clear_error();
     ctx = SSL_CTX_new(method);
 
@@ -148,6 +149,11 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot create the openssl context for the tcp connection");
     }
+
+    SSL_CTX_set_max_early_data(ctx, 16394);
+    SSL_CTX_clear_options(ctx, SSL_OP_NO_COMPRESSION);
+    SSL_CTX_set_min_proto_version(ctx, 0);
+    SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
 
     //SSL_CTX_set_mode(ctx, SSL_MODE_ASYNC);
 
@@ -157,9 +163,17 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     //SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
     //SSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
 
+    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+    SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
+
     auto &cipher_list = this->config_->cipher_list;
-    if (!SSL_CTX_set_cipher_list(ctx, static_cast<const char *>(cipher_list.data()))) {
-        goto err;
+    if (cipher_list.empty()) {
+        SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
+    }
+    else {
+        if (!SSL_CTX_set_cipher_list(ctx, static_cast<const char *>(cipher_list.data()))) {
+            goto err;
+        }
     }
 
     SSL_CTX_set_alpn_select_cb(ctx, [] (SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,

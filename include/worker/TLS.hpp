@@ -44,16 +44,27 @@ namespace manapi::net::worker {
         ssl_send_shutdown_, ssl_recv_shutdown_;
 
         virtual bool ssl_is_init_fininshed_ (void *ssl) = 0;
+
         virtual int ssl_get_error_ (void *ssl, int rhs) = 0;
+
         virtual int ssl_accept_ (void *ssl) = 0;
+
         virtual void *ssl_new_ (void *ctx) = 0;
+
         virtual int ssl_write_ (void *ssl, const void *buff, int size) = 0;
+
         virtual int ssl_read_ (void *ssl, void *buff, int size) = 0;
+
         virtual int ssl_shutdown_ (void *ssl) = 0;
+
         virtual void ssl_set_shutdown_(void *ssl, int flags) = 0;
+
         virtual void ssl_free_(void *ssl) = 0;
+
         virtual int ssl_bio_write_ (void *rbio, const void *buff, int size) = 0;
+
         virtual int ssl_bio_read_ (void *wbio, void *buff, int size) = 0;
+
         virtual int ssl_bio_should_retry_ (void *bio) = 0;
 
         virtual bool recv_setup_connection(connection_interface *storage) = 0;
@@ -67,8 +78,6 @@ namespace manapi::net::worker {
         virtual void ssl_configure_context () = 0;
 
         void onrecv(std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) override;
-
-        void accept_work_ (const shared_conn &conn, int flags, ibuffpool_t buffer);
 
         void flush_write_(const shared_conn &connection, bool flush) override;
 

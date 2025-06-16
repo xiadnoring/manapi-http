@@ -471,8 +471,10 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
         }
 
         for (uint32_t i = 0; i < nbuff; i++) {
+            auto const prev = connection->top->send_size;
             auto const result = connection_io_send (&connection->top->send, static_cast<const char *>(buff[i].base), buff[i].len, &this->bufferpool(),
                 this->config_->buffer_size, &connection->top->send_size, maxcnt);
+            connection->top->cur_send_size += prev - connection->top->send_size;
 
             if (result < 0)
                 return -1;
@@ -551,7 +553,7 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn) {
 void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection, bool flush) {
     auto conn = connection->as<connection_interface>();
 
-    if ((conn->top->cur_send_size >= 16
+    if ((conn->top->cur_send_size >= this->config_->max_merge_buffer_stack
         && ((conn->top->send.last_deque->buffer.size() == conn->top->send.deque_cursor)))
         || (flush && conn->top->cur_send_size)) {
         std::unique_ptr<ev::buff_t, ev::buffer_deleter> s;
@@ -560,6 +562,7 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
         auto const buffptr = s.get();
         std::unique_ptr<buffer_deque> sent = std::move(conn->top->send.deque);
         auto current = sent.get();
+        ssize_t request = 0;
 
         for (int i = 0; i < conn->top->cur_send_size; i++) {
             auto &object = current->buffer;
@@ -578,6 +581,8 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
             buffptr[i].base = object.data();
             buffptr[i].len = object.size();
 
+            request += buffptr[i].len;
+
             if (i + 1 != conn->top->cur_send_size)
                 current = current->next.get();
         }
@@ -586,58 +591,64 @@ void manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connectio
             conn->top->send.deque = std::move(current->next);
 
         auto rhs = conn->watcher->try_write(buffptr, conn->top->cur_send_size);
-        uint32_t cursor = 0;
-        while (cursor != conn->top->cur_send_size
-            && rhs >= buffptr[cursor].len) {
-            rhs -= static_cast<ssize_t>(buffptr[cursor].len);
-            sent = std::move(sent->next);
-            cursor++;
-        }
-
-        conn->top->cur_send_size -= cursor;
-        conn->top->send_size -= cursor;
-
-        if (rhs && sent) {
-            sent->buffer.shift_add(rhs);
-            buffptr[cursor].base += rhs;
-            buffptr[cursor].len -= rhs;
-        }
-
-        if (conn->top->cur_send_size >= 16) {
-            auto w = manapi::async::current()->eventloop()
-                ->create_watcher_write(conn->watcher.get(), [connection, b = std::move(sent), s = std::move(s)]
-                    (std::shared_ptr<ev::write> &w, int status)
-                    -> void {
-                    auto conn = connection->as<connection_interface>();
-
-                    conn->top->send_size -= w->custom()->nbufs;
-
-                    if (status) {
-                        /* error */
-                        conn->status |= ev::DISCONNECT;
-                        connection->cancellation.cancel();
-
-                        if (conn->ev_callback)
-                            conn->ev_callback->operator()(connection, ev::DISCONNECT, nullptr, 0, nullptr);
-                    }
-                    else {
-                        if (conn->status & ev::WRITE)
-                            conn->ev_callback->operator()(connection, ev::WRITE, nullptr, 0, nullptr);
-                    }
-
-                    manapi::async::current()->eventloop()->stop_watcher(w);
-                }, s.get() + cursor, conn->top->cur_send_size /* nbuf */);
-
+        if (request == rhs) {
+            conn->top->send_size = 0;
             conn->top->cur_send_size = 0;
         }
         else {
-            if (sent) {
-                assert (current);
-                if (conn->top->send.last_deque) {
-                    current->next = std::move(conn->top->send.deque);
+            uint32_t cursor = 0;
+            while (cursor != conn->top->cur_send_size
+                && rhs >= buffptr[cursor].len) {
+                rhs -= static_cast<ssize_t>(buffptr[cursor].len);
+                sent = std::move(sent->next);
+                cursor++;
+            }
+
+            conn->top->cur_send_size -= cursor;
+            conn->top->send_size -= cursor;
+
+            if (rhs && sent) {
+                sent->buffer.shift_add(rhs);
+                buffptr[cursor].base += rhs;
+                buffptr[cursor].len -= rhs;
+            }
+
+            if (conn->top->cur_send_size >= this->config_->max_merge_buffer_stack) {
+                auto w = manapi::async::current()->eventloop()
+                    ->create_watcher_write(conn->watcher.get(), [connection, b = std::move(sent), s = std::move(s)]
+                        (std::shared_ptr<ev::write> &w, int status)
+                        -> void {
+                        auto conn = connection->as<connection_interface>();
+
+                        conn->top->send_size -= w->custom()->nbufs;
+
+                        if (status) {
+                            /* error */
+                            conn->status |= ev::DISCONNECT;
+                            connection->cancellation.cancel();
+
+                            if (conn->ev_callback)
+                                conn->ev_callback->operator()(connection, ev::DISCONNECT, nullptr, 0, nullptr);
+                        }
+                        else {
+                            if (conn->status & ev::WRITE)
+                                conn->ev_callback->operator()(connection, ev::WRITE, nullptr, 0, nullptr);
+                        }
+
+                        manapi::async::current()->eventloop()->stop_watcher(w);
+                    }, s.get() + cursor, conn->top->cur_send_size /* nbuf */);
+
+                conn->top->cur_send_size = 0;
+            }
+            else {
+                if (sent) {
+                    assert (current);
+                    if (conn->top->send.last_deque) {
+                        current->next = std::move(conn->top->send.deque);
+                    }
+                    conn->top->send.deque = std::move(sent);
+                    conn->top->send.last_deque = current;
                 }
-                conn->top->send.deque = std::move(sent);
-                conn->top->send.last_deque = current;
             }
         }
     }

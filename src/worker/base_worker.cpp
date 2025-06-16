@@ -175,14 +175,29 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
     ssize_t rhs = 0;
     auto const size = slice.size();
 
+    auto buffs = slice.slices_buffs();
+    auto buffptr = buffs.get();
+    uint32_t nbuff = slice.slices_size();
     while (total < size) {
-        auto buffs = slice.slices_buffs();
-        rhs = co_await this->write(conn, buffs.get(), slice.slices_size(), finish);
+        rhs = co_await this->write(conn, buffptr, nbuff, finish);
         if (rhs <= 0)
             co_return rhs;
 
-        slice = slice.subslice(rhs).value();
         total += rhs;
+
+        if (total == size)
+            break;
+
+        while (nbuff && rhs >= buffptr->len) {
+            rhs -= buffptr->len;
+            buffptr++;
+            nbuff--;
+        }
+
+        if (nbuff) {
+            buffptr->base += rhs;
+            buffptr->len -= rhs;
+        }
     }
     co_return total;
 }

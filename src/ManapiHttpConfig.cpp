@@ -73,6 +73,12 @@ manapi::net::http::config::config(const json &config) {
     else
         this->http3_implementation = "default";
 
+    it = obj.find("max_merge_buffer_stack");
+    if (it != obj.end())
+        this->max_merge_buffer_stack = it->second.as_integer();
+    else
+        this->max_merge_buffer_stack = 16;
+
     /* partial data min size */
     if (config.contains("partial_data_min_size"))
     {
@@ -315,9 +321,6 @@ manapi::net::http::config::config(const json &config) {
     /* cipher list */
     if (config.contains("cipher_list")) {
         this->cipher_list = config["cipher_list"].as_string();
-    }
-    else {
-        this->cipher_list= "TLS_CHACHA20_POLY1305_SHA256:TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256";
     }
 
     if (config.contains("simultaneous_accepts")) {

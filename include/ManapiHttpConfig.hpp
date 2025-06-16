@@ -78,6 +78,8 @@ namespace manapi::net::http {
         int max_hpack_list_size;
         int initial_window_size;
 
+        int max_merge_buffer_stack;
+
         bool simultaneous_accepts;
         bool quic_debug;
         size_t quic_cc_algo;
