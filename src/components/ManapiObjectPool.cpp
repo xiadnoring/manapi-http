@@ -18,7 +18,7 @@ enum buffer_level {
     BUFF_LEVEL_MAX
 };
 
-constexpr int area_size = 16384;
+constexpr int area_size = 4096;
 
 struct manapi::internal::object_pool_data_t {
     manapi::chain<std::pair<void*, int>> buffers[BUFF_LEVEL_MAX + 1];

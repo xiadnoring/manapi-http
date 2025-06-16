@@ -288,7 +288,7 @@ int main () {
 
         router.GET("/noise", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
-            ssize_t len = 10737418240;
+            ssize_t len = 10737418240 / 2;
 
             resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, std::to_string(len));
             co_return resp.callback_sync([current = (ssize_t)0, len] (char *buffer, ssize_t size, bool &flg) mutable
