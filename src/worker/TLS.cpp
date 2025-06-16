@@ -49,7 +49,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(ev::shared_tcp
 
         connection->ssl = this->ssl_new_(this->ctx);
 
-        if (!recv_setup_connection (connection)) {
+        if (!connection->ssl || !recv_setup_connection (connection)) {
             return nullptr;
         }
 
@@ -62,6 +62,9 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(ev::shared_tcp
 
         return std::move(ms);
     });
+
+    if (!connection)
+        return nullptr;
 
     connection->as<TLS::connection_interface>()->watcher->read_start();
 
@@ -319,14 +322,15 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
     }
 
     auto const wrk = dynamic_cast<TLS*> (connection->worker);
+    if (wrk) {
+        wrk->count--;
+        wrk->worker_data()->count.fetch_sub(1);
 
-    wrk->count--;
-    wrk->worker_data()->count.fetch_sub(1);
-
-    if (wrk->flags & NET_WORKER_CLOSED
-        && !wrk->count
-        && wrk->finish) {
-        wrk->finish();
+        if (wrk->flags & NET_WORKER_CLOSED
+            && !wrk->count
+            && wrk->finish) {
+            wrk->finish();
+            }
     }
 }
 

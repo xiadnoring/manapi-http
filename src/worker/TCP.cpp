@@ -225,6 +225,9 @@ std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::
 manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tcp &w, std::move_only_function<shared_conn()> init) {
     auto connection = init();
 
+    if (!connection)
+        return connection;
+
     ev::shared_tcp client = manapi::async::current()->eventloop()->create_watcher_tcp_connection(
         [this, weak = std::weak_ptr(connection)] (std::shared_ptr<ev::tcp> &w, ssize_t nread, const uv_buf_t *buf)
         -> void {

@@ -23,6 +23,12 @@
 
 #include "ManapiUtils.hpp"
 
+struct ssl_bio_deleter_t {
+    void operator() (BIO *b) {
+        BIO_free(b);
+    }
+};
+
 manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
     this->ssl_error_none_ = SSL_ERROR_NONE;
     this->ssl_error_syscall_ = SSL_ERROR_SYSCALL;
@@ -150,12 +156,11 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot create the openssl context for the tcp connection");
     }
 
-    SSL_CTX_set_max_early_data(ctx, 16394);
+    SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+    SSL_CTX_set_max_early_data(ctx, 16384);
     SSL_CTX_clear_options(ctx, SSL_OP_NO_COMPRESSION);
     SSL_CTX_set_min_proto_version(ctx, 0);
     SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
-
-    //SSL_CTX_set_mode(ctx, SSL_MODE_ASYNC);
 
     // SSL_CTX_set_max_send_fragment(ctx, this->config->buffer_size());
     // SSL_CTX_set_default_read_buffer_len(ctx, this->config->buffer_size());
@@ -171,7 +176,9 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
         SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
     }
     else {
-        if (!SSL_CTX_set_cipher_list(ctx, static_cast<const char *>(cipher_list.data()))) {
+        // TLSv1.2>= SSL_CTX_set_cipher_list
+        // TLSv1.3<= SSL_CTX_set_ciphersuites
+        if (!SSL_CTX_set_ciphersuites(ctx, static_cast<const char *>(cipher_list.data()))) {
             goto err;
         }
     }
@@ -226,7 +233,15 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
 
     return ctx;
 err:
-    THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "couldn't setup SSL ctx due to error");
+    std::unique_ptr<BIO, ssl_bio_deleter_t> bio;
+    bio.reset(BIO_new(BIO_s_mem()));
+    ERR_print_errors(bio.get());
+    char *buf;
+    size_t len = BIO_get_mem_data(bio.get(), &buf);
+
+    std::string ret(buf, len);
+
+    THROW_MANAPIHTTP_EXCEPTION (ERR_FAILED_PRECONDITION, "couldn't setup SSL ctx due to \n{}", ret);
 }
 
 void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
