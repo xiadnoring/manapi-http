@@ -767,7 +767,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::feed_event(const shared_con
             this->feed_event_read_ (conn, data->ev_callback.get(), &data->top->recv, &data->top->recv_size, data->flags, flags, buff, size, p);
         }
     }
-    else {
+    else if (data->ev_callback) {
         data->ev_callback->operator()(conn, flags, buff, size, p);
     }
 }

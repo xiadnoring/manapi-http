@@ -200,6 +200,33 @@ int main () {
             }
         });
 
+        router.POST ("/uploadtest", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            co_return resp.callback_stream([&req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
+                ssize_t result = 0;
+                auto c = std::chrono::steady_clock::now();
+                try {
+                    co_await req.callback_sync([&c, &result, &cb] (const char *buffer, ssize_t size, bool fin)
+                        -> ssize_t {
+                        result += size;
+                        if (c + std::chrono::seconds (1) <= std::chrono::steady_clock::now()) {
+                            auto a = std::format("{}\n", (double)result / 1024 / 1024);
+                            result = 0;
+                            c = std::chrono::steady_clock::now();
+                            std::cout << a << "\n";
+                        }
+                        return size;
+                    });
+                }
+                catch (std::exception const &e) {
+                    std::cout << e.what() << "\n";
+                }
+                auto bb = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - c);
+                std::string err = std::format("{}\n", ((double)result / 1024 / 1024) / ((double)bb.count()/1000));
+                co_await cb(err.data(), err.size(), true);
+            });
+        });
+
         router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             ssize_t result = 0;

@@ -670,7 +670,8 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
 
     try {
         while (top->last_deque
-            && data->status & ev::READ) {
+            && data->status & ev::READ
+            && data->ev_callback) {
             auto object = std::move(top->deque->buffer);
             top->deque = std::move(top->deque->next);
 

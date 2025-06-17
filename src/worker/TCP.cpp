@@ -432,7 +432,7 @@ void manapi::net::worker::TCP::feed_event(const shared_conn &conn, int flags, co
             this->feed_event_read_ (conn, data->ev_callback.get(), &data->top->recv, &data->top->recv_size, data->status, flags, buff, size, p);
         }
     }
-    else {
+    else if (data->ev_callback) {
         data->ev_callback->operator()(conn, flags, buff, size, p);
     }
 }
