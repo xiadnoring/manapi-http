@@ -452,7 +452,10 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
         rhs = connection->watcher->try_write(buff, nbuff);
 
         if (rhs < 0)
-            rhs = 0;
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                rhs = 0;
+            else
+                return -1;
         else
             connection->transfered += rhs;
     }
@@ -477,7 +480,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
             auto const prev = connection->top->send_size;
             auto const result = connection_io_send (&connection->top->send, static_cast<const char *>(buff[i].base), buff[i].len, &this->bufferpool(),
                 this->config_->buffer_size, &connection->top->send_size, maxcnt);
-            connection->top->cur_send_size += prev - connection->top->send_size;
+            connection->top->cur_send_size += connection->top->send_size - prev;
 
             if (result < 0)
                 return -1;
@@ -601,9 +604,13 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
         }
         else {
             if (rhs < 0) {
-                conn->top->send_size -= conn->top->cur_send_size;
-                conn->top->cur_send_size = 0;
-                return CONN_IO_ERROR;
+                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                    rhs = 0;
+                else {
+                    conn->top->send_size -= conn->top->cur_send_size;
+                    conn->top->cur_send_size = 0;
+                    return CONN_IO_ERROR;
+                }
             }
 
 
@@ -642,7 +649,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                 conn->ev_callback->operator()(connection, ev::DISCONNECT, nullptr, 0, nullptr);
                         }
                         else {
-                            if (conn->status & ev::WRITE)
+                            if (conn->status & ev::WRITE && conn->ev_callback)
                                 conn->ev_callback->operator()(connection, ev::WRITE, nullptr, 0, nullptr);
                         }
 

@@ -154,11 +154,22 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     ctx = SSL_CTX_new(method);
 
     if (!ctx)
-    {
         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot create the openssl context for the tcp connection");
-    }
 
-    SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+
+    auto ktls = http::config::get_config_param<bool>(
+        this->config_->ssl, "ktls", true);
+    auto single_dh_use = http::config::get_config_param<bool>(
+        this->config_->ssl, "single_dh_use", false);
+    auto ktls_tx_zerocopy_senfile = http::config::get_config_param<bool>(
+        this->config_->ssl, "ktls_tx_zerocopy_senfile", true);
+
+    if (ktls)
+        SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+    if (ktls_tx_zerocopy_senfile)
+        SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS_TX_ZEROCOPY_SENDFILE);
+
+
     SSL_CTX_set_max_early_data(ctx, 16384);
     SSL_CTX_clear_options(ctx, SSL_OP_NO_COMPRESSION);
     SSL_CTX_set_min_proto_version(ctx, 0);
@@ -170,7 +181,9 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     //SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
     //SSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
 
-    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+    if (single_dh_use)
+        SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+
     SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
 
     if (cipher_list.empty()) {

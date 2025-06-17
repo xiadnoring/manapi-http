@@ -933,7 +933,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
             //         goto err;
             // }
 
-
+            assert(sv.size() == rhs);
             if ((co_await cdata->worker->fwrite (cdata->conn, sv, !readsome)) <= 0)
                 /* failed to send */
                     goto err;
