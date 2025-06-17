@@ -129,6 +129,8 @@ err:
 }
 
 void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &version) {
+    auto cipher_list = this->config_->get_config_param<std::string>(this->config_->ssl, "cipher_list", {});
+
     const SSL_METHOD *method;
     SSL_CTX *ctx;
 
@@ -171,63 +173,41 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
     SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
 
-    auto &cipher_list = this->config_->cipher_list;
     if (cipher_list.empty()) {
         SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
     }
     else {
         // TLSv1.2>= SSL_CTX_set_cipher_list
         // TLSv1.3<= SSL_CTX_set_ciphersuites
-        if (!SSL_CTX_set_ciphersuites(ctx, static_cast<const char *>(cipher_list.data()))) {
+        if (!SSL_CTX_set_ciphersuites(ctx, static_cast<const char *>(cipher_list.data())))
             goto err;
-        }
+
     }
 
     SSL_CTX_set_alpn_select_cb(ctx, [] (SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,
         unsigned int inlen, void *arg) -> int {
-        auto worker = static_cast<OpenSSL_TLS *> (arg);
-        std::vector <std::string> wishs;
-        {
-            auto &b = worker->config_->http_versions;
-            for (const auto &version : b) {
-                switch (version) {
-                    case http::versions::HTTP_v1_0:
-                        wishs.emplace_back("http/1.0");
-                    break;
-                    case http::versions::HTTP_v0_9:
-                        wishs.emplace_back("http/0.9");
-                    break;
-                    case http::versions::HTTP_v1_1:
-                        wishs.emplace_back("http/1.1");
-                    break;
-                    case http::versions::HTTP_v2:
-                        wishs.emplace_back("h2");
-                    break;
-                    case http::versions::HTTP_v3:
-                        wishs.emplace_back("h3");
-                    break;
-                    default:
-                        break;
-                }
-            }
-        }
+        auto const worker = static_cast<OpenSSL_TLS *> (arg);
 
-        std::map <std::string_view, int > exists;
         int j = 0;
         for (int i = 0; i < inlen;j++) {
             int plen = in[i++];
             std::string_view buff (reinterpret_cast<const char *>(in) + i, reinterpret_cast<const char *>(in) + i + plen);
-            exists.insert({buff, j});
+            if ((buff == "h3" && worker->config_->contains_http_version(http::versions::HTTP_v3))
+                || (buff == "h2" && worker->config_->contains_http_version(http::versions::HTTP_v2))
+                || (buff == "http/1.1" && worker->config_->contains_http_version(http::versions::HTTP_v1_1))
+                || (buff == "http/1.0" && worker->config_->contains_http_version(http::versions::HTTP_v1_0))
+                || (buff == "http/0.9" && worker->config_->contains_http_version(http::versions::HTTP_v0_9)))
+                goto choise;
+
             i += plen;
-        }
-        for (const auto &wish: wishs) {
-            auto it = exists.find(wish);
-            if (it != exists.end()) {
-                *out = reinterpret_cast<const unsigned char *> (it->first.data());
-                *outlen = it->first.size();
+            continue;
+            choise: {
+                *out = reinterpret_cast<const unsigned char *> (buff.data());
+                *outlen = buff.size();
                 return 0;
             }
         }
+
         return -1;
     }, this);
 
@@ -246,22 +226,23 @@ err:
 
 void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
     ERR_clear_error();
-    auto &sslconfig = this->config_->ssl_config;
-    if (SSL_CTX_use_certificate_file(static_cast<SSL_CTX*>(this->ctx), sslconfig.cert.data(), SSL_FILETYPE_PEM) <= 0)
-    {
+
+    auto verify_peer = this->config_->get_config_param<bool>(this->config_->ssl, "verify_peer", true);
+    auto cert = this->config_->get_config_param<std::string>(this->config_->ssl, "cert", {});
+    auto key = this->config_->get_config_param<std::string>(this->config_->ssl, "key", {});
+
+    if (SSL_CTX_use_certificate_file(static_cast<SSL_CTX*>(this->ctx), cert.data(), SSL_FILETYPE_PEM) <= 0)
         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot use cert file openssl");
-    }
 
-    if (SSL_CTX_use_PrivateKey_file(static_cast<SSL_CTX*>(this->ctx), sslconfig.key.data(), SSL_FILETYPE_PEM) <= 0)
-    {
+
+    if (SSL_CTX_use_PrivateKey_file(static_cast<SSL_CTX*>(this->ctx), key.data(), SSL_FILETYPE_PEM) <= 0)
         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot use private key file openssl");
-    }
 
-    if (!SSL_CTX_check_private_key(static_cast<SSL_CTX*>(this->ctx))) {
-        MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig.cert.data(), sslconfig.key.data());
-    }
 
-    SSL_CTX_set_verify(static_cast<SSL_CTX*>(this->ctx), this->config_->verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
+    if (!SSL_CTX_check_private_key(static_cast<SSL_CTX*>(this->ctx)))
+        MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", cert.data(), key.data());
+
+    SSL_CTX_set_verify(static_cast<SSL_CTX*>(this->ctx), verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
     SSL_CTX_set_verify_depth(static_cast<SSL_CTX*>(this->ctx), 1);
 }
 

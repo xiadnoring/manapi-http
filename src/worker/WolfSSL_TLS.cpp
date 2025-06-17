@@ -47,19 +47,22 @@ manapi::net::worker::WolfSSL_TLS::~WolfSSL_TLS() {
 void manapi::net::worker::WolfSSL_TLS::init() {
     TLS::init();
 
-    auto sslconfig = &this->config_->ssl_config;
-    if (sslconfig->enabled) {
-        // init
-        this->ctx = ssl_create_context(this->config_->tls_version);
-        // setup ctx (load certs)
-        this->ssl_configure_context();
-    }
+    // init
+    this->ctx = ssl_create_context(this->config_->tls_version);
+    // setup ctx (load certs)
+    this->ssl_configure_context();
 
     this->alpn_protocol_list = "";
-    auto http_versions = &this->config_->http_versions;
-    auto it = http_versions->begin();
+    std::vector<int> hlist = {
+        http::versions::HTTP_v0_9,
+        http::versions::HTTP_v1_0,
+        http::versions::HTTP_v1_1,
+        http::versions::HTTP_v2,
+        http::versions::HTTP_v3
+    };
+    auto it = hlist->begin();
     goto skip;
-    for (; it != http_versions->end(); ++it) {
+    for (; it != hlist->end(); ++it) {
         this->alpn_protocol_list += ",";
         skip:
         switch (*it) {
@@ -165,6 +168,7 @@ bool manapi::net::worker::WolfSSL_TLS::recv_setup_connection(connection_interfac
 
 
 void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &version) {
+    auto cipher_list = this->config_->get_config_param<std::string>(this->config_->ssl, "cipher_list", {});
     WOLFSSL_METHOD *method;
     WOLFSSL_CTX *ctx;
 
@@ -191,8 +195,7 @@ void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &versio
 
     // SSL_CTX_set_max_send_fragment(ctx, this->config->buffer_size());
     // SSL_CTX_set_default_read_buffer_len(ctx, this->config->buffer_size());
-    auto cipher_list = &this->config_->cipher_list;
-    wolfSSL_CTX_set_cipher_list(ctx, static_cast<const char *>(cipher_list->data()));
+    wolfSSL_CTX_set_cipher_list(ctx, static_cast<const char *>(cipher_list.data()));
     wolfSSL_CTX_set_options(ctx, WOLFSSL_OP_NO_SSLv2);
 #if MANAPIHTTP_WOLFSSL_WITH_ALPN
     wolfSSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
@@ -202,22 +205,25 @@ void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &versio
 }
 
 void manapi::net::worker::WolfSSL_TLS::ssl_configure_context() {
-    auto sslconfig = &this->config_->ssl_config;
-    if (wolfSSL_CTX_use_certificate_file(static_cast<WOLFSSL_CTX *>(this->ctx), sslconfig->cert.data(), SSL_FILETYPE_PEM) <= 0)
+    auto verify_peer = this->config_->get_config_param<bool>(this->config_->ssl, "verify_peer", true);
+    auto cert = this->config_->get_config_param<std::string>(this->config_->ssl, "cert", {});
+    auto key = this->config_->get_config_param<std::string>(this->config_->ssl, "key", {});
+
+    if (wolfSSL_CTX_use_certificate_file(static_cast<WOLFSSL_CTX *>(this->ctx), cert.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot use cert file openssl");
     }
 
-    if (wolfSSL_CTX_use_PrivateKey_file(static_cast<WOLFSSL_CTX *>(this->ctx), sslconfig->key.data(), SSL_FILETYPE_PEM) <= 0)
+    if (wolfSSL_CTX_use_PrivateKey_file(static_cast<WOLFSSL_CTX *>(this->ctx), key.data(), SSL_FILETYPE_PEM) <= 0)
     {
         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot use private key file openssl");
     }
 
     if (!wolfSSL_CTX_check_private_key(static_cast<WOLFSSL_CTX *>(this->ctx))) {
-        MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", sslconfig->cert.data(), sslconfig->key.data());
+        MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", cert.data(), key.data());
     }
 
-    wolfSSL_CTX_set_verify(static_cast<WOLFSSL_CTX *>(this->ctx), this->config_->verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
+    wolfSSL_CTX_set_verify(static_cast<WOLFSSL_CTX *>(this->ctx), verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
     wolfSSL_CTX_set_verify_depth(static_cast<WOLFSSL_CTX *>(this->ctx), 1);
 }
 

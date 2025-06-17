@@ -102,33 +102,43 @@ manapi::future<void> manapi::net::http_pool::_pool() {
 
             if (implementation != "quiche") {
                 auto versions = this->config->http_versions;
-                versions.insert(http::versions::HTTP_v1_1);
-                for (auto version : versions) {
-                    if (version >= http::versions::HTTP_v0_9 && version < http::versions::HTTP_v1_1)
-                        version = http::versions::HTTP_v1_1;
+                std::vector<int> hlist = {
+                    http::versions::HTTP_v0_9,
+                    http::versions::HTTP_v1_0,
+                    http::versions::HTTP_v1_1,
+                    http::versions::HTTP_v2,
+                    http::versions::HTTP_v3
+                };
 
-                    auto &http_implementation = this->site.http_protocol_worker(static_cast<http::versions::http>(version));
-                    std::string *http_impl_name{nullptr};
-                    switch (version) {
-                        case http::versions::HTTP_v1_1: http_impl_name = &this->config->http1_implementation; break;
-                        case http::versions::HTTP_v2: http_impl_name = &this->config->http2_implementation; break;
-                        case http::versions::HTTP_v3: http_impl_name = &this->config->http3_implementation; break;
+                for (auto version : hlist) {
+                    if (version == http::versions::HTTP_v1_1
+                        || this->config->contains_http_version(version)) {
+                        if (version >= http::versions::HTTP_v0_9 && version < http::versions::HTTP_v1_1)
+                            version = http::versions::HTTP_v1_1;
+
+                        auto &http_implementation = this->site.http_protocol_worker(static_cast<http::versions::http>(version));
+                        std::string *http_impl_name{nullptr};
+                        switch (version) {
+                            case http::versions::HTTP_v1_1: http_impl_name = &this->config->http1_implementation; break;
+                            case http::versions::HTTP_v2: http_impl_name = &this->config->http2_implementation; break;
+                            case http::versions::HTTP_v3: http_impl_name = &this->config->http3_implementation; break;
+                        }
+
+                        assert(http_impl_name);
+
+                        auto it_http_impl = http_implementation.find(*http_impl_name);
+                        if (it_http_impl == http_implementation.end()) {
+                            MANAPIHTTP_LOG("http implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
+                            THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "http implementation not found");
+                        }
+                        auto httpwrk = it_http_impl->second (workerptr);
+                        if (!httpwrk.ok())
+                            httpwrk.throw_it();
+
+                        res = worker::default_wrk_http_all_global_add_version(wrkptr, version, std::move(httpwrk.value()));
+                        if (!res.ok())
+                            res.throw_it();
                     }
-
-                    assert(http_impl_name);
-
-                    auto it_http_impl = http_implementation.find(*http_impl_name);
-                    if (it_http_impl == http_implementation.end()) {
-                        MANAPIHTTP_LOG("http implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
-                        THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "http implementation not found");
-                    }
-                    auto httpwrk = it_http_impl->second (workerptr);
-                    if (!httpwrk.ok())
-                        httpwrk.throw_it();
-
-                    res = worker::default_wrk_http_all_global_add_version(wrkptr, version, std::move(httpwrk.value()));
-                    if (!res.ok())
-                        res.throw_it();
                 }
             }
         }

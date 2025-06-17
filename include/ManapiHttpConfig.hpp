@@ -19,12 +19,6 @@
 #include "components/Atomic.hpp"
 
 namespace manapi::net::http {
-    struct ssl_config_t {
-        bool            enabled = false;
-        std::string     key;
-        std::string     cert;
-    };
-
     namespace versions {
         enum tls {
             TLS_v1 = 0,
@@ -61,8 +55,6 @@ namespace manapi::net::http {
 
         bool contains_http_version (int version);
 
-        int recommended_http_version ();
-
         [[nodiscard]] bool contains_compressor (const std::string &name);
 
         void function_contains_compressor (std::move_only_function<bool(const std::string &name)> func);
@@ -71,22 +63,34 @@ namespace manapi::net::http {
 
         static http::versions::http parse_http_version (const std::string &version);
 
+        template<typename T>
+        static std::optional<T> get_value_config_param (const manapi::json &n) {
+            return {};
+        }
+
+        template<typename T>
+        static T get_config_param (const manapi::json &config, const std::string &name, T value) {
+            auto &obb = config.as_object();
+            auto it = obb.find(name);
+            if (it != obb.end()) {
+                auto res = get_value_config_param<T>(it->second);
+                if (res.has_value())
+                    return std::move(res.value());
+            }
+            return value;
+        }
+
         // settings
         int max_concurrent_streams;
         int max_frame_size;
         int max_hpack_table_size;
         int max_hpack_list_size;
         int initial_window_size;
-
         int max_merge_buffer_stack;
-
         bool simultaneous_accepts;
-        bool quic_debug;
-        size_t quic_cc_algo;
-        size_t tls_version;
         size_t max_header_block_size;
         size_t partial_data_min_size;
-        std::set<int> http_versions = {};
+        uint32_t http_versions;
         std::string address;
         std::string port;// settings
         std::string implementation;
@@ -95,8 +99,6 @@ namespace manapi::net::http {
         size_t keep_alive;
         sockaddr_storage server_addr;
         socklen_t server_len;
-        size_t max_plain_param_length;
-        size_t max_file_param_length;
         size_t max_connections;
         int max_backlog;
         ssize_t buffer_size;
@@ -106,13 +108,14 @@ namespace manapi::net::http {
         ssize_t speed_check_bytes;
         /* 2000 MB */
         ssize_t speed_limit_rate;
-        ssl_config_t ssl_config;
         bool tcp_no_delay;
-        bool verify_peer;
-        std::move_only_function<bool(const std::string &name)> function_contains_compressor_ = nullptr;
-        std::string cipher_list;
         std::string http1_implementation;
         std::string http2_implementation;
         std::string http3_implementation;
+        manapi::json ssl;
+        manapi::json quic;
+
+
+        std::move_only_function<bool(const std::string &name)> function_contains_compressor_ = nullptr;
     };
 }

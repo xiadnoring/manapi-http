@@ -80,6 +80,13 @@ std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::wor
 
 void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     udp::init();
+
+    auto verify_peer = this->config_->get_config_param<bool>(this->config_->ssl, "verify_peer", true);
+    auto cert = this->config_->get_config_param<std::string>(this->config_->ssl, "cert", {});
+    auto key = this->config_->get_config_param<std::string>(this->config_->ssl, "key", {});
+
+    auto quic_debug = this->config_->get_config_param<bool>(this->config_->quic, "debug", {});
+
     do {
         if (auto rhs = this->udp_accept_->recv_start()) {
             manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't start recv due to result - {}", rhs);
@@ -89,18 +96,12 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         this->quiche_config_ = quiche_config_new(QUICHE_PROTOCOL_VERSION);
         this->quiche_h3_config_ = quiche_h3_config_new();
 
-        auto const ssl_config = &this->config_->ssl_config;
-
-        if (!ssl_config->enabled) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "QUICHE: QUIC requires SSL be enabled");
+        if (quiche_config_load_cert_chain_from_pem_file(this->quiche_config_, cert.data())) {
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load cert chain from pem file: {}", cert);
         }
 
-        if (quiche_config_load_cert_chain_from_pem_file(this->quiche_config_, ssl_config->cert.data())) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load cert chain from pem file: {}", ssl_config->cert);
-        }
-
-        if (quiche_config_load_priv_key_from_pem_file(this->quiche_config_, ssl_config->key.data())) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load priv key from pem file: {}", ssl_config->key);
+        if (quiche_config_load_priv_key_from_pem_file(this->quiche_config_, key.data())) {
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load priv key from pem file: {}", key);
         }
 
         if(quiche_config_set_application_protos(this->quiche_config_,
@@ -117,8 +118,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         quiche_config_set_initial_max_streams_bidi (this->quiche_config_, 100);
         quiche_config_set_initial_max_streams_uni (this->quiche_config_, 100);
         quiche_config_set_disable_active_migration (this->quiche_config_, true);
-        quiche_config_verify_peer(this->quiche_config_, this->config_->verify_peer);
-        if (this->config_->quic_debug) {
+        quiche_config_verify_peer(this->quiche_config_, verify_peer);
+        if (quic_debug) {
             if (quiche_enable_debug_logging([] (const char *line, void *argp)
                 -> void {
                 MANAPIHTTP_LOG2(line);
@@ -127,20 +128,31 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
             }
         }
 
-        if (this->config_->quic_cc_algo != http::versions::QUIC_CC_NONE) {
-            quiche_cc_algorithm algo = QUICHE_CC_RENO;
+        auto &conn = this->config_->quic;
+        if (conn.is_object()) {
+            auto it = conn.as_object().find("cc_algo");
+            if (it != conn.as_object().end() && it->second.is_string()) {
+                auto &cc_algo = it->second.as_string();
+                if (!cc_algo.empty()) {
+                    quiche_cc_algorithm algo = QUICHE_CC_RENO;
 
-            switch (this->config_->quic_cc_algo)
-            {
-                case http::versions::QUIC_CC_CUBIC:   algo = QUICHE_CC_CUBIC;     break;
-                case http::versions::QUIC_CC_RENO:    algo = QUICHE_CC_RENO;      break;
-                case http::versions::QUIC_CC_BBR:     algo = QUICHE_CC_BBR;       break;
-                case http::versions::QUIC_CC_BBR2:    algo = QUICHE_CC_BBR2;      break;
-                default: THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "invalid quic_cc_algo: {}",
-                        static_cast<int>(this->config_->quic_cc_algo));
+                    if (manapi::string::equals("cubic", cc_algo, 0b10))
+                        algo = QUICHE_CC_CUBIC;
+
+                    else if (manapi::string::equals("reno", cc_algo, 0b10))
+                        algo = QUICHE_CC_RENO;
+
+                    else if (manapi::string::equals("bbr", cc_algo, 0b10))
+                        algo = QUICHE_CC_BBR;
+
+                    else if (manapi::string::equals("bbr2", cc_algo, 0b10))
+                        algo = QUICHE_CC_BBR2;
+
+                    else THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "invalid quic_cc_algo: {}", cc_algo);
+
+                    quiche_config_set_cc_algorithm (this->quiche_config_, algo);
+                }
             }
-
-            quiche_config_set_cc_algorithm (this->quiche_config_, algo);
         }
 
         /* every 1 second */

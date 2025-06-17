@@ -23,15 +23,14 @@ manapi::net::worker::TLS::~TLS() = default;
 
 void manapi::net::worker::TLS::init() {
     TCP::init();
-
-    auto &sslconfig = this->config_->ssl_config;
-
-    if (sslconfig.enabled) {
-        // init
-        this->ctx = this->ssl_create_context(this->config_->tls_version);
-        // setup ctx (load certs)
-        this->ssl_configure_context();
-    }
+    auto strtls = this->config_->get_config_param<std::string> (this->config_->ssl, "tls_version", "1.3");
+    int tls_version = http::versions::TLS_v1_3;
+    if (strtls == "1.3") tls_version = http::versions::TLS_v1_3;
+    else if (strtls == "1.2") tls_version = http::versions::TLS_v1_2;
+    else if (strtls == "1.1") tls_version = http::versions::TLS_v1_1;
+    this->ctx = this->ssl_create_context(tls_version);
+    // setup ctx (load certs)
+    this->ssl_configure_context();
 }
 
 void manapi::net::worker::TLS::configure_connection(const shared_conn & connection, oncont_cb cb) {
