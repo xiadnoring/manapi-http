@@ -98,7 +98,7 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
 
 manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) {
     using promise = manapi::async::promise<ssize_t, std::false_type>;
-
+    assert(nbuff > 0);
     auto rhs = this->sync_write(conn, buff, nbuff, finish);
 
     if (rhs)
@@ -162,9 +162,9 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
     ssize_t rhs = 0;
     while (total < size) {
         rhs = co_await this->write(conn, static_cast<const char *>(buff) + total, size - total, finish);
-        if (rhs <= 0) {
+        if (rhs <= 0)
             co_return rhs;
-        }
+
         total += rhs;
     }
     co_return total;
@@ -175,11 +175,9 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
     ssize_t rhs = 0;
     auto const size = slice.size();
 
-    auto buffs = slice.slices_buffs();
-    auto buffptr = buffs.get();
-    uint32_t nbuff = slice.slices_size();
     while (total < size) {
-        rhs = co_await this->write(conn, buffptr, nbuff, finish);
+        auto buffs = slice.slices_buffs();
+        rhs = co_await this->write(conn, buffs.get(), slice.slices_size(), finish);
         if (rhs <= 0)
             co_return rhs;
 
@@ -188,16 +186,18 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
         if (total == size)
             break;
 
-        while (nbuff && rhs >= buffptr->len) {
-            rhs -= buffptr->len;
-            buffptr++;
-            nbuff--;
-        }
-
-        if (nbuff) {
-            buffptr->base += rhs;
-            buffptr->len -= rhs;
-        }
+        slice = slice.subslice(rhs).value();
+        //
+        // while (nbuff && rhs >= buffptr->len) {
+        //     rhs -= buffptr->len;
+        //     buffptr++;
+        //     nbuff--;
+        // }
+        //
+        // if (nbuff) {
+        //     buffptr->base += rhs;
+        //     buffptr->len -= rhs;
+        // }
     }
     co_return total;
 }
@@ -291,7 +291,7 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
         ssize_t rhs = 0;
         while (rhs != size) {
             if (!top->last_deque
-                || top->deque_cursor == top->deque->buffer.size()) {
+                || top->deque_cursor == top->last_deque->buffer.size()) {
                 if (cnt && *cnt >= max_cnt)
                     break;
 
@@ -332,6 +332,10 @@ void manapi::net::worker::base::connection_io_send_start(connection_io_part *top
         memcpy (top->deque->buffer.data() + top->deque_current, buffer, size);
         return;
     }
+
+    if (buff && buff->size() > buffer_size)
+        /* it may be a recv buffer */
+        buff = nullptr;
 
     ibuffpool_t tmp;
     if (buff) {

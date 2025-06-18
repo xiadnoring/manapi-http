@@ -182,12 +182,15 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
 
     return total;
 #else
-    char buffer[65536];
+    char buffer[32768];
     size_t cursor = 0;
     size_t lastcur = 0;
     ssize_t total = 0;
 
     while (nbuff) {
+        if (connection->top->send_size > maxcnt)
+            break;
+
         auto const copy = std::min<std::size_t>(buff->len - lastcur, sizeof (buffer) - cursor);
         memcpy (buffer + cursor, buff->base + lastcur, copy);
 

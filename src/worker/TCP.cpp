@@ -223,6 +223,14 @@ std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::
 }
 
 manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tcp &w, std::move_only_function<shared_conn()> init) {
+    /**
+     * Receving using 65k buffers,
+     * but if we copy that buffer we
+     * should copy to 4k buffers
+     *
+     * I mean only one 65k buffer
+     * can be exists by thread
+     */
     auto connection = init();
 
     if (!connection)
@@ -235,15 +243,16 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
                 bytebuffer object;
                 auto const connection = weak.lock();
 
-                if (buf->base) {
+                if (buf->base)
                     object = this->bufferpool().buffer(buf->base, buf->len);
-                }
 
-                if (!nread) {
+                if (!nread)
                     return;
-                }
 
                 if (nread < 0) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        return;
+
                     /* maybe EOF */
                     this->close_connection(connection, false);
                     return;
@@ -560,9 +569,10 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn) {
 int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection, bool flush) {
     auto conn = connection->as<connection_interface>();
 
-    if ((conn->top->cur_send_size > this->config_->max_merge_buffer_stack)
-        || ((conn->top->cur_send_size == this->config_->max_merge_buffer_stack) && (conn->top->send.last_deque->buffer.size() == conn->top->send.deque_cursor))
+    while ((conn->top->cur_send_size >= this->config_->max_merge_buffer_stack)
+        //|| ((conn->top->cur_send_size == this->config_->max_merge_buffer_stack) && (conn->top->send.last_deque->buffer.size() == conn->top->send.deque_cursor))
         || (flush && conn->top->cur_send_size)) {
+
         std::unique_ptr<ev::buff_t, ev::buffer_deleter> s;
         s.reset(new ev::buff_t[conn->top->cur_send_size]);
 
@@ -597,9 +607,9 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
         if (current && current->next)
             conn->top->send.deque = std::move(current->next);
 
-        auto rhs = conn->watcher->try_write(buffptr, conn->top->cur_send_size);
+        ssize_t rhs = conn->watcher->try_write(buffptr, conn->top->cur_send_size);
         if (request == rhs) {
-            conn->top->send_size = 0;
+            conn->top->send_size -= conn->top->cur_send_size;
             conn->top->cur_send_size = 0;
         }
         else {
@@ -635,10 +645,12 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                 auto w = manapi::async::current()->eventloop()
                     ->create_watcher_write(conn->watcher.get(), [connection, b = std::move(sent), s = std::move(s)]
                         (std::shared_ptr<ev::write> &w, int status)
-                        -> void {
+                        mutable -> void {
                         auto conn = connection->as<connection_interface>();
 
                         conn->top->send_size -= w->custom()->nbufs;
+                        s.reset();
+                        b.reset();
 
                         if (status) {
                             /* error */
@@ -759,7 +771,7 @@ bool manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &s
         if (conn_data->status & ev::READ)
             conn_data->watcher->read_start();
 
-        if (conn_data->status & ev::WRITE)
+        if (conn_data->status & ev::WRITE && conn_data->ev_callback)
             conn_data->ev_callback->operator()(sconn, ev::WRITE, nullptr, 0, nullptr);
     }
     else {

@@ -6,6 +6,7 @@
 #include "components/ManapiURLDecodeStream.hpp"
 
 #include "worker/default_http2.hpp"
+#include "worker/TCP.hpp"
 
 enum http_v2_priority {
     HTTP2_PRIORITY_0 = 0,
@@ -168,6 +169,7 @@ int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint
 
     if (!(ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_BLOCK_WRITE)
         && !ctx->worker->is_writable(ctx->conn)) {
+        auto b = ctx->conn->as<manapi::net::worker::TCP::connection_interface>();
         ctx->flags |= manapi::net::http::HTTP2_CTX_FLAG_BLOCK_WRITE;
         ctx->worker->event_toggle(ctx->conn,
             true, manapi::ev::WRITE);
@@ -436,8 +438,10 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
         ctx->timeout = nullptr;
     }
 
-    for (const auto &s : *ctx->streams) {
-        ctx->http_v2_worker->close_connection(s.second, false);
+    if (ctx->streams) {
+        for (const auto &s : *ctx->streams) {
+            ctx->http_v2_worker->close_connection(s.second, false);
+        }
     }
 
     return 0;
@@ -582,9 +586,8 @@ int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, int id) {
 }
 
 int manapi::net::http::http_v2_on_write(http_v2_t *ctx) {
-    if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE) {
+    if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE)
         ctx->flags ^= HTTP2_CTX_FLAG_BLOCK_WRITE;
-    }
 
     bool no_one = true;
     for (const auto &s : *ctx->streams) {
