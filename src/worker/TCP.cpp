@@ -570,7 +570,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
     auto conn = connection->as<connection_interface>();
 
     if (conn->top->cur_send_size) {
-        std::cout << "flush " << flush << " "<<(bool)conn->top->cur_send_size << " " << (bool)conn->top->send.deque << "\n";
+        //std::cout << "flush " << flush << " "<<(bool)conn->top->cur_send_size << " " << (bool)conn->top->send.deque << "\n";
         while (conn->top->cur_send_size && ((conn->top->cur_send_size >= this->config_->max_merge_buffer_stack)
             //|| ((conn->top->cur_send_size == this->config_->max_merge_buffer_stack) && (conn->top->send.last_deque->buffer.size() == conn->top->send.deque_cursor))
             || (flush))) {
