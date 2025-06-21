@@ -54,15 +54,17 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, bool clean
 
     if (data->ev_callback) {
         data->ev_callback->operator()(conn, http::HTTP2_STREAM_CLOSED, nullptr, 0, nullptr);
+        data->ev_callback = nullptr;
     }
 
     conn->cancellation.cancel();
 
-    if (!clean_disconnect) {
-        if (http::http_v2_rst_stream(data, manapi::net::http::HTTP2_ERROR_CONNECT_ERROR)) {
-            /* failed :( */
-        }
-    }
+    if ((data->flags & http::HTTP2_STREAM_RECV_END)
+        && (data->flags & http::HTTP2_STREAM_SEND_END))
+        return;
+
+    /* got something wrong */
+    http::http_v2_rst_stream(data, http::HTTP2_ERROR_REFUSED_STREAM);
 }
 
 void manapi::net::worker::http_v2::configure_connection(const shared_conn &conn, oncont_cb cb) {

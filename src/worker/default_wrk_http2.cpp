@@ -84,13 +84,7 @@ void default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, 
                                             auto const sdata = sconn->as<manapi::net::http::http_v2_stream_t>();
                                             auto ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *>(conn->wrk.data);
 
-                                            if (ok) {
-                                                ctx->gctx->worker->close_connection(sconn, true);
-                                            }
-                                            else {
-                                                /* failed */
-                                                ctx->gctx->worker->close_connection(sconn, false);
-                                            }
+                                            ctx->gctx->worker->close_connection(sconn, ok);
 
                                             manapi::net::http::http_v2_on_close_stream(ctx->ctx.get(), sdata->id);
 
