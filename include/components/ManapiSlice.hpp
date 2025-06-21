@@ -105,7 +105,11 @@ namespace manapi {
     public:
         slice ();
 
-        slice (slice_base n);
+        slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff);
+
+        slice (slice_part_t *first, slice_part_t *last, uint32_t count, std::size_t shift, std::size_t rshift, std::size_t size);
+
+        //slice (slice_base n);
 
         slice (slice &&n) noexcept;
 

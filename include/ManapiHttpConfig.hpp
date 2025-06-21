@@ -81,6 +81,7 @@ namespace manapi::net::http {
         }
 
         // settings
+        int max_working_streams;
         int max_concurrent_streams;
         int max_frame_size;
         int max_hpack_table_size;

@@ -166,7 +166,7 @@ manapi::slice manapi::object_pool::slice(std::size_t suggested) {
         cnt ++;
     }
 
-    return slice_base(std::move(buffs), cnt);
+    return manapi::slice(std::move(buffs), cnt);
 }
 
 manapi::bytebuffer manapi::object_pool::buffer(std::size_t min, std::size_t max) {

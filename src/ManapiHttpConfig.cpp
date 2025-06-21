@@ -32,6 +32,7 @@ manapi::net::http::config::config(const json &config) {
     this->http_versions = 0;
     this->server_len = 0;
 
+    this->max_working_streams = get_config_param<ssize_t> (config, "max_working_streams", 6);
     this->max_concurrent_streams = get_config_param<ssize_t> (config, "max_concurrent_streams", -1);
     this->max_frame_size = get_config_param<ssize_t>(config, "max_frame_size", -1);
     this->max_hpack_table_size = get_config_param<ssize_t>(config, "max_hpack_table_size", -1);

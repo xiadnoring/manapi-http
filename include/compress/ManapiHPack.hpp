@@ -12,6 +12,7 @@
 #include <string>
 #include <set>
 
+#include "ManapiMath.hpp"
 #include "../ManapiUtils.hpp"
 
 namespace manapi::compress::hpack
@@ -379,7 +380,7 @@ namespace manapi::compress::hpack
 			}
 
 			std::string
-			decode(const std::string& src)
+			decode(std::string_view src)
 			{
 				std::string			dst("");
 				huffman_node_t*		current(m_root);
@@ -572,16 +573,16 @@ namespace manapi::compress::hpack
 				return false;
 			}
 
-			const header_t& 
-			get_header(const std::size_t index) const
+
+			[[nodiscard]] manapi::error::status_or<const header_t *> get_header(const std::size_t index) const
 			{
 				if ( index < predefined_headers.size() ) {
-					return predefined_headers.at(index);
+					return &predefined_headers.at(index);
 				}
 				if ( index < predefined_headers.size() + m_queue.size() )
-					return m_queue.at(index - predefined_headers.size());
+					return &m_queue.at(index - predefined_headers.size());
 
-				throw std::runtime_error("HPACK::ringtable_t::get_header(): Invalid index/header not found");
+				return manapi::error::status_out_of_range("HPACK::ringtable_t::get_header(): Invalid index/header not found");
 			}
 
 	};
@@ -685,7 +686,7 @@ namespace manapi::compress::hpack
 			void
 			decode_integer(dec_vec_itr_t& beg, const dec_vec_itr_t& end, uint32_t& dst, uint8_t N)
 			{
-				const uint16_t two_N = static_cast< uint16_t >( std::pow(2, N) - 1 );
+				const uint16_t two_N = static_cast< uint16_t >( math::binpow(2, N) - 1 );
 				dec_vec_itr_t&  current(beg);
 
 				if ( current == end )
@@ -697,17 +698,21 @@ namespace manapi::compress::hpack
 				if ( dst == two_N ) {
 					uint64_t M = 0;
 
-					for (current++; current < end; current++ ) {
+					for (current++; current != end; current++ ) {
 						dst += ( ( static_cast<unsigned char> (*current) & 0x7F ) << M );
 						M += 7;
 
-						if ( !( static_cast<unsigned char> (*current) & 0x80 ) )
+						if ( !( static_cast<unsigned char> (*current) & 0x80 ) ) {
+							current++;
 							break;
+						}
 					}
-				}
 
-				beg = current+1;
-				return;
+					beg = current;
+				}
+				else
+					beg = current+1;
+
 			}
 
 			std::string
@@ -767,13 +772,11 @@ namespace manapi::compress::hpack
 
 				\Warning Never indexed code paths were under tested.
 			*/
-			bool
-			decode(const char* ptr)
+			manapi::error::status decode(const char* ptr)
 			{
 				if ( nullptr == ptr )
-					throw std::invalid_argument("HPACK::decoder_t::decode(): Invalid nullptr parameter");
-
-				return decode(std::string(ptr));
+					return manapi::error::status_invalid_argument("HPACK::decoder_t::decode(): Invalid nullptr parameter");
+				return decode(std::string_view(ptr));
 			}
 
 
@@ -786,12 +789,13 @@ namespace manapi::compress::hpack
 
 				\Warning Never indexed code paths were under tested.
 			*/
-			bool 
-			decode(std::string_view data)
+
+			manapi::error::status decode(std::string_view data)
 			{
 
 				if ( !data.size() )
-					return false;
+					return error::status_invalid_argument("empty");
+
 				for ( decltype(auto) itr = data.begin(); itr != data.end(); /* itr++ */ ) {
 					if ( ( static_cast<unsigned char>(*itr)& 0x80 ) ) { // 6.1 Indexed Header Field Representation
 						uint32_t index(0);
@@ -800,15 +804,16 @@ namespace manapi::compress::hpack
 
 						if ( 0 == index ) {
 							// decoding error
-							return false;
+							return error::status_out_of_range("invalid index");
 						}
 
 
-						// if(m_headers.contains(m_dynamic.get_header(index).first)) {
-						// 	std::cout << m_dynamic.get_header(index).first << "\n";
-						// }
-						const auto &header = m_dynamic.get_header(index);
-						m_headers[ header.first ] = header.second;
+						auto res = m_dynamic.get_header(index);
+						if (!res.ok())
+							return res.err();
+
+						auto val = res.value();
+						m_headers.insert(*val);
 					}
 					else if ( 0x20 == ( static_cast<unsigned char>(*itr) & 0x60 ) ) { // 6.3 Dynamic Table update
 						uint32_t size(0);
@@ -817,31 +822,30 @@ namespace manapi::compress::hpack
 
 						if ( size > m_dynamic.max() ) {
 							// decoding error
-							return false;
+							return error::status_out_of_range("invalid size");
 						}
 
 						m_dynamic.max(size);
 					}
 					else {
-						const bool cache = static_cast<unsigned char>(*itr) & 0x40;
+						auto const type = static_cast<unsigned char>(*itr);
+						const bool cache = (type & 0xC0) == 0x40;
 
 
 						uint32_t index(0);
 						std::string n;
-						if ( ( static_cast<unsigned char>(*itr) & 0x40 ) ) // 6.2.1 Literal Header Field with Incremental Indexing
-						{
+						if ( ( static_cast<unsigned char>(*itr) & 0xC0 ) == 0x40 ) // 6.2.1 Literal Header Field with Incremental Indexing
 							decode_integer(itr, data.end(), index, 6);
-						}
-						else if ((static_cast<unsigned char> (*itr) & 0x10) == 0) // 6.2.2 Literal Header Field without Indexing
-						{
+						else // 6.2.2 Literal Header Field without Indexing
 							decode_integer(itr, data.end(), index, 4);
-						}
-						else { // 6.2.3 Literal Header Field Never Indexed
-							decode_integer(itr, data.end(), index, 4);
-						}
+
 
 						if ( 0 != index ) {
-							n = m_dynamic.get_header(index).first;
+							auto res = m_dynamic.get_header(index);
+							if (res.ok())
+								n = res.value()->first;
+							else
+								return res.err();
 						} else {
 							n = parse_string(itr, data.end());
 						}
@@ -877,7 +881,7 @@ namespace manapi::compress::hpack
 					}
 				}
 
-				return true;
+				return error::status_ok();
 			}
 
 

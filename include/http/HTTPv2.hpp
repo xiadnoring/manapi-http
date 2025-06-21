@@ -34,8 +34,10 @@ namespace manapi::net::http {
         HTTP2_STREAM_SEND_END  = manapi::net::worker::base::CONN_SEND_END,
         HTTP2_STREAM_IO_WAITING = worker::base::CONN_IO_WAITING,
         HTTP2_STREAM_TOP_READ = worker::base::CONN_TOP_READ,
-        // HTTP2_STREAM_PRIORITY_INCR = 256,
-        // HTTP2_STREAM_PRIORITY_LOCKED = 512,
+        HTTP2_STREAM_PRIORITY_INCR = 256,
+        HTTP2_STREAM_PRIORITY_LOCKED = 512,
+        HTTP2_STREAM_BLOCK_WRITE = 1024,
+        //HTTP2_STREAM_START_WORK_WAIT = 2048
     };
 
     enum http2_ctx_flags {
@@ -72,6 +74,7 @@ namespace manapi::net::http {
         worker::shared_conn conn;
         worker::base *worker;
         worker::http_v2 *http_v2_worker;
+        //int (*newstream_cb)(http_v2_t *ctx, int stream_id);
 
         char flags;
 
@@ -91,7 +94,7 @@ namespace manapi::net::http {
         int read_window;
         int write_window;
 
-        int concurrent_streams_size;
+        uint16_t concurrent_streams_size;
 
         std::string frame_buffer;
 
@@ -105,7 +108,7 @@ namespace manapi::net::http {
 
         manapi::timer timeout;
 
-        std::unique_ptr<std::map<std::pair<uint8_t, int>, worker::shared_conn *>> priorities;
+        std::unique_ptr<std::map<std::pair<uint8_t, int>, worker::shared_conn >> priorities;
         std::unique_ptr<std::set<std::string>> pings;
     };
 

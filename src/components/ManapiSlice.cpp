@@ -94,7 +94,6 @@ void manapi::slice_base::slice_part_deleter::operator()(slice_part_t *ptr) {
     if (ptr) {
         manapi::slice_base::slice_part_deleter::operator()(ptr->next);
     }
-
     delete ptr;
 }
 
@@ -380,9 +379,18 @@ manapi::slice_view::~slice_view() = default;
 manapi::slice::slice() : slice_base(nullptr, nullptr, 0, 0, 0, 0) {
 }
 
-manapi::slice::slice(slice_base n) : slice_base(std::move(n)) {
-
+manapi::slice::slice(std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff)
+    : slice_base(std::move(buffs), nbuff){
 }
+
+manapi::slice::slice(slice_part_t *first, slice_part_t *last, uint32_t count, std::size_t shift, std::size_t rshift,
+    std::size_t size) : slice_base(first, last, count, shift, rshift, size) {
+}
+
+//
+// manapi::slice::slice(slice_base n) : slice_base(std::move(n)) {
+//
+// }
 
 manapi::slice::slice(slice &&n) noexcept : slice() {
     this->first = n.first;

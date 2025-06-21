@@ -100,12 +100,16 @@ namespace manapi {
                 return this->err_.code() == manapi::ERR_OK;
             }
 
+            error::status err () {
+                return std::move(this->err_);
+            }
+
             void throw_it () const {
                 this->err_.throw_it();
             }
         private:
             std::optional<T> value_;
-            status err_;
+            error::status err_;
         };
 
         status status_ok ();
