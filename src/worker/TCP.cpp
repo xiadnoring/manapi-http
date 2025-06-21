@@ -542,7 +542,8 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
         flush_read_ (conn, data);
 
     }
-    if (!(status & CONN_CLOSED|CONN_WRITE)) {
+
+    if (data->watcher) {
         if (status & ev::READ) {
             if (!data->watcher->is_active()) {
                 assert(!data->watcher->read_start());
@@ -553,10 +554,11 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
                 assert(!data->watcher->read_stop());
             }
         }
+    }
 
-        if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
-            data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
-        }
+    if ((status & CONN_CLOSED|CONN_WRITE|CONN_RECV_END|CONN_READ) == (CONN_RECV_END|CONN_READ)
+        && data->ev_callback) {
+        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
     }
 
     return prev;
@@ -718,9 +720,8 @@ void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_i
     }
     if (data->status & ev::READ
             && !(data->status & (CONN_CLOSED|CONN_REMOVED))
-            && !data->watcher->is_active()) {
+            && data->watcher && !data->watcher->is_active())
         data->watcher->read_start();
-    }
 }
 
 void manapi::net::worker::TCP::update_limit_rate() {

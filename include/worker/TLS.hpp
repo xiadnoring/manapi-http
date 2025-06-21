@@ -86,7 +86,7 @@ namespace manapi::net::worker {
 
         int ssl_bio_flush_write_ (const shared_conn &conn, TLS::connection_interface *m, int max_cnt);
 
-        int ssl_bio_flush_read_ (const shared_conn &conn, void *rbio, connection_io_part *top, int *cnt, int max_cnt);
+        int ssl_bio_flush_read_ (const shared_conn &conn, TLS::connection_interface *m, int max_cnt);
 
         int ssl_flush_recv (const shared_conn &conn, connection_io_part *top, int *cnt);
     };
