@@ -53,7 +53,9 @@ manapi::net::http::config::config(const json &config) {
     this->speed_check_delay = get_config_param<ssize_t>(config, "speed_check_delay", 5);
     this->speed_check_bytes = get_config_param<ssize_t>(config, "speed_check_bytes", 1048576);
     this->simultaneous_accepts = get_config_param<bool>(config, "simultaneous_accepts", false);
-    this->max_header_block_size = get_config_param<ssize_t>(config, "max_header_block_size", 4096);
+    this->max_headers_size = get_config_param<ssize_t>(config, "max_headers_size", 16384);
+    this->max_header_key_size = get_config_param<ssize_t>(config, "max_header_key_size", 64);
+    this->max_header_value_size = get_config_param<ssize_t>(config, "max_header_value_size", 4096);
     this->buffer_size = get_config_param<ssize_t>(config, "buffer_size", 4096);
     this->max_backlog = get_config_param<ssize_t>(config, "max_backlog", 200);
 

@@ -409,6 +409,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/interface_worker.cpp
         include/components/ManapiSlice.hpp
         src/components/ManapiSlice.cpp
+        src/compress/ManapiHPack.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

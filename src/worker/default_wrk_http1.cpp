@@ -168,65 +168,17 @@ void default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, 
         auto wrk_data = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
 
         if (flags & manapi::ev::READ) {
+            int status;
+            switch (auto const state = manapi::net::http::http_v1_1_work(
+                wrk_data->ctx.get(), w->config(), &buffer, &nsize)) {
+                case manapi::net::http::EHTTP_V1_1_PROTOCOL_PAYLOAD_TOO_LARGE:
+                    status = manapi::net::http::PAYLOAD_TOO_LARGE_413;
+                    goto exec;
 
-            switch (manapi::net::http::http_v1_1_work(wrk_data->ctx.get(), w->config(), &buffer, &nsize)) {
-                case manapi::net::http::EHTTP_V1_1_PROTOCOL_OK: {
-                    auto req_ptr = wrk_data->ctx->req.get();
+                case manapi::net::http::EHTTP_V1_1_PROTOCOL_OK:
+                    status = manapi::net::http::OK_200;
+                    goto exec;
 
-                    auto it_header = req_ptr->headers.find(manapi::net::http::HEADER.EXPECT);
-                    if (it_header != req_ptr->headers.end()) {
-                        ssize_t const copy = sizeof ("HTTP/1.1 100 Continue\r\n\r\n") - 1;
-                        auto const rhs = w->sync_write_ex (conn, static_cast<const char *>("HTTP/1.1 100 Continue\r\n\r\n"),
-                            copy, true, 1e5);
-                        if (copy != rhs) {
-                            goto err;
-                        }
-                    }
-
-                    w->waiting(conn, false);
-                    it_header = req_ptr->headers.find(manapi::net::http::HEADER.TRANSFER_ENCODING);
-                    if (it_header != req_ptr->headers.end()) {
-                        auto const values = manapi::net::http::parse_header_value(it_header->second);
-                        for (const auto &v : values) {
-                            if (manapi::string::equals(v.value, "chunked", 0b11)) {
-                                wrk_data->flgs |= HTTP1_BODY_CHUNKED;
-                                conn->wrk.flags |= manapi::net::worker::WRK_INTERFACE_CUSTOM_READ;
-                                wrk_data->chunked_ctx = std::make_unique<manapi::net::http::http_v1_1_chunked_t>();
-
-                                continue;
-                            }
-
-                            goto err;
-                        }
-                    }
-
-                    auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(conn,
-                        dynamic_cast<manapi::net::worker::interface_worker *>(w)->copy(), req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
-                        [w, conn, req = std::move(wrk_data->ctx->req)] (bool ok)
-                        -> void {
-                            w->close_connection (conn, ok);
-                    }));
-
-                    w->event_on(conn, std::unique_ptr<manapi::net::worker::worker_watcher_cb>(nullptr));
-                    w->event_flags(conn, 0);
-
-                    if (nsize) {
-                        if (wrk_data->flgs & HTTP1_BODY_CHUNKED) {
-                            default_wrk_http1_custom_read (conn, flags, buffer, nsize, p, global, w);
-                        }
-                        else {
-                            w->feed_event(conn, manapi::net::worker::base::CONN_READ| manapi::net::worker::base::CONN_TOP_READ, buffer, nsize, p);
-                        }
-                        buffer += nsize;
-                        nsize = 0;
-                    }
-
-                    wrk_data->ctx.reset();
-                    cdata->router = w->site().handler(req_ptr);
-                    manapi::net::http::internal::handle_income_request(std::move(cdata), manapi::net::http::OK_200);
-
-                    break;
-                }
                 case manapi::net::http::EHTTP_V1_1_PROTOCOL_UPGRADE: {
                     w->event_on(conn, std::unique_ptr<manapi::net::worker::worker_watcher_cb>(nullptr));
                     w->event_flags(conn, 0);
@@ -284,6 +236,62 @@ void default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, 
                     assert(false && "An invalid state for http_v1_1_work()");
                 }
             }
+            return;
+exec:
+            auto req_ptr = wrk_data->ctx->req.get();
+
+            auto it_header = req_ptr->headers.find(manapi::net::http::HEADER.EXPECT);
+            if (it_header != req_ptr->headers.end()) {
+                ssize_t const copy = sizeof ("HTTP/1.1 100 Continue\r\n\r\n") - 1;
+                auto const rhs = w->sync_write_ex (conn, static_cast<const char *>("HTTP/1.1 100 Continue\r\n\r\n"),
+                    copy, true, 1e5);
+                if (copy != rhs) {
+                    goto err;
+                }
+            }
+
+            w->waiting(conn, false);
+            it_header = req_ptr->headers.find(manapi::net::http::HEADER.TRANSFER_ENCODING);
+            if (it_header != req_ptr->headers.end()) {
+                auto const values = manapi::net::http::parse_header_value(it_header->second);
+                for (const auto &v : values) {
+                    if (manapi::string::equals(v.value, "chunked", 0b11)) {
+                        wrk_data->flgs |= HTTP1_BODY_CHUNKED;
+                        conn->wrk.flags |= manapi::net::worker::WRK_INTERFACE_CUSTOM_READ;
+                        wrk_data->chunked_ctx = std::make_unique<manapi::net::http::http_v1_1_chunked_t>();
+
+                        continue;
+                    }
+
+                    goto err;
+                }
+            }
+
+            auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(conn,
+                dynamic_cast<manapi::net::worker::interface_worker *>(w)->copy(), req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
+                [w, conn, req = std::move(wrk_data->ctx->req)] (bool ok)
+                -> void {
+                    w->close_connection (conn, ok);
+            }));
+
+            w->event_on(conn, std::unique_ptr<manapi::net::worker::worker_watcher_cb>(nullptr));
+            w->event_flags(conn, 0);
+
+            if (nsize) {
+                if (wrk_data->flgs & HTTP1_BODY_CHUNKED) {
+                    default_wrk_http1_custom_read (conn, flags, buffer, nsize, p, global, w);
+                }
+                else {
+                    w->feed_event(conn, manapi::net::worker::base::CONN_READ| manapi::net::worker::base::CONN_TOP_READ, buffer, nsize, p);
+                }
+                buffer += nsize;
+                nsize = 0;
+            }
+            wrk_data->ctx.reset();
+
+
+            cdata->router = w->site().handler(req_ptr);
+            manapi::net::http::internal::handle_income_request(std::move(cdata), status);
         }
 
         return;

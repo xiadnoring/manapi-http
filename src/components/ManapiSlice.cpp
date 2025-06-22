@@ -425,6 +425,10 @@ manapi::slice::~slice() {
     this->clear();
 }
 
+manapi::error::status manapi::slice::append(const void *buffer, ssize_t size) {
+    return error::status_unimplemented("slice: append unimplemented");
+}
+
 
 void manapi::slice::clear() noexcept(true) {
     // switch (this->state) {

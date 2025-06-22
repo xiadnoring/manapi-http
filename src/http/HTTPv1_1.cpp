@@ -23,7 +23,11 @@ enum http_v1_1_callbacks {
     HTTP_V1_1_CALLBACK_THINK,
     HTTP_V1_1_CALLBACK_UPGRADE,
     HTTP_V1_1_CALLBACK_FINISH,
-    HTTP_V1_1_CALLBACK_BUG
+    HTTP_V1_1_CALLBACK_BUG,
+    HTTP_V1_1_CALLBACK_SKIP_HEADERS1,
+    HTTP_V1_1_CALLBACK_SKIP_HEADERS2,
+    HTTP_V1_1_CALLBACK_SKIP_HEADERS3,
+    HTTP_V1_1_CALLBACK_SKIP_HEADERS4,
 };
 
 static constexpr char version_label_1_1[] = "HTTP/1.1";
@@ -109,7 +113,16 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                          */
 
                         pos++;
+
+                        if ((ctx->size += ctx->s1.size()) > config->max_headers_size) {
+                            ctx->s1.clear();
+                            ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                            break;
+                        }
+
                         ctx->current = HTTP_V1_1_CALLBACK_PARSE_HEADER_VALUE;
+
+
 
                         break;
                     }
@@ -129,7 +142,11 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                         return EHTTP_V1_1_PROTOCOL_ERROR;
                     }
 
-
+                    if (ctx->s1.size() >= config->max_header_key_size) {
+                        ctx->s1.clear();
+                        ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                        break;
+                    }
 
                     ctx->s1.push_back(static_cast<char>(std::tolower(buffer[pos])));
                     pos++;
@@ -137,14 +154,6 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                 break;
             }
             case HTTP_V1_1_CALLBACK_PARSE_HEADER_VALUE: {
-                if (buffer[pos] == ' ' && ctx->s2.empty()) {
-                    /**
-                     * RFC7230 (3.2) Header Fields
-                     * Optitional leading whitespace
-                     */
-                    pos++;
-                }
-
                 while (pos < size) {
                     if (!ctx->s2.empty() && ctx->s2.back() == '\r') {
                         if (buffer[pos] == '\n') {
@@ -159,10 +168,25 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                                 ctx->s2.pop_back();
                             }
 
+                            if ((ctx->size += ctx->s2.size()) > config->max_headers_size) {
+                                ctx->s2.clear();
+                                ctx->s1.clear();
+                                ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                                break;
+                            }
+
                             /* insert */
                             auto it = ctx->req->headers.find(ctx->s1);
                             if (it == ctx->req->headers.end()) {
-                                ctx->req->headers.insert({ctx->s1, ctx->s2});
+                                int value_start = 0;
+                                if (!ctx->s2.empty() && ctx->s2[0] == ' ')
+                                    /**
+                                     * RFC7230 (3.2) Header Fields
+                                     * Optitional leading whitespace
+                                     */
+                                    value_start++;
+
+                                ctx->req->headers.insert({ctx->s1, ctx->s2.substr(value_start)});
                             }
                             else {
                                 /**
@@ -216,6 +240,13 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                          * V[isible]CHAR
                          */
                         return EHTTP_V1_1_PROTOCOL_ERROR;
+                    }
+
+                    if (ctx->s2.size() >= config->max_header_value_size) {
+                        ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                        ctx->s1.clear();
+                        ctx->s2.clear();
+                        break;
                     }
 
                     ctx->s2.push_back(buffer[pos]);
@@ -278,6 +309,12 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                          *
                          * T[oken]CHAR
                          */
+                        if (ctx->s1.size() >= config->max_header_value_size) {
+                            ctx->s1.clear();
+                            ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                            break;
+                        }
+
                         ctx->s1.push_back(buffer[pos]);
                         pos++;
                         continue;
@@ -285,6 +322,13 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
 
                     if (buffer[pos] == ' ') {
                         pos++;
+
+                        if ((ctx->size += ctx->s1.size()) > config->max_headers_size) {
+                            ctx->s1.clear();
+                            ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                            break;
+                        }
+
                         /* end of method */
                         ctx->current = HTTP_V1_1_CALLBACK_PARSE_PATH;
                     }
@@ -300,11 +344,22 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                 while (pos != size) {
                     if (buffer[pos] == ' ') {
                         /* end of path */
-                        ctx->current = HTTP_V1_1_CALLBACK_PARSE_HTTP_1_1;
                         pos++;
+                        if ((ctx->size += ctx->s2.size()) > config->max_headers_size) {
+                            ctx->s1.clear();
+                            ctx->s2.clear();
+                            ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                            break;
+                        }
+                        ctx->current = HTTP_V1_1_CALLBACK_PARSE_HTTP_1_1;
                         break;
                     }
 
+                    if (ctx->s2.size() >= config->max_header_value_size) {
+                        ctx->s2.clear();
+                        ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                        break;
+                    }
                     ctx->s2.push_back(buffer[pos]);
 
                     pos++;
@@ -437,6 +492,51 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
             case HTTP_V1_1_CALLBACK_BUG: {
                 /* bug */
                 return EHTTP_V1_1_PROTOCOL_ERROR;
+            }
+            case HTTP_V1_1_CALLBACK_SKIP_HEADERS1:
+            case HTTP_V1_1_CALLBACK_SKIP_HEADERS2:
+            case HTTP_V1_1_CALLBACK_SKIP_HEADERS3:
+            case HTTP_V1_1_CALLBACK_SKIP_HEADERS4: {
+                while (pos != size) {
+                    if (buffer[pos] == '\r') {
+                        if (ctx->current == HTTP_V1_1_CALLBACK_SKIP_HEADERS1)
+                            ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS2;
+                        else if (ctx->current == HTTP_V1_1_CALLBACK_SKIP_HEADERS3)
+                            ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS4;
+                        else
+                            ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                    }
+                    else if (buffer[pos] == '\n') {
+                        if (ctx->current == HTTP_V1_1_CALLBACK_SKIP_HEADERS2)
+                            ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS3;
+                        else if (ctx->current == HTTP_V1_1_CALLBACK_SKIP_HEADERS4) {
+                            ctx->current = HTTP_V1_1_CALLBACK_BUG;
+                            pos ++;
+
+                            buffer += pos;
+                            size -= pos;
+
+                            ctx->req = std::make_unique<request_data_t>();
+                            if (ctx->req->method.empty())
+                                ctx->req->method = "GET";
+
+                            if (ctx->req->uri.empty()) {
+                                ctx->req->uri = "/";
+                                ctx->req->divided = -1;
+                            }
+
+                            ctx->req->http = ctx->http;
+
+                            return EHTTP_V1_1_PROTOCOL_PAYLOAD_TOO_LARGE;
+                        }
+                        else
+                            ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                    }
+                    else
+                        ctx->current = HTTP_V1_1_CALLBACK_SKIP_HEADERS1;
+                    pos++;
+                }
+                break;
             }
             default:
                 return EHTTP_V1_1_PROTOCOL_ERROR;

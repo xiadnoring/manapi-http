@@ -117,6 +117,8 @@ namespace manapi {
 
         ~slice() override;
 
+        manapi::error::status append (const void *buffer, ssize_t size);
+
         void clear () noexcept(true);
     };
 

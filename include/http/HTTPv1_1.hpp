@@ -7,6 +7,7 @@
 
 namespace manapi::net::http {
     struct http_v1_1_t {
+        uint32_t size;
         int current;
         int next;
         int http;
@@ -24,9 +25,10 @@ namespace manapi::net::http {
 
     enum http_v1_1_errs {
         EHTTP_V1_1_PROTOCOL_OK = 0,
-        EHTTP_V1_1_PROTOCOL_ERROR = -1,
-        EHTTP_V1_1_PROTOCOL_UPGRADE = -2,
-        EHTTP_V1_1_PROTOCOL_WANT_READ = -3
+        EHTTP_V1_1_PROTOCOL_PAYLOAD_TOO_LARGE,
+        EHTTP_V1_1_PROTOCOL_ERROR,
+        EHTTP_V1_1_PROTOCOL_UPGRADE,
+        EHTTP_V1_1_PROTOCOL_WANT_READ
     };
 
     enum http_v1_1_chunked_errs {

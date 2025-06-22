@@ -62,7 +62,7 @@ void default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, 
                     auto const globalctx = static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (global->data);
 
                     manapi::async::current()->etaskpool()->append_task(
-                        [conn, id = s->first, w, w2 = globalctx->worker] () -> void {
+                        [conn, status = http_v2_ctx->status, id = s->first, w, w2 = globalctx->worker] () -> void {
                             auto wrk_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
                             if (!wrk_ctx)
                                 return;
@@ -108,7 +108,7 @@ void default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, 
                             // this->event_flags(conn, 0);
 
                             cdata->router = w->site().handler(req_ptr);
-                            manapi::net::http::internal::handle_income_request(std::move(cdata), manapi::net::http::OK_200);
+                            manapi::net::http::internal::handle_income_request(std::move(cdata), status);
                     });
 
 

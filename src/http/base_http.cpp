@@ -715,171 +715,182 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
     return -1;
 }
 
-void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, int status) {
-    try {
-        // handler function not be found
-        if (!cdata->router->handler) {
-            // check exists static folder/file
-            if (cdata->router->statics) {
-                // if statics exists
-                std::string path;
+namespace manapi::net::http::internal {
+    void handle_income_request_(uq_handle_data_t cdata, int status) {
+        try {
+            // handler function not be found
+            if (!cdata->router->handler) {
+                // check exists static folder/file
+                if (cdata->router->statics) {
+                    // if statics exists
+                    std::string path;
 
-                auto maxsize = static_cast<size_t> (cdata->req_data->divided >= 0
-                    ? cdata->req_data->divided : cdata->req_data->path.size());
+                    auto maxsize = static_cast<size_t> (cdata->req_data->divided >= 0
+                        ? cdata->req_data->divided : cdata->req_data->path.size());
 
-                for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
-                    path += manapi::filesystem::path::delimiter + cdata->req_data->path[i];
-                }
+                    for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
+                        path += manapi::filesystem::path::delimiter + cdata->req_data->path[i];
+                    }
 
-                path = manapi::filesystem::path::join(cdata->router->statics->folder, path);
+                    path = manapi::filesystem::path::join(cdata->router->statics->folder, path);
 
-                manapi::async::run([status, cdata = std::move(cdata), path = std::move(path)] () mutable
-                    -> manapi::future<> {
-                    bool exists = true;
-                    uint64_t st_mode = 0;
+                    manapi::async::run([status, cdata = std::move(cdata), path = std::move(path)] () mutable
+                        -> manapi::future<> {
+                        bool exists = true;
+                        uint64_t st_mode = 0;
 
-                    co_await manapi::filesystem::async_stat(path, [&st_mode, &exists] (ev::stat_t *stat)
-                        -> void {
-                        if (stat) {
-                            st_mode = stat->st_mode;
-                        }
-                        else {
-                            exists = false;
-                        }
-                    });
-
-                    if (exists) {
-                        if (st_mode & ev::IFREG) {
-                            const auto ext = manapi::filesystem::path::extension(path);
-                            auto mime = mime::mime_by_extension.find(ext);
-                            bool binary = false;
-                            if (mime != mime::mime_by_extension.end()) {
-                                binary = mime::mime_partitial_data(mime->second);
+                        co_await manapi::filesystem::async_stat(path, [&st_mode, &exists] (ev::stat_t *stat)
+                            -> void {
+                            if (stat) {
+                                st_mode = stat->st_mode;
                             }
-
-                            auto client = std::make_unique<manapi_socket_information>();
-
-                            if (handle_request_stringify_ip(client.get(), cdata->worker.get(), cdata->conn.get())) {
-                                /* error */
-                                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "stringify_ip(): ip get failed");
-                                co_return;
+                            else {
+                                exists = false;
                             }
+                        });
 
-                            auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
-                            auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config(), std::move(req));
+                        if (exists) {
+                            if (st_mode & ev::IFREG) {
+                                const auto ext = manapi::filesystem::path::extension(path);
+                                auto mime = mime::mime_by_extension.find(ext);
+                                bool binary = false;
+                                if (mime != mime::mime_by_extension.end()) {
+                                    binary = mime::mime_partitial_data(mime->second);
+                                }
 
-                            // handle layers
-                            for (auto &layer: cdata->router->layer) {
-                                co_await layer->handler(*res->req(), *res);
+                                auto client = std::make_unique<manapi_socket_information>();
 
-                                if (!req->propagation()) {
-                                    // skip other layers and handlers
-                                    break;
+                                if (handle_request_stringify_ip(client.get(), cdata->worker.get(), cdata->conn.get())) {
+                                    /* error */
+                                    manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "stringify_ip(): ip get failed");
+                                    co_return;
+                                }
+
+                                auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
+                                auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config(), std::move(req));
+
+                                // handle layers
+                                for (auto &layer: cdata->router->layer) {
+                                    co_await layer->handler(*res->req(), *res);
+
+                                    if (!req->propagation()) {
+                                        // skip other layers and handlers
+                                        break;
+                                    }
+                                }
+
+                                res->compress_enabled(!binary);
+                                res->partial_enabled(binary);
+                                res->file(path);
+
+                                if (cdata->router->statics->layer
+                                    && cdata->router->statics->layer->handler) {
+                                    co_await cdata->router->statics->layer->handler (*res->req(), *res);
+                                }
+
+                                try {
+                                    send_response(std::move(cdata), std::move(res));
+                                    co_return;
+                                }
+                                catch (const std::exception &e) {
+                                    MANAPIHTTP_LOG("Unexpected error: {}", e.what());
                                 }
                             }
 
-                            res->compress_enabled(!binary);
-                            res->partial_enabled(binary);
-                            res->file(path);
+                            if (st_mode & ev::IFDIR) {
 
-                            if (cdata->router->statics->layer
-                                && cdata->router->statics->layer->handler) {
-                                co_await cdata->router->statics->layer->handler (*res->req(), *res);
                             }
 
-                            try {
-                                send_response(std::move(cdata), std::move(res));
-                                co_return;
-                            }
-                            catch (const std::exception &e) {
-                                MANAPIHTTP_LOG("Unexpected error: {}", e.what());
-                            }
-                        }
+                            cdata->router = std::move(cdata->router->error);
+                            send_error_response(std::move(cdata), http::FORBIDDEN_403);
 
-                        if (st_mode & ev::IFDIR) {
-
+                            co_return;
                         }
 
                         cdata->router = std::move(cdata->router->error);
-                        send_error_response(std::move(cdata), http::FORBIDDEN_403);
-
-                        co_return;
-                    }
-
+                        send_error_response(std::move(cdata), http::NOT_FOUND_404);
+                    },
+                    [] (std::exception_ptr err) mutable
+                        -> void {
+                        if (err) {
+                            return;
+                        }
+                    });
+                }
+                else {
                     cdata->router = std::move(cdata->router->error);
                     send_error_response(std::move(cdata), http::NOT_FOUND_404);
-                },
-                [] (std::exception_ptr err) mutable
+                }
+                return;
+            }
+
+            auto client = std::make_unique<manapi_socket_information>();
+
+            if (handle_request_stringify_ip(client.get(),
+                cdata->worker.get(), cdata->conn.get())) {
+                /* error */
+                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "stringify_ip(): ip get failed");
+                }
+
+            auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
+            auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config(), std::move(req));
+
+            auto task = [res = res.get(), data = cdata->router.get()] () -> future<> {
+
+                // handle layers
+                for (const auto &layer: data->layer) {
+                    co_await layer->handler(*res->req(), *res);
+
+                    if (!res->req()->propagation()) {
+                        // skip other layers and handlers
+                        break;
+                    }
+                }
+
+                co_await data->handler->handler(*res->req(), *res);
+            };
+
+            manapi::async::run( std::move(task),
+                [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err) mutable
                     -> void {
                     if (err) {
+                        std::string msg;
+                        manapi::extract_exception_ptr(std::move(err), nullptr, &msg);
+                        manapi::async::current()->logger()->error(manapi::logger::default_service,
+                            manapi::ERR_INTERNAL, "an error occurred while processing the HTTP request due to {}", msg);
+                        cdata->router = std::move(cdata->router->error);
+                        send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
                         return;
                     }
+
+                    internal::send_response(std::move(cdata), std::move(res));
                 });
-            }
-            else {
-                cdata->router = std::move(cdata->router->error);
-                send_error_response(std::move(cdata), http::NOT_FOUND_404);
-            }
             return;
         }
-
-        auto client = std::make_unique<manapi_socket_information>();
-
-        if (handle_request_stringify_ip(client.get(),
-            cdata->worker.get(), cdata->conn.get())) {
-            /* error */
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "stringify_ip(): ip get failed");
-        }
-
-        auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
-        auto res = std::make_unique<http::response> (cdata->req_data, status, cdata->worker->config(), std::move(req));
-
-        auto task = [res = res.get(), data = cdata->router.get()] () -> future<> {
-
-            // handle layers
-            for (const auto &layer: data->layer) {
-                co_await layer->handler(*res->req(), *res);
-
-                if (!res->req()->propagation()) {
-                    // skip other layers and handlers
-                    break;
-                }
-            }
-
-            co_await data->handler->handler(*res->req(), *res);
-        };
-
-        manapi::async::run( std::move(task),
-            [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err) mutable
-                -> void {
-                if (err) {
-                    std::string msg;
-                    manapi::extract_exception_ptr(std::move(err), nullptr, &msg);
-                    manapi::async::current()->logger()->error(manapi::logger::default_service,
-                        manapi::ERR_INTERNAL, "an error occurred while processing the HTTP request due to {}", msg);
-                    cdata->router = std::move(cdata->router->error);
-                    send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
+        catch (const manapi::exception &e) {
+            switch (e.err_num()) {
+                case ERR_ABORTED:
                     return;
-                }
-
-                internal::send_response(std::move(cdata), std::move(res));
-            });
-        return;
-    }
-    catch (const manapi::exception &e) {
-        switch (e.err_num()) {
-            case ERR_ABORTED:
-                return;
-            default:
-                MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+                default:
+                    MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+            }
         }
+        catch (const std::exception &e) {
+            MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+        }
+
+        cdata->router = std::move(cdata->router->error);
+        send_error_response(std::move(cdata), SERVICE_UNAVAILABLE_503);
     }
-    catch (const std::exception &e) {
-        MANAPIHTTP_LOG("Unexpected error: {}", e.what());
-    }
+}
+
+
+void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, int status) {
+    if (status >= 200 && status < 300)
+        return handle_income_request_(std::move(cdata), status);
 
     cdata->router = std::move(cdata->router->error);
-    send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
+    send_error_response(std::move(cdata), status);
 }
 
 void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, int status) {
@@ -890,7 +901,7 @@ void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, in
 
     assert((cdata));
 
-    handle_income_request(std::move(cdata), status);
+    handle_income_request_(std::move(cdata), status);
 }
 
 manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size) {

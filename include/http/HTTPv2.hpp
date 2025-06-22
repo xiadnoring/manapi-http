@@ -37,6 +37,7 @@ namespace manapi::net::http {
         HTTP2_STREAM_PRIORITY_INCR = 256,
         HTTP2_STREAM_PRIORITY_LOCKED = 512,
         HTTP2_STREAM_BLOCK_WRITE = 1024,
+        HTTP2_STREAM_BAD_STATUS = 2048
         //HTTP2_STREAM_START_WORK_WAIT = 2048
     };
 
@@ -83,16 +84,16 @@ namespace manapi::net::http {
         uint8_t next;
 
         int n2;
-        unsigned int pos1;
-        unsigned int n1;
-        unsigned int frame_length;
-        int frame_type;
-        int frame_flag;
+        uint32_t pos1;
+        uint32_t n1;
+        uint32_t frame_length;
+        uint8_t frame_type;
+        uint8_t frame_flag;
         int frame_stream_id;
         int last_stream_id;
 
-        int read_window;
-        int write_window;
+        uint32_t read_window;
+        uint32_t write_window;
 
         uint16_t concurrent_streams_size;
 
@@ -110,6 +111,7 @@ namespace manapi::net::http {
 
         std::unique_ptr<std::map<std::pair<uint8_t, int>, worker::shared_conn >> priorities;
         std::unique_ptr<std::set<std::string>> pings;
+        uint16_t status;
     };
 
     enum http_v2_errs {

@@ -89,7 +89,9 @@ namespace manapi::net::http {
         int initial_window_size;
         int max_merge_buffer_stack;
         bool simultaneous_accepts;
-        size_t max_header_block_size;
+        uint32_t max_headers_size;
+        uint16_t max_header_key_size;
+        uint16_t max_header_value_size;
         size_t partial_data_min_size;
         uint32_t http_versions;
         std::string address;
