@@ -170,7 +170,7 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
         SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS_TX_ZEROCOPY_SENDFILE);
 
 
-    SSL_CTX_set_max_early_data(ctx, 16384);
+    //SSL_CTX_set_max_early_data(ctx, 16384);
     SSL_CTX_clear_options(ctx, SSL_OP_NO_COMPRESSION);
     SSL_CTX_set_min_proto_version(ctx, 0);
     SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
@@ -178,8 +178,14 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &versio
     // SSL_CTX_set_max_send_fragment(ctx, this->config->buffer_size());
     // SSL_CTX_set_default_read_buffer_len(ctx, this->config->buffer_size());
 
-    //SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
+    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
     //SSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
+
+    long cache_mode = SSL_SESS_CACHE_SERVER;
+
+    SSL_CTX_set_timeout(ctx, 86400000);
+    SSL_CTX_set_session_cache_mode(ctx, cache_mode);
+
 
     if (single_dh_use)
         SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);

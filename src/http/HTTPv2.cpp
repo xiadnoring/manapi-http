@@ -100,8 +100,6 @@ struct http_v2_goaway_t {
 
 static constexpr char smlabel[] = "\r\n\r\nSM\r\n";
 static constexpr int maxcnt = 1e9;
-static constexpr int conn_max_window_hlf = 2000000 / 2;
-static constexpr int conn_min_stream_summary = 400000;
 
 std::map <int, manapi::json_mask> allow_settings {
         {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
@@ -670,8 +668,9 @@ int manapi::net::http::http_v2_on_write(http_v2_t *ctx) {
 
 int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi::net::http::http_v2_stream_t *s) {
     auto ssw = (s->recv_size + 1) * s->ctx->worker->config()->buffer_size;
+    auto config = s->ctx->worker->config();
     ssw = std::max(static_cast<ssize_t>(0),
-        static_cast<ssize_t>(conn_min_stream_summary - ssw));
+        static_cast<ssize_t>(config->window_stream_size - ssw));
 
     if (s->read_window < ssw) {
         const auto allow = static_cast<int>(ssw - s->read_window);
@@ -682,8 +681,9 @@ int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi
         s->read_window += allow;
     }
 
-    if (s->ctx->read_window <= conn_max_window_hlf) {
-        const auto allow = conn_max_window_hlf + conn_max_window_hlf - s->ctx->read_window;
+    auto const window_half = config->window_connection_size / 2;
+    if (s->ctx->read_window <= window_half) {
+        const auto allow = config->window_connection_size - s->ctx->read_window;
         if (http_v2_send_window_frame(s->ctx, 0,
             allow)) {
             return -1;

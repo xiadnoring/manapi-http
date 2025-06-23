@@ -292,6 +292,15 @@ exec:
 
             cdata->router = w->site().handler(req_ptr);
             manapi::net::http::internal::handle_income_request(std::move(cdata), status);
+
+            // char constexpr bb[] = "HTTP/1.1 200 OK\r\nContent-Length:0\r\nConnection:keep-alive\r\n\r\n";
+            // ssize_t const copy = sizeof (bb) - 1;
+            // auto const rhs = w->sync_write_ex (conn, bb,
+            //     copy, true, 1e5);
+            // if (copy != rhs) {
+            //     goto err;
+            // }
+            // cdata->cb->call(true);
         }
 
         return;

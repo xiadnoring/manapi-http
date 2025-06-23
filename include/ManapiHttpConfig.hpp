@@ -87,6 +87,8 @@ namespace manapi::net::http {
         int max_hpack_table_size;
         int max_hpack_list_size;
         int initial_window_size;
+        uint32_t window_stream_size;
+        uint32_t window_connection_size;
         int max_merge_buffer_stack;
         bool simultaneous_accepts;
         uint32_t max_headers_size;

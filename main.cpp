@@ -68,9 +68,7 @@ int main () {
 
         router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
-            std::cout << "MAIN PAGE\n";
             a.fetch_add(1);
-            resp.compress_enabled(false);
             co_return resp.text("");
         });
 

@@ -38,6 +38,9 @@
 #include "ManapiHttpResponse.hpp"
 #include "ManapiString.hpp"
 
+// TLS: 454978.10 in sec | 348111.84 in sec (STUPID METHOD)
+// TCP: 661876.15 in sec | 560063.69 in sec (STUPID METHOD)
+
 manapi::net::worker::TCP::TCP(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : interface_worker (std::move(site), std::move(wdata), config) {
     this->local = nullptr;
     this->finish = nullptr;
@@ -395,8 +398,6 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
                     }
             }));
 
-        this->event_flags(conn, ev::READ);
-
         conn->cancellation.reset();
 
         connection->status |= CONN_KEEP_ALIVE;
@@ -406,10 +407,16 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
             connection->t.clear();
         }
 
-        connection->t = manapi::async::current()->timerpool()->append_interval_sync(15000,
-            [conn] (manapi::timer t) mutable -> void {
-            dynamic_cast <TCP*>(conn->as<connection_interface>()->worker)->timeout_(conn);
-        });
+        // connection->t = manapi::async::current()->timerpool()->append_interval_sync(
+        //     this->config_->keep_alive,
+        //     [conn] (manapi::timer t) mutable
+        //     -> void {
+        //     dynamic_cast <TCP*>(conn->as<connection_interface>()->worker)->timeout_(conn);
+        // });
+
+        this->event_flags(conn, ev::READ);
+
+
     }
 }
 
