@@ -244,14 +244,15 @@ manapi::error::status manapi::slice_base::copy_from(slice_base &n, std::size_t s
 
 manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t pos, std::size_t size) const {
     pos += this->shift_;
+    auto const size_ = this->size_ - this->rshift_;
     if (!size)
-        size = this->size_ - pos;
+        size = size_ - pos;
 
-    if (pos == this->shift_ && size == this->size_ - this->shift_) {
+    if (pos == this->shift_ && size == size_) {
         return *this;
     }
 
-    if (pos + size > this->size_) {
+    if (pos + size > size_) {
         return manapi::error::status_out_of_range("subslice size is too large");
     }
 

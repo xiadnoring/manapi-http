@@ -100,6 +100,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     auto const max_amplification_factor = this->config_->get_config_param<uint64_t>(this->config_->quic, "max_amplification_factor", 3);
     auto const active_connection_id_limit = this->config_->get_config_param<uint64_t>(this->config_->quic, "active_connection_id_limit", 2);
     auto const max_ack_delay = this->config_->get_config_param<uint64_t>(this->config_->quic, "max_ack_delay", 25);
+    auto const max_idle_timeout = this->config_->get_config_param<uint64_t>(this->config_->quic, "max_idle_timeout", 0);
     auto const max_concurrent_streams = this->config_->max_concurrent_streams > 0 ? this->config_->max_concurrent_streams : 100;
     auto const window_connection_size = this->config_->window_connection_size > 0 ? this->config_->window_connection_size : 2000000;
     auto const window_stream_size = this->config_->window_stream_size > 0 ? this->config_->window_stream_size : 400000;
@@ -127,7 +128,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         }
 
 
-        quiche_config_set_max_idle_timeout(this->quiche_config_, this->config_->keep_alive);
+        quiche_config_set_max_idle_timeout(this->quiche_config_, max_idle_timeout);
         quiche_config_set_max_recv_udp_payload_size(this->quiche_config_, MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE);
         quiche_config_set_max_send_udp_payload_size(this->quiche_config_, MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE);
 
