@@ -101,11 +101,11 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     endif ()
 
     if (MANAPIHTTP_NGHTTP2_DEPENDENCY)
-        find_package(libnghttp2::libnghttp2 REQUIRED)
+        find_package(libnghttp2 REQUIRED)
     endif ()
 
     if (MANAPIHTTP_NGHTTP3_DEPENDENCY)
-        find_package(nghttp3::nghttp3 REQUIRED)
+        find_package(nghttp3 REQUIRED)
     endif ()
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
@@ -599,6 +599,14 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
 
     if (MANAPIHTTP_ZSTD_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${zstd_COMPONENT_NAMES})
+    endif ()
+
+    if (MANAPIHTTP_NGHTTP2_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC libnghttp2::libnghttp2)
+    endif ()
+
+    if (MANAPIHTTP_NGHTTP3_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC nghttp3::nghttp3)
     endif ()
 
     target_link_libraries(${PROJECT_NAME} PUBLIC

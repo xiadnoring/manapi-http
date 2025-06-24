@@ -58,11 +58,11 @@ namespace manapi::net::worker {
 
     struct wrk_interface_global_t {
         void *data;
-        void (*init_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
-        void (*cleanup_cb)(worker::connection *conn, wrk_interface_global_t *global, worker::base *w);
-        void (*cleanup_global_cb)(wrk_interface_global_t *data, worker::base *w);
+        int (*init_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
+        int (*cleanup_cb)(worker::connection *conn, wrk_interface_global_t *global, worker::base *w);
+        int (*cleanup_global_cb)(wrk_interface_global_t *data, worker::base *w);
         void (*flush_custom_read_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
-        void (*accept_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w);
+        int (*accept_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w);
         void (*custom_read_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w);
         bool (*update_limit_rate)(const manapi::net::worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
         manapi::future<ssize_t> (*send_response)(const manapi::net::worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w, http::response* res, bool finish);

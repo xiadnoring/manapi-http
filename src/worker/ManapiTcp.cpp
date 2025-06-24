@@ -184,7 +184,8 @@ void manapi::net::worker::TCP::onaccept(std::shared_ptr<ev::tcp> &watcher, int s
         auto it = this->connections.insert({id, connection});
         assert((it.second && "connection couldn't be saved due to duplicate"));
 
-        this->onaccept_event_(connection);
+        if (this->onaccept_event_(connection))
+            goto err;
 
         return;
     }
@@ -192,7 +193,7 @@ void manapi::net::worker::TCP::onaccept(std::shared_ptr<ev::tcp> &watcher, int s
         /* error */
     }
 
-    if (connection) {
+    err: if (connection) {
         this->close_connection(connection, false);
     }
 }
@@ -351,9 +352,13 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
         }
 
         this->connections.erase(reinterpret_cast<uintptr_t> (conn.get()));
+
+        if (this->global_.cleanup_cb(conn.get(), &this->global_, this))
+            MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
     }
     else {
-        this->global_.cleanup_cb(conn.get(), &this->global_, this);
+        if (this->global_.cleanup_cb(conn.get(), &this->global_, this))
+            MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
 
         if (connection->status & CONN_SEND_END)
             connection->status ^= CONN_SEND_END;
@@ -386,7 +391,11 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
 
                         auto const w = this;
 
-                        w->onaccept_event_(conn);
+                        if (w->onaccept_event_(conn)) {
+                            this->close_connection(conn, false);
+                            return;
+                        }
+
                         w->feed_event(conn, flags, buffer, nsize, p);
                     }
             }));
@@ -837,17 +846,21 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
     }
 }
 
-void manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) {
+int manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) {
     this->waiting(conn, true);
-    this->global_.init_cb(conn, &this->global_, this);
+    if (this->global_.init_cb(conn, &this->global_, this))
+        return -1;
 
     this->event_on(conn,
         std::make_unique<worker_watcher_cb>([this]
         (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
         -> void {
-            this->global_.accept_cb (conn, flags, buffer, nsize, p,
-                &this->global_, this);
+            if (this->global_.accept_cb (conn, flags, buffer, nsize, p,
+                &this->global_, this)) {
+                this->close_connection(conn, false);
+            }
     }));
 
     this->event_flags(conn, ev::READ);
+    return 0;
 }

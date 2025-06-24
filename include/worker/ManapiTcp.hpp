@@ -85,7 +85,7 @@ namespace manapi::net::worker {
 
         bool is_writable(const shared_conn &conn) override;
 
-        virtual void onaccept_event_ (const worker::shared_conn &conn);
+        virtual int onaccept_event_ (const worker::shared_conn &conn);
 
         std::map <std::uintptr_t, shared_conn> connections;
 
