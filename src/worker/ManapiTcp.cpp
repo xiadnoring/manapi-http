@@ -163,13 +163,6 @@ void manapi::net::worker::TCP::configure_connection(const worker::shared_conn &c
     cb.call(true);
 }
 
-manapi::future<ssize_t> manapi::net::worker::TCP::response(const worker::shared_conn &connection, http::response *resp, bool finish) {
-    const auto response = manapi::net::worker::TCP::stringify_http_info(resp, connection->version, "\r\n") + this->stringify_headers(resp, "\r\n") + "\r\n";
-
-    const auto rhs = co_await this->write (connection, response.data(), response.size(), finish);
-    co_return rhs;
-}
-
 void manapi::net::worker::TCP::onaccept(std::shared_ptr<ev::tcp> &watcher, int status) {
     if (status) {
         return;
@@ -815,27 +808,6 @@ bool manapi::net::worker::TCP::is_writable(const shared_conn &conn) {
     auto const data = conn->as<connection_interface>();
     return data->top->send_size <= this->config_->max_buffer_stack
         && data->transfered < this->config_->speed_limit_rate;
-}
-
-std::string manapi::net::worker::TCP::stringify_http_info(manapi::net::http::response *res, const int &version, const std::string &delimiter) {
-    return "HTTP/" + http::config::stringify_http_version(version) + ' ' + std::to_string(res->status_code()) + (version < http::versions::HTTP_v2 ? ' ' + std::string{res->status_message()} + delimiter : delimiter);
-}
-
-std::string manapi::net::worker::TCP::stringify_headers(manapi::net::http::response *res, const std::string &delimiter) {
-    std::string data;
-
-    std::size_t size = 0;
-    for (const auto &header : res->headers()) {
-        size += header.first.size() + (sizeof (": ") - 1) + header.second.size() + delimiter.size();
-    }
-    data.reserve(size);
-
-    // add headers
-    for (const auto &header: res->headers()) {
-        data += header.first + ": " + header.second + delimiter;
-    }
-
-    return data;
 }
 
 void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *ptr) {

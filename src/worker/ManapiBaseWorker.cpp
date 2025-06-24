@@ -202,10 +202,6 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
     co_return total;
 }
 
-manapi::future<ssize_t> manapi::net::worker::base::response(const worker::shared_conn &connection, http::response *resp, bool finish) {
-    co_return -1;
-}
-
 void manapi::net::worker::base::event_toggle(const shared_conn & conn, bool state, int flag) {
     auto flags = this->event_flags(conn);
     if (state) {

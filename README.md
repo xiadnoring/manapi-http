@@ -226,8 +226,8 @@ int main () {
 | MANAPIHTTP_BROTLI_DEPENDENCY   | brotli Support           | ON/OFF        |
 | MANAPIHTTP_ZSTD_DEPENDENCY     | zstd Support             | ON/OFF        |
 | MANAPIHTTP_WOLFSSL_WITH_ALPN   | WolfSSL with ALPN        | ON/OFF        |
-| MANAPIHTTP_NGHTTP2_DEPENDENCY  | HTTP2/TLS by NGINX       | ON/OFF        |
-| MANAPIHTTP_NGHTTP3_DEPENDENCY  | HTTP3/QUIC by NGINX      | ON/OFF        |
+| MANAPIHTTP_NGHTTP2_DEPENDENCY  | HTTP2/TLS by nghttp2     | ON/OFF        |
+| MANAPIHTTP_NGHTTP3_DEPENDENCY  | HTTP3/QUIC by nghttp3    | ON/OFF        |
 | MANAPIHTTP_JSON_DEBUG          | JSON debug symbols       | ON/OFF        |
 | BUILD_SHARED_LIBS              | Build as a shared lib    | ON/OFF        |
 | MANAPIHTTP_BUILD_METHOD        | Build Method             | conan/default | 

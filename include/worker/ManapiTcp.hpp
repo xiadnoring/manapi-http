@@ -53,8 +53,6 @@ namespace manapi::net::worker {
 
         virtual shared_conn accept (ev::shared_tcp &w);
 
-        future<ssize_t> response(const shared_conn &connection, http::response *resp, bool finish) override;
-
         void close_connection(shared_conn conn, bool clean_disconnect) override;
 
         void stop(std::function<void()> cb) override;
@@ -99,9 +97,6 @@ namespace manapi::net::worker {
 
         std::function<void()> finish;
     private:
-        static std::string stringify_http_info (manapi::net::http::response *res, const int &version, const std::string &delimiter);
-
-        static std::string stringify_headers (manapi::net::http::response *res, const std::string &delimiter);
 
         static void connection_interface_eraser (worker::connection *ptr);
 

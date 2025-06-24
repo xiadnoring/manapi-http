@@ -31,8 +31,8 @@ OPTION(MANAPIHTTP_BROTLI_DEPENDENCY "Brotli Enabled" OFF)
 OPTION(MANAPIHTTP_ZSTD_DEPENDENCY "ZSTD Enabled" OFF)
 OPTION(MANAPIHTTP_BUILD_METHOD "Build method" "default")
 OPTION(MANAPIHTTP_WOLFSSL_WITH_ALPN "WolfSSL with ALPN" ON)
-OPTION(MANAPIHTTP_NGHTTP2_DEPENDENCY "nghttp2 by NGINX" OFF)
-OPTION(MANAPIHTTP_NGHTTP3_DEPENDENCY "nghttp3 by NGINX" OFF)
+OPTION(MANAPIHTTP_NGHTTP2_DEPENDENCY "libnghttp2 by nghttp2" OFF)
+OPTION(MANAPIHTTP_NGHTTP3_DEPENDENCY "libnghttp3 by nghttp3" OFF)
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 message(STATUS "MANAPIHTTP_BUILD_METHOD: ${MANAPIHTTP_BUILD_METHOD}")
@@ -45,8 +45,8 @@ message(STATUS "TLS, QUIC and etc implementations by WolfSSL: ${MANAPIHTTP_WOLFS
 message(STATUS "BigInt support by GMP: ${MANAPIHTTP_GMP_DEPENDENCY}")
 message(STATUS "Fetch support by CURL: ${MANAPIHTTP_CURL_DEPENDENCY}")
 message(STATUS "Some compresses support by zlib: ${MANAPIHTTP_ZLIB_DEPENDENCY}")
-message(STATUS "nghttp2 by NGINX" ${MANAPIHTTP_NGHTTP2_DEPENDENCY})
-message(STATUS "nghttp3 by NGINX" ${MANAPIHTTP_NGHTTP3_DEPENDENCY})
+message(STATUS "libnghttp2 by nghttp2" ${MANAPIHTTP_NGHTTP2_DEPENDENCY})
+message(STATUS "libnghttp3 by nghttp3" ${MANAPIHTTP_NGHTTP3_DEPENDENCY})
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Build type: Debug")
@@ -298,7 +298,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiBeforeDelete.cpp
         src/worker/ManapiBaseWorker.cpp
         src/http/ManapiBaseHttp.cpp
-        src/worker/ManapiOpensslOverTcp.cpp
+        src/worker/ManapiOpenSslOverTcp.cpp
         src/http/ManapiHttp1.cpp
         src/http/ManapiHttp2.cpp
         src/worker/ManapiHttp2Interface.cpp
@@ -403,6 +403,10 @@ set(MANAPIHTTP_HTTP_FILES
         include/components/ManapiSlice.hpp
         src/components/ManapiSlice.cpp
         src/compress/ManapiHPack.cpp
+        src/include/worker/ManapiNgHttp2Interface.hpp
+        src/include/worker/ManapiNgHttp3Interface.hpp
+        src/worker/ManapiNgHttp2Interface.cpp
+        src/worker/ManapiNgHttp3Interface.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

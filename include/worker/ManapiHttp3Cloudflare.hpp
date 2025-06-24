@@ -69,8 +69,6 @@ namespace manapi::net::worker {
         bool is_valid_connection(worker::connection *connection) override;
 
         bool is_writable(const shared_conn &conn) override;
-
-        future<ssize_t> response(const shared_conn &connection, http::response *resp, bool finish) override;
     protected:
         int flags;
 
@@ -83,6 +81,8 @@ namespace manapi::net::worker {
         // void recv_buffer_dealloc_(const ev::buff_t *buf) override;
 
     private:
+        static manapi::future<ssize_t> cloudflare_wrk_http3_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish);
+
         void update_limit_rate ();
 
         virtual void update_limit_rate_connection (const shared_conn &conn);
@@ -96,6 +96,8 @@ namespace manapi::net::worker {
         int flush_read_ (const shared_conn &stream);
 
         static void force_close_ (shared_conn conn, connection_t *conn_data);
+
+        void wrk_global(wrk_interface_global_t *data) override;
 
         static void flush_connection_closed_ (const shared_conn &conn, connection_t *conn_data);
 

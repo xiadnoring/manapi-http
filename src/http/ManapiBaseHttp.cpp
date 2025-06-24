@@ -665,7 +665,8 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
 }
 
 manapi::future<ssize_t> manapi::net::http::internal::mask_response(handle_data_t *cdata, response* res, bool finish) {
-    co_return co_await cdata->worker->response(cdata->conn, res, finish);
+    auto const global = cdata->worker->wrk_global();
+    return global->send_response(cdata->conn, global, cdata->worker.get(), res, finish);
 }
 
 int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *inf, manapi::net::worker::base *w, manapi::net::worker::connection *conn) {

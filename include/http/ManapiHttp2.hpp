@@ -6,10 +6,7 @@
 #include "../ManapiUtils.hpp"
 #include "./ManapiBaseHttp.hpp"
 #include "../compress/ManapiHPack.hpp"
-
-namespace manapi::net::worker {
-    class http_v2;
-}
+#include "../worker/ManapiHttp2Worker.hpp"
 
 namespace manapi::net::http {
     struct http_v2_settings_t {
@@ -49,24 +46,16 @@ namespace manapi::net::http {
 
     struct http_v2_t;
 
-    struct http_v2_stream_t {
-        ssize_t transfered_k;
+    struct http_v2_stream_t : worker::http_v2_stream_base_t {
 
         int id;
-        int flags;
 
         http_v2_t *ctx;
 
         int write_window;
         int read_window;
 
-        std::unique_ptr<worker::connection_io_part> recv;
-        int recv_size;
-
         std::unique_ptr<request_data_t> req;
-        std::unique_ptr<worker::worker_watcher_cb> ev_callback;
-
-        int speed_min_delay;
 
         uint8_t priority;
     };
@@ -122,31 +111,14 @@ namespace manapi::net::http {
         EHTTP_V2_NEW_STREAM
     };
 
-    enum http2_error_type {
-        HTTP2_ERROR_NO_ERROR = 0x00,              // Graceful shutdown
-        HTTP2_ERROR_PROTOCOL_ERROR = 0x01,        // Protocol error detected
-        HTTP2_ERROR_INTERNAL_ERROR = 0x02,        // Implementation fault
-        HTTP2_ERROR_FLOW_CONTROL_ERROR = 0x03,    // Flow-control limits exceeded
-        HTTP2_ERROR_SETTINGS_TIMEOUT = 0x04,      // Settings not acknowledged
-        HTTP2_ERROR_STREAM_CLOSED = 0x05,         // Frame received for closed stream
-        HTTP2_ERROR_FRAME_SIZE_ERROR = 0x06,      // Frame size incorrect
-        HTTP2_ERROR_REFUSED_STREAM = 0x07,        // Stream not processed
-        HTTP2_ERROR_CANCEL = 0x08,                // Stream cancelled
-        HTTP2_ERROR_COMPRESSION_ERROR = 0x09,     // Compression state not updated
-        HTTP2_ERROR_CONNECT_ERROR = 0x0a,         // TCP connection error for CONNECT method
-        HTTP2_ERROR_ENHANCE_YOUR_CALM = 0x0b,     // Processing capacity exceeded
-        HTTP2_ERROR_INADEQUATE_SECURITY = 0x0c,   // Negotiated TLS parameters not acceptable
-        HTTP2_ERROR_HTTP_1_1_REQUIRED = 0x0d      // Use HTTP/1.1 for the request
-    };
-
     int http_v2_on_close (http_v2_t *ctx);
     int http_v2_on_close_stream (http_v2_t *ctx, int id);
     int http_v2_on_write (http_v2_t *ctx);
-    int http_v2_on_read_stream (const worker::shared_conn &conn, http_v2_stream_t *s);
+    int http_v2_on_read_stream (const worker::shared_conn &conn);
     int http_v2_work (http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize);
-    ssize_t http_v2_write (const worker::shared_conn &conn, http_v2_stream_t *s, ev::buff_t *buff, uint32_t nbuff, bool finish);
-    int http_v2_rst_stream (http_v2_stream_t *s, int errcode);
-    manapi::future<ssize_t> http_v2_response (worker::base *worker, const worker::shared_conn &connection, http_v2_stream_t *s, int status, std::map<std::string, std::string> headers, bool finish);
+    ssize_t http_v2_write (const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish);
+    int http_v2_rst_stream (const worker::shared_conn &s, int errcode);
+    manapi::future<ssize_t> http_v2_response (worker::base *worker, const worker::shared_conn &connection, int status, std::map<std::string, std::string> headers, bool finish);
 }
 
 #endif //MANAPIHTTP_HTTP_HTTPV2_HPP

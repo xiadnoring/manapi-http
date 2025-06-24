@@ -2,6 +2,7 @@
 
 #include "worker/ManapiHttp1Interface.hpp"
 #include "http/ManapiHttp1.hpp"
+#include "ManapiHttpResponse.hpp"
 #include "ManapiString.hpp"
 
 #define HTTP_ALL_SWITCH(namecb, ...) \
@@ -17,7 +18,7 @@ return httpctx->namecb(__VA_ARGS__); \
 case manapi::net::http::versions::HTTP_v3: \
 httpctx = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data)->http3.get(); \
 return httpctx->namecb(__VA_ARGS__); \
-default:break; }
+default: assert(false && "unreachable code"); }
 
 enum http_v1_flags {
     HTTP1_BODY_CHUNKED = 1
@@ -45,7 +46,10 @@ void default_wrk_http_all_flush_custom_read(const manapi::net::worker::shared_co
 
 bool default_wrk_http_all_update_limit_rate(const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
     HTTP_ALL_SWITCH (update_limit_rate, conn, httpctx, w);
-    return false;
+}
+
+manapi::future<ssize_t> default_wrk_http_all_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
+    HTTP_ALL_SWITCH(send_response, conn, global, w, res, finish);
 }
 
 void default_wrk_http_all_cleanup_global_cb (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) {
@@ -76,6 +80,7 @@ manapi::error::status manapi::net::worker::default_wrk_http_all_global_init(wrk_
     global->flush_custom_read_cb = default_wrk_http_all_flush_custom_read;
     global->update_limit_rate = default_wrk_http_all_update_limit_rate;
     global->cleanup_global_cb = default_wrk_http_all_cleanup_global_cb;
+    global->send_response = default_wrk_http_all_send_response;
 
     return manapi::error::status_ok();
 }
@@ -338,6 +343,36 @@ void default_wrk_http1_flush_read (const manapi::net::worker::shared_conn &conn,
     }
 }
 
+
+std::string stringify_http_info(manapi::net::http::response *res, const int &version, const std::string &delimiter) {
+    return "HTTP/" + manapi::net::http::config::stringify_http_version(version) + ' ' + std::to_string(res->status_code()) +  ' ' + std::string{res->status_message()} + delimiter;
+}
+
+std::string stringify_headers(manapi::net::http::response *res, const std::string &delimiter) {
+    std::string data;
+
+    std::size_t size = 0;
+    for (const auto &header : res->headers()) {
+        size += header.first.size() + (sizeof (": ") - 1) + header.second.size() + delimiter.size();
+    }
+    data.reserve(size);
+
+    // add headers
+    for (const auto &header: res->headers()) {
+        data += header.first + ": " + header.second + delimiter;
+    }
+
+    return data;
+}
+
+manapi::future<ssize_t> default_wrk_http1_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global,
+    manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
+    const auto response = stringify_http_info(res, conn->version, "\r\n") + stringify_headers(res, "\r\n") + "\r\n";
+
+    co_return co_await w->write (conn, response.data(), response.size(), finish);
+}
+
+
 manapi::error::status manapi::net::worker::default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
     if (global->data)
         return manapi::error::status_invalid_argument("global->data already exists");
@@ -350,6 +385,7 @@ manapi::error::status manapi::net::worker::default_wrk_http1_global_init (manapi
     global->flush_custom_read_cb = default_wrk_http1_flush_read;
     global->init_cb = default_wrk_http1_init;
     global->update_limit_rate = nullptr;
+    global->send_response = default_wrk_http1_send_response;
 
     return manapi::error::status_ok();
 }

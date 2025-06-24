@@ -370,7 +370,7 @@ int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<
     ctx->timeout = manapi::async::current()->timerpool()->append_timer_sync(3000,
         [ctx, conn = ctx->conn] (manapi::timer t) -> void {
             http_v2_goaway_t http_goaway = {
-                .err_code = manapi::net::http::HTTP2_ERROR_SETTINGS_TIMEOUT,
+                .err_code = manapi::net::worker::HTTP2_ERROR_SETTINGS_TIMEOUT,
                 .err_msg = "SETTINGS timeout"
             };
 
@@ -693,7 +693,8 @@ int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi
     return 0;
 }
 
-int manapi::net::http::http_v2_on_read_stream(const worker::shared_conn &conn, http_v2_stream_t *s) {
+int manapi::net::http::http_v2_on_read_stream(const worker::shared_conn &conn) {
+    auto const s = conn->as<http_v2_stream_t>();
     if (http_v2_flush_recv (conn, s)) {
         return -1;
     }
@@ -804,7 +805,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                     while (pos != size) {
                         if (buffer[pos] != smlabel[ctx->pos1]) {
                             ctx->pos1 = 0;
-                            http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                            http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                             http_goaway.err_msg = "invalid sm label";
                             ctx->current = HTTP2_CALLBACK_GOAWAY;
                             ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1008,7 +1009,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                  * as a connection error (Section 5.4.1).
                                  */
 
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "invalid WINDOW_UPDATE";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1020,7 +1021,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                                 if (s == ctx->streams->end()) {
                                     // ctx->n1 = 0;
-                                    // http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                    // http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                     // http_goaway.err_msg = "stream id is invalid";
                                     // ctx->current = HTTP2_CALLBACK_GOAWAY;
                                     break;
@@ -1068,8 +1069,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                              * n1 - error code
                              */
 
-                            if (ctx->n1 >= manapi::net::http::HTTP2_ERROR_NO_ERROR
-                                && ctx->n1 <= manapi::net::http::HTTP2_ERROR_HTTP_1_1_REQUIRED) {
+                            if (ctx->n1 >= manapi::net::worker::HTTP2_ERROR_NO_ERROR
+                                && ctx->n1 <= manapi::net::worker::HTTP2_ERROR_HTTP_1_1_REQUIRED) {
                                 auto s = ctx->streams->find(ctx->frame_stream_id);
                                 if (s == ctx->streams->end()) {
 
@@ -1147,7 +1148,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             if (http_v2_apply_setting(ctx, static_cast<short> (ctx->n1), ctx->n2, false)) {
                                 ctx->n1 = 0;
                                 ctx->n2 = 0;
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "setting is invalid";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1191,23 +1192,20 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             if (ctx->flags & HTTP2_CTX_FLAG_WANT_CLOSE) {
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
 
-                                http_v2_setup_goaway(ctx, http_goaway, HTTP2_ERROR_PROTOCOL_ERROR,
+                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
                                     "conn was closed");
 
                                 ctx->n2 = 0;
                                 break;
                             }
 
-                            auto p = std::make_unique<http_v2_stream_t>(0,
-                                ctx->frame_stream_id,
-                                0,
-                                ctx,
-                                ctx->client->initial_window_size,
-                                ctx->server->initial_window_size,
-                                nullptr,
-                                0,
-                                nullptr,
-                                nullptr);
+                            auto p = std::make_unique<http_v2_stream_t>();
+
+                            p->write_window = ctx->client->initial_window_size;
+                            p->read_window = ctx->server->initial_window_size;
+                            p->id = ctx->frame_stream_id;
+                            p->ctx = ctx;
+
                             auto sconn = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
                             p.release();
 
@@ -1227,19 +1225,19 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                         if (s == ctx->streams->end()) {
                             if (ctx->frame_stream_id <= ctx->last_stream_id) {
-                                if (http_v2_rst_stream_ex(ctx, ctx->frame_stream_id, HTTP2_ERROR_STREAM_CLOSED)) {
+                                if (http_v2_rst_stream_ex(ctx, ctx->frame_stream_id, worker::HTTP2_ERROR_STREAM_CLOSED)) {
                                     http_v2_setup_goaway (ctx, http_goaway,
-                                        HTTP2_ERROR_INTERNAL_ERROR, "internal error");
+                                        worker::HTTP2_ERROR_INTERNAL_ERROR, "internal error");
                                     goto repeat;
                                 }
                             }
                             else {
                                 http_v2_setup_goaway(ctx, http_goaway,
-                                    HTTP2_ERROR_PROTOCOL_ERROR, "stream wasn't created");
+                                    worker::HTTP2_ERROR_PROTOCOL_ERROR, "stream wasn't created");
                                 goto repeat;
                             }
 
-                            // http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                            // http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                             // http_goaway.err_msg = "stream doesn't exists";
                             // ctx->current = HTTP2_CALLBACK_GOAWAY;
                             flg = false;
@@ -1302,7 +1300,7 @@ header_skip:
 
                                 auto hv = sdata->req->headers.extract(":method");
                                 if (hv.empty()) {
-                                    http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                    http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                     http_goaway.err_msg = ":method is missing";
                                     ctx->current = HTTP2_CALLBACK_GOAWAY;
                                     ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1312,7 +1310,7 @@ header_skip:
 
                                 hv = sdata->req->headers.extract(":path");
                                 if (hv.empty()) {
-                                    http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                    http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                     http_goaway.err_msg = ":path is missing";
                                     ctx->current = HTTP2_CALLBACK_GOAWAY;
                                     ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1333,7 +1331,7 @@ header_skip:
                                     }
 
                                     if (sdata->req->body_size < 0) {
-                                        http_goaway.err_code = manapi::net::http::HTTP2_ERROR_REFUSED_STREAM;
+                                        http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_REFUSED_STREAM;
                                         http_goaway.err_msg = "invalid content length";
                                         ctx->current = HTTP2_CALLBACK_GOAWAY;
                                         ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1396,7 +1394,7 @@ header_skip:
                             }
 
                             if (http_v2_insert_priority (ctx, s->second, sdata, sdata->priority)) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_INTERNAL_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_INTERNAL_ERROR;
                                 http_goaway.err_msg = "priority status failed";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1427,7 +1425,7 @@ header_skip:
 
 
                             // if (http_v2_check_real_working_stream(ctx)) {
-                            //     http_goaway.err_code = manapi::net::http::HTTP2_ERROR_INTERNAL_ERROR;
+                            //     http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_INTERNAL_ERROR;
                             //     http_goaway.err_msg = "working streams";
                             //     ctx->current = HTTP2_CALLBACK_GOAWAY;
                             //     ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1449,21 +1447,21 @@ header_skip:
                         auto s = ctx->streams->find(ctx->frame_stream_id);
                         if (s == ctx->streams->end()) {
                             if (ctx->frame_stream_id <= ctx->last_stream_id) {
-                                if (http_v2_rst_stream_ex(ctx, ctx->frame_stream_id, HTTP2_ERROR_STREAM_CLOSED)) {
+                                if (http_v2_rst_stream_ex(ctx, ctx->frame_stream_id, worker::HTTP2_ERROR_STREAM_CLOSED)) {
                                     http_v2_setup_goaway (ctx, http_goaway,
-                                        HTTP2_ERROR_INTERNAL_ERROR, "internal error");
+                                        worker::HTTP2_ERROR_INTERNAL_ERROR, "internal error");
                                 }
                             }
                             else
                                 http_v2_setup_goaway(ctx, http_goaway,
-                                    HTTP2_ERROR_PROTOCOL_ERROR, "stream wasn't created");
+                                    worker::HTTP2_ERROR_PROTOCOL_ERROR, "stream wasn't created");
 
                         }
                         else {
                             auto const sdata = s->second->as<http_v2_stream_t>();
 
                             if (sdata->read_window < datasize || ctx->read_window < datasize) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FLOW_CONTROL_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FLOW_CONTROL_ERROR;
                                 http_goaway.err_msg = "read buffer overflow";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1481,7 +1479,7 @@ header_skip:
                             sdata->transfered_k += static_cast<int> (datasize);
 
                             if ((sdata->flags & ev::DISCONNECT)) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_REFUSED_STREAM;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_REFUSED_STREAM;
                                 http_goaway.err_msg = "stream was closed";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1583,7 +1581,7 @@ header_skip:
                         }
                         case HTTP2_FRAME_HEADERS: {
                             if (ctx->frame_length == 0) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "HEADER frame is empty";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1591,7 +1589,7 @@ header_skip:
                             }
 
                             if (ctx->frame_stream_id == 0) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "0 is reserved";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1599,7 +1597,7 @@ header_skip:
                             }
 
                             if (ctx->frame_stream_id <= ctx->last_stream_id || (ctx->frame_stream_id % 2 == 0)) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "unexpected stream id";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1608,7 +1606,7 @@ header_skip:
 
 
                             if (ctx->concurrent_streams_size >= ctx->server->max_concurret_streams) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_REFUSED_STREAM;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_REFUSED_STREAM;
                                 http_goaway.err_msg = "max concurrent streams";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
@@ -1642,7 +1640,7 @@ header_skip:
                                  * !!! But everyone ignores it (CHROME FOR EXAMPLE) !!!
                                  */
 
-                                // http_goaway.err_code = manapi::net::http::HTTP2_ERROR_CONNECT_ERROR;
+                                // http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_CONNECT_ERROR;
                                 // http_goaway.err_msg = "PRIORITY_UPDATE incorrect";
                                 // ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 // break;
@@ -1663,7 +1661,7 @@ header_skip:
                             // setting param size - 6 bytes
                             if (ctx->frame_length % 6 != 0) {
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "invalid length in frame SETTINGS";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 goto finish;
@@ -1693,7 +1691,7 @@ header_skip:
                                  * Receipt of a PING frame with a length field value other than
                                  * 8 MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
                                  */
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "invalid PING";
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -1717,7 +1715,7 @@ header_skip:
                                  */
 
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "invalid WINDOW_UPDATE";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 goto finish;
@@ -1728,7 +1726,7 @@ header_skip:
                         case HTTP2_FRAME_CONTINUATION: {
                             if (ctx->frame_stream_id == 0) {
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
                                 http_goaway.err_msg = "0 is reserved";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 goto finish;
@@ -1736,7 +1734,7 @@ header_skip:
 
                             if (ctx->frame_stream_id != ctx->last_stream_id) {
                                 ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "provided stream id isn't handled";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 goto finish;
@@ -1755,7 +1753,7 @@ header_skip:
 
                     if (ctx->frame_length > ctx->server->max_frame_size) {
                         ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                        http_goaway.err_code = manapi::net::http::HTTP2_ERROR_FRAME_SIZE_ERROR;
+                        http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
                         http_goaway.err_msg = "frame length is invalid";
                         ctx->current = HTTP2_CALLBACK_GOAWAY;
                         goto finish;
@@ -1783,7 +1781,7 @@ header_skip:
                         ctx->frame_buffer.clear();
                         ctx->n2 = 0;
 
-                        http_v2_setup_goaway(ctx, http_goaway, HTTP2_ERROR_PROTOCOL_ERROR, "overflow");
+                        http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR, "overflow");
                         break;
                     }
 
@@ -1851,7 +1849,7 @@ header_skip:
                             auto const prev_sdata_flags = sdata->flags;
 
                             if (http_v2_remove_priority(ctx, sdata, http_v2_real_priority_by_stream(sdata))) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "priority update failed";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 break;
@@ -1865,7 +1863,7 @@ header_skip:
                             //     sdata->flags ^= HTTP2_STREAM_PRIORITY_INCR;
 
                             if (http_v2_insert_priority(ctx, sit->second, sdata, http_v2_real_priority_by_stream(sdata))) {
-                                http_goaway.err_code = manapi::net::http::HTTP2_ERROR_PROTOCOL_ERROR;
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "priority update failed";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
                                 break;
@@ -1940,7 +1938,8 @@ header_skip:
     return EHTTP_V2_PROTOCOL_WANT_READ;
 }
 
-ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, http_v2_stream_t *s, ev::buff_t *buff, uint32_t nbuff, bool finish) {
+ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) {
+    auto s = conn->as<http_v2_stream_t>();
     if (s->flags & (HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_PRIORITY_LOCKED))
         return -(s->flags & ev::DISCONNECT);
 
@@ -2027,11 +2026,14 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, http_v
     return res;
 }
 
-int manapi::net::http::http_v2_rst_stream(http_v2_stream_t *s, int errcode) {
-    return http_v2_rst_stream_ex (s->ctx, s->id, errcode);
+int manapi::net::http::http_v2_rst_stream(const worker::shared_conn &s, int errcode) {
+    auto const data = s->as<http_v2_stream_t>();
+    return http_v2_rst_stream_ex (data->ctx, data->id, errcode);
 }
 
-manapi::future<ssize_t> manapi::net::http::http_v2_response(worker::base *worker, const worker::shared_conn &connection, http_v2_stream_t *s, int status, std::map<std::string, std::string> headers, bool finish) {
+manapi::future<ssize_t> manapi::net::http::http_v2_response(worker::base *worker, const worker::shared_conn &connection, int status, std::map<std::string, std::string> headers, bool finish) {
+    auto const s = connection->as<http_v2_stream_t>();
+
     if (s->flags & ev::DISCONNECT) {
         co_return -1;
     }

@@ -65,6 +65,7 @@ namespace manapi::net::worker {
         void (*accept_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w);
         void (*custom_read_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w);
         bool (*update_limit_rate)(const manapi::net::worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
+        manapi::future<ssize_t> (*send_response)(const manapi::net::worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w, http::response* res, bool finish);
     };
 
     enum net_worker_flags {
@@ -126,6 +127,10 @@ namespace manapi::net::worker {
 
         virtual ~base ();
 
+        virtual void wrk_global (wrk_interface_global_t *data) = 0;
+
+        virtual wrk_interface_global_t *wrk_global () = 0;
+
         virtual http::site &site() = 0;
 
         virtual http::config *config() = 0;
@@ -159,8 +164,6 @@ namespace manapi::net::worker {
         manapi::future<ssize_t> fwrite (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
 
         manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice_view slice, bool finish);
-
-        virtual future<ssize_t> response (const shared_conn &connection, http::response *resp, bool finish);
 
         virtual void stop (std::function<void()> cb) = 0;
 

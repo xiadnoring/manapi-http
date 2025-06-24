@@ -839,6 +839,7 @@ bool manapi::net::worker::http_v3_cloudflare_quiche::is_writable(const shared_co
 //     this->flags |= HTTP_V3_QUICHE_WORKER_BUFFER_WAS_FREED;
 // }
 
+
 void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate() {
     /* in the event loop */
     for (const auto &s : this->connections) {
@@ -1033,6 +1034,12 @@ void manapi::net::worker::http_v3_cloudflare_quiche::force_close_(shared_conn co
     }
 }
 
+void manapi::net::worker::http_v3_cloudflare_quiche::wrk_global(wrk_interface_global_t *data) {
+    udp::wrk_global(data);
+    /* wrk global not working with cloudflare http3 */
+    this->global_.send_response = cloudflare_wrk_http3_send_response;
+}
+
 void manapi::net::worker::http_v3_cloudflare_quiche::flush_connection_closed_(const shared_conn &conn, connection_t *conn_data) {
     // if (!(conn_data->status & CONN_CLOSED) && (conn_data->status & CONN_HALF_CLOSED) && conn_data->streams.empty()) {
     //     conn_data->status.fetch_xor(CONN_HALF_CLOSED);
@@ -1078,15 +1085,16 @@ void manapi::net::worker::http_v3_cloudflare_quiche::flush_write_(const shared_c
     quiche_stream_iter_free(stream);
 }
 
-manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response(const shared_conn &connection, http::response *resp, bool finish) {
+
+manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::cloudflare_wrk_http3_send_response( const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response *res, bool finish) {
     struct q_headers_deleter {
         void operator()(quiche_h3_header *v) {
            delete[] v;
         }
     };
-    auto s = connection->as<connection_stream_t>();
+    auto s = conn->as<connection_stream_t>();
 
-    auto headers = resp->headers();
+    auto headers = res->headers();
     std::unique_ptr<quiche_h3_header, q_headers_deleter> q_headers (new quiche_h3_header[headers.size() + 1]);
 
     std::size_t headers_size = headers.size() + 1;
@@ -1120,7 +1128,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response
     i = 0;
 
     auto &status_header = headers.operator[](":status");
-    status_header = std::to_string(resp->status_code());
+    status_header = std::to_string(res->status_code());
     quiche_set_header_(q_headers.get()+(i++), ":status", status_header);
 
     size_t current_headers_size = 0;
@@ -1132,8 +1140,8 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response
     int prev_events{0};
 
     const auto rhs = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
-        prev_events = this->event_flags(connection, ev::WRITE);
-        prev_cb = this->event_on(connection, std::make_unique<worker_watcher_cb>(
+        prev_events = w->event_flags(conn, ev::WRITE);
+        prev_cb = w->event_on(conn, std::make_unique<worker_watcher_cb>(
             [&, resolve = std::move(resolve)] (const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) -> void {
                 if (flags & ev::DISCONNECT) {
                     resolve(-1);
@@ -1192,15 +1200,15 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::response
 
                 return;
                 finish: {
-                    this->event_flags(conn, 0);
+                    w->event_flags(conn, 0);
                 }
         }));
 
-        this->feed_event(connection, ev::WRITE, nullptr, 0, nullptr);
+        w->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
     });
 
-    this->event_on(connection, std::move(prev_cb));
-    this->event_flags(connection, prev_events);
+    w->event_on(conn, std::move(prev_cb));
+    w->event_flags(conn, prev_events);
 
     co_return rhs;
 }
