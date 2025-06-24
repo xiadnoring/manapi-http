@@ -8,10 +8,10 @@
 #include "ManapiJson.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiHttpConfig.hpp"
-#include "components/FormData.hpp"
+#include "components/ManapiFormData.hpp"
 #include "services/ManapiFetch.hpp"
 
-#include "http/Utils.hpp"
+#include "http/ManapiHttpUtils.hpp"
 
 namespace manapi::net::http {
     struct custom_data_t {

@@ -15,11 +15,10 @@
 
 #include "ManapiHttpPool.hpp"
 #include "services/ManapiTaskFunction.hpp"
-#include "http/HTTPv1_1.hpp"
-#include <http/HTTPv2.hpp>
+#include "http/ManapiHttp1.hpp"
+#include <http/ManapiHttp2.hpp>
 
-#include "worker/default_wrk_http1.hpp"
-#include "worker/interface_worker.hpp"
+#include "worker/ManapiHttp1Interface.hpp"
 
 manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<worker::worker_config_t> worker_config, class http::site site, const size_t &id, std::shared_ptr<event_loop> events) : site(std::move(site)) {
     this->events = std::move(events);

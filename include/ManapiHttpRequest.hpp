@@ -10,10 +10,10 @@
 #include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
 #include "ManapiJsonMask.hpp"
-#include "components/FormData.hpp"
-#include "http/Utils.hpp"
+#include "components/ManapiFormData.hpp"
+#include "http/ManapiHttpUtils.hpp"
 #include "ManapiSite.hpp"
-#include "worker/base_worker.hpp"
+#include "worker/ManapiBaseWorker.hpp"
 
 namespace manapi::net::http {
     class request {

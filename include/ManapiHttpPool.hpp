@@ -16,8 +16,8 @@
 #include "http/ManapiSiteCtx.hpp"
 
 #include "services/ManapiTask.hpp"
-#include "worker/base_worker.hpp"
-#include "http/base_http.hpp"
+#include "worker/ManapiBaseWorker.hpp"
+#include "http/ManapiBaseHttp.hpp"
 
 namespace manapi::net {
     class http_pool {

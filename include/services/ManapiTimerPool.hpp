@@ -13,7 +13,7 @@
 #include "./ManapiTask.hpp"
 #include "../async/ManapiAsyncMutex.hpp"
 #include "../async/ManapiAsyncConditionVariable.hpp"
-#include "../components/TimerObject.hpp"
+#include "../components/ManapiTimerObject.hpp"
 
 namespace manapi {
     class timerpool : public task {

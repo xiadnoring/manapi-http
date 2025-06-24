@@ -6,7 +6,7 @@
 #include "ManapiJsonBuilder.hpp"
 #include "ManapiHttpMime.hpp"
 #include "async/ManapiAsyncParallelRun.hpp"
-#include "http/base_http.hpp"
+#include "http/ManapiBaseHttp.hpp"
 #include "http/ManapiURLParams.hpp"
 #include "include/ManapiDefaultErrors.hpp"
 #include "include/ManapiHttpStructs.hpp"

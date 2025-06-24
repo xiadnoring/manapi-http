@@ -6,7 +6,7 @@
 #include <cstring>
 
 #include "async/ManapiAsyncSocket.hpp"
-#include "components/TimerObject.hpp"
+#include "components/ManapiTimerObject.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 #include "async/ManapiAsyncThreadsMutex.hpp"
 

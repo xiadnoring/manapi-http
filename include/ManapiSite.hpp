@@ -12,7 +12,7 @@
 #include "compress/ManapiCompress.hpp"
 
 #include "async/ManapiAsyncMutex.hpp"
-#include "http/Utils.hpp"
+#include "http/ManapiHttpUtils.hpp"
 #include "ManapiHttpConfig.hpp"
 #include "http/ManapiSiteCtx.hpp"
 

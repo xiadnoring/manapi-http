@@ -261,18 +261,17 @@ set(MANAPIHTTP_HTTP_FILES
         include/encoding/ManapiUnicode.hpp
         include/ManapiJsonBuilder.hpp
         include/ManapiBeforeDelete.hpp
-        include/worker/base_worker.hpp
-        include/http/base_http.hpp
-        include/worker/OpenSSL_TLS.hpp
-        include/http/HTTPv1_1.hpp
-        include/http/HTTPv2.hpp
+        include/worker/ManapiBaseWorker.hpp
+        include/http/ManapiBaseHttp.hpp
+        include/worker/ManapiOpenSslOverTcp.hpp
+        include/http/ManapiHttp1.hpp
+        include/http/ManapiHttp2.hpp
         include/compress/ManapiHPack.hpp
-        include/worker/default_wrk_http2.hpp
-        include/worker/default_wrk_http1.hpp
+        include/worker/ManapiHttp2Interface.hpp
+        include/worker/ManapiHttp1Interface.hpp
         include/ManapiHttpMime.hpp
-        include/components/Atomic.hpp
-        include/worker/QUIC.hpp
-        include/worker/TCP.hpp
+        include/components/ManapiAtomic.hpp
+        include/worker/ManapiTcp.hpp
         include/ManapiJson.hpp
         ${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp
 
@@ -297,17 +296,16 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiUnicode.cpp
         src/ManapiJsonBuilder.cpp
         src/ManapiBeforeDelete.cpp
-        src/worker/base_worker.cpp
-        src/http/base_http.cpp
-        src/worker/OpenSSL_TLS.cpp
-        src/http/HTTPv1_1.cpp
-        src/http/HTTPv2.cpp
-        src/worker/default_wrk_http2.cpp
+        src/worker/ManapiBaseWorker.cpp
+        src/http/ManapiBaseHttp.cpp
+        src/worker/ManapiOpensslOverTcp.cpp
+        src/http/ManapiHttp1.cpp
+        src/http/ManapiHttp2.cpp
+        src/worker/ManapiHttp2Interface.cpp
         src/ManapiHttpMime.cpp
-        src/worker/QUIC.cpp
-        src/worker/TCP.cpp
-        src/components/FormData.cpp
-        include/components/FormData.hpp
+        src/worker/ManapiTcp.cpp
+        src/components/ManapiFormData.cpp
+        include/components/ManapiFormData.hpp
         src/ManapiAsync.cpp
         include/ManapiAsync.hpp
         src/services/ManapiFutureTask.cpp
@@ -320,16 +318,11 @@ set(MANAPIHTTP_HTTP_FILES
         include/crypto/ManapiHKDF.hpp
         include/crypto/ManapiCryptoUtils.hpp
         include/crypto/ManapiAES.hpp
-        src/worker/QUIC_OpenSSL_TLS.cpp
-        include/worker/QUIC_OpenSSL_TLS.hpp
-        include/worker/QUIC_CB_Base.hpp
-        src/worker/QUIC_CB_Base.cpp
-        src/worker/QUIC_CB_Base.cpp
-        src/worker/UDP.cpp
-        include/worker/UDP.hpp
+        src/worker/ManapiUdp.cpp
+        include/worker/ManapiUdp.hpp
         include/ManapiInitTools.hpp
-        include/worker/HTTPv3_clouflare_quiche.hpp
-        src/worker/HTTPv3_cloudflare_quiche.cpp
+        include/worker/ManapiHttp3Cloudflare.hpp
+        src/worker/ManapiHttp3Cloudflare.cpp
         include/async/ManapiAsyncPromise.hpp
         include/encoding/ManapiURL.hpp
         include/ManapiErrors.hpp
@@ -340,12 +333,12 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiString.cpp
         include/ManapiMath.hpp
         src/ManapiMath.cpp
-        include/http/Utils.hpp
-        src/http/Utils.cpp
+        include/http/ManapiHttpUtils.hpp
+        src/http/ManapiHttpUtils.cpp
         include/async/ManapiAsyncTools.hpp
-        include/worker/WolfSSL_TLS.hpp
-        src/worker/WolfSSL_TLS.cpp
-        # include/components/AtomicAsync.hpp
+        include/worker/ManapiWolfSslOverTcp.hpp
+        src/worker/ManapiWolfSslOverTcp.cpp
+        # include/components/ManapiAtomicAsync.hpp
         include/services/ManapiEventLoop.hpp
         src/services/ManapiEventLoop.cpp
         include/async/ManapiAsyncContext.hpp
@@ -364,8 +357,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/ext/pq/AsyncPostgreNotification.hpp
         include/async/ManapiAsyncParallelRun.hpp
         include/services/ManapiFetch2.hpp
-        include/components/TimerObject.hpp
-        src/components/TimerObject.cpp
+        include/components/ManapiTimerObject.hpp
+        src/components/ManapiTimerObject.cpp
         include/ext/jemallocator.hpp
         include/components/ManapiBuffer.hpp
         src/components/ManapiBuffer.cpp
@@ -383,8 +376,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiHttpTypes.cpp
         src/encoding/ManapiURL.cpp
         include/ManapiVersions.hpp
-        src/worker/TLS.cpp
-        include/worker/TLS.hpp
+        src/worker/ManapiTlsOverTcp.cpp
+        include/worker/ManapiTlsOverTcp.hpp
         src/async/ManapiAsyncLogger.cpp
         include/async/ManapiAsyncLogger.hpp
         include/components/ManapiEventStructures.hpp
@@ -402,11 +395,11 @@ set(MANAPIHTTP_HTTP_FILES
         include/async/ManapiEasyCancellation.hpp
         src/async/ManapiEasyCancellation.cpp
         src/components/ManapiObjectPool.cpp
-        include/worker/default_http2.hpp
-        src/worker/default_http2.cpp
-        src/worker/default_wrk_http1.cpp
-        include/worker/interface_worker.hpp
-        src/worker/interface_worker.cpp
+        include/worker/ManapiHttp2Worker.hpp
+        src/worker/ManapiHttp2Worker.cpp
+        src/worker/ManapiHttp1Interface.cpp
+        include/worker/ManapiInterfaceWorker.hpp
+        src/worker/ManapiInterfaceWorker.cpp
         include/components/ManapiSlice.hpp
         src/components/ManapiSlice.cpp
         src/compress/ManapiHPack.cpp

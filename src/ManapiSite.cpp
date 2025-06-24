@@ -2,22 +2,21 @@
 #include "ManapiSite.hpp"
 
 #include "encoding/ManapiUnicode.hpp"
-#include "worker/base_worker.hpp"
-#include "worker/TCP.hpp"
-#include "worker/OpenSSL_TLS.hpp"
-#include "worker/QUIC.hpp"
+#include "worker/ManapiBaseWorker.hpp"
+#include "worker/ManapiTcp.hpp"
+#include "worker/ManapiOpenSslOverTcp.hpp"
 #include "ManapiUtils.hpp"
 
 #include "services/ManapiTaskFunction.hpp"
 #include "services/ManapiThreadPool.hpp"
-#include "worker/HTTPv3_clouflare_quiche.hpp"
-#include "worker/WolfSSL_TLS.hpp"
+#include "worker/ManapiHttp3Cloudflare.hpp"
+#include "worker/ManapiWolfSslOverTcp.hpp"
 
 #include "ManapiHttpResponse.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "async/ManapiEasyCancellation.hpp"
-#include "worker/default_wrk_http1.hpp"
-#include "worker/default_wrk_http2.hpp"
+#include "worker/ManapiHttp1Interface.hpp"
+#include "worker/ManapiHttp2Interface.hpp"
 
 namespace manapi::net {
     namespace worker {

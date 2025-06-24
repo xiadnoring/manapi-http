@@ -14,8 +14,7 @@
 #include "./ManapiThreadPool.hpp"
 #include "../async/ManapiAsyncMutex.hpp"
 #include "../async/ManapiAsyncPromise.hpp"
-#include "../components/Atomic.hpp"
-#include "../components/TimerObject.hpp"
+#include "../components/ManapiTimerObject.hpp"
 #include "../components/ManapiEventStructures.hpp"
 
 

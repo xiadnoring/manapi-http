@@ -5,8 +5,8 @@
 #   define FOLDER ".\\data\\"
 #else
 //#   define FOLDER "/home/Timur/Downloads/anime-main/"
-#endif
 #define FOLDER "/home/Timur/Documents/http2priorities/"
+#endif
 #include <cstring>
 
 #include "crypto/ManapiAEAD.hpp"

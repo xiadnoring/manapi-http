@@ -16,7 +16,6 @@
 #include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
 #include "async/ManapiAsyncConditionVariable.hpp"
-#include "components/Atomic.hpp"
 
 namespace manapi::net::http {
     namespace versions {
