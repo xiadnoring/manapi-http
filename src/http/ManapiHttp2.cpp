@@ -408,7 +408,7 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
 int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, const manapi::net::worker::shared_conn &sconn, manapi::net::http::http_v2_stream_t *sdata, uint8_t upriority) {
     using namespace manapi::net::http;
     bool flg = false;
-    std::cout << "insert " << sdata->id << " " << (int)upriority << "\n";
+    //std::cout << "insert " << sdata->id << " " << (int)upriority << "\n";
     auto const prit = ctx->priorities->insert(
         {{upriority, sdata->id}, sconn});
     if (prit.second) {
@@ -473,7 +473,7 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, const manapi::ne
 uint8_t http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net::http::http_v2_stream_t *s, uint8_t upriority) {
     using namespace manapi::net::http;
 
-    std::cout << "remove " << s->id << " " << (int)upriority << "\n";
+    //std::cout << "remove " << s->id << " " << (int)upriority << "\n";
 
     try {
         auto opit = ctx->priorities->find({upriority, s->id});
@@ -997,11 +997,13 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 auto const sdata = s->second->as<http_v2_stream_t>();
 
                                 sdata->write_window += ctx->n1;
-                                if (sdata->write_window == ctx->n1
-                                    && (sdata->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE
+
+                                if (sdata->write_window == ctx->n1) {
+                                    http_v2_update_priority(ctx, s->second, sdata);
+                                    if ((sdata->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE
                                     && (sdata->ev_callback)) {
-                                        http_v2_update_priority(ctx, s->second, sdata);
                                         sdata->ev_callback->operator()(s->second, ev::WRITE, nullptr, 0, nullptr);
+                                    }
                                 }
                             }
                             else {
@@ -1903,7 +1905,7 @@ header_skip:
 
 ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) {
     auto s = conn->as<http_v2_stream_t>();
-    if (s->flags & (HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_PRIORITY_LOCKED))
+    if (s->flags & (HTTP2_STREAM_CLOSED/**|http::HTTP2_STREAM_PRIORITY_LOCKED**/))
         return -(s->flags & ev::DISCONNECT);
 
     if (s->ctx->flags & http::HTTP2_CTX_FLAG_BLOCK_WRITE)

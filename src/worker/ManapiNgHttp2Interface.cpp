@@ -142,19 +142,17 @@ int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const nghttp2
             break;
         }
         case NGHTTP2_HEADERS: {
-            auto const s = static_cast<http_v2_stream_t *>(nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
-            if (!s)
+            auto const conn = static_cast<manapi::net::worker::shared_conn *>(nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+            if (!conn)
                 return 0;
+
+            auto s = (*conn)->as<http_v2_stream_t>();
 
             if (frame->hd.flags & NGHTTP2_FLAG_END_HEADERS) {
                 if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
                     s->flags |= HTTP2_STREAM_RECV_END;
 
                 sess->gctx->base_worker->waiting(sess->conn, false);
-
-                auto it = sess->streams.find(frame->hd.stream_id);
-                if (it == sess->streams.end())
-                    return NGHTTP2_ERR_FATAL;
 
                 int status = 200;
 
@@ -280,8 +278,8 @@ int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const nghttp2
 
 int ng_wrk_http2_on_stream_close_callback (nghttp2_session *session, int32_t stream_id, uint32_t error_code, void *user_data) {
     auto const sess = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(user_data);
-    auto s = static_cast<http_v2_stream_t *>(nghttp2_session_get_stream_user_data(session, stream_id));
-    if (!s)
+    auto conn = static_cast<manapi::net::worker::shared_conn *>(nghttp2_session_get_stream_user_data(session, stream_id));
+    if (!conn)
         return 0;
     nghttp2_session_set_stream_user_data(sess->ctx.get(), stream_id, nullptr);
     sess->streams.erase(stream_id);
@@ -296,9 +294,11 @@ int ng_wrk_http2_on_header_callback (nghttp2_session *session, const nghttp2_fra
             if (frame->headers.cat != NGHTTP2_HCAT_REQUEST)
                 break;
 
-            auto s = static_cast<http_v2_stream_t *>(nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
-            if (!s)
+            auto conn = static_cast<manapi::net::worker::shared_conn *>(nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+            if (!conn)
                 break;
+
+            auto s = (*conn)->as<http_v2_stream_t>();
 
             s->req->headers.insert({std::string(reinterpret_cast<const char *>(name), namelen),
                 std::string(reinterpret_cast<const char *>(value), valuelen)});
@@ -313,9 +313,11 @@ int ng_wrk_http2_on_header_callback (nghttp2_session *session, const nghttp2_fra
 
 int ng_wrk_http2_data_chunk_recv_callback (nghttp2_session *session, uint8_t flags, int32_t stream_id, const uint8_t *data, size_t len, void *user_data) {
     auto const sess = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(user_data);
-    auto s = static_cast<http_v2_stream_t *>(nghttp2_session_get_stream_user_data(session, stream_id));
-    if (!s)
+    auto conn = static_cast<manapi::net::worker::shared_conn *>(nghttp2_session_get_stream_user_data(session, stream_id));
+    if (!conn)
         return NGHTTP2_ERR_STREAM_CLOSED;
+
+    auto const s = (*conn)->as<http_v2_stream_t>();
 
     auto const config = sess->gctx->base_worker->config();
 
@@ -324,6 +326,8 @@ int ng_wrk_http2_data_chunk_recv_callback (nghttp2_session *session, uint8_t fla
 
     auto rhs = manapi::net::worker::base::connection_io_send(s->recv.get(), reinterpret_cast<const char*>(data), len, &sess->gctx->base_worker->bufferpool(),
         config->buffer_size, &s->recv_size, 1e5);
+
+    s->transfered_k += rhs;
 
     return rhs;
 }
@@ -363,11 +367,12 @@ int ng_wrk_http2_on_begin_headers_callback(nghttp2_session *session, const nghtt
     pointer->req->http = w->version;
     w->wrk.data = sess;
 
-    if (!sess->streams.insert({id, std::move(w)}).second)
+    auto res = sess->streams.insert({id, std::move(w)});
+    if (!res.second)
         /* failed to insert */
         return NGHTTP2_ERR_DATA_EXIST;
 
-    if (auto const rhs = nghttp2_session_set_stream_user_data (session, id, pointer))
+    if (auto const rhs = nghttp2_session_set_stream_user_data (session, id, &res.first->second))
         return rhs;
 
     return 0;
@@ -473,16 +478,21 @@ struct nghttp2_nv_deleter {
 };
 
 ssize_t ng_wrk_http2_read_cb (nghttp2_session *session, int32_t stream_id, uint8_t *buf, size_t length, uint32_t *data_flags, nghttp2_data_source *source, void *user_data) {
-    auto s = static_cast<http_v2_stream_t *>(nghttp2_session_get_stream_user_data(session, stream_id));
-    if (!s)
+    auto conn = static_cast<manapi::net::worker::shared_conn *>(nghttp2_session_get_stream_user_data(session, stream_id));
+    auto const sess = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(user_data);
+    if (!conn)
         return 0;
+
+    auto s = (*conn)->as<http_v2_stream_t>();
 
     ssize_t res = 0;
 
     if (s->flags & HTTP2_STREAM_SEND_END)
         (*data_flags) |= NGHTTP2_DATA_FLAG_EOF;
-    else if (!s->send_size)
-        return NGHTTP2_ERR_DEFERRED;
+    else if (!s->send_size) {
+        sess->gctx->worker->feed_event(*conn, manapi::ev::WRITE, nullptr, 0, nullptr);
+        return s->send_size ? 0 : NGHTTP2_ERR_DEFERRED;
+    }
 
     auto top = s->send.get();
 
@@ -509,6 +519,8 @@ ssize_t ng_wrk_http2_read_cb (nghttp2_session *session, int32_t stream_id, uint8
             }
         }
     }
+
+    s->transfered_k += res;
 
     return res;
 }
@@ -672,13 +684,15 @@ ssize_t ng_wrk_http2_write (const manapi::net::worker::shared_conn &conn, manapi
                 s->flags |= HTTP2_STREAM_SEND_END;
         }
 
-        if (NGHTTP2_ERR_NOMEM == nghttp2_session_resume_data(http_v2_ctx->ctx.get(), s->id)) {
-            MANAPIHTTP_LOG("nghttp2: resume data send failed due to {}", nghttp2_strerror(NGHTTP2_ERR_NOMEM));
-            return -1;
+        if (const auto err = nghttp2_session_resume_data(http_v2_ctx->ctx.get(), s->id)) {
+            if (err != NGHTTP2_ERR_INVALID_ARGUMENT) {
+                MANAPIHTTP_LOG("nghttp2: resume data send failed due to {}", nghttp2_strerror(NGHTTP2_ERR_NOMEM));
+                return -1;
+            }
         }
-
-
-        nghttp2_session_send(http_v2_ctx->ctx.get());
+        else {
+            nghttp2_session_send(http_v2_ctx->ctx.get());
+        }
     }
 
     return res;
