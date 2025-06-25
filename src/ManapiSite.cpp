@@ -15,6 +15,7 @@
 #include "ManapiHttpResponse.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "async/ManapiEasyCancellation.hpp"
+#include "include/worker/ManapiNgHttp2Interface.hpp"
 #include "worker/ManapiHttp1Interface.hpp"
 #include "worker/ManapiHttp2Interface.hpp"
 
@@ -161,6 +162,12 @@ void manapi::net::http::site::setup() {
         { return create_http_protocol_worker (w, worker::default_wrk_http1_global_init); });
     this->http_protocol_worker(http::versions::HTTP_v2, "default", [] (worker::base *w)
         { return create_http_protocol_worker (w, worker::default_wrk_http2_global_init); });
+
+#ifdef MANAPIHTTP_NGHTTP2_DEPENDENCY
+    this->http_protocol_worker(http::versions::HTTP_v2, "nghttp", [] (worker::base *w)
+        { return create_http_protocol_worker (w, worker::ng_wrk_http2_global_init); });
+#endif
+
 }
 
 manapi::future<> manapi::net::http::site::config(std::string path) {

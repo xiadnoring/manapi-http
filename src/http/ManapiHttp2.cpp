@@ -381,39 +381,6 @@ int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<
     return 0;
 }
 
-int http_v2_flush_recv (const manapi::net::worker::shared_conn &conn, manapi::net::http::http_v2_stream_t *s) {
-    while (s->recv->last_deque
-        && (s->flags & manapi::ev::READ)) {
-        auto b = std::move(s->recv->deque->buffer);
-        ssize_t sz;
-
-        s->recv->deque = std::move(s->recv->deque->next);
-        s->recv_size--;
-
-        if (!s->recv->deque) {
-            s->recv->last_deque = nullptr;
-            b.resize(s->recv->deque_cursor);
-
-            s->recv->deque_cursor = 0;
-        }
-
-        if (s->recv->deque_current) {
-            b.shift_add(s->recv->deque_current);
-            s->recv->deque_current = 0;
-        }
-
-        sz = static_cast<ssize_t>(b.size());
-        if (sz) {
-            int flags = manapi::ev::READ;
-            if ((s->flags & manapi::net::http::HTTP2_STREAM_RECV_END) && !s->recv_size)
-                flags |= manapi::net::http::HTTP2_STREAM_RECV_END;
-            s->ev_callback->operator()(conn, flags, b.data(), sz, &b);
-        }
-    }
-
-    return 0;
-}
-
 int http_v2_rst_stream_ex (manapi::net::http::http_v2_t *ctx, int stream_id, int errcode) {
     char errid[4];
     stringify_stream_id(stream_id, errid);
@@ -695,8 +662,8 @@ int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi
 
 int manapi::net::http::http_v2_on_read_stream(const worker::shared_conn &conn) {
     auto const s = conn->as<http_v2_stream_t>();
-    if (http_v2_flush_recv (conn, s)) {
-        return -1;
+    if (auto const rhs = worker::http_v2_flush_recv (conn, s)) {
+        return rhs;
     }
     return http_v2_process_window (conn, s);
 }
@@ -1489,7 +1456,7 @@ header_skip:
                             /**
                              * recv data
                              */
-                            if (http_v2_flush_recv (s->second, sdata)) {
+                            if (worker::http_v2_flush_recv (s->second, sdata)) {
                                 return EHTTP_V2_PROTOCOL_ERROR;
                             }
 

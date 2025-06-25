@@ -22,28 +22,6 @@ namespace manapi::net::http {
         int settings_enable_metadata;
     };
 
-    enum http2_stream_flags {
-        HTTP2_STREAM_WANT_READ = manapi::ev::READ,
-        HTTP2_STREAM_WANT_WRITE = manapi::ev::WRITE,
-        HTTP2_STREAM_CLOSED = manapi::ev::DISCONNECT,
-        HTTP2_STREAM_REMOVED = manapi::net::worker::base::CONN_REMOVED,
-        HTTP2_STREAM_RECV_END = worker::base::CONN_RECV_END,
-        HTTP2_STREAM_SEND_END  = manapi::net::worker::base::CONN_SEND_END,
-        HTTP2_STREAM_IO_WAITING = worker::base::CONN_IO_WAITING,
-        HTTP2_STREAM_TOP_READ = worker::base::CONN_TOP_READ,
-        HTTP2_STREAM_PRIORITY_INCR = 256,
-        HTTP2_STREAM_PRIORITY_LOCKED = 512,
-        HTTP2_STREAM_BLOCK_WRITE = 1024,
-        HTTP2_STREAM_BAD_STATUS = 2048
-        //HTTP2_STREAM_START_WORK_WAIT = 2048
-    };
-
-    enum http2_ctx_flags {
-        HTTP2_CTX_FLAG_BLOCK_WRITE = 1,
-        HTTP2_CTX_FLAG_WANT_CLOSE = 2,
-        HTTP2_CTX_FLAG_REALY_CLOSE = 4
-    };
-
     struct http_v2_t;
 
     struct http_v2_stream_t : worker::http_v2_stream_base_t {
@@ -101,6 +79,29 @@ namespace manapi::net::http {
         std::unique_ptr<std::map<std::pair<uint8_t, int>, worker::shared_conn >> priorities;
         std::unique_ptr<std::set<std::string>> pings;
         uint16_t status;
+    };
+
+    enum http2_stream_flags {
+        HTTP2_STREAM_WANT_READ = manapi::ev::READ,
+        HTTP2_STREAM_WANT_WRITE = manapi::ev::WRITE,
+        HTTP2_STREAM_CLOSED = manapi::ev::DISCONNECT,
+        HTTP2_STREAM_REMOVED = manapi::net::worker::base::CONN_REMOVED,
+        HTTP2_STREAM_RECV_END = worker::base::CONN_RECV_END,
+        HTTP2_STREAM_SEND_END  = manapi::net::worker::base::CONN_SEND_END,
+        HTTP2_STREAM_IO_WAITING = worker::base::CONN_IO_WAITING,
+        HTTP2_STREAM_TOP_READ = worker::base::CONN_TOP_READ,
+        HTTP2_STREAM_PRIORITY_INCR = 256,
+        HTTP2_STREAM_PRIORITY_LOCKED = 512,
+        HTTP2_STREAM_BLOCK_WRITE = 1024,
+        HTTP2_STREAM_BAD_STATUS = 2048
+        //HTTP2_STREAM_START_WORK_WAIT = 2048
+    };
+
+
+    enum http2_ctx_flags {
+        HTTP2_CTX_FLAG_BLOCK_WRITE = 1,
+        HTTP2_CTX_FLAG_WANT_CLOSE = 2,
+        HTTP2_CTX_FLAG_REALY_CLOSE = 4
     };
 
     enum http_v2_errs {

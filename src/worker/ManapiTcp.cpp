@@ -352,9 +352,6 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
         }
 
         this->connections.erase(reinterpret_cast<uintptr_t> (conn.get()));
-
-        if (this->global_.cleanup_cb(conn.get(), &this->global_, this))
-            MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
     }
     else {
         if (this->global_.cleanup_cb(conn.get(), &this->global_, this))
@@ -828,9 +825,13 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
         manapi::async::current()->eventloop()->stop_watcher(std::move(connection->watcher));
     }
 
+
     std::cout << "CLOSE TCP PEER\n";
 
     auto const wrk = dynamic_cast<TCP*> (connection->worker);
+
+    if (wrk->global_.cleanup_cb(ptr, &wrk->global_, wrk))
+        MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
 
     wrk->count--;
     wrk->worker_data()->count.fetch_sub(1);

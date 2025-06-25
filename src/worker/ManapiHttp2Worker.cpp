@@ -2,6 +2,38 @@
 
 #include "ManapiHttpResponse.hpp"
 
+int manapi::net::worker::http_v2_flush_recv(const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) {
+    while (s->recv->last_deque
+        && (s->flags & manapi::ev::READ)) {
+        auto b = std::move(s->recv->deque->buffer);
+        ssize_t sz;
+
+        s->recv->deque = std::move(s->recv->deque->next);
+        s->recv_size--;
+
+        if (!s->recv->deque) {
+            s->recv->last_deque = nullptr;
+            b.resize(s->recv->deque_cursor);
+
+            s->recv->deque_cursor = 0;
+        }
+
+        if (s->recv->deque_current) {
+            b.shift_add(s->recv->deque_current);
+            s->recv->deque_current = 0;
+        }
+
+        sz = static_cast<ssize_t>(b.size());
+        if (sz) {
+            int flags = manapi::ev::READ;
+            if ((s->flags & manapi::net::worker::base::CONN_RECV_END) && !s->recv_size)
+                flags |= manapi::net::worker::base::CONN_RECV_END;
+            s->ev_callback->operator()(conn, flags, b.data(), sz, &b);
+        }
+    }
+
+    return 0;
+}
 manapi::net::worker::http_v2::http_v2(worker::base *w, http_v2_callbacks_t *callbacks) : w(w), callbacks(callbacks) {}
 
 manapi::net::worker::http_v2::~http_v2() = default;

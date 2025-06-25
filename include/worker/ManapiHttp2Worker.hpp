@@ -23,11 +23,13 @@ namespace manapi::net::worker {
 
     struct http_v2_stream_base_t {
         int flags;
+        int send_size;
         int recv_size;
         ssize_t transfered_k;
         int speed_min_delay;
         std::unique_ptr<worker::worker_watcher_cb> ev_callback;
         std::unique_ptr<worker::connection_io_part> recv;
+        std::unique_ptr<worker::connection_io_part> send;
     };
 
     struct http_v2_callbacks_t {
@@ -38,6 +40,8 @@ namespace manapi::net::worker {
         bool (*http_v2_is_writable) (const worker::shared_conn &conn);
         manapi::net::worker::connection::ipdata_t *(*http_v2_ip_data) (manapi::net::worker::connection *conn);
     };
+
+    int http_v2_flush_recv (const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s);
 
     class http_v2 final : public worker::base {
     public:
