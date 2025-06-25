@@ -740,7 +740,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                     v = config->max_frame_size;
                     if (v > 0)
                         ops.emplace_back(HTTP2_SETTING_MAX_FRAME_SIZE, v);
-                    v = config->max_hpack_list_size < 0 ? 15000 : config->max_hpack_list_size;
+                    v = config->max_hpack_list_size < 0 ? 4096 : config->max_hpack_list_size;
                     ops.emplace_back(HTTP2_SETTING_MAX_HEADER_LIST_SIZE, v);
                     v = config->initial_window_size < 0 ? 65535 : config->initial_window_size;
                     ops.emplace_back(HTTP2_SETTING_INITIAL_WINDOW_SIZE, v);
@@ -1267,23 +1267,21 @@ header_skip:
 
                                 auto hv = sdata->req->headers.extract(":method");
                                 if (hv.empty()) {
-                                    http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
-                                    http_goaway.err_msg = ":method is missing";
-                                    ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                    ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                    break;
+                                    sdata->req->method = "GET";
+                                    sdata->flags |= HTTP2_STREAM_BAD_STATUS;
+                                    ctx->status = BAD_REQUEST_400;
                                 }
-                                sdata->req->method = std::move(hv.mapped());
+                                else
+                                    sdata->req->method = std::move(hv.mapped());
 
                                 hv = sdata->req->headers.extract(":path");
                                 if (hv.empty()) {
-                                    http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
-                                    http_goaway.err_msg = ":path is missing";
-                                    ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                    ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                    break;
+                                    sdata->flags |= HTTP2_STREAM_BAD_STATUS;
+                                    ctx->status = BAD_REQUEST_400;
+                                    sdata->req->uri = "/";
                                 }
-                                sdata->req->uri = std::move(hv.mapped());
+                                else
+                                    sdata->req->uri = std::move(hv.mapped());
 
                                 auto hit = sdata->req->headers.find(http::HEADER.CONTENT_LENGTH);
                                 if (hit == sdata->req->headers.end()) {
@@ -1298,11 +1296,9 @@ header_skip:
                                     }
 
                                     if (sdata->req->body_size < 0) {
-                                        http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_REFUSED_STREAM;
-                                        http_goaway.err_msg = "invalid content length";
-                                        ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                        ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                        break;
+                                        sdata->req->body_size = 0;
+                                        sdata->flags |= HTTP2_STREAM_BAD_STATUS;
+                                        ctx->status = BAD_REQUEST_400;
                                     }
                                 }
 
