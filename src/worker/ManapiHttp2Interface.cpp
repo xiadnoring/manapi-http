@@ -66,7 +66,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                     auto const globalctx = static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (global->data);
 
                     manapi::async::current()->etaskpool()->append_task(
-                        [conn, status = http_v2_ctx->status, id = s->first, w, w2 = globalctx->worker] () -> void {
+                        [conn, status = http_v2_ctx->status,  id = s->first, w, w2 = globalctx->worker] () -> void {
                             auto wrk_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
                             if (!wrk_ctx)
                                 return;
@@ -77,7 +77,8 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
 
                             auto const sdata = s->second->as<manapi::net::http::http_v2_stream_t>();
                             auto const req_ptr = sdata->req.get();
-                            std::cout << s->first<<" " << req_ptr->uri << " " << req_ptr->headers["priority"] << " " << (int)s->second->as<manapi::net::http::http_v2_stream_t>()->priority << "\n";
+                            assert(req_ptr);
+                            std::cout << s->first<<" " << req_ptr->uri  << "\n";
 
                             auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(s->second, w2,
                                 req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
@@ -93,8 +94,8 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                                             manapi::net::http::http_v2_on_close_stream(ctx->ctx.get(), sdata->id);
 
                                             if (ctx->ctx->streams->empty()) {
-                                                if (ctx->ctx->current == -1
-                                                    || (w->event_flags(conn) & manapi::net::worker::base::CONN_CLOSED)) {
+                                                if (ctx->ctx->current == -1 ||
+                                                    (ctx->ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_WANT_CLOSE)) {
                                                     if (manapi::net::http::http_v2_on_close (ctx->ctx.get())) {
                                                         /* error */
                                                     }

@@ -128,6 +128,7 @@ namespace manapi::compress::hpack
 
 			uint8_t state;
 			uint8_t next;
+			uint8_t flags;
 			int n1;
 			uint32_t n2;
 			std::string buff1;

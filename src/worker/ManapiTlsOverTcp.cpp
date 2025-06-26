@@ -376,6 +376,15 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
                             if (err == this->ssl_error_ssl_ || err == this->ssl_error_syscall_) {
                                 goto err;
                             }
+                            if (err == this->ssl_error_want_read_ || err == this->ssl_error_want_write_) {
+                                /* force write all data */
+                                if (this->ssl_bio_flush_write_(conn, data, 1e5)) {
+                                    goto err;
+                                }
+
+                                if (this->flush_write_(conn, true))
+                                    goto err;
+                            }
                             nread = 0;
                         }
 
@@ -616,22 +625,35 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, TLS::
             rhs = this->ssl_read_(m->ssl, fastfast,
                 static_cast<int>(nfastfast));
 
-            if (rhs > 0) {
-                ssize_t alr = 0;
-                if (!m->top->recv_size && (m->status & CONN_READ) && m->ev_callback) {
-                    m->ev_callback->operator()(conn, ev::READ, fastfast, rhs, nullptr);
-                }
-                else {
-                    TLS::connection_io_send(top, fastfast + alr, rhs - alr, &this->bufferpool(),
-                        this->config_->buffer_size, &m->top->recv_size, 1e5);
-                    this->flush_read_(conn, m);
-                }
-            }
-            else {
-                if (!this->ssl_bio_should_retry_(m->rbio)) {
+            if (rhs < 0) {
+                auto const err = this->ssl_get_error_(m->ssl, rhs);
+                if (err == this->ssl_error_ssl_ || err == this->ssl_error_syscall_) {
                     return CONN_IO_ERROR;
                 }
+
+                if (err == this->ssl_error_want_read_ || err == this->ssl_error_want_write_) {
+                    /* force write all data */
+                    if (this->ssl_bio_flush_write_(conn, m, 1e5)) {
+                        return CONN_IO_ERROR;
+                    }
+
+                    if (this->flush_write_(conn, true))
+                        return CONN_IO_ERROR;
+                }
+
                 break;
+            }
+            if (!rhs)
+                break;
+
+            ssize_t alr = 0;
+            if (!m->top->recv_size && (m->status & CONN_READ) && m->ev_callback) {
+                m->ev_callback->operator()(conn, ev::READ, fastfast, rhs, nullptr);
+            }
+            else {
+                TLS::connection_io_send(top, fastfast + alr, rhs - alr, &this->bufferpool(),
+                    this->config_->buffer_size, &m->top->recv_size, 1e5);
+                this->flush_read_(conn, m);
             }
         }
         return CONN_IO_OK;

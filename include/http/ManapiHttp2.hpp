@@ -30,6 +30,8 @@ namespace manapi::net::http {
 
         http_v2_t *ctx;
 
+        ssize_t content_length;
+
         int write_window;
         int read_window;
 
@@ -101,7 +103,8 @@ namespace manapi::net::http {
     enum http2_ctx_flags {
         HTTP2_CTX_FLAG_BLOCK_WRITE = 1,
         HTTP2_CTX_FLAG_WANT_CLOSE = 2,
-        HTTP2_CTX_FLAG_REALY_CLOSE = 4
+        HTTP2_CTX_FLAG_REALY_CLOSE = 4,
+        HTTP2_CTX_FLAG_NEW_CONNECTION = 8
     };
 
     enum http_v2_errs {

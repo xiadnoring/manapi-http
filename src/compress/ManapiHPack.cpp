@@ -13,6 +13,10 @@ namespace manapi::compress::hpack {
 	typedef std::vector< bool > bits_t;
     const static std::set <std::string> multiheaders = {"set-cookie","www-authenticate","proxy-authenticate", "cookie"};
 
+	enum decompress_ctx_flags {
+		HPACK_DECOMPRESS_REGULAR_HEADERS = 1
+	};
+
 	static const std::array< header_t, 62 > predefined_headers = {
 		{
 			header_t("INVALIDINDEX", "INVALIDINDEX"), header_t(":authority", ""), header_t(":method", "GET"),
@@ -904,8 +908,28 @@ err_zero:
 							return res.err();
 
 						auto val = res.value();
-						m_headers.insert(*val);
 
+						if (val->first.empty())
+							return error::status_aborted("header name is empty");
+
+						if (this->flags & HPACK_DECOMPRESS_REGULAR_HEADERS) {
+							if (val->first[0] == ':')
+								return error::status_aborted("invalid header");
+						}
+						else {
+							if (val->first[0] != ':')
+								this->flags |= HPACK_DECOMPRESS_REGULAR_HEADERS;
+						}
+
+						auto it = m_headers.find(val->first);
+						if (it == m_headers.end()) {
+							m_headers.insert(*val);
+						}
+						else {
+							if (val->first[0] == ':')
+								return manapi::error::status_aborted("duplicate pesudo-header");
+							m_headers[val->first] += "," + val->second;
+						}
 						this->state = HPACK_DECODE_HBYTE;
 
 						break;
@@ -979,6 +1003,18 @@ err_zero:
 
 						this->headers_size -= this->buff1.size() + this->buff2.size();
 
+						if (buff2.empty())
+							return error::status_aborted("header name is empty");
+
+						if (this->flags & HPACK_DECOMPRESS_REGULAR_HEADERS) {
+							if (this->buff2[0] == ':')
+								return error::status_aborted("invalid header");
+						}
+						else {
+							if (this->buff2[0] != ':')
+								this->flags |= HPACK_DECOMPRESS_REGULAR_HEADERS;
+						}
+
 						if (this->state == HPACK_DECODE_HEADER_LITERAL_FIN_INDX)
 							this->m_dynamic.add (header_t (this->buff2, this->buff1));
 
@@ -995,14 +1031,10 @@ err_zero:
 							 *
 							 */
 
-							if (multiheaders.contains(this->buff2)) {
-								existing->second.push_back(',');
-								existing->second.append(this->buff1);
-							}
-							else {
-								// either maybe fail the whole thing
-								existing->second = std::move(this->buff1);
-							}
+							if (this->buff2[0] == ':')
+								return manapi::error::status_aborted("duplicate pesudo-header");
+							existing->second.push_back(',');
+							existing->second.append(this->buff1);
 						}
 						else {
 							this->m_headers.insert({std::move(this->buff2), std::move(this->buff1)});
@@ -1021,6 +1053,7 @@ err_zero:
 						this->n1 = 0;
 						this->n2 = 0;
 						this->state = HPACK_DECODE_HBYTE;
+						this->flags = 0;
 
 						break;
 					}
@@ -1041,10 +1074,13 @@ err_zero:
 
 	manapi::error::status_or<std::map< std::string, std::string >> decoder_t::headers(uint32_t headers_size) {
 		this->headers_size = headers_size;
-		if (this->state == HPACK_DECODE_HBYTE)
+
+		bool const flg = this->state == HPACK_DECODE_HBYTE;
+		this->state = HPACK_DECODE_RST;
+
+		if (flg)
 			return std::move(this->m_headers);
 
-		this->state = HPACK_DECODE_RST;
 		return manapi::error::status_aborted("hpack: unexpended end");
 	}
 
