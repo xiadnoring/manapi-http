@@ -33,8 +33,10 @@ OPTION(MANAPIHTTP_BUILD_METHOD "Build method" "default")
 OPTION(MANAPIHTTP_WOLFSSL_WITH_ALPN "WolfSSL with ALPN" ON)
 OPTION(MANAPIHTTP_NGHTTP2_DEPENDENCY "libnghttp2 by nghttp2" OFF)
 OPTION(MANAPIHTTP_NGHTTP3_DEPENDENCY "libnghttp3 by nghttp3" OFF)
+OPTION(MANAPIHTTP_CPPTRACE_DEPENDENCY "Stack Tracing c++" OFF)
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
+message(STATUS "C++ Stack Tracing: ${MANAPIHTTP_CPPTRACE_DEPENDENCY}")
 message(STATUS "MANAPIHTTP_BUILD_METHOD: ${MANAPIHTTP_BUILD_METHOD}")
 message(STATUS "gPRC implementations by Google: ${MANAPIHTTP_GRPC_DEPENDENCY}")
 message(STATUS "The QUIC Implementation by Cloudflare: ${MANAPIHTTP_QUICHE_DEPENDENCY}")
@@ -108,10 +110,13 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
         find_package(nghttp3 REQUIRED)
     endif ()
 
+    if (MANAPIHTTP_CPPTRACE_DEPENDENCY)
+        find_package(cpptrace REQUIRED)
+    endif ()
+
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
         # For Testing
         find_package(PostgreSQL REQUIRED)
-        find_package(cpptrace REQUIRED)
     endif ()
 else ()
     message(STATUS "Build method: default")
@@ -193,7 +198,8 @@ else ()
 
     if (MANAPIHTTP_GRPC_DEPENDENCY)
         pkg_check_modules(GRPC grpc)
-        if (NOT GRPC_FOUND)
+        pkg_check_modules(Protobuf protobuf)
+        if (NOT GRPC_FOUND OR NOT PROTOBUF_FOUND)
             set(MANAPIHTTP_GRPC_DEPENDENCY OFF)
         endif ()
     endif ()
@@ -202,6 +208,27 @@ else ()
         include(./cmake/FindZSTD.cmake)
         if (NOT ZSTD_FOUND)
             set(MANAPIHTTP_ZSTD_DEPENDENCY OFF)
+        endif ()
+    endif ()
+
+    if (MANAPIHTTP_CPPTRACE_DEPENDENCY)
+        include(./cmake/FindCppTrace.cmake)
+        if (NOT CPPTRACE_FOUND)
+            set(MANAPIHTTP_CPPTRACE_DEPENDENCY OFF)
+        endif ()
+    endif ()
+
+    if (MANAPIHTTP_NGHTTP2_DEPENDENCY)
+        include(./cmake/FindLibNgHttp2.cmake)
+        if (NOT LIBNGHTTP2_FOUND)
+            set(MANAPIHTTP_NGHTTP2_DEPENDENCY OFF)
+        endif ()
+    endif ()
+
+    if (MANAPIHTTP_NGHTTP3_DEPENDENCY)
+        include(./cmake/FindLibNgHttp3.cmake)
+        if (NOT LIBNGHTTP3_FOUND)
+            set(MANAPIHTTP_NGHTTP3_DEPENDENCY OFF)
         endif ()
     endif ()
 endif ()
@@ -229,6 +256,7 @@ string(REPLACE "{{ VAR_MANAPIHTTP_GRPC_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_GRPC_D
 string(REPLACE "{{ VAR_MANAPIHTTP_ZSTD_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_ZSTD_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_NGHTTP2_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_NGHTTP2_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_NGHTTP3_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_NGHTTP3_DEPENDENCY}> TEXT "${TEXT}")
+string(REPLACE "{{ VAR_MANAPIHTTP_CPPTRACE_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_CPPTRACE_DEPENDENCY}> TEXT "${TEXT}")
 
 file(GENERATE OUTPUT include/ManapiParams.hpp CONTENT "${TEXT}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS include/ManapiParams.hpp)
@@ -404,9 +432,9 @@ set(MANAPIHTTP_HTTP_FILES
         src/components/ManapiSlice.cpp
         src/compress/ManapiHPack.cpp
         src/include/worker/ManapiNgHttp2Interface.hpp
-        src/include/worker/ManapiNgHttp3Interface.hpp
+        src/include/worker/ManapiQuicNgTcp2.hpp
         src/worker/ManapiNgHttp2Interface.cpp
-        src/worker/ManapiNgHttp3Interface.cpp
+        src/worker/ManapiQuicNgTcp2.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
@@ -558,7 +586,11 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     target_link_libraries (${PROJECT_NAME} PUBLIC uv)
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
-        target_link_libraries(${PROJECT_NAME} PUBLIC PostgreSQL::PostgreSQL cpptrace::cpptrace)
+        target_link_libraries(${PROJECT_NAME} PUBLIC PostgreSQL::PostgreSQL)
+    endif ()
+
+    if (MANAPIHTTP_CPPTRACE_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC cpptrace::cpptrace)
     endif ()
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
@@ -612,8 +644,6 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     target_link_libraries(${PROJECT_NAME} PUBLIC
             ${CONAN_LIBS}
     )
-
-    add_compile_definitions(MANAPIHTTP_CPPTRACE_DEPENDENCY=True)
 else ()
     target_link_libraries       (${PROJECT_NAME} PUBLIC PkgConfig::LIBUV)
     target_include_directories  (${PROJECT_NAME} PUBLIC ${LIBUV_INCLUDE_DIRS})
@@ -672,6 +702,24 @@ else ()
     if (MANAPIHTTP_GRPC_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${GRPC_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${GRPC_INCLUDE_DIRS})
+
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${PROTOBUFF_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${PROTOBUFF_INCLUDE_DIRS})
+    endif ()
+
+    if (MANAPIHTTP_NGHTTP2_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBNGHTTP2_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${LIBNGHTTP2_INCLUDE_DIRS})
+    endif ()
+
+    if (MANAPIHTTP_NGHTTP3_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBNGHTTP3_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${LIBNGHTTP3_INCLUDE_DIRS})
+    endif ()
+
+    if (MANAPIHTTP_CPPTRACE_DEPENDENCY)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${CPPTRACE_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${CPPTRACE_INCLUDE_DIRS})
     endif ()
 
 endif ()

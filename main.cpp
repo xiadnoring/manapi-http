@@ -68,6 +68,12 @@ int main () {
 
         router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
+            int z =5;
+            z += 4;
+            int c = 2;
+            c --;
+            c--;
+            z /= c;
             a.fetch_add(1);
             co_return resp.text("");
         });

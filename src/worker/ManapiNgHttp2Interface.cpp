@@ -1,5 +1,7 @@
 #include "../include/worker/ManapiNgHttp2Interface.hpp"
 
+#if MANAPIHTTP_NGHTTP2_DEPENDENCY
+
 #include <cstring>
 
 #include "ManapiHttpResponse.hpp"
@@ -7,6 +9,7 @@
 #include "http/ManapiBaseHttp.hpp"
 #include "nghttp2/nghttp2.h"
 #include "nghttp2/nghttp2ver.h"
+
 
 extern manapi::net::worker::http_v2_callbacks_t ng_wrk_http2_callbacks;
 
@@ -761,3 +764,5 @@ manapi::net::worker::http_v2_callbacks_t ng_wrk_http2_callbacks {
     .http_v2_is_writable = ng_wrk_http2_is_writable,
     .http_v2_ip_data = ng_wrk_http2_ipdata
 };
+
+#endif

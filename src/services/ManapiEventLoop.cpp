@@ -2,6 +2,10 @@
 
 #include "services/ManapiEventLoop.hpp"
 
+#if MANAPIHTTP_CPPTRACE_DEPENDENCY
+#   include <cpptrace/cpptrace.hpp>
+#endif
+
 #include <memory>
 #include <cstring>
 
@@ -354,7 +358,20 @@ std::atomic<bool> manapi::event_loop::interrupted = false;
 std::mutex manapi::event_loop::stop_mx;
 
 void handler_interrupt (int sig) {
-    manapi::event_loop::interrupt();
+    manapi::event_loop::interrupt(sig);
+}
+
+void evloop_stack_trace () {
+    try {
+#if MANAPIHTTP_CPPTRACE_DEPENDENCY
+        cpptrace::generate_trace().print();
+#else
+        std::cerr << "stack trace is disabled\n";
+#endif
+    }
+    catch (std::exception const &e) {
+        std::cerr << "stack trace print failed due to " << e.what() << "\n";
+    }
 }
 
 void manapi::ev::callback_watcher_async (uv_async_t *s) {
@@ -614,16 +631,16 @@ void manapi::event_loop::sync_start(std::shared_ptr<event_loop> le) {
 
 void manapi::event_loop::setup_handle_interrupt() {
 #ifdef _WIN32
-    signal (SIGSEGV, handler_interrupt);
-    signal (SIGFPE, handler_interrupt);
-    signal (SIGINT, handler_interrupt);
     signal (SIGBREAK, handler_interrupt);
-    signal (SIGILL, handler_interrupt);
 #else
     signal (SIGPIPE, SIG_IGN);
     signal (SIGKILL, handler_interrupt);
     signal (SIGSTOP, handler_interrupt);
 #endif
+    signal (SIGINT, handler_interrupt);
+    signal (SIGSEGV, handler_interrupt);
+    signal (SIGFPE, handler_interrupt);
+    signal (SIGILL, handler_interrupt);
     signal (SIGABRT, handler_interrupt);
     signal (SIGTERM, handler_interrupt);
 }
@@ -1217,10 +1234,20 @@ void manapi::event_loop::unpause_watch_curl(std::shared_ptr<CURL> curl) {
 }
 #endif
 
-
-void manapi::event_loop::interrupt() {
+void manapi::event_loop::interrupt(int sig) {
     std::unique_lock <std::mutex> lk (event_loop::stop_mx, std::try_to_lock);
     event_loop::interrupted.store(true);
+
+    switch (sig) {
+        case SIGABRT:
+        case SIGTERM:
+            break;
+        default:
+            evloop_stack_trace ();
+    }
+
+    if (sig == SIGFPE)
+        exit(-1);
 
     for (auto &loop_ :  manapi::event_loop::events) {
         loop_.second->interrupted_watcher_->send();

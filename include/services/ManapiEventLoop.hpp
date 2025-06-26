@@ -229,7 +229,7 @@ namespace manapi {
 #endif
         future<void> custom_callback (std::move_only_function<void(event_loop *ev)> cb);
 
-        static void interrupt ();
+        static void interrupt (int sig);
     protected:
 #if MANAPIHTTP_CURL_DEPENDENCY
 

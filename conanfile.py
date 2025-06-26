@@ -28,12 +28,29 @@ class ManapiHttpConan(ConanFile):
         "grpc_dependency": [True, False],
         "nghttp2_dependency": [True, False],
         "nghttp3_dependency": [True, False],
+        "cpptrace_dependency": [True, False],
         "lib": [True, False]
     }
 
-    default_options = {"shared": False, "fPIC": True, "json_debug": True, "wolfssl_dependency": False, "openssl_dependency": True, "quiche_dependency": True,
-                       "tquic_dependency": False, "lib": False, "curl_dependency": True, "gmp_dependency": True, "zlib_dependency": True, "zstd_dependency": True,
-                       "brotli_dependency": True, "grpc_dependency": False, "nghttp2_dependency": True, "nghttp3_dependency": True}
+    default_options = {
+        "shared": False,
+        "fPIC": True,
+        "json_debug": True,
+        "wolfssl_dependency": False,
+        "openssl_dependency": True,
+        "quiche_dependency": True,
+        "tquic_dependency": False,
+        "lib": False,
+        "curl_dependency": True,
+        "gmp_dependency": True,
+        "zlib_dependency": True,
+        "zstd_dependency": True,
+        "brotli_dependency": True,
+        "grpc_dependency": False,
+        "nghttp2_dependency": True,
+        "nghttp3_dependency": True,
+        "cpptrace_dependency": True
+    }
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
 
@@ -103,6 +120,7 @@ class ManapiHttpConan(ConanFile):
         tc.variables['MANAPIHTTP_GRPC_DEPENDENCY'] = self.options.get_safe('grpc_dependency', False)
         tc.variables['MANAPIHTTP_NGHTTP2_DEPENDENCY'] = self.options.get_safe('nghttp2_dependency', False)
         tc.variables['MANAPIHTTP_NGHTTP3_DEPENDENCY'] = self.options.get_safe('nghttp3_dependency', False)
+        tc.variables['MANAPIHTTP_CPPTRACE_DEPENDENCY'] = self.options.get_safe('cpptrace_dependency', False)
         tc.variables['MANAPIHTTP_BUILD_TYPE'] = 'lib' if self.options.get_safe('lib', False) else 'exe'
         tc.cache_variables["CMAKE_TRY_COMPILE_CONFIGURATION"] = str(self.settings.build_type)
         tc.generate()
@@ -143,7 +161,9 @@ class ManapiHttpConan(ConanFile):
 
         if not self.options.get_safe('lib', False):
             self.requires("libpq/16.8")
-            self.requires("cpptrace/0.7.4")
+
+        if self.options.get_safe('cpptrace_dependency', False):
+            self.requires("cpptrace/[>=0.7.4 <1]")
 
         if self.options.get_safe('zlib_dependency', False):
             self.requires("zlib/1.3.1")
