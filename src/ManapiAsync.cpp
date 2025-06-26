@@ -8,4 +8,4 @@ void manapi::async::internal::current_stack_cnt_set (std::size_t cnt) {
     manapi::async::internal::current_stack_cnt = cnt;
 }
 
-size_t manapi::async::max_stack_depth = 800;
+size_t manapi::async::max_stack_depth = 300;

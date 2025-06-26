@@ -269,11 +269,15 @@ int main () {
                     }
                     auto buffer2 = manapi::async::current()->memory_fabric().buffer(size);
                     co_await f.fread(buffer2.data(), size);
-                    for (int i = 0; i < size; i++) {
-                        assert(buffer[i] == buffer2[i]);
-                    }
-                    result += size;
-                    co_return size;
+                    using promise = manapi::async::promise<ssize_t, std::false_type>;
+                    co_return co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
+
+                        for (int i = 0; i < size; i++) {
+                            assert(buffer[i] == buffer2[i]);
+                        }
+                        result += size;
+                        resolve(size);
+                    });
                 });
             }
             catch (std::exception const &e) {

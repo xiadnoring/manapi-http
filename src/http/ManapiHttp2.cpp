@@ -1545,36 +1545,28 @@ header_skip:
                             break;
                         }
                         case HTTP2_FRAME_HEADERS: {
-                            if (ctx->frame_length == 0) {
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
-                                http_goaway.err_msg = "HEADER frame is empty";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+                            if (!ctx->frame_length) {
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR,
+                                    "frame is empty");
                                 goto finish;
                             }
 
-                            if (ctx->frame_stream_id == 0) {
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
-                                http_goaway.err_msg = "0 is reserved";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+                            if (!ctx->frame_stream_id) {
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR,
+                                    "0 is reserved");
                                 goto finish;
                             }
 
                             if (ctx->frame_stream_id <= ctx->last_stream_id || (ctx->frame_stream_id % 2 == 0)) {
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
-                                http_goaway.err_msg = "unexpected stream id";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                    "unexpected stream id");
                                 goto finish;
                             }
 
 
                             if (ctx->concurrent_streams_size >= ctx->server->max_concurret_streams) {
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_REFUSED_STREAM;
-                                http_goaway.err_msg = "max concurrent streams";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_REFUSED_STREAM,
+                                    "max concurrent stream");
                                 goto finish;
                             }
 
@@ -1614,14 +1606,12 @@ header_skip:
                         case HTTP2_FRAME_SETTINGS: {
                             // setting param size - 6 bytes
                             if (ctx->frame_length % 6 != 0) {
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
-                                http_goaway.err_msg = "invalid length in frame SETTINGS";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR,
+                                    "invalid length in frame SETTINGS");
                                 goto finish;
                             }
 
-                            if (ctx->frame_length == 0) {
+                            if (!ctx->frame_length) {
                                 /* ack server settings */
                                 ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
                                 if (ctx->timeout) {
@@ -1645,10 +1635,8 @@ header_skip:
                                  * Receipt of a PING frame with a length field value other than
                                  * 8 MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
                                  */
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
-                                http_goaway.err_msg = "invalid PING";
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR,
+                                    "invalid PING");
                                 goto finish;
                             }
                             ctx->current = HTTP2_CALLBACK_PARSE_PING_DATA;
@@ -1668,29 +1656,32 @@ header_skip:
                                  * a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
                                  */
 
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
-                                http_goaway.err_msg = "invalid WINDOW_UPDATE";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR,
+                                    "invalid WINDOW_UPDATE");
                                 goto finish;
                             }
                             ctx->current = HTTP2_CALLBACK_PARSE_WINDOW_UPDATE_VALUE;
                             break;
                         }
                         case HTTP2_FRAME_CONTINUATION: {
-                            if (ctx->frame_stream_id == 0) {
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
-                                http_goaway.err_msg = "0 is reserved";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                            if (!ctx->frame_stream_id) {
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR,
+                                        "invalid 0 is reserved");
+                                goto finish;
+                            }
+
+                            if (!ctx->frame_length) {
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR,
+                                    "frame is empty");
                                 goto finish;
                             }
 
                             if (ctx->frame_stream_id != ctx->last_stream_id) {
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
-                                http_goaway.err_msg = "provided stream id isn't handled";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                    "provided stream id isn't handled");
+
                                 goto finish;
                             }
 
@@ -1708,10 +1699,9 @@ header_skip:
                              *
                              */
                             if (ctx->frame_stream_id != 0) {
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_CONNECT_ERROR;
-                                http_goaway.err_msg = "PRIORITY_UPDATE incorrect";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_CONNECT_ERROR,
+                                    "PRIORITY_UPDATE incorrect");
                                 break;
                             }
 
@@ -1732,10 +1722,8 @@ header_skip:
                     }
 
                     if (ctx->frame_length > ctx->server->max_frame_size) {
-                        ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                        http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR;
-                        http_goaway.err_msg = "frame length is invalid";
-                        ctx->current = HTTP2_CALLBACK_GOAWAY;
+                        http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR,
+                            "frame length is invalid");
                         goto finish;
                     }
 
