@@ -140,7 +140,7 @@ void stringify_number (T n, char *buffer, int size = sizeof (T)) {
  * @param stream_id Stream ID
  * @return 0 on success, -1 on write error
  */
-int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint8_t flags, int stream_id, manapi::ev::buff_t buffs[], uint32_t nbuff, ssize_t size, bool force = true) {
+int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint8_t flags, uint32_t stream_id, manapi::ev::buff_t buffs[], uint32_t nbuff, ssize_t size, bool force = true) {
     char header[9];
 
     stringify_stream_id(stream_id, header + 5);
@@ -574,7 +574,7 @@ int http_v2_update_priority (manapi::net::http::http_v2_t *ctx, const manapi::ne
 //     return 0;
 // }
 
-int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, int id) {
+int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, uint32_t id) {
     try {
         auto it = ctx->streams->find(id);
         if (it == ctx->streams->end()) {
@@ -899,14 +899,14 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                 }
                 case HTTP2_CALLBACK_PARSE_GOAWAY_ADDITIONAL_DATA: {
                     auto copy = std::min<ssize_t>(static_cast<ssize_t>(ctx->frame_length), size - pos);
-                    copy = std::min<ssize_t>(ctx->frame_buffer.size() + copy, 64);
+                    copy = std::min<ssize_t>(ctx->frame_buffer.size() + copy, 64 - ctx->frame_buffer.size());
 
                     ctx->frame_buffer.append(buffer + pos, copy);
 
                     pos += copy;
                     ctx->frame_length -= copy;
 
-                    if (!ctx->frame_length) {
+                    if (!ctx->frame_length || ctx->frame_buffer.size() == 64) {
                         /*
                          * connection was closed
                          * n1 - error code
@@ -1594,17 +1594,6 @@ header_skip:
                         }
                         case HTTP2_FRAME_PRIORITY: {
                             if (ctx->frame_stream_id != 0) {
-                                /**
-                                 * RFC9218 (7.1) HTTP/2 PRIORITY_UPDATE Frame
-                                 *
-                                 * The Stream Identifier field (see Section 5.1.1 of [HTTP/2])
-                                 * in the PRIORITY_UPDATE frame header MUST be zero (0x0).
-                                 * Receiving a PRIORITY_UPDATE frame with a field of any
-                                 * other value MUST be treated as a connection error of type PROTOCOL_ERROR.
-                                 *
-                                 * !!! But everyone ignores it (CHROME FOR EXAMPLE) !!!
-                                 */
-
                                 // http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_CONNECT_ERROR;
                                 // http_goaway.err_msg = "PRIORITY_UPDATE incorrect";
                                 // ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -1706,6 +1695,32 @@ header_skip:
                             }
 
                             ctx->current = HTTP2_CALLBACK_PARSE_HEADER_DATA;
+                            break;
+                        }
+                        case HTTP2_FRAME_PRIORITY_UPDATE: {
+                            /**
+                             * RFC9218 (7.1) HTTP/2 PRIORITY_UPDATE Frame
+                             *
+                             * The Stream Identifier field (see Section 5.1.1 of [HTTP/2])
+                             * in the PRIORITY_UPDATE frame header MUST be zero (0x0).
+                             * Receiving a PRIORITY_UPDATE frame with a field of any
+                             * other value MUST be treated as a connection error of type PROTOCOL_ERROR.
+                             *
+                             */
+                            if (ctx->frame_stream_id != 0) {
+                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_CONNECT_ERROR;
+                                http_goaway.err_msg = "PRIORITY_UPDATE incorrect";
+                                ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+                                break;
+                            }
+
+                            /* stream id contains 31 bit (but the last one (32) is reserved) */
+                            ctx->n1 = 4;
+                            ctx->current = HTTP2_CALLBACK_PARSE_NUMBER;
+                            ctx->next = HTTP2_CALLBACK_PARSE_PRI_UPDATE_FIELD;
+                            ctx->frame_length -= ctx->n1;
+
                             break;
                         }
                         default: {
@@ -1905,7 +1920,7 @@ header_skip:
 
 ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) {
     auto s = conn->as<http_v2_stream_t>();
-    if (s->flags & (HTTP2_STREAM_CLOSED/**|http::HTTP2_STREAM_PRIORITY_LOCKED**/))
+    if (s->flags & (HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_PRIORITY_LOCKED))
         return -(s->flags & ev::DISCONNECT);
 
     if (s->ctx->flags & http::HTTP2_CTX_FLAG_BLOCK_WRITE)

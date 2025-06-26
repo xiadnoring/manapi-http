@@ -22,6 +22,10 @@ enum http2_stream_flags {
     //HTTP2_STREAM_START_WORK_WAIT = 2048
 };
 
+enum http2_stream_ctx_flags {
+    HTTP2_CTX_WANT_CLOSE = 1
+};
+
 struct manapi::net::worker::ng_wrk_http2_ctx_global_t {
     std::shared_ptr<net::worker::http_v2> worker;
     net::worker::base *base_worker;
@@ -75,8 +79,16 @@ void ng_wrk_http2_on_close (const manapi::net::worker::shared_conn &conn) {
     if (!wrk_ctx)
         return;
 
-    wrk_ctx->ctx.reset();
-    wrk_ctx->conn.reset();
+    if (wrk_ctx->flgs & HTTP2_CTX_WANT_CLOSE) {
+        wrk_ctx->ctx.reset();
+        wrk_ctx->conn.reset();
+    }
+}
+
+void ng_wrk_http2_rst_streams (manapi::net::worker::ng_wrk_http2_ctx_t *ctx) {
+    for (const auto &s : ctx->streams) {
+        ctx->gctx->worker->close_connection(s.second, false);
+    }
 }
 
 int ng_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
@@ -114,7 +126,11 @@ int ng_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, const 
     return manapi::ERR_OK;
 
     err: {
-        ng_wrk_http2_on_close(conn);
+        if (!(wrk_ctx->flgs & HTTP2_CTX_WANT_CLOSE)) {
+            wrk_ctx->flgs |= HTTP2_CTX_WANT_CLOSE;
+            ng_wrk_http2_rst_streams(wrk_ctx);
+            ng_wrk_http2_on_close(conn);
+        }
         return manapi::ERR_UNKNOWN;
     }
 }
@@ -231,8 +247,10 @@ int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const nghttp2
 
                                         //manapi::net::http::http_v2_on_close_stream(ctx->ctx.get(), sdata->id);
 
-                                        if (ctx->streams.empty())
+                                        if (ctx->streams.empty()) {
                                             w->waiting(conn, true);
+                                            ng_wrk_http2_on_close (conn);
+                                        }
                                 });
                         }));
 

@@ -223,8 +223,8 @@ manapi::error::status manapi::net::worker::default_wrk_http2_global_init (manapi
 
 bool default_wrk_http2_is_writable (const manapi::net::worker::shared_conn &conn) {
     auto s = conn->as<manapi::net::http::http_v2_stream_t>();
-    // if (s->flags & manapi::net::http::HTTP2_STREAM_PRIORITY_LOCKED)
-    //     return false;
+    if (s->flags & manapi::net::http::HTTP2_STREAM_PRIORITY_LOCKED)
+        return false;
     if ((s->ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_BLOCK_WRITE))
         return false;
 

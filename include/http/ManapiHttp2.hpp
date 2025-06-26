@@ -26,7 +26,7 @@ namespace manapi::net::http {
 
     struct http_v2_stream_t : worker::http_v2_stream_base_t {
 
-        int id;
+        uint32_t id;
 
         http_v2_t *ctx;
 
@@ -56,8 +56,8 @@ namespace manapi::net::http {
         uint32_t frame_length;
         uint8_t frame_type;
         uint8_t frame_flag;
-        int frame_stream_id;
-        int last_stream_id;
+        uint32_t frame_stream_id;
+        uint32_t last_stream_id;
 
         uint32_t read_window;
         uint32_t write_window;
@@ -69,7 +69,7 @@ namespace manapi::net::http {
         std::unique_ptr<http_v2_settings_t> client;
         std::unique_ptr<http_v2_settings_t> server;
 
-        std::unique_ptr<std::map<int, worker::shared_conn>> streams;
+        std::unique_ptr<std::map<uint32_t, worker::shared_conn>> streams;
 
         std::unique_ptr<manapi::compress::hpack::decoder_t> decoder;
         std::unique_ptr<manapi::compress::hpack::encoder_t> encoder;
@@ -113,7 +113,7 @@ namespace manapi::net::http {
     };
 
     int http_v2_on_close (http_v2_t *ctx);
-    int http_v2_on_close_stream (http_v2_t *ctx, int id);
+    int http_v2_on_close_stream (http_v2_t *ctx, uint32_t id);
     int http_v2_on_write (http_v2_t *ctx);
     int http_v2_on_read_stream (const worker::shared_conn &conn);
     int http_v2_work (http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize);
