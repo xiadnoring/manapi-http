@@ -77,6 +77,8 @@ namespace manapi::net::worker {
 
         virtual void ssl_configure_context () = 0;
 
+        void shutdown_async_ (shared_conn conn);
+
         void onrecv(std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) override;
 
         void *ctx = nullptr;

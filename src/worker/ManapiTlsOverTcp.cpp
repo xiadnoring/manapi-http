@@ -16,6 +16,9 @@
 #include <fcntl.h>
 #include <set>
 
+enum conn_tls_flags  {
+    CONN_TLS_SHUTDOWN = 512
+};
 
 manapi::net::worker::TLS::TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : TCP(std::move(site), std::move(wdata), config) {}
 
@@ -73,12 +76,34 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(ev::shared_tcp
 void manapi::net::worker::TLS::close_connection(shared_conn conn, bool clean_disconnect) {
     auto const connection = conn->as<TLS::connection_interface>();
 
+    if (connection->status & CONN_TLS_SHUTDOWN)
+        return;
+
+
     if (connection->accept_timer) {
         connection->accept_timer.stop();
         connection->accept_timer.clear();
         connection->accept_timer = nullptr;
 
         clean_disconnect = false;
+    }
+
+    connection->status |= CONN_TLS_SHUTDOWN;
+
+    if (!clean_disconnect || !this->config_->keep_alive
+        || !(connection->status & CONN_KEEP_ALIVE)) {
+
+        if (connection->status & CONN_KEEP_ALIVE) {
+            connection->status ^= CONN_KEEP_ALIVE;
+        }
+
+        if (connection->ev_callback) {
+            auto cb = std::move(connection->ev_callback);
+            cb->operator()(conn, ev::DISCONNECT, nullptr, 0, nullptr);
+        }
+
+        this->shutdown_async_(conn);
+        return;
     }
 
     TCP::close_connection(conn, clean_disconnect);
@@ -89,7 +114,7 @@ static long long  zzz = 0;
 ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) {
     auto connection = conn->as<TLS::connection_interface>();
 
-    if (connection->status & ev::DISCONNECT)
+    if (connection->status & (ev::DISCONNECT))
         return -1;
 #if 0
     ssize_t total = 0;
@@ -336,6 +361,55 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
     }
 }
 
+void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
+    auto s = conn->as<TLS::connection_interface>();
+    while (true) {
+        auto const rhs = this->ssl_shutdown_(s->ssl);
+        if (rhs==1) {
+            TCP::close_connection(conn, true);
+            return;
+        }
+        auto const err = this->ssl_get_error_(s->ssl, rhs);
+        if (err == this->ssl_error_want_read_) {
+            return;
+        }
+        if (err == this->ssl_error_want_write_) {
+            if (this->ssl_bio_flush_write_(conn, s, 1e5))
+                goto err;
+            if (this->flush_write_(conn, true))
+                goto err;
+            if (!s->top->send_size)
+                continue;
+            this->event_on(conn, std::make_unique<worker_watcher_cb>(
+                [this, conn2 = conn] (const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)
+                    -> void {
+                    if (flags & ev::DISCONNECT) {
+                        goto err;
+                    }
+                    try {
+                        if (flags & ev::WRITE) {
+                            this->shutdown_async_(conn);
+                        }
+                        return;
+                    }
+                    catch (std::exception const &e) {
+                        std::cerr << e.what() << "\n";
+                    }
+                    err:
+                    this->event_on(conn, nullptr);
+                    TCP::close_connection(conn, false);
+            }));
+            this->event_flags(conn, ev::WRITE);
+            return;
+        }
+        break;
+    }
+
+    err:
+    s->status ^= CONN_TLS_SHUTDOWN;
+    TCP::close_connection(conn, false);
+}
+
 void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) {
     auto buff = buffer.as<char>();
     auto size = static_cast<ssize_t>(buffer.size());
@@ -357,7 +431,7 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
 
         /* TODO: resolve this dump logic */
 
-        while (true) {
+        while (!(data->status & CONN_CLOSED)) {
             if (ssl_is_init_fininshed_(data->ssl)) {
                 if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ) {
                     int cursor = 0;
@@ -406,6 +480,10 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
                     if (auto const res = this->ssl_bio_flush_read_(conn, data, 1e5)) {
                         if (res == CONN_IO_ERROR)
                             goto err;
+                    }
+
+                    if (data->status & CONN_TLS_SHUTDOWN) {
+                        this->shutdown_async_(conn);
                     }
                 }
             }
@@ -487,7 +565,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, TLS:
     ssize_t nfastfast = 0;
 
     try {
-        while (true) {
+        while (!(m->status & CONN_CLOSED)) {
             if (max_cnt < m->top->send_size)
                 break;
 

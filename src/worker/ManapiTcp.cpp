@@ -289,6 +289,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
         // TODO: stop accepting
     }
 
+
     connection->ipdata = std::make_unique<decltype(connection)::element_type::ipdata_t>();
     connection->ipdata->len = 0;
 
@@ -302,7 +303,8 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
     auto conn = connection->as<connection_interface>();
 
     conn->top = std::make_unique<connection_io>();
-
+    if (this->config_->keep_alive)
+        conn->status |= CONN_KEEP_ALIVE;
     conn->worker = this;
     conn->watcher = std::move(client);
 
@@ -328,7 +330,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
 
     conn->cancellation.cancel();
 
-    if (!clean_disconnect || !this->config_->keep_alive) {
+    if (!clean_disconnect || !this->config_->keep_alive || !(connection->status & CONN_KEEP_ALIVE)) {
 
         if (connection->status & CONN_KEEP_ALIVE) {
             connection->status ^= CONN_KEEP_ALIVE;
@@ -341,9 +343,10 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
             connection->t.clear();
             connection->t = nullptr;
         }
+
         if (connection->ev_callback) {
-            connection->ev_callback->operator()(conn, ev::DISCONNECT, nullptr, 0, nullptr);
-            connection->ev_callback = nullptr;
+            auto cb = std::move(connection->ev_callback);
+            cb->operator()(conn, ev::DISCONNECT, nullptr, 0, nullptr);
         }
 
         if (connection->watcher) {
@@ -375,15 +378,12 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, bool clean_dis
 
                     if (flags & ev::READ) {
                         auto const data = conn->as<connection_interface>();
-                        if (data->status & CONN_KEEP_ALIVE) {
-                            data->status ^= CONN_KEEP_ALIVE;
 
-                            if (data->t) {
-                                data->t.stop();
-                                data->t.clear();
+                        if (data->t) {
+                            data->t.stop();
+                            data->t.clear();
 
-                                data->t = nullptr;
-                            }
+                            data->t = nullptr;
                         }
 
                         auto const w = this;

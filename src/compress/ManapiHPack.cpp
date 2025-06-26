@@ -713,6 +713,7 @@ err_zero:
 		this->n2 = 0;
 		this->state = HPACK_DECODE_HBYTE;
 		this->next = HPACK_DECODE_BUG;
+		this->flags = 0;
 	}
 
 	decoder_t::~decoder_t() = default;
@@ -743,14 +744,14 @@ err_zero:
 							this->n1 = 7;
 							this->state = HPACK_DECODE_INT;
 							this->next = HPACK_DECODE_HEADER_INDX;
-							break;
+							goto repeat;
 						}
 
 						if ( 0x20 == ( static_cast<unsigned char>(*itr) & 0x60 ) ) {
 							this->n1 = 5;
 							this->state = HPACK_DECODE_INT;
 							this->next = HPACK_DECODE_TABLE_RESIZE;
-							break;
+							goto repeat;
 						}
 
 						this->state = HPACK_DECODE_INT;
@@ -763,7 +764,7 @@ err_zero:
 							this->next = HPACK_DECODE_HEADER_LITERAL_NOINDX;
 						}
 
-						break;
+						goto repeat;
 					}
 					case HPACK_DECODE_STR:
 						this->state = (( static_cast<unsigned char>(*itr) & 0x80 ) == 0x80);
@@ -801,6 +802,9 @@ err_zero:
 							goto repeat;
 						}
 
+						if (this->state == HPACK_DECODE_HEADER_INDX
+							|| this->state == HPACK_DECODE_TABLE_RESIZE)
+							goto repeat;
 						break;
 					}
 					case HPACK_DECODE_INT_ADDIT:

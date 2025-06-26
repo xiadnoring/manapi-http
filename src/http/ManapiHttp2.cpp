@@ -1799,6 +1799,11 @@ header_skip:
                             goto repeat;
                         }
                         case HTTP2_FRAME_PING: {
+                            if (ctx->frame_stream_id) {
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                    "invalid PING");
+                                goto finish;
+                            }
                             if (ctx->frame_length != 8) {
                                 /**
                                  * RFC9113 (6.7) PING

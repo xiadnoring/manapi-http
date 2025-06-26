@@ -220,7 +220,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_con
     s->flags |= HTTP_V3_STREAM_CLOSED|HTTP_V3_STREAM_REMOVED;
 
     if (s->ev_callback) {
-        s->ev_callback->operator()(conn, ev::DISCONNECT, nullptr, 0, nullptr);
+        auto cb = std::move(s->ev_callback);
+        cb->operator()(conn, ev::DISCONNECT, nullptr, 0, nullptr);
     }
 
     conn->cancellation.cancel();

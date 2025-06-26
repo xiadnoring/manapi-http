@@ -92,8 +92,8 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, bool clean
     data->flags |= CONN_CLOSED|CONN_REMOVED;
 
     if (data->ev_callback) {
-        data->ev_callback->operator()(conn, CONN_CLOSED, nullptr, 0, nullptr);
-        data->ev_callback = nullptr;
+        auto cb = std::move(data->ev_callback);
+        cb->operator()(conn, CONN_CLOSED, nullptr, 0, nullptr);
     }
 
     conn->cancellation.cancel();
