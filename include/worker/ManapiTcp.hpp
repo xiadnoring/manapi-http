@@ -81,7 +81,7 @@ namespace manapi::net::worker {
 
         void ev_watcher_stop_ (connection_interface & conn);
 
-        virtual bool update_limit_rate_connection (const shared_conn &sconn);
+        virtual void update_limit_rate_connection (const shared_conn &sconn);
 
         bool is_writable(const shared_conn &conn) override;
 

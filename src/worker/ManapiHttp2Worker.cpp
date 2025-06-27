@@ -28,11 +28,12 @@ int manapi::net::worker::http_v2_flush_recv(const manapi::net::worker::shared_co
             int flags = manapi::ev::READ;
             if ((s->flags & manapi::net::worker::base::CONN_RECV_END) && !s->recv_size)
                 flags |= manapi::net::worker::base::CONN_RECV_END;
-            s->ev_callback->operator()(conn, flags, b.data(), sz, &b);
+            if (worker::base::call_user_callback(s->ev_callback, conn, flags, b.data(), sz, &b))
+                return ERR_ABORTED;
         }
     }
 
-    return 0;
+    return ERR_OK;
 }
 manapi::net::worker::http_v2::http_v2(worker::base *w, http_v2_callbacks_t *callbacks) : w(w), callbacks(callbacks) {}
 
@@ -79,7 +80,8 @@ void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags
         }
     }
     else if (data->ev_callback) {
-        data->ev_callback->operator()(conn, flags, buff, size, p);
+        if (this->call_user_callback(data->ev_callback, conn, flags, buff, size, p))
+            this->close_connection(conn, false);
     }
 }
 
@@ -93,7 +95,9 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, bool clean
 
     if (data->ev_callback) {
         auto cb = std::move(data->ev_callback);
-        cb->operator()(conn, CONN_CLOSED, nullptr, 0, nullptr);
+        if (this->call_user_callback(cb, conn, CONN_CLOSED, nullptr, 0, nullptr)) {
+            /* skip */
+        }
     }
 
     conn->cancellation.cancel();
@@ -121,7 +125,8 @@ int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flag
     auto const prev = std::exchange(data->flags, ((data->flags >> 2) << 2) | (flags & CONN_MASK_UPDATE));
 
     if ((data->flags & CONN_CLOSED) && flags && data->ev_callback) {
-        data->ev_callback->operator()(conn, CONN_CLOSED, nullptr, 0, nullptr);
+        if (this->call_user_callback(data->ev_callback, conn, CONN_CLOSED, nullptr, 0, nullptr))
+            this->close_connection(conn, false);
         return prev;
     }
     if (flags & ev::WRITE) {
@@ -132,7 +137,8 @@ int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flag
         this->callbacks->http_v2_on_read_stream (conn);
     }
     if ((data->flags & CONN_RECV_END) && (flags & ev::READ) && data->ev_callback) {
-        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
+        if (this->call_user_callback(data->ev_callback, conn, CONN_RECV_END, nullptr, 0, nullptr))
+            this->close_connection(conn, false);
     }
     return prev;
 }

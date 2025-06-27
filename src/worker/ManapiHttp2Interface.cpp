@@ -177,7 +177,7 @@ int default_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi
     return manapi::ERR_UNKNOWN;
 }
 
-bool default_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+void default_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
     auto const http_v2_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
     if (http_v2_ctx->ctx->streams) {
         for (const auto &s : *http_v2_ctx->ctx->streams) {
@@ -185,7 +185,6 @@ bool default_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn
                 ->worker->update_limit_rate_stream(s.second);
         }
     }
-    return false;
 }
 
 int default_wrk_http2_global_cleanup (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) {

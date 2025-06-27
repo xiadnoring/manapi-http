@@ -221,7 +221,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_con
 
     if (s->ev_callback) {
         auto cb = std::move(s->ev_callback);
-        cb->operator()(conn, ev::DISCONNECT, nullptr, 0, nullptr);
+        if (this->call_user_callback(cb, conn, ev::DISCONNECT, nullptr, 0, nullptr)) {
+            /* skip */
+        }
     }
 
     conn->cancellation.cancel();
@@ -656,7 +658,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
                         stream->flags |= HTTP_V3_STREAM_RECV_END;
 
                         if ((stream->flags & ev::READ) &&  stream->ev_callback) {
-                            stream->ev_callback->operator()(stream_connection, CONN_RECV_END, nullptr, 0, nullptr);
+                            if (this->call_user_callback(stream->ev_callback, stream_connection, CONN_RECV_END, nullptr, 0, nullptr))
+                                this->close_connection(stream_connection, false);
                         }
 
                         break;
@@ -791,7 +794,8 @@ int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_con
         this->quiche_flush_egress_(data->conn);
     }
     if ((flags_ & CONN_RECV_END) && (flags_ & CONN_READ) && data->ev_callback) {
-        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
+        if (this->call_user_callback(data->ev_callback,conn, CONN_RECV_END, nullptr, 0, nullptr))
+            this->close_connection(conn, false);
     }
     return prev;
 }
@@ -815,7 +819,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::feed_event(const shared_con
         }
     }
     else if (data->ev_callback) {
-        data->ev_callback->operator()(conn, flags, buff, size, p);
+        if (this->call_user_callback(data->ev_callback,conn, flags, buff, size, p))
+            this->close_connection(conn, false);
     }
 }
 
@@ -869,7 +874,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
             this->flush_read_(conn);
 
         if (conn_data->flags & ev::WRITE)
-            conn_data->ev_callback->operator()(conn, ev::WRITE, nullptr, 0, nullptr);
+            if(this->call_user_callback(conn_data->ev_callback, conn, ev::WRITE, nullptr, 0, nullptr)) {
+                this->close_connection(conn, false);
+            }
     }
     else {
         conn_data->transfered_k += conn_data->transfered;
@@ -885,8 +892,10 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
         }
         conn_data->transfered = 0;
     }
-    if (conn_data->flags & ev::WRITE)
-        conn_data->ev_callback->operator()(conn, ev::WRITE, nullptr, 0, nullptr);
+    if (conn_data->flags & ev::WRITE) {
+        if (this->call_user_callback(conn_data->ev_callback,conn, ev::WRITE, nullptr, 0, nullptr))
+            this->close_connection(conn, false);
+    }
 }
 
 int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_buffers_(const shared_conn &conn, connection_stream_t *s, connection_io_part *top, int *cnt) {
@@ -916,7 +925,8 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_buffers_(const sh
             auto const size = object.size();
             if (size) {
                 data->transfered += static_cast<ssize_t>(size);
-                s->ev_callback->operator()(conn, ev::READ, object.data(), static_cast<ssize_t>(size), &object);
+                if(this->call_user_callback(s->ev_callback, conn, ev::READ, object.data(), static_cast<ssize_t>(size), &object))
+                    return CONN_IO_ERROR;
             }
         }
 
@@ -1079,7 +1089,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::flush_write_(const shared_c
         if (stream_it != conn_data->streams->end()) {
             auto const s = stream_it->second->as<connection_stream_t>();
             if ((s->flags & ev::WRITE) && s->ev_callback) {
-                s->ev_callback->operator()(stream_it->second, ev::WRITE, nullptr, 0, nullptr);
+                if (conn_data->worker->call_user_callback(s->ev_callback, stream_it->second, ev::WRITE, nullptr, 0, nullptr))
+                    conn_data->worker->close_connection(stream_it->second, false);
             }
         }
     }

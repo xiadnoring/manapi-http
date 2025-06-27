@@ -375,7 +375,7 @@ int ng_wrk_http2_data_chunk_recv_callback (nghttp2_session *session, uint8_t fla
             && !(s->flags & HTTP2_STREAM_IS_READING)) {
         s->flags |= HTTP2_STREAM_IS_READING;
         sess->want_read ++;
-            }
+    }
 
     return 0;
 }
@@ -391,39 +391,45 @@ void ng_wrk_http2_stream_deleter (manapi::net::worker::connection *w) {
 }
 
 int ng_wrk_http2_on_begin_headers_callback(nghttp2_session *session, const nghttp2_frame *frame, void *user_data) {
-    auto const sess = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(user_data);
-    if (frame->hd.type != NGHTTP2_HEADERS ||
-                frame->headers.cat != NGHTTP2_HCAT_REQUEST)
+    try {
+        auto const sess = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(user_data);
+        if (frame->hd.type != NGHTTP2_HEADERS ||
+                    frame->headers.cat != NGHTTP2_HCAT_REQUEST)
+            return 0;
+        // create connection
+
+        auto const id = frame->hd.stream_id;
+
+        auto tp = std::make_unique<http_v2_stream_t>();
+        tp->speed_min_delay = static_cast<decltype(tp->speed_min_delay)>(sess->gctx->base_worker->config()->speed_check_delay);
+        tp->id = id;
+        tp->send = std::make_unique<manapi::net::worker::connection_io_part>();
+        tp->recv = std::make_unique<manapi::net::worker::connection_io_part>();
+        tp->req = std::make_unique<manapi::net::http::request_data_t>();
+
+        auto const pointer = tp.get();
+
+        std::shared_ptr<manapi::net::worker::connection> w(new manapi::net::worker::connection(tp.release()),
+            ng_wrk_http2_stream_deleter);
+
+        w->version = manapi::net::http::versions::HTTP_v2;
+        pointer->req->http = w->version;
+        w->wrk.data = sess;
+
+        auto res = sess->streams.insert({id, std::move(w)});
+        if (!res.second)
+            /* failed to insert */
+                return NGHTTP2_ERR_DATA_EXIST;
+
+        if (auto const rhs = nghttp2_session_set_stream_user_data (session, id, &res.first->second))
+            return rhs;
+
         return 0;
-    // create connection
-
-    auto const id = frame->hd.stream_id;
-
-    auto tp = std::make_unique<http_v2_stream_t>();
-    tp->speed_min_delay = static_cast<decltype(tp->speed_min_delay)>(sess->gctx->base_worker->config()->speed_check_delay);
-    tp->id = id;
-    tp->send = std::make_unique<manapi::net::worker::connection_io_part>();
-    tp->recv = std::make_unique<manapi::net::worker::connection_io_part>();
-    tp->req = std::make_unique<manapi::net::http::request_data_t>();
-
-    auto const pointer = tp.get();
-
-    std::shared_ptr<manapi::net::worker::connection> w(new manapi::net::worker::connection(tp.release()),
-        ng_wrk_http2_stream_deleter);
-
-    w->version = manapi::net::http::versions::HTTP_v2;
-    pointer->req->http = w->version;
-    w->wrk.data = sess;
-
-    auto res = sess->streams.insert({id, std::move(w)});
-    if (!res.second)
-        /* failed to insert */
-        return NGHTTP2_ERR_DATA_EXIST;
-
-    if (auto const rhs = nghttp2_session_set_stream_user_data (session, id, &res.first->second))
-        return rhs;
-
-    return 0;
+    }
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("nghttp2: init stream failed due to {}", e.what());
+    }
+    return NGHTTP2_ERR_FATAL;
 }
 
 int ng_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
@@ -500,7 +506,7 @@ int ng_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi::net
     }
 }
 
-bool ng_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+void ng_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
     auto const http_v2_ctx = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *> (conn->wrk.data);
     if (http_v2_ctx) {
         for (auto const &s : http_v2_ctx->streams) {
@@ -508,7 +514,6 @@ bool ng_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn &con
                 ->worker->update_limit_rate_stream(s.second);
         }
     }
-    return false;
 }
 
 int ng_wrk_http2_global_cleanup (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) {

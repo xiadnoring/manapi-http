@@ -334,6 +334,24 @@ manapi::slice_iterator manapi::slice_base::end() {
     return slice_iterator{this->last, this};
 }
 
+void manapi::slice_base::slices_buffs(ev::buff_t *buffs) const {
+    auto buffsptr = buffs;
+    auto cur = this->first;
+    while (cur != this->last) {
+        *buffsptr = cur->buff;
+        buffsptr++;
+        cur = cur->next;
+    }
+
+    if (this->count) {
+        buffsptr--;
+
+        buffs->base += this->shift_;
+        buffs->len -= this->shift_;
+        buffsptr->len -= this->rshift_;
+    }
+}
+
 std::unique_ptr<manapi::ev::buff_t, manapi::ev::buffer_deleter> manapi::slice_base::slices_buffs() const {
     std::unique_ptr<manapi::ev::buff_t, manapi::ev::buffer_deleter> buffs;
     buffs.reset(new ev::buff_t[this->count]);

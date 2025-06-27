@@ -99,7 +99,9 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, bool clean_dis
 
         if (connection->ev_callback) {
             auto cb = std::move(connection->ev_callback);
-            cb->operator()(conn, ev::DISCONNECT, nullptr, 0, nullptr);
+            if (this->call_user_callback(cb, conn, ev::DISCONNECT, nullptr, 0, nullptr)) {
+                /* skip */
+            }
         }
 
         this->shutdown_async_(conn);
@@ -328,13 +330,14 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) n
     }
 
     if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
-        data->ev_callback->operator()(conn, CONN_RECV_END, nullptr, 0, nullptr);
+        if(this->call_user_callback(data->ev_callback,conn, CONN_RECV_END, nullptr, 0, nullptr))
+            this->close_connection(conn, false);
     }
 
     return prev;
 }
 
-bool manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &sconn) {
+void manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &sconn) {
     return TCP::update_limit_rate_connection(sconn);
 }
 
@@ -726,7 +729,8 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, TLS::
 
             ssize_t alr = 0;
             if (!m->top->recv_size && (m->status & CONN_READ) && m->ev_callback) {
-                m->ev_callback->operator()(conn, ev::READ, fastfast, rhs, nullptr);
+                if (this->call_user_callback(m->ev_callback, conn, ev::READ, fastfast, rhs, nullptr))
+                    this->close_connection(conn, false);
             }
             else {
                 TLS::connection_io_send(top, fastfast + alr, rhs - alr, &this->bufferpool(),
@@ -768,8 +772,9 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
                 (*cnt)--;
 
             if (!object.empty()) {
-                data->ev_callback->operator()(conn, ev::READ, object.data(),
-                    static_cast<int>(object.size()), &object);
+                if (this->call_user_callback(data->ev_callback, conn, ev::READ, object.data(),
+                    static_cast<int>(object.size()), &object))
+                    this->close_connection(conn, false);
             }
         }
 
@@ -781,7 +786,7 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
         return CONN_IO_OK;
     }
     catch (std::exception const &e) {
-        std::cerr << e.what() << "\n";
+        MANAPIHTTP_LOG("TlsOverTcp failed due to {}", e.what());
     }
 
     return CONN_IO_ERROR;

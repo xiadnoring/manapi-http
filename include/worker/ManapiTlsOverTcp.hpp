@@ -69,7 +69,7 @@ namespace manapi::net::worker {
 
         virtual bool recv_setup_connection(connection_interface *storage) = 0;
 
-        bool update_limit_rate_connection(const shared_conn &sconn) override;
+        void update_limit_rate_connection(const shared_conn &sconn) override;
 
         static void connection_interface_eraser(worker::connection *data);
 

@@ -387,30 +387,49 @@ ssize_t manapi::net::worker::base::buffs_cut_by_size(ev::buff_t *buff, uint32_t 
     return size;
 }
 
+int manapi::net::worker::base::call_user_callback(const std::unique_ptr<worker_watcher_cb> &cb, const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) {
+    try {
+        cb->operator()(conn, flags, buffer, nsize, p);
+        return manapi::ERR_OK;
+    }
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("worker: user callback failed due to {}", e.what());
+    }
+
+    return manapi::ERR_ABORTED;
+}
+
 void manapi::net::worker::base::feed_event_read_(const shared_conn &conn, worker_watcher_cb *cb, connection_io_part *recv, int *recv_size, int conn_flags, int flags, const char *buff, ssize_t size, ibuffpool_t *p) {
-    bool processed = false;
-    if (conn_flags & ev::READ && cb) {
-        if (flags & manapi::net::worker::base::CONN_TOP_READ) {
-            if (conn_flags & ev::READ) {
-                cb->operator()(conn, flags, buff, size, p);
-                processed = true;
+    try {
+        bool processed = false;
+        if (conn_flags & ev::READ && cb) {
+            if (flags & manapi::net::worker::base::CONN_TOP_READ) {
+                if (conn_flags & ev::READ) {
+                    cb->operator()(conn, flags, buff, size, p);
+                    processed = true;
+                }
+            }
+            else {
+                if (conn_flags & ev::READ) {
+                    cb->operator()(conn, flags, buff, size, p);
+                    processed = true;
+                }
             }
         }
-        else {
-            if (conn_flags & ev::READ) {
-                cb->operator()(conn, flags, buff, size, p);
-                processed = true;
+        if (!processed && size) {
+            if (conn_flags & CONN_TOP_READ) {
+                connection_io_send_start(recv, buff, size, &this->bufferpool(), this->config()->buffer_size, p, recv_size);
+            }
+            else {
+                connection_io_send(recv, buff, size, &this->bufferpool(), this->config()->buffer_size, recv_size, 1e5);
             }
         }
+        return;
     }
-    if (!processed && size) {
-        if (conn_flags & CONN_TOP_READ) {
-            connection_io_send_start(recv, buff, size, &this->bufferpool(), this->config()->buffer_size, p, recv_size);
-        }
-        else {
-            connection_io_send(recv, buff, size, &this->bufferpool(), this->config()->buffer_size, recv_size, 1e5);
-        }
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("feed_event failed: {}", e.what());
     }
+    this->close_connection(conn, false);
 }
 
 void manapi::net::worker::base::connection_io_trim(struct connection_io_part *top, buffer_deque *parent, int *cnt) {

@@ -87,6 +87,8 @@ namespace manapi {
 
         slice_iterator end ();
 
+        void slices_buffs (ev::buff_t *buffs) const;
+
         [[nodiscard]] std::unique_ptr<ev::buff_t, ev::buffer_deleter> slices_buffs () const;
 
         [[nodiscard]] std::size_t slices_size () const;

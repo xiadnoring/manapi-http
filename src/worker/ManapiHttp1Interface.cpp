@@ -44,7 +44,7 @@ void default_wrk_http_all_flush_custom_read(const manapi::net::worker::shared_co
     HTTP_ALL_SWITCH (flush_custom_read_cb, conn, httpctx, w);
 }
 
-bool default_wrk_http_all_update_limit_rate(const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+void default_wrk_http_all_update_limit_rate(const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
     HTTP_ALL_SWITCH (update_limit_rate, conn, httpctx, w);
 }
 
