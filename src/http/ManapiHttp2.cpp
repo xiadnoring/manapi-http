@@ -108,15 +108,15 @@ struct http_v2_goaway_t {
 static constexpr char smlabel[] = "\r\n\r\nSM\r\n";
 static constexpr int maxcnt = 1e9;
 
-std::map <int, manapi::json_mask> allow_settings {
+static std::map <int, manapi::json_mask> const allow_settings {
         {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
         {HTTP2_SETTING_ENABLE_PUSH, manapi::json{"{integer(>=0 <=1)}"}},
-        {HTTP2_SETTING_MAX_FRAME_SIZE, manapi::json{"{integer(>=16384 <=100000)}"}},
+        {HTTP2_SETTING_MAX_FRAME_SIZE, manapi::json{"{integer(>=16384 <=16777215)}"}},
         {HTTP2_SETTING_HEADER_TABLE_SIZE, manapi::json{"{integer(>=2048 <=65536)}"}},
-        {HTTP2_SETTING_INITIAL_WINDOW_SIZE, manapi::json{"{integer(>=0 <=80000)}"}},
-        {HTTP2_SETTING_MAX_HEADER_LIST_SIZE, manapi::json{"{integer(>=1024 <=1048576)}"}},
+        {HTTP2_SETTING_INITIAL_WINDOW_SIZE, manapi::json{"{integer(>=0 <=2147483647)}"}},
+        {HTTP2_SETTING_MAX_HEADER_LIST_SIZE, manapi::json{"{integer(>=1024 <=262144)}"}},
         {HTTP2_SETTING_TLS_RENEG_PERMITTED, manapi::json{"{integer(0)}"}},
-        {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, manapi::json{"{integer(>=1 <=200)}"}},
+        {HTTP2_SETTING_MAX_CONCURRENT_STREAMS, manapi::json{"{integer(>=1 <=2147483647)}"}},
         {HTTP2_SETTING_SETTINGS_ENABLE_METADATA, manapi::json{"{integer(>=0 <=1)}"}},
         {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, manapi::json{"{integer(>=0 <=1)}"}},
         {HTTP2_SETTING_SETTINGS_ENABLE_CONNECT_PROTOCOL, manapi::json{"{integer(>=0 <=1)}"}}
@@ -686,11 +686,10 @@ int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi
 
     if (s->read_window < ssw) {
         const auto allow = static_cast<int>(ssw - s->read_window);
-        if (!(s->flags & manapi::net::http::HTTP2_STREAM_CLOSED|manapi::net::http::HTTP2_STREAM_RECV_END)) {
-            if (http_v2_send_window_frame(s->ctx, s->id,
-                allow)) {
+        if (!(s->flags & (manapi::net::http::HTTP2_STREAM_CLOSED|manapi::net::http::HTTP2_STREAM_RECV_END))) {
+            if (http_v2_send_window_frame(s->ctx, s->id, allow))
                 return -1;
-                }
+
             s->read_window += allow;
         }
     }
@@ -1107,6 +1106,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     }
                                 }
                                 else {
+                                    auto const data = s->second->as<http_v2_stream_t>();
+                                    data->flags |= HTTP2_STREAM_RECV_END|HTTP2_STREAM_SEND_END;
                                     ctx->http_v2_worker->close_connection(s->second, true);
                                 }
                             }
@@ -2257,7 +2258,7 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::bu
     while (res != copy) {
         auto frame_size = static_cast<std::size_t>(s->ctx->client->max_frame_size);
 
-        bool fin = finish || !s->write_window || !s->ctx->write_window;
+        bool fin = finish;
         uint32_t pnbuff = nbuff;
         std::size_t lencut = 0;
         ssize_t size = 0;
