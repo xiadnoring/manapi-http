@@ -578,7 +578,7 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
             return false;
         }
 
-        if (!default_compare_information (obj, information))
+        if (!default_compare_information (obj.size(), information))
         {
             return false;
         }
@@ -636,6 +636,11 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
         if (information.contains("mean"))
         {
             return obj.as_integer() == information["mean"].as_integer();
+        }
+
+        if (!default_compare_information (obj.as_integer(), information))
+        {
+            return false;
         }
 
         // ex: {number}
@@ -711,7 +716,7 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
             return false;
         }
 
-        if (!default_compare_information (obj, information))
+        if (!default_compare_information (obj.size(), information))
         {
             return false;
         }
@@ -765,7 +770,7 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
             return false;
         }
 
-        if (!default_compare_information (obj, information))
+        if (!default_compare_information (obj.size(), information))
         {
             return false;
         }
@@ -813,23 +818,20 @@ bool manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::j
     return false;
 }
 
-bool manapi::json_mask::default_compare_information(const manapi::json &obj, const manapi::json &information, const bool &by_size) {
-    if (by_size)
+bool manapi::json_mask::default_compare_information(ssize_t val, const manapi::json &information) {
+    if (information.contains("min_mean"))
     {
-        if (information.contains("min_mean"))
+        if (val <= information["min_mean"].as_integer())
         {
-            if (obj.size() <= information["min_mean"].as_integer())
-            {
-                return false;
-            }
+            return false;
         }
+    }
 
-        if (information.contains("max_mean"))
+    if (information.contains("max_mean"))
+    {
+        if (val >= information["max_mean"].as_integer())
         {
-            if (obj.size() >= information["max_mean"].as_integer())
-            {
-                return false;
-            }
+            return false;
         }
     }
 
