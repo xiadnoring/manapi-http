@@ -69,7 +69,9 @@ namespace manapi::net::worker {
 
         int event_flags(const shared_conn & conn) override;
 
+        std::size_t recv_count(const shared_conn &conn) const override;
 
+        bytebuffer recv_first_buffer(const shared_conn &conn) override;
     protected:
         virtual int flush_write_ (const shared_conn &connection, bool flush = false);
 

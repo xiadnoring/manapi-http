@@ -442,10 +442,8 @@ bool http_v1_1_is_chunked_data (manapi::net::http::internal::uq_handle_data_t &c
     return false;
 }
 
-manapi::future<> send_http_v1_1_chunked_data (manapi::net::http::internal::uq_handle_data_t &cdata, ssize_t rhs, const void *buffer, std::size_t size, bool &finish) {
-    if (rhs < 0)
-        THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
-
+manapi::future<> send_http_v1_1_chunked_data (manapi::net::http::internal::uq_handle_data_t &cdata, manapi::slice_view buffs, bool &finish) {
+    auto const rhs = buffs.size();
     std::string_view const msg = {"0\r\n\r\n"};
 
     if (rhs) {
@@ -468,7 +466,7 @@ manapi::future<> send_http_v1_1_chunked_data (manapi::net::http::internal::uq_ha
         if (co_await cdata->worker->fwrite(cdata->conn, header, len, false) <= 0)
             goto err;
 
-        if (co_await cdata->worker->fwrite(cdata->conn, buffer, rhs, false) <= 0)
+        if (co_await cdata->worker->fwrite(cdata->conn, buffs, false) <= 0)
             goto err;
 
         if (co_await cdata->worker->fwrite(cdata->conn, msg.data() + 1, 2, false) <= 0)
@@ -520,7 +518,10 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
                                 std::max(res->config()->buffer_size, 64L));
                             while (!finish) {
                                 auto rhs = cb_sync->operator()(buffer.data(), buffer.size(), finish);
-                                co_await send_http_v1_1_chunked_data(cdata, rhs, buffer.data(), buffer.size(), finish);
+                                slice_ref buffs;
+                                if (rhs)
+                                    buffs.push_back(buffer.data(), rhs);
+                                co_await send_http_v1_1_chunked_data(cdata, buffs, finish);
                             }
                         }
                         else {
@@ -586,17 +587,17 @@ void manapi::net::http::internal::send_response_stream_cb(uq_handle_data_t cdata
                     -> manapi::future<> {
                         if (http_v1_1_is_chunked_data(cdata, res.get())) {
                             co_await cb_async->operator()([&cdata]
-                                (const void *buffer, ssize_t size, bool fin)
+                                (slice_view buffs, bool fin)
                                 -> manapi::future<ssize_t> {
-                                co_await send_http_v1_1_chunked_data(cdata, size, buffer, size, fin);
-                                co_return size;
+                                co_await send_http_v1_1_chunked_data(cdata, buffs, fin);
+                                co_return buffs.size();
                             });
                         }
                         else {
                             co_await cb_async->operator()([&cdata]
-                                (const void *buffer, ssize_t size, bool fin)
+                                (slice_view buffs, bool fin)
                                 -> manapi::future<ssize_t> {
-                                co_return co_await cdata->worker->fwrite(cdata->conn, buffer, size, fin);
+                                co_return co_await cdata->worker->fwrite(cdata->conn, buffs, fin);
                             });
                         }
                         cdata->cb->call(true);
@@ -631,25 +632,31 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
                 auto cb_async = std::make_unique<http::response::resp_callback_async>(std::move(res->callback_async()));
                 manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
-                        auto buffer = manapi::async::current()->memory_fabric().buffer(
-                            std::max(res->config()->buffer_size, 64L));
+                        auto buffer = manapi::async::current()->memory_fabric().slice(65536);
 
                         bool finish = false;
 
                         if (http_v1_1_is_chunked_data(cdata, res.get())) {
                             while (!finish) {
-                                auto rhs = co_await cb_async->operator()(buffer.data(), buffer.size(), finish);
-                                co_await send_http_v1_1_chunked_data(cdata, rhs, buffer.data(), buffer.size(), finish);
+                                auto const rhs = co_await cb_async->operator()(buffer, finish);
+                                auto res = buffer.subslice(0, rhs);
+                                res.unwrap();
+                                co_await send_http_v1_1_chunked_data(cdata, res.value(), finish);
                             }
                         }
                         else {
                             std::size_t cursor = 0;
                             while (!finish) {
-                                auto rhs = co_await cb_async->operator()(buffer.data() + cursor, buffer.size() - cursor, finish);
+                                auto rhs = co_await cb_async->operator()(buffer, finish);
                                 if (rhs < 0)
                                     THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
 
-                                rhs = co_await cdata->worker->write(cdata->conn, buffer.data() + cursor, rhs, finish);
+                                auto res = buffer.subslice(0, rhs);
+                                res.unwrap();
+
+                                rhs = co_await cdata->worker->fwrite(cdata->conn,
+                                    res.value(), finish);
+
                                 if (rhs <= 0)
                                     co_return;
 
@@ -921,7 +928,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
     std::exception_ptr error{nullptr};
 
     manapi::filesystem::fstream ff ("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
-    (co_await ff.open(ev::FS_O_RDONLY)).throw_it();
+    (co_await ff.open(ev::FS_O_RDONLY)).unwrap();
 
     if ((rhs = co_await f.read(write_block.subslice(0,
         std::min(block_size, size - current)).value())) <= 0) {

@@ -146,7 +146,11 @@ int main () {
             hash.init();
             try {
                 co_await req.form([&result, &hash] (std::string name) -> manapi::net::formdata_recv::ondata_cb_t {
-                    return manapi::net::formdata_recv::save_file(std::move(name));
+                    return [&hash] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+                        for (auto it = buffs.begin(); it != buffs.end(); it++)
+                            hash.update((uint8_t*)it.buffer(), it.size());
+                        co_return buffs.size();
+                    };
                 });
             }
             catch (std::exception const &e) {
@@ -227,7 +231,9 @@ int main () {
                 }
                 auto bb = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - c);
                 std::string err = std::format("{}\n", ((double)result / 1024 / 1024) / ((double)bb.count()/1000));
-                co_await cb(err.data(), err.size(), true);
+                manapi::slice b (err.size());
+                b.copy_from(err.data(), 0, err.size());
+                co_await cb(b, true);
             });
         });
 
@@ -266,23 +272,28 @@ int main () {
             -> manapi::future<> {
             ssize_t result = 0;
             manapi::filesystem::fstream f ("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
-            (co_await f.open(manapi::ev::FS_O_RDONLY)).throw_it();
+            (co_await f.open(manapi::ev::FS_O_RDONLY)).unwrap();
             try {
-                co_await req.callback_async([f, &result] (const char *buffer, ssize_t size, bool fin) mutable
+                co_await req.callback_async([f, &result] (manapi::slice_view buffs, bool fin) mutable
                     -> manapi::future<ssize_t> {
                     if (fin) {
                         std::cout << "FINSH\n";
                     }
-                    auto buffer2 = manapi::async::current()->memory_fabric().buffer(size);
-                    co_await f.fread(buffer2.data(), size);
+                    auto buffer2 = manapi::async::current()->memory_fabric().slice(buffs.size());
+                    assert((buffer2.size() == buffs.size()));
+                    auto rhs = co_await f.fread(buffer2);
+                    assert((buffer2.size() == buffs.size()));
+
                     using promise = manapi::async::promise<ssize_t, std::false_type>;
                     co_return co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
-
-                        for (int i = 0; i < size; i++) {
-                            assert(buffer[i] == buffer2[i]);
+                        try {
+                            assert(!buffs.cmp(buffer2));
+                            result += buffs.size();
+                            resolve(buffs.size());
                         }
-                        result += size;
-                        resolve(size);
+                        catch (std::exception const &e) {
+                            reject(std::current_exception());
+                        }
                     });
                 });
             }
@@ -299,11 +310,11 @@ int main () {
             //resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, req.header(manapi::net::http::HEADER.CONTENT_LENGTH));
             co_return resp.callback_stream([&resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
 
-                co_await req.callback_async([cb = std::move(cb)] (const char *buffer, ssize_t size, bool fin) mutable
+                co_await req.callback_async([cb = std::move(cb)] (manapi::slice_view buffs, bool fin) mutable
                     -> manapi::future<ssize_t> {
                     //sum += size;
                     //std::cout << sum << " " << size << " " << fin << "\n";
-                    co_return co_await cb (buffer, size, fin);
+                    co_return co_await cb (buffs, fin);
                 });
             });
         });

@@ -165,6 +165,10 @@ namespace manapi::net::worker {
 
         manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice_view slice, bool finish);
 
+        [[nodiscard]] virtual std::size_t recv_count (const shared_conn &conn) const = 0;
+
+        virtual bytebuffer recv_first_buffer (const shared_conn &conn) = 0;
+
         virtual void stop (std::function<void()> cb) = 0;
 
         virtual std::unique_ptr<worker_watcher_cb> event_on (const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) = 0;

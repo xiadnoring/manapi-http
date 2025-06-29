@@ -69,6 +69,10 @@ namespace manapi::net::worker {
         bool is_valid_connection(worker::connection *connection) override;
 
         bool is_writable(const shared_conn &conn) override;
+
+        std::size_t recv_count(const shared_conn &conn) const override;
+
+        bytebuffer recv_first_buffer(const shared_conn &conn) override;
     protected:
         int flags;
 
@@ -91,7 +95,7 @@ namespace manapi::net::worker {
 
         static void flush_write_ (const shared_conn &conn, connection_t *conn_data);
 
-        int flush_read_buffers_ (const shared_conn &conn, connection_stream_t *s, connection_io_part *top, int *cnt);
+        int flush_read_buffers_ (const shared_conn &conn, connection_stream_t *s);
 
         int flush_read_ (const shared_conn &stream);
 

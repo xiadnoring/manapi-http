@@ -94,7 +94,7 @@ manapi::future<void> manapi::net::http_pool::_pool() {
             auto workerptr = dynamic_cast<worker::interface_worker *> (this->worker.get());
 
             if (!res.ok())
-                res.throw_it();
+                res.unwrap();
 
             workerptr->wrk_global(&wrk);
             auto wrkptr = workerptr->wrk_global();
@@ -132,11 +132,11 @@ manapi::future<void> manapi::net::http_pool::_pool() {
                         }
                         auto httpwrk = it_http_impl->second (workerptr);
                         if (!httpwrk.ok())
-                            httpwrk.throw_it();
+                            httpwrk.unwrap();
 
                         res = worker::default_wrk_http_all_global_add_version(wrkptr, version, std::move(httpwrk.value()));
                         if (!res.ok())
-                            res.throw_it();
+                            res.unwrap();
                     }
                 }
             }

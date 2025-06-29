@@ -76,9 +76,11 @@ namespace manapi {
 
         void shift_add (std::size_t n);
 
+        uint8_t flags ();
+
         [[nodiscard]] bool empty () const;
     private:
-        uint8_t flags;
+        uint8_t flags_;
         uint32_t shift_;
 
         uint32_t s;

@@ -5,6 +5,7 @@
 int manapi::net::worker::http_v2_flush_recv(const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) {
     while (s->recv->last_deque
         && (s->flags & manapi::ev::READ)) {
+
         auto b = std::move(s->recv->deque->buffer);
         ssize_t sz;
 
@@ -189,4 +190,30 @@ void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &c
         conn_data->transfered_k = 0;
         conn_data->speed_min_delay = static_cast<int>(this->w->config()->speed_check_delay);
     }
+}
+
+std::size_t manapi::net::worker::http_v2::recv_count(const shared_conn &conn) const {
+    auto const s = conn->as<http_v2_stream_base_t>();
+    return s->recv_size;
+}
+
+manapi::bytebuffer manapi::net::worker::http_v2::recv_first_buffer(const shared_conn &conn) {
+    auto const s = conn->as<http_v2_stream_base_t>();
+    auto b = std::move(s->recv->deque->buffer);
+
+    s->recv->deque = std::move(s->recv->deque->next);
+    s->recv_size--;
+
+    if (!s->recv->deque) {
+        s->recv->last_deque = nullptr;
+        b.resize(s->recv->deque_cursor);
+
+        s->recv->deque_cursor = 0;
+    }
+
+    if (s->recv->deque_current) {
+        b.shift_add(s->recv->deque_current);
+        s->recv->deque_current = 0;
+    }
+    return std::move(b);
 }

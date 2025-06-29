@@ -580,6 +580,31 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn) {
     return (conn->as<connection_interface>()->status) & CONN_MASK_GETTING;
 }
 
+std::size_t manapi::net::worker::TCP::recv_count(const shared_conn &conn) const {
+    auto const s = conn->as<TCP::connection_interface>();
+    return s->top->recv_size;
+}
+
+manapi::bytebuffer manapi::net::worker::TCP::recv_first_buffer(const shared_conn &conn) {
+    auto const data = conn->as<TCP::connection_interface>();
+    auto object = std::move(data->top->recv.deque->buffer);
+    data->top->recv.deque = std::move(data->top->recv.deque->next);
+    data->top->recv_size--;
+
+    if (!data->top->recv.deque) {
+        data->top->recv.last_deque = nullptr;
+        object.resize(data->top->recv.deque_cursor);
+        data->top->recv.deque_cursor = 0;
+    }
+
+    if (data->top->recv.deque_current) {
+        object.shift_add(data->top->recv.deque_current);
+        data->top->recv.deque_current = 0;
+    }
+
+    return std::move(object);
+}
+
 int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection, bool flush) {
     auto conn = connection->as<connection_interface>();
 
@@ -713,21 +738,7 @@ void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_i
         while (data->top->recv.last_deque
             && (data->status & ev::READ)
             && data->ev_callback) {
-            auto object = std::move(data->top->recv.deque->buffer);
-            data->top->recv.deque = std::move(data->top->recv.deque->next);
-            data->top->recv_size--;
-
-            if (!data->top->recv.deque) {
-                data->top->recv.last_deque = nullptr;
-                object.resize(data->top->recv.deque_cursor);
-                data->top->recv.deque_cursor = 0;
-            }
-
-            if (data->top->recv.deque_current) {
-                object.shift_add(data->top->recv.deque_current);
-                data->top->recv.deque_current = 0;
-            }
-
+            auto object = recv_first_buffer(conn);
             if (!object.empty()) {
                 if (this->call_user_callback(data->ev_callback, conn, ev::READ, object.data(),
                     static_cast<int>(object.size()), &object))

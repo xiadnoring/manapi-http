@@ -144,6 +144,8 @@ manapi::slice manapi::object_pool::slice(std::size_t suggested) {
         cur->buff.len = buffsize;
     }
 
+    uint32_t rshift = 0;
+
     if (left) {
         if (cur) {
             cur->next = new slice_part_t ({}, nullptr);
@@ -163,10 +165,12 @@ manapi::slice manapi::object_pool::slice(std::size_t suggested) {
         cur->buff.base = static_cast<char *>(buffptr);
         cur->buff.len = buffsize;
 
+        rshift = (buffsize - left);
+
         cnt ++;
     }
 
-    return manapi::slice(std::move(buffs), cnt);
+    return manapi::slice(std::move(buffs), cnt, rshift);
 }
 
 manapi::bytebuffer manapi::object_pool::buffer(std::size_t min, std::size_t max) {

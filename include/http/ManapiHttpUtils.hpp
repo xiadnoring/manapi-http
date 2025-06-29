@@ -53,8 +53,6 @@ namespace manapi::net::http {
         ssize_t body_size;
 
         int flags;
-
-        bytebuffer buffer{};
     };
 
     struct replace_founded_item {

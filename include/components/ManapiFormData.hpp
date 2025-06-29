@@ -17,11 +17,13 @@ namespace manapi::net {
     class formdata_recv {
         struct formdata_recv_ctx_t;
     public:
-        typedef std::move_only_function<manapi::future<ssize_t> (const char *buffer, ssize_t size)> ondata_cb_t;
+        typedef std::move_only_function<manapi::future<ssize_t> (slice_view buffs, bool fin)> ondata_cb_t;
 
         typedef std::move_only_function<ondata_cb_t(std::string name)> onparam_cb_t;
 
-        typedef manapi::future<> (*onrecv_cb_t)(worker::base *worker, worker::shared_conn *conn, http::request_data_t *req, std::move_only_function<manapi::future<ssize_t>(const char *, ssize_t , bool fin)> handler);
+        typedef std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)> req_data_cb_t;
+
+        typedef manapi::future<> (*onrecv_cb_t)(worker::base *worker, worker::shared_conn *conn, http::request_data_t *req, req_data_cb_t handler);
 
         formdata_recv (onrecv_cb_t onrecv_cb, manapi::net::worker::base *worker, worker::shared_conn *conn, http::request_data_t *req);
 
@@ -39,8 +41,8 @@ namespace manapi::net {
 
         static ondata_cb_t skip (ssize_t maxlen = -1);
     private:
-        manapi::future<ssize_t> onrecv_multipart_ (const char *buffer, ssize_t size);
-        manapi::future<ssize_t> onrecv_urlencoded_ (const char *buffer, ssize_t size);
+        manapi::future<ssize_t> onrecv_multipart_ (slice_view buffs);
+        manapi::future<ssize_t> onrecv_urlencoded_ (slice_view buffs);
 
         onparam_cb_t onparam_cb_;
         ondata_cb_t ondata_cb_;

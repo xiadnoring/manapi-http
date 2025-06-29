@@ -60,7 +60,7 @@ namespace manapi {
             [[nodiscard]] manapi::json &data ();
             [[nodiscard]] bool ok () const;
             [[nodiscard]] std::string_view status_msg () const;
-            void throw_it () const;
+            void unwrap () const;
         private:
             manapi::json data_;
             std::string_view msg_;
@@ -92,7 +92,7 @@ namespace manapi {
             }
 
             T value () {
-                this->throw_it();
+                this->unwrap();
                 return std::move(this->value_.value());
             }
 
@@ -104,8 +104,8 @@ namespace manapi {
                 return std::move(this->err_);
             }
 
-            void throw_it () const {
-                this->err_.throw_it();
+            void unwrap () const {
+                this->err_.unwrap();
             }
         private:
             std::optional<T> value_;

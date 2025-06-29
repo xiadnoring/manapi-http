@@ -153,8 +153,8 @@ manapi::future<> manapi::net::http::request::file(std::string filepath) {
     std::exception_ptr err{nullptr};
 
     try {
-        co_await this->read_async_body_(this->worker_.get(), this->conn_, this->request_data, [&] (const char *data, ssize_t size, bool fin)
-            -> manapi::future<ssize_t> { return f.write(data, size); });
+        co_await this->read_async_body_(this->worker_.get(), this->conn_, this->request_data, [&] (slice_view buffs, bool fin)
+            -> manapi::future<ssize_t> { return f.write(buffs); });
     }
     catch (...) {
         err = std::current_exception();
@@ -298,10 +298,8 @@ manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker
                             if (!req->body_size) {
                                 auto const copy = static_cast<int>(size - rhs);
                                 if (copy) {
-                                    assert(req->buffer == nullptr);
-                                    auto object = worker->bufferpool().buffer(nsize - copy);
-                                    memcpy(object.data(), buffer + copy, nsize - copy);
-                                    req->buffer = std::move(object);
+                                    worker->feed_event(conn, worker::base::CONN_TOP_READ,
+                                           static_cast<const char *>(buffer + rhs), copy, nullptr);
                                 }
                                 resolve();
                                 goto finish;
@@ -389,43 +387,41 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                         goto finish;
                     }
                     if (flags & ev::READ) {
-                        worker::ibuffpool_t buff;
+                        slice buffs = ctx_cb.worker->bufferpool().slice(nsize);
+                        buffs.copy_from(buffer, 0, nsize).unwrap();
 
-                        if (!p) {
-                            buff = ctx_cb.worker->bufferpool().buffer(nsize);
-                            memcpy (buff.data(), buffer, nsize);
+                        while (ctx_cb.worker->recv_count(ctx_cb.conn))
+                            buffs.push_back(ctx_cb.worker->recv_first_buffer(ctx_cb.conn)).unwrap();
 
-                            p = &buff;
-
-                            buffer = buff.data();
-                        }
-
-                        assert(!(p->empty()));
+                        if (ctx_cb.worker->event_flags(conn) & worker::base::CONN_RECV_END)
+                            flags |= worker::base::CONN_RECV_END;
 
                         ctx_cb.worker->waiting(conn, false);
                         ctx_cb.worker->event_toggle(conn, false, ev::READ);
                         ctx_cb.cnt++;
                         manapi::async::run (manapi::async::invoke(
-                            [] (const worker::shared_conn & conn, worker::ibuffpool_t p, const char * buffer, ssize_t nsize, ctx_cb_t_ *ctx_cb, int flags) -> manapi::future<> {
+                            [] (const worker::shared_conn & conn, manapi::slice buffs, ctx_cb_t_ *ctx_cb, int flags) -> manapi::future<> {
                                 try {
 
                                     ssize_t size;
                                     bool flg = false;
                                     if (ctx_cb->req->body_size >= 0) {
-                                        size = std::min(ctx_cb->req->body_size, static_cast<ssize_t> (nsize));
+                                        size = std::min(ctx_cb->req->body_size, static_cast<ssize_t> (buffs.size()));
 
                                         if (ctx_cb->req->body_size == size)
                                             flg = true;
                                     }
                                     else {
-                                        size = static_cast<ssize_t> (nsize);
+                                        size = static_cast<ssize_t> (buffs.size());
                                     }
+
+                                    auto buffsview = buffs.subslice(0, size).value();
 
                                     ssize_t rhs = 0;
                                     while (rhs < size) {
                                         auto const copy = size - rhs;
 
-                                        auto const res = co_await ctx_cb->handler (buffer + rhs, copy, flg);
+                                        auto const res = co_await ctx_cb->handler (buffsview, flg);
                                         if (res >= 0) {
                                             if (copy > res) {
                                                 ctx_cb->reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(
@@ -436,6 +432,8 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                             rhs += res;
 
                                             ctx_cb->req->body_size -= res;
+
+                                            buffsview = buffs.subslice(res).value();
 
                                             continue;
                                         }
@@ -449,10 +447,10 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                         || (flags & worker::base::CONN_RECV_END)) {
                                         auto const copy = static_cast<int>(size - rhs);
                                         if (copy) {
-                                            assert(ctx_cb->req->buffer == nullptr);
-                                            auto object = ctx_cb->worker->bufferpool().buffer(size - copy);
-                                            memcpy (object.data(), buffer + copy, size - copy);
-                                            ctx_cb->req->buffer = std::move(object);
+                                            for (auto it = buffsview.begin(); it != buffsview.end(); ++it) {
+                                                ctx_cb->worker->feed_event(ctx_cb->conn, worker::base::CONN_TOP_READ,
+                                                    static_cast<const char *>(it.buffer()), it.size(), nullptr);
+                                            }
                                         }
                                         ctx_cb->resolve();
                                         goto finish;
@@ -478,7 +476,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                     ctx_cb_->cnt--;
                                     ctx_cb_->mx.unlock();
                                 }
-                        }, ctx_cb.conn, std::move(*p), buffer, nsize, &ctx_cb, flags));
+                        }, ctx_cb.conn, std::move(buffs), &ctx_cb, flags));
                     }
                     else if (flags & worker::base::CONN_RECV_END) {
                         ctx_cb.resolve();

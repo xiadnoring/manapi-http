@@ -89,6 +89,10 @@ namespace manapi::net::worker {
         ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) override;
 
         void update_limit_rate_stream (const shared_conn &conn);
+
+        std::size_t recv_count(const shared_conn &conn) const override;
+
+        bytebuffer recv_first_buffer(const shared_conn &conn) override;
     private:
         http_v2_callbacks_t *callbacks;
         worker::base *w;

@@ -832,6 +832,33 @@ bool manapi::net::worker::http_v3_cloudflare_quiche::is_writable(const shared_co
     auto const data = conn->as<connection_stream_t>();
     return data->top->send_size < this->config_->max_buffer_stack;
 }
+
+std::size_t manapi::net::worker::http_v3_cloudflare_quiche::recv_count(const shared_conn &conn) const {
+    auto const data = conn->as<connection_stream_t>();
+    return data->top->recv_size;
+}
+
+manapi::bytebuffer manapi::net::worker::http_v3_cloudflare_quiche::recv_first_buffer(const shared_conn &conn) {
+    auto const s = conn->as<connection_stream_t>();
+    auto top = &s->top->recv;
+    auto object = std::move(top->deque->buffer);
+    top->deque = std::move(top->deque->next);
+
+    if (!top->deque) {
+        object.resize(top->deque_cursor);
+        top->last_deque = nullptr;
+        top->deque_cursor = 0;
+    }
+
+    if (top->deque_current) {
+        object.shift_add(top->deque_current);
+        top->deque_current = 0;
+    }
+
+    s->top->recv_size--;
+    return std::move(object);
+}
+
 //
 // void manapi::net::worker::http_v3_cloudflare_quiche::recv_buffer_alloc_(ssize_t nread, ev::buff_t *buff) {
 //     if (this->flags & HTTP_V3_QUICHE_WORKER_BUFFER_WAS_FREED) {
@@ -898,29 +925,14 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
     }
 }
 
-int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_buffers_(const shared_conn &conn, connection_stream_t *s, connection_io_part *top, int *cnt) {
+int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_buffers_(const shared_conn &conn, connection_stream_t *s) {
     try {
+        auto const top = &s->top->recv;
         auto const data = conn->as<connection_stream_t>();
         while ((data->flags & ev::READ)
             && (data->transfered < this->config_->speed_limit_rate)
             && top->last_deque) {
-            auto object = std::move(top->deque->buffer);
-            top->deque = std::move(top->deque->next);
-
-            if (!top->deque) {
-                object.resize(top->deque_cursor);
-                top->last_deque = nullptr;
-                top->deque_cursor = 0;
-            }
-
-            if (top->deque_current) {
-                object.shift_add(top->deque_current);
-                top->deque_current = 0;
-            }
-
-            if (cnt)
-                (*cnt)--;
-
+            auto object = this->recv_first_buffer(conn);
 
             auto const size = object.size();
             if (size) {
@@ -949,7 +961,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
 
     do {
         if (!top->last_deque || top->last_deque->buffer.size() == top->deque_cursor) {
-            if (auto const res = this->flush_read_buffers_(stream, s, top, &s->top->recv_size)) {
+            if (auto const res = this->flush_read_buffers_(stream, s)) {
                 return res;
             }
 
@@ -992,7 +1004,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
     }
     while (rhs > 0);
 
-    if (auto const res = this->flush_read_buffers_(stream, s, top, &s->top->recv_size)) {
+    if (auto const res = this->flush_read_buffers_(stream, s)) {
         return res;
     }
 

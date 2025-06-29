@@ -120,15 +120,15 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
         switch (type) {
             case CONTENT_TYPE_MULTIPART_FORM_DATA: {
                 co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
-                    [this] (const char *buffer, ssize_t size, bool fin) -> manapi::future<ssize_t> {
-                        co_return co_await this->onrecv_multipart_(buffer, size);
+                    [this] (slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+                        co_return co_await this->onrecv_multipart_(buffs);
                 });
                 break;
             }
             case CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: {
                 co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
-                    [this] (const char *buffer, ssize_t size, bool fin) -> manapi::future<ssize_t> {
-                        return this->onrecv_urlencoded_(buffer, size);
+                    [this] (slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+                        return this->onrecv_urlencoded_(buffs);
                 });
 
                 if (this->ctx_->current != FORMDATA_URLEN_VALUE
@@ -142,17 +142,13 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
                     if (ucb) {
                         auto const size = static_cast<ssize_t> (this->ctx_->hctx->s2.size());
 
-                        ssize_t res = 0;
+                        slice b;
 
-                        while (res != size) {
-                            auto const rhs = co_await ucb (this->ctx_->hctx->s2.data() + res,
-                                size - res);
-                            if (rhs < 0) {
-                                THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
-                                    "user callback returned an invalid result");
-                            }
+                        b.push_back(this->ctx_->hctx->s2.data(), size);
 
-                            res += rhs;
+                        if (size != co_await ucb (slice_view(b), true)) {
+                            THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
+                                "user callback returned an invalid result");
                         }
 
                         this->ctx_->hctx->s2.resize(0);
@@ -175,9 +171,9 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
 
 manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_file(std::string file, int mode, ssize_t maxlen, manapi::async::cancellation_action cancellation) {
     manapi::filesystem::fstream stream (std::move(file), std::move(cancellation));
-    return [maxlen, mode, stream = std::move(stream)] (const char *buffer, ssize_t size) mutable -> manapi::future<ssize_t> {
+    return [maxlen, mode, stream = std::move(stream)] (slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
         if (maxlen >= 0) {
-            maxlen -= size;
+            maxlen -= buffs.size();
 
             if (maxlen < 0)
                 co_return -1;
@@ -185,7 +181,7 @@ manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_file(st
 
         while (true) {
             if (stream.is_open())
-                co_return co_await stream.write(buffer, size);
+                co_return co_await stream.fwrite(buffs);
 
 
             auto res = co_await stream.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_NONBLOCK, mode);
@@ -196,479 +192,477 @@ manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_file(st
 }
 
 manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_string(std::string *str, ssize_t maxlen) {
-    return [maxlen, str] (const char *buffer, ssize_t size) mutable -> manapi::future<ssize_t> {
+    return [maxlen, str] (slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
         if (maxlen >= 0) {
-            maxlen -= size;
+            maxlen -= buffs.size();
 
             if (maxlen < 0)
                 co_return -1;
         }
 
-        str->append(buffer, size);
+        auto const cursor = str->size();
+        str->resize(buffs.size() + cursor);
+        buffs.copy_to(str->data() + cursor, 0, buffs.size());
 
-        co_return size;
+        co_return buffs.size();
     };
 }
 
 manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::skip(ssize_t maxlen) {
-    return [maxlen] (const char *buffer, ssize_t size) mutable -> manapi::future<ssize_t> {
+    return [maxlen] (slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
         if (maxlen >= 0) {
-            maxlen -= size;
+            maxlen -= buffs.size();
 
             if (maxlen < 0)
                 co_return -1;
         }
-        co_return size;
+        co_return buffs.size();
     };
 }
 
-manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(const char *buffer, ssize_t size) {
-    ssize_t pos = 0;
-    while (pos != size) {
-        repeat: switch (this->ctx_->current) {
-            case FORMDATA_MULTI_INIT: {
-                this->ctx_->current = FORMDATA_MULTI_BOUNDARY;
+manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view buffs) {
+    ssize_t total = 0;
+    slice_ref slice_transfer;
 
-                this->ctx_->n1 = 2;
-                this->ctx_->n2 = 0;
+    for (auto buff_it = buffs.begin(); buff_it != buffs.end(); ++buff_it) {
+        ssize_t pos = 0;
+        ssize_t const size = buff_it.size();
+        auto buffer = static_cast<const char *>(buff_it.buffer());
+
+        while (pos != size) {
+            repeat: switch (this->ctx_->current) {
+                case FORMDATA_MULTI_INIT: {
+                    this->ctx_->current = FORMDATA_MULTI_BOUNDARY;
+
+                    this->ctx_->n1 = 2;
+                    this->ctx_->n2 = 0;
 
 
-                break;
-            }
-            case FORMDATA_MULTI_BOUNDARY: {
-                auto const copy = std::min(static_cast<ssize_t>(this->ctx_->boundary.size() - this->ctx_->n1),
-                    size - pos);
+                    break;
+                }
+                case FORMDATA_MULTI_BOUNDARY: {
+                    auto const copy = std::min(static_cast<ssize_t>(this->ctx_->boundary.size() - this->ctx_->n1),
+                        size - pos);
 
-                if (copy) {
-                    if (0 != strncmp (this->ctx_->boundary.data() + this->ctx_->n1, buffer + pos, copy)) {
+                    if (copy) {
+                        if (0 != strncmp (this->ctx_->boundary.data() + this->ctx_->n1, buffer + pos, copy)) {
+                            co_return -1;
+                        }
+                    }
+
+                    this->ctx_->n1 += static_cast<int>(copy);
+                    pos += copy;
+
+                    if (this->ctx_->n1 == this->ctx_->boundary.size()) {
+                        this->ctx_->n1 = 0;
+                        this->ctx_->current = FORMDATA_MULTI_R_OR_FIN;
+                    }
+
+                    break;
+                }
+                case FORMDATA_MULTI_HEADER_KEY: {
+                    while (pos < size) {
+                        if (!this->ctx_->hctx->s1.empty() && this->ctx_->hctx->s1.back() == '\r') {
+                            /**
+                             * RFC7230 (3.2.4) Field Parsing
+                             * Historically, HTTP header field values could be extended over multiple
+                             * lines by preceding each extra line with at least one space or horizontal tab (obs-fold).
+                             */
+                            if (buffer[pos] == '\n') {
+                                if (this->ctx_->hctx->s1.size() != 1) {
+                                    co_return -1;
+                                }
+
+                                this->ctx_->hctx->s1.pop_back();
+
+                                pos ++;
+
+                                this->ctx_->n2 = static_cast<int>(pos);
+
+                                auto hit = this->ctx_->headers->find(http::HEADER.CONTENT_DISPOSITION);
+                                if (hit == this->ctx_->headers->end()) {
+                                    co_return -1;
+                                }
+
+                                auto hparams = http::parse_header_value(hit->second);
+
+                                if (hparams.size() != 1
+                                    || hparams[0].value != "form-data")
+                                    co_return -1;
+
+                                auto nit = hparams[0].params.find("name");
+                                if (nit == hparams[0].params.end())
+                                    co_return -1;
+
+                                this->ondata_cb_ = this->onparam_cb_ (std::move(nit->second));
+
+                                this->ctx_->current = FORMDATA_MULTI_DATA;
+                                this->ctx_->next = FORMDATA_MULTI_ERR;
+
+                                goto repeat;
+                            }
+
+                            co_return -1;
+                        }
+
+                        if (buffer[pos] == '\r') {
+                            this->ctx_->hctx->s1.push_back(buffer[pos]);
+                            pos++;
+                            continue;
+                        }
+
+                        if (buffer[pos] == ':') {
+                            /**
+                             * RFC7230 (3.2) Header Fields
+                             * Each header field consists of a case-insensitive field name followed by a colon (":"),
+                             * optional leading whitespace, the field value, and optional trailing whitespace.
+                             */
+
+                            pos++;
+                            this->ctx_->current = FORMDATA_MULTI_HEADER_VALUE;
+
+                            break;
+                        }
+
+                        if (!http::http_v1_1_is_token_char(buffer[pos])) {
+                            /**
+                             * RFC7230 (3.2.4) Field Parsing
+                             * No whitespace is allowed between the header field-name and colon.
+                             *
+                             * RFC7230 (3.2.6) Field Value Components
+                             * Most HTTP header field values are defined using
+                             * common syntax components (token, quoted-string, and comment)
+                             * separated by whitespace or specific delimiting characters.
+                             * Delimiters are chosen from the set of US-ASCII visual characters
+                             * not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}").
+                             */
+                            co_return -1;
+                        }
+
+
+
+                        this->ctx_->hctx->s1.push_back(static_cast<char>(std::tolower(buffer[pos])));
+                        pos++;
+                    }
+                    break;
+                }
+                case FORMDATA_MULTI_HEADER_VALUE: {
+                    if (buffer[pos] == ' ' && this->ctx_->hctx->s2.empty()) {
+                        /**
+                         * RFC7230 (3.2) Header Fields
+                         * Optitional leading whitespace
+                         */
+                        pos++;
+                    }
+
+                    while (pos < size) {
+                        if (!this->ctx_->hctx->s2.empty() && this->ctx_->hctx->s2.back() == '\r') {
+                            if (buffer[pos] == '\n') {
+                                this->ctx_->hctx->s2.pop_back();
+                                pos++;
+
+                                if (!this->ctx_->hctx->s2.empty() && this->ctx_->hctx->s2.back() == ' ') {
+                                    /**
+                                     * RFC7230 (3.2) Header Fields
+                                     * Optitional trailing whitespace
+                                     */
+                                    this->ctx_->hctx->s2.pop_back();
+                                }
+
+                                /* insert */
+                                auto it = this->ctx_->headers->find(this->ctx_->hctx->s1);
+                                if (it == this->ctx_->headers->end()) {
+                                    this->ctx_->headers->insert({this->ctx_->hctx->s1, this->ctx_->hctx->s2});
+                                }
+                                else {
+                                    /**
+                                     * RFC7230 (3.2.2) Field Order
+                                     * A recipient MAY combine multiple header fields with
+                                     * the same field name into one "field-name: field-value" pair,
+                                     * without changing the semantics of the message,
+                                     * by appending each subsequent field value to the combined field value in order,
+                                     * separated by a comma. The order in which header fields with the same
+                                     * field name are received is therefore significant to
+                                     * the interpretation of the combined field value;
+                                     * a proxy MUST NOT change the order of these field values when forwarding a message.
+                                     */
+
+                                    it->second.push_back(',');
+                                    it->second.append(this->ctx_->hctx->s2);
+                                }
+
+                                this->ctx_->hctx->s1.resize(0);
+                                this->ctx_->hctx->s2.resize(0);
+
+                                this->ctx_->current = FORMDATA_MULTI_HEADER_KEY;
+
+                                break;
+                            }
+
+                            co_return -1;
+                        }
+
+                        if (buffer[pos] == '\r') {
+                            this->ctx_->hctx->s2.push_back(buffer[pos]);
+                            pos++;
+                            continue;
+                        }
+
+                        if (!isprint(buffer[pos])) {
+                            /**
+                             * RFC7230 (3.2) Header Fields
+                             *
+                             * header-field   = field-name ":" OWS field-value OWS
+                             *
+                             * field-name     = token
+                             * field-value    = *( field-content / obs-fold )
+                             * field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
+                             * field-vchar    = VCHAR / obs-text
+                             *
+                             * obs-fold       = CRLF 1*( SP / HTAB )
+                             *                ; obsolete line folding
+                             *                ; see Section 3.2.4
+                             *
+                             * V[isible]CHAR
+                             */
+                            co_return -1;
+                        }
+
+                        this->ctx_->hctx->s2.push_back(buffer[pos]);
+                        pos++;
+                    }
+                    break;
+                }
+                case FORMDATA_MULTI_R: {
+                    if (buffer[pos] != '\r') {
                         co_return -1;
                     }
+                    pos++;
+                    this->ctx_->current = FORMDATA_MULTI_N;
+                    break;
                 }
-
-                this->ctx_->n1 += static_cast<int>(copy);
-                pos += copy;
-
-                if (this->ctx_->n1 == this->ctx_->boundary.size()) {
+                case FORMDATA_MULTI_N: {
+                    if (buffer[pos] != '\n') {
+                        co_return -1;
+                    }
+                    pos++;
+                    this->ctx_->current = this->ctx_->next;
+                    this->ctx_->next = FORMDATA_MULTI_ERR;
+                    break;
+                }
+                case FORMDATA_MULTI_R_OR_FIN: {
                     this->ctx_->n1 = 0;
-                    this->ctx_->current = FORMDATA_MULTI_R_OR_FIN;
+
+                    if (!slice_transfer.empty()) {
+                        if (slice_transfer.size() != co_await this->ondata_cb_ (slice_view(slice_transfer), false))
+                            THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
+                                "user callback returned an invalid result");
+                        slice_transfer.clear();
+                    }
+
+                    if (buffer[pos] == '\r') {
+                        pos++;
+                        this->ctx_->current = FORMDATA_MULTI_N;
+                        this->ctx_->next = FORMDATA_MULTI_HEADER_KEY;
+
+                        this->ctx_->headers = std::make_unique<decltype(this->ctx_->headers)::element_type>();
+                        this->ctx_->hctx = std::make_unique<decltype(this->ctx_->hctx)::element_type>(
+                            decltype(this->ctx_->hctx)::element_type{});
+
+                        break;
+                    }
+                    if (buffer[pos] == '-') {
+                        pos++;
+                        this->ctx_->current = FORMDATA_MULTI_FINISH;
+                        break;
+                    }
+                    co_return -1;
                 }
+                case FORMDATA_MULTI_DATA: {
+                    /**
+                     * n1 - boundary size
+                     * n2 - payload start position
+                     */
 
-                break;
+                    auto &n1 = this->ctx_->n1;
+                    auto &boundary = this->ctx_->boundary;
+
+                    while (pos != size) {
+                        if (buffer[pos] == boundary[n1]) {
+                            if (!n1) {
+                                auto const beyond = (pos - n1);
+                                auto const copy = beyond - this->ctx_->n2;
+                                assert((copy >= 0));
+                                slice_transfer.push_back(buffer + this->ctx_->n2, copy);
+
+                                this->ctx_->n2 = static_cast<int>(pos);
+                            }
+
+                            n1++;
+                            pos++;
+
+                            if (n1 == boundary.size()) {
+                                this->ctx_->current = FORMDATA_MULTI_R_OR_FIN;
+                                break;
+                            }
+
+                            continue;
+                        }
+
+                        if (n1) {
+                            auto const copy = static_cast<ssize_t> (n1);
+                            slice_transfer.push_back(this->ctx_->boundary.data(), copy);
+
+                            n1 = 0;
+                            this->ctx_->n2 = static_cast<int> (pos);
+                        }
+
+                        pos++;
+                    }
+
+                    auto const beyond = (pos - n1);
+                    auto const copy = beyond - this->ctx_->n2;
+
+                    slice_transfer.push_back(buffer + this->ctx_->n2, copy);
+
+                    this->ctx_->n2 = 0;
+
+                    break;
+                }
+                case FORMDATA_MULTI_FINISH: {
+                    if (buffer[pos] != '-')
+                        co_return -1;
+
+                    pos++;
+
+                    this->ctx_->headers.reset();
+                    this->ctx_->hctx.reset();
+
+                    this->ctx_->current = FORMDATA_MULTI_R;
+                    this->ctx_->next = FORMDATA_MULTI_ERR;
+
+                    break;
+                }
+                default: {
+                    co_return -1;
+                }
             }
-            case FORMDATA_MULTI_HEADER_KEY: {
-                while (pos < size) {
-                    if (!this->ctx_->hctx->s1.empty() && this->ctx_->hctx->s1.back() == '\r') {
-                        /**
-                         * RFC7230 (3.2.4) Field Parsing
-                         * Historically, HTTP header field values could be extended over multiple
-                         * lines by preceding each extra line with at least one space or horizontal tab (obs-fold).
-                         */
-                        if (buffer[pos] == '\n') {
-                            if (this->ctx_->hctx->s1.size() != 1) {
-                                co_return -1;
-                            }
+        }
 
-                            this->ctx_->hctx->s1.pop_back();
+        total += pos;
+    }
 
-                            pos ++;
+    if (!slice_transfer.empty()) {
+        if (slice_transfer.size() != co_await this->ondata_cb_ (slice_view(slice_transfer), false))
+            THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
+                "user callback returned an invalid result");
+        slice_transfer.clear();
+    }
 
-                            this->ctx_->n2 = static_cast<int>(pos);
+    co_return total;
+}
 
-                            auto hit = this->ctx_->headers->find(http::HEADER.CONTENT_DISPOSITION);
-                            if (hit == this->ctx_->headers->end()) {
-                                co_return -1;
-                            }
+manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_urlencoded_(slice_view buffs) {
+    ssize_t total = 0;
+    manapi::slice buffs_transfered;
+    for (auto buff_it = buffs.begin(); buff_it != buffs.end(); ++buff_it) {
+        ssize_t pos = 0;
 
-                            auto hparams = http::parse_header_value(hit->second);
+        ssize_t const size = buff_it.size();
+        auto buffer = static_cast<const char *>(buff_it.buffer());
 
-                            if (hparams.size() != 1
-                                || hparams[0].value != "form-data")
-                                co_return -1;
+        while (pos != size) {
+            repeat: switch (this->ctx_->current) {
+                case FORMDATA_URLEN_INIT: {
+                    this->ctx_->hctx = std::make_unique<decltype(this->ctx_->hctx)::element_type>(
+                        decltype(this->ctx_->hctx)::element_type{});
 
-                            auto nit = hparams[0].params.find("name");
-                            if (nit == hparams[0].params.end())
-                                co_return -1;
+                    this->ctx_->n1 = 0;
+                    this->ctx_->n2 = 0;
 
-                            this->ondata_cb_ = this->onparam_cb_ (std::move(nit->second));
+                    this->ctx_->current = FORMDATA_URLEN_KEY;
 
-                            this->ctx_->current = FORMDATA_MULTI_DATA;
-                            this->ctx_->next = FORMDATA_MULTI_ERR;
+                    break;
+                }
+                case FORMDATA_URLEN_KEY: {
+                    while (pos != size) {
+                        if (buffer[pos] == '=') {
+                            encoding::decode_url(this->ctx_->hctx->s1,
+                                std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
+
+                            pos++;
+
+                            this->ctx_->n1 = static_cast<int>(pos);
+                            this->ctx_->current = FORMDATA_URLEN_VALUE;
 
                             goto repeat;
                         }
 
-                        co_return -1;
-                    }
-
-                    if (buffer[pos] == '\r') {
-                        this->ctx_->hctx->s1.push_back(buffer[pos]);
                         pos++;
-                        continue;
                     }
 
-                    if (buffer[pos] == ':') {
-                        /**
-                         * RFC7230 (3.2) Header Fields
-                         * Each header field consists of a case-insensitive field name followed by a colon (":"),
-                         * optional leading whitespace, the field value, and optional trailing whitespace.
-                         */
+                    if (pos == size) {
+                        if (pos != this->ctx_->n1)
+                            encoding::decode_url(this->ctx_->hctx->s1,
+                                std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
 
-                        pos++;
-                        this->ctx_->current = FORMDATA_MULTI_HEADER_VALUE;
-
-                        break;
+                        this->ctx_->n1 = 0;
                     }
 
-                    if (!http::http_v1_1_is_token_char(buffer[pos])) {
-                        /**
-                         * RFC7230 (3.2.4) Field Parsing
-                         * No whitespace is allowed between the header field-name and colon.
-                         *
-                         * RFC7230 (3.2.6) Field Value Components
-                         * Most HTTP header field values are defined using
-                         * common syntax components (token, quoted-string, and comment)
-                         * separated by whitespace or specific delimiting characters.
-                         * Delimiters are chosen from the set of US-ASCII visual characters
-                         * not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}").
-                         */
-                        co_return -1;
-                    }
-
-
-
-                    this->ctx_->hctx->s1.push_back(static_cast<char>(std::tolower(buffer[pos])));
-                    pos++;
+                    break;
                 }
-                break;
-            }
-            case FORMDATA_MULTI_HEADER_VALUE: {
-                if (buffer[pos] == ' ' && this->ctx_->hctx->s2.empty()) {
-                    /**
-                     * RFC7230 (3.2) Header Fields
-                     * Optitional leading whitespace
-                     */
-                    pos++;
-                }
+                case FORMDATA_URLEN_VALUE: {
+                    while (pos != size) {
+                        if (buffer[pos] == '&') {
+                            encoding::decode_url(this->ctx_->hctx->s2,
+                                std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
 
-                while (pos < size) {
-                    if (!this->ctx_->hctx->s2.empty() && this->ctx_->hctx->s2.back() == '\r') {
-                        if (buffer[pos] == '\n') {
-                            this->ctx_->hctx->s2.pop_back();
                             pos++;
 
-                            if (!this->ctx_->hctx->s2.empty() && this->ctx_->hctx->s2.back() == ' ') {
-                                /**
-                                 * RFC7230 (3.2) Header Fields
-                                 * Optitional trailing whitespace
-                                 */
-                                this->ctx_->hctx->s2.pop_back();
+                            this->ctx_->n1 = static_cast<int>(pos);
+                            this->ctx_->current = FORMDATA_URLEN_KEY;
+
+                            auto cb = this->onparam_cb_ (std::move(this->ctx_->hctx->s1));
+
+                            if (cb) {
+                                auto const ssize = static_cast<ssize_t> (this->ctx_->hctx->s2.size());
+                                buffs_transfered.push_back(this->ctx_->hctx->s2.data(), ssize);
                             }
 
-                            /* insert */
-                            auto it = this->ctx_->headers->find(this->ctx_->hctx->s1);
-                            if (it == this->ctx_->headers->end()) {
-                                this->ctx_->headers->insert({this->ctx_->hctx->s1, this->ctx_->hctx->s2});
-                            }
-                            else {
-                                /**
-                                 * RFC7230 (3.2.2) Field Order
-                                 * A recipient MAY combine multiple header fields with
-                                 * the same field name into one "field-name: field-value" pair,
-                                 * without changing the semantics of the message,
-                                 * by appending each subsequent field value to the combined field value in order,
-                                 * separated by a comma. The order in which header fields with the same
-                                 * field name are received is therefore significant to
-                                 * the interpretation of the combined field value;
-                                 * a proxy MUST NOT change the order of these field values when forwarding a message.
-                                 */
-
-                                it->second.push_back(',');
-                                it->second.append(this->ctx_->hctx->s2);
-                            }
-
-                            this->ctx_->hctx->s1.resize(0);
                             this->ctx_->hctx->s2.resize(0);
 
-                            this->ctx_->current = FORMDATA_MULTI_HEADER_KEY;
+                            if (!buffs_transfered.empty()) {
+                                if (buffs_transfered.size() != co_await this->ondata_cb_ (slice_view(buffs_transfered), false))
+                                    THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
+                                        "user callback returned an invalid result");
+                            }
 
-                            break;
+                            goto repeat;
                         }
 
-                        co_return -1;
-                    }
-
-                    if (buffer[pos] == '\r') {
-                        this->ctx_->hctx->s2.push_back(buffer[pos]);
                         pos++;
-                        continue;
                     }
 
-                    if (!isprint(buffer[pos])) {
-                        /**
-                         * RFC7230 (3.2) Header Fields
-                         *
-                         * header-field   = field-name ":" OWS field-value OWS
-                         *
-                         * field-name     = token
-                         * field-value    = *( field-content / obs-fold )
-                         * field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
-                         * field-vchar    = VCHAR / obs-text
-                         *
-                         * obs-fold       = CRLF 1*( SP / HTAB )
-                         *                ; obsolete line folding
-                         *                ; see Section 3.2.4
-                         *
-                         * V[isible]CHAR
-                         */
-                        co_return -1;
+                    if (pos == size) {
+                        if (pos != this->ctx_->n1)
+                            encoding::decode_url(this->ctx_->hctx->s2,
+                                std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
+
+                        this->ctx_->n1 = 0;
                     }
-
-                    this->ctx_->hctx->s2.push_back(buffer[pos]);
-                    pos++;
-                }
-                break;
-            }
-            case FORMDATA_MULTI_R: {
-                if (buffer[pos] != '\r') {
-                    co_return -1;
-                }
-                pos++;
-                this->ctx_->current = FORMDATA_MULTI_N;
-                break;
-            }
-            case FORMDATA_MULTI_N: {
-                if (buffer[pos] != '\n') {
-                    co_return -1;
-                }
-                pos++;
-                this->ctx_->current = this->ctx_->next;
-                this->ctx_->next = FORMDATA_MULTI_ERR;
-                break;
-            }
-            case FORMDATA_MULTI_R_OR_FIN: {
-                this->ctx_->n1 = 0;
-
-                if (buffer[pos] == '\r') {
-                    pos++;
-                    this->ctx_->current = FORMDATA_MULTI_N;
-                    this->ctx_->next = FORMDATA_MULTI_HEADER_KEY;
-
-                    this->ctx_->headers = std::make_unique<decltype(this->ctx_->headers)::element_type>();
-                    this->ctx_->hctx = std::make_unique<decltype(this->ctx_->hctx)::element_type>(
-                        decltype(this->ctx_->hctx)::element_type{});
 
                     break;
                 }
-                if (buffer[pos] == '-') {
-                    pos++;
-                    this->ctx_->current = FORMDATA_MULTI_FINISH;
-                    break;
-                }
-                co_return -1;
-            }
-            case FORMDATA_MULTI_DATA: {
-                /**
-                 * n1 - boundary size
-                 * n2 - payload start position
-                 */
-
-                auto &n1 = this->ctx_->n1;
-                auto &boundary = this->ctx_->boundary;
-
-                while (pos != size) {
-                    if (buffer[pos] == boundary[n1]) {
-                        if (!n1) {
-                            auto const beyond = (pos - n1);
-                            auto const copy = beyond - this->ctx_->n2;
-                            assert((copy >= 0));
-                            if (this->ondata_cb_) {
-                                ssize_t res = 0;
-
-                                while (res != copy) {
-                                    auto const rhs = co_await this->ondata_cb_ (
-                                        buffer + this->ctx_->n2 + res, copy - res);
-
-                                    if (rhs < 0)
-                                        co_return -1;
-
-                                    res += rhs;
-                                }
-                            }
-
-                            this->ctx_->n2 = static_cast<int>(pos);
-                        }
-
-                        n1++;
-                        pos++;
-
-                        if (n1 == boundary.size()) {
-                            this->ctx_->current = FORMDATA_MULTI_R_OR_FIN;
-                            break;
-                        }
-
-                        continue;
-                    }
-
-                    if (n1) {
-                        auto const copy = static_cast<ssize_t> (n1);
-                        ssize_t res = 0;
-
-                        while (res != copy) {
-                            auto const rhs = co_await this->ondata_cb_ (
-                                this->ctx_->boundary.data() + res, copy - res);
-
-                            if (rhs < 0)
-                                co_return -1;
-
-                            res += rhs;
-                        }
-
-                        n1 = 0;
-                        this->ctx_->n2 = static_cast<int> (pos);
-                    }
-
-                    pos++;
-                }
-
-                auto const beyond = (pos - n1);
-                auto const copy = beyond - this->ctx_->n2;
-
-                if (this->ondata_cb_) {
-                    ssize_t res = 0;
-
-                    while (res != copy) {
-                        auto const rhs = co_await this->ondata_cb_ (
-                            buffer + this->ctx_->n2 + res, copy - res);
-
-                        if (rhs < 0)
-                            co_return -1;
-
-                        res += rhs;
-                    }
-                }
-
-                this->ctx_->n2 = 0;
-
-                break;
-            }
-            case FORMDATA_MULTI_FINISH: {
-                if (buffer[pos] != '-')
+                default: {
                     co_return -1;
-
-                pos++;
-
-                this->ctx_->headers.reset();
-                this->ctx_->hctx.reset();
-
-                this->ctx_->current = FORMDATA_MULTI_R;
-                this->ctx_->next = FORMDATA_MULTI_ERR;
-
-                break;
-            }
-            default: {
-                co_return -1;
+                }
             }
         }
-    }
-    co_return pos;
-}
 
-manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_urlencoded_(const char *buffer, ssize_t size) {
-    ssize_t pos = 0;
-
-    while (pos != size) {
-        repeat: switch (this->ctx_->current) {
-            case FORMDATA_URLEN_INIT: {
-                this->ctx_->hctx = std::make_unique<decltype(this->ctx_->hctx)::element_type>(
-                    decltype(this->ctx_->hctx)::element_type{});
-
-                this->ctx_->n1 = 0;
-                this->ctx_->n2 = 0;
-
-                this->ctx_->current = FORMDATA_URLEN_KEY;
-
-                break;
-            }
-            case FORMDATA_URLEN_KEY: {
-                while (pos != size) {
-                    if (buffer[pos] == '=') {
-                        encoding::decode_url(this->ctx_->hctx->s1,
-                            std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
-
-                        pos++;
-
-                        this->ctx_->n1 = static_cast<int>(pos);
-                        this->ctx_->current = FORMDATA_URLEN_VALUE;
-
-                        goto repeat;
-                    }
-
-                    pos++;
-                }
-
-                if (pos == size) {
-                    if (pos != this->ctx_->n1)
-                        encoding::decode_url(this->ctx_->hctx->s1,
-                            std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
-
-                    this->ctx_->n1 = 0;
-                }
-
-                break;
-            }
-            case FORMDATA_URLEN_VALUE: {
-                while (pos != size) {
-                    if (buffer[pos] == '&') {
-                        encoding::decode_url(this->ctx_->hctx->s2,
-                            std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
-
-                        pos++;
-
-                        this->ctx_->n1 = static_cast<int>(pos);
-                        this->ctx_->current = FORMDATA_URLEN_KEY;
-
-                        auto cb = this->onparam_cb_ (std::move(this->ctx_->hctx->s1));
-
-                        if (cb) {
-                            auto const ssize = static_cast<ssize_t> (this->ctx_->hctx->s2.size());
-                            ssize_t res = 0;
-
-                            while (res != ssize) {
-                                auto const rhs = co_await cb (this->ctx_->hctx->s2.data() + res,
-                                    ssize - res);
-                                if (rhs < 0) {
-                                    co_return -1;
-                                }
-                                res += rhs;
-                            }
-
-                        }
-
-                        this->ctx_->hctx->s2.resize(0);
-
-                        goto repeat;
-                    }
-
-                    pos++;
-                }
-
-                if (pos == size) {
-                    if (pos != this->ctx_->n1)
-                        encoding::decode_url(this->ctx_->hctx->s2,
-                            std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
-
-                    this->ctx_->n1 = 0;
-                }
-
-                break;
-            }
-            default: {
-                co_return -1;
-            }
-        }
+        total += pos;
     }
 
-    co_return pos;
+    co_return total;
 }
 
 manapi::net::formdata_send::formdata_send(async::shared_ctx ctx) : ctx(std::move(ctx)) {}

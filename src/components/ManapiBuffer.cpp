@@ -15,7 +15,7 @@ manapi::bytebuffer::bytebuffer() {
     this->s = 0;
     this->shift_ = 0;
     this->reserved = 0;
-    this->flags = 0;
+    this->flags_ = 0;
 }
 
 bool manapi::bytebuffer::operator==(const std::nullptr_t &) const {
@@ -27,14 +27,14 @@ manapi::bytebuffer::bytebuffer(void *src, std::size_t size) {
     this->s = static_cast<int>(size);
     this->reserved = static_cast<int>(size);
     this->shift_ = 0;
-    this->flags = 0;
+    this->flags_ = 0;
 }
 
-manapi::bytebuffer::bytebuffer(void *src, std::size_t size, char flags) {
+manapi::bytebuffer::bytebuffer(void *src, std::size_t size, char flags_) {
     this->src = static_cast <uint8_t *> (src);
     this->s = static_cast<int>(size);
     this->reserved = static_cast<int>(size);
-    this->flags = flags;
+    this->flags_ = flags_;
     this->shift_ = 0;
 }
 
@@ -43,7 +43,7 @@ manapi::bytebuffer::bytebuffer(std::size_t size) {
     this->s = static_cast<int>(size);
     this->reserved = static_cast<int>(size);
     this->shift_ = 0;
-    this->flags = 0;
+    this->flags_ = 0;
 }
 
 manapi::bytebuffer::~bytebuffer() {
@@ -55,7 +55,7 @@ manapi::bytebuffer::bytebuffer(bytebuffer &&n) noexcept {
     this->reserved = std::exchange(n.reserved, 0);
     this->src = std::exchange(n.src, nullptr);
     this->shift_ = std::exchange(n.shift_, 0);
-    this->flags = std::exchange(n.flags, 0);
+    this->flags_ = std::exchange(n.flags_, 0);
 }
 
 manapi::bytebuffer & manapi::bytebuffer::operator=(bytebuffer &&n) noexcept {
@@ -65,7 +65,7 @@ manapi::bytebuffer & manapi::bytebuffer::operator=(bytebuffer &&n) noexcept {
     this->reserved = std::exchange(n.reserved, 0);
     this->src = std::exchange(n.src, nullptr);
     this->shift_ = std::exchange(n.shift_, 0);
-    this->flags = std::exchange(n.flags, 0);
+    this->flags_ = std::exchange(n.flags_, 0);
     return *this;
 }
 
@@ -115,8 +115,8 @@ void manapi::bytebuffer::realresize(std::size_t s) {
         return;
     }
 
-    if (this->flags & BYTEBUFFER_FLAG_OBJECT_POOL) {
-        this->flags ^= BYTEBUFFER_FLAG_OBJECT_POOL;
+    if (this->flags_ & BYTEBUFFER_FLAG_OBJECT_POOL) {
+        this->flags_ ^= BYTEBUFFER_FLAG_OBJECT_POOL;
 
         /* is slice */
         auto nm = manapi::memory::alloc<uint8_t>(s);
@@ -155,11 +155,11 @@ void manapi::bytebuffer::resize_max(std::size_t s) {
 }
 
 void manapi::bytebuffer::clear() {
-    if (this->flags & BYTEBUFFER_FLAG_OBJECT_POOL) {
+    if (this->flags_ & BYTEBUFFER_FLAG_OBJECT_POOL) {
         manapi::async::current()->memory_fabric().free(reinterpret_cast<void*>(this->src), this->reserved);
         this->s = 0;
         this->reserved = 0;
-        this->flags ^= BYTEBUFFER_FLAG_OBJECT_POOL;
+        this->flags_ ^= BYTEBUFFER_FLAG_OBJECT_POOL;
         this->src = nullptr;
     }
     else {
@@ -179,7 +179,7 @@ void * manapi::bytebuffer::release() {
     this->s = 0;
     this->reserved = 0;
     this->shift_ = 0;
-    this->flags = 0;
+    this->flags_ = 0;
     return std::exchange(this->src, nullptr);
 }
 
@@ -193,6 +193,10 @@ void manapi::bytebuffer::shift(std::size_t n) {
 
 void manapi::bytebuffer::shift_add(std::size_t n) {
     this->shift_ += n;
+}
+
+uint8_t manapi::bytebuffer::flags() {
+    return this->flags_;
 }
 
 bool manapi::bytebuffer::empty() const {

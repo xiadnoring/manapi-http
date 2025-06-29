@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ManapiBuffer.hpp"
 #include "ManapiChain.hpp"
 #include "../components/ManapiEventStructures.hpp"
 #include "../ManapiUtils.hpp"
@@ -22,6 +23,8 @@ namespace manapi {
 
         ~slice_iterator();
 
+        slice_iterator &operator++();
+
         slice_iterator &operator++(int);
 
         bool operator==(const slice_iterator &n) const;
@@ -42,12 +45,9 @@ namespace manapi {
             void operator () (slice_part_t *ptr);
         };
 
-        // enum slice_state {
-        //     SLICE_STATE_MALLOC = 0,
-        //     SLICE_STATE_REF
-        // };
-
         slice_base (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff);
+
+        slice_base (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff, uint32_t rshift);
 
         slice_base (slice_part_t *first, slice_part_t *last, uint32_t count, std::size_t shift, std::size_t rshift, std::size_t size);
 
@@ -61,7 +61,7 @@ namespace manapi {
 
         slice_base &operator=(const slice_base &n);
 
-        void shift_add (std::size_t shift);
+        manapi::error::status shift_add (std::size_t shift);
 
         manapi::error::status copy_from (const void *buffer, std::size_t shift, std::size_t size);
 
@@ -73,7 +73,7 @@ namespace manapi {
 
         [[nodiscard]] std::size_t shift () const;
 
-        [[nodiscard]] std::size_t rshift () const;
+        [[deprecated, nodiscard]] std::size_t rshift () const;
 
         void resize (std::size_t size);
 
@@ -87,6 +87,8 @@ namespace manapi {
 
         slice_iterator end ();
 
+        [[nodiscard]] int cmp (const manapi::slice_base &n) const;
+
         void slices_buffs (ev::buff_t *buffs) const;
 
         [[nodiscard]] std::unique_ptr<ev::buff_t, ev::buffer_deleter> slices_buffs () const;
@@ -95,19 +97,30 @@ namespace manapi {
 
         [[nodiscard]] std::size_t size () const;
     protected:
-        uint32_t size_;
+        std::size_t size_;
         uint32_t shift_;
+        /**
+         * !!! rshift only for slice_view !!!
+         *
+         * bcz using class slice we will
+         * split the slice and will return the cut part
+         * to the memory fabric
+         */
         uint32_t rshift_;
         slice_part_t *first;
         slice_part_t *last;
         uint32_t count;
     };
 
-    class slice final : public  slice_base {
+    class slice final : public slice_base {
     public:
         slice ();
 
+        slice (std::size_t n);
+
         slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff);
+
+        slice (std::unique_ptr<slice_part_t, slice_part_deleter> buffs,  uint32_t nbuff, uint32_t rshift);
 
         slice (slice_part_t *first, slice_part_t *last, uint32_t count, std::size_t shift, std::size_t rshift, std::size_t size);
 
@@ -119,15 +132,18 @@ namespace manapi {
 
         ~slice() override;
 
-        manapi::error::status append (const void *buffer, ssize_t size);
+        manapi::error::status push_back (bytebuffer buffer);
+
+        manapi::error::status push_back (const void *buffer, ssize_t size);
 
         void clear () noexcept(true);
     };
 
-
     class slice_view final : public slice_base {
     public:
-        slice_view (slice_base n);
+        slice_view ();
+
+        slice_view (const slice_base &n);
 
         slice_view (const slice &n);
 
@@ -136,6 +152,26 @@ namespace manapi {
         slice_view &operator=(const slice_view &n);
 
         ~slice_view() override;
+    private:
+    };
+
+    class slice_ref final : public slice_base {
+    public:
+        slice_ref ();
+
+        slice_ref (const slice_ref &n);
+
+        slice_ref &operator=(const slice_ref &n);
+
+        slice_ref (slice_ref &&n) noexcept;
+
+        slice_ref &operator=(slice_ref &&n) noexcept;
+
+        ~slice_ref() override;
+
+        manapi::error::status push_back (const void *buffer, std::size_t size);
+
+        void clear () noexcept(true);
     private:
     };
 }
