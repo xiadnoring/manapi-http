@@ -644,7 +644,9 @@ manapi::slice & manapi::slice::operator=(slice &&n) noexcept {
     this->count = n.count;
     this->rshift_ = n.rshift_;
     this->shift_ = n.shift_;
+    this->size_ = n.size_;
 
+    n.size_ = 0;
     n.shift_ = 0;
     n.rshift_ = 0;
     n.count = 0;
