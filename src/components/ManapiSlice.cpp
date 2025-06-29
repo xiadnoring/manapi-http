@@ -162,8 +162,8 @@ manapi::error::status manapi::slice_base::copy_from(const void *buffer, std::siz
 
     auto current = this->first;
     shift += this->shift_;
-    while (current != this->last
-        && current->buff.len <= shift) {
+    while (current != this->last->next
+        && current->buff.len < shift) {
         shift -= current->buff.len;
         current = current->next;
     }
@@ -312,7 +312,7 @@ manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::s
     auto tmp_size = size;
     uint32_t cnt = 0;
     auto current = this->first;
-    while (this->last != current
+    while (this->last->next != current
         && current->buff.len <= pos) {
         pos -= current->buff.len;
         current = current->next;
@@ -322,8 +322,8 @@ manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::s
 
     size += pos;
     auto scurrent = current;
-    while (this->last != scurrent
-        && scurrent->buff.len <= size) {
+    while (this->last->next != scurrent
+        && scurrent->buff.len < size) {
         cnt++;
         size -= scurrent->buff.len;
         scurrent=scurrent->next;

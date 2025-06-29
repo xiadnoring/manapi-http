@@ -66,6 +66,10 @@ int main () {
             co_return resp.file(FOLDER"index.html");
         });
 
+        router.GET("/test.txt", [] (http::req &req, http::resp &resp) -> manapi::future<> {
+            co_return resp.file("/home/Timur/Downloads/test.txt");
+        });
+
         router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             int z =5;

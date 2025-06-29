@@ -927,9 +927,6 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
     ssize_t rhs;
     std::exception_ptr error{nullptr};
 
-    manapi::filesystem::fstream ff ("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
-    (co_await ff.open(ev::FS_O_RDONLY)).unwrap();
-
     if ((rhs = co_await f.read(write_block.subslice(0,
         std::min(block_size, size - current)).value())) <= 0) {
         co_return;

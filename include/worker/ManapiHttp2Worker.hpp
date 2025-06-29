@@ -23,13 +23,11 @@ namespace manapi::net::worker {
 
     struct http_v2_stream_base_t {
         int flags;
-        int send_size;
         int recv_size;
         ssize_t transfered_k;
         int speed_min_delay;
         std::unique_ptr<worker::worker_watcher_cb> ev_callback;
         std::unique_ptr<worker::connection_io_part> recv;
-        std::unique_ptr<worker::connection_io_part> send;
     };
 
     struct http_v2_callbacks_t {

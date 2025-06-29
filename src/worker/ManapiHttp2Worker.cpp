@@ -80,7 +80,7 @@ void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags
             this->feed_event_read_ (conn, data->ev_callback.get(), data->recv.get(), &data->recv_size, data->flags, flags, buff, size,  p);
         }
     }
-    else if (data->ev_callback) {
+    else if ((data->flags & flags) && data->ev_callback) {
         if (this->call_user_callback(data->ev_callback, conn, flags, buff, size, p))
             this->close_connection(conn, false);
     }
