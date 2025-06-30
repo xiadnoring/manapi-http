@@ -499,41 +499,47 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
                     auto &boundary = this->ctx_->boundary;
 
                     while (pos != size) {
-                        if (buffer[pos] == boundary[n1]) {
-                            // if (!n1) {
-                            //     auto const beyond = (pos - n1);
-                            //     auto const copy = beyond - this->ctx_->n2;
-                            //     assert((copy >= 0));
-                            //     slice_transfer.push_back(buffer + this->ctx_->n2, copy);
-                            //
-                            //     this->ctx_->n2 = static_cast<int>(pos);
-                            // }
-
-                            n1++;
-                            pos++;
-
-                            if (n1 == boundary.size()) {
-                                this->ctx_->current = FORMDATA_MULTI_R_OR_FIN;
-                                break;
-                            }
-
-                            continue;
-                        }
-
                         if (n1) {
-                            if (pos < n1) {
-                                auto const copy = static_cast<ssize_t> (n1);
-                                slice_transfer.push_back(this->ctx_->boundary.data(), copy);
+                            if (buffer[pos] == boundary[n1]) {
+                                // if (!n1) {
+                                //     auto const beyond = (pos - n1);
+                                //     auto const copy = beyond - this->ctx_->n2;
+                                //     assert((copy >= 0));
+                                //     slice_transfer.push_back(buffer + this->ctx_->n2, copy);
+                                //
+                                //     this->ctx_->n2 = static_cast<int>(pos);
+                                // }
 
-                                n1 = 0;
-                                this->ctx_->n2 = static_cast<int> (pos);
+                                n1++;
+                                pos++;
+
+                                if (n1 == boundary.size()) {
+                                    this->ctx_->current = FORMDATA_MULTI_R_OR_FIN;
+                                    break;
+                                }
+
+                                continue;
                             }
-                            else {
+
+                            if (n1) {
+                                if (pos < n1) {
+                                    auto const copy = static_cast<ssize_t> (n1);
+                                    slice_transfer.push_back(this->ctx_->boundary.data(), copy);
+                                    this->ctx_->n2 = static_cast<int> (pos);
+                                }
+
                                 n1 = 0;
                             }
                         }
 
-                        pos++;
+                        std::string_view sv (buffer + pos, size - pos);
+                        auto const res = sv.find(boundary[0]);
+                        if (res == std::string_view::npos)
+                            pos = size;
+                        else {
+                            pos += static_cast<ssize_t>(res) + 1;
+                            n1 = 1;
+                        }
                     }
 
                     auto const beyond = (pos - n1);

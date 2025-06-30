@@ -1573,6 +1573,7 @@ header_skip:
                     datasize = std::min(static_cast<int>(size - pos), static_cast<int>(datasize));
 
                     ctx->frame_length -= datasize;
+                    ssize_t const datapos = pos;
                     pos += datasize;
 
                     bool const frame_fin = !(ctx->frame_length-ctx->n2);
@@ -1666,14 +1667,14 @@ header_skip:
                                         flags |= HTTP2_STREAM_RECV_END;
                                     }
 
-                                    sdata->ev_callback->operator()(s->second, flags, buffer + pos, datasize, nullptr);
+                                    sdata->ev_callback->operator()(s->second, flags, buffer + datapos, datasize, nullptr);
                                 }
                                 else {
                                     if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM)
                                         sdata->flags |= HTTP2_STREAM_RECV_END;
 
 
-                                    if (datasize != worker::base::connection_io_send(sdata->recv.get(), buffer + pos,
+                                    if (datasize != worker::base::connection_io_send(sdata->recv.get(), buffer + datapos,
                                         datasize, &sdata->ctx->worker->bufferpool(), static_cast<int>(config->buffer_size),
                                         &sdata->recv_size, maxcnt))
                                         return EHTTP_V2_PROTOCOL_ERROR;
@@ -1688,7 +1689,7 @@ header_skip:
                                 if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
                                     sdata->flags |= HTTP2_STREAM_RECV_END;
                                     if (!sdata->recv_size && (sdata->flags & ev::READ) && sdata->ev_callback)
-                                        sdata->ev_callback->operator()(s->second, HTTP2_STREAM_RECV_END, buffer + pos, datasize, nullptr);
+                                        sdata->ev_callback->operator()(s->second, HTTP2_STREAM_RECV_END, buffer + datapos, datasize, nullptr);
                                 }
                                 else {
                                     http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,

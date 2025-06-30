@@ -679,15 +679,28 @@ manapi::error::status manapi::slice::push_back(bytebuffer buffer) {
 }
 
 manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size) {
+    if (this->rshift_) {
+        auto const copy = std::min<ssize_t>(size, this->rshift_);
+        memcpy (this->last->buff.base + this->last->buff.len - this->rshift_, buffer, copy);
+
+        this->rshift_ -= copy;
+        size -= copy;
+
+        buffer = static_cast<const char *>(buffer) + copy;
+
+        if (!size)
+            return error::status_ok();
+    }
+
     auto slice = manapi::async::current()->memory_fabric().slice(size);
     auto res = slice.copy_from(buffer, 0, size);
     if (!res.ok())
         return res;
 
-    assert(!this->shift_ && !this->rshift_
-        && !slice.shift_ && !slice.rshift_);
+    assert(!this->rshift_ && !slice.shift_);
 
     if (this->last) {
+        this->rshift_ = slice.rshift_;
         this->last->next = slice.first;
         this->last = slice.last;
 

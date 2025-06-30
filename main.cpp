@@ -150,9 +150,10 @@ int main () {
             hash.init();
             try {
                 co_await req.form([&result, &hash] (std::string name) -> manapi::net::formdata_recv::ondata_cb_t {
-                    return [&hash] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+                    return [&hash, &result] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
                         for (auto it = buffs.begin(); it != buffs.end(); it++)
                             hash.update((uint8_t*)it.buffer(), it.size());
+                        result += buffs.size();
                         co_return buffs.size();
                     };
                 });
@@ -258,6 +259,34 @@ int main () {
                             std::cout << a << "\n";
                         }
                         return size;
+                    });
+                }
+                catch (std::exception const &e) {
+                    std::cout << e.what() << "\n";
+                }
+                auto bb = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - c);
+                std::string err = std::format("{}\n", ((double)result / 1024 / 1024) / ((double)bb.count()/1000));
+                manapi::slice b (err.size());
+                b.copy_from(err.data(), 0, err.size());
+                co_await cb(b, true);
+            });
+        });
+        router.POST ("/uploadasynctest", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            co_return resp.callback_stream([&req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
+                ssize_t result = 0;
+                auto c = std::chrono::steady_clock::now();
+                try {
+                    co_await req.callback_async([&c, &result, &cb] (manapi::slice_view buffs, bool fin)
+                        -> manapi::future<ssize_t> {
+                        result += buffs.size();
+                        if (c + std::chrono::seconds (1) <= std::chrono::steady_clock::now()) {
+                            auto a = std::format("{}\n", (double)result / 1024 / 1024);
+                            result = 0;
+                            c = std::chrono::steady_clock::now();
+                            std::cout << a << "\n";
+                        }
+                        co_return buffs.size();
                     });
                 }
                 catch (std::exception const &e) {

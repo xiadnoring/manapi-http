@@ -215,5 +215,6 @@ manapi::bytebuffer manapi::net::worker::http_v2::recv_first_buffer(const shared_
         b.shift_add(s->recv->deque_current);
         s->recv->deque_current = 0;
     }
+
     return std::move(b);
 }
