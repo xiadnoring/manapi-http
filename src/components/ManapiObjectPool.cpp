@@ -58,7 +58,8 @@ int level2bufflen (int lvl) {
 void manapi::internal::object_item_pool_return(const std::shared_ptr<internal::object_pool_data_t> &data, void *buffer, std::size_t size) {
     assert((buffer && size));
     //assert(pointers.contains(buffer));
-    data->buffers[bufflen2level(size)].push_back({buffer, size});
+    auto const lvl = bufflen2level(size);
+    data->buffers[lvl].push_back({buffer, level2bufflen(lvl)});
 }
 
 void manapi::internal::object_item_pool_return(void *buffer, std::size_t size) {
@@ -95,6 +96,7 @@ void object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr,
         assert(m && "buffer is null");
         *ptr = m;
         *ptr_size = size;
+        assert((*ptr_size >= suggested));
         return;
     }
 
@@ -105,6 +107,7 @@ void object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr,
 
         *ptr = it.first;
         *ptr_size = it.second;
+        assert((*ptr_size >= suggested));
         return;
     }
 
@@ -114,6 +117,7 @@ void object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr,
 
     *ptr = m;
     *ptr_size = size;
+    assert((*ptr_size >= suggested));
 }
 
 manapi::slice manapi::object_pool::slice(std::size_t suggested) {
@@ -140,6 +144,7 @@ manapi::slice manapi::object_pool::slice(std::size_t suggested) {
 
         object_pool_malloc(this->data.get(), &buffptr, &buffsize, area_size);
 
+        assert((buffsize >= area_size));
         cur->buff.base = static_cast<char *>(buffptr);
         cur->buff.len = buffsize;
     }
@@ -170,7 +175,9 @@ manapi::slice manapi::object_pool::slice(std::size_t suggested) {
         cnt ++;
     }
 
-    return manapi::slice(std::move(buffs), cnt, rshift);
+    auto b = manapi::slice(std::move(buffs), cnt, rshift);
+    assert(b.size() == suggested);
+    return std::move(b);
 }
 
 manapi::bytebuffer manapi::object_pool::buffer(std::size_t min, std::size_t max) {
