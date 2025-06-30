@@ -318,6 +318,10 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
                              * optional leading whitespace, the field value, and optional trailing whitespace.
                              */
 
+                            if (this->ctx_->hctx->s1 != http::HEADER.CONTENT_DISPOSITION
+                                && this->ctx_->hctx->s1 != http::HEADER.CONTENT_TYPE)
+                                co_return -1;
+
                             pos++;
                             this->ctx_->current = FORMDATA_MULTI_HEADER_VALUE;
 
@@ -339,7 +343,8 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
                             co_return -1;
                         }
 
-
+                        if (this->ctx_->hctx->s1.size() > 24)
+                            co_return -1;
 
                         this->ctx_->hctx->s1.push_back(static_cast<char>(std::tolower(buffer[pos])));
                         pos++;
@@ -387,8 +392,11 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
                                      * a proxy MUST NOT change the order of these field values when forwarding a message.
                                      */
 
-                                    it->second.push_back(',');
-                                    it->second.append(this->ctx_->hctx->s2);
+                                    // it->second.push_back(',');
+                                    // it->second.append(this->ctx_->hctx->s2);
+
+                                    /* but there it isn't allowed */
+                                    co_return -1;
                                 }
 
                                 this->ctx_->hctx->s1.resize(0);
@@ -427,6 +435,9 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
                              */
                             co_return -1;
                         }
+
+                        if (this->ctx_->hctx->s2.size() > 128)
+                            co_return -1;
 
                         this->ctx_->hctx->s2.push_back(buffer[pos]);
                         pos++;
@@ -489,14 +500,14 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
 
                     while (pos != size) {
                         if (buffer[pos] == boundary[n1]) {
-                            if (!n1) {
-                                auto const beyond = (pos - n1);
-                                auto const copy = beyond - this->ctx_->n2;
-                                assert((copy >= 0));
-                                slice_transfer.push_back(buffer + this->ctx_->n2, copy);
-
-                                this->ctx_->n2 = static_cast<int>(pos);
-                            }
+                            // if (!n1) {
+                            //     auto const beyond = (pos - n1);
+                            //     auto const copy = beyond - this->ctx_->n2;
+                            //     assert((copy >= 0));
+                            //     slice_transfer.push_back(buffer + this->ctx_->n2, copy);
+                            //
+                            //     this->ctx_->n2 = static_cast<int>(pos);
+                            // }
 
                             n1++;
                             pos++;
@@ -510,11 +521,16 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
                         }
 
                         if (n1) {
-                            auto const copy = static_cast<ssize_t> (n1);
-                            slice_transfer.push_back(this->ctx_->boundary.data(), copy);
+                            if (pos < n1) {
+                                auto const copy = static_cast<ssize_t> (n1);
+                                slice_transfer.push_back(this->ctx_->boundary.data(), copy);
 
-                            n1 = 0;
-                            this->ctx_->n2 = static_cast<int> (pos);
+                                n1 = 0;
+                                this->ctx_->n2 = static_cast<int> (pos);
+                            }
+                            else {
+                                n1 = 0;
+                            }
                         }
 
                         pos++;

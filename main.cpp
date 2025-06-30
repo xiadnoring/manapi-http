@@ -172,6 +172,36 @@ int main () {
             co_return resp.text(std::format("{} : {}", result, b));
         });
 
+        router.POST ("/formdatatest", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            ssize_t result = 0;
+            auto c = std::chrono::steady_clock::now();
+            try {
+                co_await req.form([&result, &c] (std::string name) -> manapi::net::formdata_recv::ondata_cb_t {
+                    return [&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+                        result += buffs.size();
+                        if (c + std::chrono::seconds (1) <= std::chrono::steady_clock::now()) {
+                            auto a = std::format("{}\n", (double)result / 1024 / 1024);
+                            result = 0;
+                            c = std::chrono::steady_clock::now();
+                            std::cout << a << "\n";
+                        }
+                        co_return buffs.size();
+                    };
+                });
+            }
+            catch (std::exception const &e) {
+                std::cout << e.what() << "\n";
+            }
+
+
+
+            auto bb = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - c);
+            std::string err = std::format("{}\n", ((double)result / 1024 / 1024) / ((double)bb.count()/1000));
+
+            co_return resp.text(err);
+        });
+
         router.GET ("/chunked", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
             try {
