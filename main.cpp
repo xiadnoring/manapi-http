@@ -3,8 +3,9 @@
 // #include "ext/pq/AsyncPostgreClient.hpp"
 #ifdef _WIN32
 #   define FOLDER ".\\data\\"
+#   define FOLDER2 ".\\data\\"
 #else
-//#   define FOLDER "/home/Timur/Downloads/anime-main/"
+#define FOLDER2 "/home/Timur/Downloads/anime-main/"
 #define FOLDER "/home/Timur/Documents/http2priorities/"
 #endif
 #include <cstring>
@@ -33,37 +34,32 @@ int main () {
     auto ctx = manapi::async::context::create(loops);
     ctx->eventloop()->setup_handle_interrupt();
 
-    auto mx = std::make_shared<manapi::async::tmutex>();
-    ctx->logger()->callback(
-        [mx = std::move(mx)](manapi::logger_type type, std::string_view service, int error_code, std::string msg)
-        -> void {
-        manapi::async::run(manapi::async::invoke(+[](std::shared_ptr<manapi::async::tmutex> mx, manapi::logger_type type, std::string_view service, int error_code, std::string msg) -> manapi::future<> {
-            auto lk = co_await mx->lock_guard();
-            (type == manapi::logger_type::LOGGER_ERROR ? std::cerr : std::cout)
-                << "[" << service.substr(1) << "][" << error_code << "]: " << msg << "\n";
-        }, mx, type, service, error_code, std::move(msg)));
-    });
-
 
     std::atomic<int> a = 0;
-
+    std::atomic<int> thrcnt = 0;
     manapi::net::http::server_ctx server_ctx;
 
-    manapi::async::context::run(ctx, loops, [&a, server_ctx] (const std::function<void()> &bind) -> void {
-
+    manapi::async::context::run(ctx, loops, [&thrcnt, &a, server_ctx] (const std::function<void()> &bind) -> void {
         using http = manapi::net::http::server;
         //manapi::ext::pq::connection db;
         manapi::net::http::server router (server_ctx);
 
-        router.GET("/", FOLDER, [] (http::req &req, http::resp &resp)
+        std::string folder;
+
+        if (thrcnt.fetch_add(1) % 2 == 0)
+            folder = FOLDER;
+        else
+            folder = FOLDER;
+
+        router.GET("/", folder, [] (http::req &req, http::resp &resp)
             -> manapi::future<> {
             resp.compress_enabled(true);
             resp.compress("zstd");
             co_return;
         });
 
-        router.GET("/", [] (http::req &req, http::resp &resp) -> manapi::future<> {
-            co_return resp.file(FOLDER"index.html");
+        router.GET("/", [&folder] (http::req &req, http::resp &resp) -> manapi::future<> {
+            co_return resp.file(manapi::filesystem::path::join(folder, "index.html"));
         });
 
         router.GET("/test.txt", [] (http::req &req, http::resp &resp) -> manapi::future<> {

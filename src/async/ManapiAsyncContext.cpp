@@ -94,10 +94,6 @@ manapi::async::context::context(shared_eventloop eventloop, std::shared_ptr<mthr
 // }
 
 manapi::async::shared_ctx manapi::async::context::create(unsigned int threadnum) {
-    manapi::init_tools::ssl_library_init();
-    manapi::init_tools::ev_library_init();
-    manapi::init_tools::curl_library_init();
-
     auto logger_ = std::make_shared<manapi::logger>();
     auto taskpool_ = std::make_shared<manapi::mthreadpool<task>>(logger_, threadnum);
 
@@ -112,10 +108,13 @@ manapi::async::shared_ctx manapi::async::context::create(unsigned int threadnum)
     return std::move(mainctx);
 }
 
-void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(std::function<void()> bind)> callback) {
+void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<void(std::function<void()> bind)> callback) {
     auto const mtaskpool = dynamic_cast<mthreadpool<task> *> (ctx->taskpool_.get());
 
-    assert((loops <= mtaskpool->size() && "not enough threads for event loops"));
+    if (loops > mtaskpool->size()) {
+        loops = mtaskpool->size();
+        MANAPIHTTP_LOG("not enough threads for additional event loops. available: {}", mtaskpool->size());
+    }
 
     ctx->loops_.resize(loops);
 
@@ -133,6 +132,10 @@ void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(s
     for (int i = 0; i < loops; ++i) {
         mtaskpool->for_all_threads([&] (mthreadpool<task>::tasks_by_thread_t *v)
             -> void {
+            manapi::init_tools::ssl_library_init();
+            manapi::init_tools::ev_library_init();
+            manapi::init_tools::curl_library_init();
+
             (*v)[i].push_back(std::make_unique<manapi::function_task> ([callback, thr = ctx->loops_[i]] ()
                 -> void {
                 async::cthread::current(thr);
@@ -147,8 +150,6 @@ void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(s
 
                     manapi::async::internal::current_cthread_ = nullptr;
                 });
-
-
             }));
         });
     }
@@ -166,6 +167,10 @@ void manapi::async::context::run(shared_ctx ctx, int loops, std::function<void(s
 
         manapi::async::internal::current_cthread_ = nullptr;
     });
+}
+
+void manapi::async::context::run(shared_ctx ctx, std::function<void(std::function<void()> bind)> callback) {
+    manapi::async::context::run(std::move(ctx), 0, std::move(callback));
 }
 
 void manapi::async::context::threadpoolfs(std::size_t cnt) {

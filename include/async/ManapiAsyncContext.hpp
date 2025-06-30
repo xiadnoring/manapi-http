@@ -119,7 +119,9 @@ namespace manapi::async {
 
         static std::shared_ptr<context> create (unsigned int threadnum = std::thread::hardware_concurrency());
 
-        static void run (shared_ctx ctx, int loops, std::function<void(std::function<void()> bind)> callback);
+        static void run (shared_ctx ctx, uint32_t loops, std::function<void(std::function<void()> bind)> callback);
+
+        static void run (shared_ctx ctx, std::function<void(std::function<void()> bind)> callback);
 
         static void threadpoolfs (std::size_t cnt = 4);
 

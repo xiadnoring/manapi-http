@@ -864,12 +864,13 @@ int manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) {
         return -1;
 
     this->event_on(conn,
-        std::make_unique<worker_watcher_cb>([this]
+        std::make_unique<worker_watcher_cb>([]
         (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
         -> void {
-            if (this->global_.accept_cb (conn, flags, buffer, nsize, p,
-                &this->global_, this)) {
-                this->close_connection(conn, false);
+            auto const w = dynamic_cast<TCP *>(conn->as<TCP::connection_interface>()->worker);
+            if (w->global_.accept_cb (conn, flags, buffer, nsize, p,
+                &w->global_, w)) {
+                w->close_connection(conn, false);
             }
     }));
 

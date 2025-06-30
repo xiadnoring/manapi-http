@@ -21,10 +21,15 @@ namespace manapi {
         };
     public:
         logger(callback_t callback = nullptr);
+
         ~logger();
+
         logger(logger &&n) noexcept;
+
         logger &operator=(logger &&n) noexcept;
+
         logger(const logger &n);
+
         logger &operator=(const logger &n);
 
         /**
@@ -71,7 +76,7 @@ namespace manapi {
 
         static const char default_service[];
     private:
-        void setup_default_callback_();
+        static void setup_default_callback_(const std::shared_ptr<data_t> &data);
         template<typename ...Args>
         void call_(logger_type type, std::string_view service, int error_code, std::string msg, Args &&...args) {
             const std::size_t n = sizeof...(Args);
