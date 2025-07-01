@@ -167,7 +167,7 @@ bool manapi::net::worker::WolfSSL_TLS::recv_setup_connection(connection_interfac
 }
 
 
-void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(const size_t &version) {
+void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(size_t version) {
     auto cipher_list = this->config_->get_config_param<std::string>(this->config_->ssl, "cipher_list", {});
     WOLFSSL_METHOD *method;
     WOLFSSL_CTX *ctx;

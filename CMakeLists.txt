@@ -435,9 +435,10 @@ set(MANAPIHTTP_HTTP_FILES
         src/include/worker/ManapiQuicNgTcp2.hpp
         src/worker/ManapiNgHttp2Interface.cpp
         src/worker/ManapiQuicNgTcp2.cpp
+        src/include/ManapiJsonMaskUtils.hpp
 )
 
-if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
+if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")
     # EXE
     message(STATUS "Build type 'exe'")
 
@@ -552,7 +553,18 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
 
 
     add_compile_definitions(MANAPIHTTP_HTTP_AS_EXECUTABLE)
-    add_executable(${PROJECT_NAME} main.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+    if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
+        add_executable(${PROJECT_NAME} main.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+    else ()
+        add_executable(${PROJECT_NAME}
+                test_package/test_json.hpp
+                test_package/test_parse.hpp
+                test_package/test_package.cpp
+                test_package/test_bigint.hpp
+                test_package/test_json_masks.hpp
+                test_package/utest.h
+                ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+    endif ()
 else ()
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")

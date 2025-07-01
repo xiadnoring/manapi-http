@@ -1,10 +1,16 @@
 #pragma once
 
-#include <manapihttp/ManapiHttp.hpp>
-#include <manapihttp/ManapiString.hpp>
+#ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
+#    include "ManapiHttp.hpp"
+#    include "ManapiString.hpp"
 
-#include <manapihttp/http/HTTPv1_1.hpp> // http_v1_1_t
+#    include "http/ManapiHttp1.hpp" // http_v1_1_t
+#else
+#    include <manapihttp/ManapiHttp.hpp>
+#    include <manapihttp/ManapiString.hpp>
 
+#    include <manapihttp/http/ManapiHttp1.hpp> // http_v1_1_t
+#endif
 #include "./utest.h"
 
 UTEST(parse, headers_ok_1) {

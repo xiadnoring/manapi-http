@@ -361,11 +361,11 @@ void default_wrk_http1_flush_read (const manapi::net::worker::shared_conn &conn,
 }
 
 
-std::string stringify_http_info(manapi::net::http::response *res, const int &version, const std::string &delimiter) {
-    return "HTTP/" + manapi::net::http::config::stringify_http_version(version) + ' ' + std::to_string(res->status_code()) +  ' ' + std::string{res->status_message()} + delimiter;
+std::string stringify_http_info(manapi::net::http::response *res, int version, std::string_view delimiter) {
+    return std::format("HTTP/{} {} {}{}", manapi::net::http::config::stringify_http_version(version), std::to_string(res->status_code()), res->status_message(), delimiter);
 }
 
-std::string stringify_headers(manapi::net::http::response *res, const std::string &delimiter) {
+std::string stringify_headers(manapi::net::http::response *res, std::string_view delimiter) {
     std::string data;
 
     std::size_t size = 0;
@@ -376,7 +376,10 @@ std::string stringify_headers(manapi::net::http::response *res, const std::strin
 
     // add headers
     for (const auto &header: res->headers()) {
-        data += header.first + ": " + header.second + delimiter;
+        data += header.first;
+        data += ": ";
+        data += header.second;
+        data += delimiter;
     }
 
     return data;

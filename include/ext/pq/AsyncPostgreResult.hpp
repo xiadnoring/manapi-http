@@ -74,7 +74,7 @@ namespace manapi::ext::pq {
             return n;
         }
 
-        row at (const int &index) {
+        row at (int index) {
             if (index < this->size()) {
                 return row{this->res_.get(), index};
             }
@@ -82,7 +82,7 @@ namespace manapi::ext::pq {
             THROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_RESULT, "Out of range");
         }
 
-        row operator[](const int &index) {
+        row operator[](int index) {
             return this->at(index);
         }
 

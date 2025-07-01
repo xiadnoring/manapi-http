@@ -125,7 +125,7 @@ void manapi::net::http::config::function_contains_compressor(std::move_only_func
     this->function_contains_compressor_ = std::move(func);
 }
 
-const std::string &manapi::net::http::config::stringify_http_version(const int &version) {
+const std::string &manapi::net::http::config::stringify_http_version(int version) {
     return http_version_to_print.at(version);
 }
 

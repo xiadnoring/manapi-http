@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ManapiErrors.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
 
@@ -15,17 +16,17 @@ namespace manapi {
         //json_mask &operator=(json_mask &&n) noexcept;
 
         [[nodiscard]] bool is_enabled () const;
-        void set_enabled (const bool &status);
+        void set_enabled (bool status);
 
-        [[nodiscard]] bool valid (const json &obj) const;
-        [[nodiscard]] bool valid (const std::map <std::string, std::string> &obj) const;
+        [[nodiscard]] manapi::error::status valid (const json &obj) const;
+        [[nodiscard]] manapi::error::status valid (const std::map <std::string, std::string> &obj) const;
 
         [[nodiscard]] const json &get_api_tree () const;
         void set_api_tree (json tree);
         static json OR (json data, bool none = false);
         static json ARRAY (json data, bool none = false);
 
-        void set_complete_status (const bool &complete);
+        void set_complete_status (bool complete);
     private:
         bool enabled;
         bool complete = true;
@@ -34,7 +35,7 @@ namespace manapi {
         static void _set_status_prepared (json &data);
         static void _insert_meta_row (json &information, const std::string &key, const json &value);
         static void initial_resolve_information (json &obj);
-        [[nodiscard]] bool recursive_valid (const json &obj, const json &information, const bool &is_complex = true) const;
-        static bool default_compare_information (ssize_t val, const json &information);
+        [[nodiscard]] manapi::error::status recursive_valid (const json &obj, const json &information, bool is_complex, std::vector<std::string_view> *path) const;
+        static manapi::error::status default_compare_information (ssize_t val, const json &information, std::vector<std::string_view> *path);
     };
 }

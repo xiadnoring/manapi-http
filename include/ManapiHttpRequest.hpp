@@ -59,7 +59,7 @@ namespace manapi::net::http {
 
         bool contains_get_param (const std::string &key);
 
-        void max_plain_body_size (const size_t &size);
+        void max_plain_body_size (size_t size);
 
         bool contains_header (const std::string &name);
 

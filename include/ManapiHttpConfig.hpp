@@ -58,7 +58,7 @@ namespace manapi::net::http {
 
         void function_contains_compressor (std::move_only_function<bool(const std::string &name)> func);
 
-        static const std::string &stringify_http_version (const int &version);
+        static const std::string &stringify_http_version (int version);
 
         static http::versions::http parse_http_version (const std::string &version);
 

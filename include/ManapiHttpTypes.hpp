@@ -204,5 +204,5 @@ namespace manapi::net::http {
         std::string PRIORITY            = "priority";
     } HEADER;
 
-    std::string_view status_to_string (const std::size_t &status);
+    std::string_view status_to_string (std::size_t status);
 }

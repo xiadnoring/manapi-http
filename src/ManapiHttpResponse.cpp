@@ -84,7 +84,7 @@ void manapi::net::http::response::text(std::string plain_text) {
     this->data_ = storage.release();
 }
 
-void manapi::net::http::response::json(manapi::json data, const size_t &spaces) {
+void manapi::net::http::response::json(manapi::json data, size_t spaces) {
     header(HEADER.CONTENT_TYPE, manapi::mime::types.APPLICATION_JSON);
     text(std::move(data.dump (static_cast<int>(spaces))));
 }
@@ -96,11 +96,11 @@ void manapi::net::http::response::form(formdata_send formdata) {
     this->type_ = internal::RESPONSE_FORMDATA;
 }
 
-void manapi::net::http::response::status_code(const size_t &status_code) {
+void manapi::net::http::response::status_code(size_t status_code) {
     this->status_code_ = status_code;
 }
 
-void manapi::net::http::response::status(const size_t &_status_code) {
+void manapi::net::http::response::status(size_t _status_code) {
     this->status_code_ = _status_code;
 }
 

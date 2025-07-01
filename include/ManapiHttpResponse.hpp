@@ -41,13 +41,13 @@ namespace manapi::net::http {
 
         void text (std::string plain_text);
 
-        void json (manapi::json data, const size_t &spaces = 0);
+        void json (manapi::json data, size_t spaces = 0);
 
         void form (formdata_send formdata);
 
-        void status (const size_t &status_code);
+        void status (size_t status_code);
 
-        void status_code (const size_t &status_code);
+        void status_code (size_t status_code);
 
         void replacers (std::map<std::string, std::string> replacers);
 

@@ -217,7 +217,7 @@ ssize_t manapi::filesystem::fstream::tellg() const {
     return this->data->off_;
 }
 
-ssize_t manapi::filesystem::fstream::seekg(const ssize_t &pos, const seek_flag_t &flag) {
+ssize_t manapi::filesystem::fstream::seekg(ssize_t pos, seek_flag_t flag) {
     return this->seekg_(pos, flag);
 }
 
@@ -234,7 +234,7 @@ bool manapi::filesystem::fstream::eof() const {
     return this->data->status & FILE_EOF;
 }
 
-ssize_t manapi::filesystem::fstream::seekg_(const ssize_t &pos, const seek_flag_t &flag) const {
+ssize_t manapi::filesystem::fstream::seekg_(ssize_t pos, seek_flag_t flag) const {
     if (this->data->off_ < 0) {
         this->data->off_ = 0;
     }

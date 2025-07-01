@@ -118,14 +118,14 @@ manapi::future<manapi::json> manapi::net::http::request::json()
         co_await read_body_(this->worker_.get(), this->conn_, this->request_data,[&builder] (const char *data, ssize_t size, bool fin)
             -> ssize_t { builder << std::string_view (data, size); return size; });
 
-        co_return std::move(builder.get());
+        co_return std::move(builder.get().value());
     }
     else {
         json_builder builder = json_builder ();
         co_await read_body_(this->worker_.get(), this->conn_, this->request_data,[&builder] (const char *data, ssize_t size, bool fin)
             -> ssize_t { builder << std::string_view (data, size); return size; });
 
-        co_return std::move(builder.get());
+        co_return std::move(builder.get().value());
     }
 }
 
@@ -187,7 +187,7 @@ bool manapi::net::http::request::contains_get_param(const std::string &key) {
     return this->get_params_->contains(key);
 }
 
-void manapi::net::http::request::max_plain_body_size(const size_t &size) {
+void manapi::net::http::request::max_plain_body_size(size_t size) {
     this->max_plain_body_size_ = size;
 }
 
@@ -209,8 +209,9 @@ void manapi::net::http::request::prepare_get_params_() {
 
         // verify params
         auto &mask = this->get_mask();
-        if (mask && !mask->valid(*this->get_params_)) {
-            THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT, "GET params verify failed");
+        auto res = mask->valid(*this->get_params_);
+        if (mask && !res.ok()) {
+            THROW_MANAPIHTTP_EXCEPTION (ERR_INVALID_ARGUMENT, "GET params verify failed: {}", res.data().dump(4));
         }
     }
 }

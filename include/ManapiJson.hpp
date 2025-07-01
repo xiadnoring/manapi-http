@@ -73,26 +73,54 @@ namespace manapi {
         static json array (const std::initializer_list<json> &data);
         static json object (const std::initializer_list<json> &data);
 
-        static json parse (const std::string &data);
-        static std::string stringify (const json &n, const int &spaces = 2);
+        static json parse (STRING_VIEW data);
+        static std::string stringify (const json &n, int spaces = 2);
 
         json();
+
         json(const json &other);
+
         json(json &&other) noexcept;
+
         json(const std::initializer_list<json> &data);
 
         // Do not use explicit
 
-        json(STRING_VIEW str, const bool &parse = false);
-        json(const UNICODE_STRING &str, const bool &parse = false);
-        json(const INTEGER &num);
-        json(const char *plain_text, const bool &parse = false);
+        json(STRING_VIEW str, bool parse = false);
+
+        json(const UNICODE_STRING &str, bool parse = false);
+
+        json(INTEGER num);
+
+        json(const char *plain_text, bool parse = false);
+
         json(STRING str);
-        json(const DECIMAL &num);
+
+        json(DECIMAL num);
+
         json(const NULLPTR &n);
-        json(const BOOLEAN &value);
+
+        json(BOOLEAN value);
+
         json(OBJECT obj);
+
         json(ARRAY arr);
+
+        template<typename T>
+        json (std::map<std::string, T> n) {
+            while (!n.empty()) {
+                auto e = n.extract(n.begin());
+                this->insert({std::move(e.key()), std::move(e.mapped())});
+            }
+        }
+
+        template<typename T>
+        json (std::unordered_map<std::string, T> n) {
+            while (!n.empty()) {
+                auto e = n.extract(n.begin());
+                this->insert({std::move(e.key()), std::move(e.mapped())});
+            }
+        }
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -104,18 +132,6 @@ namespace manapi {
         requires(std::is_floating_point_v<T>)
         json (const T &n) {
             this->_parse (static_cast<DECIMAL>(n));
-        }
-
-        template<typename V>
-        json(std::map<std::string, V> object) {
-            this->_set_object();
-            for (auto &v: object) { this->operator[](v.first) = std::move(v.second); }
-        }
-
-        template<typename V>
-        json(std::unordered_map<std::string, V> object) {
-            this->_set_object();
-            for (auto &v: object) { this->operator[](v.first) = std::move(v.second); }
         }
 
         template<typename V>
@@ -154,27 +170,27 @@ namespace manapi {
 
         const json &operator[] (const STRING &key) const;
         const json &operator[] (const UNICODE_STRING &key) const;
-        const json &operator[] (const size_t &index) const;
+        const json &operator[] (size_t index) const;
 
         json &operator[] (const STRING &key);
         json &operator[] (const UNICODE_STRING &key);
-        json &operator[] (const size_t &index);
+        json &operator[] (size_t index);
 
         [[nodiscard]] const json &at (const STRING &key) const;
         [[nodiscard]] const json &at (const UNICODE_STRING &key) const;
-        [[nodiscard]] const json &at (const size_t &index) const;
+        [[nodiscard]] const json &at (size_t index) const;
 
         json &at (const std::string &key);
         json &at (const UNICODE_STRING &key);
-        json &at (const size_t &index);
+        json &at (size_t index);
 
         // TRASH (no with const json &obj)
         json &operator= (const UNICODE_STRING &str);
         json &operator= (STRING str);
         json &operator= (const char *str);
-        json &operator= (const BOOLEAN &b);
-        json &operator= (const INTEGER &num);
-        json &operator= (const DECIMAL &num);
+        json &operator= (BOOLEAN b);
+        json &operator= (INTEGER num);
+        json &operator= (DECIMAL num);
         json &operator= (const NULLPTR &n);
         json &operator= (const json &obj);
         json &operator= (json &&obj) noexcept ;
@@ -194,8 +210,8 @@ namespace manapi {
             return *this;
         }
 
-        json operator* (const INTEGER &num) const;
-        json operator* (const DECIMAL &num) const;
+        json operator* (INTEGER num) const;
+        json operator* (DECIMAL num) const;
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -209,8 +225,8 @@ namespace manapi {
             return this->operator* (static_cast<DECIMAL>(n));
         }
 
-        json &operator*= (const INTEGER &num);
-        json &operator*= (const DECIMAL &num);
+        json &operator*= (INTEGER num);
+        json &operator*= (DECIMAL num);
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -224,8 +240,8 @@ namespace manapi {
             return this->operator* (static_cast<DECIMAL>(n));
         }
 
-        json operator- (const INTEGER &num) const;
-        json operator- (const DECIMAL &num) const;
+        json operator- (INTEGER num) const;
+        json operator- (DECIMAL num) const;
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -239,8 +255,8 @@ namespace manapi {
             return this->operator-(static_cast<DECIMAL>(n));
         }
 
-        json operator+ (const INTEGER &num) const;
-        json operator+ (const DECIMAL &num) const;
+        json operator+ (INTEGER num) const;
+        json operator+ (DECIMAL num) const;
         json operator+ (const STRING &str) const;
         json operator+ (const char *str) const;
 
@@ -256,9 +272,9 @@ namespace manapi {
             return this->operator+(static_cast<DECIMAL>(n));
         }
 
-        json & operator-= (const INTEGER &num);
-        json & operator-= (const int &num);
-        json & operator-= (const DECIMAL &num);
+        json & operator-= (INTEGER num);
+        json & operator-= (int num);
+        json & operator-= (DECIMAL num);
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -274,8 +290,8 @@ namespace manapi {
 
         json &operator+= (const STRING &str);
         json &operator+= (const char *str);
-        json &operator+= (const INTEGER &num);
-        json &operator+= (const DECIMAL &num);
+        json &operator+= (INTEGER num);
+        json &operator+= (DECIMAL num);
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -290,12 +306,12 @@ namespace manapi {
         }
 
         bool operator== (const json &n) const;
-        bool operator== (const BOOLEAN &n) const;
+        bool operator== (BOOLEAN n) const;
         bool operator== (const char *n) const;
         bool operator== (const STRING_VIEW &n) const;
         bool operator== (const STRING &n) const;
-        bool operator== (const INTEGER &n) const;
-        bool operator== (const DECIMAL &n) const;
+        bool operator== (INTEGER n) const;
+        bool operator== (DECIMAL n) const;
         bool operator== (const NULLPTR &n) const;
 
         template<typename T>
@@ -334,7 +350,7 @@ namespace manapi {
             return !this->operator==(n);
         }
 
-        bool operator!=(const BOOLEAN &n) const {
+        bool operator!=(BOOLEAN n) const {
             return !this->operator==(n);
         }
 
@@ -342,59 +358,78 @@ namespace manapi {
             return !this->operator==(n);
         }
 
-        void insert (const STRING &key, json obj);
-        void insert (const UNICODE_STRING &key, json obj);
+        std::pair<OBJECT::iterator, bool> insert (const STRING &key, json obj);
+
+        std::pair<OBJECT::iterator, bool> insert (const UNICODE_STRING &key, json obj);
+
+        std::pair<OBJECT::iterator, bool> insert (const OBJECT::value_type &v);
+
+        std::pair<OBJECT::iterator, bool> insert (OBJECT::value_type &&v);
 
         void erase (const STRING &key);
+
         void erase (const UNICODE_STRING &key);
+
+        ARRAY::iterator erase (ARRAY::iterator it);
+
+        OBJECT::iterator erase (OBJECT::iterator it);
+
         ARRAY::const_iterator erase (ARRAY::const_iterator it);
+
         OBJECT::const_iterator erase (OBJECT::const_iterator it);
 
         void push_back (json obj);
+
         void push_back (ARRAY::const_iterator begin, ARRAY::const_iterator end);
+
         void pop_back ();
 
+        [[nodiscard]] int data_type () const;
 
         template<class T>
         requires(std::is_same_v<T, OBJECT>)
-        constexpr auto begin () const
+        auto begin () const
         { return this->as_object().begin(); }
 
         template<class T>
         requires(std::is_same_v<T, OBJECT>)
-        constexpr auto end () const
+        auto end () const
         { return this->as_object().end(); }
 
         template<class T>
         requires(std::is_same_v<T, ARRAY>)
-        constexpr auto begin () const
+        auto begin () const
         { return this->as_array().begin(); }
 
         template<class T>
         requires(std::is_same_v<T, ARRAY>)
-        constexpr auto end () const
+        auto end () const
         { return this->as_array().end(); }
 
 
         template<class T>
         requires(std::is_same_v<T, OBJECT>)
-        constexpr auto begin ()
+        auto begin ()
         { return this->as_object().begin(); }
 
         template<class T>
         requires(std::is_same_v<T, OBJECT>)
-        constexpr auto end ()
+        auto end ()
         { return this->as_object().end(); }
 
         template<class T>
         requires(std::is_same_v<T, ARRAY>)
-        constexpr auto begin ()
+        auto begin ()
         { return this->as_array().begin(); }
 
         template<class T>
         requires(std::is_same_v<T, ARRAY>)
-        constexpr auto end ()
+        auto end ()
         { return this->as_array().end(); }
+
+        OBJECT::iterator find (const STRING &key);
+
+        OBJECT::const_iterator find (const STRING &key) const;
 
         [[nodiscard]] const ARRAY &each() const;
         [[nodiscard]] const OBJECT &entries() const;
@@ -513,14 +548,14 @@ namespace manapi {
          */
         [[nodiscard]] BOOLEAN as_bool_cast () const;
 
-        [[nodiscard]] std::string dump (const int &spaces = 0, const int &first_spaces = 0) const;
+        [[nodiscard]] std::string dump (int spaces = 0, int first_spaces = 0) const;
 
         [[nodiscard]] size_t size () const;
         [[nodiscard]] bool empty () const;
 
-        static void error_invalid_char (const UNICODE_STRING &plain_text, const size_t &i);
-        static void error_invalid_char (const STRING_VIEW &plain_text, const size_t &i);
-        static void error_unexpected_end (const size_t &i);
+        static void error_invalid_char (const UNICODE_STRING &plain_text, size_t i);
+        static void error_invalid_char (const STRING_VIEW &plain_text, size_t i);
+        static void error_unexpected_end (size_t i);
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         /**
@@ -565,26 +600,26 @@ namespace manapi {
         // string
         void _parse (const UNICODE_STRING &plain_text);
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        void _parse (const STRING_VIEW &plain_text, bool bigint = false, size_t bigint_precision = 128);
+        void _parse (STRING_VIEW plain_text, bool bigint = false, size_t bigint_precision = 128);
 #else
-        void _parse (const STRING_VIEW &plain_text);
+        void _parse (STRING_VIEW plain_text);
 #endif
         // integers
-        void _parse (const size_t &num);
-        void _parse (const INTEGER &num);
-        void _parse (const int &num);
-        void _parse (const double &num);
-        void _parse (const DECIMAL &num);
+        void _parse (size_t num);
+        void _parse (INTEGER num);
+        void _parse (int num);
+        void _parse (double num);
+        void _parse (DECIMAL num);
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         void _parse (BIGINT num);
 #endif
         void _parse (OBJECT obj);
         void _parse (ARRAY arr);
-        void _parse (const BOOLEAN &val);
+        void _parse (BOOLEAN val);
         // other
         void _parse (const nullptr_t &n);
 
-        static void delete_value_static (const short &type, void *src);
+        static void delete_value_static (short type, void *src);
 
         void delete_value ();
         void _set_object ();
@@ -599,12 +634,12 @@ namespace manapi {
         void _set_nullptr ();
         void _set_pair ();
         void _set_object (OBJECT val);
-        void _set_bool (const BOOLEAN &val);
+        void _set_bool (BOOLEAN val);
         void _set_array (ARRAY val);
         void _set_string (STRING val);
         void _set_string (STRING_VIEW val);
-        void _set_integer (const INTEGER &val);
-        void _set_decimal (const DECIMAL &val);
+        void _set_integer (INTEGER val);
+        void _set_decimal (DECIMAL val);
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         void _set_bigint (BIGINT val);
 #endif

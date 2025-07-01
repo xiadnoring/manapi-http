@@ -25,7 +25,7 @@ namespace manapi::crypto {
 
     manapi::future<void> async_random_string (async::shared_cthread ctx, char *buff, size_t len, async::cancellation_action cancellation = nullptr);
 
-    std::string random_string (const size_t &len);
+    std::string random_string (std::size_t len);
 
     std::string strdec2strhex(std::string_view input);
 

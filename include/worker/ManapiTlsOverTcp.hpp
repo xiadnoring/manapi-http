@@ -73,7 +73,7 @@ namespace manapi::net::worker {
 
         static void connection_interface_eraser(worker::connection *data);
 
-        virtual void* ssl_create_context (const size_t &version) = 0;
+        virtual void* ssl_create_context (size_t version) = 0;
 
         virtual void ssl_configure_context () = 0;
 

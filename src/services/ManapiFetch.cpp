@@ -830,13 +830,13 @@ void manapi::net::fetch::custom_setup(std::move_only_function<void(CURL *curl)> 
     this->data->data_->handle_custom_setup = std::make_unique<decltype(func)>(std::move(func));
 }
 
-void manapi::net::fetch::enable_verify_peer(const bool &status) {
+void manapi::net::fetch::enable_verify_peer(bool status) {
     auto lstatus = static_cast<long> (status);
     curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYPEER, lstatus);
     curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
 }
 
-void manapi::net::fetch::enable_verify_host(const bool &status) {
+void manapi::net::fetch::enable_verify_host(bool status) {
     auto lstatus = static_cast<long> (status);
     curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYHOST, lstatus);
     curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
@@ -847,7 +847,7 @@ void manapi::net::fetch::verbose(bool status) {
     curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_VERBOSE, static_cast<long>(status));
 }
 
-void manapi::net::fetch::timeout(const std::size_t &seconds) {
+void manapi::net::fetch::timeout(std::size_t seconds) {
     curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_CONNECTTIMEOUT_MS, seconds * 1000);
 }
 

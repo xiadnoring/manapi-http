@@ -69,7 +69,7 @@ manapi::future<void> manapi::crypto::async_random_string(async::shared_cthread c
     cancellation.disable_cancellation();
 }
 
-std::string manapi::crypto::random_string(const std::size_t &len) {
+std::string manapi::crypto::random_string(std::size_t len) {
     std::string rnd;
     rnd.resize(len);
 

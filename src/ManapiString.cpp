@@ -13,12 +13,12 @@ bool insensitive_char_equals(char a, char b) {
            std::tolower(static_cast<unsigned char>(b));
 }
 
-[[maybe_unused]] void manapi::string::rjust (std::string &str, const size_t &size, const char &c) {
+[[maybe_unused]] void manapi::string::rjust (std::string &str, size_t size, char c) {
     while (str.size() < size)
         str += c;
 }
 
-[[maybe_unused]] void manapi::string::ljust (std::string &str, const size_t &size, const char &c) {
+[[maybe_unused]] void manapi::string::ljust (std::string &str, size_t size, char c) {
     if (str.size() >= size) return;
 
     std::string new_string;
@@ -33,11 +33,11 @@ bool insensitive_char_equals(char a, char b) {
 
 constexpr char ptr[] = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_-";
 
-std::string manapi::string::random (const size_t &len) {
+std::string manapi::string::random (size_t len) {
     return random(len, std::string_view{ptr, sizeof(ptr) - 1});
 }
 
-std::string manapi::string::random (const size_t &len, std::string_view src) {
+std::string manapi::string::random (size_t len, std::string_view src) {
     if (src.empty()) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "random(...): the 'src' parameter is empty");
     }

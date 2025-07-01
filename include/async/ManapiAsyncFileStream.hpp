@@ -62,13 +62,13 @@ namespace manapi::filesystem {
 
         [[nodiscard]] ssize_t tellg() const;
 
-        ssize_t seekg (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START);
+        ssize_t seekg (ssize_t pos, seek_flag_t flag = FILE_SEEK_START);
 
         [[nodiscard]] manapi::future<ssize_t> size () const;
 
         [[nodiscard]] bool eof () const;
     private:
-        ssize_t seekg_ (const ssize_t &pos, const seek_flag_t &flag = FILE_SEEK_START) const;
+        ssize_t seekg_ (ssize_t pos, seek_flag_t flag = FILE_SEEK_START) const;
 
         static future<> close_(ev::file fileno);
 

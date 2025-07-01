@@ -19,24 +19,24 @@ namespace manapi {
         bigint();
         ~bigint();
 
-        explicit bigint(const std::string &num, const unsigned long int &precision = MANAPI_BIGINT_DEFAULT_PRECISION);
-        explicit bigint(const std::wstring &num, const unsigned long int &precision = MANAPI_BIGINT_DEFAULT_PRECISION);
-        explicit bigint(const ssize_t &num, const unsigned long int &precision = MANAPI_BIGINT_DEFAULT_PRECISION);
-        explicit bigint(const int &num, const unsigned long int &precision = MANAPI_BIGINT_DEFAULT_PRECISION);
-        explicit bigint(const double &num, const unsigned long int &precision = MANAPI_BIGINT_DEFAULT_PRECISION);
-        explicit bigint(const long double &num, const unsigned long int &precision = MANAPI_BIGINT_DEFAULT_PRECISION);
-        explicit bigint(const mpf_t &num, const unsigned long int &precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(std::string_view num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(const std::wstring &num, unsigned long int precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(ssize_t num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(int num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(double num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(long double num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
+        explicit bigint(const mpf_t &num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
         template<typename T>
         requires(std::is_integral_v<T>)
-        explicit bigint (const T &num, const unsigned long int &precision = MANAPI_BIGINT_DEFAULT_PRECISION) {
+        explicit bigint (const T &num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION) {
             mpf_init2 (this->x, precision);
             this->parse(static_cast<ssize_t>(num));
         }
 
         template<typename T>
         requires(std::is_floating_point_v<T>)
-        explicit bigint (const T &num, const unsigned long int &precision = MANAPI_BIGINT_DEFAULT_PRECISION) {
+        explicit bigint (const T &num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION) {
             mpf_init2 (this->x, precision);
             this->parse(static_cast<long double>(num));
         }
@@ -48,20 +48,20 @@ namespace manapi {
         [[nodiscard]] ssize_t integerify () const;
         [[nodiscard]] double decimalify () const;
 
-        void parse (const std::string &num);
+        void parse (std::string_view num);
         // void parse (const long long int    &num);
-        void parse (const ssize_t &num);
-        void parse (const double &num);
-        void parse (const long double &num);
+        void parse (ssize_t num);
+        void parse (double num);
+        void parse (long double num);
 
-        void        set_precision (const size_t &precision);
+        void        set_precision (std::size_t precision);
         [[nodiscard]] size_t      get_precision () const;
 
         bigint     operator/   (const bigint &oth) const;
-        bigint     operator/   (const int &oth) const;
-        bigint     operator/   (const ssize_t &oth) const;
-        bigint     operator/   (const double &oth) const;
-        bigint     operator/   (const long double &oth) const;
+        bigint     operator/   (int oth) const;
+        bigint     operator/   (ssize_t oth) const;
+        bigint     operator/   (double oth) const;
+        bigint     operator/   (long double oth) const;
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -75,11 +75,15 @@ namespace manapi {
             return this->operator/(static_cast<long double> (v));
         }
 
-        bigint     operator+   (const ssize_t &oth) const;
-        bigint     operator+   (const int &oth) const;
+        bigint     root   (ssize_t oth) const;
+
+        bigint     sqrt   (ssize_t oth) const;
+
+        bigint     operator+   (ssize_t oth) const;
+        bigint     operator+   (int oth) const;
         bigint     operator+   (const bigint &oth) const;
-        bigint     operator+   (const long double &oth) const;
-        bigint     operator+   (const double &oth) const;
+        bigint     operator+   (long double oth) const;
+        bigint     operator+   (double oth) const;
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -94,10 +98,10 @@ namespace manapi {
         }
 
         bigint     operator-   (const bigint &oth) const;
-        bigint     operator-   (const int &oth) const;
-        bigint     operator-   (const ssize_t &oth) const;
-        bigint     operator-   (const double &oth) const;
-        bigint     operator-   (const long double &oth) const;
+        bigint     operator-   (int oth) const;
+        bigint     operator-   (ssize_t oth) const;
+        bigint     operator-   (double oth) const;
+        bigint     operator-   (long double oth) const;
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -112,10 +116,10 @@ namespace manapi {
         }
 
         bigint     operator*   (const bigint &oth) const;
-        bigint     operator*   (const ssize_t &oth) const;
-        bigint     operator*   (const int &oth) const;
-        bigint     operator*   (const double &oth) const;
-        bigint     operator*   (const long double &oth) const;
+        bigint     operator*   (ssize_t oth) const;
+        bigint     operator*   (int oth) const;
+        bigint     operator*   (double oth) const;
+        bigint     operator*   (long double oth) const;
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -130,10 +134,10 @@ namespace manapi {
         }
 
         bigint& operator-=  (const bigint &oth);
-        bigint& operator-=  (const ssize_t &oth);
-        bigint& operator-=  (const double &oth);
-        bigint& operator-=  (const long double &oth);
-        bigint& operator-=  (const int &oth);
+        bigint& operator-=  (ssize_t oth);
+        bigint& operator-=  (double oth);
+        bigint& operator-=  (long double oth);
+        bigint& operator-=  (int oth);
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -147,11 +151,11 @@ namespace manapi {
             return this->operator-=(static_cast<long double> (v));
         }
 
-        bigint& operator+=  (const int &oth);
+        bigint& operator+=  (int oth);
         bigint& operator+=  (const bigint &oth);
-        bigint& operator+=  (const ssize_t &oth);
-        bigint& operator+=  (const double &oth);
-        bigint& operator+=  (const long double &oth);
+        bigint& operator+=  (ssize_t oth);
+        bigint& operator+=  (double oth);
+        bigint& operator+=  (long double oth);
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -166,10 +170,10 @@ namespace manapi {
         }
 
         bigint& operator*=  (const bigint &oth);
-        bigint& operator*=  (const ssize_t &oth);
-        bigint& operator*=  (const double &oth);
-        bigint& operator*=  (const long double &oth);
-        bigint& operator*=  (const int &oth);
+        bigint& operator*=  (ssize_t oth);
+        bigint& operator*=  (double oth);
+        bigint& operator*=  (long double oth);
+        bigint& operator*=  (int oth);
 
 
         template<typename T>
@@ -185,10 +189,10 @@ namespace manapi {
         }
 
         bigint& operator/=  (const bigint &oth);
-        bigint& operator/=  (const ssize_t &oth);
-        bigint& operator/=  (const double &oth);
-        bigint& operator/=  (const long double &oth);
-        bigint& operator/=  (const int &oth);
+        bigint& operator/=  (ssize_t oth);
+        bigint& operator/=  (double oth);
+        bigint& operator/=  (long double oth);
+        bigint& operator/=  (int oth);
 
 
         template<typename T>
@@ -204,44 +208,44 @@ namespace manapi {
         }
 
         bool       operator>   (const bigint &oth) const;
-        bool       operator>  (const ssize_t &oth) const;
-        bool       operator>  (const double &oth) const;
-        bool       operator>  (const int &oth) const;
-        bool       operator>  (const std::string &oth) const;
+        bool       operator>  (ssize_t oth) const;
+        bool       operator>  (double oth) const;
+        bool       operator>  (int oth) const;
+        bool       operator>  (std::string_view oth) const;
         bool       operator<   (const bigint &oth) const;
-        bool       operator<  (const ssize_t &oth) const;
-        bool       operator<  (const double &oth) const;
-        bool       operator<  (const int &oth) const;
-        bool       operator<  (const std::string &oth) const;
+        bool       operator<  (ssize_t oth) const;
+        bool       operator<  (double oth) const;
+        bool       operator<  (int oth) const;
+        bool       operator<  (std::string_view oth) const;
         bool       operator==  (const bigint &oth) const;
-        bool       operator==  (const ssize_t &oth) const;
-        bool       operator==  (const double &oth) const;
-        bool       operator==  (const int &oth) const;
-        bool       operator==  (const std::string &oth) const;
+        bool       operator==  (ssize_t oth) const;
+        bool       operator==  (double oth) const;
+        bool       operator==  (int oth) const;
+        bool       operator==  (std::string_view oth) const;
         bool       operator!=  (const bigint &oth) const;
-        bool       operator!=  (const ssize_t &oth) const;
-        bool       operator!=  (const double &oth) const;
-        bool       operator!=  (const int &oth) const;
-        bool       operator!=  (const std::string &oth) const;
+        bool       operator!=  (ssize_t oth) const;
+        bool       operator!=  (double oth) const;
+        bool       operator!=  (int oth) const;
+        bool       operator!=  (std::string_view oth) const;
         bool       operator>=  (const bigint &oth) const;
-        bool       operator>=  (const ssize_t &oth) const;
-        bool       operator>=  (const double &oth) const;
-        bool       operator>=  (const int &oth) const;
-        bool       operator>=  (const std::string &oth) const;
+        bool       operator>=  (ssize_t oth) const;
+        bool       operator>=  (double oth) const;
+        bool       operator>=  (int oth) const;
+        bool       operator>=  (std::string_view oth) const;
         bool       operator<=  (const bigint &oth) const;
-        bool       operator<=  (const ssize_t &oth) const;
-        bool       operator<=  (const double &oth) const;
-        bool       operator<=  (const int &oth) const;
-        bool       operator<=  (const std::string &oth) const;
+        bool       operator<=  (ssize_t oth) const;
+        bool       operator<=  (double oth) const;
+        bool       operator<=  (int oth) const;
+        bool       operator<=  (std::string_view oth) const;
         bigint&    operator--  ();
         bigint&    operator++  ();
         bigint     operator!   () const;
         bigint     operator-   () const;
-        bigint&    operator=   (const std::string &oth);
+        bigint&    operator=   (std::string_view oth);
         bigint&    operator=   (const bigint &oth);
-        bigint&    operator=   (const ssize_t &oth);
-        bigint&    operator=   (const int &oth);
-        bigint&    operator=   (const double &oth);
+        bigint&    operator=   (ssize_t oth);
+        bigint&    operator=   (int oth);
+        bigint&    operator=   (double oth);
 
         template<typename T>
         requires(std::is_integral_v<T>)

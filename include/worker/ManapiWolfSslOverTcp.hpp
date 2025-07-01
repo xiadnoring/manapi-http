@@ -32,7 +32,7 @@ namespace manapi::net::worker {
 
 
         bool recv_setup_connection(connection_interface *data) override;
-        void* ssl_create_context (const size_t &version) override;
+        void* ssl_create_context (size_t version) override;
         void ssl_configure_context () override;
 
         std::string alpn_protocol_list;

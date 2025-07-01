@@ -261,7 +261,8 @@ int http_v2_verify_setting (int key, int value) {
     auto const it = allow_settings.find(key);
     if (it != allow_settings.end()) {
         try {
-            if (it->second.valid(value)) {
+            auto res = it->second.valid(value);
+            if (res.ok()) {
                 return 0;
             }
         }

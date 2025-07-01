@@ -152,7 +152,7 @@ namespace manapi::net {
                 catch (...) {}
                 return -1;
             });
-            co_return builder.get();
+            co_return builder.get().value();
         }
     private:
         template<typename T>

@@ -11,7 +11,7 @@ namespace manapi::string {
      * @param size  the size of the string
      * @param c     the char which will be added at the end of the string
      */
-    [[maybe_unused]] void rjust (std::string &str, const size_t &size, const char &c);
+    [[maybe_unused]] void rjust (std::string &str, size_t size, char c);
 
     /**
      * Fills the string on the left to the specified size of the string
@@ -20,11 +20,11 @@ namespace manapi::string {
      * @param size  the size of the string
      * @param c     the char which will be added at the start of the string
      */
-    [[maybe_unused]] void ljust (std::string &str, const size_t &size, const char &c);
+    [[maybe_unused]] void ljust (std::string &str, size_t size, char c);
 
-    std::string random (const size_t &len);
+    std::string random (size_t len);
 
-    std::string random (const size_t &len, std::string_view src);
+    std::string random (size_t len, std::string_view src);
 
     std::vector<std::string_view> split (std::string_view s, char c);
 

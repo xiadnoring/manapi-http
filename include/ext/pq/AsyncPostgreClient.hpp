@@ -28,7 +28,7 @@ namespace manapi::ext::pq {
 
     class sqlexception : public std::exception {
     public:
-        explicit sqlexception (const int &errcode, std::string errmsg) {
+        explicit sqlexception (int errcode, std::string errmsg) {
             this->errcode = errcode;
             this->errmsg = std::move(errmsg);
         }

@@ -128,7 +128,7 @@ err:
     return false;
 }
 
-void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(const size_t &version) {
+void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
     auto cipher_list = this->config_->get_config_param<std::string>(this->config_->ssl, "cipher_list", {});
 
     const SSL_METHOD *method;

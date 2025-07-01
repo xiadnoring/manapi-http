@@ -80,7 +80,7 @@ static const std::map<std::size_t, std::string_view> status_to_string_map = {
     {526, manapi::net::http::STATUS.INVALID_SSL_CERTIFICATE_526}
 };
 
-std::string_view manapi::net::http::status_to_string(const std::size_t &status) {
+std::string_view manapi::net::http::status_to_string(std::size_t status) {
     auto it = status_to_string_map.find(status);
     if (it != status_to_string_map.end()) {
         return it->second;
