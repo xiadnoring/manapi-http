@@ -73,6 +73,8 @@ namespace manapi {
         static json array (const std::initializer_list<json> &data);
         static json object (const std::initializer_list<json> &data);
 
+        static json array (manapi::json data);
+
         static json parse (STRING_VIEW data);
         static std::string stringify (const json &n, int spaces = 2);
 
@@ -312,7 +314,24 @@ namespace manapi {
         bool operator== (const STRING &n) const;
         bool operator== (INTEGER n) const;
         bool operator== (DECIMAL n) const;
+        bool operator> (INTEGER n) const;
+        bool operator> (DECIMAL n) const;
+        bool operator< (INTEGER n) const;
+        bool operator< (DECIMAL n) const;
+        bool operator>= (INTEGER n) const;
+        bool operator>= (DECIMAL n) const;
+        bool operator<= (INTEGER n) const;
+        bool operator<= (DECIMAL n) const;
         bool operator== (const NULLPTR &n) const;
+
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+        bool operator!= (const BIGINT &n) const;
+        bool operator== (const BIGINT &n) const;
+        bool operator< (const BIGINT & n) const;
+        bool operator> (const BIGINT & n) const;
+        bool operator<= (const BIGINT & n) const;
+        bool operator>= (const BIGINT & n) const;
+#endif
 
         template<typename T>
         requires(std::is_integral_v<T>)
@@ -356,6 +375,54 @@ namespace manapi {
 
         bool operator!=(const STRING_VIEW &n) const {
             return !this->operator==(n);
+        }
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        bool operator>(const T &n) const {
+            return this->operator>(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        bool operator>(const T &n) const {
+            return this->operator>(static_cast<DECIMAL>(n));
+        }
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        bool operator<(const T &n) const {
+            return this->operator<(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        bool operator<(const T &n) const {
+            return this->operator<(static_cast<DECIMAL>(n));
+        }
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        bool operator>=(const T &n) const {
+            return this->operator>=(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        bool operator>=(const T &n) const {
+            return this->operator>=(static_cast<DECIMAL>(n));
+        }
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        bool operator<=(const T &n) const {
+            return this->operator<=(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        bool operator<=(const T &n) const {
+            return this->operator<=(static_cast<DECIMAL>(n));
         }
 
         std::pair<OBJECT::iterator, bool> insert (const STRING &key, json obj);
@@ -438,6 +505,14 @@ namespace manapi {
 
         [[nodiscard]] bool contains       (const UNICODE_STRING &key) const;
 
+        manapi::json &first ();
+
+        manapi::json &second ();
+
+        [[nodiscard]] const manapi::json &first () const;
+
+        [[nodiscard]] const manapi::json &second () const;
+
         [[nodiscard]] bool is_object      () const;
         [[nodiscard]] bool is_array       () const;
         [[nodiscard]] bool is_string      () const;
@@ -448,6 +523,7 @@ namespace manapi {
         [[nodiscard]] bool is_bigint      () const;
 #endif
         [[nodiscard]] bool is_bool        () const;
+        [[nodiscard]] bool is_pair        () const;
 
         /**
          * strict object retrieval

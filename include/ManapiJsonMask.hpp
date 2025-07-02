@@ -24,6 +24,7 @@ namespace manapi {
         [[nodiscard]] const json &get_api_tree () const;
         void set_api_tree (json tree);
         static json OR (json data, bool none = false);
+        static json ARRAY (json data, ssize_t min, ssize_t max, bool none = false);
         static json ARRAY (json data, bool none = false);
 
         void set_complete_status (bool complete);
@@ -36,6 +37,5 @@ namespace manapi {
         static void _insert_meta_row (json &information, const std::string &key, const json &value);
         static void initial_resolve_information (json &obj);
         [[nodiscard]] manapi::error::status recursive_valid (const json &obj, const json &information, bool is_complex, std::vector<std::string_view> *path) const;
-        static manapi::error::status default_compare_information (ssize_t val, const json &information, std::vector<std::string_view> *path);
     };
 }

@@ -78,28 +78,19 @@ namespace manapi {
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         // bigint
-        bool use_bigint = false;
         size_t bigint_precision = 128;
 #endif
 
-        // build vars
-        bool opened_quote = false;
         // how many char are contained in the wchar
         size_t wchar_left = 0;
-        // escaped with '/'
-        bool escaped = false;
-        // is key in _build_object
-        bool is_key = true;
         std::string key{};
-
-        bool go_to_delimiter = false;
 
         size_t start_cut;
         size_t end_cut;
 
         std::string buffer;
-        const ssize_t *max_mean_size = nullptr;
-        const ssize_t *min_mean_size = nullptr;
+        const manapi::json *max_mean_size = nullptr;
+        const manapi::json *min_mean_size = nullptr;
 
         int flags;
         int utf_escaped_status = -1;

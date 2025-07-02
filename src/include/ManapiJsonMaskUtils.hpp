@@ -48,4 +48,31 @@ namespace manapi {
 
         return "none";
     }
+
+    template<typename T>
+    bool json_verify_min_mean (const manapi::json &m, T val) {
+        if (m[1].as_bool()) {
+            if ((m[0] > val))
+                return false;
+        }
+        else {
+            if ((m[0] >= val))
+                return false;
+        }
+        return true;
+    }
+
+
+    template<typename T>
+    bool json_verify_max_mean (const manapi::json &m, T val) {
+        if (m[1].as_bool()) {
+            if ((m[0] < val))
+                return false;
+        }
+        else {
+            if ((m[0] <= val))
+                return false;
+        }
+        return true;
+    }
 }

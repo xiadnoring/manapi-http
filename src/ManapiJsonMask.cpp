@@ -121,6 +121,8 @@ manapi::json manapi::json_mask::OR(json data, bool none) {
         {"obj", json::array()}
     };
     _set_status_prepared (prepared);
+    if (data.is_pair())
+        data = manapi::json::array({std::move(data)});
     for (auto item: data.each()) {
         initial_resolve_information(item);
         if (!none && item["none"].as_bool()) {
@@ -139,19 +141,30 @@ manapi::json manapi::json_mask::OR(json data, bool none) {
     return std::move(prepared);
 }
 
-manapi::json manapi::json_mask::ARRAY(json data, bool none) {
+manapi::json manapi::json_mask::ARRAY(json data, ssize_t min, ssize_t max, bool none) {
     initial_resolve_information(data);
 
-
     json prepared = {
-        {"obj", {
-            {"default", std::move(data["obj"])},
-            {"type", static_cast<int>(json::type_array)}
-        }},
+        {"default", std::move(data["obj"])},
+        {"type", static_cast<int>(json::type_array)}
+    };
+
+    if (min >= 0)
+        prepared.insert({"min_mean", manapi::json::array({min, true})});
+
+    if (max >= 0)
+        prepared.insert({"max_mean", manapi::json::array({max, true})});
+
+    prepared = {
+        {"obj", std::move(prepared)},
         {"none", none}
     };
     _set_status_prepared (prepared);
     return std::move(prepared);
+}
+
+manapi::json manapi::json_mask::ARRAY(json data, bool none) {
+    return json_mask::ARRAY(std::move(data), -1, -1, none);
 }
 
 void manapi::json_mask::set_complete_status(bool complete) {
@@ -390,14 +403,6 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 
                         if (square_bracket)
                         {
-                            // change type to array
-                            ntype = json::type_array;
-
-                            parsed = {
-                                {"type", ntype},
-                                {"default", parsed}
-                            };
-
                             square_bracket = false;
                         }
 
@@ -446,18 +451,20 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                             _insert_meta_row (parsed, "value", parsed_buff);
                         break;
                         case MANAPIHTTP_MASK_COMPARE_EQUAL:
-                            _insert_meta_row (parsed, "max_mean", parsed_buff + 1);
-                            _insert_meta_row (parsed, "min_mean", parsed_buff - 1);
+                            _insert_meta_row (parsed, "max_mean", manapi::json::array({parsed_buff, true}));
+                            _insert_meta_row (parsed, "min_mean", manapi::json::array({parsed_buff, true}));
                         break;
                         case MANAPIHTTP_MASK_COMPARE_EQUAL_OR_LESS:
-                            parsed_buff = parsed_buff + 1;
+                            _insert_meta_row (parsed, "max_mean", manapi::json::array({parsed_buff, true}));
+                        break;
                         case MANAPIHTTP_MASK_COMPARE_LESS:
-                            _insert_meta_row (parsed, "max_mean", parsed_buff);
+                            _insert_meta_row (parsed, "max_mean", manapi::json::array({parsed_buff, false}));
                         break;
                         case MANAPIHTTP_MASK_COMPARE_EQUAL_OR_GREATER:
-                            parsed_buff = parsed_buff - 1;
+                            _insert_meta_row (parsed, "min_mean", manapi::json::array({parsed_buff, true}));
+                        break;
                         case MANAPIHTTP_MASK_COMPARE_GREATER:
-                            _insert_meta_row (parsed, "min_mean", parsed_buff);
+                            _insert_meta_row (parsed, "min_mean", manapi::json::array({parsed_buff, false}));
                         break;
                         default:
                             THROW_MANAPIHTTP_JSON_ERROR (ERR_JSON_MASK_VERIFY_FAILED, "Bug has been detected: {}", "compare type has invalid value");
@@ -481,6 +488,14 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 
             else if (c == '[')
             {
+                // change type to array
+                ntype = json::type_array;
+
+                parsed = {
+                    {"type", ntype},
+                    {"default", std::move(parsed)}
+                };
+
                 square_bracket = true;
                 builder.clear();
             }
@@ -565,6 +580,27 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
     }
 }
 
+template<typename T>
+manapi::error::status default_compare_information(const T &val, const manapi::json &information, std::vector<std::string_view> *path) {
+    auto &p = information.as_object();
+    auto fit = p.find("min_mean");
+    if (fit != p.end())
+    {
+        if (!json_verify_min_mean<T>(fit->second, val))
+            return manapi::error::status_invalid_argument("json_mask: value is lower or equals min_mean", jm_msg_with_path_and_param(path, fit->second));
+    }
+
+    fit = p.find("max_mean");
+    if (fit != p.end())
+    {
+
+        if (!json_verify_max_mean<T>(fit->second, val))
+            return manapi::error::status_invalid_argument("json_mask: value is greater or equals max_mean", jm_msg_with_path_and_param(path, fit->second));
+    }
+
+    return manapi::error::status_ok();
+}
+
 manapi::error::status manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::json &item, bool is_complex, std::vector<std::string_view> *path) const {
     const auto &information = is_complex ? item["obj"] : item;
 
@@ -600,7 +636,7 @@ manapi::error::status manapi::json_mask::recursive_valid(const manapi::json &obj
             return error::status_invalid_argument("json_mask: must be a string", jm_msg_with_path(path));
         }
 
-        auto res = default_compare_information (obj.size(), information, path);
+        auto res = default_compare_information<size_t> (obj.size(), information, path);
         if (!res.ok())
         {
             return std::move(res);
@@ -681,7 +717,7 @@ manapi::error::status manapi::json_mask::recursive_valid(const manapi::json &obj
                 return error::status_invalid_argument("json_mask: mean aren't match", jm_msg_with_path_and_param(path, p));
         }
 
-        auto res = default_compare_information (obj.as_integer(), information, path);
+        auto res = default_compare_information<ssize_t> (obj.as_integer(), information, path);
         if (!res.ok())
         {
             return std::move(res);
@@ -696,6 +732,13 @@ manapi::error::status manapi::json_mask::recursive_valid(const manapi::json &obj
         if (!obj.is_decimal())
         {
             return error::status_invalid_argument("json_mask: must be a decimal", jm_msg_with_path(path));
+        }
+
+
+        auto res = default_compare_information<long double> (obj.as_decimal(), information, path);
+        if (!res.ok())
+        {
+            return std::move(res);
         }
 
         // invalid value
@@ -724,6 +767,12 @@ manapi::error::status manapi::json_mask::recursive_valid(const manapi::json &obj
         // invalid type
         if (!obj.is_bigint()) {
             return error::status_invalid_argument("json_mask: must be a bigint", jm_msg_with_path(path));
+        }
+
+        auto res = default_compare_information<bigint> (obj.as_bigint(), information, path);
+        if (!res.ok())
+        {
+            return std::move(res);
         }
 
         auto &o = obj.as_object();
@@ -765,7 +814,7 @@ manapi::error::status manapi::json_mask::recursive_valid(const manapi::json &obj
             return error::status_invalid_argument("json_mask: must be an object", jm_msg_with_path(path));
         }
 
-        auto res = default_compare_information (obj.size(), information, path);
+        auto res = default_compare_information<size_t> (obj.size(), information, path);
         if (!res.ok())
         {
             return std::move(res);
@@ -832,7 +881,7 @@ manapi::error::status manapi::json_mask::recursive_valid(const manapi::json &obj
             return error::status_invalid_argument("json_mask: must be an array", jm_msg_with_path(path));
         }
 
-        auto res = default_compare_information (obj.size(), information, path);
+        auto res = default_compare_information<size_t> (obj.size(), information, path);
         if (!res.ok())
         {
             return std::move(res);
@@ -868,7 +917,7 @@ manapi::error::status manapi::json_mask::recursive_valid(const manapi::json &obj
 
             for (size_t i = 0; i < obj.size(); i++) {
                 if (path)
-                    path->emplace_back(nullptr, i);
+                    path->emplace_back(nullptr, i+1);
                 res = recursive_valid(obj.at(i), default_, false, path);
                 if (!res.ok())
                 {
@@ -888,28 +937,4 @@ manapi::error::status manapi::json_mask::recursive_valid(const manapi::json &obj
     }
 
     return error::status_invalid_argument("json_mask: invalid json data type");
-}
-
-manapi::error::status manapi::json_mask::default_compare_information(ssize_t val, const manapi::json &information, std::vector<std::string_view> *path) {
-    auto &p = information.as_object();
-    auto fit = p.find("min_mean");
-    if (fit != p.end())
-    {
-        if (val <= fit->second.as_integer())
-        {
-            return manapi::error::status_invalid_argument("json_mask: value is lower or equals min_mean", jm_msg_with_path_and_param(path, fit->second.as_integer()));
-        }
-    }
-
-    fit = p.find("max_mean");
-    if (fit != p.end())
-    {
-        if (val >= fit->second.as_integer())
-        {
-            return error::status_invalid_argument("json_mask: value is greater or equals max_mean", jm_msg_with_path_and_param(path, fit->second.as_integer()));
-        }
-    }
-
-
-    return error::status_ok();
 }

@@ -19,7 +19,12 @@ enum json_builder_flags {
     JSON_FLAG_GETTING = 1,
     JSON_FLAG_READY = 2,
     JSON_FLAG_OPERATE_ALREADY = 4,
-    JSON_FLAG_EXP_ALREADY = 8
+    JSON_FLAG_EXP_ALREADY = 8,
+    JSON_FLAG_OPENED_QUOTE = 16,
+    JSON_FLAG_ESCAPED = 32,
+    JSON_FLAG_IS_NOT_KEY = 64,
+    JSON_FLAG_GO_TO_DELIM = 128,
+    JSON_FLAG_USE_BIGINT = 256
 };
 
 manapi::error::status json_invalid_char (std::string_view n, std::size_t pos) {
@@ -38,7 +43,8 @@ manapi::json_builder::json_builder(const json_mask &mask, bool use_bigint, size_
     this->end_cut = 0;
     this->type = json::type_null;
     this->i = 0;
-    this->use_bigint = use_bigint;
+    if (use_bigint)
+        this->flags |= JSON_FLAG_USE_BIGINT;
     this->bigint_precision = bigint_precision;
     this->current_types = mask.get_api_tree().is_null() ? nullptr : &mask.get_api_tree()["obj"];
     this->current_type = 0;
@@ -52,7 +58,6 @@ json_builder(const json &mask, bool use_bigint, size_t bigint_precision) {
     this->type = json::type_null;
     this->end_cut = 0;
     this->flags = 0;
-    this->use_bigint = use_bigint;
     this->next_parent = nullptr;
     this->i = 0;
     this->bigint_precision = bigint_precision;
@@ -60,6 +65,9 @@ json_builder(const json &mask, bool use_bigint, size_t bigint_precision) {
     this->current_type = 0;
 
     this->action = JSON_CALLBACK_CHECK_TYPE;
+
+    if (use_bigint)
+        this->flags |= JSON_FLAG_USE_BIGINT;
 }
 #endif
 
@@ -71,7 +79,6 @@ manapi::json_builder::json_builder(const json_mask &mask) {
     this->flags = 0;
     this->next_parent = nullptr;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-    this->use_bigint = false;
     this->bigint_precision = 128;
 #endif
     this->current_types = mask.get_api_tree().is_null() ? nullptr : &mask.get_api_tree()["obj"];
@@ -88,7 +95,6 @@ manapi::json_builder::json_builder(const json &mask) {
     this->flags = 0;
     this->next_parent = nullptr;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-    this->use_bigint = false;
     this->bigint_precision = 128;
 #endif
     this->current_types = mask == nullptr ? nullptr : &mask;
@@ -153,10 +159,6 @@ void manapi::json_builder::clear() {
 }
 
 manapi::error::status manapi::json_builder::_parse(std::string_view plain_text, size_t &j, bool root) {
-#ifdef MANAPIHTTP_BIGINT_SUPPORT
-    this->use_bigint = this->use_bigint;
-    this->bigint_precision = this->bigint_precision;
-#endif
     this->end_cut = plain_text.size() + this->i;
 
     this->i += j;
@@ -241,9 +243,9 @@ manapi::error::status manapi::json_builder::_build_string(std::string_view plain
         }
         else
         {
-            if (this->escaped)
+            if (this->flags & JSON_FLAG_ESCAPED)
             {
-                this->escaped = false;
+                this->flags ^= JSON_FLAG_ESCAPED;
 
                 switch (c) {
                     case 't':
@@ -333,15 +335,15 @@ manapi::error::status manapi::json_builder::_build_string(std::string_view plain
                 if (c == '\\')
                 {
 
-                    this->escaped = true;
+                    this->flags |= JSON_FLAG_ESCAPED;
                     continue;
                 }
 
                 if (c == '"')
                 {
-                    this->opened_quote = !this->opened_quote;
+                    this->flags ^= JSON_FLAG_OPENED_QUOTE;
 
-                    if (!this->opened_quote) {
+                    if (!(this->flags & JSON_FLAG_OPENED_QUOTE)) {
                         goto finish;
                     }
 
@@ -351,7 +353,7 @@ manapi::error::status manapi::json_builder::_build_string(std::string_view plain
         }
 
 
-        if (this->opened_quote)
+        if (this->flags & JSON_FLAG_OPENED_QUOTE)
         {
             this->buffer.push_back(static_cast<char> (c));
         }
@@ -366,7 +368,7 @@ manapi::error::status manapi::json_builder::_build_string(std::string_view plain
     finish:
     if (plain_text.size() != j || (this->flags & JSON_FLAG_GETTING))
     {
-        if (this->opened_quote)
+        if (this->flags & JSON_FLAG_OPENED_QUOTE)
         {
             return json_unexpected_end(j);
         }
@@ -480,7 +482,7 @@ manapi::error::status manapi::json_builder::_build_numeric(std::string_view plai
         this->end_cut = this->i;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         // finish
-        if (this->use_bigint)
+        if (this->flags & JSON_FLAG_USE_BIGINT)
         {
             this->object = json (bigint(this->buffer, this->bigint_precision));
         }
@@ -603,7 +605,7 @@ manapi::error::status manapi::json_builder::_build_object(std::string_view plain
 
             this->item = nullptr;
 
-            if (this->is_key)
+            if (!(this->flags & JSON_FLAG_IS_NOT_KEY))
             {
                 this->key = it.as_string();
             }
@@ -612,7 +614,7 @@ manapi::error::status manapi::json_builder::_build_object(std::string_view plain
                 this->object.insert(this->key, std::move(it));
             }
 
-            this->go_to_delimiter = true;
+            this->flags |= JSON_FLAG_GO_TO_DELIM;
         }
     }
 
@@ -625,22 +627,24 @@ manapi::error::status manapi::json_builder::_build_object(std::string_view plain
             continue;
         }
 
-        if (this->go_to_delimiter)
+        if (this->flags & JSON_FLAG_GO_TO_DELIM)
         {
             if (unicode::is_space_symbol(c))
             {
                 continue;
             }
 
-            if ((this->is_key && c == ':') || (!this->is_key && c == ','))
+            if ((!(this->flags & JSON_FLAG_IS_NOT_KEY) && c == ':') || ((this->flags & JSON_FLAG_IS_NOT_KEY) && c == ','))
             {
-                this->is_key = !is_key;
-                this->go_to_delimiter = false;
+                this->flags ^= JSON_FLAG_IS_NOT_KEY;
+                if (this->flags & JSON_FLAG_GO_TO_DELIM)
+                    this->flags ^= JSON_FLAG_GO_TO_DELIM;
                 continue;
             }
 
             if (c == '}') {
-                this->opened_quote = false;
+                if(this->flags & JSON_FLAG_OPENED_QUOTE)
+                    this->flags ^= JSON_FLAG_OPENED_QUOTE;
                 // the end
                 goto finish;
             }
@@ -649,19 +653,19 @@ manapi::error::status manapi::json_builder::_build_object(std::string_view plain
             return json_invalid_char(plain_text, j);
         }
 
-        if (this->opened_quote)
+        if (this->flags & JSON_FLAG_OPENED_QUOTE)
         {
             if (c == '}')
             {
-                this->opened_quote = false;
+                this->flags ^= JSON_FLAG_OPENED_QUOTE;
                 goto finish;
             }
 
-            if (this->is_key || this->current_types == nullptr)
+            if (!(this->flags & JSON_FLAG_IS_NOT_KEY) || this->current_types == nullptr)
             {
                 this->item = std::make_unique<json_builder> (json(nullptr)
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-                    ,this->use_bigint, this->bigint_precision
+                    ,this->flags & JSON_FLAG_USE_BIGINT, this->bigint_precision
 #endif
                 );
             }
@@ -669,7 +673,7 @@ manapi::error::status manapi::json_builder::_build_object(std::string_view plain
             {
                 this->item = std::make_unique<json_builder>(get_current_type()["value"][key]["obj"]
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-                    , this->use_bigint, this->bigint_precision
+                    , this->flags & JSON_FLAG_USE_BIGINT, this->bigint_precision
 #endif
                     );
                 this->item->next_parent = this;
@@ -679,7 +683,7 @@ manapi::error::status manapi::json_builder::_build_object(std::string_view plain
 
         if (c == '{')
         {
-            this->opened_quote = true;
+            this->flags |= JSON_FLAG_OPENED_QUOTE;
             continue;
         }
 
@@ -690,7 +694,7 @@ manapi::error::status manapi::json_builder::_build_object(std::string_view plain
     if (j != plain_text.size() || (this->flags & JSON_FLAG_GETTING))
     {
         // is_key = true when {..., ...',' <- we are expecting a key}, false otherwise
-        if (this->opened_quote || (this->is_key && this->object.size() > 0))
+        if ((this->flags & JSON_FLAG_OPENED_QUOTE) || (!(this->flags & JSON_FLAG_IS_NOT_KEY) && this->object.size() > 0))
         {
             return json_unexpected_end(i);
         }
@@ -699,7 +703,8 @@ manapi::error::status manapi::json_builder::_build_object(std::string_view plain
         j++;
 
         this->end_cut = this->i;
-        this->is_key = true;
+        if (this->flags & JSON_FLAG_IS_NOT_KEY)
+            this->flags ^= JSON_FLAG_IS_NOT_KEY;
         this->key.clear();
 
         auto res = this->_check_object();
@@ -731,7 +736,7 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
 
             this->object.push_back(std::move(it));
 
-            this->go_to_delimiter = true;
+            this->flags |= JSON_FLAG_GO_TO_DELIM;
         }
     }
 
@@ -744,7 +749,7 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
             continue;
         }
 
-        if (this->go_to_delimiter)
+        if (this->flags & JSON_FLAG_GO_TO_DELIM)
         {
             if (unicode::is_space_symbol(c))
             {
@@ -753,12 +758,13 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
 
             if (c == ',')
             {
-                this->go_to_delimiter = false;
+                this->flags ^= JSON_FLAG_GO_TO_DELIM;
                 continue;
             }
 
             if (c == ']') {
-                this->opened_quote = false;
+                if (this->flags & JSON_FLAG_OPENED_QUOTE)
+                    this->flags ^= JSON_FLAG_OPENED_QUOTE;
                 // the end
                 goto finish;
             }
@@ -767,11 +773,11 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
             return json_invalid_char(plain_text, j);
         }
 
-        if (this->opened_quote)
+        if (this->flags & JSON_FLAG_OPENED_QUOTE)
         {
             if (c == ']')
             {
-                this->opened_quote = false;
+                this->flags ^= JSON_FLAG_OPENED_QUOTE;
                 goto finish;
             }
 
@@ -781,7 +787,7 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
             {
                 this->item = std::make_unique<json_builder>(json(nullptr)
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-                    ,this->use_bigint, this->bigint_precision
+                    ,this->flags & JSON_FLAG_USE_BIGINT, this->bigint_precision
 #endif
                     );
             }
@@ -793,7 +799,7 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
                 {
                     this->item = std::make_unique<json_builder>(get_current_type()["default"]
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-                    , this->use_bigint, this->bigint_precision
+                    , this->flags & JSON_FLAG_USE_BIGINT, this->bigint_precision
 #endif
                     );
                 }
@@ -801,7 +807,7 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
                 {
                     this->item = std::make_unique<json_builder>(get_current_type()["value"][this->element_index]["obj"]
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-                        , this->use_bigint, this->bigint_precision
+                        , this->flags & JSON_FLAG_USE_BIGINT, this->bigint_precision
 #endif
                         );
                 }
@@ -812,7 +818,7 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
 
         if (c == '[')
         {
-            this->opened_quote = true;
+            this->flags |= JSON_FLAG_OPENED_QUOTE;
             continue;
         }
 
@@ -822,7 +828,7 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
     finish:
     if (j != plain_text.size() || (this->flags & JSON_FLAG_GETTING))
     {
-        if (this->opened_quote)
+        if (this->flags & JSON_FLAG_OPENED_QUOTE)
         {
             return json_unexpected_end(this->i);
         }
@@ -891,8 +897,8 @@ bool manapi::json_builder::_check_eq_type() {
     }
     auto &current = get_current_type();
     auto &current_type = current["type"].as_integer();
-    if (current.contains("max_mean")) { max_mean_size = &current["max_mean"].as_integer(); }
-    if (current.contains("min_mean")) { min_mean_size = &current["min_mean"].as_integer(); }
+    if (current.contains("max_mean")) { max_mean_size = &current["max_mean"]; }
+    if (current.contains("min_mean")) { min_mean_size = &current["min_mean"]; }
 
     if (current_type == -1)
     {
@@ -938,7 +944,7 @@ manapi::error::status manapi::json_builder::_check_max_mean(bool building) {
         switch (type)
         {
             case json::type_string:
-                if (buffer.size() < *max_mean_size) { goto ok; }
+                if (json_verify_max_mean(*max_mean_size, buffer.size())) { goto ok; }
             default:
                 goto ok;
         }
@@ -948,22 +954,22 @@ manapi::error::status manapi::json_builder::_check_max_mean(bool building) {
         switch (this->type)
         {
             case json::type_string:
-                if (this->object.size() < *this->max_mean_size) { goto ok; }
+                if (json_verify_max_mean(*this->max_mean_size, this->object.size())) { goto ok; }
             break;
             case json::type_integer:
-                if (this->object.as_integer() < *this->max_mean_size) { goto ok; }
+                if (json_verify_max_mean(*this->max_mean_size, this->object.as_integer())) { goto ok; }
             break;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
             case json::type_bigint:
-                if (this->object.as_bigint() < *this->max_mean_size) { goto ok; }
+                if (json_verify_max_mean(*this->max_mean_size, this->object.as_bigint())) { goto ok; }
             break;
 #endif
             case json::type_decimal:
-                if (this->object.as_decimal() < *this->max_mean_size) { goto ok; }
+                if (json_verify_max_mean(*this->max_mean_size, this->object.as_decimal())) { goto ok; }
             break;
             case json::type_array:
             case json::type_object:
-                if (this->object.size() < *this->max_mean_size) { goto ok; }
+                if (json_verify_max_mean(*this->max_mean_size, this->object.size())) { goto ok; }
             break;
             default:
                 goto ok;
@@ -980,22 +986,22 @@ manapi::error::status manapi::json_builder::_check_min_mean() {
     switch (this->type)
     {
         case json::type_string:
-            if (*this->min_mean_size < 0 || this->object.size() > *this->min_mean_size) { goto ok; }
+            if (json_verify_min_mean(*this->min_mean_size, this->object.size())) { goto ok; }
         break;
         case json::type_integer:
-            if (this->object.as_integer() > *this->min_mean_size) { goto ok; }
+            if (json_verify_min_mean(*this->min_mean_size, this->object.as_integer())) { goto ok; }
         break;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         case json::type_bigint:
-            if (this->object.as_bigint() > *this->min_mean_size) { goto ok; }
+            if (json_verify_min_mean(*this->min_mean_size, this->object.as_bigint())) { goto ok; }
         break;
 #endif
         case json::type_decimal:
-            if (this->object.as_decimal() > *this->min_mean_size) { goto ok; }
+            if (json_verify_min_mean(*this->min_mean_size, this->object.as_decimal())) { goto ok; }
         break;
         case json::type_array:
         case json::type_object:
-            if (*this->min_mean_size < 0 || this->object.size() > *this->min_mean_size) { goto ok; }
+            if (json_verify_min_mean(*this->min_mean_size, this->object.size())) { goto ok; }
         break;
         default:
             goto ok;
@@ -1218,15 +1224,13 @@ void manapi::json_builder::_reset() {
     this->start_cut = 0;
     this->end_cut = 0;
     this->type = json::type_null;
-    this->opened_quote = false;
-    this->escaped = false;
-    this->go_to_delimiter = false;
     this->i = 0;
     this->item = nullptr;
     this->wchar_left = 0;
     this->utf_escaped_status = -1;
     this->key.clear();
     this->flags = 0;
+    this->buffer.clear();
 
     this->_reset_type();
 
