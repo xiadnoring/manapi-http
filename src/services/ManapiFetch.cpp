@@ -15,47 +15,63 @@
 
 // Utils
 
+enum status_flags {
+    FLAG_TRANSFER_ENCODING = 1,
+    FLAG_CONTENT_LENGTH = 2,
+    FLAG_WAS_USED = 4,
+    FLAG_STATUS_PASSED = 8,
+    FLAG_POST = 16,
+    FLAG_HEAD = 32,
+    FLAG_PUT = 64,
+    FLAG_DELETE = 128,
+    FLAG_TRACE = 256
+};
+enum status_data_flags {
+    FLAG_DATA_EOF = 1,
+    FLAG_DATA_CLOSED = 2
+};
+
 struct manapi::net::fetch::shared_data {
     int flags{0};
+
     std::unique_ptr<async::mutex> async_run{nullptr};
-    ssize_t async_buffer_cursor{0};
-    manapi::bytebuffer async_buffer{};
-    std::unique_ptr<std::move_only_function <void(CURL *)>> handle_custom_setup{nullptr};
+    std::unique_ptr<std::move_only_function<void()>> parallel_task{nullptr};
+
+    std::size_t async_buffer_size;
+    manapi::slice async_buffer{};
+    std::shared_ptr<CURL> curl {nullptr};
+    std::unique_ptr<std::map<std::string, std::string>> headers{nullptr};
+    std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
+
     std::unique_ptr<std::move_only_function <ssize_t(char *, ssize_t)>> handler_recv_body{nullptr};
     std::unique_ptr<std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)>> async_handler_recv_body{nullptr};
     std::unique_ptr<std::move_only_function <manapi::future<bool>(std::shared_ptr<shared_data> data, std::map <std::string, std::string>)>> async_handler_headers{nullptr};
     std::unique_ptr<std::move_only_function <bool(std::map <std::string, std::string>)>> handler_headers{nullptr};
-    std::shared_ptr<CURL> curl {nullptr};
-    std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
-    std::unique_ptr<std::map<std::string, std::string>> headers{nullptr};
+
     std::unique_ptr<std::move_only_function<manapi::future<>(std::shared_ptr<shared_data> data, bool)>> async_user_body_cb{nullptr};
     std::unique_ptr<std::move_only_function<ssize_t(char *buffer, ssize_t size)>> sync_user_body_cb{nullptr};
     std::unique_ptr<std::move_only_function <ssize_t(char *, ssize_t)>> handler_send_body{nullptr};
     std::unique_ptr<std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)>> async_handler_send_body{nullptr};
-    std::unique_ptr<std::move_only_function<void()>> parallel_task{nullptr};
+
 };
 
 struct manapi::net::fetch::data_t {
     int flags{0};
-    size_t status_code_{200};
+    uint16_t status_code_{200};
     ssize_t content_length_{-1};
+
     manapi::async::cancellation_action cancellation{nullptr};
 
-    std::string url_{};
 
     std::shared_ptr<shared_data> data_{nullptr};
 
     body_type body_{BODY_NONE};
 
-    std::string body_default_{};
-    std::string method_{};
-    std::optional<curlformdata> body_formdata_{};
-};
+    std::string url_{};
+    std::unique_ptr<std::string> body_default_{};
+    std::unique_ptr<std::string> method_{};
 
-std::map <std::string, CURLoption> manapi::net::fetch::http_method_to_enum {
-    {"POST", CURLOPT_POST},
-    {"PUT", CURLOPT_UPLOAD},
-    {"HEAD", CURLOPT_NOBODY}
+    std::unique_ptr<curlformdata> body_formdata_{};
 };
 
 size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata)
@@ -65,14 +81,14 @@ size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_
         /**
          * clear body send callback
          */
-        f->async_buffer_cursor = 0;
+        f->async_buffer_size = 0;
 
         if (f->flags & FLAG_STATUS_PASSED) {
             std::string_view const str (buffer, size * n_items - 2);
             if (!str.empty()) {
                 auto res = manapi::net::http::parse_header(str);
                 if (res.ok()) {
-                    auto header = res.value();
+                    auto header = res.unwrap();
                     auto key = std::string{header.first};
                     manapi::string::lower_ascii(key);
                     f->headers->insert({std::move(key), std::string{header.second}});
@@ -119,7 +135,7 @@ void manapi::net::fetch::setup_parallel_task() {
         auto data = this->data->data_;
         curl_easy_getinfo(this->data->data_->curl.get(), CURLINFO_HTTP_CODE, &this->data->status_code_);
         *data->parallel_task = [data] () -> void {
-            manapi::async::current()->etaskpool()->append_task([data] () -> void {
+            manapi::async::current()->etaskpool()->append_task([data] () mutable -> void {
                 auto const ptr = data.get();
                 async::run(ptr->async_handler_recv_body->operator()(std::move(data), false));
             });
@@ -198,69 +214,97 @@ manapi::net::fetch::~fetch() = default;
 
 manapi::net::fetch & manapi::net::fetch::operator=(fetch &&n) noexcept = default;
 
-manapi::future<void> manapi::net::fetch::async_doit() {
+manapi::future<manapi::error::status> manapi::net::fetch::async_doit() {
     std::unique_ptr<curl_mime, curl_mime_deleter> form {nullptr};
 
-    if (this->data->flags & FLAG_WAS_USED) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "fetch was already used. create another fetch object or reinit current. {}", this->data->url_);
-    }
+    if (this->data->flags & FLAG_WAS_USED)
+        co_return error::status_failed_precondition("fetch was already used. create another fetch object or reinit current",
+            {{"url", this->data->url_}});
 
     this->data->flags |= FLAG_WAS_USED;
 
     if (!this->data->data_->curl)
-    {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "curl can not be init: {}", this->data->url_);
-    }
+        co_return error::status_internal("curl can not be init", {{"url", this->data->url_}});
 
+    CURLcode status;
     std::exception_ptr err{nullptr};
 
     try {
         CURLcode resp;
 
-        curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_TCP_NODELAY, 1L);
-        curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_NOSIGNAL, 1L);
+        if ((status = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_TCP_NODELAY, 1L)) != CURLE_OK)
+            goto errjmp;
+        if ((status = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_NOSIGNAL, 1L)) != CURLE_OK)
+            goto errjmp;
         // curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_MAXLIFETIME_CONN, 1L);
         // curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_MAXAGE_CONN, 0);
         // curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_TCP_KEEPALIVE, 0L);
-        curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_URL, this->data->url_.data());
-        curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HEADERFUNCTION, curl_header_handler);
-        curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HEADERDATA, this->data->data_.get());
+        if ((status = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_URL, this->data->url_.data())) != CURLE_OK)
+            goto errjmp;
+        if ((status = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HEADERFUNCTION, curl_header_handler)) != CURLE_OK)
+            goto errjmp;
+        if ((status = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HEADERDATA, this->data->data_.get())) != CURLE_OK)
+            goto errjmp;
 
         {
-            const auto optheader = net::fetch::http_method_to_enum.find(this->data->method_);
-            if (optheader == net::fetch::http_method_to_enum.end()) {
-                curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_CUSTOMREQUEST, this->data->method_.data());
-            }
+            bool optex = true;
+            CURLoption opt;
+            char const *method{nullptr};
+
+            if (this->data->method_)
+                method = this->data->method_->data();
             else {
-                curl_easy_setopt(this->data->data_->curl.get(), optheader->second, 1);
+                if (this->data->flags & FLAG_POST)
+                    opt = CURLOPT_POST;
+                else if (this->data->flags & FLAG_PUT)
+                    opt = CURLOPT_UPLOAD;
+                else if (this->data->flags & FLAG_HEAD)
+                    opt = CURLOPT_NOBODY;
+                else if (this->data->flags & FLAG_DELETE)
+                    method = "DELETE";
+                else if (this->data->flags & FLAG_TRACE)
+                    method = "TRACE";
+                else
+                    optex = false;
+            }
+
+            if (method) {
+                if((status = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_CUSTOMREQUEST, method))!=CURLE_OK)
+                    goto errjmp;
+            }
+            else if (optex) {
+                if ((status = curl_easy_setopt(this->data->data_->curl.get(), opt, 1))!=CURLE_OK)
+                    goto errjmp;
             }
         }
 
         // if handler has been set
         if (this->data->data_->handler_recv_body)
         {
-            curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_WRITEFUNCTION, curl_write_handler);
-            curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_WRITEDATA, this->data->data_.get());
-        }
-
-        if (this->data->data_->handle_custom_setup)
-        {
-            this->data->data_->handle_custom_setup->operator() (this->data->data_->curl.get());
+            if ((status = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_WRITEFUNCTION, curl_write_handler))!=CURLE_OK)
+                goto errjmp;
+            if ((status = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_WRITEDATA, this->data->data_.get()))!=CURLE_OK)
+                goto errjmp;
         }
 
         // body of the request
         switch (this->data->body_) {
             case BODY_PLAIN: {
-                curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDS, this->data->body_default_.data());
-                curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, this->data->body_default_.size());
+                if ((status=curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDS, this->data->body_default_->data()))!=CURLE_OK)
+                    goto errjmp;
+                if ((status=curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, this->data->body_default_->size()))!=CURLE_OK)
+                    goto errjmp;
                 break;
             }
             case BODY_CALLBACK: {
-                curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_READFUNCTION, curl_read_handler);
-                curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_READDATA, this->data->data_.get());
+                if ((status=curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_READFUNCTION, curl_read_handler)) != CURLE_OK)
+                    goto errjmp;
+                if ((status=curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_READDATA, this->data->data_.get()))!=CURLE_OK)
+                    goto errjmp;
 
                 if (this->data->flags & FLAG_CONTENT_LENGTH) {
-                    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, this->data->content_length_);
+                    if ((status=curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, this->data->content_length_)) != CURLE_OK)
+                        goto errjmp;
                 }
 
                 break;
@@ -268,28 +312,33 @@ manapi::future<void> manapi::net::fetch::async_doit() {
             case BODY_MULTIPART: {
                 form.reset(curl_mime_init(this->data->data_->curl.get()));
                 curl_mimepart *field = nullptr;
-                for (auto &param : this->data->body_formdata_.value()) {
+                for (auto &param : *this->data->body_formdata_) {
                     field = curl_mime_addpart(form.get());
-                    curl_mime_name(field, param.first.data());
+                    if ((status=curl_mime_name(field, param.first.data()))!=CURLE_OK)
+                        goto errjmp;
                     switch (param.second.type) {
                         case curlformdata::PARAM_DEFAULT: {
                             auto str = param.second.strdata.value();
-                            curl_mime_data(field, str.data(), str.size());
+                            if ((status = curl_mime_data(field, str.data(), str.size())) != CURLE_OK)
+                                goto errjmp;
                             break;
                         }
                         case curlformdata::PARAM_FILE: {
                             auto str = param.second.strdata.value();
-                            curl_mime_filedata(field, str.data());
+                            if ((status=curl_mime_filedata(field, str.data()))!=CURLE_OK)
+                                goto errjmp;
                             break;
                         }
                         case curlformdata::PARAM_CALLBACK: {
                             auto &cbdata = param.second.filedata.value();
-                            curl_mime_data_cb(field, cbdata.filesize, curl_send_formdata_cb_read, curl_send_formdata_cb_seek, curl_send_formdata_cb_free, &cbdata.callback);
+                            if ((status=curl_mime_data_cb(field, cbdata.filesize, curl_send_formdata_cb_read, curl_send_formdata_cb_seek, curl_send_formdata_cb_free, &cbdata.callback))!=CURLE_OK)
+                                goto errjmp;
                             break;
                         }
                     }
                 }
-                curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_MIMEPOST, form.get());
+                if ((status=curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_MIMEPOST, form.get()))!=CURLE_OK)
+                    goto errjmp;
                 break;
             }
             default:
@@ -298,7 +347,8 @@ manapi::future<void> manapi::net::fetch::async_doit() {
 
         if (this->data->data_->curl_headers)
         {
-            curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HTTPHEADER, this->data->data_->curl_headers.get());
+            if((status=curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HTTPHEADER, this->data->data_->curl_headers.get()))!=CURLE_OK)
+                goto errjmp;
         }
 
         this->data->data_->headers = std::make_unique<decltype(this->data->data_->headers)::element_type>();
@@ -327,9 +377,13 @@ manapi::future<void> manapi::net::fetch::async_doit() {
         this->data->cancellation.disable_cancellation();
         this->data->cancellation = nullptr;
 
-        if (resp != CURLE_OK)
-        {
-            THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "Connection failed: {}. Error code: {}. Error msg: {}", this->data->url_, static_cast<int> (resp), curl_easy_strerror(resp));
+        if (resp != CURLE_OK) {
+            this->clear_();
+            co_return error::status_internal("Connection failed", {
+                {"url", this->data->url_},
+                {"code", static_cast<int>(resp)},
+                {"msg", curl_easy_strerror(resp)}
+            });
         }
 
         if (this->data->data_->headers && !this->data->data_->headers->empty()) {
@@ -342,7 +396,8 @@ manapi::future<void> manapi::net::fetch::async_doit() {
             this->data->data_->headers = nullptr;
         }
 
-        curl_easy_getinfo(this->data->data_->curl.get(), CURLINFO_HTTP_CODE, &this->data->status_code_);
+        if ((status=curl_easy_getinfo(this->data->data_->curl.get(), CURLINFO_HTTP_CODE, &this->data->status_code_))!=CURLE_OK)
+            goto errjmp;
     }
     catch (...) {
         err = std::current_exception();
@@ -352,6 +407,10 @@ manapi::future<void> manapi::net::fetch::async_doit() {
 
     if (err)
         std::rethrow_exception(std::move(err));
+    co_return error::status_ok();
+errjmp:
+    this->clear_();
+    co_return error::status_invalid_argument(curl_easy_strerror(status));
 }
 
 std::map <std::string, std::string> manapi::net::fetch::headers() {
@@ -366,7 +425,7 @@ void manapi::net::fetch::clear() {
 }
 
 void manapi::net::fetch::clear_() {
-    *this->data = fetch::data_t{.url_ = std::move(this->data->url_), .data_ = std::move(this->data->data_)};
+    *this->data = fetch::data_t{.data_ = std::move(this->data->data_), .url_ = std::move(this->data->url_)};
     *this->data->data_ = fetch::shared_data{};
 
     this->default_setup_curl_();
@@ -390,7 +449,7 @@ manapi::future<bool> manapi::net::fetch::handle_body_verify(std::shared_ptr<shar
     data->headers = nullptr;
 
     if (!flg) {
-        data->async_buffer_cursor = 0;
+        data->async_buffer_size = 0;
         async::current()->eventloop()->unwatch_curl(data->curl);
         data->async_run->unlock();
         co_return false;
@@ -399,32 +458,47 @@ manapi::future<bool> manapi::net::fetch::handle_body_verify(std::shared_ptr<shar
 }
 
 manapi::future<void> manapi::net::fetch::handle_sync_body_finish(std::shared_ptr<shared_data> data, bool finish) {
-    data->handler_recv_body = std::move(data->sync_user_body_cb);
+    try {
+        data->handler_recv_body = std::move(data->sync_user_body_cb);
 
-    if (finish) {
-        co_return;
-    }
-
-    if (data->async_buffer_cursor > 0) {
-        /* cached */
-        ssize_t current = 0, rhs = 0;
-        while (current < data->async_buffer_cursor) {
-            if ((rhs = data->handler_recv_body->operator()(data->async_buffer.as<char>() + current, data->async_buffer_cursor - current)) < 0) {
-                data->async_buffer_cursor = 0;
-                manapi::async::current()->eventloop()->unwatch_curl(data->curl);
-                data->async_run->unlock();
-                co_return;
-            }
-
-            current += rhs;
+        if (finish) {
+            co_return;
         }
 
-        data->async_buffer_cursor = 0;
+        if (data->async_buffer_size > 0) {
+            auto res = data->async_buffer.subslice(0, data->async_buffer_size);
+            data->async_buffer_size = 0;
+            if (!res.ok())
+                goto err;
+            auto buffs = res.unwrap();
+            for (auto it = buffs.begin(); it != buffs.end(); ++it) {
+                /* cached */
+                ssize_t current = 0, rhs = 0;
+                auto const size = static_cast<ssize_t>(it.size());
+                auto const buff = static_cast<char*>(it.buffer());
+
+                while (current < size) {
+                    if ((rhs = data->handler_recv_body->operator()(buff + current, size - current)) < 0) {
+                        goto err;
+                    }
+
+                    current += rhs;
+                }
+            }
+        }
+    }
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("body finish failed due to {}", e.what());
     }
 
     data->async_handler_recv_body = nullptr;
     data->async_run->unlock();
     manapi::async::current()->eventloop()->unpause_watch_curl(data->curl);
+    co_return;
+    err:
+    data->async_buffer_size = 0;
+    manapi::async::current()->eventloop()->unwatch_curl(data->curl);
+    data->async_run->unlock();
 }
 
 manapi::future<void> manapi::net::fetch::handle_async_body_finish(std::shared_ptr<shared_data> data, bool finish) {
@@ -445,7 +519,7 @@ manapi::future<CURLcode> manapi::net::fetch::async_curl_perform() {
             manapi::async::current()->eventloop()->watch_curl(this->data->data_->curl, std::move(resolve));
         });
 
-        if (res == CURLE_OK && this->data->data_->async_handler_recv_body && this->data->data_->async_buffer_cursor) {
+        if (res == CURLE_OK && this->data->data_->async_handler_recv_body && this->data->data_->async_buffer_size) {
             co_await this->data->data_->async_handler_recv_body->operator()(this->data->data_, true);
         }
     }
@@ -508,8 +582,8 @@ manapi::future<std::string> manapi::net::fetch::text() {
         return size;
     });
 
-    co_await async_doit();
-
+    auto res = co_await async_doit();
+    res.unwrap();
     co_return content;
 }
 
@@ -518,24 +592,23 @@ manapi::future<manapi::json> manapi::net::fetch::json() {
 }
 
 
-void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler) {
-    if (!this->data->data_->async_buffer.realsize()) {
-        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().buffer(65536);
-    }
+void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool fin)> handler) {
+    if (this->data->data_->async_buffer.empty())
+        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().slice(65536);
+
     this->data->data_->sync_user_body_cb.reset();
-    this->data->data_->async_buffer_cursor = 0;
+    this->data->data_->async_buffer_size = 0;
 
     this->setup_parallel_task();
 
     this->data->data_->async_user_body_cb = std::make_unique<decltype(this->data->data_->async_user_body_cb)::element_type>(
         [handler = std::move(handler)] (std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
-        ssize_t total = 0;
+        ssize_t rhs = -1;
+        bool fin = false;
 
-        while (total < data->async_buffer_cursor) {
-            ssize_t rhs = -1;
-
+        if (data->async_buffer_size) {
             try {
-                rhs = co_await handler (data->async_buffer.as<char>() + total, data->async_buffer_cursor - total);
+                rhs = co_await handler (data->async_buffer.subslice(0, data->async_buffer_size).unwrap(), fin);
             }
             catch (std::exception const &e) {
                 // DEBUG
@@ -547,25 +620,22 @@ void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::futur
                 co_return;
             }
 
-            if (rhs < 0) {
-                if (finish) {
+            if (rhs != data->async_buffer_size) {
+                if (finish)
                     THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "handle_async_body(...): Write handler error : {}", rhs);
-                }
 
-                data->async_buffer_cursor = 0;
+                data->async_buffer_size = 0;
                 manapi::async::current()->eventloop()->unwatch_curl(data->curl);
                 data->async_run->unlock();
 
                 co_return;
             }
-            total += rhs;
+
+            data->async_buffer_size = 0;
         }
 
-        data->async_buffer_cursor = 0;
-
-        if (finish) {
+        if (finish)
             co_return;
-        }
 
         data->async_run->unlock();
         manapi::async::current()->eventloop()->unpause_watch_curl(data->curl);
@@ -587,11 +657,14 @@ void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::futur
 
     this->data->data_->handler_recv_body
     = std::make_unique<decltype(this->data->data_->handler_recv_body)::element_type>([this] (char *buffer, ssize_t size) -> ssize_t {
-        if (this->data->data_->async_buffer_cursor < this->data->data_->async_buffer.size()
-            && this->data->data_->async_buffer.size() - this->data->data_->async_buffer_cursor >= size) {
+        if (this->data->data_->async_buffer_size < this->data->data_->async_buffer.size()
+            && this->data->data_->async_buffer.size() - this->data->data_->async_buffer_size >= size) {
             const auto copy = size;
-            memcpy(this->data->data_->async_buffer.as<char>() + this->data->data_->async_buffer_cursor, buffer, copy);
-            this->data->data_->async_buffer_cursor += copy;
+            auto res = this->data->data_->async_buffer.copy_from(buffer, this->data->data_->async_buffer_size, copy);
+            if (!res.ok())
+                return CURL_WRITEFUNC_ERROR;
+
+            this->data->data_->async_buffer_size += copy;
 
             return copy;
         }
@@ -621,84 +694,115 @@ void manapi::net::fetch::handle_async_headers(std::move_only_function<manapi::fu
         -> manapi::future<bool> { return handler(std::move(headers)); });
 }
 
-void manapi::net::fetch::enable_alpn(bool status) {
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_ENABLE_ALPN, 0);
+manapi::error::status manapi::net::fetch::enable_alpn(bool status) {
+    auto const res = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_ENABLE_ALPN, 0);
+    return res == CURLE_OK ? error::status_ok() : error::status_invalid_argument(curl_easy_strerror(res));
 }
 
-void manapi::net::fetch::enable_http3() {
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_3);
+manapi::error::status manapi::net::fetch::enable_http3() {
+    auto const res = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_3);
+    return res == CURLE_OK ? error::status_ok() : error::status_invalid_argument(curl_easy_strerror(res));
 }
 
-void manapi::net::fetch::enable_http2() {
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE);
+manapi::error::status manapi::net::fetch::enable_http2() {
+    auto const res = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE);
+    return res == CURLE_OK ? error::status_ok() : error::status_invalid_argument(curl_easy_strerror(res));
 }
 
-void manapi::net::fetch::enable_http1_1() {
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+manapi::error::status manapi::net::fetch::enable_http1_1() {
+    auto const res = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+    return res == CURLE_OK ? error::status_ok() : error::status_invalid_argument(curl_easy_strerror(res));
 }
 
 void manapi::net::fetch::body(curlformdata params) {
     this->data->body_ = BODY_MULTIPART;
-    this->data->body_formdata_ = std::move(params);
+    if (!this->data->body_formdata_)
+        this->data->body_formdata_ = std::make_unique<curlformdata>(std::move(params));
+    else
+        *this->data->body_formdata_ = std::move(params);
 }
 
 
-void manapi::net::fetch::method(std::string method) {
-    this->data->method_ = std::move(method);
+void manapi::net::fetch::method(std::string_view method) {
+    int flag = 0;
+    if (manapi::string::equals("get", method, 0b01))
+        return;
+    if (string::equals("post", method, 0b01))
+        flag = FLAG_POST;
+    else if (string::equals("delete", method, 0b01))
+        flag = FLAG_DELETE;
+    else if (string::equals("put", method, 0b01))
+        flag = FLAG_PUT;
+    else if (string::equals("head", method, 0b01))
+        flag = FLAG_HEAD;
+    else if (string::equals("trace", method, 0b01))
+        flag = FLAG_TRACE;
+    if (flag) {
+        this->data->flags |= flag;
+    }
+    else {
+        if (this->data->method_)
+            *this->data->method_ = method;
+        else
+            this->data->method_ = std::make_unique<std::string>((method));
+    }
 }
 
 void manapi::net::fetch::body(std::string data) {
     this->data->body_ = BODY_PLAIN;
-    this->data->body_default_ = std::move(data);
+    if (!this->data->body_default_)
+        this->data->body_default_ = std::make_unique<std::string>(std::move(data));
+    else
+        *this->data->body_default_ = std::move(data);
 }
 
-manapi::future<> manapi::net::fetch::body(file_transfer_info file_info) {
+manapi::future<manapi::error::status> manapi::net::fetch::body(file_transfer_info file_info) {
     auto file = std::make_shared <manapi::filesystem::fstream> (file_info.filelocal());
-    co_await file->open(ev::FS_O_RDONLY);
-    if (!file->is_open()) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to open the file: {}", file_info.filelocal());
-    }
+    auto res = co_await file->open(ev::FS_O_RDONLY);
+    if (!res.ok())
+        co_return std::move(res);
 
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDS, nullptr);
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, co_await file->size());
+    auto code = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDS, nullptr);
+    if (code != CURLE_OK)
+        goto err;
 
-    this->async_body([file = std::move(file), file_info = std::move(file_info)] (char *buffer, ssize_t size) mutable
+    code = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_POSTFIELDSIZE_LARGE, co_await file->size());
+    if (code != CURLE_OK)
+        goto err;
+
+    this->async_body([file = std::move(file), file_info = std::move(file_info)] (slice_view buffs, bool &fin) mutable
         -> manapi::future<ssize_t> {
-        ssize_t cursor = 0;
-        while (cursor < size) {
-            auto rhs = co_await file->read(buffer + cursor, size - cursor);
+        auto rhs = co_await file->fread(buffs);
 
-            if (rhs == 0) {
-                /* eof */
-                break;
-            }
+        if (file->eof())
+            fin = true;
 
-            if (rhs < 0) {
-                /* error */
-                co_return -1;
-            }
-
-            cursor += rhs;
+        if (rhs < 0) {
+            /* error */
+            co_return -1;
         }
 
-        co_return cursor;
+        co_return rhs;
     });
+    co_return error::status_ok();
+    err: co_return error::status_invalid_argument(curl_easy_strerror(code));
 }
 
-void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler) {
+void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)> handler) {
     this->data->body_ = BODY_CALLBACK;
 
-    if (!this->data->data_->async_buffer.realsize()) {
-        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().buffer(65536);
-    }
-    this->data->data_->async_buffer_cursor = 0;
+    if (this->data->data_->async_buffer.empty())
+        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().slice(65536);
+
+    this->data->data_->async_buffer_size = 0;
 
     this->data->data_->async_handler_send_body
     = std::make_unique<decltype(this->data->data_->async_handler_send_body)::element_type>([handler = std::move(handler)] (std::shared_ptr<shared_data> data, bool finish) mutable -> manapi::future<> {
-        while (data->async_buffer_cursor < data->async_buffer.size()) {
+        while (!data->async_buffer_size) {
             ssize_t rhs = -1;
+            bool fin = false;
             try {
-                rhs = co_await handler (data->async_buffer.as<char>() + data->async_buffer_cursor, static_cast<ssize_t>(data->async_buffer.size() - data->async_buffer_cursor));
+                rhs = co_await handler (data->async_buffer, fin);
             }
             catch (std::exception const &e) {
                 MANAPIHTTP_LOG( "set_async_body(...) failed: {}", e.what());
@@ -706,29 +810,31 @@ void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize
 
             if (rhs < 0) {
                 /* error */
-                if (finish) {
+                if (finish)
                     THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "set_async_body(...): read handler error : {}", rhs);
-                }
 
-                data->async_buffer_cursor = 0;
+
+                data->async_buffer_size = 0;
                 manapi::async::current()->eventloop()->unwatch_curl(data->curl);
                 data->async_run->unlock();
 
                 co_return;
             }
 
-            if (rhs == 0) {
+            if (fin || !rhs) {
                 /* eof */
                 data->flags |= FLAG_DATA_EOF;
-                break;
+
+                if (!rhs)
+                    break;
             }
 
-            data->async_buffer_cursor += rhs;
+            data->async_buffer_size += rhs;
         }
 
-        if (finish) {
+        if (finish)
             co_return;
-        }
+
 
         data->async_run->unlock();
         manapi::async::current()->eventloop()->unpause_watch_curl(data->curl);
@@ -736,18 +842,18 @@ void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize
 
     this->data->data_->handler_send_body
     = std::make_unique<decltype(this->data->data_->handler_send_body)::element_type>([this, index = ssize_t{0}, result = 0] (char *buffer, ssize_t size) mutable -> ssize_t {
-        size = std::min(this->data->data_->async_buffer_cursor-index, size);
+        size = std::min<ssize_t>(this->data->data_->async_buffer_size-index, size);
         if (size > 0) {
-            memcpy(buffer, this->data->data_->async_buffer.as<char>() + index, size);
+            this->data->data_->async_buffer.copy_to(buffer, index, size);
             index += size;
 
-            if (this->data->data_->async_buffer_cursor == index) {
-                this->data->data_->async_buffer_cursor = 0;
+            if (this->data->data_->async_buffer_size == index) {
+                this->data->data_->async_buffer_size = 0;
                 index = 0;
             }
 
             //MANAPIHTTP_LOG("SEND {}", size);
-            result+= size;
+            result += size;
             return size;
         }
 
@@ -826,37 +932,66 @@ void manapi::net::fetch::json_headers(manapi::json headers) {
     }
 }
 
-void manapi::net::fetch::custom_setup(std::move_only_function<void(CURL *curl)> func) {
-    this->data->data_->handle_custom_setup = std::make_unique<decltype(func)>(std::move(func));
+const std::shared_ptr<CURL> & manapi::net::fetch::custom() {
+    return this->data->data_->curl;
 }
 
-void manapi::net::fetch::enable_verify_peer(bool status) {
+manapi::error::status manapi::net::fetch::enable_verify_peer(bool status) {
     auto lstatus = static_cast<long> (status);
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYPEER, lstatus);
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
+    CURLcode res;
+    res = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYPEER, lstatus);
+    if (res != CURLE_OK)
+        goto err;
+    res = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
+    if (res != CURLE_OK)
+        goto err;
+    return error::status_ok();
+    err:
+    return error::status_invalid_argument(curl_easy_strerror(res));
 }
 
-void manapi::net::fetch::enable_verify_host(bool status) {
+manapi::error::status manapi::net::fetch::enable_verify_host(bool status) {
     auto lstatus = static_cast<long> (status);
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYHOST, lstatus);
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
-
+    CURLcode res;
+    res = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYHOST, lstatus);
+    if (res != CURLE_OK)
+        goto err;
+    res = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
+    if (res != CURLE_OK)
+        goto err;
+    return error::status_ok();
+err:
+    return error::status_invalid_argument(curl_easy_strerror(res));
 }
 
-void manapi::net::fetch::verbose(bool status) {
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_VERBOSE, static_cast<long>(status));
+manapi::error::status manapi::net::fetch::verbose(bool status) {
+    auto const res = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_VERBOSE, static_cast<long>(status));
+    if (res == CURLE_OK)
+        return error::status_ok();
+    return error::status_invalid_argument(curl_easy_strerror(res));
 }
 
-void manapi::net::fetch::timeout(std::size_t seconds) {
-    curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_CONNECTTIMEOUT_MS, seconds * 1000);
+manapi::error::status manapi::net::fetch::timeout(std::size_t seconds) {
+    auto const res = curl_easy_setopt(this->data->data_->curl.get(), CURLOPT_CONNECTTIMEOUT_MS, seconds * 1000);
+    if (res == CURLE_OK)
+        return error::status_ok();
+    return error::status_invalid_argument(curl_easy_strerror(res));
 }
 
-void manapi::net::fetch::break_write_loop() {
-    curl_easy_pause(this->data->data_->curl.get(), CURLPAUSE_RECV);
+manapi::error::status manapi::net::fetch::break_write_loop() {
+    auto const res = curl_easy_pause(this->data->data_->curl.get(), CURLPAUSE_RECV);
+    if (res == CURLE_OK)
+        return error::status_ok();
+
+    return error::status_invalid_argument(curl_easy_strerror(res));
 }
 
-void manapi::net::fetch::continue_write_loop() {
-    curl_easy_pause(this->data->data_->curl.get(), CURLPAUSE_CONT);
+manapi::error::status manapi::net::fetch::continue_write_loop() {
+    auto const res = curl_easy_pause(this->data->data_->curl.get(), CURLPAUSE_CONT);
+    if (res == CURLE_OK)
+        return error::status_ok();
+
+    return error::status_invalid_argument(curl_easy_strerror(res));
 }
 
 size_t manapi::net::fetch::status_code() const {

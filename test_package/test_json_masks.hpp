@@ -235,7 +235,7 @@ UTEST(json_masks, stream_str_condition_mask_max_mean_2) {
     builder << R"(": "hello)";
     builder << R"(helllooo"})";
 
-    auto obj = builder.get().value();
+    auto obj = builder.get().unwrap();
 }
 
 UTEST(json_masks, str_condition_mask_with_or) {
@@ -298,7 +298,7 @@ UTEST(json_masks, stream_bool_condition_mask_with_arr) {
     jb << R"({"hello":     )";
     jb << R"([true, true, true, true, true]})";
     ASSERT_TRUE(jb.is_ready());
-    ASSERT_TRUE(jb.get().value()["hello"].size() == 5);
+    ASSERT_TRUE(jb.get().unwrap()["hello"].size() == 5);
 
     jb << R"({"hello": )";
     jb << R"([true, true, true)";
@@ -315,17 +315,17 @@ UTEST(json_masks, stream_condition_mask_with_or) {
 
     manapi::json_builder jb (mask);
     jb << start <<  R"("hello world")" << end;
-    ASSERT_TRUE(jb.get().value()["hello"] == "hello world");
+    ASSERT_TRUE(jb.get().unwrap()["hello"] == "hello world");
 
     jb << start << "5" << end;
-    ASSERT_TRUE(jb.get().value()["hello"] == 5);
+    ASSERT_TRUE(jb.get().unwrap()["hello"] == 5);
 
     jb << "{}";
-    ASSERT_TRUE(jb.get().value().empty());
+    ASSERT_TRUE(jb.get().unwrap().empty());
 
 
     jb << start << "false" << end;
-    ASSERT_TRUE(jb.get().value()["hello"] == false);
+    ASSERT_TRUE(jb.get().unwrap()["hello"] == false);
 
     ASSERT_EXCEPTION(jb << start << "true" << end, std::exception);
 }

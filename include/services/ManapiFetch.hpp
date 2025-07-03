@@ -59,16 +59,6 @@ namespace manapi::net {
     };
 
     class fetch : public task {
-        enum status_flags {
-            FLAG_TRANSFER_ENCODING = 0b1,
-            FLAG_CONTENT_LENGTH = 0b10,
-            FLAG_WAS_USED = 0b100,
-            FLAG_STATUS_PASSED = 0b1000
-        };
-        enum status_data_flags {
-            FLAG_DATA_EOF = 0b1,
-            FLAG_DATA_CLOSED = 0b10
-        };
         struct curl_deleter {
             void operator() (CURL *curl)
                 { curl_free(curl); }
@@ -101,33 +91,33 @@ namespace manapi::net {
 
         fetch &operator=(fetch &&n) noexcept;
         void handle_body(std::move_only_function<ssize_t(char *, ssize_t)> handler);
-        void handle_async_body(std::move_only_function<manapi::future<ssize_t>(char *, ssize_t )> handler);
+        void handle_async_body(std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool fin)> handler);
         void handle_headers (std::move_only_function<bool(std::map <std::string, std::string>)> handler);
         void handle_async_headers (std::move_only_function<manapi::future<bool>(std::map<std::string, std::string>)> handler);
-        void enable_alpn (bool status);
-        void enable_http3 ();
-        void enable_http2 ();
-        void enable_http1_1 ();
+        manapi::error::status enable_alpn (bool status);
+        manapi::error::status enable_http3 ();
+        manapi::error::status enable_http2 ();
+        manapi::error::status enable_http1_1 ();
         void body (curlformdata params);
-        void method (std::string method);
+        void method (std::string_view method);
         void body (std::string data);
-        manapi::future<> body (file_transfer_info file_info);
-        void async_body (std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)> handler);
+        manapi::future<error::status> body (file_transfer_info file_info);
+        void async_body (std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)> handler);
         void body (std::move_only_function<ssize_t(char *, ssize_t)> handler);
         void headers (std::map <std::string, std::string> headers);
         void json_headers (manapi::json headers);
-        void custom_setup (std::move_only_function<void(CURL *curl)> func);
-        void enable_verify_peer (bool status);
-        void enable_verify_host (bool status);
-        void verbose (bool status);
-        void timeout (std::size_t seconds);
+        const std::shared_ptr<CURL> &custom ();
+        manapi::error::status enable_verify_peer (bool status);
+        manapi::error::status enable_verify_host (bool status);
+        manapi::error::status verbose (bool status);
+        manapi::error::status timeout (std::size_t seconds);
 
-        void break_write_loop ();
-        void continue_write_loop ();
+        manapi::error::status break_write_loop ();
+        manapi::error::status continue_write_loop ();
 
         [[nodiscard]] size_t status_code () const;
 
-        future<void> async_doit();
+        future<manapi::error::status> async_doit();
 
         future<std::string> text();
         future<manapi::json> json();
@@ -137,7 +127,6 @@ namespace manapi::net {
         void clear ();
     private:
         void clear_ ();
-        static std::map <std::string, CURLoption> http_method_to_enum;
         static manapi::future<bool> handle_body_verify (std::shared_ptr<shared_data> data);
         static manapi::future<void> handle_sync_body_finish(std::shared_ptr<shared_data> data, bool finish);
         static manapi::future<void> handle_async_body_finish(std::shared_ptr<shared_data> data, bool finish);

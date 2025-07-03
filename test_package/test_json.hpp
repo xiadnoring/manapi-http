@@ -75,7 +75,7 @@ UTEST(json, block_parse_null) {
 UTEST(json, block_parse_bigint_integer) {
     manapi::json_builder res (manapi::json_mask{nullptr}, true, 512);
     res.parse(R"({"bigint": 11111111111111111111111111111111111111111111111})").unwrap();
-    auto val = res.get().value();
+    auto val = res.get().unwrap();
     auto str = val["bigint"].as_bigint().stringify();
     ASSERT_TRUE(str == "11111111111111111111111111111111111111111111111");
 }
@@ -83,7 +83,7 @@ UTEST(json, block_parse_bigint_integer) {
 UTEST(json, block_parse_bigint_signed_integer) {
     manapi::json_builder res (manapi::json_mask{nullptr}, true, 512);
     res.parse(R"({"bigint": -11111111111111111111111111111111111111111111111})").unwrap();
-    auto val = res.get().value();
+    auto val = res.get().unwrap();
     auto str = val["bigint"].as_bigint().stringify();
     ASSERT_TRUE(str == "-11111111111111111111111111111111111111111111111");
 }
@@ -91,7 +91,7 @@ UTEST(json, block_parse_bigint_signed_integer) {
 UTEST(json, block_parse_bigint_decimal_integer) {
     manapi::json_builder res (manapi::json_mask{nullptr}, true, 512);
     res.parse(R"({"bigint": 11111111111111111111111111111111111111111111111.11111111111111111111111111111111111111111111111})").unwrap();
-    auto val = res.get().value();
+    auto val = res.get().unwrap();
     auto str = val["bigint"].as_bigint().stringify();
     ASSERT_TRUE(str == "11111111111111111111111111111111111111111111111.11111111111111111111111111111111111111111111111");
 }
@@ -99,7 +99,7 @@ UTEST(json, block_parse_bigint_decimal_integer) {
 UTEST(json, block_parse_bigint_signed_decimal_integer) {
     manapi::json_builder res (manapi::json_mask{nullptr}, true, 512);
     res.parse(R"({"bigint": -11111111111111111111111111111111111111111111111.11111111111111111111111111111111111111111111111})").unwrap();
-    auto val = res.get().value();
+    auto val = res.get().unwrap();
     auto str = val["bigint"].as_bigint().stringify();
     ASSERT_TRUE(str == "-11111111111111111111111111111111111111111111111.11111111111111111111111111111111111111111111111");
 }
@@ -107,7 +107,7 @@ UTEST(json, block_parse_bigint_signed_decimal_integer) {
 UTEST(json, block_parse_bigint_exp_decimal_integer) {
     manapi::json_builder res (manapi::json_mask{nullptr}, true, 512);
     res.parse(R"({"bigint": 1e10})").unwrap();
-    auto val = res.get().value();
+    auto val = res.get().unwrap();
     auto str = val["bigint"].as_bigint().stringify();
     ASSERT_TRUE(str == "10000000000");
 }
@@ -139,7 +139,7 @@ UTEST(json, stream_parse_1) {
     std::string_view s = R"( { "hello"            : "world" ,   "world":   "hello"   } )";
     for (auto &c : s)
         builder << c;
-    auto res = builder.get().value();
+    auto res = builder.get().unwrap();
     ASSERT_TRUE(res["hello"]=="world");
     ASSERT_TRUE(res["world"]=="hello");
 }
@@ -149,7 +149,7 @@ UTEST(json, stream_parse_2) {
     std::string_view s = TEST_JSON_TEXT_LARGE;
     for (auto &c : s)
         builder << c;
-    auto res = builder.get().value();
+    auto res = builder.get().unwrap();
     ASSERT_TRUE(res[0]["_id"] == std::string{"686402978cc071126e7518cc"});
 }
 

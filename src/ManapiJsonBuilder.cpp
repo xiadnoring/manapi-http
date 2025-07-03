@@ -601,7 +601,7 @@ manapi::error::status manapi::json_builder::_build_object(std::string_view plain
             if (!rhs.ok())
                 return std::move(rhs.err());
 
-            json it = rhs.value();
+            json it = rhs.unwrap();
 
             this->item = nullptr;
 
@@ -731,7 +731,7 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
             auto rhs = this->item->get();
             if (!rhs.ok())
                 return std::move(rhs.err());
-            json it = rhs.value();
+            json it = rhs.unwrap();
             this->item = nullptr;
 
             this->object.push_back(std::move(it));
@@ -881,7 +881,7 @@ bool manapi::json_builder::_next_parent() {
         auto res = json_builder::next_parent_cb(this->next_parent);
         if (!res.ok())
             return false;
-        this->current_types = res.value();
+        this->current_types = res.unwrap();
         this->current_type = 0;
         return true;
     }

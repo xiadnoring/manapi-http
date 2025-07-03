@@ -134,7 +134,7 @@ manapi::future<void> manapi::net::http_pool::_pool() {
                         if (!httpwrk.ok())
                             httpwrk.unwrap();
 
-                        res = worker::default_wrk_http_all_global_add_version(wrkptr, version, std::move(httpwrk.value()));
+                        res = worker::default_wrk_http_all_global_add_version(wrkptr, version, std::move(httpwrk.unwrap()));
                         if (!res.ok())
                             res.unwrap();
                     }

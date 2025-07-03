@@ -343,22 +343,29 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
     });
 
     proxy->handle_async_body(
-        [cdata = cdata.get(), &content_length = *content_length.get()](char *buffer, ssize_t size) mutable
+        [cdata = cdata.get(), &content_length = *content_length.get()](slice_view buffs, bool fin) mutable
             -> manapi::future<ssize_t> {
-        auto rhs = co_await cdata->worker->fwrite (cdata->conn, buffer,
-            size, content_length <= size);
+        if (content_length > 0 && content_length <= buffs.size())
+            fin = true;
+
+        auto rhs = co_await cdata->worker->fwrite (cdata->conn, buffs, fin);
 
         if (rhs < 0)
             co_return -1;
 
         content_length -= rhs;
+
         co_return rhs;
     });
 
     auto task = proxy->async_doit();
-    manapi::async::run (std::move(task), [proxy = std::move(proxy),
+    manapi::async::run<error::status> (std::move(task), [proxy = std::move(proxy),
         content_length = std::move(content_length),  cdata = std::move(cdata), res = std::move(res)]
-            (std::exception_ptr err) mutable -> void {
+            (std::exception_ptr err, manapi::error::status *status) mutable -> void {
+            if (!status->ok()) {
+                status->log();
+                return;
+            }
             if (err) {
                 /* failed */
                 std::string msg;
@@ -549,7 +556,7 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
                                 }
 
                                 auto const rhs = co_await cdata->worker->fwrite(
-                                    cdata->conn, slices.subslice(0, total).value(), finish);
+                                    cdata->conn, slices.subslice(0, total).unwrap(), finish);
 
                                 if (rhs <= 0)
                                     co_return;
@@ -641,7 +648,7 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
                                 auto const rhs = co_await cb_async->operator()(buffer, finish);
                                 auto res = buffer.subslice(0, rhs);
                                 res.unwrap();
-                                co_await send_http_v1_1_chunked_data(cdata, res.value(), finish);
+                                co_await send_http_v1_1_chunked_data(cdata, res.unwrap(), finish);
                             }
                         }
                         else {
@@ -655,7 +662,7 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
                                 res.unwrap();
 
                                 rhs = co_await cdata->worker->fwrite(cdata->conn,
-                                    res.value(), finish);
+                                    res.unwrap(), finish);
 
                                 if (rhs <= 0)
                                     co_return;
@@ -928,7 +935,7 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
     std::exception_ptr error{nullptr};
 
     if ((rhs = co_await f.read(write_block.subslice(0,
-        std::min(block_size, size - current)).value())) <= 0) {
+        std::min(block_size, size - current)).unwrap())) <= 0) {
         co_return;
     }
 
@@ -939,10 +946,10 @@ manapi::future<void> manapi::net::http::internal::send_file(uq_handle_data_t cda
             bool readsome = size > current;
             if (readsome) {
                 parallel.run(f.read(read_block.subslice(0,
-                    std::min(block_size, size - current)).value()));
+                    std::min(block_size, size - current)).unwrap()));
             }
 
-            auto sv = write_block.subslice(0, rhs).value();
+            auto sv = write_block.subslice(0, rhs).unwrap();
             // for (auto it = sv.begin(); it != sv.end(); it++) {
             //     if ((co_await cdata->worker->fwrite (cdata->conn, it.buffer(), it.size(), !readsome && it.is_last())) <= 0)
             //         /* failed to send */

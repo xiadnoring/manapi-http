@@ -678,7 +678,7 @@ err_zero:
 			if (!res.ok())
 				return res.err();
 
-			dst = res.value();
+			dst = res.unwrap();
 		}
 
 		return dst;
@@ -879,7 +879,7 @@ err_zero:
 								if (!res.ok())
 									return res.err();
 
-								this->buff1 = res.value();
+								this->buff1 = res.unwrap();
 							}
 
 							this->state = this->next;
@@ -911,7 +911,7 @@ err_zero:
 						if (!res.ok())
 							return res.err();
 
-						auto val = res.value();
+						auto val = res.unwrap();
 
 						if (val->first.empty())
 							return error::status_aborted("header name is empty");
@@ -967,7 +967,7 @@ err_zero:
 							this->n2 = 0;
 
 							if (res.ok())
-								this->buff1 = res.value()->first;
+								this->buff1 = res.unwrap()->first;
 							else
 								return res.err();
 

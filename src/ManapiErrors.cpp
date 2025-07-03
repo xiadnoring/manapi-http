@@ -1,5 +1,6 @@
 #include "ManapiErrors.hpp"
 
+#include "async/ManapiAsyncContext.hpp"
 #include "ManapiDebug.hpp"
 #include "ManapiJson.hpp"
 
@@ -94,6 +95,10 @@ manapi::json &manapi::error::status::data() {
 
 bool manapi::error::status::ok() const {
     return this->code_ == manapi::ERR_OK;
+}
+
+void manapi::error::status::log() const {
+    MANAPIHTTP_LOG ("{}: msg: {}, data: {}", this->status_msg(), this->msg_, this->data_.dump());
 }
 
 std::string_view manapi::error::status::status_msg() const {

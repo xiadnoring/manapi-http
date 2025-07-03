@@ -118,14 +118,14 @@ manapi::future<manapi::json> manapi::net::http::request::json()
         co_await read_body_(this->worker_.get(), this->conn_, this->request_data,[&builder] (const char *data, ssize_t size, bool fin)
             -> ssize_t { builder << std::string_view (data, size); return size; });
 
-        co_return std::move(builder.get().value());
+        co_return std::move(builder.get().unwrap());
     }
     else {
         json_builder builder = json_builder ();
         co_await read_body_(this->worker_.get(), this->conn_, this->request_data,[&builder] (const char *data, ssize_t size, bool fin)
             -> ssize_t { builder << std::string_view (data, size); return size; });
 
-        co_return std::move(builder.get().value());
+        co_return std::move(builder.get().unwrap());
     }
 }
 
@@ -416,7 +416,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                         size = static_cast<ssize_t> (buffs.size());
                                     }
 
-                                    auto buffsview = buffs.subslice(0, size).value();
+                                    auto buffsview = buffs.subslice(0, size).unwrap();
 
                                     ssize_t rhs = 0;
                                     while (rhs < size) {
@@ -434,7 +434,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
 
                                             ctx_cb->req->body_size -= res;
 
-                                            buffsview = buffs.subslice(res).value();
+                                            buffsview = buffs.subslice(res).unwrap();
 
                                             continue;
                                         }

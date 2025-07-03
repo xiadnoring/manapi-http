@@ -1363,7 +1363,7 @@ header_skip:
                             auto hres = ctx->decoder->headers(config->max_headers_size);
 
                             if (hres.ok()) {
-                                auto headers = std::move(hres.value());
+                                auto headers = std::move(hres.unwrap());
                                 while (!headers.empty()) {
                                     auto it = headers.begin();
                                     auto value = std::move(it->second);

@@ -226,7 +226,7 @@ void manapi::json::_parse(STRING_VIEW plain_text, bool use_bigint, size_t bigint
     auto rhs = builder.get();
     if (!rhs.ok())
         rhs.unwrap();
-    *this = std::move(rhs.value());
+    *this = std::move(rhs.unwrap());
 }
 #else
 void manapi::json::_parse(STRING_VIEW plain_text) {

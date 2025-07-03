@@ -331,7 +331,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                         if (builder.is_ready()) {
                             auto res = builder.get();
                             res.unwrap();
-                            _insert_meta_row(parsed, "value", res.value());
+                            _insert_meta_row(parsed, "value", res.unwrap());
                             quotes = false;
                         }
                     }
@@ -427,22 +427,22 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 
                     if (ntype == json::type_decimal)
                     {
-                        parsed_buff = builder.get().value().as_decimal_cast();
+                        parsed_buff = builder.get().unwrap().as_decimal_cast();
                     }
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
                     else if (ntype == json::type_bigint)
                     {
-                        parsed_buff = builder.get().value().as_bigint_cast();
+                        parsed_buff = builder.get().unwrap().as_bigint_cast();
                     }
 #endif
                     else if (ntype == json::type_boolean)
                     {
-                        parsed_buff = builder.get().value().as_bool_cast();
+                        parsed_buff = builder.get().unwrap().as_bool_cast();
                     }
                     else
                     {
                         // others
-                        parsed_buff = builder.get().value().as_integer_cast();
+                        parsed_buff = builder.get().unwrap().as_integer_cast();
                     }
 
                     switch (compare_type) {

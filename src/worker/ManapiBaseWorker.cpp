@@ -186,7 +186,7 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
         if (total == size)
             break;
 
-        slice = slice.subslice(rhs).value();
+        slice = slice.subslice(rhs).unwrap();
         //
         // while (nbuff && rhs >= buffptr->len) {
         //     rhs -= buffptr->len;

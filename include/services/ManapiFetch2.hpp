@@ -84,11 +84,11 @@ namespace manapi::net {
             return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
         }
 
-        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(char *, ssize_t)>> body, async::cancellation_action cancellation = nullptr) {
+        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)>> body, async::cancellation_action cancellation = nullptr) {
             fetch2 response (std::move(url), std::move(cancellation));
-            if (body.has_value()) {
+            if (body)
                 response.fetchdata->data.async_body(std::move(body.value()));
-            }
+
             response.setup_fetch(std::move(params));
             co_await response.response();
             co_return std::move(response);
@@ -117,7 +117,7 @@ namespace manapi::net {
             return this->fetchdata->data.headers();
         }
 
-        manapi::future<> callback_async (std::function<manapi::future<ssize_t>(char *buffer, ssize_t size)> cb) {
+        manapi::future<> callback_async (std::function<manapi::future<ssize_t>(slice_view buffs, bool fin)> cb) {
             if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "fetch2 must be initialized fetch2::fetch(...) only"); }
             this->fetchdata->data.handle_async_body(std::move(cb));
             this->fetchdata->flags |= FETCH2_DATA_FLAG_RESULT;
@@ -152,7 +152,7 @@ namespace manapi::net {
                 catch (...) {}
                 return -1;
             });
-            co_return builder.get().value();
+            co_return builder.get().unwrap();
         }
     private:
         template<typename T>
@@ -258,7 +258,7 @@ namespace manapi::net {
                             -> manapi::future<std::exception_ptr> {
 
                             try {
-                                co_await fetchdata->data.async_doit();
+                                (co_await fetchdata->data.async_doit()).unwrap();
                             }
                             catch (...) {
                                 reject(std::current_exception());

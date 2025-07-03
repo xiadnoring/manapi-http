@@ -178,7 +178,7 @@ manapi::future<ssize_t> manapi::filesystem::fstream::fread(manapi::slice_view sl
     ssize_t total = 0;
 
     while (total != slice.size()) {
-        auto rhs = co_await this->read(slice.subslice(total).value());
+        auto rhs = co_await this->read(slice.subslice(total).unwrap());
         if (rhs < 0)
             co_return -1;
 
