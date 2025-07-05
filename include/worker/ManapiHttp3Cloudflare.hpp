@@ -54,7 +54,7 @@ namespace manapi::net::worker {
 
         ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) override;
 
-        void close_connection(shared_conn conn, bool clean_disconnect) override;
+        void close_connection(shared_conn conn, int flags) override;
 
         void configure_connection(const shared_conn &conn, oncont_cb cb) override;
 

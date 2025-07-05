@@ -2,7 +2,7 @@
 
 #include "ManapiJsonBuilder.hpp"
 #include "encoding/ManapiUnicode.hpp"
-#include "ManapiUtils.hpp"
+#include "include/ManapiUtils.hpp"
 #include "include/ManapiJsonMaskUtils.hpp"
 
 enum json_builder_callbacks {

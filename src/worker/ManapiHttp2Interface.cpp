@@ -3,6 +3,7 @@
 #include "http/ManapiHttp2.hpp"
 #include "worker/ManapiHttp1Interface.hpp"
 #include "ManapiHttpResponse.hpp"
+#include "../include/ManapiUtils.hpp"
 
 extern manapi::net::worker::http_v2_callbacks_t default_wrk_http2_callbacks;
 
@@ -39,7 +40,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                     manapi::net::http::http_v2_on_close (http_v2_ctx);
                     if (http_v2_ctx->streams->empty()) {
                         http_v2_ctx->conn = nullptr;
-                        w->close_connection(conn, true);
+                        w->close_connection(conn, 0);
                     }
                     break;
                 }
@@ -89,7 +90,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                                             auto const sdata = sconn->as<manapi::net::http::http_v2_stream_t>();
                                             auto ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *>(conn->wrk.data);
 
-                                            ctx->gctx->worker->close_connection(sconn, ok);
+                                            ctx->gctx->worker->close_connection(sconn, ok ? 0 : manapi::net::worker::CLOSE_CONN_ERR);
 
                                             manapi::net::http::http_v2_on_close_stream(ctx->ctx.get(), sdata->id);
 
@@ -100,7 +101,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                                                         /* error */
                                                     }
                                                     ctx->ctx->conn = nullptr;
-                                                    w->close_connection(conn, true);
+                                                    w->close_connection(conn, 0);
                                                 }
                                                 else {
                                                     w->waiting(conn, true);
@@ -136,7 +137,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
         if (http_v2_ctx->streams->empty()) {
             w->waiting(conn, true);
             http_v2_ctx->conn = nullptr;
-            w->close_connection(conn, false);
+            w->close_connection(conn, manapi::net::worker::CLOSE_CONN_ERR);
         }
     }
     return 0;

@@ -15,6 +15,8 @@
 #   include <ws2tcpip.h>
 #endif
 
+#include "../include/ManapiUtils.hpp"
+
 manapi::ev::io_cb pio_ready_mk_(int flags, int fd,manapi::async::promise<int>::resolve_t resolve, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
     return [flags, resolve = std::move(resolve), reject = std::move(reject), cancellation = std::move(cancellation)]
         (std::shared_ptr<manapi::ev::io> &w, int status, int revents) mutable

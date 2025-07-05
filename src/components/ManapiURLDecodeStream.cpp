@@ -6,7 +6,7 @@
 
 #include "ManapiDebug.hpp"
 #include "encoding/ManapiUnicode.hpp"
-#include "ManapiUtils.hpp"
+#include "../include/ManapiUtils.hpp"
 
 manapi::net::http::url_decode_stream::url_decode_stream() : hex_symbols{'\0','\0'} {
     this->hex_index = -1;

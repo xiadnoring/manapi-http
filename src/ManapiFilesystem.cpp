@@ -19,7 +19,7 @@
 
 #include <fcntl.h>
 #include <cstring>
-
+#include "include/ManapiUtils.hpp"
 #include "ManapiBeforeDelete.hpp"
 #include "ManapiString.hpp"
 #include "include/ManapiDefaultErrors.hpp"

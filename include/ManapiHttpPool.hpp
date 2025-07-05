@@ -14,7 +14,6 @@
 #include "ManapiJson.hpp"
 #include "ManapiSite.hpp"
 #include "http/ManapiSiteCtx.hpp"
-
 #include "services/ManapiTask.hpp"
 #include "worker/ManapiBaseWorker.hpp"
 #include "http/ManapiBaseHttp.hpp"

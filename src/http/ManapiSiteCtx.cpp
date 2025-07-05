@@ -1,4 +1,5 @@
 #include "http/ManapiSiteCtx.hpp"
+#include "../include/ManapiUtils.hpp"
 
 manapi::net::http::server_ctx::server_ctx() {
     this->data_ = std::make_shared<data_t>();

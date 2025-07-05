@@ -1,5 +1,5 @@
 #include "ManapiBeforeDelete.hpp"
-
+#include "include/ManapiUtils.hpp"
 #include <utility>
 
 manapi::before_delete::before_delete(nullptr_t) {

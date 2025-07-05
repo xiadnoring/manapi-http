@@ -1,5 +1,5 @@
 #include "ManapiMath.hpp"
-#include "ManapiUtils.hpp"
+#include "include/ManapiUtils.hpp"
 
 #include <random>
 

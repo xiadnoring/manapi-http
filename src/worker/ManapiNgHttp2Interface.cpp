@@ -1,4 +1,5 @@
 #include "../include/worker/ManapiNgHttp2Interface.hpp"
+#include "../include/ManapiUtils.hpp"
 
 #if MANAPIHTTP_NGHTTP2_DEPENDENCY
 
@@ -96,7 +97,7 @@ void ng_wrk_http2_on_close (const manapi::net::worker::shared_conn &conn) {
 
 void ng_wrk_http2_rst_streams (manapi::net::worker::ng_wrk_http2_ctx_t *ctx) {
     for (const auto &s : ctx->streams) {
-        ctx->gctx->worker->close_connection(s.second, false);
+        ctx->gctx->worker->close_connection(s.second, manapi::net::worker::CLOSE_CONN_ERR);
     }
 }
 
@@ -276,7 +277,7 @@ int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const nghttp2
                                         auto const sdata = sconn->as<http_v2_stream_t>();
                                         auto ctx = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(conn->wrk.data);
 
-                                        ctx->gctx->worker->close_connection(sconn, ok);
+                                        ctx->gctx->worker->close_connection(sconn, ok ? 0 : manapi::net::worker::CLOSE_CONN_ERR);
                                         auto it = ctx->streams.find(sdata->id);
                                         assert(it != ctx->streams.end());
                                         ng_wrk_http2_on_stream_close_callback(ctx->ctx.get(),  sdata->id, 0,

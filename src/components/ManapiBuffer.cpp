@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <utility>
 
-#include "ManapiUtils.hpp"
+#include "../include/ManapiUtils.hpp"
 #include "async/ManapiAsyncContext.hpp"
 #include "async/ManapiAsyncTools.hpp"
 

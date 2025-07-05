@@ -15,6 +15,7 @@ namespace manapi::net::worker {
         OpenSSL_TLS (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config);
         ~OpenSSL_TLS ();
         static std::shared_ptr<worker::OpenSSL_TLS> create (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config);
+        void stop(std::function<void()> cb) override;
     protected:
         bool ssl_is_init_fininshed_ (void *ssl) override;
         int ssl_get_error_ (void *ssl, int rhs) override;
@@ -32,6 +33,8 @@ namespace manapi::net::worker {
         bool recv_setup_connection(connection_interface *storage) override;
         void* ssl_create_context (size_t version) override;
         void ssl_configure_context () override;
+
+        manapi::timer cache_cleaner;
     };
 }
 #endif

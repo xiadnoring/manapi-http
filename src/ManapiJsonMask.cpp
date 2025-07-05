@@ -4,7 +4,7 @@
 
 #include "async/ManapiAsyncContext.hpp"
 #include "ManapiDebug.hpp"
-#include "ManapiUtils.hpp"
+#include "include/ManapiUtils.hpp"
 #include "ManapiJsonBuilder.hpp"
 #include "encoding/ManapiUnicode.hpp"
 #include "include/ManapiJsonMaskUtils.hpp"

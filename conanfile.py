@@ -175,7 +175,7 @@ class ManapiHttpConan(ConanFile):
             self.requires("libcurl/[>=8.12.1 <9]")
 
         if self.options.get_safe('openssl_dependency', False):
-            self.requires("openssl/[>=3.3.2 <4]")
+            self.requires("openssl/[>=3.5.1 <4]")
 
         if self.options.get_safe('wolfssl_dependency', False):
             self.requires("wolfssl/[>=5.0.0]")

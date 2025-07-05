@@ -1,7 +1,7 @@
 #pragma once
 
 #include "./AsyncPostgreField.hpp"
-#include "../../ManapiUtils.hpp"
+#include "../../../src/include/ManapiUtils.hpp"
 
 namespace manapi::ext::pq {
 #include "libpq-events.h"

@@ -436,6 +436,11 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/ManapiNgHttp2Interface.cpp
         src/worker/ManapiQuicNgTcp2.cpp
         src/include/ManapiJsonMaskUtils.hpp
+        src/include/ManapiDebug.hpp
+        include/ManapiUtils.hpp
+        src/crypto/ManapiAEAD.cpp
+        src/crypto/ManapiHKDF.cpp
+        src/crypto/ManapiAES.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

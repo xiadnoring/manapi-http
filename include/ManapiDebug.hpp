@@ -1,51 +1,38 @@
 #pragma once
 
-#include <string>
-#include <format>
-#include <iostream>
-#include <fstream>
+namespace manapi::debug {
 
-#include "ManapiErrors.hpp"
-#include "ManapiUtils.hpp"
-#include "ManapiTime.hpp"
 
-#include "async/ManapiAsyncLogger.hpp"
+    typedef enum {
+        LOG_TRACE,
+        LOG_DEBUG,
+        LOG_INFO,
+        LOG_WARN,
+        LOG_ERROR,
+        LOG_FATAL
+    } log_level;
 
-#if _MSC_VER
-#   define MANAPIHTTP_LOG(msg, ...) manapi::debug::_log (manapi::async::current()->logger(), __LINE__, __FILE__, __FUNCTION__, manapi::ERR_OK, msg, __VA_ARGS__)
-#   define MANAPIHTTP_LOG2(msg) manapi::debug::_log (manapi::async::current()->logger(), __LINE__, __FILE__, __FUNCTION__, manapi::ERR_OK, msg);
-#   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, msg, __VA_ARGS__)
-#   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE__, __FUNCTION__, errnum, msg)
+    static const char* level_strings[] = {
+        "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
+    };
+
+#ifdef LOG_NO_COLOR
+    static const char* level_colors[] = {
+        "", "", "", "", "", ""
+    };
 #else
-#   define MANAPIHTTP_LOG(msg, ...) manapi::debug::_log (manapi::async::current()->logger(), __LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_OK, msg, __VA_ARGS__)
-#   define MANAPIHTTP_LOG2(msg) manapi::debug::_log (manapi::async::current()->logger(), __LINE__, __FILE_NAME__, __FUNCTION__, manapi::ERR_OK, msg);
-#   define RETHROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg, __VA_ARGS__)
-#   define RETHROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) manapi::debug::_error (__LINE__, __FILE_NAME__, __FUNCTION__, errnum, msg)
+    static const char* level_colors[] = {
+        "\x1b[94m", "\x1b[36m", "\x1b[32m", "\x1b[33m", "\x1b[31m", "\x1b[35m"
+    };
 #endif
 
-#define THROW_MANAPIHTTP_EXCEPTION(errnum, msg, ...) throw RETHROW_MANAPIHTTP_EXCEPTION (errnum, msg, __VA_ARGS__)
-#define THROW_MANAPIHTTP_EXCEPTION2(errnum, msg, ...) throw RETHROW_MANAPIHTTP_EXCEPTION2 (errnum, msg)
+    void log_log(log_level level, const char* file, int line, const char* fmt, ...);
 
-namespace manapi::debug {
-    template <class... Args>
-    void _log (const std::shared_ptr<manapi::logger> &logger, size_t line, std::string file_name, std::string func, err_num errnum, std::string format, Args&& ...args)
-    {
-        const std::size_t n = sizeof...(Args);
-        auto msg = std::format ("{}() ({}:{}): ", func, file_name, line) + (n ? std::vformat(format, std::make_format_args(args...)) : format);
-        logger->debug(manapi::logger::default_service, std::move(msg));
-    }
-
-    template <class... Args>
-    manapi::exception _error (size_t line, std::string file_name, std::string func, err_num errnum, std::string format, Args&& ...args)
-    {
-        const std::size_t n = sizeof...(Args);
-        //auto msg = std::format ("[{:%H:%M:%S}][{}]: {}() ({}:{}): ", time::current_time(true), static_cast<size_t>(errnum), func, file_name, line);
-        auto information = n ? std::vformat(format, std::make_format_args(args...)) : std::move(format);
-
-        //msg += information;
-
-        //logger->error(manapi::logger::default_service, static_cast<int>(errnum), std::move(msg));
-
-        return std::move(manapi::exception (errnum, std::move(information)));
-    }
+    // Convenience macros
+#define manapi_log_trace(...) manapi::debug::log_log(manapi::debug::LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_debug(...) manapi::debug::log_log(manapi::debug::LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_info(...)  manapi::debug::log_log(manapi::debug::LOG_INFO,  __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_warn(...)  manapi::debug::log_log(manapi::debug::LOG_WARN,  __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_error(...) manapi::debug::log_log(manapi::debug::LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_fatal(...) manapi::debug::log_log(manapi::debug::LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__)
 }

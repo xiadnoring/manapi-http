@@ -1,7 +1,9 @@
 #pragma once
 
-#include "uv.h"
+#include <type_traits>
+#include <memory>
 
+#include "uv.h"
 #include "../ManapiDebug.hpp"
 
 #ifdef _WIN32

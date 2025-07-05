@@ -12,6 +12,7 @@
 
 #include "crypto/ManapiAEAD.hpp"
 #include "ManapiHash.hpp"
+#include "ManapiInitTools.hpp"
 #include "ManapiProcess.hpp"
 #include "ManapiString.hpp"
 #include "async/ManapiAsyncTimer.hpp"
@@ -20,6 +21,7 @@
 //#include "extensions/pq/AsyncPostgreClient.hpp"
 
 int main () {
+    manapi::init_tools::ssl_library_init();
     int threads = 2;
     try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }
     catch (...) {  }
@@ -67,13 +69,6 @@ int main () {
 
         router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
-            int z =5;
-            z += 4;
-            int c = 2;
-            c --;
-            c--;
-            z /= c;
-            a.fetch_add(1);
             co_return resp.text("");
         });
 
@@ -83,10 +78,8 @@ int main () {
                 {"method", "GET"},
                 {"http", "2"},
                 {"verify_peer", false},
-                {"verify_host", false},
-                {"alpn", false}
-            },
-                manapi::async::cancellation_action::unit(req.cancellation()));
+                {"verify_host", false}
+            }, req.cancellation().sub());
             if (!f.ok()) {
                 std::string s = "error: ";
                 s += std::to_string(f.status());
@@ -127,6 +120,14 @@ int main () {
                 co_return buffs.size();
             });
             co_return resp.text(std::to_string(res));
+        });
+
+        router.GET ("/free", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            manapi::init_tools::ev_library_init();
+            manapi::async::current()->memory_fabric().clear();
+            resp.compress_enabled(false);
+            co_return resp.text(std::to_string(a.load()));
         });
 
         router.GET ("/stat", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)

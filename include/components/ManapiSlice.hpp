@@ -4,6 +4,7 @@
 #include "ManapiChain.hpp"
 #include "../components/ManapiEventStructures.hpp"
 #include "../ManapiUtils.hpp"
+#include "ManapiErrors.hpp"
 
 namespace manapi {
     class slice_base;

@@ -5,7 +5,7 @@
 #include "worker/ManapiBaseWorker.hpp"
 #include "worker/ManapiTcp.hpp"
 #include "worker/ManapiOpenSslOverTcp.hpp"
-#include "ManapiUtils.hpp"
+#include "include/ManapiUtils.hpp"
 
 #include "services/ManapiTaskFunction.hpp"
 #include "services/ManapiThreadPool.hpp"
@@ -35,12 +35,7 @@ namespace manapi::net {
 manapi::net::http::http_handler_function manapi::net::http::site::default_error_handler
     = {
     .handler = [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-        co_return resp.text(std::format("<html>\n\t<head>\n\t\t"
-                            "<title>{0} {1}</title>\n\t</head>\n\t<body>\n\t\t<center>\n\t\t\t"
-                            "<h1>{0} {1}</h1>\n\t\t</center>\n\t\t<hr>\n\t\t"
-                            "<center>{3}/{2}</center>\n\t"
-                            "</body>\n</html>", resp.status_code(),
-                            resp.status_message(), MANAPIHTTP_VERSION, MANAPIHTTP_NAME));
+        co_return resp.text(http::internal::generate_default_page(resp.status_code(), resp.status_message()));
     },
     .post_mask = nullptr,
     .get_mask = nullptr,

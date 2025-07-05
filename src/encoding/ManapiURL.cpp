@@ -1,5 +1,5 @@
 #include "encoding/ManapiURL.hpp"
-#include "ManapiUtils.hpp"
+#include "../include/ManapiUtils.hpp"
 #include "encoding/ManapiUnicode.hpp"
 
 const std::set<char> manapi::encoding::url_allowed_symbols = {'-', '_', '.', '~', '!', '*', '\'', '(', ')', ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '.', '#', '[', ']', '%'};

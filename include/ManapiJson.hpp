@@ -4,6 +4,9 @@
 #include <map>
 #include <functional>
 #include <vector>
+#include <stack>
+#include <deque>
+#include <set>
 
 #include "ManapiUtils.hpp"
 #include "ManapiBigint.hpp"

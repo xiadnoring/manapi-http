@@ -53,7 +53,7 @@ namespace manapi::net::worker {
 
         virtual shared_conn accept (ev::shared_tcp &w);
 
-        void close_connection(shared_conn conn, bool clean_disconnect) override;
+        void close_connection(shared_conn conn, int flags) override;
 
         void stop(std::function<void()> cb) override;
 

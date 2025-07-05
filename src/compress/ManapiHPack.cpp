@@ -5,6 +5,7 @@
 #include "async/ManapiAsyncContext.hpp"
 #include "ManapiErrors.hpp"
 #include "ManapiDebug.hpp"
+#include "../include/ManapiUtils.hpp"
 
 #define T true
 #define F false

@@ -1,7 +1,7 @@
 #include <memory.h>
 
 #include "components/ManapiFormData.hpp"
-
+#include "../include/ManapiUtils.hpp"
 #include "ManapiFilesystem.hpp"
 #include "http/ManapiHttpUtils.hpp"
 #include "ManapiHttpMime.hpp"

@@ -1,7 +1,7 @@
 #include <format>
 #include <fstream>
 #include <memory.h>
-
+#include "include/ManapiUtils.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "ManapiJsonBuilder.hpp"
 #include "ManapiHttpMime.hpp"

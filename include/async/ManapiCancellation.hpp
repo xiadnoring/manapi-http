@@ -13,6 +13,8 @@ namespace manapi::async {
 
         static cancellation_action unit (cancellation_action cancellation);
 
+        cancellation_action sub () const;
+
         cancellation_action (cancellation_action &&n) noexcept;
 
         cancellation_action &operator=(cancellation_action &&n) noexcept;

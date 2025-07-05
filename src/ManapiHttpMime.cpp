@@ -1,5 +1,5 @@
 #include "ManapiHttpMime.hpp"
-
+#include "include/ManapiUtils.hpp"
 #include "ManapiFilesystem.hpp"
 
 const std::map <std::string, std::string> manapi::mime::mime_by_extension = {

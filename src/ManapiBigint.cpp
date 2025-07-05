@@ -1,4 +1,4 @@
-#include "ManapiUtils.hpp"
+#include "include/ManapiUtils.hpp"
 #include "ManapiBigint.hpp"
 
 #if MANAPIHTTP_GMP_DEPENDENCY
@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <memory.h>
 #include <codecvt>
-
+#include "include/ManapiUtils.hpp"
 #include "./ManapiErrors.hpp"
 #include "./ManapiJson.hpp"
 #include "./ManapiTime.hpp"

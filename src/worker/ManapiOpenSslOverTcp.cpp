@@ -3,6 +3,7 @@
 #include "ManapiParams.hpp"
 #include "async/ManapiAsyncSocket.hpp"
 #include "ManapiInitTools.hpp"
+#include "../include/ManapiUtils.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 
@@ -20,14 +21,147 @@
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/bio.h>
+#include <openssl/engine.h>
 
-#include "ManapiUtils.hpp"
+#include "../include/ManapiUtils.hpp"
 
 struct ssl_bio_deleter_t {
     void operator() (BIO *b) {
         BIO_free(b);
     }
 };
+
+struct ssl_manapi_bio_deleter_t {
+    void operator() (BIO_METHOD *b) {
+        BIO_meth_free(b);
+    }
+};
+
+struct manapi_bio_data_t {
+    manapi::slice s;
+};
+
+int manapi_bio_write(BIO *bio, const char *buf, int size) {
+    auto d = static_cast<manapi_bio_data_t *>(BIO_get_data(bio));
+    if (!d || size < 0) return -1;
+    auto err = d->s.push_back(buf, size);
+    if (!err.ok()) {
+        manapi_log_error("openssl: slice:push_back() failed: %s", err.msg().data());
+        return -1;
+    }
+    BIO_set_retry_write(bio);
+    return size;
+}
+int manapi_bio_read(BIO *bio, char *buf, int size) {
+    auto d = static_cast<manapi_bio_data_t *>(BIO_get_data(bio));
+    if (!d || size < 0) return -1;
+    auto copy = std::min<std::size_t>(size, d->s.size());
+    auto err =d->s.copy_to(buf, 0, copy);
+    if (!err.ok()) {
+        manapi_log_error("openssl: slice:copy_to() failed: %s", err.msg().data());
+        return -1;
+    }
+    err = d->s.shift_add(copy);
+    if (!err.ok()) {
+        manapi_log_error("openssl: slice:shift_add() failed: %s", err.msg().data());
+        return -1;
+    }
+    if (!d->s.empty())
+        BIO_set_retry_read(bio);
+    return copy;
+}
+
+long manapi_bio_ctrl(BIO *bio, int cmd, long arg1, void *arg2) {
+    switch (cmd) {
+        case BIO_CTRL_FLUSH:
+            return 1;
+        case BIO_CTRL_PUSH:
+        case BIO_CTRL_POP:
+            return 0;
+        default:
+            return 0;
+    }
+}
+int manapi_bio_create(BIO *bio) {
+    auto data = new manapi_bio_data_t ();
+    if (!data) return 0;
+    BIO_set_data(bio, data);
+    BIO_set_init(bio, 1);
+    return 1;
+}
+int manapi_bio_destroy(BIO *bio) {
+    std::unique_ptr<manapi_bio_data_t> data;
+    data.reset(static_cast<manapi_bio_data_t *>(BIO_get_data(bio)));
+    if (!data)
+        return 1;
+    BIO_set_data(bio, nullptr);
+    data->s.clear();
+    return 1;
+}
+long manapi_bio_callback_ctrl(BIO *bio, int cmd, BIO_info_cb *fp) {
+    return 0;
+}
+
+int manapi_bio_write_ex (BIO *bio, const char *buf, std::size_t size, std::size_t *res) {
+    auto const rhs = manapi_bio_write(bio, buf, static_cast<int>(size));
+    if (rhs < 0) return 0;
+    if (res)
+        *res = static_cast<std::size_t>(rhs);
+    return 1;
+}
+
+int manapi_bio_read_ex (BIO *bio, char *buf, std::size_t size, std::size_t *res) {
+    auto const rhs = manapi_bio_read(bio, buf, static_cast<int>(size));
+    if (rhs < 0) return 0;
+    if (res)
+        *res = static_cast<std::size_t>(rhs);
+    return 1;
+}
+
+int manapi_bio_puts (BIO *bio, const char *buf) {
+    return manapi_bio_write(bio, buf, static_cast<int>(strlen(buf)));
+}
+
+int manapi_bio_gets (BIO *bio, char *buf, int size) {
+    if (size <= 0) return -1;
+    auto const rhs = manapi_bio_read(bio, buf, size - 1);
+    if (rhs < 0)
+        return rhs;
+    buf[rhs] = '\0';
+    return rhs;
+}
+
+int manapi_bio_recvmmsg(BIO *, BIO_MSG *, size_t, size_t, uint64_t, size_t *) {
+    return 0;
+}
+
+int manapi_bio_sendmmsg(BIO *, BIO_MSG *, size_t, size_t, uint64_t, size_t *) {
+    return 0;
+}
+
+BIO_METHOD *BIO_manapi_mem () noexcept {
+    auto c = BIO_meth_new(BIO_TYPE_MEM, "ManapiOpenSslBio");
+    if (!c) return nullptr;
+
+    if (!BIO_meth_set_write(c, manapi_bio_write)
+        ||!BIO_meth_set_read(c, manapi_bio_read)
+        ||!BIO_meth_set_ctrl(c, manapi_bio_ctrl)
+        ||!BIO_meth_set_create(c, manapi_bio_create)
+        ||!BIO_meth_set_destroy(c, manapi_bio_destroy)
+        ||!BIO_meth_set_callback_ctrl(c, manapi_bio_callback_ctrl)
+        ||!BIO_meth_set_write_ex(c, manapi_bio_write_ex)
+        ||!BIO_meth_set_read_ex(c, manapi_bio_read_ex)
+        ||!BIO_meth_set_puts(c, manapi_bio_puts)
+        ||!BIO_meth_set_gets(c, manapi_bio_gets)
+        ||!BIO_meth_set_recvmmsg(c, manapi_bio_recvmmsg)
+        ||!BIO_meth_set_sendmmsg(c, manapi_bio_sendmmsg)) {
+        BIO_meth_free(c);
+        return nullptr;
+    }
+
+    return c;
+}
 
 manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
     this->ssl_error_none_ = SSL_ERROR_NONE;
@@ -38,8 +172,6 @@ manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::http::site site, std::shared_
     this->ssl_error_ssl_ = SSL_ERROR_SSL;
     this->ssl_recv_shutdown_ = SSL_RECEIVED_SHUTDOWN;
     this->ssl_send_shutdown_ = SSL_SENT_SHUTDOWN;
-
-    init_tools::ssl_library_init();
 }
 
 manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
@@ -50,6 +182,12 @@ std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_T
     auto worker = std::make_shared<worker::OpenSSL_TLS>(std::move(site), std::move(wdata), config.get());
     worker->self_ = worker;
     return std::move(worker);
+}
+
+void manapi::net::worker::OpenSSL_TLS::stop(std::function<void()> cb) {
+    this->cache_cleaner.stop();
+    this->cache_cleaner = nullptr;
+    TLS::stop(std::move(cb));
 }
 
 bool manapi::net::worker::OpenSSL_TLS::ssl_is_init_fininshed_(void *ssl) {
@@ -63,7 +201,7 @@ int manapi::net::worker::OpenSSL_TLS::ssl_get_error_(void *ssl, int rhs) {
 
 int manapi::net::worker::OpenSSL_TLS::ssl_accept_(void *ssl) {
     ERR_clear_error();
-    return SSL_accept(static_cast<SSL*>(ssl));
+    return SSL_do_handshake(static_cast<SSL*>(ssl));
 }
 
 void * manapi::net::worker::OpenSSL_TLS::ssl_new_(void *ctx) {
@@ -110,14 +248,12 @@ bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(connection_interfac
     ERR_clear_error();
 
     data->wbio = BIO_new(BIO_s_mem());
-    if (!data->wbio) {
+    if (!data->wbio)
         goto err;
-    }
 
     data->rbio = BIO_new(BIO_s_mem());
-    if (!data->rbio) {
+    if (!data->rbio)
         goto err;
-    }
 
     SSL_set_accept_state(static_cast<SSL*>(data->ssl));
 
@@ -129,7 +265,15 @@ err:
 }
 
 void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
-    auto cipher_list = this->config_->get_config_param<std::string>(this->config_->ssl, "cipher_list", {});
+    auto const cipher_list = this->config_->get_config_param<std::string>(this->config_->ssl, "cipher_list", {});
+    auto const ssl_v2 = this->config_->get_config_param<bool>(this->config_->ssl, "ssl_v2", false);
+    auto const ssl_v3 = this->config_->get_config_param<bool>(this->config_->ssl, "ssl_v3", true);
+    auto const ticket = this->config_->get_config_param<bool>(this->config_->ssl, "ticket", true);
+    auto const sess_timeout = this->config_->get_config_param<uint32_t>(this->config_->ssl, "sess_timeout", 300);
+    auto const sess_cache = this->config_->get_config_param<bool>(this->config_->ssl, "sess_cache", false);
+    auto const sess_cache_size = this->config_->get_config_param<uint32_t>(this->config_->ssl, "sess_cache_size", 1024 * 20);
+
+    this->ssl_session_ctx_id = 1;
 
     const SSL_METHOD *method;
     SSL_CTX *ctx;
@@ -171,21 +315,35 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
 
 
     //SSL_CTX_set_max_early_data(ctx, 16384);
-    SSL_CTX_clear_options(ctx, SSL_OP_NO_COMPRESSION);
-    SSL_CTX_set_min_proto_version(ctx, 0);
-    SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+    SSL_CTX_set_options(ctx, SSL_OP_NO_COMPRESSION);
+    // SSL_CTX_set_min_proto_version(ctx, 0);
+    // SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
 
     // SSL_CTX_set_max_send_fragment(ctx, this->config->buffer_size());
     // SSL_CTX_set_default_read_buffer_len(ctx, this->config->buffer_size());
+    if (!ssl_v2)
+        SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
+    if (!ssl_v3)
+        SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv3);
+    if (!ticket)
+        SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
 
-    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_TICKET);
-    //SSL_CTX_set_session_id_context(ctx, reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id));
+    if (sess_cache) {
+        SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_SERVER);
 
-    long cache_mode = SSL_SESS_CACHE_SERVER;
+        if (!SSL_CTX_set_session_id_context(ctx,
+            reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id)))
+            goto err;
+    }
+    else {
+        SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+    }
 
-    SSL_CTX_set_timeout(ctx, 86400000);
-    SSL_CTX_set_session_cache_mode(ctx, cache_mode);
+    //long cache_mode = SSL_SESS_CACHE_SERVER;
+    SSL_CTX_sess_set_cache_size(ctx, sess_cache_size);
 
+    if (!SSL_CTX_set_timeout(ctx, sess_timeout))
+        goto err;
 
     if (single_dh_use)
         SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
@@ -229,6 +387,11 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
 
         return -1;
     }, this);
+
+    this->cache_cleaner = manapi::async::current()->timerpool()->append_timer_sync(
+        10000, [ctx](manapi::timer t)->void {
+        SSL_CTX_flush_sessions_ex(ctx, ::time(0));
+    });
 
     return ctx;
 err:

@@ -12,7 +12,7 @@
 #include <thread>
 #include <unordered_map>
 #include <fcntl.h>
-
+#include "include/ManapiUtils.hpp"
 #include "ManapiHttpPool.hpp"
 #include "services/ManapiTaskFunction.hpp"
 #include "http/ManapiHttp1.hpp"

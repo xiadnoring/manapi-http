@@ -26,6 +26,7 @@ namespace manapi::net::http::internal {
 
     typedef std::unique_ptr<handle_data_t> uq_handle_data_t;
 
+    std::string generate_default_page (int status, std::string_view msg);
     void send_response (uq_handle_data_t cdata, std::unique_ptr<response> res);
     future<void> send_response_file (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
     future<void> send_response_text (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);

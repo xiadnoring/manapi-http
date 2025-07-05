@@ -4,7 +4,7 @@
 #include <string>       // std::string
 
 #include "ManapiString.hpp"
-
+#include "include/ManapiUtils.hpp"
 #include "ManapiDebug.hpp"
 #include "ManapiMath.hpp"
 

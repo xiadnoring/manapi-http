@@ -1,4 +1,5 @@
 #include "ManapiHttpTypes.hpp"
+#include "include/ManapiUtils.hpp"
 
 static const std::map<std::size_t, std::string_view> status_to_string_map = {
     {100, manapi::net::http::STATUS.CONTINUE_100},

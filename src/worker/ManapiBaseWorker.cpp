@@ -5,6 +5,7 @@
 #endif
 #include <fcntl.h>
 #include <memory>
+#include "../include/ManapiUtils.hpp"
 
 struct wb_write_ctx_t {
     using promise = manapi::async::promise<ssize_t, std::false_type>;
@@ -21,11 +22,25 @@ manapi::net::worker::base::base() = default;
 
 manapi::net::worker::base::~base() = default;
 
+ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, manapi::slice_view buffs, bool finish, int maxcnt) {
+    uint32_t const count = buffs.slices_size();
+    ev::buff_t slices[count];
+    buffs.slices_buffs(slices);
+    return this->sync_write_ex(conn, slices, count, static_cast<ssize_t>(buffs.size()), finish, maxcnt);
+}
+
 ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) {
     ev::buff_t buffs;
     buffs.base = (char*)(buff);
     buffs.len = static_cast<std::size_t> (size);
     return this->sync_write_ex(conn, &buffs, 1, size, finish, maxcnt);
+}
+
+ssize_t manapi::net::worker::base::sync_write(const shared_conn &conn, slice_view buffs, bool finish) {
+    uint32_t const count = buffs.slices_size();
+    ev::buff_t slices[count];
+    buffs.slices_buffs(slices);
+    return this->sync_write(conn, slices, count, finish);
 }
 
 ssize_t manapi::net::worker::base::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
@@ -36,64 +51,10 @@ ssize_t manapi::net::worker::base::sync_write(const shared_conn &conn, const voi
 }
 
 manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
-    using promise = manapi::async::promise<ssize_t, std::false_type>;
-
-    auto rhs = this->sync_write(conn, buff, size, finish);
-
-    if (rhs)
-        co_return rhs;
-
-    int prev_flags;
-    std::unique_ptr<worker_watcher_cb> prev_cb;
-
-    this->waiting(conn, true);
-
-    try {
-        rhs = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
-            -> void {
-            prev_cb = this->event_on(conn, std::make_unique<worker_watcher_cb>([this, buff, size, finish, resolve = std::move(resolve), reject = std::move(reject)]
-                (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) -> void {
-                    try {
-                        assert(!buffer && !nsize);
-
-                        if (flags & ev::DISCONNECT) {
-                            resolve(-1);
-                            goto finish;
-                        }
-
-                        if (flags & ev::WRITE) {
-                            auto const rhs = this->sync_write(conn, buff, size, finish);
-                            if (rhs) {
-                                resolve(rhs);
-                                goto finish;
-                            }
-                            return;
-                        }
-                    }
-                    catch (...) {
-                        //reject(std::current_exception());
-                        resolve(-1);
-                        goto finish;
-                    }
-
-                    return;
-                    finish: this->event_flags(conn, 0);
-            }));
-            prev_flags = this->event_flags(conn, ev::WRITE);
-        });
-    }
-    catch (std::exception const &e) {
-        MANAPIHTTP_LOG("write(...) failed due to {}", e.what());
-
-        rhs = -1;
-    }
-
-    this->waiting(conn, false);
-
-    this->event_on(conn, std::move(prev_cb));
-    this->event_flags(conn, prev_flags);
-
-    co_return rhs;
+    ev::buff_t d;
+    d.base = (char*)buff;
+    d.len = size;
+    co_return co_await this->write(conn, &d, 1, finish);
 }
 
 manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) {
@@ -157,6 +118,67 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
     co_return rhs;
 }
 
+manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn, manapi::slice_view buffs, bool finish) {
+    using promise = manapi::async::promise<ssize_t, std::false_type>;
+
+    auto rhs = this->sync_write(conn, buffs, finish);
+
+    if (rhs)
+        co_return rhs;
+
+    int prev_flags;
+    std::unique_ptr<worker_watcher_cb> prev_cb;
+
+    this->waiting(conn, true);
+
+    try {
+        rhs = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject)
+            -> void {
+            prev_cb = this->event_on(conn, std::make_unique<worker_watcher_cb>([this, buffs, finish, resolve = std::move(resolve), reject = std::move(reject)]
+                (const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) -> void {
+                    try {
+                        assert(!buffer && !nsize);
+
+                        if (flags & ev::DISCONNECT) {
+                            resolve(-1);
+                            goto finish;
+                        }
+
+                        if (flags & ev::WRITE) {
+                            auto const rhs = this->sync_write(conn, buffs, finish);
+                            if (rhs) {
+                                resolve(rhs);
+                                goto finish;
+                            }
+                            return;
+                        }
+                    }
+                    catch (...) {
+                        //reject(std::current_exception());
+                        resolve(-1);
+                        goto finish;
+                    }
+
+                    return;
+                    finish: this->event_flags(conn, 0);
+            }));
+            prev_flags = this->event_flags(conn, ev::WRITE);
+        });
+    }
+    catch (std::exception const &e) {
+        MANAPIHTTP_LOG("write(...) failed due to {}", e.what());
+
+        rhs = -1;
+    }
+
+    this->waiting(conn, false);
+
+    this->event_on(conn, std::move(prev_cb));
+    this->event_flags(conn, prev_flags);
+
+    co_return rhs;
+}
+
 manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &conn,const void *buff, ssize_t size, bool finish) {
     ssize_t total = 0;
     ssize_t rhs = 0;
@@ -176,8 +198,7 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
     auto const size = slice.size();
 
     while (total < size) {
-        auto buffs = slice.slices_buffs();
-        rhs = co_await this->write(conn, buffs.get(), slice.slices_size(), finish);
+        rhs = co_await this->write(conn, slice, finish);
         if (rhs <= 0)
             co_return rhs;
 
@@ -429,7 +450,7 @@ void manapi::net::worker::base::feed_event_read_(const shared_conn &conn, worker
     catch (std::exception const &e) {
         MANAPIHTTP_LOG("feed_event failed: {}", e.what());
     }
-    this->close_connection(conn, false);
+    this->close_connection(conn, CLOSE_CONN_ERR);
 }
 
 void manapi::net::worker::base::connection_io_trim(struct connection_io_part *top, buffer_deque *parent, int *cnt) {

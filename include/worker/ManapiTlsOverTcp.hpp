@@ -29,7 +29,7 @@ namespace manapi::net::worker {
 
         shared_conn accept (ev::shared_tcp &w) override;
 
-        void close_connection(shared_conn conn, bool clean_disconnect) override;
+        void close_connection(shared_conn conn, int flags) override;
 
         ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) override;
 
@@ -55,7 +55,19 @@ namespace manapi::net::worker {
 
         virtual int ssl_read_ (void *ssl, void *buff, int size) = 0;
 
+        /**
+         * 
+         * @param ssl SSL connection
+         * @return OK: 1; ERR: not 1
+         */
+
         virtual int ssl_shutdown_ (void *ssl) = 0;
+
+        /**
+         * 
+         * @param ssl SSL connection
+         * @param flags sent/recv
+         */
 
         virtual void ssl_set_shutdown_(void *ssl, int flags) = 0;
 

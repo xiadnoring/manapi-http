@@ -4,6 +4,7 @@
 #include "http/ManapiHttp1.hpp"
 #include "ManapiHttpResponse.hpp"
 #include "ManapiString.hpp"
+#include "../include/ManapiUtils.hpp"
 
 #define HTTP_ALL_SWITCH(namecb, ...) \
 manapi::net::worker::wrk_interface_global_t * httpctx; \
@@ -135,7 +136,7 @@ void default_wrk_http1_custom_read (const manapi::net::worker::shared_conn &conn
             case manapi::net::http::EHTTP_V1_1_CHUNKED_ERR:
                 default: {
                 /* error */
-                w->close_connection(conn, false);
+                w->close_connection(conn, manapi::net::worker::CLOSE_CONN_ERR);
                 break;
             }
         }
@@ -182,23 +183,28 @@ int default_wrk_http1_global_cleanup (manapi::net::worker::wrk_interface_global_
 }
 
 int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+    auto wrk_data = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
+    int status = manapi::net::http::BAD_REQUEST_400;
+
     if (flags & manapi::ev::DISCONNECT)
         goto err;
 
-
     try {
-        auto wrk_data = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
-
         if (flags & manapi::ev::READ) {
-            int status;
+            auto const config = w->config();
             switch (auto const state = manapi::net::http::http_v1_1_work(
-                wrk_data->ctx.get(), w->config(), &buffer, &nsize)) {
+                wrk_data->ctx.get(), config, &buffer, &nsize)) {
                 case manapi::net::http::EHTTP_V1_1_PROTOCOL_PAYLOAD_TOO_LARGE:
                     status = manapi::net::http::PAYLOAD_TOO_LARGE_413;
-                    goto exec;
+                    goto send_error;
 
                 case manapi::net::http::EHTTP_V1_1_PROTOCOL_OK:
                     status = manapi::net::http::OK_200;
+                    if (!config->contains_http_version(manapi::net::http::versions::http::HTTP_v1_1)) {
+                        status = manapi::net::http::UPGRADE_REQUIRED_426;
+                        goto send_error;
+                    }
+
                     goto exec;
 
                 case manapi::net::http::EHTTP_V1_1_PROTOCOL_UPGRADE: {
@@ -211,13 +217,13 @@ int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, c
 
                     switch (wrk_data->ctx->http) {
                         case manapi::net::http::versions::HTTP_v0_9: {
-                            goto err;
+                            goto send_error;
                         }
                         case manapi::net::http::versions::HTTP_v1_0: {
-                            goto err;
+                            goto send_error;
                         }
                         case manapi::net::http::versions::HTTP_v1_1: {
-                            goto err;
+                            goto send_error;
                         }
                         case manapi::net::http::versions::HTTP_v2: {
                             if (httpallctx->http2) {
@@ -227,14 +233,14 @@ int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, c
 
                                 break;
                             }
-                            goto err;
+                            goto send_error;
                         }
                         case manapi::net::http::versions::HTTP_v3: {
                             /* i got you, bro */
-                            goto err;
+                            goto send_error;
                         }
                         default: {
-                            goto err;
+                            goto send_error;
                         }
                     }
 
@@ -248,7 +254,7 @@ int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, c
                     break;
                 }
                 case manapi::net::http::EHTTP_V1_1_PROTOCOL_ERROR: {
-                    goto err;
+                    goto send_error;
                 }
                 case manapi::net::http::EHTTP_V1_1_PROTOCOL_WANT_READ: {
                     /* skip */
@@ -285,7 +291,7 @@ exec:
                         continue;
                     }
 
-                    goto err;
+                    goto send_error;
                 }
             }
 
@@ -293,7 +299,7 @@ exec:
                 dynamic_cast<manapi::net::worker::interface_worker *>(w)->copy(), req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
                 [w, conn, req = std::move(wrk_data->ctx->req)] (bool ok)
                 -> void {
-                    w->close_connection (conn, ok);
+                    w->close_connection (conn, ok ? 0 : manapi::net::worker::CLOSE_CONN_ERR);
             }));
 
             w->event_on(conn, std::unique_ptr<manapi::net::worker::worker_watcher_cb>(nullptr));
@@ -311,26 +317,29 @@ exec:
             }
             wrk_data->ctx.reset();
 
-
             cdata->router = w->site().handler(req_ptr);
             manapi::net::http::internal::handle_income_request(std::move(cdata), status);
-
-            // char constexpr bb[] = "HTTP/1.1 200 OK\r\nContent-Length:0\r\nConnection:keep-alive\r\n\r\n";
-            // ssize_t const copy = sizeof (bb) - 1;
-            // auto const rhs = w->sync_write_ex (conn, bb,
-            //     copy, true, 1e5);
-            // if (copy != rhs) {
-            //     goto err;
-            // }
-            // cdata->cb->call(true);
         }
 
         return manapi::ERR_OK;
     }
     catch (...) {
         /* fatal error */
+
     }
 
+
+    send_error: {
+        auto const msg = manapi::net::http::status_to_string(status);
+        auto const s = manapi::net::http::internal::generate_default_page (status, msg);
+        auto const h = std::format("HTTP/{} {} {}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            manapi::net::http::config::stringify_http_version(conn->version), status, msg, s.size());
+        if (h.size() != w->sync_write_ex(conn, h.data(), h.size(), false, 1e5))
+            goto err;
+        if (s.size() != w->sync_write_ex(conn, s.data(), s.size(), true, 1e5))
+            goto err;
+        w->close_connection (conn, manapi::net::worker::CLOSE_CONN_ERR);
+    }
     err: return manapi::ERR_ABORTED;
 }
 
@@ -344,7 +353,7 @@ void default_wrk_http1_flush_read (const manapi::net::worker::shared_conn &conn,
                 break;
             }
             case manapi::net::http::EHTTP_V1_1_CHUNKED_ERR: {
-                w->close_connection(conn, false);
+                w->close_connection(conn, manapi::net::worker::CLOSE_CONN_ERR);
                 break;
             }
             case manapi::net::http::EHTTP_V1_1_CHUNKED_READ: {

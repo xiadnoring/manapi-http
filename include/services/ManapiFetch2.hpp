@@ -118,14 +118,14 @@ namespace manapi::net {
         }
 
         manapi::future<> callback_async (std::function<manapi::future<ssize_t>(slice_view buffs, bool fin)> cb) {
-            if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "fetch2 must be initialized fetch2::fetch(...) only"); }
+            if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { throw manapi::exception(ERR_INTERNAL, "fetch2 must be initialized fetch2::fetch(...) only"); }
             this->fetchdata->data.handle_async_body(std::move(cb));
             this->fetchdata->flags |= FETCH2_DATA_FLAG_RESULT;
             co_await continue_receiving(this->fetchdata);
         }
 
         manapi::future<> callback_sync (std::function<ssize_t(char *buffer, ssize_t size)> cb) {
-            if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "fetch2 must be initialized fetch2::fetch(...) only"); }
+            if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { throw manapi::exception(ERR_INTERNAL, "fetch2 must be initialized fetch2::fetch(...) only"); }
             this->fetchdata->data.handle_body(std::move(cb));
             this->fetchdata->flags |= FETCH2_DATA_FLAG_RESULT;
             co_await continue_receiving(this->fetchdata);
@@ -227,7 +227,8 @@ namespace manapi::net {
                 }
             }
             catch (std::exception const &e) {
-                THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FAILED_PRECONDITION, "param is invalid: {}", e.what());
+                throw manapi::exception(manapi::ERR_FAILED_PRECONDITION,
+                    std::format("param is invalid: {}", e.what()));
             }
 
             this->fetchdata->flags |= FETCH2_DATA_FLAG_SETUP;

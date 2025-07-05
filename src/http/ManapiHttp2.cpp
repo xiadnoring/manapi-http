@@ -8,6 +8,8 @@
 #include "worker/ManapiHttp2Interface.hpp"
 #include "worker/ManapiTcp.hpp"
 
+#include "../include/ManapiUtils.hpp"
+
 enum http_v2_priority {
     HTTP2_PRIORITY_0 = 0,
     HTTP2_PRIORITY_1,

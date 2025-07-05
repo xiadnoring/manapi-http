@@ -1,5 +1,5 @@
 #include "encoding/ManapiUnicode.hpp"
-
+#include "include/ManapiUtils.hpp"
 #include <utility>
 #if _WIN32
 #   include <codecvt>

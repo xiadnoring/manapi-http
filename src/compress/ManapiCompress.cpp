@@ -11,6 +11,7 @@
 #include "ManapiBeforeDelete.hpp"
 #include "ManapiString.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
+#include "../include/ManapiUtils.hpp"
 
 #define CHUNK_SIZE 65536
 

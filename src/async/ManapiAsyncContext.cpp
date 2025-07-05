@@ -8,6 +8,7 @@
 
 #include "ManapiInitTools.hpp"
 
+#include "../include/ManapiUtils.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 #include "services/ManapiTaskFunction.hpp"
 
@@ -128,6 +129,10 @@ void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<v
     if (!manapi::async::current()) {
         manapi::async::context::current(ctx);
     }
+
+    manapi::init_tools::ssl_library_init();
+    manapi::init_tools::ev_library_init();
+    manapi::init_tools::curl_library_init();
 
     for (int i = 0; i < loops; ++i) {
         mtaskpool->for_all_threads([&] (mthreadpool<task>::tasks_by_thread_t *v)

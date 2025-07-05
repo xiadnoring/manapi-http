@@ -3,7 +3,7 @@
 //
 
 #include "services/ManapiTask.hpp"
-#include "ManapiUtils.hpp"
+#include "../include/ManapiUtils.hpp"
 
 manapi::task::task() {}
 

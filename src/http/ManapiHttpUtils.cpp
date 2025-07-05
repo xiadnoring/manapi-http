@@ -6,6 +6,7 @@
 #include "ManapiHttpConfig.hpp"
 #include "encoding/ManapiUnicode.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
+#include "../include/ManapiUtils.hpp"
 
 manapi::error::status_or<std::pair<std::string_view, std::string_view>> manapi::net::http::parse_header(std::string_view header) {
     std::pair <std::string_view, std::string_view> parsed;

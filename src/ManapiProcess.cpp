@@ -1,7 +1,7 @@
 #include "uv.h"
 
 #include "ManapiProcess.hpp"
-
+#include "include/ManapiUtils.hpp"
 #include "ManapiDebug.hpp"
 
 manapi::error::status manapi::process::set_env(std::string_view name, std::string_view key) {

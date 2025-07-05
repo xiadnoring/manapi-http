@@ -1,4 +1,5 @@
 #include "worker/ManapiInterfaceWorker.hpp"
+#include "../include/ManapiUtils.hpp"
 
 manapi::net::worker::interface_worker::interface_worker(net::http::site site, std::shared_ptr<worker::worker_config_t> data, manapi::net::http::config *config) : site_(std::move(site)), config_(config), worker_data_(std::move(data)) {
 }

@@ -6,7 +6,7 @@
 #include "ManapiHttpResponse.hpp"
 #include "ManapiAsync.hpp"
 #include "services/ManapiFetch.hpp"
-#include "ManapiUtils.hpp"
+#include "include/ManapiUtils.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpTypes.hpp"
 #include "ManapiHttpMime.hpp"

@@ -9,6 +9,7 @@
 #include <exception>
 
 #include "ManapiHttp.hpp"
+#include "../include/ManapiUtils.hpp"
 
 #include "async/ManapiAsyncPromise.hpp"
 #include "ManapiString.hpp"

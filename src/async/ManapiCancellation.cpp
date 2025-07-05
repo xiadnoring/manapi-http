@@ -1,4 +1,5 @@
 #include "async/ManapiCancellation.hpp"
+#include "../include/ManapiUtils.hpp"
 
 #include <memory>
 
@@ -36,6 +37,10 @@ manapi::async::cancellation_action manapi::async::cancellation_action::unit(canc
     }
 
     return {};
+}
+
+manapi::async::cancellation_action manapi::async::cancellation_action::sub() const {
+    return manapi::async::cancellation_action::unit(*this);
 }
 
 manapi::async::cancellation_action::cancellation_action(cancellation_action &&n) noexcept {

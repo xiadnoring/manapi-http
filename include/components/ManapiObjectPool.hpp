@@ -86,9 +86,15 @@ namespace manapi {
 
         manapi::bytebuffer buffer (void *pointer, std::size_t suggested);
 
-        void *alloc (std::size_t size);
+        void *alloc (std::size_t size) noexcept(true);
 
-        void free (void *ptr, std::size_t size);
+        void *realloc (void *ptr, std::size_t) noexcept(true);
+
+        void free (void *ptr) noexcept(true);
+
+        void free (void *ptr, std::size_t size) noexcept(true);
+
+        void clear ();
 
         template<typename T, typename ...Args>
         std::enable_if<std::has_virtual_destructor_v<T>, manapi::error::status_or<object_item_pool<T>>> get (Args&&...args) {

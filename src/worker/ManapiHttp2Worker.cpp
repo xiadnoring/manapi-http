@@ -1,6 +1,7 @@
 #include "worker/ManapiHttp2Worker.hpp"
 
 #include "ManapiHttpResponse.hpp"
+#include "../include/ManapiUtils.hpp"
 
 int manapi::net::worker::http_v2_flush_recv(const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) {
     while (s->recv->last_deque
@@ -82,11 +83,11 @@ void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags
     }
     else if ((data->flags & flags) && data->ev_callback) {
         if (this->call_user_callback(data->ev_callback, conn, flags, buff, size, p))
-            this->close_connection(conn, false);
+            this->close_connection(conn, CLOSE_CONN_ERR);
     }
 }
 
-void manapi::net::worker::http_v2::close_connection(shared_conn conn, bool clean_disconnect) {
+void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags) {
     auto data = conn->as<http_v2_stream_base_t>();
     if (data->flags & CONN_REMOVED) {
         return;
@@ -127,7 +128,7 @@ int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flag
 
     if ((data->flags & CONN_CLOSED) && flags && data->ev_callback) {
         if (this->call_user_callback(data->ev_callback, conn, CONN_CLOSED, nullptr, 0, nullptr))
-            this->close_connection(conn, false);
+            this->close_connection(conn, CLOSE_CONN_ERR);
         return prev;
     }
     if (flags & ev::WRITE) {
@@ -139,7 +140,7 @@ int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flag
     }
     if ((data->flags & CONN_RECV_END) && (flags & ev::READ) && data->ev_callback) {
         if (this->call_user_callback(data->ev_callback, conn, CONN_RECV_END, nullptr, 0, nullptr))
-            this->close_connection(conn, false);
+            this->close_connection(conn, CLOSE_CONN_ERR);
     }
     return prev;
 }
@@ -184,7 +185,7 @@ void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &c
     if (--conn_data->speed_min_delay == 0) {
         if (conn_data->flags & CONN_IO_WAITING
             && conn_data->transfered_k < this->w->config()->speed_check_bytes) {
-            this->close_connection(conn, false);
+            this->close_connection(conn, CLOSE_CONN_EOF);
             return;
         }
         conn_data->transfered_k = 0;

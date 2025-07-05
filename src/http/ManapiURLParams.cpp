@@ -4,7 +4,7 @@
 #include "ManapiErrors.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "encoding/ManapiURL.hpp"
-
+#include "../include/ManapiUtils.hpp"
 std::map<std::string, std::string> manapi::net::http::parse_get_params(std::string_view params) {
     std::map<std::string, std::string> result;
 

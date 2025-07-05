@@ -3,7 +3,6 @@
 #include <memory>
 #include <functional>
 
-#include "../ManapiUtils.hpp"
 #include "../ManapiHttpConfig.hpp"
 #include "../ManapiSite.hpp"
 
@@ -20,6 +19,12 @@ namespace manapi::net::worker {
     enum wrk_interface_flags {
         WRK_INTERFACE_CUSTOM_READ = 1,
         WRK_INTERFACE_CUSTOM_RATE_LIMIT = 2
+    };
+
+    enum close_flags_t {
+        CLOSE_CONN_EOF = 1,
+        CLOSE_CONN_ERR = 2,
+        CLOSE_CONN_SHUTDOWN = 4
     };
 
     struct wrk_interface_t {
@@ -41,7 +46,7 @@ namespace manapi::net::worker {
             if (const auto pointer = static_cast <T *> (this->ptr)) {
                 return pointer;
             }
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "Pointer is null");
+            throw manapi::exception (ERR_INTERNAL, "Pointer is null");
         }
 
         manapi::async::cancellation_action cancellation;
@@ -141,15 +146,19 @@ namespace manapi::net::worker {
 
         virtual void init () = 0;
 
-        virtual void close_connection (shared_conn conn, bool clean_disconnect) = 0;
+        virtual void close_connection (shared_conn conn, int flags) = 0;
 
         virtual void configure_connection (const shared_conn &conn, oncont_cb cb) = 0;
 
         virtual ssize_t sync_write_ex (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) = 0;
 
+        virtual ssize_t sync_write_ex (const shared_conn &conn, manapi::slice_view buffs, bool finish, int maxcnt);
+
         virtual ssize_t sync_write (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) = 0;
 
         ssize_t sync_write_ex (const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt);
+
+        ssize_t sync_write (const shared_conn &conn, slice_view buffs, bool finish);
 
         ssize_t sync_write (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
 
@@ -160,6 +169,8 @@ namespace manapi::net::worker {
         manapi::future<ssize_t> write (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
 
         manapi::future<ssize_t> write (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish);
+
+        manapi::future<ssize_t> write (const shared_conn &conn, manapi::slice_view buffs, bool finish);
 
         manapi::future<ssize_t> fwrite (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
 

@@ -1,13 +1,5 @@
 #include "ManapiHttpConfig.hpp"
-#include "ManapiUtils.hpp"
-
-const std::map <int , std::string> http_version_to_print = {
-    {manapi::net::http::versions::HTTP_v0_9, "0.9"},
-    {manapi::net::http::versions::HTTP_v1_0, "1.0"},
-    {manapi::net::http::versions::HTTP_v1_1, "1.1"},
-    {manapi::net::http::versions::HTTP_v2, "2"},
-    {manapi::net::http::versions::HTTP_v3, "3"},
-};
+#include "include/ManapiUtils.hpp"
 
 const std::map <std::string, manapi::net::http::versions::http> http_version_to_parse = {
     {"0.9", manapi::net::http::versions::HTTP_v0_9},
@@ -125,8 +117,15 @@ void manapi::net::http::config::function_contains_compressor(std::move_only_func
     this->function_contains_compressor_ = std::move(func);
 }
 
-const std::string &manapi::net::http::config::stringify_http_version(int version) {
-    return http_version_to_print.at(version);
+std::string_view manapi::net::http::config::stringify_http_version(int version) {
+    switch (version) {
+        case versions::HTTP_v0_9: return "0.9";
+        case versions::HTTP_v1_0: return "1.0";
+        case versions::HTTP_v1_1: return "1.1";
+        case versions::HTTP_v2: return "2";
+        case versions::HTTP_v3: return "3";
+        default: return "1.1";
+    }
 }
 
 manapi::net::http::versions::http manapi::net::http::config::parse_http_version(const std::string &version) {

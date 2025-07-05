@@ -16,9 +16,9 @@
 
 #include "services/ManapiTaskFunction.hpp"
 #include "ManapiHttp.hpp"
-#include "ManapiUtils.hpp"
+#include "include/ManapiUtils.hpp"
 #include "async/ManapiAsyncPromise.hpp"
-
+#include "include/ManapiUtils.hpp"
 manapi::net::http::server::~server() = default;
 
 manapi::net::http::server::server(server &&n) noexcept : site(n) {

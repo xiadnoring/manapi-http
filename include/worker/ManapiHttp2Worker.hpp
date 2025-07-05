@@ -61,7 +61,7 @@ namespace manapi::net::worker {
 
         void feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) override;
 
-        void close_connection(shared_conn conn, bool clean_disconnect) override;
+        void close_connection(shared_conn conn, int flags) override;
 
         void configure_connection(const shared_conn &conn, oncont_cb cb) override;
 

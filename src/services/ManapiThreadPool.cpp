@@ -10,7 +10,7 @@
 #include "ManapiDebug.hpp"
 #include "services/ManapiTask.hpp"
 #include "services/ManapiTaskFunction.hpp"
-#include "ManapiUtils.hpp"
+#include "../include/ManapiUtils.hpp"
 
 template<class T>
 void task_doit(std::unique_ptr<T> task, manapi::logger *logger) {

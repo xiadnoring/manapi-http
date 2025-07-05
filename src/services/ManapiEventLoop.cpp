@@ -9,6 +9,7 @@
 #include <memory>
 #include <cstring>
 
+#include "../include/ManapiUtils.hpp"
 #include "async/ManapiAsyncSocket.hpp"
 #include "components/ManapiTimerObject.hpp"
 #include "../include/ManapiDefaultErrors.hpp"

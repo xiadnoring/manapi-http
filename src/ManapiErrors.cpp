@@ -3,6 +3,10 @@
 #include "async/ManapiAsyncContext.hpp"
 #include "ManapiDebug.hpp"
 #include "ManapiJson.hpp"
+#include "include/ManapiUtils.hpp"
+#include <stdarg.h>
+#include <time.h>
+#include <string.h>
 
 std::string_view manapi::get_msg_by_err_num (manapi::err_num err) {
     switch (err) {
@@ -260,4 +264,34 @@ manapi::error::status manapi::error::status_filesystem_failed(std::string_view m
 
 manapi::error::status manapi::error::status_parse_failed(std::string_view msg, manapi::json data) {
     return {ERR_PARSE_FAILED, msg, std::move(data)};
+}
+
+void manapi::debug::log_log(log_level level, const char *file, int line, const char *fmt, ...) {
+
+    // Remove path from filename
+    const char* base = strrchr(file, '/');
+    if (!base) base = strrchr(file, '\\');
+    base = base ? base + 1 : file;
+
+    // Print timestamp, log level, and file info
+    fprintf(
+        stderr,
+        "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m ",
+        level_colors[level],
+        level_colors[level],
+        level_strings[level],
+        base,
+        line
+    );
+
+    // Print user message
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+
+    // Newline and flush
+    fprintf(stderr, "\n");
+    fflush(stderr);
+
 }

@@ -17,8 +17,18 @@
 #include "ManapiHttpResponse.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 #include "crypto/ManapiCryptoUtils.hpp"
+#include "../include/ManapiUtils.hpp"
 
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
+
+std::string manapi::net::http::internal::generate_default_page(int status, std::string_view msg) {
+    return std::format("<html>\n\t<head>\n\t\t"
+                            "<title>{0} {1}</title>\n\t</head>\n\t<body>\n\t\t<center>\n\t\t\t"
+                            "<h1>{0} {1}</h1>\n\t\t</center>\n\t\t<hr>\n\t\t"
+                            "<center>{3}/{2}</center>\n\t"
+                            "</body>\n</html>", status,
+                            msg, MANAPIHTTP_VERSION, MANAPIHTTP_NAME);
+}
 
 void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::unique_ptr<response> res) {
     std::string response;
