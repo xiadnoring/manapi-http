@@ -201,7 +201,7 @@ int manapi::net::worker::OpenSSL_TLS::ssl_get_error_(void *ssl, int rhs) {
 
 int manapi::net::worker::OpenSSL_TLS::ssl_accept_(void *ssl) {
     ERR_clear_error();
-    return SSL_do_handshake(static_cast<SSL*>(ssl));
+    return SSL_accept(static_cast<SSL*>(ssl));
 }
 
 void * manapi::net::worker::OpenSSL_TLS::ssl_new_(void *ctx) {
@@ -265,7 +265,7 @@ err:
 }
 
 void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
-    auto const cipher_list = this->config_->get_config_param<std::string>(this->config_->ssl, "cipher_list", {});
+    auto const cipher_list = this->config_->get_config_param<std::string>(this->config_->ssl, "ciphers", {});
     auto const ssl_v2 = this->config_->get_config_param<bool>(this->config_->ssl, "ssl_v2", false);
     auto const ssl_v3 = this->config_->get_config_param<bool>(this->config_->ssl, "ssl_v3", true);
     auto const ticket = this->config_->get_config_param<bool>(this->config_->ssl, "ticket", true);

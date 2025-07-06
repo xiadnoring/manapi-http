@@ -128,6 +128,9 @@ void manapi::timer::clear_() {
 }
 
 void manapi::timer::stop() {
+    if (!this->data)
+        return;
+
     if (!(this->data->flags & TIMER_TASK_ENABLED)) {
         return;
     }

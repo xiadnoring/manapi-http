@@ -343,7 +343,7 @@ exec:
             goto err;
         if (s.size() != w->sync_write_ex(conn, s.data(), s.size(), true, 1e5))
             goto err;
-        w->close_connection (conn, manapi::net::worker::CLOSE_CONN_ERR);
+        w->close_connection (conn, manapi::net::worker::CLOSE_CONN_EOF);
     }
     err: return manapi::ERR_ABORTED;
 }

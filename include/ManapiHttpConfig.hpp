@@ -60,7 +60,7 @@ namespace manapi::net::http {
 
         static std::string_view stringify_http_version (int version);
 
-        static http::versions::http parse_http_version (const std::string &version);
+        static http::versions::http parse_http_version (std::string_view version);
 
         template<typename T>
         static std::optional<T> get_value_config_param (const manapi::json &n) {
@@ -104,6 +104,7 @@ namespace manapi::net::http {
         sockaddr_storage server_addr;
         socklen_t server_len;
         size_t max_connections;
+        size_t max_connections_by_ip;
         int max_backlog;
         ssize_t buffer_size;
         ssize_t max_rst_cnt;

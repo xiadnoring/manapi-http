@@ -70,7 +70,9 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(ev::shared_tcp
     if (!connection)
         return nullptr;
 
-    connection->as<TLS::connection_interface>()->watcher->read_start();
+    auto data = connection->as<TLS::connection_interface>();
+    if (!(data->status & CONN_CLOSED))
+        data->watcher->read_start();
 
     return std::move(connection);
 }
@@ -82,7 +84,7 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) {
         return;
 
     if ((connection->status & CONN_TLS_SHUTDOWN)) {
-        if (flags & CLOSE_CONN_EOF)
+        if (flags)
             goto eof;
         return;
     }
@@ -98,7 +100,7 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) {
 
     connection->status |= CONN_TLS_SHUTDOWN;
 
-    if ((flags & (CLOSE_CONN_ERR|CLOSE_CONN_SHUTDOWN))
+    if ((flags & (CLOSE_CONN_SHUTDOWN))
         || (!flags && (!this->config_->keep_alive
         || !(connection->status & CONN_KEEP_ALIVE)))) {
 
@@ -260,10 +262,10 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
                 if (err) {
                     if (err == this->ssl_error_want_read_
                         || err == this->ssl_error_want_write_) {
-                        err = this->ssl_bio_flush_write_(conn, connection, maxcnt);
+                        auto const erhs = this->ssl_bio_flush_write_(conn, connection, maxcnt);
 
-                        if (err) {
-                            if (err == CONN_IO_WANT_WRITE) {
+                        if (erhs) {
+                            if (erhs == CONN_IO_WANT_WRITE) {
                                 if (this->flush_write_(conn, finish && !nbuff))
                                     return CONN_IO_ERROR;
                                 return total + current;
@@ -274,6 +276,9 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
 
                         if (this->flush_write_(conn, true))
                             return CONN_IO_ERROR;
+
+                        if (err == this->ssl_error_want_read_)
+                            return total + current;
 
                         continue;
                     }
@@ -363,7 +368,7 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
 
     if (connection->ssl) {
         auto ssl = std::exchange(connection->ssl, nullptr);
-        std::cout << ("SSL FREE\n");
+        //std::cout << ("SSL FREE\n");
         (dynamic_cast<TLS*>(connection->worker))->ssl_free_(ssl);
     }
 
@@ -541,7 +546,7 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
                     goto err;
                 }
 
-                if (ssl_is_init_fininshed_ (data->ssl)) {
+                if (ssl_is_init_fininshed_ (data->ssl) && data->accept_timer) {
                     data->accept_timer.stop();
                     data->accept_timer.clear();
                     data->accept_timer = nullptr;
@@ -568,6 +573,8 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
 
         cdata->status |= ev::DISCONNECT;
         conn->cancellation.cancel();
+
+        this->close_connection(conn, CLOSE_CONN_EOF);
 
         return;
     }

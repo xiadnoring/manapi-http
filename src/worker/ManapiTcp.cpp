@@ -229,7 +229,6 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
      */
     std::shared_ptr<worker::connection> connection;
     std::array<char, 17> arr{};
-    uint16_t port = 0;
 
     try {
         connection = init();
@@ -247,7 +246,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
                     if (buf->base)
                         object = this->bufferpool().buffer(buf->base, buf->len);
 
-                    if (!nread)
+                    if (!nread || !connection)
                         return;
 
                     if (nread < 0) {
@@ -320,18 +319,20 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
         if (this->config_->keep_alive)
             conn->status |= CONN_KEEP_ALIVE;
 
-        auto res = http::port_by_addr(reinterpret_cast <const sockaddr *> (connection->ipdata->client.data));
-
-        if (!res.ok())
-            goto err;
-
         auto const sn = reinterpret_cast <sockaddr *>(connection->ipdata->client.data);
         arr[0] = static_cast<char>(http::version_ip_by_addr (sn));
         http::ip_by_addr(sn, arr.data() + 1);
 
-        port = res.unwrap();
+        auto &it = this->ips[arr];
+        if (it.size() >= this->config_->max_connections_by_ip) {
+            if (it.size() > this->config_->max_connections_by_ip * 2)
+                return nullptr;
 
-        this->ips[arr].insert({port, connection});
+            connection->wrk.flags |= WRK_INTERFACE_CONN_RETRY;
+        }
+
+        assert((it.insert({reinterpret_cast<uintptr_t>(connection.get()),
+            connection}).second));
     }
     catch (std::exception const &e) {
         manapi_log_error("tcp accept: failed due to %s", e.what());
@@ -341,10 +342,10 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
 
     return std::move(connection);
     err:
-    if (port) {
+    if (connection) {
         auto it = this->ips.find(arr);
         if (it != this->ips.end())
-            it->second.erase(port);
+            it->second.erase(reinterpret_cast<uintptr_t>(connection.get()));
     }
 
     return nullptr;
@@ -418,9 +419,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) {
         http::ip_by_addr(sn, arr.data() + 1);
         auto it = this->ips.find(arr);
         assert(it != this->ips.end());
-        auto res = http::port_by_addr(sn);
-        assert(res.ok());
-        it->second.erase(res.unwrap());
+        it->second.erase(reinterpret_cast<uintptr_t>(conn.get()));
     }
     else {
         if (this->global_.cleanup_cb(conn.get(), &this->global_, this))
@@ -616,7 +615,7 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
 
     }
 
-    if (data->watcher) {
+    if (data->watcher && !(status & ev::DISCONNECT)) {
         if (status & ev::READ) {
             if (!data->watcher->is_active()) {
                 assert(!data->watcher->read_start());
@@ -859,7 +858,7 @@ void manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &s
     if (conn_data->transfered >= this->config_->speed_limit_rate
         && conn_data->ev_callback) {
         conn_data->transfered = 0;
-        if (conn_data->status & ev::READ)
+        if ((conn_data->status & ev::READ|ev::DISCONNECT) == ev::READ)
             conn_data->watcher->read_start();
 
         if (conn_data->status & ev::WRITE && conn_data->ev_callback)

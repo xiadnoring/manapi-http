@@ -1,7 +1,7 @@
 #include "ManapiHttpConfig.hpp"
 #include "include/ManapiUtils.hpp"
 
-const std::map <std::string, manapi::net::http::versions::http> http_version_to_parse = {
+const std::map <std::string_view, manapi::net::http::versions::http> http_version_to_parse = {
     {"0.9", manapi::net::http::versions::HTTP_v0_9},
     {"1.0", manapi::net::http::versions::HTTP_v1_0},
     {"1.1", manapi::net::http::versions::HTTP_v1_1},
@@ -23,7 +23,6 @@ enum http_version_bits {
 manapi::net::http::config::config(const json &config) {
     this->http_versions = 0;
     this->server_len = 0;
-
     this->max_working_streams = get_config_param<ssize_t> (config, "max_working_streams", 6);
     this->window_stream_size = get_config_param<ssize_t> (config, "window_stream_size", 400000);
     this->window_connection_size = get_config_param<ssize_t> (config, "window_connection_size", 2000000);
@@ -42,6 +41,7 @@ manapi::net::http::config::config(const json &config) {
     this->address = get_config_param<std::string>(config, "address", "0.0.0.0");
     this->speed_limit_rate = get_config_param<ssize_t>(config, "speed_limit_rate", 2097152000);
     this->max_connections = get_config_param<ssize_t>(config, "max_connections", 1000);
+    this->max_connections_by_ip = get_config_param<ssize_t>(config, "max_connections_by_ip", 6);
     this->max_rst_cnt = get_config_param<ssize_t>(config, "max_rst_cnt", 5);
     this->tcp_no_delay = get_config_param<bool>(config, "tcp_no_delay", false);
     this->speed_check_delay = get_config_param<ssize_t>(config, "speed_check_delay", 5);
@@ -128,8 +128,11 @@ std::string_view manapi::net::http::config::stringify_http_version(int version) 
     }
 }
 
-manapi::net::http::versions::http manapi::net::http::config::parse_http_version(const std::string &version) {
-    return http_version_to_parse.at(version);
+manapi::net::http::versions::http manapi::net::http::config::parse_http_version(std::string_view version) {
+    auto it = http_version_to_parse.find(version);
+    if (it != http_version_to_parse.end())
+        return it->second;
+    return http::versions::http::HTTP_v1_1;
 }
 
 template<>
