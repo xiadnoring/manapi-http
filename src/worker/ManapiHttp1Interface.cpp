@@ -186,6 +186,11 @@ int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, c
     auto wrk_data = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
     int status = manapi::net::http::BAD_REQUEST_400;
 
+    if (conn->wrk.flags & manapi::net::worker::WRK_INTERFACE_CONN_RETRY) {
+        status = manapi::net::http::SERVICE_UNAVAILABLE_503;
+        goto send_error;
+    }
+
     if (flags & manapi::ev::DISCONNECT)
         goto err;
 

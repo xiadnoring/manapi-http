@@ -18,7 +18,8 @@ namespace manapi::net::worker {
 
     enum wrk_interface_flags {
         WRK_INTERFACE_CUSTOM_READ = 1,
-        WRK_INTERFACE_CUSTOM_RATE_LIMIT = 2
+        WRK_INTERFACE_CUSTOM_RATE_LIMIT = 2,
+        WRK_INTERFACE_CONN_RETRY = 4
     };
 
     enum close_flags_t {
@@ -104,6 +105,10 @@ namespace manapi::net::worker {
             ssize_t transfered;
             ssize_t transfered_k;
         };
+
+        typedef std::map<uint16_t, shared_conn> conn_by_port;
+
+        typedef std::map<std::array<char, 17>, conn_by_port> conns_by_ip;
 
         typedef vbefore_delete<bool, false> oncont_cb;
 

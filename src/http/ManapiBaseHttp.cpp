@@ -695,49 +695,17 @@ manapi::future<ssize_t> manapi::net::http::internal::mask_response(handle_data_t
 
 int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *inf, manapi::net::worker::base *w, manapi::net::worker::connection *conn) {
     auto ipdata = w->ipdata(conn);
-    auto const sa = reinterpret_cast <struct sockaddr_in *> (ipdata->client.data);
-    std::string buffer;
-    int size;
+    auto const sa = reinterpret_cast <struct sockaddr *> (ipdata->client.data);
+    auto res = manapi::net::http::strinfigy_ip(sa);
+    if (!res.ok())
+        return res.code();
 
-    if (sa->sin_family == manapi::ev::IPv4) {
-        size = sizeof ("xxx:xxx:xxx:xxx");
-        buffer.resize(size);
+    auto val = res.unwrap();
 
-        if (!inet_ntop(AF_INET, &sa->sin_addr, buffer.data(), size)) {
-            return -1;
-        }
+    inf->ip = std::move(val.first);
+    inf->port = val.second;
 
-        while (--size >= 0 && buffer[size] == '\0') {
-            /* skip null bytes */
-        }
-
-        buffer.resize(size + 1);
-
-        inf->ip = std::move(buffer);
-        inf->port = htons(reinterpret_cast<struct sockaddr_in *> (&ipdata->client)->sin_port);
-        return 0;
-    }
-
-    if (sa->sin_family == manapi::ev::IPv6) {
-        size = sizeof ("xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx");
-        buffer.resize(size);
-
-        if (!inet_ntop(AF_INET6, &reinterpret_cast<sockaddr_in6 *>(sa)->sin6_addr, buffer.data(), size)) {
-            return -1;
-        }
-
-        while (--size >= 0 && buffer[size] == '\0') {
-            /* skip null bytes */
-        }
-
-        buffer.resize(size + 1);
-
-        inf->ip = std::move(buffer);
-        inf->port = htons(reinterpret_cast<struct sockaddr_in6 *> (&ipdata->client)->sin6_port);
-        return 0;
-    }
-
-    return -1;
+    return manapi::ERR_OK;
 }
 
 namespace manapi::net::http::internal {

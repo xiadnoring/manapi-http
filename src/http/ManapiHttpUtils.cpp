@@ -426,6 +426,95 @@ std::string manapi::net::http::stringify_header_value (const std::vector <header
     return std::move(result);
 }
 
+int manapi::net::http::version_ip_by_addr(const sockaddr *addr) {
+    auto const sn = reinterpret_cast<const sockaddr_in *> (addr);
+    if (sn) {
+        if (sn->sin_family == ev::IPv4)
+            return ev::IPv4;
+        if (sn->sin_family == ev::IPv6)
+            return ev::IPv6;
+    }
+
+    return -1;
+}
+
+manapi::error::status_or<std::pair<std::string, uint16_t>> manapi::net::http::strinfigy_ip(const sockaddr *addr) {
+    if (!addr)
+        return error::status_invalid_argument("ip: null addr");
+
+    auto const sn = reinterpret_cast<const sockaddr_in *> (addr);
+
+    std::string buffer;
+    int size;
+
+    if (sn->sin_family == manapi::ev::IPv4) {
+        size = sizeof ("xxx:xxx:xxx:xxx");
+        buffer.resize(size);
+
+        if (!inet_ntop(AF_INET, &sn->sin_addr, buffer.data(), size))
+            return error::status_invalid_argument("ip: inet_ntop() returned null");
+
+        while (--size >= 0 && buffer[size] == '\0') {
+            /* skip null bytes */
+        }
+
+        buffer.resize(size + 1);
+
+        uint16_t const port = (reinterpret_cast<const sockaddr_in *> (&addr)->sin_port);
+        return std::make_pair(std::move(buffer), port);
+    }
+
+    if (sn->sin_family == manapi::ev::IPv6) {
+        size = sizeof ("xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx");
+        buffer.resize(size);
+
+        if (!inet_ntop(AF_INET6, &reinterpret_cast<const sockaddr_in6 *>(addr)->sin6_addr, buffer.data(), size))
+            return error::status_invalid_argument("ip: inet_ntop() returned null");
+
+        while (--size >= 0 && buffer[size] == '\0') {
+            /* skip null bytes */
+        }
+
+        buffer.resize(size + 1);
+
+        uint16_t const port = (reinterpret_cast<const sockaddr_in6 *> (&addr)->sin6_port);
+        return std::make_pair(std::move(buffer), port);
+    }
+
+    return error::status_invalid_argument("ip: invalid sin_family");
+}
+
+manapi::error::status_or<uint16_t> manapi::net::http::port_by_addr(const sockaddr *addr) {
+    if (!addr)
+        return error::status_invalid_argument("ip: null addr");
+
+    auto const sn = reinterpret_cast<const sockaddr_in *> (addr);
+
+    if (sn->sin_family == manapi::ev::IPv4)
+        return (reinterpret_cast<const sockaddr_in *> (&addr)->sin_port);
+
+    if (sn->sin_family == manapi::ev::IPv6)
+        return (reinterpret_cast<const sockaddr_in6 *> (&addr)->sin6_port);
+
+    return error::status_invalid_argument("ip: invalid sin_family");
+}
+
+manapi::error::status manapi::net::http::ip_by_addr(const sockaddr *addr, char *arr) {
+    if (!addr)
+        return error::status_invalid_argument("ip: null addr");
+
+    auto const sn = reinterpret_cast<const sockaddr_in *> (addr);
+
+    if (sn->sin_family == manapi::ev::IPv4)
+        memcpy (arr, &sn->sin_addr, sizeof (sn->sin_addr));
+    else if (sn->sin_family == manapi::ev::IPv6)
+        memcpy (arr, &reinterpret_cast<const sockaddr_in6 *>(addr)->sin6_addr, 16);
+    else
+        return error::status_invalid_argument("ip: invalid sin_family");
+
+    return error::status_ok();
+}
+
 manapi::future<std::vector<manapi::net::http::replace_founded_item>> manapi::net::http::found_replacers_in_file(const async::shared_cthread &ctx, const std::string &path, ssize_t start, size_t size, const std::map<std::string, std::string> &replacers) {
     // SPECIAL
     std::string special_key;

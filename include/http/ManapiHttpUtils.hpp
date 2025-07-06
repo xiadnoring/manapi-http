@@ -64,9 +64,22 @@ namespace manapi::net::http {
     typedef std::map <std::string, std::vector <header_value_t> > headsers_t;
 
     void request_data_clear (request_data_t &data);
+
     std::vector <header_value_t> parse_header_value (std::string_view header_value);
+
     manapi::error::status_or<std::pair<std::string_view, std::string_view>> parse_header (std::string_view header);
+
     std::string stringify_header (const std::pair<std::string, std::string> &header);
+
     std::string stringify_header_value (const std::vector <header_value_t> &header_value);
+
+    int version_ip_by_addr (const sockaddr *addr);
+
+    error::status_or<std::pair<std::string, uint16_t>> strinfigy_ip (const sockaddr *addr);
+
+    error::status_or<uint16_t> port_by_addr (const sockaddr *addr);
+
+    error::status ip_by_addr (const sockaddr *addr, char *arr);
+
     future<std::vector <replace_founded_item>> found_replacers_in_file (const async::shared_cthread &ctx, const std::string &path, ssize_t start, size_t size, const std::map<std::string, std::string> &replacers);
 }

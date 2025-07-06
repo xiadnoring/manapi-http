@@ -181,10 +181,6 @@ void manapi::net::worker::TCP::onaccept(std::shared_ptr<ev::tcp> &watcher, int s
             return;
         }
 
-        auto id = reinterpret_cast<std::uintptr_t> (connection.get());
-        auto it = this->connections.insert({id, connection});
-        assert((it.second && "connection couldn't be saved due to duplicate"));
-
         if (this->onaccept_event_(connection))
             goto err;
 
@@ -231,87 +227,127 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
      * I mean only one 65k buffer
      * can be exists by thread
      */
-    auto connection = init();
+    std::shared_ptr<worker::connection> connection;
+    std::array<char, 17> arr{};
+    uint16_t port = 0;
 
-    if (!connection)
-        return connection;
+    try {
+        connection = init();
 
-    ev::shared_tcp client = manapi::async::current()->eventloop()->create_watcher_tcp_connection(
-        [this, weak = std::weak_ptr(connection)] (std::shared_ptr<ev::tcp> &w, ssize_t nread, const uv_buf_t *buf)
-        -> void {
-            try {
-                bytebuffer object;
-                auto const connection = weak.lock();
+        if (!connection)
+            return connection;
 
-                if (buf->base)
-                    object = this->bufferpool().buffer(buf->base, buf->len);
+        ev::shared_tcp client = manapi::async::current()->eventloop()->create_watcher_tcp_connection(
+            [this, weak = std::weak_ptr(connection)] (std::shared_ptr<ev::tcp> &w, ssize_t nread, const uv_buf_t *buf)
+            -> void {
+                try {
+                    bytebuffer object;
+                    auto const connection = weak.lock();
 
-                if (!nread)
-                    return;
+                    if (buf->base)
+                        object = this->bufferpool().buffer(buf->base, buf->len);
 
-                if (nread < 0) {
-                    if (nread == ev::FS_EAGAIN)
+                    if (!nread)
                         return;
 
-                    /* maybe EOF */
-                    this->close_connection(connection, CLOSE_CONN_EOF);
-                    return;
+                    if (nread < 0) {
+                        if (nread == ev::FS_EAGAIN)
+                            return;
+
+                        /* maybe EOF */
+                        this->close_connection(connection, CLOSE_CONN_EOF);
+                        return;
+                    }
+
+
+                    object.resize(nread);
+
+                    this->onrecv(w, connection, std::move(object));
                 }
+                catch (std::exception const &e) {
+                    manapi::async::current()->logger()->error(manapi::logger::default_service,
+                        manapi::ERR_INTERNAL, "tcp: onrecv(...) unexpected error: {}", e.what());
+                }
+        }, [this] (std::shared_ptr<ev::tcp> &, size_t suggested_size, ev::buff_t *buff) -> void {
+            auto buffer = this->bufferpool().buffer(suggested_size);
+            buff->len = buffer.size();
+            buff->base = static_cast<char *>(buffer.release());
+        });
 
 
-                object.resize(nread);
+        if (client->accept(w.get())) {
+            manapi::async::current()->eventloop()->stop_watcher(std::move(client));
+            return nullptr;
+        }
 
-                this->onrecv(w, connection, std::move(object));
+
+        if (auto rhs = client->keepalive(!!this->config_->keep_alive, this->config_->keep_alive)) {
+            manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set keep-alive due to result - {}", rhs);
+            manapi::async::current()->eventloop()->stop_watcher(std::move(client));
+            return nullptr;
+        }
+
+        auto conn = connection->as<connection_interface>();
+
+        conn->worker = this;
+        conn->watcher = std::move(client);
+
+        if (this->count >= this->config_->max_connections) {
+            if (this->count - this->config_->max_connections > this->config_->max_connections) {
+                if (auto rhs = w->close_reset())
+                    manapi_log_warn("close_reset(): failed to send TCP RST: %d %s", rhs, uv_strerror(rhs));
+
+                return nullptr;
             }
-            catch (std::exception const &e) {
-                manapi::async::current()->logger()->error(manapi::logger::default_service,
-                    manapi::ERR_INTERNAL, "tcp: onrecv(...) unexpected error: {}", e.what());
-            }
-    }, [this] (std::shared_ptr<ev::tcp> &, size_t suggested_size, ev::buff_t *buff) -> void {
-        auto buffer = this->bufferpool().buffer(suggested_size);
-        buff->len = buffer.size();
-        buff->base = static_cast<char *>(buffer.release());
-    });
 
+            connection->wrk.flags |= WRK_INTERFACE_CONN_RETRY;
+        }
 
-    if (client->accept(w.get())) {
-        manapi::async::current()->eventloop()->stop_watcher(std::move(client));
-        return nullptr;
+        this->count++;
+        this->worker_data_->count.fetch_add(1);
+
+        connection->ipdata = std::make_unique<decltype(connection)::element_type::ipdata_t>();
+        connection->ipdata->len = 0;
+
+        int addrlen = sizeof (connection->ipdata->client.data);
+        if (auto rhs = conn->watcher->getpeername(reinterpret_cast <sockaddr *>(connection->ipdata->client.data), &addrlen)) {
+            manapi_log_error("getpeername() failed: %d", rhs);
+        }
+        connection->ipdata->len = addrlen;
+
+        conn->top = std::make_unique<connection_io>();
+
+        if (this->config_->keep_alive)
+            conn->status |= CONN_KEEP_ALIVE;
+
+        auto res = http::port_by_addr(reinterpret_cast <const sockaddr *> (connection->ipdata->client.data));
+
+        if (!res.ok())
+            goto err;
+
+        auto const sn = reinterpret_cast <sockaddr *>(connection->ipdata->client.data);
+        arr[0] = static_cast<char>(http::version_ip_by_addr (sn));
+        http::ip_by_addr(sn, arr.data() + 1);
+
+        port = res.unwrap();
+
+        this->ips[arr].insert({port, connection});
     }
+    catch (std::exception const &e) {
+        manapi_log_error("tcp accept: failed due to %s", e.what());
 
-    if (auto rhs = client->keepalive(!!this->config_->keep_alive, this->config_->keep_alive)) {
-        manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set keep-alive due to result - {}", rhs);
-        manapi::async::current()->eventloop()->stop_watcher(std::move(client));
-        return nullptr;
+        goto err;
     }
-
-    this->count++;
-    this->worker_data_->count.fetch_add(1);
-
-    if (this->count >= this->config_->max_connections) {
-        // TODO: stop accepting
-    }
-
-
-    connection->ipdata = std::make_unique<decltype(connection)::element_type::ipdata_t>();
-    connection->ipdata->len = 0;
-
-    int addrlen = sizeof (connection->ipdata->client.data);
-    if (auto rhs = client->getpeername(reinterpret_cast <sockaddr *>(connection->ipdata->client.data), &addrlen)) {
-        std::cerr << "getpeername failed " << rhs << "\n";
-    }
-    connection->ipdata->len = addrlen;
-
-
-    auto conn = connection->as<connection_interface>();
-
-    conn->top = std::make_unique<connection_io>();
-    if (this->config_->keep_alive)
-        conn->status |= CONN_KEEP_ALIVE;
-    conn->worker = this;
-    conn->watcher = std::move(client);
 
     return std::move(connection);
+    err:
+    if (port) {
+        auto it = this->ips.find(arr);
+        if (it != this->ips.end())
+            it->second.erase(port);
+    }
+
+    return nullptr;
 }
 
 manapi::net::worker::shared_conn manapi::net::worker::TCP::accept(ev::shared_tcp &w) {
@@ -358,10 +394,33 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) {
 
         if (connection->watcher) {
             connection->watcher->read_stop();
-            manapi::async::current()->eventloop()->stop_watcher(std::move(connection->watcher));
         }
 
-        this->connections.erase(reinterpret_cast<uintptr_t> (conn.get()));
+        if (connection->top->recv_size) {
+            connection->top->recv.deque.reset();
+            connection->top->recv.deque_current = 0;
+            connection->top->recv.deque_cursor = 0;
+            connection->top->recv.last_deque = nullptr;
+            connection->top->recv_size = 0;
+        }
+
+        if (connection->top->send_size) {
+            connection->top->send.deque.reset();
+            connection->top->send.deque_current = 0;
+            connection->top->send.deque_cursor = 0;
+            connection->top->send.last_deque = nullptr;
+            connection->top->send_size = 0;
+        }
+
+        std::array<char, 17> arr{};
+        auto const sn = reinterpret_cast <sockaddr *>(conn->ipdata->client.data);
+        arr[0] = static_cast<char>(http::version_ip_by_addr (sn));
+        http::ip_by_addr(sn, arr.data() + 1);
+        auto it = this->ips.find(arr);
+        assert(it != this->ips.end());
+        auto res = http::port_by_addr(sn);
+        assert(res.ok());
+        it->second.erase(res.unwrap());
     }
     else {
         if (this->global_.cleanup_cb(conn.get(), &this->global_, this))
@@ -413,12 +472,12 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) {
             connection->t.clear();
         }
 
-        // connection->t = manapi::async::current()->timerpool()->append_interval_sync(
-        //     this->config_->keep_alive,
-        //     [conn] (manapi::timer t) mutable
-        //     -> void {
-        //     dynamic_cast <TCP*>(conn->as<connection_interface>()->worker)->timeout_(conn);
-        // });
+        connection->t = manapi::async::current()->timerpool()->append_interval_sync(
+            this->config_->keep_alive * 1000,
+            [conn] (manapi::timer t) mutable
+            -> void {
+            dynamic_cast <TCP*>(conn->as<connection_interface>()->worker)->timeout_(conn);
+        });
 
         this->event_flags(conn, ev::READ);
 
@@ -757,12 +816,21 @@ void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_i
 
 void manapi::net::worker::TCP::update_limit_rate() {
     /* in the event loop */
-    for (auto nit = this->connections.begin(); nit != this->connections.end(); ) {
-        auto conn = nit->second;
-        auto next = std::next(nit);
-        //auto s = conn->as<TCP::connection_interface>();
-        this->update_limit_rate_connection(conn);
-        nit = next;
+    for (auto it = this->ips.begin(); it != this->ips.end(); ) {
+        if (it->second.empty()) {
+            it = this->ips.erase(it);
+            continue;
+        }
+
+        for (auto nit = it->second.begin(); nit != it->second.end(); ) {
+            auto conn = nit->second;
+            auto next = std::next(nit);
+            //auto s = conn->as<TCP::connection_interface>();
+            this->update_limit_rate_connection(conn);
+            nit = next;
+        }
+
+        ++it;
     }
 }
 
@@ -783,10 +851,6 @@ void manapi::net::worker::TCP::timeout_(shared_conn conn) {
     }
 
     this->close_connection(conn, CLOSE_CONN_ERR);
-}
-
-void manapi::net::worker::TCP::ev_watcher_stop_(connection_interface &conn) {
-    this->connections.erase(reinterpret_cast<std::uintptr_t>(conn.watcher.get()));
 }
 
 void manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &sconn) {
@@ -843,21 +907,22 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
     std::cout << "CLOSE TCP PEER\n";
 
     auto const wrk = dynamic_cast<TCP*> (connection->worker);
+    if (wrk) {
+        if (wrk->global_.cleanup_cb(ptr, &wrk->global_, wrk))
+            MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
 
-    if (wrk->global_.cleanup_cb(ptr, &wrk->global_, wrk))
-        MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
+        wrk->count--;
+        wrk->worker_data()->count.fetch_sub(1);
 
-    wrk->count--;
-    wrk->worker_data()->count.fetch_sub(1);
+        if (wrk->count < wrk->config_->max_connections) {
+            // TODO: start accepting
+        }
 
-    if (wrk->count < wrk->config_->max_connections) {
-        // TODO: start accepting
-    }
-
-    if (wrk->flags & NET_WORKER_CLOSED
-        && !wrk->count
-        && wrk->finish) {
-        wrk->finish();
+        if (wrk->flags & NET_WORKER_CLOSED
+            && !wrk->count
+            && wrk->finish) {
+            wrk->finish();
+            }
     }
 }
 

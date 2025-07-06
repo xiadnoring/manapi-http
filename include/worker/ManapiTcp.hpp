@@ -81,21 +81,19 @@ namespace manapi::net::worker {
 
         void timeout_ (shared_conn conn);
 
-        void ev_watcher_stop_ (connection_interface & conn);
-
         virtual void update_limit_rate_connection (const shared_conn &sconn);
 
         bool is_writable(const shared_conn &conn) override;
 
         virtual int onaccept_event_ (const worker::shared_conn &conn);
 
-        std::map <std::uintptr_t, shared_conn> connections;
-
         ev::shared_tcp watcher_accept_;
     protected:
-        int count;
+        std::size_t count;
 
         int flags;
+
+        conns_by_ip ips;
 
         std::function<void()> finish;
     private:
