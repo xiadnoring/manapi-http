@@ -441,6 +441,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/crypto/ManapiAEAD.cpp
         src/crypto/ManapiHKDF.cpp
         src/crypto/ManapiAES.cpp
+        include/components/ManapiMultithreadStorage.hpp
+        src/components/ManapiMultithreadStorage.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

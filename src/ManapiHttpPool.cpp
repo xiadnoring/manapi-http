@@ -20,7 +20,7 @@
 
 #include "worker/ManapiHttp1Interface.hpp"
 
-manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<worker::worker_config_t> worker_config, class http::site site, size_t id, std::shared_ptr<event_loop> events) : site(std::move(site)) {
+manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, class http::site site, size_t id, std::shared_ptr<event_loop> events) : site(std::move(site)) {
     this->events = std::move(events);
     this->config = std::make_shared <http::config> (config);
     this->id = id;

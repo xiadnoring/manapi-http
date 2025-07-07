@@ -122,18 +122,21 @@ manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data
     co_await stop_pool(data2);
 
     try {
-        if (!(data->server_config->flags.fetch_or(0b1) & 0b1)) {
-            auto lkc = co_await data->server_config->cache_mx->lock_guard();
+        co_await data->sctx.storage().edit_async(data->server_config, [t = data] (json &data) -> manapi::future<bool> {
+            if (!data.contains("saved") || data["saved"] != false) {
+                data["saved"] = true;
+                if (data.contains("site_path")
+                    && data["site"].contains("save_config")
+                    && data["site"]["save_config"] == true)
+                    co_await save_config(t);
 
-            co_await save_config(data);
+                // cache config
+                co_await manapi::filesystem::async_write(data["cache_path"].as_string() + site::default_config_name, data["cache"].dump(),
+                    ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+            }
 
-            auto const cconfig = data->server_config->cache;
-            lkc.call();
-
-            // cache config
-            co_await manapi::filesystem::async_write(data->config_cache_dir + site::default_config_name, cconfig.dump(),
-                ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
-        }
+            co_return false;
+        });
     }
     catch (std::exception const &e) {
         async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "http: couldn't save the configuration file due to {}", e.what());
@@ -145,9 +148,9 @@ manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data
         printf("finish unwatch_async(this->data2->init_watcher);\n");
     }
 
-    if (data->server_config_notifier) {
-        data->sctx.remove_server_sub(data->server_config_notifier);
-        async::current()->eventloop()->stop_watcher(std::move(data->server_config_notifier));
+    if (data->server_config) {
+        data->sctx.storage().unsubscribe(data->server_config);
+        data->server_config.reset();
     }
 
     if (!evloop) {
@@ -159,17 +162,16 @@ manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data
 manapi::future<> manapi::net::http::server::init_pool_() {
     auto &pool = this->data2->pools[std::this_thread::get_id()];
     // init all pools
-    if (this->data->config_->contains("pools"))
+    if (this->data->config_->at("site").contains("pools"))
     {
         auto bb = this->data->config_;
-        auto &pools = bb->at("pools");
+        auto &pools = bb->at("site")["pools"];
         for (auto it = pools.begin<json::ARRAY>(); it != pools.end<json::ARRAY>(); ++it, this->data2->next_pool_id++)
         {
             std::unique_ptr<http_pool> p;
 
             try {
-                auto worker_data = this->data->sctx.worker_config(this->data2->next_pool_id);
-                p = std::make_unique<http_pool> (*it, std::move(worker_data), *this, this->data2->next_pool_id, async::current()->eventloop());
+                p = std::make_unique<http_pool> (*it, this->data->server_config, *this, this->data2->next_pool_id, async::current()->eventloop());
                 co_await p->run();
                 pool.insert({this->data2->next_pool_id, std::move(p)});
             }

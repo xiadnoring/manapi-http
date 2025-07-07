@@ -145,7 +145,7 @@ namespace manapi::net::worker {
 
         virtual http::config *config() = 0;
 
-        virtual const std::shared_ptr<worker_config_t> & worker_data() = 0;
+        virtual const std::shared_ptr<multithread_storage::worker_t> & worker_data() = 0;
 
         virtual bool is_valid_connection (worker::connection *connection) = 0;
 

@@ -31,7 +31,7 @@ namespace manapi::net::worker {
             CONN_LIMIT_RATE     = 512,
         };
 
-        TCP (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config);
+        TCP (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
 
         ~TCP () override;
 
@@ -47,7 +47,7 @@ namespace manapi::net::worker {
 
         virtual void onrecv (std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer);
 
-        static std::shared_ptr<worker::TCP> create (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config);
+        static std::shared_ptr<worker::TCP> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
 
         virtual shared_conn accept (ev::shared_tcp &w, std::move_only_function<shared_conn()> init);
 

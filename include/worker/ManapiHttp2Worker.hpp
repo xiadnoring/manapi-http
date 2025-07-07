@@ -47,7 +47,7 @@ namespace manapi::net::worker {
 
         ~http_v2 ();
 
-        const std::shared_ptr<worker_config_t> &worker_data() override;
+        const std::shared_ptr<multithread_storage::worker_t> &worker_data() override;
 
         wrk_interface_global_t *wrk_global() override;
 

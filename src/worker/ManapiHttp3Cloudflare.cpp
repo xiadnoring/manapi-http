@@ -50,7 +50,7 @@ requires(version_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 ssize_t manapi_quiche_h3_send_additional_headers_(Args&&...args) { /* skip */ return 0; }
 
 manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(net::http::site site,
-    std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config* config) : udp(std::move(site), std::move(wdata), config) {
+    std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) : udp(std::move(site), std::move(wdata), config) {
     this->flags = 0;
     this->count = 0;
     this->finish = nullptr;
@@ -71,7 +71,7 @@ manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() {
 }
 
 std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::worker::http_v3_cloudflare_quiche::create(
-    net::http::site site, std::shared_ptr<worker::worker_config_t> wdata,
+    net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata,
     std::shared_ptr<manapi::net::http::config> config) {
     auto worker = std::make_shared<worker::http_v3_cloudflare_quiche>(std::move(site), std::move(wdata), config.get());
     worker->self_ = std::weak_ptr (worker);

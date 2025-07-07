@@ -1,7 +1,7 @@
 #include "worker/ManapiInterfaceWorker.hpp"
 #include "../include/ManapiUtils.hpp"
 
-manapi::net::worker::interface_worker::interface_worker(net::http::site site, std::shared_ptr<worker::worker_config_t> data, manapi::net::http::config *config) : site_(std::move(site)), config_(config), worker_data_(std::move(data)) {
+manapi::net::worker::interface_worker::interface_worker(net::http::site site, std::shared_ptr<multithread_storage::worker_t> data, manapi::net::http::config *config) : site_(std::move(site)), config_(config), worker_data_(std::move(data)) {
 }
 
 manapi::net::worker::interface_worker::~interface_worker() {
@@ -27,7 +27,7 @@ manapi::net::http::config *manapi::net::worker::interface_worker::config() {
     return this->config_;
 }
 
-const std::shared_ptr<manapi::net::worker::worker_config_t> & manapi::net::worker::interface_worker::worker_data() {
+const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::interface_worker::worker_data() {
     return this->worker_data_;
 }
 

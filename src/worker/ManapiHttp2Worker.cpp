@@ -41,7 +41,7 @@ manapi::net::worker::http_v2::http_v2(worker::base *w, http_v2_callbacks_t *call
 
 manapi::net::worker::http_v2::~http_v2() = default;
 
-const std::shared_ptr<manapi::net::worker::worker_config_t> & manapi::net::worker::http_v2::worker_data() {
+const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::http_v2::worker_data() {
     return this->w->worker_data();
 }
 

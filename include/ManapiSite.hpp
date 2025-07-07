@@ -79,21 +79,13 @@ namespace manapi::net::http {
 
     class site {
     public:
-        typedef std::function<std::shared_ptr<worker::base>(site site, std::shared_ptr<manapi::net::worker::worker_config_t> wdata, std::shared_ptr<http::config> config)> implement_create_cb;
+        typedef std::function<std::shared_ptr<worker::base>(site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<http::config> config)> implement_create_cb;
         typedef std::function<manapi::error::status_or<std::unique_ptr<worker::wrk_interface_global_t>> (worker::base *w)> implemenet_http_cb;
     protected:
         struct data_t {
-            std::unique_ptr<async::condition_variable> cache_cv;
-            ev::shared_async server_config_notifier;
-            std::shared_ptr<worker::server_config_t> server_config;
-            std::shared_ptr<manapi::json> cache_config;
+            std::shared_ptr<multithread_storage::worker_t> server_config;
             std::shared_ptr<manapi::json> config_;
-            size_t cache_time;
-            size_t config_time;
-            std::string config_path;
-            std::string config_cache_dir;
             server_ctx sctx;
-            bool enabled_save_config;
             http_uri_part handlers;
             std::unique_ptr<std::map <std::string, std::move_only_function<future<void>(std::string src, std::string dest)>>> compressors_for_file{};
             std::unique_ptr<std::map <std::string, std::move_only_function<std::string(std::string_view data)>>> compressors_for_string{};
@@ -140,11 +132,16 @@ namespace manapi::net::http {
         [[nodiscard]] const std::string &config_cache_dir();
 
     protected:
+        static void on_config_update (std::shared_ptr<data_t> data, const manapi::json &n);
+
         void setup ();
-        manapi::future<> setup_config ();
+
+        manapi::future<> setup_config (manapi::json &n);
+
         static manapi::future<> save_config (std::shared_ptr<data_t> data);
 
         std::shared_ptr<data_t> data;
+
         static std::string default_config_name;
     private:
         static http_handler_function default_error_handler;

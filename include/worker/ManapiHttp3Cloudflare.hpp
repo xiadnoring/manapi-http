@@ -38,11 +38,11 @@ namespace manapi::net::worker {
             int speed_min_delay;
         };
 
-        explicit http_v3_cloudflare_quiche(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata,manapi::net::http::config * config);
+        explicit http_v3_cloudflare_quiche(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata,manapi::net::http::config * config);
 
         ~http_v3_cloudflare_quiche() override;
 
-        static std::shared_ptr<worker::http_v3_cloudflare_quiche> create (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config);
+        static std::shared_ptr<worker::http_v3_cloudflare_quiche> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
 
         void init() override;
 

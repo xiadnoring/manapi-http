@@ -27,7 +27,7 @@
 #include "ManapiInitTools.hpp"
 #include "async/ManapiAsyncSocket.hpp"
 
-manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
+manapi::net::worker::WolfSSL_TLS::WolfSSL_TLS(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TLS (std::move(site), std::move(wdata), config) {
     this->ssl_error_none_ = WOLFSSL_ERROR_NONE;
     this->ssl_error_syscall_ = WOLFSSL_ERROR_SYSCALL;
     this->ssl_error_want_read_ = WOLFSSL_ERROR_WANT_READ;
@@ -85,7 +85,7 @@ void manapi::net::worker::WolfSSL_TLS::init() {
     }
 }
 
-std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
+std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
     auto worker = std::make_shared<worker::WolfSSL_TLS>(std::move(site), std::move(wdata), config.get());
     worker->self_ = worker;
     return std::move(worker);

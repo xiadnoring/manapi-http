@@ -159,6 +159,10 @@ void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<v
         });
     }
 
+    manapi::async::current()->timerpool()->append_interval_sync(60 * 1000,
+        [] (const manapi::timer &t) -> void {
+        manapi::async::current()->memory_fabric().clear();
+    });
 
     callback([ctx = std::move(ctx)] () -> void {
         ctx->sync_start();

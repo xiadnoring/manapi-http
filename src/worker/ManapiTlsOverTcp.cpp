@@ -22,7 +22,7 @@ enum conn_tls_flags  {
     CONN_TLS_SHUTDOWN = 512
 };
 
-manapi::net::worker::TLS::TLS(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : TCP(std::move(site), std::move(wdata), config) {}
+manapi::net::worker::TLS::TLS(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TCP(std::move(site), std::move(wdata), config) {}
 
 manapi::net::worker::TLS::~TLS() = default;
 
@@ -83,20 +83,22 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) {
     if (connection->status & CONN_REMOVED)
         return;
 
-    if ((connection->status & CONN_TLS_SHUTDOWN)) {
-        if (flags)
-            goto eof;
-        return;
-    }
-
-
     if (connection->accept_timer) {
         connection->accept_timer.stop();
         connection->accept_timer.clear();
         connection->accept_timer = nullptr;
 
-        flags = false;
+        flags = CLOSE_CONN_EOF;
     }
+
+    if ((connection->status & CONN_TLS_SHUTDOWN)) {
+        if ((flags & (CLOSE_CONN_EOF)))
+            goto eof;
+
+        return;
+    }
+
+
 
     connection->status |= CONN_TLS_SHUTDOWN;
 
@@ -365,17 +367,19 @@ void manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &s
 void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *ptr) {
     auto uptr = std::unique_ptr<worker::connection> (ptr);
     auto connection = std::unique_ptr<connection_interface> (uptr->as<connection_interface>());
+    auto w = (dynamic_cast<TLS*>(connection->worker));
 
     if (connection->ssl) {
         auto ssl = std::exchange(connection->ssl, nullptr);
-        //std::cout << ("SSL FREE\n");
-        (dynamic_cast<TLS*>(connection->worker))->ssl_free_(ssl);
+        std::cout << ("SSL FREE\n");
+        if (w)
+            w->ssl_free_(ssl);
     }
 
     auto const wrk = dynamic_cast<TLS*> (connection->worker);
     if (wrk) {
         wrk->count--;
-        wrk->worker_data()->count.fetch_sub(1);
+        wrk->worker_data()->as<http::server_ctx::worker_data_t>()->count.fetch_sub(1);
 
         if (wrk->flags & NET_WORKER_CLOSED
             && !wrk->count

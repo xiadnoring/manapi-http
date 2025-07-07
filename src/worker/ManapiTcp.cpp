@@ -42,7 +42,7 @@
 // TLS: 454978.10 in sec | 348111.84 in sec (STUPID METHOD)
 // TCP: 661876.15 in sec | 560063.69 in sec (STUPID METHOD)
 
-manapi::net::worker::TCP::TCP(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config) : interface_worker (std::move(site), std::move(wdata), config) {
+manapi::net::worker::TCP::TCP(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : interface_worker (std::move(site), std::move(wdata), config) {
     this->local = nullptr;
     this->finish = nullptr;
     this->flags = 0;
@@ -212,7 +212,7 @@ void manapi::net::worker::TCP::onrecv(std::shared_ptr<ev::tcp> &watcher, const w
     }
 }
 
-std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
+std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
     auto worker = std::make_shared<worker::TCP>(std::move(site), std::move(wdata), config.get());
     worker->self_ = std::weak_ptr (worker);
     return std::move(worker);
@@ -303,7 +303,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
         }
 
         this->count++;
-        this->worker_data_->count.fetch_add(1);
+        this->worker_data_->as<http::server_ctx::worker_data_t>()->count.fetch_add(1);
 
         connection->ipdata = std::make_unique<decltype(connection)::element_type::ipdata_t>();
         connection->ipdata->len = 0;
@@ -370,7 +370,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) {
 
     conn->cancellation.cancel();
 
-    if ((flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOF))
+    if ((flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOF|CLOSE_CONN_SHUTDOWN))
         || !this->config_->keep_alive
         || !(connection->status & CONN_KEEP_ALIVE)) {
 
@@ -418,8 +418,8 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) {
         arr[0] = static_cast<char>(http::version_ip_by_addr (sn));
         http::ip_by_addr(sn, arr.data() + 1);
         auto it = this->ips.find(arr);
-        assert(it != this->ips.end());
-        it->second.erase(reinterpret_cast<uintptr_t>(conn.get()));
+        if (it != this->ips.end())
+            it->second.erase(reinterpret_cast<uintptr_t>(conn.get()));
     }
     else {
         if (this->global_.cleanup_cb(conn.get(), &this->global_, this))
@@ -911,7 +911,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
             MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
 
         wrk->count--;
-        wrk->worker_data()->count.fetch_sub(1);
+        wrk->worker_data()->as<http::server_ctx::worker_data_t>()->count.fetch_sub(1);
 
         if (wrk->count < wrk->config_->max_connections) {
             // TODO: start accepting

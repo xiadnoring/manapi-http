@@ -12,10 +12,10 @@
 namespace manapi::net::worker {
     class WolfSSL_TLS : public worker::TLS {
     public:
-        WolfSSL_TLS (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, manapi::net::http::config *config);
+        WolfSSL_TLS (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
         ~WolfSSL_TLS ();
         void init() override;
-        static std::shared_ptr<worker::WolfSSL_TLS> create (net::http::site site, std::shared_ptr<worker::worker_config_t> wdata, std::shared_ptr<manapi::net::http::config> config);
+        static std::shared_ptr<worker::WolfSSL_TLS> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
     protected:
         bool ssl_is_init_fininshed_ (void *ssl) override;
         int ssl_get_error_ (void *ssl, int rhs) override;
