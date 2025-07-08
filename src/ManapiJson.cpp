@@ -589,6 +589,7 @@ const manapi::json & manapi::json::at(size_t index) const {
 
 manapi::json& manapi::json::operator=(STRING str) {
     _set_string(std::move(str));
+    _debug_symb_reinit();
 
     return *this;
 }

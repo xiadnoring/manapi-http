@@ -45,15 +45,15 @@ std::string manapi::net::http::site::default_config_name      = "config_.json";
 
 // ======================[ configs funcs]==========================
 
-void manapi::net::http::site::compressor_for_file(const std::string &name, std::move_only_function<future<void>(std::string src, std::string dest)> handler) {
+void manapi::net::http::site::compressor_for_file(const std::string &name, compress_file_cb_t handler) {
     (*this->data->compressors_for_file)[name] = std::move(handler);
 }
 
-void manapi::net::http::site::compressor_for_string(const std::string &name, std::move_only_function<std::string(std::string_view data)> handler) {
+void manapi::net::http::site::compressor_for_string(const std::string &name, compress_str_cb_t handler) {
     (*this->data->compressors_for_string)[name] = std::move(handler);
 }
 
-std::move_only_function<manapi::future<void>(std::string src, std::string dest)> & manapi::net::http::site::compressor_for_file(const std::string &name) {
+manapi::net::http::site::compress_file_cb_t & manapi::net::http::site::compressor_for_file(const std::string &name) {
     auto it = this->data->compressors_for_file->find(name);
     if (it == this->data->compressors_for_file->end()) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_DATA_LOSS, "The compressor {} doesn't exists", name);
@@ -66,7 +66,7 @@ bool manapi::net::http::site::contains_compressor_for_file(const std::string &na
     return this->data->compressors_for_file->contains(name);
 }
 
-std::move_only_function<std::string(std::string_view)> & manapi::net::http::site::compressor_for_string(const std::string &name) {
+manapi::net::http::site::compress_str_cb_t & manapi::net::http::site::compressor_for_string(const std::string &name) {
     auto it = this->data->compressors_for_string->find(name);
     if (it == this->data->compressors_for_string->end()) {
         THROW_MANAPIHTTP_EXCEPTION(ERR_DATA_LOSS, "The compress {} doesn't exists", name);
@@ -113,7 +113,9 @@ void manapi::net::http::site::on_config_update(std::shared_ptr<data_t> data, con
 
     }
 
-    data->config_ = std::make_shared<json>(n);
+    data->config_ = std::make_shared<json>();
+    *data->config_ = n;
+    assert(*data->config_ == n);
 }
 
 manapi::error::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_http_protocol_worker (manapi::net::worker::base *w, manapi::error::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w)) {
@@ -127,28 +129,28 @@ manapi::error::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_glob
 void manapi::net::http::site::setup() {
 #if MANAPIHTTP_ZLIB_DEPENDENCY
     this->compressor_for_file("deflate", +[] (std::string src, std::string dest)
-        -> future<void> { return manapi::compress::deflate_compress_file( std::move(src), std::move(dest)); });
+        -> future<error::status> { return manapi::compress::deflate_compress_file( std::move(src), std::move(dest)); });
     this->compressor_for_file("gzip", +[] (std::string src, std::string dest)
-        -> future<void> { return manapi::compress::gzip_compress_file(std::move(src), std::move(dest)); });
+        -> future<error::status> { return manapi::compress::gzip_compress_file(std::move(src), std::move(dest)); });
 
     this->compressor_for_string("deflate", +[] (std::string_view data)
-        -> std::string { return compress::deflate_compress_string(data); });
+        -> error::status_or<std::string> { return compress::deflate_compress_string(data); });
     this->compressor_for_string("gzip", +[] (std::string_view data)
-        -> std::string { return compress::gzip_compress_string(data); });
+        -> error::status_or<std::string> { return compress::gzip_compress_string(data); });
 #endif
 
 #ifdef MANAPIHTTP_BROTLI_DEPENDENCY
     this->compressor_for_file("br", +[] (std::string src, std::string dest)
-        -> future<void> { return manapi::compress::brotli_compress_file(std::move(src), std::move(dest), 11, 22, 0); });
+        -> future<error::status> { return manapi::compress::brotli_compress_file(std::move(src), std::move(dest), 11, 22, 0); });
     this->compressor_for_string("br", +[] (std::string_view data)
-        -> std::string { return compress::brotli_compress_string(data, 11, 22, 0); });
+        -> error::status_or<std::string> { return compress::brotli_compress_string(data, 11, 22, 0); });
 #endif
 
 #ifdef MANAPIHTTP_ZSTD_DEPENDENCY
     this->compressor_for_file("zstd", +[] (std::string src, std::string dest)
-        -> future<void> { return manapi::compress::zstd_compress_file(std::move(src), std::move(dest), 1); });
+        -> future<error::status> { return manapi::compress::zstd_compress_file(std::move(src), std::move(dest), 1); });
     this->compressor_for_string("zstd", +[] (std::string_view data)
-        -> std::string { return compress::zstd_compress_string(data, 1); });
+        -> error::status_or<std::string> { return compress::zstd_compress_string(data, 1); });
 #endif
 
     this->transport_protocol_worker("tcp", "default", worker::TCP::create);
@@ -265,7 +267,7 @@ manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {
     std::string cache_path;
 
     try {
-        if (it != csite.end<json::OBJECT>())
+        if (it != n.end<json::OBJECT>())
             cache_path = it->second.as_string();
     }
     catch (std::exception const &e) {
@@ -322,8 +324,10 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::site::g
                 break;
             }
 
-            if (file_info->at("last-write").as_string() == std::format("{:%Y-%m-%d-%H-%M-%S}", filetime)) {
-                co_return file_info->at("compressed").as_string();
+            std::string const &lastWrite = file_info->at("last-write").as_string();
+            if (lastWrite == std::format("{:%Y-%m-%d-%H-%M-%S}", filetime)) {
+                std::string const &compressed = file_info->at("compressed").as_string();
+                co_return compressed;
             }
 
             // last-writes aren't match

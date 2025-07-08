@@ -116,13 +116,22 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                 THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "replacers can not be using during compress");
             }
 
+            bool rst_compress = false;
+
             try {
-                filepath = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site().config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
+                auto rhs = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site().config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
+                if (!rhs.ok())
+                    rst_compress = true;
+                filepath = rhs.unwrap();
             }
             catch (std::exception const &e) {
-                manapi::async::current()->logger()
-                    ->debug(manapi::logger::default_service, "compress file failed due to {}", e.what());
+                manapi_log_error("compress:Compress file failed due to %s", e.what());
 
+                rst_compress = true;
+            }
+
+
+            if (rst_compress) {
                 /* badness */
                 res->remove_header(http::HEADER.CONTENT_ENCODING);
                 features.compressor_for_string = nullptr;
@@ -293,7 +302,12 @@ manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_d
     if (features.compressor_for_string) {
         // encode content !
         auto r = (*features.compressor_for_string)(plaintext);
-        plaintext = std::move(r);
+        if (r.ok())
+            plaintext = r.unwrap();
+        else {
+            features.compressor_for_string = nullptr;
+            res->remove_header(HEADER.CONTENT_ENCODING);
+        }
     }
 
     res->header(HEADER.CONTENT_LENGTH, std::to_string(plaintext.size()));
@@ -1012,64 +1026,74 @@ std::string generate_cache_name(const std::string &file, const std::string &ext)
     return std::move(name);
 }
 
-manapi::future<std::string> manapi::net::http::internal::compress_file(net::http::site site, std::string file, std::string folder, std::string compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor, bool force_compress) {
+manapi::future<manapi::error::status_or<std::string>> manapi::net::http::internal::compress_file(net::http::site site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress) {
     std::string filepath;
     std::string cached;
 
-    auto filetime = co_await manapi::filesystem::async_last_time_write(file);
-    // compressor
-    if (force_compress) {
-        cached.clear();
-    }
-    else {
-        auto res = co_await site.get_compressed_cache_file(file, compress, filetime);
-        if (res.ok())
-            cached = res.unwrap();
-        else {
-            if (res.code() == ERR_NOT_FOUND)
-                cached.clear();
-            else
-                co_return std::move(file);
+    try {
+        auto filetime = co_await manapi::filesystem::async_last_time_write(file);
+        // compressor
+        if (force_compress) {
+            cached.clear();
         }
-    }
+        else {
+            auto res = co_await site.get_compressed_cache_file(file, compress, filetime);
+            if (res.ok())
+                cached = res.unwrap();
+            else {
+                if (res.code() == ERR_NOT_FOUND)
+                    cached.clear();
+                else
+                    co_return std::move(file);
+            }
+        }
 
-    if (cached.empty()) {
-        auto res = co_await site.set_locked_cache_file(file, true, compress);
-        try {
-            if (!res.ok())
-                co_return std::move(file);
-
+        if (cached.empty()) {
+            auto res = co_await site.set_locked_cache_file(file, true, compress);
             try {
-                if (!co_await filesystem::async_exists (folder))
-                    co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR);
+                if (!res.ok())
+                    co_return std::move(file);
+
+                try {
+                    if (!co_await filesystem::async_exists (folder))
+                        co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR);
+                }
+                catch (std::exception const &e) {
+                    co_return error::status_filesystem_failed("mkdir cache directory failed", {{"msg", e.what()}});
+                }
+
+                filepath = folder + generate_cache_name(file, compress);
+
+                auto compress_res = co_await (*compressor)(file, filepath);
+                if (!compress_res.ok())
+                    co_return std::move(compress_res);
+
+                res = co_await site.set_compressed_cache_file(file, filepath, compress, filetime);
+                if (!res.ok())
+                    co_return std::move(file);
+
+                co_return std::move(filepath);
             }
             catch (std::exception const &e) {
-                THROW_MANAPIHTTP_EXCEPTION (ERR_FILESYSTEM_FAILED, "mkdir cache directory failed due to {}", e.what());
+                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "file compress failed due to {}", e.what());
             }
 
-            filepath = folder + generate_cache_name(file, compress);
+            res = co_await site.set_locked_cache_file(file, false, compress);
 
-            co_await (*compressor)(file, filepath);
-
-            res = co_await site.set_compressed_cache_file(file, filepath, compress, filetime);
             if (!res.ok())
-                co_return std::move(file);
+                manapi_log_error("compress:Failed to unlock compressed file due to %s:%s", res.status_msg(), res.msg());
 
-            co_return std::move(filepath);
-        }
-        catch (std::exception const &e) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "file compress failed due to {}", e.what());
             co_return std::move(file);
         }
+        else {
+            filepath = std::move(cached);
+        }
 
-        res = co_await site.set_locked_cache_file(file, false, compress);
-
-        if (!res.ok())
-            manapi_log_error("compress:Failed to unlock compressed file due to %s:%s", res.status_msg(), res.msg());
+        co_return std::move(filepath);
     }
-    else {
-        filepath = std::move(cached);
+    catch (std::exception const &e) {
+        manapi_log_error("compress:Compress file filed due to %s", e.what());
     }
 
-    co_return std::move(filepath);
+    co_return error::status_internal("compress:Something gets wrong");
 }

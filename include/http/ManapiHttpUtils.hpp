@@ -12,9 +12,12 @@
 
 namespace manapi::net::http {
     struct response_features_t {
+        typedef std::move_only_function<future<manapi::error::status>(std::string src, std::string dest)> compress_file_cb;
+        typedef std::move_only_function<manapi::error::status_or<std::string>(std::string_view data)> compress_str_cb;
+
         std::string compress;
-        std::move_only_function<future<void>(std::string src, std::string dest)> *compressor_for_file = nullptr;
-        std::move_only_function<std::string(std::string_view data)> *compressor_for_string = nullptr;
+        compress_file_cb *compressor_for_file = nullptr;
+        compress_str_cb *compressor_for_string = nullptr;
         std::unique_ptr<std::map <std::string, std::string>> replacers;
     };
 

@@ -7,35 +7,17 @@
 #include <zlib.h>
 
 #include "ManapiFilesystem.hpp"
-#include "compress/ManapiCompress.hpp"
-#include "ManapiBeforeDelete.hpp"
-#include "ManapiString.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
 #include "../include/ManapiUtils.hpp"
 
 #define CHUNK_SIZE 65536
-
-
-void manapi::compress::throw_could_not_compress_file (const std::string &name, const std::string &src, const std::string &dest)
-{
-    THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "Could not compress file with {}. src: {}, dest: {}", name, src, dest);
-}
-
-void manapi::compress::throw_could_not_open_file (const std::string &name, const std::string &path)
-{
-    THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "{}: Could not open file by location {}", name, path);
-}
-
-void manapi::compress::throw_file_exists (const std::string &name, const std::string &path) {
-    THROW_MANAPIHTTP_EXCEPTION(ERR_ALREADY_EXISTS, "{}: File by following path exists: {}", name, path);
-}
 
 #ifdef MANAPIHTTP_BROTLI_DEPENDENCY
 
 #   include <brotli/encode.h>
 #   include <brotli/decode.h>
 
-std::string manapi::compress::brotli_decompress_string(std::string_view src) {
+manapi::error::status_or<std::string> manapi::compress::brotli_decompress_string(std::string_view src) {
     std::string output;
     output.resize(src.size() * 2);
     std::size_t output_size = output.size();
@@ -47,10 +29,10 @@ std::string manapi::compress::brotli_decompress_string(std::string_view src) {
     output.resize(output_size);
     return std::move(output);
 err:
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "brotli: decompress failed");
+    return error::status_internal("brotli: decompress failed");
 }
 
-std::string manapi::compress::brotli_compress_string(std::string_view src, int quality, int window, int mode) {
+manapi::error::status_or<std::string> manapi::compress::brotli_compress_string(std::string_view src, int quality, int window, int mode) {
     std::string output;
     output.resize(src.size() * 2);
 
@@ -70,43 +52,43 @@ std::string manapi::compress::brotli_compress_string(std::string_view src, int q
         output.resize(output_size);
 
         return std::move(output);
-    } while (0);
+    } while (false);
 err:
-    THROW_MANAPIHTTP_EXCEPTION2 (ERR_INTERNAL, "brotli: compress failed");
+    return error::status_internal("brotli: compress failed");
 }
 
-manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std::string dest, int quality, int window, int mode, manapi::async::cancellation_action cancellation) {
+manapi::future<manapi::error::status> manapi::compress::brotli_compress_file(std::string src, std::string dest, int quality, int window, int mode, manapi::async::cancellation_action cancellation) {
     filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
     filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     auto res = co_await input.open(ev::FS_O_RDONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("brotli", src);
-    }
+        co_return std::move(res);
 
     res = co_await output.open(ev::FS_O_CREAT|ev::FS_O_WRONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("brotli", dest);
-    }
+        co_return std::move(res);
 
     BrotliEncoderState* const cctx = BrotliEncoderCreateInstance(nullptr, nullptr, nullptr);
     try {
         if (!cctx) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "brotli: BrotliEncoderCreateInstance(...) failed");
+            res = manapi::error::status_internal("brotli: BrotliEncoderCreateInstance(...) failed");
+            goto err;
         }
 
         if (!BrotliEncoderSetParameter(cctx, BROTLI_PARAM_MODE, mode)) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "brotli: couldn't set the mode param");
+            res = manapi::error::status_internal("brotli: couldn't set the mode param");
+            goto err;
         }
 
         if (!BrotliEncoderSetParameter(cctx, BROTLI_PARAM_QUALITY, quality)) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "brotli: couldn't set the quality param");
+            res = manapi::error::status_internal("brotli: couldn't set the quality param");
+            goto err;
         }
 
         if (!BrotliEncoderSetParameter(cctx, BROTLI_PARAM_LGWIN, window)) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "brotli: couldn't set the window param");
+            res = manapi::error::status_internal("brotli: couldn't set the window param");
+            goto err;
         }
 
         std::size_t buffInSize = CHUNK_SIZE, buffOutSize = CHUNK_SIZE;
@@ -161,33 +143,31 @@ manapi::future<void> manapi::compress::brotli_compress_file(std::string src, std
             }
         }
         BrotliEncoderDestroyInstance(cctx);
-        co_return;
+        co_return error::status_ok();
     }
     catch (...) {
 
     }
 err:
     BrotliEncoderDestroyInstance(cctx);
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "brotli: compress failed");
+    if (res.ok())
+        co_return error::status_internal("brotli: compress failed");
+    co_return std::move(res);
 }
 
-manapi::future<void> manapi::compress::brotli_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
+manapi::future<manapi::error::status> manapi::compress::brotli_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
     filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
     filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     auto res = co_await input.open(ev::FS_O_RDONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("brotli", src);
-    }
+        co_return std::move(res);
 
     res = co_await output.open(ev::FS_O_CREAT|ev::FS_O_WRONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("brotli", dest);
-    }
+        co_return std::move(res);
 
-    perror("brotli_decompress_file(...) not supported");
+    assert(false && "brotli_decompress_file(...) not supported");
 }
 
 
@@ -198,58 +178,56 @@ manapi::future<void> manapi::compress::brotli_decompress_file(std::string src, s
 
 #   include <zstd.h>
 
-/**
- * Check the result
- * @param result result
- * @param is_compress compress/uncompress
- * @throws manapi::exception with @code ERR_INTERNAL@endcode
- */
-void zstd_error_check (std::size_t result, bool is_compress) {
-    if (auto rhs = ZSTD_isError(result)) {
-        throw manapi::exception (manapi::ERR_INTERNAL,
-            std::format("zstd {}compress failed due to rhs = {}", is_compress ? "" : "un", rhs));
-    }
-}
+// /**
+//  * Check the result
+//  * @param result result
+//  * @param is_compress compress/uncompress
+//  * @throws manapi::exception with @code ERR_INTERNAL@endcode
+//  */
+// void zstd_error_check (std::size_t result, bool is_compress) {
+//     if (auto rhs = ZSTD_isError(result)) {
+//         throw manapi::exception (manapi::ERR_INTERNAL,
+//             std::format("zstd {}compress failed due to rhs = {}", is_compress ? "" : "un", rhs));
+//     }
+// }
 
-std::string manapi::compress::zstd_decompress_string(std::string_view src) {
+manapi::error::status_or<std::string> manapi::compress::zstd_decompress_string(std::string_view src) {
     std::string dest;
     dest.resize(ZSTD_compressBound(src.size()));
 
     std::size_t const size = ZSTD_decompress(dest.data(), dest.size(), src.data(), src.size());
 
-    zstd_error_check(size, false);
+    if (ZSTD_isError(size))
+        return error::status_internal("zstd:Decompress failed");
 
     dest.resize(size);
     return std::move(dest);
 }
 
-std::string manapi::compress::zstd_compress_string(std::string_view src, int level) {
+manapi::error::status_or<std::string> manapi::compress::zstd_compress_string(std::string_view src, int level) {
     std::string dest;
     dest.resize(ZSTD_compressBound(src.size()));
 
     std::size_t const size = ZSTD_compress(dest.data(), dest.size(), src.data(), src.size(), level);
 
-    zstd_error_check(size, false);
+    if (ZSTD_isError(size))
+        return error::status_internal("zstd:Compress failed");
 
     dest.resize(size);
     return std::move(dest);
 }
 
-manapi::future<> manapi::compress::zstd_compress_file(std::string src, std::string dest, int level, int additional_threads, manapi::async::cancellation_action cancellation) {
+manapi::future<manapi::error::status> manapi::compress::zstd_compress_file(std::string src, std::string dest, int level, int additional_threads, manapi::async::cancellation_action cancellation) {
     filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
     filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     auto res = co_await input.open(ev::FS_O_RDONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("zstd", src);
-    }
+        co_return std::move(res);
 
     res = co_await output.open(ev::FS_O_CREAT|ev::FS_O_WRONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("zstd", dest);
-    }
+        co_return std::move(res);
 
     size_t const buffInSize = ZSTD_CStreamInSize();
     size_t const buffOutSize = ZSTD_CStreamOutSize();
@@ -259,21 +237,25 @@ manapi::future<> manapi::compress::zstd_compress_file(std::string src, std::stri
 
     ZSTD_CCtx* const cctx = ZSTD_createCCtx();
     if (!cctx) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "zstd: ZSTD_createCCtx(...) failed");
+        res = manapi::error::status_internal("zstd: ZSTD_createCCtx(...) failed");
+        goto err;
     }
     try {
         if (!ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, level)) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "zstd: couldn't set the compression level");
+            res = manapi::error::status_internal("zstd: couldn't set the compression level");
+            goto err;
         }
 
         if (!ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 1)) {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "zstd: couldn't set the checksum flag");
+            res = manapi::error::status_internal("zstd: couldn't set the checksum flag");
+            goto err;
         }
 
         if (additional_threads) {
             std::size_t const r = ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers, additional_threads + 1);
             if (ZSTD_isError(r)) {
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "zstd: additional threads aren't supported");
+                res = manapi::error::status_internal("zstd: additional threads aren't supported");
+                goto err;
             }
         }
 
@@ -306,7 +288,7 @@ manapi::future<> manapi::compress::zstd_compress_file(std::string src, std::stri
                 if (ZSTD_isError(remaining)) {
                     goto err;
                 }
-                if (output_buffer.pos != co_await output.fwrite(buffOut.data(), output_buffer.pos)) {
+                if (output_buffer.pos != co_await output.fwrite(buffOut.data(), static_cast<ssize_t>(output_buffer.pos))) {
                     goto err;
                 }
                 /* If we're on the last chunk we're finished when zstd returns 0,
@@ -322,31 +304,29 @@ manapi::future<> manapi::compress::zstd_compress_file(std::string src, std::stri
             }
         }
         ZSTD_freeCCtx(cctx);
-        co_return;
+        co_return error::status_ok();
     }
     catch (...) {
 
     }
 err:
     ZSTD_freeCCtx(cctx);
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "zstd: compress failed");
+    if (res.ok())
+        co_return error::status_internal("zstd: compress failed");
+    co_return std::move(res);
 }
 
-manapi::future<> manapi::compress::zstd_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
-filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
+manapi::future<manapi::error::status> manapi::compress::zstd_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
+    filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
     filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     auto res = co_await input.open(ev::FS_O_RDONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("zstd", src);
-    }
+        co_return std::move(res);
 
     res = co_await output.open(ev::FS_O_CREAT|ev::FS_O_WRONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("zstd", dest);
-    }
+        co_return std::move(res);
 
     size_t const buffInSize = ZSTD_CStreamInSize();
     size_t const buffOutSize = ZSTD_CStreamOutSize();
@@ -356,7 +336,9 @@ filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancell
 
     ZSTD_DCtx* const dctx = ZSTD_createDCtx();
     if (!dctx) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "zstd: ZSTD_createDCtx(...) failed");
+
+        res = manapi::error::status_internal("zstd: ZSTD_createDCtx(...) failed");
+        goto err;
     }
     try {
         /* This loop assumes that the input file is one or more concatenated zstd
@@ -372,7 +354,7 @@ filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancell
         int isEmpty = 1;
 
         while (true) {
-            read = co_await input.read(buffIn.data(), toRead);
+            read = co_await input.read(buffIn.data(), static_cast<ssize_t>(toRead));
 
             if (read < 0) {
                 goto err;
@@ -422,35 +404,36 @@ filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancell
         }
 
         ZSTD_freeDCtx(dctx);
-        co_return;
+        co_return error::status_ok();
+    }
+    catch (std::bad_alloc const &) {
+        res = error::status_resource_exhausted("zstd:Bad alloc");
     }
     catch (...) {
 
     }
 err:
     ZSTD_freeDCtx(dctx);
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "zstd: decompress failed");
+    if (res.ok())
+        co_return error::status_internal("zstd: decompress failed");
+    co_return std::move(res);
 }
 
 #endif
 
 #if MANAPIHTTP_ZLIB_DEPENDENCY
 
-manapi::future<void> manapi::compress::deflate_compress_file(std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation) {
+manapi::future<manapi::error::status> manapi::compress::deflate_compress_file(std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation) {
     filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
     filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     auto res = co_await input.open(ev::FS_O_RDONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("deflate", src);
-    }
+        co_return std::move(res);
 
     res = co_await output.open(ev::FS_O_CREAT|ev::FS_O_WRONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("deflate", dest);
-    }
+        co_return std::move(res);
 
     char in_buff [CHUNK_SIZE];
     char out_buff[CHUNK_SIZE];
@@ -458,7 +441,7 @@ manapi::future<void> manapi::compress::deflate_compress_file(std::string src, st
 
     if(deflateInit(&stream, level) != Z_OK)
     {
-        MANAPIHTTP_LOG("defalte: {}", "deflateInit(...) failed!");
+        manapi_log_error("defalte:deflateInit(...) failed");
         goto excep;
     }
 
@@ -503,7 +486,7 @@ manapi::future<void> manapi::compress::deflate_compress_file(std::string src, st
 
         deflateEnd(&stream);
 
-        co_return;
+        co_return error::status_ok();
     }
     catch (...) {
 
@@ -511,30 +494,26 @@ manapi::future<void> manapi::compress::deflate_compress_file(std::string src, st
 err:
     deflateEnd(&stream);
 excep:
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "deflate compress failed");
+    co_return error::status_internal("deflate compress failed");
 }
 
 /* decompress */
-manapi::future<void> manapi::compress::deflate_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation){
+manapi::future<manapi::error::status> manapi::compress::deflate_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation){
     filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
     filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     auto res = co_await input.open(ev::FS_O_RDONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("deflate", src);
-    }
+        co_return std::move(res);
 
     res = co_await output.open(ev::FS_O_WRONLY|ev::FS_O_CREAT);
     if (!res.ok())
-    {
-        throw_could_not_open_file("deflate", src);
-    }
+        co_return std::move(res);
 
 
     char inbuff[CHUNK_SIZE];
     char outbuff[CHUNK_SIZE];
-    z_stream stream = { 0 };
+    z_stream stream = { nullptr };
 
     int result = inflateInit(&stream);
     if(result != Z_OK)
@@ -589,7 +568,7 @@ manapi::future<void> manapi::compress::deflate_decompress_file(std::string src, 
             goto excep;
         }
 
-        co_return;
+        co_return error::status_ok();
     }
     catch (...) {
 
@@ -597,10 +576,10 @@ manapi::future<void> manapi::compress::deflate_decompress_file(std::string src, 
 err:
     inflateEnd(&stream);
 excep:
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "deflate decompress failed");
+    co_return error::status_internal("deflate decompress failed");
 }
 
-std::string manapi::compress::deflate_compress_string(std::string_view original, int level, int strategy) {
+manapi::error::status_or<std::string> manapi::compress::deflate_compress_string(std::string_view original, int level, int strategy) {
 
     std::string buff;
     buff.resize(original.size() * 2);
@@ -613,7 +592,7 @@ std::string manapi::compress::deflate_compress_string(std::string_view original,
     return std::move(buff);
 }
 
-std::string manapi::compress::deflate_decompress_string(std::string_view compressed) {
+manapi::error::status_or<std::string> manapi::compress::deflate_decompress_string(std::string_view compressed) {
     std::stringstream input (compressed.data());
     std::string buff;
     buff.reserve(compressed.size());
@@ -626,7 +605,7 @@ std::string manapi::compress::deflate_decompress_string(std::string_view compres
     int result = inflateInit(&stream);
     if(result != Z_OK)
     {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "defalte: {}", "inflateInit(...) failed!");
+        return error::status_internal("deflate:inflateInit(...) failed!");
     }
 
     do {
@@ -647,7 +626,7 @@ std::string manapi::compress::deflate_decompress_string(std::string_view compres
                result == Z_MEM_ERROR)
             {
                 inflateEnd(&stream);
-                THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "defalte: {}", "inflate(...) failed!");
+                return error::status_internal("defalte:inflate(...) failed");
             }
 
             uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
@@ -659,13 +638,13 @@ std::string manapi::compress::deflate_decompress_string(std::string_view compres
     inflateEnd(&stream);
 
     if (result != Z_STREAM_END) {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "defalte: {}", "result != Z_STREAM_END");
+        return error::status_internal("defalte:result != Z_STREAM_END");
     }
 
     return std::move(buff);
 }
 
-std::string manapi::compress::gzip_compress_string(std::string_view original, int level, int strategy) {
+manapi::error::status_or<std::string> manapi::compress::gzip_compress_string(std::string_view original, int level, int strategy) {
     std::stringstream input (original.data());
     std::string buff;
 
@@ -674,9 +653,7 @@ std::string manapi::compress::gzip_compress_string(std::string_view original, in
     z_stream stream = {nullptr};
 
     if(deflateInit2(&stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK)
-    {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "gzip: {}", "deflateInit(...) failed!");
-    }
+        return error::status_internal ("gzip:deflateInit(...) failed");
 
     int flush;
     do {
@@ -703,7 +680,7 @@ std::string manapi::compress::gzip_compress_string(std::string_view original, in
     return std::move(buff);
 }
 
-std::string manapi::compress::gzip_decompress_string(std::string_view compressed) {
+manapi::error::status_or<std::string> manapi::compress::gzip_decompress_string(std::string_view compressed) {
     std::stringstream input (compressed.data());
     std::string buff;
     buff.reserve(compressed.size());
@@ -711,13 +688,11 @@ std::string manapi::compress::gzip_decompress_string(std::string_view compressed
     char inbuff[CHUNK_SIZE];
     char outbuff[CHUNK_SIZE];
 
-    z_stream stream = { 0 };
+    z_stream stream = { nullptr };
 
     int result = inflateInit2(&stream, 15 | 16);
     if(result != Z_OK)
-    {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "gzip: {}", "inflateInit(...) failed!");
-    }
+        return error::status_internal ("gzip:inflateInit(...) failed");
 
     do {
         input.read(inbuff, CHUNK_SIZE);
@@ -737,7 +712,7 @@ std::string manapi::compress::gzip_decompress_string(std::string_view compressed
                result == Z_MEM_ERROR)
             {
                 inflateEnd(&stream);
-                THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "gzip: {}", "inflate(...) failed!");
+                return error::status_internal ("gzip:inflate(...) failed");
             }
 
             uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
@@ -749,28 +724,24 @@ std::string manapi::compress::gzip_decompress_string(std::string_view compressed
     inflateEnd(&stream);
 
     if (result != Z_STREAM_END) {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "gzip: {}", "result != Z_STREAM_END");
+        return error::status_internal ("gzip:result != Z_STREAM_END");
     }
 
     return std::move(buff);
 }
 
-manapi::future<void> manapi::compress::gzip_compress_file(std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation)
+manapi::future<manapi::error::status> manapi::compress::gzip_compress_file(std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation)
 {
     filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
     filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     auto res = co_await input.open(ev::FS_O_RDONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("gzip", src);
-    }
+        co_return std::move(res);
 
     res = co_await output.open(ev::FS_O_WRONLY|ev::FS_O_CREAT);
     if (!res.ok())
-    {
-        throw_could_not_open_file("gzip", dest);
-    }
+        co_return std::move(res);
 
     char in_buff [CHUNK_SIZE];
     char out_buff[CHUNK_SIZE];
@@ -778,7 +749,7 @@ manapi::future<void> manapi::compress::gzip_compress_file(std::string src, std::
 
     if(deflateInit2(&stream, level, Z_DEFLATED, 15 | 16, 8, strategy) != Z_OK)
     {
-        //MANAPIHTTP_LOG("gzip: {}", "deflateInit(...) failed!");
+        manapi_log_error("gzip:deflateInit(...) failed!");
         goto excep;
     }
     try {
@@ -823,7 +794,7 @@ manapi::future<void> manapi::compress::gzip_compress_file(std::string src, std::
         deflateEnd(&stream);
 
 
-        co_return;
+        co_return error::status_ok();
     }
     catch (...) {
 
@@ -831,24 +802,20 @@ manapi::future<void> manapi::compress::gzip_compress_file(std::string src, std::
 err:
     deflateEnd(&stream);
 excep:
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "gzip compress failed");
+    co_return error::status_internal("gzip compress failed");
 }
 
-manapi::future<void> manapi::compress::gzip_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
+manapi::future<manapi::error::status> manapi::compress::gzip_decompress_file(std::string src, std::string dest, manapi::async::cancellation_action cancellation) {
     filesystem::fstream input (src, manapi::async::cancellation_action::unit(cancellation));
     filesystem::fstream output (dest, manapi::async::cancellation_action::unit(cancellation));
 
     auto res = co_await input.open(ev::FS_O_RDONLY);
     if (!res.ok())
-    {
-        throw_could_not_open_file("gzip", src);
-    }
+        co_return std::move(res);
 
     res = co_await output.open(ev::FS_O_WRONLY|ev::FS_O_CREAT);
     if (!res.ok())
-    {
-        throw_could_not_open_file("gzip", src);
-    }
+        co_return std::move(res);
 
     char inbuff[CHUNK_SIZE];
     char outbuff[CHUNK_SIZE];
@@ -891,7 +858,7 @@ manapi::future<void> manapi::compress::gzip_decompress_file(std::string src, std
                    result == Z_MEM_ERROR)
                 {
                     inflateEnd(&stream);
-                    THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "gzip: {}", "inflate(...) failed!");
+                    co_return error::status_internal("gzip:inflate(...) failed");
                 }
 
                 uint32_t nbytes = CHUNK_SIZE - stream.avail_out;
@@ -907,7 +874,7 @@ manapi::future<void> manapi::compress::gzip_decompress_file(std::string src, std
             goto excep;
         }
 
-        co_return;
+        co_return error::status_ok();
     }
     catch (...) {
 
@@ -915,7 +882,7 @@ manapi::future<void> manapi::compress::gzip_decompress_file(std::string src, std
 err:
     inflateEnd(&stream);
 excep:
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "gzip decompress failed");
+    co_return error::status_internal("gzip decompress failed");
 }
 
 #endif

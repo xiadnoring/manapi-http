@@ -79,6 +79,16 @@ namespace manapi::net::http {
 
     class site {
     public:
+        /**
+         * Compress file callback
+         */
+        typedef std::move_only_function<future<manapi::error::status>(std::string src, std::string dest)> compress_file_cb_t;
+
+        /**
+         * Compress string callback
+         */
+        typedef std::move_only_function<manapi::error::status_or<std::string>(std::string_view data)> compress_str_cb_t;
+
         typedef std::function<std::shared_ptr<worker::base>(site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<http::config> config)> implement_create_cb;
         typedef std::function<manapi::error::status_or<std::unique_ptr<worker::wrk_interface_global_t>> (worker::base *w)> implemenet_http_cb;
     protected:
@@ -87,8 +97,8 @@ namespace manapi::net::http {
             std::shared_ptr<manapi::json> config_;
             server_ctx sctx;
             http_uri_part handlers;
-            std::unique_ptr<std::map <std::string, std::move_only_function<future<void>(std::string src, std::string dest)>>> compressors_for_file{};
-            std::unique_ptr<std::map <std::string, std::move_only_function<std::string(std::string_view data)>>> compressors_for_string{};
+            std::unique_ptr<std::map <std::string, compress_file_cb_t>> compressors_for_file{};
+            std::unique_ptr<std::map <std::string, compress_str_cb_t>> compressors_for_string{};
             std::unique_ptr<std::map <std::string, std::map <std::string, implement_create_cb>>> transport_protocol_workers{};
             std::unique_ptr<std::map <http::versions::http, std::map <std::string, implemenet_http_cb>>> http_protocol_workers{};
             std::mutex loopmx{};
@@ -98,8 +108,11 @@ namespace manapi::net::http {
         virtual ~site();
 
         site (site &&n) noexcept;
+
         site &operator=(site &&n) noexcept;
+
         site (const site &n);
+
         site &operator=(const site &n);
 
         http_uri_part *handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
@@ -107,17 +120,44 @@ namespace manapi::net::http {
 
         std::unique_ptr<http_handler_page> handler (http::request_data_t *request_data) const;
 
-        void compressor_for_file (const std::string &name, std::move_only_function<future<void>(std::string src, std::string dest)> handler);
-        void compressor_for_string (const std::string &name, std::move_only_function<std::string(std::string_view data)> handler);
+        /**
+         * Add compressor for files
+         * @param name Algo Name
+         * @param handler Callback
+         *
+         */
+        void compressor_for_file (const std::string &name, compress_file_cb_t handler);
 
-        std::move_only_function<future<void>(std::string src, std::string dest)> &compressor_for_file (const std::string &name);
-        std::move_only_function<std::string(std::string_view)> &compressor_for_string (const std::string &name);
+        /**
+         * Add compressor for plain texts
+         * @param name Algo Name
+         * @param handler Callback
+         */
+        void compressor_for_string (const std::string &name, compress_str_cb_t handler);
+
+        compress_file_cb_t &compressor_for_file (const std::string &name);
+        compress_str_cb_t &compressor_for_string (const std::string &name);
 
         [[nodiscard]] bool contains_compressor_for_file (const std::string &name) const;
         [[nodiscard]] bool contains_compressor_for_string (const std::string &name) const;
 
+        /**
+         * Add transport protocol worker
+         *
+         * @param type Protocol Type
+         * @param name Protocol Name
+         * @param worker Worker Callback
+         */
         void transport_protocol_worker (const std::string &type, const std::string &name, implement_create_cb worker);
         const std::map <std::string, implement_create_cb> &transport_protocol_worker (const std::string &type);
+
+        /**
+         * Add Protocol Worker
+         *
+         * @param type Protocol Type
+         * @param name Protocol Name
+         * @param worker Worker Callback
+         */
 
         void http_protocol_worker (http::versions::http type, const std::string &name, implemenet_http_cb worker);
         const std::map <std::string, implemenet_http_cb> &http_protocol_worker (http::versions::http type);

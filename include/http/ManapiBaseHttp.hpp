@@ -42,5 +42,22 @@ namespace manapi::net::http::internal {
     future<void> send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size);
     future<void> send_text(uq_handle_data_t cdata, std::string text);
     void expect_header (uq_handle_data_t cdata);
-    future<std::string> compress_file(net::http::site site, std::string file, std::string folder, std::string compress, std::move_only_function<future<void>(std::string src, std::string dest)> *compressor, bool force_compress = false);
+
+    /**
+     * Compress file (or get already compressed in the cache)
+     *
+     * @param site Site Ctx
+     * @param file File Path
+     * @param folder Folder Path
+     * @param compress Compress Algo
+     * @param compressor Compressor Function
+     * @param force_compress Force Compress Flag
+     * @return
+     *
+     * errors:
+     * - internal - something gets wrong
+     * - filesystem - fs failed
+     */
+
+    future<manapi::error::status_or<std::string>> compress_file(net::http::site site, std::string file, std::string folder, std::string compress, response_features_t::compress_file_cb *compressor, bool force_compress = false);
 }

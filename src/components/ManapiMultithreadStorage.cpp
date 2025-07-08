@@ -95,7 +95,12 @@ void * manapi::multithread_storage::pointer() {
 }
 
 void manapi::multithread_storage::notify_(const std::shared_ptr<worker_t> &m) {
-    this->call_callback_(m.get());
+    try {
+        m->cb(*this->data_->data);
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("multithread storage:Notify failed");
+    }
 
     for (auto it = this->data_->workers.begin(); it != this->data_->workers.end(); ) {
         auto const next = std::next(it);
