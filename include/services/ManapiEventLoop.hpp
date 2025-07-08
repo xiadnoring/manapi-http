@@ -227,7 +227,7 @@ namespace manapi {
         void unpause_watch_curl (std::shared_ptr<CURL> curl);
         void pause_watch_curl (std::shared_ptr<CURL> curl);
 #endif
-        future<void> custom_callback (std::move_only_function<void(event_loop *ev)> cb);
+        void custom_callback (std::move_only_function<void(event_loop *ev)> cb);
 
         static void interrupt (int sig);
     protected:

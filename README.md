@@ -5,7 +5,6 @@ HTTP server written on C++ which supports HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC
 
 > [!CAUTION]
 > This project is in development!!!
-> (last stable commit - [b2836e13a967f734c57868eb1daa62801d123ee8](https://github.com/xiadnoring/manapi-http/commit/b2836e13a967f734c57868eb1daa62801d123ee8))
 
 ## About
 This HTTP server should simplify development of `web applications`, `API-interfaces` and other things.
@@ -61,7 +60,7 @@ paru -Sy gmp openssl zlib curl
 
 ### For Windows
 
-MSVC C++ (Tested)
+MSVC C++ (Tested Executable Only)
 
 ### For MacOs
 

@@ -80,7 +80,7 @@ namespace manapi::async {
 
         [[nodiscard]] const shared_eventloop& eventloop();
 
-        //[[nodiscard]] const shared_taskpool &taskpool();
+        [[nodiscard]] const shared_taskpool &taskpool();
 
         [[nodiscard]] const shared_timerpool &timerpool();
 

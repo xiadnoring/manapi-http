@@ -50,6 +50,8 @@ message(STATUS "Some compresses support by zlib: ${MANAPIHTTP_ZLIB_DEPENDENCY}")
 message(STATUS "libnghttp2 by nghttp2" ${MANAPIHTTP_NGHTTP2_DEPENDENCY})
 message(STATUS "libnghttp3 by nghttp3" ${MANAPIHTTP_NGHTTP3_DEPENDENCY})
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}/shm>")
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Build type: Debug")
     add_compile_definitions(MANAPIHTTP_HTTP_BUILD_DEBUG)
@@ -443,6 +445,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/crypto/ManapiAES.cpp
         include/components/ManapiMultithreadStorage.hpp
         src/components/ManapiMultithreadStorage.cpp
+        include/services/ManapiGrpc.hpp
+        src/services/ManapiGrpc.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

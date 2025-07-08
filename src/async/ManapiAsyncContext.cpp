@@ -55,9 +55,9 @@ const std::shared_ptr<manapi::event_loop> & manapi::async::cthread::eventloop() 
     return this->eventloop_;
 }
 
-// const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::cthread::taskpool() {
-//     return this->taskpool_;
-// }
+const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::cthread::taskpool() {
+    return this->taskpool_;
+}
 
 const std::shared_ptr<manapi::timerpool> & manapi::async::cthread::timerpool() {
     return this->timerpool_;
@@ -153,7 +153,7 @@ void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<v
 
                     thr->eventloop()->wait();
 
-                    manapi::async::internal::current_cthread_ = nullptr;
+                    manapi::async::context::current(nullptr);
                 });
             }));
         });
@@ -174,7 +174,7 @@ void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<v
         ctx->taskpool_->stop();
         ctx->taskpool_->join();
 
-        manapi::async::internal::current_cthread_ = nullptr;
+        manapi::async::context::current(nullptr);
     });
 }
 

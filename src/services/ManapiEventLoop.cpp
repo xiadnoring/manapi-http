@@ -273,8 +273,6 @@ namespace manapi::ev::internal {
 
     struct adding_custom_callback_data_t {
         std::move_only_function<void(manapi::event_loop *ev)> cb;
-        manapi::async::promise<void, std::false_type>::resolve_t resolve{nullptr};
-        manapi::async::promise<void, std::false_type>::reject_t reject{nullptr};
     };
 
     struct io_watcher_t {
@@ -341,7 +339,7 @@ namespace manapi::ev::internal {
 
     struct custom_callback_t {
         manapi::chain<std::unique_ptr<adding_custom_callback_data_t>> callback_data{};
-        std::shared_ptr<manapi::async::tmutex> adding_mx;
+        std::mutex adding_mx;
         std::shared_ptr <ev::async> adding_async;
         std::move_only_function<void()> adding_async_cb{nullptr};
     };
@@ -535,7 +533,6 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool_, std:
     // this->fs_watcher->adding_watcher_data = {};
     //
     // this->timerloop->adding_timer_mx = std::make_shared<async::mutex>();
-    this->callback_watcher_->adding_mx = std::make_shared<async::tmutex>();
 
     this->taskpool_ = std::move(taskpool_);
     this->status = false;
@@ -988,17 +985,12 @@ void manapi::event_loop::try_tasks_(ev::shared_idle &w) {
 //     }
 // }
 
-manapi::future<void> manapi::event_loop::custom_callback(std::move_only_function<void(event_loop *ev)> cb) {
-    co_await async::promise<void> ([&](async::promise<void>::resolve_t resolve, async::promise<void>::reject_t reject) -> manapi::future<> {
-        auto this_ = this;
-        auto data = std::make_unique<ev::internal::adding_custom_callback_data_t>(std::move(cb), std::move(resolve), std::move(reject));
-
-
-        auto lk = co_await this->callback_watcher_->adding_mx->lock_guard();
-        this->callback_watcher_->callback_data.push_back(std::move(data));
-        lk.call();
-        this_->callback_watcher_->adding_async_cb();
-    });
+void manapi::event_loop::custom_callback(std::move_only_function<void(event_loop *ev)> cb) {
+    auto data = std::make_unique<ev::internal::adding_custom_callback_data_t>(std::move(cb));
+    std::unique_lock<std::mutex> lk (this->callback_watcher_->adding_mx);
+    this->callback_watcher_->callback_data.push_back(std::move(data));
+    lk.unlock();
+    this->callback_watcher_->adding_async_cb();
 }
 
 #if MANAPIHTTP_CURL_DEPENDENCY
@@ -1038,9 +1030,9 @@ void manapi::event_loop::handle_curl_check_connections() {
 #endif
 
 void manapi::event_loop::custom_watcher_callback_async(std::shared_ptr<ev::async> &w) {
-    if (this->callback_watcher_->adding_mx->try_to_lock()) {
+    if (this->callback_watcher_->adding_mx.try_lock()) {
         auto list = std::move(this->callback_watcher_->callback_data);
-        this->callback_watcher_->adding_mx->unlock();
+        this->callback_watcher_->adding_mx.unlock();
 
         while (!list.empty()) {
             auto data = std::move(list.front());
@@ -1049,13 +1041,9 @@ void manapi::event_loop::custom_watcher_callback_async(std::shared_ptr<ev::async
             try {
                 data->cb(this);
             }
-            catch (...) {
-                data->reject(std::move(std::current_exception()));
-
-                continue;
+            catch (std::exception const &e) {
+                manapi_log_error("custom cb:Failed callback due to %s", e.what());
             }
-
-            data->resolve();
         }
     }
 }
