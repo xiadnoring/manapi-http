@@ -297,42 +297,56 @@ manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {
     n["cache_path"] = std::move(cache_path);
 }
 
-manapi::future<std::pair<int, std::string>> manapi::net::http::site::get_compressed_cache_file(std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime) {
-    while (true) {
+manapi::future<manapi::error::status_or<std::string>> manapi::net::http::site::get_compressed_cache_file(std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime) {
+    try {
+        while (true) {
 
-        auto *cache = &this->data->config_->at("cache");
-        if (!cache->contains(algorithm))
-            co_return {1, std::string{}};
-
-
-        auto *files = &cache->at(algorithm);
-
-        if (!files->contains(file))
-            co_return {1, std::string{}};
+            auto *cache = &this->data->config_->at("cache");
+            if (!cache->contains(algorithm))
+                break;
 
 
-        auto file_info = &files->operator[](file);
+            auto *files = &cache->at(algorithm);
 
-        if (file_info->at("last-write").as_string() == std::format("{:%Y-%m-%d-%H-%M-%S}", filetime)) {
-            co_return {0, file_info->at("compressed").as_string()};
+            auto it = files->find(file);
+            if (it == files->end<json::OBJECT>())
+                break;
+
+
+            auto file_info = &it->second;
+
+            if (!file_info->is_object()) {
+                if (*file_info == false)
+                    co_return manapi::error::status_unavailable("compress:Busy");
+
+                break;
+            }
+
+            if (file_info->at("last-write").as_string() == std::format("{:%Y-%m-%d-%H-%M-%S}", filetime)) {
+                co_return file_info->at("compressed").as_string();
+            }
+
+            // last-writes aren't match
+
+            break;
         }
 
-        // last-writes aren't match
-        co_return {1, std::string{}};
-
-        break;
+        co_return error::status_not_found("compress:Cache file not found");
     }
-
-    co_return {1, std::string{}};
+    catch (std::exception const &e) {
+        manapi_log_error("compress:Get compressed file failed due to %s", e.what());
+    }
+    co_return error::status_internal("compress:Get compressed failed");
 }
 
-manapi::future<> manapi::net::http::site::set_compressed_cache_file(std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime) {
-    {
+manapi::future<manapi::error::status> manapi::net::http::site::set_compressed_cache_file(std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime) {
+    try {
         co_await this->data->sctx.storage().edit (this->data->server_config,
             [&] (manapi::json &n) -> bool {
                 auto *cache = &n["cache"];
 
                 std::string fts = std::format("{:%Y-%m-%d-%H-%M-%S}", filetime);
+                std::string del;
 
                 try {
                     if (cache->contains(algorithm)) {
@@ -341,18 +355,8 @@ manapi::future<> manapi::net::http::site::set_compressed_cache_file(std::string 
                         if (fileit != alghs.as_object().end()
                             && fileit->second.is_object()) {
                             auto const compressedit = fileit->second.as_object().find("compressed");
-                            if (compressedit != fileit->second.as_object().end()
-                                && fileit->second.contains("last-write")) {
-
-                                if (fileit->second["last-write"].as_string() == fts)
-                                    return false;
-
-                                manapi::async::run(manapi::filesystem::async_unlink(compressedit->second.as_string(),
-                                    manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err) -> void {
-                                        if (err) {
-                                            /* ignore :) */
-                                        }
-                                    });
+                            if (compressedit != fileit->second.as_object().end()) {
+                                del = compressedit->second.as_string();
                             }
                         }
                     }
@@ -372,9 +376,80 @@ manapi::future<> manapi::net::http::site::set_compressed_cache_file(std::string 
                     cache->at(algorithm).erase(file);
                 }
 
+                if (!del.empty()) {
+                    manapi::async::run(manapi::filesystem::async_unlink(std::move(del),
+                        manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err) -> void {
+                        if (err) {
+                            /* ignore :) */
+                        }
+                    });
+                }
+
                 return true;
         });
+
+        co_return manapi::error::status_ok();
     }
+    catch (std::exception const &e) {
+        manapi_log_error("set compressed failed due to %s", e.what());
+    }
+
+    co_return manapi::error::status_internal("compress:Set cache file failed");
+}
+
+manapi::future<manapi::error::status> manapi::net::http::site::set_locked_cache_file(std::string file, bool lock, std::string algorithm) {
+    try {
+        bool busy = false;
+        co_await this->data->sctx.storage().edit(this->data->server_config, [&] (manapi::json &all) -> bool {
+            auto &n = all["cache"];
+            auto it = n.find(algorithm);
+            if (it == n.end<json::OBJECT>()) {
+                auto const res = n.insert({algorithm, json::object()});
+                it = res.first;
+            }
+            auto fit = it->second.find(file);
+            if (lock) {
+                if (fit == it->second.end<json::OBJECT>()) {
+                    it->second.insert({file, false});
+                }
+                else {
+                    if (fit->second.is_object()) {
+                        auto compressit = fit->second.find("compressed");
+                        if (compressit != fit->second.end<json::OBJECT>() && compressit->second.is_string()) {
+                            manapi::async::run(manapi::filesystem::async_unlink(compressit->second.as_string(),
+                                manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err) -> void {
+                                if (err) {
+                                    /* ignore :) */
+                                }
+                            });
+                        }
+                    }
+                    else {
+                        if (fit->second == false) {
+                            busy = true;
+                            return false;
+                        }
+                    }
+
+                    fit->second = false;
+                }
+            }
+            else {
+                it->second.erase(fit);
+            }
+            return true;
+        });
+
+        if (busy)
+            co_return error::status_unavailable("compress:Busy");
+
+        co_return error::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("set locked compressed failed due to %s", e.what());
+    }
+
+    co_return error::status_internal("compress:Set cache file failed");
 }
 
 manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> data) {

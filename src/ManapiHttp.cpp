@@ -123,7 +123,7 @@ manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data
 
     try {
         co_await data->sctx.storage().edit_async(data->server_config, [t = data] (json &data) -> manapi::future<bool> {
-            if (!data.contains("saved") || data["saved"] != false) {
+            if (!data.contains("saved") || data["saved"] != true) {
                 data["saved"] = true;
                 if (data.contains("site_path")
                     && data["site"].contains("save_config")
@@ -149,7 +149,7 @@ manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data
     }
 
     if (data->server_config) {
-        data->sctx.storage().unsubscribe(data->server_config);
+        co_await data->sctx.storage().unsubscribe(data->server_config);
         data->server_config.reset();
     }
 

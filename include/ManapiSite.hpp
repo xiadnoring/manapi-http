@@ -126,8 +126,46 @@ namespace manapi::net::http {
         manapi::future<> config_object (json config);
         // const manapi::json &config ();
 
-        manapi::future<std::pair<int, std::string>> get_compressed_cache_file (std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime);
-        manapi::future<> set_compressed_cache_file (std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime);
+        /**
+         * Get compressed by file path
+         * @param file File Path
+         * @param algorithm Algorithm (brotli, gzip and etc)
+         * @param filetime File Time
+         * @return
+         *
+         * errors:
+         * internal - something gets wrong
+         * not_found - not exists
+         * unavailable - not available right now
+         */
+        manapi::future<manapi::error::status_or<std::string>> get_compressed_cache_file (std::string file, std::string algorithm, std::chrono::system_clock::time_point filetime);
+
+        /**
+         * Set compressed by file path
+         * @param file File Path
+         * @param compressed Compressed Path
+         * @param algorithm Algorithm (brotli, gzip and etc)
+         * @param filetime File Time
+         * @return
+         *
+         * errors:
+         * internal - something gets wrong
+         */
+        manapi::future<manapi::error::status> set_compressed_cache_file (std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime);
+
+        /**
+         * Set not avaiable file for compressing for other threads
+         * @param file File Path
+         * @param lock Lock Status
+         * @param algorithm Algorithm (brotli, gzip and etc)
+         * @return
+         *
+         * errors:
+         * internal - something gets wrong
+         * unavailable not avaiable right now
+         */
+
+        manapi::future<manapi::error::status> set_locked_cache_file (std::string file, bool lock, std::string algorithm);
 
         [[nodiscard]] const std::string &config_cache_dir();
 

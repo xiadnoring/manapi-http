@@ -82,6 +82,7 @@ manapi::future<> manapi::multithread_storage::edit_async(const std::shared_ptr<w
 manapi::future<> manapi::multithread_storage::unsubscribe(const std::shared_ptr<worker_t> &m) {
     auto lk = co_await this->data_->mx.lock_guard();
     this->unsubscribe_(m);
+    manapi::async::current()->eventloop()->stop_watcher(m->w);
 }
 
 
