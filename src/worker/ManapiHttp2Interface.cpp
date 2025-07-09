@@ -39,8 +39,9 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                 case manapi::net::http::EHTTP_V2_PROTOCOL_OK: {
                     manapi::net::http::http_v2_on_close (http_v2_ctx);
                     if (http_v2_ctx->streams->empty()) {
+                        w->waiting(conn, true);
                         http_v2_ctx->conn = nullptr;
-                        w->close_connection(conn, 0);
+                        w->close_connection(conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
                     }
                     break;
                 }
@@ -90,21 +91,19 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                                             auto const sdata = sconn->as<manapi::net::http::http_v2_stream_t>();
                                             auto ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *>(conn->wrk.data);
 
-                                            ctx->gctx->worker->close_connection(sconn, ok ? 0 : manapi::net::worker::CLOSE_CONN_ERR);
+                                            ctx->gctx->worker->close_connection(sconn, ok ? manapi::net::worker::CLOSE_CONN_SHUTDOWN : manapi::net::worker::CLOSE_CONN_ERR);
 
                                             manapi::net::http::http_v2_on_close_stream(ctx->ctx.get(), sdata->id);
 
                                             if (ctx->ctx->streams->empty()) {
+                                                w->waiting(conn, true);
                                                 if (ctx->ctx->current == -1 ||
                                                     (ctx->ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_WANT_CLOSE)) {
                                                     if (manapi::net::http::http_v2_on_close (ctx->ctx.get())) {
                                                         /* error */
                                                     }
                                                     ctx->ctx->conn = nullptr;
-                                                    w->close_connection(conn, 0);
-                                                }
-                                                else {
-                                                    w->waiting(conn, true);
+                                                    w->close_connection(conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
                                                 }
                                             }
                                     });

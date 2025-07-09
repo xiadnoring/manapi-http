@@ -919,9 +919,8 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
 
         if (wrk->flags & NET_WORKER_CLOSED
             && !wrk->count
-            && wrk->finish) {
+            && wrk->finish)
             wrk->finish();
-            }
     }
 }
 

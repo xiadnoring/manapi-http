@@ -80,19 +80,19 @@ int main () {
         // Finally assemble the server.
         std::unique_ptr<grpc::Server> server;
 
-        manapi::async::run([&] () -> manapi::future<> {
-            grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
-            pkcp.cert_chain = co_await manapi::filesystem::async_read("/home/Timur/Documents/ssl/quic/cert.crt");
-            pkcp.private_key = co_await manapi::filesystem::async_read("/home/Timur/Documents/ssl/quic/cert.key");
-            grpc::SslServerCredentialsOptions ssl_opts;
-            ssl_opts.pem_root_certs="";
-            ssl_opts.pem_key_cert_pairs.push_back(pkcp);
-            std::shared_ptr<grpc::ServerCredentials> creds;
-            creds = grpc::SslServerCredentials(ssl_opts);
-            builder.AddListeningPort(server_address, creds);
-            server = builder.BuildAndStart();
-            std::cout << "Server listening on " << server_address << std::endl;
-        });
+        // manapi::async::run([&] () -> manapi::future<> {
+        //     grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
+        //     pkcp.cert_chain = co_await manapi::filesystem::async_read("/home/Timur/Documents/ssl/quic/cert.crt");
+        //     pkcp.private_key = co_await manapi::filesystem::async_read("/home/Timur/Documents/ssl/quic/cert.key");
+        //     grpc::SslServerCredentialsOptions ssl_opts;
+        //     ssl_opts.pem_root_certs="";
+        //     ssl_opts.pem_key_cert_pairs.push_back(pkcp);
+        //     std::shared_ptr<grpc::ServerCredentials> creds;
+        //     creds = grpc::SslServerCredentials(ssl_opts);
+        //     builder.AddListeningPort(server_address, creds);
+        //     server = builder.BuildAndStart();
+        //     std::cout << "Server listening on " << server_address << std::endl;
+        // });
 
 
         if (thrcnt.fetch_add(1) % 2 == 0)
@@ -109,6 +109,10 @@ int main () {
 
         router.GET("/", [&folder] (http::req &req, http::resp &resp) -> manapi::future<> {
             co_return resp.file(manapi::filesystem::path::join(folder, "index.html"));
+        });
+
+        router.GET("/stat", [server_ctx] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
+            co_return resp.text(std::to_string(server_ctx.storage().as<manapi::net::http::server_ctx::worker_data_t>()->count.load()));
         });
 
         router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)

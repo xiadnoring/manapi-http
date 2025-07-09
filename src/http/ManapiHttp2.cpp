@@ -573,6 +573,8 @@ int http_v2_rst_stream_ex (manapi::net::http::http_v2_t *ctx, int stream_id, int
 }
 
 int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
+    ctx->flags |= HTTP2_CTX_FLAG_WANT_CLOSE;
+
     if (ctx->timeout) {
         ctx->timeout.stop();
         ctx->timeout = nullptr;
@@ -584,7 +586,7 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) {
             if (data->req)
                 it = ctx->streams->erase(it);
             else {
-                ctx->http_v2_worker->close_connection(it->second, false);
+                ctx->http_v2_worker->close_connection(it->second, worker::CLOSE_CONN_ERR);
                 ++it;
             }
         }
@@ -974,7 +976,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                              * ITS TRUE!
                              */
                             for (auto it = ctx->streams->upper_bound(ctx->n2); it != ctx->streams->end(); ++it) {
-                                ctx->http_v2_worker->close_connection(it->second, false);
+                                ctx->http_v2_worker->close_connection(it->second, worker::CLOSE_CONN_ERR);
                             }
 
                             manapi::async::current()->logger()->debug(manapi::logger::default_service, "HTTP2: GOAWAY RECV. "
@@ -1046,7 +1048,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                                 if (std::numeric_limits<int32_t>::max() - sdata->write_window < ctx->n1) {
                                     http_v2_rst_stream_ex(ctx, sdata->id, worker::HTTP2_ERROR_FLOW_CONTROL_ERROR);
-                                    ctx->http_v2_worker->close_connection(s->second, false);
+                                    ctx->http_v2_worker->close_connection(s->second, worker::CLOSE_CONN_ERR);
                                 }
                                 else {
                                     sdata->write_window += ctx->n1;
@@ -1111,7 +1113,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 else {
                                     auto const data = s->second->as<http_v2_stream_t>();
                                     data->flags |= HTTP2_STREAM_RECV_END|HTTP2_STREAM_SEND_END;
-                                    ctx->http_v2_worker->close_connection(s->second, true);
+                                    ctx->http_v2_worker->close_connection(s->second, worker::CLOSE_CONN_SHUTDOWN);
                                 }
                             }
 

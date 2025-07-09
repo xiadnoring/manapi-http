@@ -378,14 +378,16 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
 
     auto const wrk = dynamic_cast<TLS*> (connection->worker);
     if (wrk) {
+        if (wrk->global_.cleanup_cb(ptr, &wrk->global_, wrk))
+            MANAPIHTTP_LOG2("tcp this->global_.cleanup_cb failed");
+
         wrk->count--;
         wrk->worker_data()->as<http::server_ctx::worker_data_t>()->count.fetch_sub(1);
 
         if (wrk->flags & NET_WORKER_CLOSED
             && !wrk->count
-            && wrk->finish) {
+            && wrk->finish)
             wrk->finish();
-            }
     }
 }
 
@@ -523,13 +525,13 @@ void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const s
                     }
                 }
                 else {
+                    if (data->status & CONN_TLS_SHUTDOWN) {
+                        this->shutdown_async_(conn);
+                    }
+
                     if (auto const res = this->ssl_bio_flush_read_(conn, data, 1e5)) {
                         if (res == CONN_IO_ERROR)
                             goto err;
-                    }
-
-                    if (data->status & CONN_TLS_SHUTDOWN) {
-                        this->shutdown_async_(conn);
                     }
                 }
             }

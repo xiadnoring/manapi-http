@@ -723,11 +723,10 @@ manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size)
 
 void manapi::slice::clear() noexcept(true) {
     auto cur = this->first;
-    if (this->last) {
-        while (cur != this->last->next) {
-            manapi::async::current()->memory_fabric().free(cur->buff.base, cur->buff.len);
-            delete std::exchange(cur, cur->next);
-        }
+
+    while (cur) {
+        manapi::async::current()->memory_fabric().free(cur->buff.base, cur->buff.len);
+        delete std::exchange(cur, cur->next);
     }
 
     this->first = nullptr;
