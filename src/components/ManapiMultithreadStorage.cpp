@@ -54,6 +54,9 @@ manapi::future<std::shared_ptr<manapi::multithread_storage::worker_t>> manapi::m
 }
 
 manapi::future<> manapi::multithread_storage::edit(const std::shared_ptr<worker_t> &m, std::move_only_function<bool(manapi::json &data)> cb) {
+    if (!m)
+        co_return;
+
     auto lk = co_await this->data_->mx.lock_guard();
     bool notify = false;
     try {
@@ -67,6 +70,10 @@ manapi::future<> manapi::multithread_storage::edit(const std::shared_ptr<worker_
 }
 
 manapi::future<> manapi::multithread_storage::edit_async(const std::shared_ptr<worker_t> &m, std::move_only_function<manapi::future<bool>(manapi::json &data)> cb) {
+    if (!m)
+        co_return;
+
+
     auto lk = co_await this->data_->mx.lock_guard();
     bool notify = false;
     try {
@@ -80,6 +87,9 @@ manapi::future<> manapi::multithread_storage::edit_async(const std::shared_ptr<w
 }
 
 manapi::future<> manapi::multithread_storage::unsubscribe(const std::shared_ptr<worker_t> &m) {
+    if (!m)
+        co_return;
+
     auto lk = co_await this->data_->mx.lock_guard();
     this->unsubscribe_(m);
     manapi::async::current()->eventloop()->stop_watcher(m->w);

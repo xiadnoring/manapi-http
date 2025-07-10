@@ -447,6 +447,10 @@ set(MANAPIHTTP_HTTP_FILES
         src/components/ManapiMultithreadStorage.cpp
         include/services/ManapiGrpc.hpp
         src/services/ManapiGrpc.cpp
+        include/components/ManapiConfig.hpp
+        include/components/ManapiConfig.hpp
+        src/components/ManapiConfig.cpp
+        src/include/ManapiInternalGrpc.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

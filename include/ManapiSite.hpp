@@ -105,6 +105,7 @@ namespace manapi::net::http {
         };
     public:
         site (server_ctx sctx);
+
         virtual ~site();
 
         site (site &&n) noexcept;
@@ -116,6 +117,7 @@ namespace manapi::net::http {
         site &operator=(const site &n);
 
         http_uri_part *handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+
         http_uri_part *handler (std::string method, std::string uri, std::string folder, handler_template_t handler = nullptr, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
 
         std::unique_ptr<http_handler_page> handler (http::request_data_t *request_data) const;
@@ -136,9 +138,11 @@ namespace manapi::net::http {
         void compressor_for_string (const std::string &name, compress_str_cb_t handler);
 
         compress_file_cb_t &compressor_for_file (const std::string &name);
+
         compress_str_cb_t &compressor_for_string (const std::string &name);
 
         [[nodiscard]] bool contains_compressor_for_file (const std::string &name) const;
+
         [[nodiscard]] bool contains_compressor_for_string (const std::string &name) const;
 
         /**
@@ -163,7 +167,9 @@ namespace manapi::net::http {
         const std::map <std::string, implemenet_http_cb> &http_protocol_worker (http::versions::http type);
 
         manapi::future<> config (std::string path);
+
         manapi::future<> config_object (json config);
+
         // const manapi::json &config ();
 
         /**
@@ -223,8 +229,11 @@ namespace manapi::net::http {
         static std::string default_config_name;
     private:
         static http_handler_function default_error_handler;
+
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
+
         static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
+
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);
 
     };

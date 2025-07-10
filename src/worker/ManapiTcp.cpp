@@ -136,7 +136,7 @@ void manapi::net::worker::TCP::init() {
             }
         }
 
-        if (auto rhs = this->watcher_accept_->listen(this->config_->max_backlog)) {
+        if (auto rhs = this->watcher_accept_->listen(this->config_->backlog)) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't listen socket due to result - {}", rhs);
             goto err;
         }

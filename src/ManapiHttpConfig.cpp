@@ -51,7 +51,7 @@ manapi::net::http::config::config(const json &config) {
     this->max_header_key_size = get_config_param<ssize_t>(config, "max_header_key_size", 64);
     this->max_header_value_size = get_config_param<ssize_t>(config, "max_header_value_size", 4096);
     this->buffer_size = get_config_param<ssize_t>(config, "buffer_size", 4096);
-    this->max_backlog = get_config_param<ssize_t>(config, "max_backlog", 200);
+    this->backlog = get_config_param<ssize_t>(config, "backlog", 200);
 
     this->keep_alive = get_config_param<ssize_t>(config, "keep_alive", 2);
     this->implementation = get_config_param<std::string>(config, "implementation", "default");
@@ -133,25 +133,4 @@ manapi::net::http::versions::http manapi::net::http::config::parse_http_version(
     if (it != http_version_to_parse.end())
         return it->second;
     return http::versions::http::HTTP_v1_1;
-}
-
-template<>
-std::optional<std::string> manapi::net::http::config::get_value_config_param (const manapi::json &n) {
-    if (!n.is_string())
-        return {};
-    return n.as_string();
-}
-
-template<>
-std::optional<ssize_t> manapi::net::http::config::get_value_config_param (const manapi::json &n) {
-    if (!n.is_integer())
-        return {};
-    return n.as_integer();
-}
-
-template<>
-std::optional<bool> manapi::net::http::config::get_value_config_param (const manapi::json &n) {
-    if (!n.is_bool() && !n.is_integer())
-        return {};
-    return n.as_bool_cast();
 }

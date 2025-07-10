@@ -13,6 +13,7 @@
 #include "crypto/ManapiAEAD.hpp"
 #include "ManapiHash.hpp"
 #include "ManapiInitTools.hpp"
+#include "ManapiMath.hpp"
 #include "ManapiProcess.hpp"
 #include "ManapiString.hpp"
 #include "async/ManapiAsyncTimer.hpp"
@@ -28,11 +29,20 @@
 class GreeterServiceImpl final : public helloworld::Greeter::CallbackService {
     grpc::ServerUnaryReactor *SayHello(grpc::CallbackServerContext* context, const helloworld::HelloRequest* request,
                     helloworld::HelloReply* reply) override {
-        std::string prefix("Hello ");
-        reply->set_message(prefix + request->name());
-
         grpc::ServerUnaryReactor* reactor = context->DefaultReactor();
-        reactor->Finish(grpc::Status::OK);
+        manapi::async::run ([reactor, reply, request] () -> manapi::future<> {
+            auto response = co_await manapi::net::fetch2::fetch (std::format("http://numbersapi.com/{}", manapi::math::random(0, 1000)),
+                {
+                {"http", "1.1"}
+            });
+            if (response.ok()) {
+                reply->set_message(std::format("Hello, {}! Fact: {}", request->name(), co_await response.text()));
+            }
+            else {
+                reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), response.status()));
+            }
+            reactor->Finish(grpc::Status::OK);
+        });
         return reactor;
     }
 };
@@ -53,52 +63,47 @@ int main () {
     auto ctx = manapi::async::context::create(loops);
     ctx->eventloop()->setup_handle_interrupt();
 
+    grpc::EnableDefaultHealthCheckService(true);
+    grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+
     std::atomic<int> a = 0;
     std::atomic<int> thrcnt = 0;
-    manapi::net::http::server_ctx server_ctx;
-    auto aa = std::make_shared<manapi::manapi_grpc_event_engine_wrapper>();
 
-    manapi::async::context::run(ctx, loops, [&aa, &thrcnt, &a, server_ctx] (const std::function<void()> &bind) -> void {
+    manapi::net::http::server_ctx server_ctx;
+    manapi::net::wgrpc::server_ctx grpc_server_ctx;
+
+    manapi::async::context::run(ctx, loops, [&thrcnt, &a, grpc_server_ctx, server_ctx] (const std::function<void()> &bind) -> void {
         using http = manapi::net::http::server;
         //manapi::ext::pq::connection db;
+
+        /**
+         * grpc
+         */
+
+        manapi::net::wgrpc::server grpc_server (grpc_server_ctx);
+        auto service = std::make_shared<GreeterServiceImpl>();
+
+        manapi::async::run([grpc_server, service] () mutable -> manapi::future<> {
+            auto res = co_await grpc_server.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/grpc.json");
+
+            res.log();
+
+            res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::error::status {
+                builder.RegisterService(service.get());
+                return manapi::error::status_ok();
+            });
+
+            res.log();
+        }, [] (std::exception_ptr err) -> void {
+            assert(!err);
+        });
+
+        /**
+         * http
+         */
+
+        std::string const folder = FOLDER;
         manapi::net::http::server router (server_ctx);
-
-        std::string folder;
-
-        grpc_event_engine::experimental::SetDefaultEventEngine(aa);
-
-        std::string server_address = absl::StrFormat("0.0.0.0:%d", 8080);
-        GreeterServiceImpl service;
-        grpc::EnableDefaultHealthCheckService(true);
-        grpc::reflection::InitProtoReflectionServerBuilderPlugin();
-        grpc::ServerBuilder builder;
-        // Listen on the given address without any authentication mechanism.
-
-        // Register "service" as the instance through which we'll communicate with
-        // clients. In this case it corresponds to an *synchronous* service.
-        builder.RegisterService(&service);
-        // Finally assemble the server.
-        std::unique_ptr<grpc::Server> server;
-
-        // manapi::async::run([&] () -> manapi::future<> {
-        //     grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
-        //     pkcp.cert_chain = co_await manapi::filesystem::async_read("/home/Timur/Documents/ssl/quic/cert.crt");
-        //     pkcp.private_key = co_await manapi::filesystem::async_read("/home/Timur/Documents/ssl/quic/cert.key");
-        //     grpc::SslServerCredentialsOptions ssl_opts;
-        //     ssl_opts.pem_root_certs="";
-        //     ssl_opts.pem_key_cert_pairs.push_back(pkcp);
-        //     std::shared_ptr<grpc::ServerCredentials> creds;
-        //     creds = grpc::SslServerCredentials(ssl_opts);
-        //     builder.AddListeningPort(server_address, creds);
-        //     server = builder.BuildAndStart();
-        //     std::cout << "Server listening on " << server_address << std::endl;
-        // });
-
-
-        if (thrcnt.fetch_add(1) % 2 == 0)
-            folder = FOLDER;
-        else
-            folder = FOLDER;
 
         router.GET("/", folder, [] (http::req &req, http::resp &resp)
             -> manapi::future<> {

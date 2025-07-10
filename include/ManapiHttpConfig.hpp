@@ -16,6 +16,7 @@
 #include "ManapiUtils.hpp"
 #include "ManapiJson.hpp"
 #include "async/ManapiAsyncConditionVariable.hpp"
+#include "components/ManapiConfig.hpp"
 
 namespace manapi::net::http {
     namespace versions {
@@ -46,7 +47,7 @@ namespace manapi::net::http {
         };
     }
 
-    class config {
+    class config : public manapi::internal::config_interface {
     public:
         config (const json &config);
 
@@ -61,23 +62,6 @@ namespace manapi::net::http {
         static std::string_view stringify_http_version (int version);
 
         static http::versions::http parse_http_version (std::string_view version);
-
-        template<typename T>
-        static std::optional<T> get_value_config_param (const manapi::json &n) {
-            return {};
-        }
-
-        template<typename T>
-        static T get_config_param (const manapi::json &config, const std::string &name, T value) {
-            auto &obb = config.as_object();
-            auto it = obb.find(name);
-            if (it != obb.end()) {
-                auto res = get_value_config_param<T>(it->second);
-                if (res.has_value())
-                    return std::move(res.value());
-            }
-            return value;
-        }
 
         // settings
         int max_working_streams;
@@ -105,7 +89,7 @@ namespace manapi::net::http {
         socklen_t server_len;
         size_t max_connections;
         size_t max_connections_by_ip;
-        int max_backlog;
+        int backlog;
         ssize_t buffer_size;
         ssize_t max_rst_cnt;
         ssize_t speed_check_delay;
