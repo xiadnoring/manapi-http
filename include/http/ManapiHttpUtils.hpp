@@ -84,5 +84,7 @@ namespace manapi::net::http {
 
     error::status ip_by_addr (const sockaddr *addr, char *arr);
 
+    bool split_http_port (std::string_view name, std::string_view &host, std::string_view &port, bool& has_port);
+
     future<std::vector <replace_founded_item>> found_replacers_in_file (const async::shared_cthread &ctx, const std::string &path, ssize_t start, size_t size, const std::map<std::string, std::string> &replacers);
 }

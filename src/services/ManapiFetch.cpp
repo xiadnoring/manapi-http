@@ -375,7 +375,7 @@ manapi::future<manapi::error::status> manapi::net::fetch::async_doit() {
         /* wait all jobs */
         auto lk = co_await this->data->data_->async_run->lock_guard();
 
-        this->data->cancellation.disable_cancellation();
+        this->data->cancellation.disable();
         this->data->cancellation = nullptr;
 
         if (resp != CURLE_OK) {

@@ -451,6 +451,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/components/ManapiConfig.hpp
         src/components/ManapiConfig.cpp
         src/include/ManapiInternalGrpc.hpp
+        include/services/ManapiDns.hpp
+        src/services/ManapiDns.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

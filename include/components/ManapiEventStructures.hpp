@@ -164,20 +164,20 @@ namespace manapi::ev {
         FS_EAFNOSUPPORT = UV_EAFNOSUPPORT, /*97*/
         FS_EADDRINUSE = UV_EADDRINUSE, /*98*/
         FS_EADDRNOTAVAIL = UV_EADDRNOTAVAIL, /*99*/
-        FS_EAI_ADDRFAMILY = UV_EAI_ADDRFAMILY ,/*3000*/
-        FS_EAI_AGAIN = UV_EAI_AGAIN ,/*3001*/
-        FS_EAI_BADFLAGS = UV_EAI_BADFLAGS ,/*3002*/
-        FS_EAI_CANCELED = UV_EAI_CANCELED ,/*3003*/
-        FS_EAI_FAIL = UV_EAI_FAIL ,/*3004*/
-        FS_EAI_FAMILY = UV_EAI_FAMILY ,/*3005*/
-        FS_EAI_MEMORY = UV_EAI_MEMORY ,/*3006*/
-        FS_EAI_NODATA = UV_EAI_NODATA ,/*3007*/
-        FS_EAI_NONAME = UV_EAI_NONAME ,/*3008*/
-        FS_EAI_OVERFLOW = UV_EAI_OVERFLOW ,/*-3009*/
-        FS_EAI_SERVICE = UV_EAI_SERVICE ,/*-3010*/
-        FS_EAI_BADHINTS = UV_EAI_BADHINTS ,/*-3013*/
-        FS_EAI_PROTOCOL = UV_EAI_PROTOCOL , /*-3014*/
-        FS_EAI_SOCKTYPE = UV_EAI_SOCKTYPE ,/*-3011*/
+        ERR_ADDRFAMILY = UV_EAI_ADDRFAMILY ,/*3000*/
+        ERR_AGAIN = UV_EAI_AGAIN ,/*3001*/
+        ERR_BADFLAGS = UV_EAI_BADFLAGS ,/*3002*/
+        ERR_CANCELED = UV_EAI_CANCELED ,/*3003*/
+        ERR_FAIL = UV_EAI_FAIL ,/*3004*/
+        ERR_FAMILY = UV_EAI_FAMILY ,/*3005*/
+        ERR_MEMORY = UV_EAI_MEMORY ,/*3006*/
+        ERR_NODATA = UV_EAI_NODATA ,/*3007*/
+        ERR_NONAME = UV_EAI_NONAME ,/*3008*/
+        ERR_OVERFLOW = UV_EAI_OVERFLOW ,/*-3009*/
+        ERR_SERVICE = UV_EAI_SERVICE ,/*-3010*/
+        ERR_BADHINTS = UV_EAI_BADHINTS ,/*-3013*/
+        ERR_PROTOCOL = UV_EAI_PROTOCOL , /*-3014*/
+        ERR_SOCKTYPE = UV_EAI_SOCKTYPE ,/*-3011*/
         FS_EALREADY = UV_EALREADY ,/*-114 */
         FS_EBUSY = UV_EBUSY ,/*-16 */
         FS_ECANCELED = UV_ECANCELED ,/*-125 */
@@ -272,6 +272,8 @@ namespace manapi::ev {
     void callback_watcher_write (uv_write_t *s, int status);
     void callback_watcher_fs (uv_fs_t *req);
     void callback_watcher_random (uv_random_t *s, int status, void *buf, size_t buflen);
+    void callback_watcher_getaddrinfo (uv_getaddrinfo_t *req, int status, struct addrinfo *res);
+    void callback_watcher_getnameinfo (uv_getnameinfo_t *req, int status, const char *hostname, const char *service);
     void callback_close_cb (uv_handle_t *s);
 
     class async {
@@ -626,7 +628,7 @@ namespace manapi::ev {
     };
 
     class random {
-        MANAPI_EV_DEFAULT_PRIVATE_VAR(fs, uv_fs_t)
+        MANAPI_EV_DEFAULT_PRIVATE_VAR(random, uv_random_t)
     public:
         MANAPI_EV_DEFAULT(random, uv_random_t)
         random ();
@@ -637,6 +639,30 @@ namespace manapi::ev {
         uv_random_t s_;
     };
 
+    class getaddrinfo {
+        MANAPI_EV_DEFAULT_PRIVATE_VAR(getaddrinfo, uv_getaddrinfo_t)
+    public:
+        MANAPI_EV_DEFAULT(getaddrinfo, uv_getaddrinfo_t)
+        getaddrinfo ();
+        int cancel () MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, const char *node, const char *service, const struct addrinfo *hints, uv_getaddrinfo_cb getaddrinfo_cb) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, const char *node, const char *service, const struct addrinfo *hints) MANAPI_EV_NOEXPECT;
+        static void free (::addrinfo *n) MANAPI_EV_NOEXPECT;
+    private:
+        uv_getaddrinfo_t s_;
+    };
+
+    class getnameinfo {
+        MANAPI_EV_DEFAULT_PRIVATE_VAR(getnameinfo, uv_getnameinfo_t)
+    public:
+        MANAPI_EV_DEFAULT(getnameinfo, uv_getnameinfo_t)
+        getnameinfo ();
+        int cancel () MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, const sockaddr *addr, int flags, uv_getnameinfo_cb cb) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
+    private:
+        uv_getnameinfo_t s_;
+    };
     using shared_async = std::shared_ptr<async>;
     using shared_tcp = std::shared_ptr<tcp>;
     using shared_udp = std::shared_ptr<udp>;

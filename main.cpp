@@ -47,6 +47,42 @@ class GreeterServiceImpl final : public helloworld::Greeter::CallbackService {
     }
 };
 
+class GreeterClient {
+public:
+    GreeterClient(std::shared_ptr<grpc::Channel> channel)
+        : stub_(helloworld::Greeter::NewStub(channel)) {}
+
+    // Assembles the client's payload, sends it and presents the response back
+    // from the server.
+    manapi::future<manapi::error::status_or<std::string>> SayHello(const std::string& user) {
+        using promise = manapi::async::promise<manapi::error::status_or<std::string>, std::false_type>;
+        // Data we are sending to the server.
+        helloworld::HelloRequest request;
+        request.set_name(user);
+
+        // Container for the data we expect from the server.
+        helloworld::HelloReply reply;
+
+        // Context for the client. It could be used to convey extra information to
+        // the server and/or tweak certain RPC behaviors.
+        grpc::ClientContext context;
+
+        co_return co_await promise ([&] (promise::resolve_t resolve, promise::reject_t) -> void {
+            this->stub_->async()->SayHello(&context, &request, &reply, [&, resolve = std::move(resolve)] (grpc::Status status) {
+                if (status.ok()) {
+                    resolve(reply.message());
+                    return;
+                }
+
+                resolve(manapi::error::status_internal("grpc client: something gets wrong"));
+            });
+        });
+    }
+
+private:
+    std::unique_ptr<helloworld::Greeter::Stub> stub_;
+};
+
 
 int main () {
     int threads = 2;
@@ -96,6 +132,17 @@ int main () {
             res.log();
         }, [] (std::exception_ptr err) -> void {
             assert(!err);
+        });
+
+        manapi::async::run([] () -> manapi::future<> {
+            co_await manapi::async::delay{2000};
+            GreeterClient greeter(grpc::CreateChannel("0.0.0.0:8080", grpc::InsecureChannelCredentials()));
+            std::string user = "Xiadnoring Client";
+            auto res = co_await greeter.SayHello(user);
+            if (res.ok())
+                std::cout << res.unwrap();
+            else
+                res.err().log();
         });
 
         /**

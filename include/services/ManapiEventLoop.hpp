@@ -16,7 +16,7 @@
 #include "../async/ManapiAsyncPromise.hpp"
 #include "../components/ManapiTimerObject.hpp"
 #include "../components/ManapiEventStructures.hpp"
-
+#include "../async/ManapiCancellation.hpp"
 
 
 #ifdef _WIN32
@@ -42,6 +42,8 @@ namespace manapi::ev {
     typedef std::move_only_function<void(std::shared_ptr<ev::write> &, int status)> write_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::fs> &)> fs_cb;
     typedef std::move_only_function<void(std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size)> random_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::getaddrinfo> &w, int status, struct addrinfo *res)> getaddrinfo_cb;
+    typedef std::move_only_function<void(std::shared_ptr<ev::getnameinfo> &w, int status, const char *hostname, const char *service)> getnameinfo_cb;
 
     template<typename T>
     using close_cb_t = std::move_only_function<void(const std::shared_ptr<T> &)>;
@@ -172,7 +174,7 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        std::shared_ptr<ev::fs> create_watcher_fs (ev::fs_cb callback);
+        std::shared_ptr<ev::fs> create_watcher_fs (ev::fs_cb callback, manapi::async::cancellation_action token = nullptr);
 
         /**
          *
@@ -180,7 +182,23 @@ namespace manapi {
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
-        std::shared_ptr<ev::random> create_watcher_random (ev::random_cb callback, char *buff, std::size_t size);
+        std::shared_ptr<ev::getaddrinfo> create_watcher_getaddrinfo (const char *node, const char *service, const addrinfo *hints, ev::getaddrinfo_cb callback, manapi::async::cancellation_action token = nullptr);
+
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_INTERNAL code
+         */
+        std::shared_ptr<ev::getnameinfo> create_watcher_getnameinfo (const struct sockaddr *addr, int flags, ev::getnameinfo_cb callback, manapi::async::cancellation_action token = nullptr);
+
+        /**
+         *
+         * @param callback Callback
+         * @return
+         * @throws manapi::exception with ERR_INTERNAL code
+         */
+        std::shared_ptr<ev::random> create_watcher_random (char *buff, std::size_t size, ev::random_cb callback, manapi::async::cancellation_action token = nullptr);
 
         /**
          *
@@ -194,16 +212,31 @@ namespace manapi {
         std::shared_ptr<ev::write> create_watcher_write (ev::tcp *conn, ev::write_cb callback, const ev::buff_t *bufs, uint32_t nbuf);
 
         void stop_watcher_ptr (ev::io *w);
+
         void stop_watcher_ptr (ev::async *w);
+
         void stop_watcher_ptr (ev::idle *w);
+
         void stop_watcher_ptr (ev::udp *w);
+
         void stop_watcher_ptr (ev::check *w);
+
         void stop_watcher_ptr (ev::timer *w);
+
         void stop_watcher_ptr (ev::prepare *w);
+
         void stop_watcher_ptr (ev::write *w);
+
         void stop_watcher_ptr (ev::random *w);
+
         void stop_watcher_ptr (ev::udp_send *w);
+
         void stop_watcher_ptr (ev::fs *w);
+
+        void stop_watcher_ptr (ev::getaddrinfo *w);
+
+        void stop_watcher_ptr (ev::getnameinfo *w);
+
         
         template<typename T>
         void stop_watcher (std::shared_ptr<T> w) {

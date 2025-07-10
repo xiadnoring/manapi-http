@@ -1,7 +1,9 @@
 #pragma once
 
+#include <memory>
+#include <functional>
+
 #include "../ManapiUtils.hpp"
-#include "./ManapiAsyncContext.hpp"
 
 namespace manapi::async {
     class cancellation_action {
@@ -95,7 +97,7 @@ namespace manapi::async {
         /**
          * Disable cancellation without calling the callback to cancel
          */
-        void disable_cancellation ();
+        void disable ();
     private:
         void send_async_();
         static void stop_timeout_ (std::shared_ptr<data_t> data);

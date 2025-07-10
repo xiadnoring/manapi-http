@@ -23,15 +23,20 @@
 #endif
 
 #define MANAPI_EV_UNWATCHER(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) { \
-    if (w->data()) { \
-        w->unbind(+[](uv_handle_t *handle) -> void { auto data = static_cast<ev::internal::ctxname *>(handle->data); \
-        handle->data = nullptr; if (data) { data->s_.reset(); delete data; } }); \
+    if (w && w->data()) { \
+        w->unbind(+[](uv_handle_t *handle) -> void { std::unique_ptr<ev::internal::ctxname>  data (static_cast<ev::internal::ctxname *>(handle->data)); \
+        handle->data = nullptr; if (data) { data->s_.reset(); } }); \
+    } }
+
+#define MANAPI_EV_CANCEL(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) { \
+    if (w && w->data()) { w->cancel(); std::unique_ptr<ev::internal::ctxname> data (static_cast<ev::internal::ctxname *>(w->data())); w->data(nullptr); \
+        if (data) { data->token.disable(); data->s_.reset(); } \
     } }
 
 #define MANAPI_EV_UNWATCHER2(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) { \
-    if (w->data()) { \
-        w->unbind(+[](uv_handle_t *handle) -> void { auto data = static_cast<ev::internal::ctxname *>(handle->data); \
-        handle->data = nullptr; if (data->close_cb) { data->close_cb->operator()(data->s_); } if (data) { data->s_.reset(); delete data; } }); \
+    if (w && w->data()) { \
+        w->unbind(+[](uv_handle_t *handle) -> void { std::unique_ptr<ev::internal::ctxname> data (static_cast<ev::internal::ctxname *>(handle->data)); \
+        handle->data = nullptr; if (data->close_cb) { data->close_cb->operator()(data->s_); } if (data) { data->s_.reset(); } }); \
     } }
 
 enum add_watcher_io_events {
@@ -174,11 +179,25 @@ namespace manapi::ev::internal {
     struct fs_ctx {
         std::shared_ptr<ev::fs> s_;
         fs_cb cb;
+        manapi::async::cancellation_action token;
     };
 
     struct random_ctx {
         std::shared_ptr<ev::random> s_;
         random_cb cb;
+        manapi::async::cancellation_action token;
+    };
+
+    struct getaddrinfo_ctx {
+        std::shared_ptr<ev::getaddrinfo> s_;
+        getaddrinfo_cb cb;
+        manapi::async::cancellation_action token;
+    };
+
+    struct getnameinfo_ctx {
+        std::shared_ptr<ev::getnameinfo> s_;
+        getnameinfo_cb cb;
+        manapi::async::cancellation_action token;
     };
 
     struct adding_watcher_io_data_init_t {
@@ -345,11 +364,16 @@ namespace manapi::ev::internal {
     };
 }
 
-class fs_req_deleter {
-    uv_fs_t *req;
-public:
-    fs_req_deleter (uv_fs_t *req) : req(req) { }
-    ~fs_req_deleter() { uv_fs_req_cleanup(this->req); }
+struct fs_req_deleter {
+    void operator()(uv_fs_t *req) {
+        uv_fs_req_cleanup(req);
+    }
+};
+
+struct addrinfo_deleter {
+    void operator()(addrinfo *ai) {
+        uv_freeaddrinfo(ai);
+    }
 };
 
 std::map<size_t, std::shared_ptr<manapi::event_loop>> manapi::event_loop::events = {};
@@ -435,19 +459,18 @@ void manapi::ev::callback_watcher_connect_tcp(uv_connect_t *s, int status) {
 
 
 void manapi::ev::callback_watcher_fs(uv_fs_t *req) {
+    std::unique_ptr<uv_fs_t, fs_req_deleter> req_own (req);
+
     if (req->data) {
         /* otherwise it was cancelled */
         auto w = std::move(static_cast<manapi::ev::internal::fs_ctx *> (req->data)->s_);
-        {
-            fs_req_deleter deleter (req);
-            static_cast<manapi::ev::internal::fs_ctx *> (req->data)
-                ->cb(w);
-        }
+
+        static_cast<manapi::ev::internal::fs_ctx *> (req->data)
+            ->cb(w);
+        req_own.reset();
+
         delete static_cast<manapi::ev::internal::fs_ctx *> (req->data);
         req->data = nullptr;
-    }
-    else {
-        fs_req_deleter deleter (req);
     }
 }
 
@@ -460,6 +483,29 @@ void manapi::ev::callback_watcher_random(uv_random_t *s, int status, void *buff,
         s->data = nullptr;
     }
 }
+
+void manapi::ev::callback_watcher_getnameinfo(uv_getnameinfo_t *req, int status, const char *hostname, const char *service) {
+    if (req->data) {
+        /* otherwise it was cancelled */
+        static_cast<manapi::ev::internal::getnameinfo_ctx *> (req->data)
+            ->cb(static_cast<manapi::ev::internal::getnameinfo_ctx *> (req->data)->s_, status, hostname, service);
+        delete static_cast<manapi::ev::internal::getnameinfo_ctx *> (req->data);
+        req->data = nullptr;
+    }
+}
+
+void manapi::ev::callback_watcher_getaddrinfo(uv_getaddrinfo_t *req, int status, addrinfo *res) {
+    std::unique_ptr<addrinfo, addrinfo_deleter> res_own (res);
+
+    if (req->data) {
+        /* otherwise it was cancelled */
+        static_cast<manapi::ev::internal::getaddrinfo_ctx *> (req->data)
+            ->cb(static_cast<manapi::ev::internal::getaddrinfo_ctx *> (req->data)->s_, status, res_own.release());
+        delete static_cast<manapi::ev::internal::getaddrinfo_ctx *> (req->data);
+        req->data = nullptr;
+    }
+}
+
 
 void manapi::ev::callback_watcher_tcp_connection_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
     static_cast<manapi::ev::internal::tcp_connection_ctx *> (handle->data)
@@ -1298,18 +1344,56 @@ std::shared_ptr<manapi::ev::prepare> manapi::event_loop::create_watcher_prepare(
     return std::move(w);
 }
 
-std::shared_ptr<manapi::ev::fs> manapi::event_loop::create_watcher_fs(ev::fs_cb callback) {
+std::shared_ptr<manapi::ev::fs> manapi::event_loop::create_watcher_fs(ev::fs_cb callback, manapi::async::cancellation_action token) {
     auto w = std::make_shared<ev::fs>(this->loop_.get());
-    w->data(new ev::internal::fs_ctx{ .s_ = w, .cb = std::move(callback) });
+    if (token) {
+        token.cancel_callback([w = std::weak_ptr (w)] () -> void {
+            manapi::async::current()->eventloop()->stop_watcher(w.lock());
+        });
+    }
+    w->data(new ev::internal::fs_ctx{ .s_ = w, .cb = std::move(callback), .token = std::move(token) });
     return std::move(w);
 }
 
-std::shared_ptr<manapi::ev::random> manapi::event_loop::create_watcher_random(ev::random_cb callback, char *buff, std::size_t size) {
+std::shared_ptr<manapi::ev::getaddrinfo> manapi::event_loop::create_watcher_getaddrinfo(const char *node, const char *service, const addrinfo *hints, ev::getaddrinfo_cb callback, manapi::async::cancellation_action token) {
+    auto w = std::make_shared<ev::getaddrinfo>();
+    if (auto rhs = w->bind(this->loop_.get(), node, service, hints)) {
+        throw manapi::exception (manapi::ERR_INTERNAL, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED]);
+    }
+    if (token) {
+        token.cancel_callback([w = std::weak_ptr (w)] () -> void {
+            manapi::async::current()->eventloop()->stop_watcher(w.lock());
+        });
+    }
+    w->data(new ev::internal::getaddrinfo_ctx{ .s_ = w, .cb = std::move(callback), .token = std::move(token) });
+    return std::move(w);
+}
+
+std::shared_ptr<manapi::ev::getnameinfo> manapi::event_loop::create_watcher_getnameinfo(const sockaddr *addr, int flags, ev::getnameinfo_cb callback, manapi::async::cancellation_action token) {
+    auto w = std::make_shared<ev::getnameinfo>();
+    if (auto rhs = w->bind(this->loop_.get(), addr, flags)) {
+        throw manapi::exception (manapi::ERR_INTERNAL, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED]);
+    }
+    if (token) {
+        token.cancel_callback([w = std::weak_ptr (w)] () -> void {
+            manapi::async::current()->eventloop()->stop_watcher(w.lock());
+        });
+    }
+    w->data(new ev::internal::getnameinfo_ctx{ .s_ = w, .cb = std::move(callback), .token = std::move(token) });
+    return std::move(w);
+}
+
+std::shared_ptr<manapi::ev::random> manapi::event_loop::create_watcher_random(char *buff, std::size_t size, ev::random_cb callback, manapi::async::cancellation_action token) {
     auto w = std::make_shared<ev::random>();
     if (auto rhs = w->bind(this->loop_.get(), buff, size)) {
         throw manapi::exception (manapi::ERR_INTERNAL, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED]);
     }
-    w->data(new ev::internal::random_ctx{ .s_ = w, .cb = std::move(callback) });
+    if (token) {
+        token.cancel_callback([w = std::weak_ptr (w)] () -> void {
+            manapi::async::current()->eventloop()->stop_watcher(w.lock());
+        });
+    }
+    w->data(new ev::internal::random_ctx{ .s_ = w, .cb = std::move(callback), .token = std::move(token) });
     return std::move(w);
 }
 
@@ -1359,36 +1443,13 @@ MANAPI_EV_UNWATCHER(check, check_ctx);
 MANAPI_EV_UNWATCHER(timer, timer_ctx);
 MANAPI_EV_UNWATCHER(prepare, prepare_ctx);
 
-void manapi::event_loop::event_loop::stop_watcher_ptr(ev::fs *w) {
-    if (w->data()) {
-        w->cancel();
-
-        auto data = static_cast<ev::internal::fs_ctx *>(w->data());
-        w->data(nullptr);
-
-        if (data) {
-            data->s_.reset();
-            delete data;
-        }
-    }
-}
-
-void manapi::event_loop::event_loop::stop_watcher_ptr(ev::random *w) {
-    if (w->data()) {
-        w->cancel();
-
-        auto data = static_cast<ev::internal::random_ctx *>(w->data());
-        w->data(nullptr);
-
-        if (data) {
-            data->s_.reset();
-            delete data;
-        }
-    }
-}
+MANAPI_EV_CANCEL (fs, fs_ctx);
+MANAPI_EV_CANCEL (getaddrinfo, getaddrinfo_ctx);
+MANAPI_EV_CANCEL (getnameinfo, getnameinfo_ctx);
+MANAPI_EV_CANCEL (random, random_ctx);
 
 void manapi::event_loop::event_loop::stop_watcher_ptr(ev::write *w) {
-    if (w->data()) {
+    if (w && w->data()) {
         auto data = static_cast<ev::internal::write_ctx *>(w->data());
         w->data(nullptr);
         if (data) {
@@ -1399,7 +1460,7 @@ void manapi::event_loop::event_loop::stop_watcher_ptr(ev::write *w) {
 }
 
 void manapi::event_loop::event_loop::stop_watcher_ptr(ev::udp_send *w) {
-    if (w->data()) {
+    if (w && w->data()) {
         auto data = static_cast<ev::internal::udp_send_ctx *>(w->data());
         w->data( nullptr);
         if (data) {

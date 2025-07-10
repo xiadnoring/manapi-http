@@ -38,6 +38,8 @@ MANAPI_EV_DEFAULT(tcp, uv_tcp_t)
 MANAPI_EV_DEFAULT(udp, uv_udp_t)
 MANAPI_EV_DEFAULT(write, uv_write_t)
 MANAPI_EV_DEFAULT(random, uv_random_t)
+MANAPI_EV_DEFAULT(getaddrinfo, uv_getaddrinfo_t)
+MANAPI_EV_DEFAULT(getnameinfo, uv_getnameinfo_t)
 MANAPI_EV_DEFAULT(udp_send, uv_udp_send_t)
 MANAPI_EV_DEFAULT(fs, uv_fs_t)
 
@@ -815,4 +817,41 @@ int manapi::ev::random::bind(loop_ref loop, char *buff, std::size_t size, uv_ran
 
 int manapi::ev::random::bind (loop_ref loop, char *buff, std::size_t size) MANAPI_EV_NOEXPECT {
     return this->bind(loop, buff, size, callback_watcher_random);
+}
+
+manapi::ev::getaddrinfo::getaddrinfo() : s_() {
+
+}
+
+int manapi::ev::getaddrinfo::cancel() MANAPI_EV_NOEXPECT {
+    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->s_));
+}
+
+int manapi::ev::getaddrinfo::bind(loop_ref loop, const char *node, const char *service, const addrinfo *hints,
+    uv_getaddrinfo_cb getaddrinfo_cb) MANAPI_EV_NOEXPECT {
+        return uv_getaddrinfo(loop, &this->s_, getaddrinfo_cb, node, service, hints);
+}
+
+int manapi::ev::getaddrinfo::bind(loop_ref loop, const char *node, const char *service,
+    const addrinfo *hints) MANAPI_EV_NOEXPECT {
+        return this->bind(loop, node, service, hints, callback_watcher_getaddrinfo);
+}
+
+void manapi::ev::getaddrinfo::free(addrinfo *n) MANAPI_EV_NOEXPECT {
+    uv_freeaddrinfo(n);
+}
+
+manapi::ev::getnameinfo::getnameinfo() : s_() {
+}
+
+int manapi::ev::getnameinfo::cancel() MANAPI_EV_NOEXPECT {
+    return uv_cancel(reinterpret_cast<uv_req_t *> (&this->s_));
+}
+
+int manapi::ev::getnameinfo::bind(loop_ref loop, const sockaddr *addr, int flags, uv_getnameinfo_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_getnameinfo(loop, &this->s_, cb, addr, flags);
+}
+
+int manapi::ev::getnameinfo::bind(loop_ref loop, const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT {
+    return this->bind(loop, addr, flags, callback_watcher_getnameinfo);
 }

@@ -1,4 +1,5 @@
 #include "async/ManapiCancellation.hpp"
+#include "async/ManapiAsyncContext.hpp"
 #include "../include/ManapiUtils.hpp"
 
 #include <memory>
@@ -179,7 +180,7 @@ size_t manapi::async::cancellation_action::timeout() const {
     return this->data ? this->data->timeout_ : 0;
 }
 
-void manapi::async::cancellation_action::disable_cancellation() {
+void manapi::async::cancellation_action::disable() {
     if (this->data) {
         this->data->status_ |= (FLAG_DISABLED);
     }

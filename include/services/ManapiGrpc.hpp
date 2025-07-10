@@ -24,6 +24,8 @@ namespace manapi::net::wgrpc {
         server_ctx ();
 
         multithread_storage &storage ();
+
+        const async::shared_cthread &ctx ();
     private:
         std::shared_ptr<data_t> data_;
     };

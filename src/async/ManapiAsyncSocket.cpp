@@ -24,7 +24,7 @@ manapi::ev::io_cb pio_ready_mk_(int flags, int fd,manapi::async::promise<int>::r
             if ((revents & flags)) {
                 auto resolve_ = std::move(resolve);
 
-                cancellation.disable_cancellation();
+                cancellation.disable();
 
                 assert(!w->stop());
                 manapi::async::current()->eventloop()->stop_watcher(w);

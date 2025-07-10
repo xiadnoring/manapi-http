@@ -1,8 +1,10 @@
 #include "services/ManapiGrpc.hpp"
 
 #include "ManapiFilesystem.hpp"
+#include "services/ManapiDns.hpp"
 #include "../include/ManapiInternalGrpc.hpp"
 #include "../include/ManapiUtils.hpp"
+#include "http/ManapiHttpUtils.hpp"
 
 
 #if MANAPIHTTP_GRPC_DEPENDENCY
@@ -65,11 +67,66 @@ absl::Status manapi::net::wgrpc::net_listener::Start() {
 manapi::net::wgrpc::dns_resolved::dns_resolved() {
 }
 
-void manapi::net::wgrpc::dns_resolved::LookupHostname(LookupHostnameCallback on_resolve, absl::string_view name,
-    absl::string_view default_port) {
-    manapi::async::current()->etaskpool()->append_task([on_resolve = std::move(on_resolve)] () mutable
-        -> void {
-        on_resolve(absl::UnimplementedError("not already"));
+void manapi::net::wgrpc::dns_resolved::LookupHostname(LookupHostnameCallback on_resolve, absl::string_view name, absl::string_view default_port) {
+    manapi::async::current()->etaskpool()->append_task([on_resolve = std::move(on_resolve), name, default_port] () mutable -> void {
+        manapi::async::run(manapi::async::invoke(
+            [] (LookupHostnameCallback on_resolve, absl::string_view name, absl::string_view default_port) mutable
+            -> manapi::future<> {
+                ::addrinfo hints{};
+                ::addrinfo *result = nullptr, *resp;
+                std::string_view host1;
+                std::string_view port1;
+                bool has_port;
+                try {
+                    // parse name, splitting it into host and port parts
+                    http::split_http_port (name, host1, port1, has_port);
+                    if (host1.empty()) {
+                        co_return on_resolve(absl::InvalidArgumentError("getaddrinfo:Unparsable name"));
+                    }
+                    if (port1.empty()) {
+                        if (default_port.empty()) {
+                            co_return on_resolve(absl::InvalidArgumentError("getaddrinfo:No port in name or default_port argument"));
+                        }
+                        port1 = default_port;
+                    }
+                    // Call getaddrinfo
+                    memset(&hints, 0, sizeof(hints));
+                    hints.ai_family = AF_UNSPEC;      // ipv4 or ipv6
+                    hints.ai_socktype = SOCK_STREAM;  // stream socket
+                    hints.ai_flags = AI_PASSIVE;      // for wildcard IP address
+
+                    std::string host {host1};
+                    std::string port {port1};
+
+                    auto res = co_await dns::getaddrinfo(host.data(), port.data(), &hints, &result);
+                    if (res) {
+                        // Retry if well-known service name is recognized
+                        const char* svc[][2] = {{"http", "80"}, {"https", "443"}};
+                        for (auto & i : svc) {
+                            if (port == i[0]) {
+                                res = co_await dns::getaddrinfo(host.data(), i[1], &hints, &result);
+                                break;
+                            }
+                        }
+                    }
+                    if (res) {
+                        co_return on_resolve(absl::UnknownError("getaddrinfo:Address lookup failed"));
+                    }
+                    // Success path: fill in addrs
+                    std::vector<grpc_event_engine::experimental::EventEngine::ResolvedAddress> addresses;
+                    for (resp = result; resp != nullptr; resp = resp->ai_next) {
+                        addresses.emplace_back(resp->ai_addr, resp->ai_addrlen);
+                    }
+                    ev::getaddrinfo::free(std::exchange(result, nullptr));
+                    on_resolve(std::move(addresses));
+                    co_return;
+                }
+                catch (std::exception const &e) {
+                    ev::getaddrinfo::free(std::exchange(result, nullptr));
+                    manapi_log_error("%s due to %s", "wgrpc:look up failed", e.what());
+                }
+                on_resolve(absl::UnknownError("wgrpc:look up failed"));
+        }, std::move(on_resolve), name, default_port));
     });
 }
 
@@ -480,11 +537,18 @@ bool manapi::net::wgrpc::event_engine_wrapper::IsWorkerThread() {
 }
 
 absl::StatusOr<std::unique_ptr<grpc_event_engine::experimental::EventEngine::DNSResolver>> manapi::net::wgrpc::event_engine_wrapper::GetDNSResolver(const DNSResolver::ResolverOptions &options) {
+    try {
+        return std::make_unique<dns_resolved>();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "wgrpc:Failed to create dns resolved", e.what());
+    }
     return absl::UnimplementedError("dns");
 }
 
 struct manapi::net::wgrpc::server_ctx::data_t {
     multithread_storage ms;
+    async::shared_cthread ctx;
 };
 
 struct manapi::net::wgrpc::server::data_t {
@@ -499,6 +563,7 @@ manapi::net::wgrpc::server_ctx::server_ctx() {
     std::function<void(void *ptr)> deleter = [] (void *ptr)
         -> void { delete static_cast<worker_data_t *>(ptr); };
     this->data_ = std::make_shared<data_t>(multithread_storage (new worker_data_t(), std::move(deleter)));
+    this->data_->ctx = manapi::async::current();
     try {
         auto ev = std::make_shared<manapi::net::wgrpc::event_engine_wrapper>();
         grpc_event_engine::experimental::SetDefaultEventEngine(ev);
@@ -512,11 +577,18 @@ manapi::multithread_storage & manapi::net::wgrpc::server_ctx::storage() {
     return this->data_->ms;
 }
 
+const manapi::async::shared_cthread & manapi::net::wgrpc::server_ctx::ctx() {
+    return this->data_->ctx;
+}
+
 manapi::net::wgrpc::server::server(wgrpc::server_ctx ctx) {
     this->data_ = std::make_shared<data_t>(std::move(ctx), nullptr);
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::config(std::string path) {
+    if (this->data_->ctx.ctx() != manapi::async::current())
+        co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
+
     if (this->data_->worker)
         co_return error::status_already_exists("wgrpc:Config exists");
 
@@ -556,6 +628,9 @@ err:
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::config_object(manapi::json config) {
+    if (this->data_->ctx.ctx() != manapi::async::current())
+        co_return error::status_already_exists("grpc:Server can only be run in a single instance");
+
     if (this->data_->worker)
         co_return error::status_already_exists("wgrpc:Config exists");
 
@@ -589,6 +664,9 @@ err:
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::move_only_function<manapi::error::status(grpc::ServerBuilder &b)> cb) {
+    if (this->data_->ctx.ctx() != manapi::async::current())
+        co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
+
     using ci = manapi::internal::config_interface;
 
     error::status res;

@@ -44,8 +44,7 @@ manapi::future<void> manapi::crypto::async_random_string(async::shared_cthread c
     co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) mutable
         -> void {
         try {
-            auto w = manapi::async::current()->eventloop()->create_watcher_random(
-                [resolve, reject] (std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size) mutable
+            auto w = manapi::async::current()->eventloop()->create_watcher_random(buff, len, [resolve, reject] (std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size) mutable
                 -> void {
                     if (status) {
                         reject(std::make_exception_ptr(manapi::exception(manapi::ERR_INTERNAL,
@@ -53,7 +52,7 @@ manapi::future<void> manapi::crypto::async_random_string(async::shared_cthread c
                         return;
                     }
                     resolve();
-            }, buff, len);
+            });
             if (cancellation.contains_cancel_callback()) {
                 cancellation.cancel_callback([w, resolve = std::move(resolve)] () mutable
                     -> void {
@@ -66,7 +65,7 @@ manapi::future<void> manapi::crypto::async_random_string(async::shared_cthread c
             reject(std::current_exception());
         }
     });
-    cancellation.disable_cancellation();
+    cancellation.disable();
 }
 
 std::string manapi::crypto::random_string(std::size_t len) {

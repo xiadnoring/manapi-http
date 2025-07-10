@@ -206,4 +206,10 @@ namespace manapi::async {
     private:
         std::shared_ptr<data_t> data{nullptr};
     };
+
+    template<typename T>
+    using promise_sync = promise<T, std::false_type>;
+
+    template<typename T>
+    using promise_async = promise<T, std::true_type>;
 }
