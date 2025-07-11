@@ -1,6 +1,6 @@
 # Generate keys
 
-openssl req -x509 -newkey rsa:2048 -keyout cert.key -out cert.crt -days 999
+openssl req -x509 -newkey rsa:2048 -keyout cert.key -out cert.crt -days 999 -subj "/C=RU/ST=Bashkort Republic/L=Ufa/O=Manapi Inc/OU=Manapi Http/CN=localhost"
 openssl rsa -in cert.key -out cert.key.new
 
 # Generate Root Certificate
