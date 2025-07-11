@@ -398,67 +398,104 @@ void evloop_stack_trace () {
 }
 
 void manapi::ev::callback_watcher_async (uv_async_t *s) {
-    static_cast<manapi::ev::internal::async_ctx *> (s->data)
-        ->cb(static_cast<manapi::ev::internal::async_ctx *> (s->data)->s_);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::async_ctx *> (s->data)
+        ->cb;
+    assert(cb && "ev:User callback wasn't set");
+    cb(static_cast<manapi::ev::internal::async_ctx *> (s->data)->s_);
 }
 
 void manapi::ev::callback_watcher_timer (uv_timer_t *s) {
-    static_cast<manapi::ev::internal::timer_ctx *> (s->data)
-        ->cb(static_cast<manapi::ev::internal::timer_ctx *> (s->data)->s_);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::timer_ctx *> (s->data)
+        ->cb;
+    assert(cb && "ev:User callback wasn't set");
+    cb (static_cast<manapi::ev::internal::timer_ctx *> (s->data)->s_);
 }
 
 void manapi::ev::callback_watcher_io (uv_poll_t *s, int status, int revents) {
-    static_cast<manapi::ev::internal::io_ctx *> (s->data)
-        ->cb(static_cast<manapi::ev::internal::io_ctx *> (s->data)->s_, status, revents);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::io_ctx *> (s->data)
+        ->cb;
+    assert(cb && "ev:User callback wasn't set");
+    cb(static_cast<manapi::ev::internal::io_ctx *> (s->data)->s_, status, revents);
 }
 
 void manapi::ev::callback_watcher_idle (uv_idle_t *s) {
-    static_cast<manapi::ev::internal::idle_ctx *> (s->data)
-        ->cb(static_cast<manapi::ev::internal::idle_ctx *> (s->data)->s_);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::idle_ctx *> (s->data)
+        ->cb;
+    assert(cb && "ev:User callback wasn't set");
+    cb(static_cast<manapi::ev::internal::idle_ctx *> (s->data)->s_);
 }
 
 void manapi::ev::callback_watcher_check (uv_check_t *s) {
-    static_cast<manapi::ev::internal::check_ctx *> (s->data)
-        ->cb(static_cast<manapi::ev::internal::check_ctx *> (s->data)->s_);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::check_ctx *> (s->data)
+        ->cb;
+    assert(cb && "ev:User callback wasn't set");
+    (static_cast<manapi::ev::internal::check_ctx *> (s->data)->s_);
 }
 
 void manapi::ev::callback_watcher_prepare (uv_prepare_t *s) {
-    static_cast<manapi::ev::internal::prepare_ctx *> (s->data)
-        ->cb(static_cast<manapi::ev::internal::prepare_ctx *> (s->data)->s_);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::prepare_ctx *> (s->data)
+        ->cb;
+    assert(cb && "ev:User callback wasn't set");
+    cb (static_cast<manapi::ev::internal::prepare_ctx *> (s->data)->s_);
 }
 
 void manapi::ev::callback_watcher_tcp_accept (uv_tcp_t *s, int status) {
-    static_cast<manapi::ev::internal::tcp_accept_ctx *> (s->data)
-        ->connection(static_cast<manapi::ev::internal::tcp_accept_ctx *> (s->data)->s_, status);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::tcp_accept_ctx *> (s->data)
+        ->connection;
+    assert(cb && "ev:User callback wasn't set");
+    cb (static_cast<manapi::ev::internal::tcp_accept_ctx *> (s->data)->s_, status);
 }
 
 void manapi::ev::callback_watcher_tcp_read (uv_stream_t *s, ssize_t nread, const uv_buf_t *buf) {
-    static_cast<manapi::ev::internal::tcp_connection_ctx *> (s->data)
-        ->read(static_cast<manapi::ev::internal::tcp_connection_ctx *> (s->data)->s_, nread, buf);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::tcp_connection_ctx *> (s->data)
+        ->read;
+    assert(cb && "ev:User callback wasn't set");
+    cb(static_cast<manapi::ev::internal::tcp_connection_ctx *> (s->data)->s_, nread, buf);
 }
 
 void manapi::ev::callback_watcher_udp_recv (uv_udp_t *s, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags) {
-    static_cast<manapi::ev::internal::udp_ctx *> (s->data)
-        ->recv(static_cast<manapi::ev::internal::udp_ctx *> (s->data)->s_, nread, buf, addr, flags);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::udp_ctx *> (s->data)
+        ->recv;
+    assert(cb && "ev:User callback wasn't set");
+    cb(static_cast<manapi::ev::internal::udp_ctx *> (s->data)->s_, nread, buf, addr, flags);
 }
 
 void manapi::ev::callback_watcher_udp_send (uv_udp_send_t *s, int status) {
-    static_cast<manapi::ev::internal::udp_send_ctx *> (s->data)
-        ->send(static_cast<manapi::ev::internal::udp_send_ctx *> (s->data)->s_, status);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::udp_send_ctx *> (s->data)
+        ->send;
+    assert(cb && "ev:User callback wasn't set");
+    cb (static_cast<manapi::ev::internal::udp_send_ctx *> (s->data)->s_, status);
 }
 
 void manapi::ev::callback_watcher_write (uv_write_t *s, int status) {
-    static_cast<manapi::ev::internal::write_ctx *> (s->data)
-        ->write(static_cast<manapi::ev::internal::write_ctx *> (s->data)->s_, status);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::write_ctx *> (s->data)
+        ->write;
+    assert(cb && "ev:User callback wasn't set");
+    cb (static_cast<manapi::ev::internal::write_ctx *> (s->data)->s_, status);
 }
 
 void manapi::ev::callback_watcher_connect_tcp(uv_connect_t *s, int status) {
-    static_cast<manapi::ev::internal::connect_tcp_ctx *> (s->data)
-        ->cb (static_cast<manapi::ev::internal::connect_tcp_ctx *> (s->data)->tcp, status);
+    assert(s->data && "ev:User data wasn't set");
+    auto &cb = static_cast<manapi::ev::internal::connect_tcp_ctx *> (s->data)
+        ->cb;
+    assert(cb && "ev:User callback wasn't set");
+    cb (static_cast<manapi::ev::internal::connect_tcp_ctx *> (s->data)->tcp, status);
 }
 
 
 void manapi::ev::callback_watcher_fs(uv_fs_t *req) {
+    assert(req->data && "ev:User data wasn't set");
     std::unique_ptr<uv_fs_t, fs_req_deleter> req_own (req);
 
     if (req->data) {
@@ -475,6 +512,7 @@ void manapi::ev::callback_watcher_fs(uv_fs_t *req) {
 }
 
 void manapi::ev::callback_watcher_random(uv_random_t *s, int status, void *buff, std::size_t size) {
+    assert(s->data && "ev:User data wasn't set");
     if (s->data) {
         /* otherwise it was cancelled */
         static_cast<manapi::ev::internal::random_ctx *> (s->data)
@@ -485,6 +523,7 @@ void manapi::ev::callback_watcher_random(uv_random_t *s, int status, void *buff,
 }
 
 void manapi::ev::callback_watcher_getnameinfo(uv_getnameinfo_t *req, int status, const char *hostname, const char *service) {
+    assert(req->data && "ev:User data wasn't set");
     if (req->data) {
         /* otherwise it was cancelled */
         static_cast<manapi::ev::internal::getnameinfo_ctx *> (req->data)
@@ -495,6 +534,7 @@ void manapi::ev::callback_watcher_getnameinfo(uv_getnameinfo_t *req, int status,
 }
 
 void manapi::ev::callback_watcher_getaddrinfo(uv_getaddrinfo_t *req, int status, addrinfo *res) {
+    assert(req->data && "ev:User data wasn't set");
     std::unique_ptr<addrinfo, addrinfo_deleter> res_own (res);
 
     if (req->data) {
@@ -508,16 +548,20 @@ void manapi::ev::callback_watcher_getaddrinfo(uv_getaddrinfo_t *req, int status,
 
 
 void manapi::ev::callback_watcher_tcp_connection_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+    assert(handle->data && "ev:User data wasn't set");
     static_cast<manapi::ev::internal::tcp_connection_ctx *> (handle->data)
         ->alloc_cb(static_cast<manapi::ev::internal::tcp_connection_ctx *> (handle->data)->s_, suggested_size, buf);
 }
 
 void manapi::ev::callback_watcher_udp_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+    assert(handle->data && "ev:User data wasn't set");
     static_cast<manapi::ev::internal::udp_ctx *> (handle->data)
         ->alloc_cb(static_cast<manapi::ev::internal::udp_ctx *> (handle->data)->s_, suggested_size, buf);
 }
 
 void manapi::ev::callback_close_cb(uv_handle_t *s) {
+    assert(s->data && "ev:User data wasn't set");
+
     switch (s->type) {
         case ev::EV_TCP: {
             if (static_cast<manapi::ev::internal::tcp_ctx *> (s->data)) {
@@ -829,7 +873,8 @@ std::pair<std::shared_ptr<manapi::ev::connect>, std::shared_ptr<manapi::ev::tcp>
     auto ctx = std::make_unique<ev::internal::connect_tcp_ctx>();
     ctx->cb = std::move(on_connect);
     ctx->tcp = w;
-    w->data(ctx.release());
+    c->data(ctx.release());
+
     return {std::move(c), std::move(w)};
 }
 
@@ -1279,10 +1324,11 @@ void manapi::event_loop::interrupt(int sig) {
             break;
         default:
             evloop_stack_trace ();
+            exit(-1);
     }
 
-    if (sig == SIGFPE)
-        exit(-1);
+    // if (sig == SIGFPE)
+    //     exit(-1);
 
     for (auto &loop_ :  manapi::event_loop::events) {
         loop_.second->interrupted_watcher_->send();

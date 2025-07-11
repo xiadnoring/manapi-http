@@ -14,6 +14,8 @@
 namespace manapi::net::wgrpc {
     class event_engine_wrapper;
 
+    manapi::future<manapi::error::status_or<std::shared_ptr<grpc::ChannelCredentials>>> secure_channel_credentials (std::string certfile);
+
     class server_ctx {
         struct data_t;
     public:

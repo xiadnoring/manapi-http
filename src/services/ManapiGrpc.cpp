@@ -16,6 +16,17 @@ enum manapi_grpc_endpoint_flags {
     MANAPI_GRPC_ENDPOINT_FINISHED = 2
 };
 
+struct wgrpc_connection_data_t {
+    std::shared_ptr<manapi::ev::connect> connect;
+    std::unique_ptr<manapi::timer> timer;
+};
+
+thread_local std::set<std::pair<uintptr_t, ssize_t>> wgrpc_tasks_exists;
+
+decltype(wgrpc_tasks_exists)::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
+    return wgrpc_tasks_exists.find({static_cast<std::uintptr_t>(keys[1]), static_cast<ssize_t>(keys[0])});
+}
+
 manapi::net::wgrpc::config::config(const manapi::json &n) {
     this->buffer_size = config::get_config_param<std::size_t>(n, "buffer_size", 4096);
     this->max_buffered_size = config::get_config_param<std::size_t>(n, "max_buffered_size", 65536);
@@ -336,25 +347,21 @@ manapi::net::wgrpc::event_engine_wrapper::~event_engine_wrapper() {
 }
 
 bool manapi::net::wgrpc::event_engine_wrapper::Cancel(TaskHandle handle) {
-    switch (handle.keys[0]) {
-        case 0: return false;
-        case 1: {
-            /* timer */
-            auto const timer = reinterpret_cast<manapi::timer *> (
-                std::exchange(handle.keys[1], 0));
+    auto it = wgrpc_tasks_find(handle.keys);
+    if (it == wgrpc_tasks_exists.end())
+        return false;
 
-            if (!timer)
-                return false;
+    wgrpc_tasks_exists.erase(it);
 
-            timer->stop();
+    /* timer */
+    std::cout << "cancel " << handle.keys[1] << "\n";
+    std::unique_ptr<manapi::timer> timer (reinterpret_cast<manapi::timer *> (
+        std::exchange(handle.keys[1], 0)));
 
-            delete timer;
-            break;
-        }
-        default: return false;
-    }
+    if (!timer)
+        return false;
 
-    handle.keys[0] = 0;
+    timer->stop();
 
     return true;
 }
@@ -363,12 +370,12 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
     OnConnectCallback on_connect, const ResolvedAddress &addr,
     const grpc_event_engine::experimental::EndpointConfig &args,
     grpc_event_engine::experimental::MemoryAllocator memory_allocator, Duration timeout) {
+    auto data = std::make_unique<wgrpc_connection_data_t>();
 
     auto timer = std::make_unique<manapi::timer>();
-    auto const timer_ptr = timer.get();
 
     auto [connect, conn] = manapi::async::current()->eventloop()->connect_tcp (addr.address(),
-        [timer = std::move(timer), on_connect = std::move(on_connect), memory_allocator = std::move(memory_allocator)]
+        [timer = timer.get(), on_connect = std::move(on_connect), memory_allocator = std::move(memory_allocator)]
         (const std::shared_ptr<manapi::ev::tcp> &w, int status) mutable
         -> void {
             try {
@@ -377,8 +384,8 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
                 if (status) {
                     /* error */
                     switch (status) {
-                        case UV_ECANCELED: on_connect (absl::CancelledError()); break;
-                        default: on_connect(absl::UnknownError("something gets wrong")); break;
+                        case manapi::ev::ERR_CANCELED: on_connect (absl::CancelledError()); break;
+                        default: on_connect(absl::UnknownError("wgrpc:Something gets wrong")); break;
                     }
                     return;
                 }
@@ -411,7 +418,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
         },
         nullptr, nullptr);
 
-    *timer_ptr = manapi::async::current()->timerpool()->append_timer_sync(
+    *timer = manapi::async::current()->timerpool()->append_timer_sync(
         std::max(1UL, static_cast<std::size_t>(timeout.count() / 1000000)), [connect] (manapi::timer t)
         -> void {
         if (connect->is_active())
@@ -420,8 +427,15 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
     ConnectionHandle handle{};
 
-    handle.keys[0] = 2;
-    handle.keys[1] = reinterpret_cast<std::intptr_t>(connect.get());
+    data->connect = std::move(connect);
+    data->timer = std::move(timer);
+
+    auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
+
+    assert(wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(data.get()), time}).second);
+
+    handle.keys[0] = time;
+    handle.keys[1] = reinterpret_cast<std::intptr_t>(data.release());
 
     return handle;
 }
@@ -445,14 +459,24 @@ void manapi::net::wgrpc::event_engine_wrapper::Run(Closure *closure) {
 }
 
 bool manapi::net::wgrpc::event_engine_wrapper::CancelConnect(ConnectionHandle handle) {
-    if (handle.keys[0] == 2) {
-        auto p = reinterpret_cast<manapi::ev::connect *> (handle.keys[1]);
-        if (p->is_active()) {
-            p->unbind();
-            return true;
-        }
+    auto it = wgrpc_tasks_find(handle.keys);
+    if (it == wgrpc_tasks_exists.end())
+        return false;
+
+    wgrpc_tasks_exists.erase(it);
+
+    std::unique_ptr<wgrpc_connection_data_t> p (reinterpret_cast<wgrpc_connection_data_t *> (std::exchange(handle.keys[1], 0)));
+    if (!p)
+        return true;
+
+    if (p->connect && p->connect->is_active()) {
+        p->connect->unbind();
     }
-    return false;
+    if (p->timer) {
+        p->timer->stop();
+    }
+
+    return true;
 }
 
 absl::StatusOr<std::unique_ptr<grpc_event_engine::experimental::EventEngine::Listener>> manapi::
@@ -506,7 +530,12 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
             delete ptr;
         });
 
-    task.keys[0] = 1;
+
+    auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
+
+    assert(wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(timer.get()), time}).second);
+
+    task.keys[0] = time;
     task.keys[1] = reinterpret_cast<std::intptr_t> (timer.release());
 
     return task;
@@ -525,8 +554,11 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
             catch (std::exception const &e) { MANAPIHTTP_LOG("gRPC send a error: {}", e.what()); }
             delete ptr;
         });
+    auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
 
-    task.keys[0] = 1;
+    assert(wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(timer.get()), time}).second);
+
+    task.keys[0] = time;
     task.keys[1] = reinterpret_cast<std::intptr_t> (timer.release());
 
     return task;
@@ -558,6 +590,21 @@ struct manapi::net::wgrpc::server::data_t {
     std::unique_ptr<grpc::Server> server;
     std::shared_ptr<wgrpc::config> config;
 };
+
+manapi::future<manapi::error::status_or<std::shared_ptr<grpc::ChannelCredentials>>> manapi::net::wgrpc::secure_channel_credentials(std::string certfile) {
+    try {
+        grpc::SslCredentialsOptions ssl_opts;
+        ssl_opts.pem_root_certs=co_await manapi::filesystem::async_read(certfile);
+
+        auto ssl_creds = grpc::SslCredentials(ssl_opts);
+        co_return std::move(ssl_creds);
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "wgrpc:SecureChannelCreds something gets wrong", e.what());
+    }
+
+    co_return error::status_internal("wgrpc:SecureChannelCreds something gets wrong");
+}
 
 manapi::net::wgrpc::server_ctx::server_ctx() {
     std::function<void(void *ptr)> deleter = [] (void *ptr)
@@ -679,7 +726,7 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
     }
 
     auto grpc_ = &this->data_->data["grpc"];
-    auto const ip = ci::get_config_param<std::string>(*grpc_, "address", "0.0.0.0");
+    auto const ip = ci::get_config_param<std::string>(*grpc_, "address", "localhost");
     auto const port = ci::get_config_param<std::string>(*grpc_, "port", "8080");
     auto const ssl_it = grpc_->find("ssl");
 

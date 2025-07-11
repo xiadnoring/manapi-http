@@ -74,6 +74,8 @@ public:
                     return;
                 }
 
+                auto msg = status.error_message();
+                manapi_log_debug("grpc client failed due to %s", msg.data());
                 resolve(manapi::error::status_internal("grpc client: something gets wrong"));
             });
         });
@@ -130,19 +132,25 @@ int main () {
             });
 
             res.log();
+            if (res.ok()) {
+                manapi::async::run([] () -> manapi::future<> {
+                    auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
+                    if (!creds.ok()) {
+                        creds.err().log();
+                        co_return;
+                    }
+                    GreeterClient greeter(grpc::CreateChannel("localhost:8080", creds.unwrap()));
+                    std::string user = "Xiadnoring Client";
+                    auto res = co_await greeter.SayHello(user);
+                    if (res.ok())
+                        std::cout << res.unwrap();
+                    else
+                        res.err().log();
+                });
+            }
+
         }, [] (std::exception_ptr err) -> void {
             assert(!err);
-        });
-
-        manapi::async::run([] () -> manapi::future<> {
-            co_await manapi::async::delay{2000};
-            GreeterClient greeter(grpc::CreateChannel("0.0.0.0:8080", grpc::InsecureChannelCredentials()));
-            std::string user = "Xiadnoring Client";
-            auto res = co_await greeter.SayHello(user);
-            if (res.ok())
-                std::cout << res.unwrap();
-            else
-                res.err().log();
         });
 
         /**
