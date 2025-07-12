@@ -57,7 +57,7 @@ void default_print_log (manapi::logger_type type, std::string_view service, int 
 }
 
 void manapi::logger::setup_default_callback_(const std::shared_ptr<data_t> &data) {
-    if (manapi::async::current()) {
+    if (manapi::async::internal::current_()) {
         std::lock_guard<std::mutex> lk (sync_mx_locker);
         if (!async_mx_locker)
             async_mx_locker = std::make_shared<async::tmutex>();
@@ -71,7 +71,7 @@ void manapi::logger::setup_default_callback_(const std::shared_ptr<data_t> &data
     }
     else {
         data->callback = [data] (logger_type type, std::string_view service, int error_code, std::string msg) mutable -> void {
-            if (manapi::async::current()) {
+            if (manapi::async::internal::current_()) {
                 auto tmp = std::move(data);
                 setup_default_callback_(tmp);
                 tmp->callback(type, service, error_code, msg);

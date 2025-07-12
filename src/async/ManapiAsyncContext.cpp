@@ -55,9 +55,9 @@ const std::shared_ptr<manapi::event_loop> & manapi::async::cthread::eventloop() 
     return this->eventloop_;
 }
 
-const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::cthread::taskpool() {
-    return this->taskpool_;
-}
+// const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::cthread::taskpool() {
+//     return this->taskpool_;
+// }
 
 const std::shared_ptr<manapi::timerpool> & manapi::async::cthread::timerpool() {
     return this->timerpool_;
@@ -126,9 +126,11 @@ void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<v
         ctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), ctx->taskpool_, std::move(timerpool_), ctx->logger_);
     }
 
-    if (!manapi::async::current()) {
+    assert(!manapi::async::internal::current_() && "Async ctx already exists");
+
+    if (!manapi::async::internal::current_())
         manapi::async::context::current(ctx);
-    }
+
 
     manapi::init_tools::ssl_library_init();
     manapi::init_tools::ev_library_init();
@@ -202,6 +204,7 @@ const std::vector<manapi::async::shared_cthread> & manapi::async::context::loops
 }
 
 const manapi::async::shared_cthread &manapi::async::current() {
+    assert(async::internal::current_cthread_ && "async ctx doesn't exists in that thread");
     return async::internal::current_cthread_;
 }
 

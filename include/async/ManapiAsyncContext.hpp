@@ -80,7 +80,7 @@ namespace manapi::async {
 
         [[nodiscard]] const shared_eventloop& eventloop();
 
-        [[nodiscard]] const shared_taskpool &taskpool();
+        //[[nodiscard]] const shared_taskpool &taskpool();
 
         [[nodiscard]] const shared_timerpool &timerpool();
 
@@ -139,7 +139,7 @@ namespace manapi::async {
     template<typename T = void>
     struct async_task_t {
         manapi::future<T> task;
-        std::atomic<char> flags;
+        char flags;
     };
 
     template<typename T>
@@ -157,6 +157,9 @@ namespace manapi::async {
 
 
 namespace manapi::async::internal {
+    enum async_task_flags {
+        ASYNC_TASK_FLAG_EXECUTED = 1
+    };
     void run_prepare_error_ (std::exception_ptr err);
 
     void run_prepare_std_exception_ (std::exception const &e);
@@ -177,7 +180,9 @@ namespace manapi::async::internal {
                 catch (std::exception const &e) {
                     run_prepare_std_exception_(e);
                 }
-                if (task->flags.exchange(1)) { delete task; }
+
+                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { delete task; }
+                else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
             });
         }
         else {
@@ -185,14 +190,16 @@ namespace manapi::async::internal {
                 if (err)
                     run_prepare_error_(std::move(err));
 
-                if (task->flags.exchange(1)) { delete task; }
+                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { delete task; }
+                else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
             });
         }
 
         task_data->task();
-        if (!task_data->flags.exchange(1)) {
+        auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
+        task_data->flags |= ASYNC_TASK_FLAG_EXECUTED;
+        if (!rhs)
             task_data.release();
-        }
     }
 
     template<typename T>
@@ -203,18 +210,22 @@ namespace manapi::async::internal {
                 try { onfinish(std::move(err), value); }
                 catch (manapi::exception &e) { internal::run_prepare_manapi_exception_(e); }
                 catch (std::exception const &e) { internal::run_prepare_std_exception_(e); }
-                if (task->flags.exchange(1)) { delete task; }
+                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { delete task; }
+                else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
             });
         }
         else {
             task_data->task.onfinish([task = task_data.get()] (std::exception_ptr err, T *value) mutable -> void {
                 if (err) internal::run_prepare_error_(std::move(err));
-                if (task->flags.exchange(1)) { delete task; }
+                if (task->flags & ASYNC_TASK_FLAG_EXECUTED) { delete task; }
+                else { task->flags |= ASYNC_TASK_FLAG_EXECUTED; }
             });
         }
 
         task_data->task();
-        if (!task_data->flags.exchange(1)) {
+        auto const rhs = task_data->flags & ASYNC_TASK_FLAG_EXECUTED;
+        task_data->flags |= ASYNC_TASK_FLAG_EXECUTED;
+        if (!rhs) {
             task_data.release();
         }
     }

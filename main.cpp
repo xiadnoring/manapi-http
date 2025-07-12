@@ -31,15 +31,21 @@ class GreeterServiceImpl final : public helloworld::Greeter::CallbackService {
                     helloworld::HelloReply* reply) override {
         grpc::ServerUnaryReactor* reactor = context->DefaultReactor();
         manapi::async::run ([reactor, reply, request] () -> manapi::future<> {
-            auto response = co_await manapi::net::fetch2::fetch (std::format("http://numbersapi.com/{}", manapi::math::random(0, 1000)),
-                {
-                {"http", "1.1"}
-            });
-            if (response.ok()) {
-                reply->set_message(std::format("Hello, {}! Fact: {}", request->name(), co_await response.text()));
+            try {
+                auto response = co_await manapi::net::fetch2::fetch (std::format("http://numbersapi.com/{}", manapi::math::random(0, 1000)),
+                    {
+                    {"http", "1.1"}
+                }, manapi::async::timeout_cancellation(2000));
+                if (response.ok()) {
+                    reply->set_message(std::format("Hello, {}! Fact: {}", request->name(), co_await response.text()));
+                }
+                else {
+                    reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), response.status()));
+                }
             }
-            else {
-                reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), response.status()));
+            catch (std::exception const &e) {
+                    reply->set_message(std::format("Hello, {}! Something gets wrong: {}", request->name(), e.what()));
+
             }
             reactor->Finish(grpc::Status::OK);
         });
@@ -143,7 +149,7 @@ int main () {
                     std::string user = "Xiadnoring Client";
                     auto res = co_await greeter.SayHello(user);
                     if (res.ok())
-                        std::cout << res.unwrap();
+                        std::cout << res.unwrap() << "\n";
                     else
                         res.err().log();
                 });

@@ -37,11 +37,15 @@ namespace manapi::net::wgrpc {
     public:
         server (wgrpc::server_ctx ctx);
 
+        ~server();
+
         manapi::future<manapi::error::status> config (std::string path);
 
         manapi::future<manapi::error::status> config_object (manapi::json config);
 
         manapi::future<manapi::error::status> start (std::move_only_function<manapi::error::status(::grpc::ServerBuilder &b)> cb);
+
+        manapi::error::status stop ();
     private:
         manapi::future<manapi::error::status> subscribe_ ();
 

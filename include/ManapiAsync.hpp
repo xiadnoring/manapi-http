@@ -23,6 +23,7 @@ namespace manapi {
             static thread_local std::shared_ptr<cthread> current_cthread_ = nullptr;
 
             const std::shared_ptr<threadpool<task>> &ethreadpool_(const std::shared_ptr<cthread> &ctx);
+            const std::shared_ptr<cthread> &current_ ();
             std::size_t current_stack_cnt_crt ();
             void current_stack_cnt_set (std::size_t cnt);
         }

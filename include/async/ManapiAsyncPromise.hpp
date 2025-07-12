@@ -7,6 +7,11 @@
 #include "./ManapiAsyncContext.hpp"
 
 namespace manapi::async {
+    enum promise_flags {
+        PROMISE_FLAG_EXECUTED = 1,
+        PROMISE_FLAG_ASYNC = 2
+    };
+
     template<typename T, typename Async = std::true_type>
     class promise {
     public:
@@ -20,12 +25,12 @@ namespace manapi::async {
 
         struct data_t {
             std::exception_ptr exception{nullptr};
-            std::atomic<int> flags;
+            char flags;
             std::optional <T> value;
             void *cb;
 
             ~data_t() {
-                if (this->flags & 0b10) { delete static_cast<async_cb *> (this->cb); }
+                if (this->flags & PROMISE_FLAG_ASYNC) { delete static_cast<async_cb *> (this->cb); }
                 else { delete static_cast<sync_cb *> (this->cb); }
             }
         };
@@ -34,7 +39,7 @@ namespace manapi::async {
         requires(std::is_same_v<Async1, std::true_type>)
         promise(async_cb cb) {
             this->data = std::make_shared<data_t>(nullptr, 0, std::optional <T>{}, nullptr);
-            if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags.store(0b10); this->data->cb = obj.release(); }
+            if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags |= PROMISE_FLAG_ASYNC; this->data->cb = obj.release(); }
         }
 
         template<typename Async1 = Async>
@@ -61,7 +66,7 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         void await_suspend (std::coroutine_handle<T1> handle) {
-            if (this->data->flags & 0b10 /* async */) {
+            if (this->data->flags & PROMISE_FLAG_ASYNC /* async */) {
                 async::run<void>(static_cast<async_cb *>(this->data->cb)->operator()([handle, data = this->data] (T v) mutable
                     -> void { resolve((data), handle, v); },
                     [handle, data = this->data] (std::exception_ptr e) mutable
@@ -87,9 +92,10 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void resolve (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, T &v) {
-            if ((data->flags.fetch_or(0b1) & 0b1) /* ready */) {
+            if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
                 return;
             }
+            data->flags |= PROMISE_FLAG_EXECUTED;
             data->value = std::move(v);
             call(std::move(data), handle);
         }
@@ -97,9 +103,10 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void reject (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, std::exception_ptr e) {
-            if ((data->flags.fetch_or(0b1) & 0b1) /* ready */) {
+            if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
                 return;
             }
+            data->flags |= PROMISE_FLAG_EXECUTED;
             data->exception = std::move(e);
             call(std::move(data), handle);
         }
@@ -126,7 +133,7 @@ namespace manapi::async {
             void *cb;
 
             ~data_t() {
-                if (this->flags & 0b10) { delete static_cast<async_cb *> (this->cb); }
+                if (this->flags & PROMISE_FLAG_ASYNC) { delete static_cast<async_cb *> (this->cb); }
                 else { delete static_cast<sync_cb *> (this->cb); }
             }
         };
@@ -136,7 +143,7 @@ namespace manapi::async {
         requires(std::is_same_v<Async1, std::true_type>)
         promise(async_cb cb) {
             this->data = std::make_shared<data_t>(nullptr, 0, nullptr);
-            if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags.store(0b10); this->data->cb = obj.release(); }
+            if (cb) { auto obj = std::make_unique<decltype(cb)>(std::move(cb)); this->data->flags |= PROMISE_FLAG_ASYNC; this->data->cb = obj.release(); }
         }
 
         template<typename Async1 = Async>
@@ -161,7 +168,7 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         void await_suspend (std::coroutine_handle<T1> handle) {
-            if ((this->data->flags & 0b10)) {
+            if ((this->data->flags & PROMISE_FLAG_ASYNC)) {
                 async::run<void>(static_cast<async_cb *>(this->data->cb)->operator() ([data = this->data, handle] () mutable
                     -> void { resolve((data), handle); },
                 [data = this->data, handle] (std::exception_ptr e) mutable
@@ -187,18 +194,20 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void resolve (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
-            if ((data->flags.fetch_or(0b1) & 0b1) /* ready */) {
+            if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
                 return;
             }
+            data->flags |= PROMISE_FLAG_EXECUTED;
             call(std::move(data), handle);
         }
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         static void reject (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, std::exception_ptr e) {
-            if ((data->flags.fetch_or(0b1) & 0b1) /* ready */) {
+            if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
                 return;
             }
+            data->flags |= PROMISE_FLAG_EXECUTED;
             data->exception = std::move(e);
             call(std::move(data), handle);
         }

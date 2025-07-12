@@ -79,6 +79,8 @@ manapi::net::wgrpc::dns_resolved::dns_resolved() {
 }
 
 void manapi::net::wgrpc::dns_resolved::LookupHostname(LookupHostnameCallback on_resolve, absl::string_view name, absl::string_view default_port) {
+    auto &ctx = manapi::async::current();
+    assert(ctx && "bug: I think grpc loopups hostname only in the event loop");
     manapi::async::current()->etaskpool()->append_task([on_resolve = std::move(on_resolve), name, default_port] () mutable -> void {
         manapi::async::run(manapi::async::invoke(
             [] (LookupHostnameCallback on_resolve, absl::string_view name, absl::string_view default_port) mutable
@@ -142,6 +144,8 @@ void manapi::net::wgrpc::dns_resolved::LookupHostname(LookupHostnameCallback on_
 }
 
 void manapi::net::wgrpc::dns_resolved::LookupSRV(LookupSRVCallback on_resolve, absl::string_view name) {
+    auto &ctx = manapi::async::current();
+    assert(ctx && "bug: I think grpc loopups srv only in the event loop");
     manapi::async::current()->etaskpool()->append_task([on_resolve = std::move(on_resolve)] () mutable
         -> void {
         on_resolve(absl::UnimplementedError("not already"));
@@ -149,6 +153,8 @@ void manapi::net::wgrpc::dns_resolved::LookupSRV(LookupSRVCallback on_resolve, a
 }
 
 void manapi::net::wgrpc::dns_resolved::LookupTXT(LookupTXTCallback on_resolve, absl::string_view name) {
+    auto &ctx = manapi::async::current();
+    assert(ctx && "bug: I think grpc loopups txt only in the event loop");
     manapi::async::current()->etaskpool()->append_task([on_resolve = std::move(on_resolve)] () mutable
         -> void {
         on_resolve(absl::UnimplementedError("not already"));
@@ -344,24 +350,33 @@ manapi::net::wgrpc::event_engine_wrapper::event_engine_wrapper() : grpc_event_en
 }
 
 manapi::net::wgrpc::event_engine_wrapper::~event_engine_wrapper() {
+
 }
 
 bool manapi::net::wgrpc::event_engine_wrapper::Cancel(TaskHandle handle) {
-    auto it = wgrpc_tasks_find(handle.keys);
-    if (it == wgrpc_tasks_exists.end())
-        return false;
+    auto &ctx = manapi::async::current();
+    assert(ctx && "bug: I think grpc cancels only in the event loop");
+    if (ctx) {
+        auto it = wgrpc_tasks_find(handle.keys);
+        if (it == wgrpc_tasks_exists.end())
+            return false;
 
-    wgrpc_tasks_exists.erase(it);
+        wgrpc_tasks_exists.erase(it);
 
-    /* timer */
-    std::cout << "cancel " << handle.keys[1] << "\n";
-    std::unique_ptr<manapi::timer> timer (reinterpret_cast<manapi::timer *> (
-        std::exchange(handle.keys[1], 0)));
+        /* timer */
+        std::unique_ptr<manapi::timer> timer (reinterpret_cast<manapi::timer *> (
+            std::exchange(handle.keys[1], 0)));
 
-    if (!timer)
-        return false;
+        if (!timer)
+            return false;
 
-    timer->stop();
+        timer->stop();
+
+        return true;
+    }
+
+    this->ev->custom_callback([this, handle] (event_loop *ev)
+        -> void { this->Cancel(handle); });
 
     return true;
 }
@@ -370,6 +385,8 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
     OnConnectCallback on_connect, const ResolvedAddress &addr,
     const grpc_event_engine::experimental::EndpointConfig &args,
     grpc_event_engine::experimental::MemoryAllocator memory_allocator, Duration timeout) {
+    auto &ctx = manapi::async::current();
+    assert(ctx && "bug: I think grpc creates new connection only in the event loop");
     auto data = std::make_unique<wgrpc_connection_data_t>();
 
     auto timer = std::make_unique<manapi::timer>();
@@ -459,6 +476,9 @@ void manapi::net::wgrpc::event_engine_wrapper::Run(Closure *closure) {
 }
 
 bool manapi::net::wgrpc::event_engine_wrapper::CancelConnect(ConnectionHandle handle) {
+    auto &ctx = manapi::async::current();
+    assert(ctx && "bug: I think grpc closes the connection only in the event loop");
+
     auto it = wgrpc_tasks_find(handle.keys);
     if (it == wgrpc_tasks_exists.end())
         return false;
@@ -483,6 +503,8 @@ absl::StatusOr<std::unique_ptr<grpc_event_engine::experimental::EventEngine::Lis
 net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_accept,
     absl::AnyInvocable<void(absl::Status)> on_shutdown, const grpc_event_engine::experimental::EndpointConfig &config,
     std::unique_ptr<grpc_event_engine::experimental::MemoryAllocatorFactory> memory_allocator_factory) {
+    auto &ctx = manapi::async::current();
+    assert(ctx && "bug: I think grpc creates new listener only in the event loop");
     auto b = std::make_unique<net_listener>(std::move(on_shutdown));
 
     auto local_addr = std::make_shared<grpc_event_engine::experimental::EventEngine::ResolvedAddress> ();
@@ -517,13 +539,15 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
 }
 
 grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::event_engine_wrapper::RunAfter(Duration when, Closure *closure) {
+    auto &ctx = manapi::async::current();
+    assert(ctx && "bug: I think grpc creates timer only in the event loop");
     TaskHandle task{};
     /* oh no way */
     auto timer = std::make_unique<manapi::timer>();
 
     auto const ms = std::max(static_cast<std::size_t>(1),
         static_cast<std::size_t>(when.count() / 1000000));
-    *timer = manapi::async::current()->timerpool()->append_timer_sync(ms,
+    *timer = ctx->timerpool()->append_timer_sync(ms,
         [closure, ptr = timer.get()] (manapi::timer timer) -> void {
             try { closure->Run(); }
             catch (std::exception const &e) { MANAPIHTTP_LOG("gRPC send a error: {}", e.what()); }
@@ -542,13 +566,15 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
 }
 
 grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::event_engine_wrapper::RunAfter(Duration when, absl::AnyInvocable<void()> closure) {
+    auto &ctx = manapi::async::current();
+    assert(ctx && "bug: I think grpc creates timer only in the event loop");
     TaskHandle task{};
     /* oh no way */
     auto timer = std::make_unique<manapi::timer>();
 
     auto const ms = std::max(static_cast<std::size_t>(1),
         static_cast<std::size_t>(when.count() / 1000000));
-    *timer = manapi::async::current()->timerpool()->append_timer_sync(ms,
+    *timer = ctx->timerpool()->append_timer_sync(ms,
         [closure = std::move(closure), ptr = timer.get()] (manapi::timer timer) mutable -> void {
             try { closure (); }
             catch (std::exception const &e) { MANAPIHTTP_LOG("gRPC send a error: {}", e.what()); }
@@ -565,7 +591,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
 }
 
 bool manapi::net::wgrpc::event_engine_wrapper::IsWorkerThread() {
-    return !!manapi::async::current();
+    return !manapi::async::internal::current_();
 }
 
 absl::StatusOr<std::unique_ptr<grpc_event_engine::experimental::EventEngine::DNSResolver>> manapi::net::wgrpc::event_engine_wrapper::GetDNSResolver(const DNSResolver::ResolverOptions &options) {
@@ -589,6 +615,7 @@ struct manapi::net::wgrpc::server::data_t {
     manapi::json data;
     std::unique_ptr<grpc::Server> server;
     std::shared_ptr<wgrpc::config> config;
+    std::size_t finishid;
 };
 
 manapi::future<manapi::error::status_or<std::shared_ptr<grpc::ChannelCredentials>>> manapi::net::wgrpc::secure_channel_credentials(std::string certfile) {
@@ -631,6 +658,8 @@ const manapi::async::shared_cthread & manapi::net::wgrpc::server_ctx::ctx() {
 manapi::net::wgrpc::server::server(wgrpc::server_ctx ctx) {
     this->data_ = std::make_shared<data_t>(std::move(ctx), nullptr);
 }
+
+manapi::net::wgrpc::server::~server() = default;
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::config(std::string path) {
     if (this->data_->ctx.ctx() != manapi::async::current())
@@ -714,6 +743,10 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
     if (this->data_->ctx.ctx() != manapi::async::current())
         co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
 
+    if (this->data_->finishid) {
+        co_return error::status_already_exists("grpc:Server is already running");
+    }
+
     using ci = manapi::internal::config_interface;
 
     error::status res;
@@ -746,7 +779,7 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
             grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
             pkcp.cert_chain = co_await manapi::filesystem::async_read(cert);
             pkcp.private_key = co_await manapi::filesystem::async_read(key);
-            grpc::SslServerCredentialsOptions ssl_opts;
+            grpc::SslServerCredentialsOptions ssl_opts(GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE);
             ssl_opts.pem_root_certs="";
             ssl_opts.pem_key_cert_pairs.push_back(pkcp);
             creds = grpc::SslServerCredentials(ssl_opts);
@@ -763,8 +796,34 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
     builder.AddListeningPort(server_address, std::move(creds));
     this->data_->server = builder.BuildAndStart();
 
+    try {
+        this->data_->finishid = manapi::async::current()->eventloop()->subscribe_finish([s = this->data_->server.get()] () -> manapi::future<> {
+            co_return;
+        });
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "wgrpc:Failed to subscribe shutdown service", e.what());
+    }
+
     MANAPIHTTP_LOG("grpc:Server listening on {}", server_address);
     co_return error::status_ok();
+}
+
+manapi::error::status manapi::net::wgrpc::server::stop() {
+    try {
+        if (!this->data_->finishid)
+            return manapi::error::status_not_found("wgrpc:Server isn't running");
+
+        manapi::async::current()->eventloop()->unsubscribe_finish(std::exchange(this->data_->finishid, 0));
+        if (this->data_->server)
+            this->data_->server->Shutdown();
+
+        return error::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "wgrpc stop:Something get wrong", e.what());
+    }
+    return error::status_internal("wgrpc stop:Something get wrong");
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::subscribe_() {
