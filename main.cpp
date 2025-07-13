@@ -115,8 +115,9 @@ int main () {
 
     manapi::net::http::server_ctx server_ctx;
     manapi::net::wgrpc::server_ctx grpc_server_ctx;
+    manapi::net::wgrpc::server grpc_server (grpc_server_ctx);
 
-    manapi::async::context::run(ctx, loops, [&thrcnt, &a, grpc_server_ctx, server_ctx] (const std::function<void()> &bind) -> void {
+    manapi::async::context::run(ctx, loops, [&thrcnt, &a, server_ctx, grpc_server] (const std::function<void()> &bind) -> void {
         using http = manapi::net::http::server;
         //manapi::ext::pq::connection db;
 
@@ -124,7 +125,6 @@ int main () {
          * grpc
          */
 
-        manapi::net::wgrpc::server grpc_server (grpc_server_ctx);
         auto service = std::make_shared<GreeterServiceImpl>();
 
         manapi::async::run([grpc_server, service] () mutable -> manapi::future<> {
@@ -139,20 +139,20 @@ int main () {
 
             res.log();
             if (res.ok()) {
-                manapi::async::run([] () -> manapi::future<> {
-                    auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
-                    if (!creds.ok()) {
-                        creds.err().log();
-                        co_return;
-                    }
-                    GreeterClient greeter(grpc::CreateChannel("localhost:8080", creds.unwrap()));
-                    std::string user = "Xiadnoring Client";
-                    auto res = co_await greeter.SayHello(user);
-                    if (res.ok())
-                        std::cout << res.unwrap() << "\n";
-                    else
-                        res.err().log();
-                });
+                // manapi::async::run([] () -> manapi::future<> {
+                //     auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
+                //     if (!creds.ok()) {
+                //         creds.err().log();
+                //         co_return;
+                //     }
+                //     GreeterClient greeter(grpc::CreateChannel("localhost:8080", creds.unwrap()));
+                //     std::string user = "Xiadnoring Client";
+                //     auto res = co_await greeter.SayHello(user);
+                //     if (res.ok())
+                //         std::cout << res.unwrap() << "\n";
+                //     else
+                //         res.err().log();
+                // });
             }
 
         }, [] (std::exception_ptr err) -> void {
@@ -205,5 +205,6 @@ int main () {
 
         bind();
     });
+    exit(0);
     return 0;
 }

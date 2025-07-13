@@ -25,7 +25,6 @@ namespace manapi::net::wgrpc {
 
     class net_listener final : public grpc_event_engine::experimental::EventEngine::Listener {
     public:
-        manapi::ev::shared_tcp connection;
 
         net_listener (absl::AnyInvocable<void(absl::Status)> on_shutdown);
 
@@ -34,8 +33,16 @@ namespace manapi::net::wgrpc {
         absl::StatusOr<int> Bind(const grpc_event_engine::experimental::EventEngine::ResolvedAddress &addr) override;
 
         absl::Status Start() override;
+
+        void shutdown (bool notify = true) noexcept;
+
+        void set (ev::shared_tcp connection);
+
+        const ev::shared_tcp &conn () const;
     private:
+        manapi::ev::shared_tcp connection;
         absl::AnyInvocable<void(absl::Status)> on_shutdown;
+        async::shared_eventloop ev;
     };
 
     class dns_resolved final : public  grpc_event_engine::experimental::EventEngine::DNSResolver {
@@ -56,6 +63,7 @@ namespace manapi::net::wgrpc {
         std::shared_ptr<grpc_event_engine::experimental::EventEngine::ResolvedAddress> local_addr;
 
         manapi::ev::shared_tcp conn;
+        async::shared_eventloop ev;
         grpc_event_engine::experimental::MemoryAllocator memory_allocator;
 
         absl::AnyInvocable<void(absl::Status)> on_read;

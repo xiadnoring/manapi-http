@@ -288,7 +288,7 @@ manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {
             }
         }
         catch (std::exception const &e) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "cached data couldn't be loaded from the config due to {}", e.what());
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_AI_FAILED_PRECONDITION, "cached data couldn't be loaded from the config due to {}", e.what());
         }
     }
     catch (manapi::exception const &e) {
@@ -463,12 +463,12 @@ manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> da
 }
 
 void manapi::net::http::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "The method {} already contains in the url {}", method, url); }
+    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION, "The method {} already contains in the url {}", method, url); }
 }
 
 void manapi::net::http::site::check_exists_method_on_url(const std::string &url,
     const std::unique_ptr<handlers_static_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "The method {} already contains in the static url {}", method, url); }
+    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION, "The method {} already contains in the static url {}", method, url); }
 }
 
 std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::handler(http::request_data_t *request_data) const {
@@ -716,7 +716,7 @@ manapi::net::http::http_uri_part *manapi::net::http::site::handler(std::string m
             break;
         }
         default:
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "{}", "can not use the special pages with the static files");
+            THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION, "{}", "can not use the special pages with the static files");
     }
 
 

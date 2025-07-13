@@ -24,354 +24,352 @@
 #include "ManapiString.hpp"
 #include "include/ManapiDefaultErrors.hpp"
 
-static const std::string folder_configs;
-
-#define XX(code, msg) static const char *EV_FS_## code ##_MSG = msg;
-XX(E2BIG, "argument list too long")
-XX(EACCES, "permission denied")
-XX(EADDRINUSE, "address already in use")
-XX(EADDRNOTAVAIL, "address not available")
-XX(EAFNOSUPPORT, "address family not supported")
-XX(EAGAIN, "resource temporarily unavailable")
-XX(EAI_ADDRFAMILY, "address family not supported")
-XX(EAI_AGAIN, "temporary failure")
-XX(EAI_BADFLAGS, "bad ai_flags value")
-XX(EAI_BADHINTS, "invalid value for hints")
-XX(EAI_CANCELED, "request canceled")
-XX(EAI_FAIL, "permanent failure")
-XX(EAI_FAMILY, "ai_family not supported")
-XX(EAI_MEMORY, "out of memory")
-XX(EAI_NODATA, "no address")
-XX(EAI_NONAME, "unknown node or service")
-XX(EAI_OVERFLOW, "argument buffer overflow")
-XX(EAI_PROTOCOL, "resolved protocol is unknown")
-XX(EAI_SERVICE, "service not available for socket type")
-XX(EAI_SOCKTYPE, "socket type not supported")
-XX(EALREADY, "connection already in progress")
-XX(EBADF, "bad file descriptor")
-XX(EBUSY, "resource busy or locked")
-XX(ECANCELED, "operation canceled")
-XX(ECHARSET, "invalid Unicode character")
-XX(ECONNABORTED, "software caused connection abort")
-XX(ECONNREFUSED, "connection refused")
-XX(ECONNRESET, "connection reset by peer")
-XX(EDESTADDRREQ, "destination address required")
-XX(EEXIST, "file already exists")
-XX(EFAULT, "bad address in system call argument")
-XX(EFBIG, "file too large")
-XX(EHOSTUNREACH, "host is unreachable")
-XX(EINTR, "interrupted system call")
-XX(EINVAL, "invalid argument")
-XX(EIO, "i/ o error")
-XX(EISCONN, "socket is already connected")
-XX(EISDIR, "illegal operation on a directory")
-XX(ELOOP, "too many symbolic links encountered")
-XX(EMFILE, "too many open files")
-XX(EMSGSIZE, "message too long")
-XX(ENAMETOOLONG, "name too long")
-XX(ENETDOWN, "network is down")
-XX(ENETUNREACH, "network is unreachable")
-XX(ENFILE, "file table overflow")
-XX(ENOBUFS, "no buffer space available")
-XX(ENODEV, "no such device")
-XX(ENOENT, "no such file or directory")
-XX(ENOMEM, "not enough memory")
-XX(ENONET, "machine is not on the network")
-XX(ENOPROTOOPT, "protocol not available")
-XX(ENOSPC, "no space left on device")
-XX(ENOSYS, "function not implemented")
-XX(ENOTCONN, "socket is not connected")
-XX(ENOTDIR, "not a directory")
-XX(ENOTEMPTY, "directory not empty")
-XX(ENOTSOCK, "socket operation on non-socket")
-XX(ENOTSUP, "operation not supported on socket")
-XX(EOVERFLOW, "value too large for defined data type")
-XX(EPERM, "operation not permitted")
-XX(EPIPE, "broken pipe")
-XX(EPROTO, "protocol error")
-XX(EPROTONOSUPPORT, "protocol not supported")
-XX(EPROTOTYPE, "protocol wrong type for socket")
-XX(ERANGE, "result too large")
-XX(EROFS, "read-only file system")
-XX(ESHUTDOWN, "cannot send after transport endpoint shutdown")
-XX(ESPIPE, "invalid seek")
-XX(ESRCH, "no such process")
-XX(ETIMEDOUT, "connection timed out")
-XX(ETXTBSY, "text file is busy")
-XX(EXDEV, "cross-device link not permitted")
-XX(UNKNOWN, "unknown error")
-XX(EOF, "end of file")
-XX(ENXIO, "no such device or address")
-XX(EMLINK, "too many links")
-XX(EHOSTDOWN, "host is down")
-XX(EREMOTEIO, "remote I/ O error")
-XX(ENOTTY, "inappropriate ioctl for device")
-XX(EFTYPE, "inappropriate file type or format")
-XX(EILSEQ, "illegal byte sequence")
-XX(ESOCKTNOSUPPORT, "socket type not supported")
-XX(ENODATA, "no data available")
-XX(EUNATCH, "protocol driver not attached")
-#undef XX
-
-#define MANAPIHTTP_FILESYSTEM_COPY_BUFFER_SIZE 4096LL
-
-const char *fserr2msg (int num) {
-    switch (num) {
-        case manapi::ev::FS_E2BIG:
-            return EV_FS_E2BIG_MSG;
-
-        case manapi::ev::FS_EACCES:
-            return EV_FS_EACCES_MSG;
-
-        case manapi::ev::FS_EADDRINUSE:
-            return EV_FS_EADDRINUSE_MSG;
-
-        case manapi::ev::FS_EADDRNOTAVAIL:
-            return EV_FS_EADDRNOTAVAIL_MSG;
-
-        case manapi::ev::FS_EAFNOSUPPORT:
-            return EV_FS_EAFNOSUPPORT_MSG;
-
-        case manapi::ev::FS_EAGAIN:
-            return EV_FS_EAGAIN_MSG;
-
-        case manapi::ev::ERR_ADDRFAMILY:
-            return EV_FS_EAI_ADDRFAMILY_MSG;
-
-        case manapi::ev::ERR_AGAIN:
-            return EV_FS_EAI_AGAIN_MSG;
-
-        case manapi::ev::ERR_BADFLAGS:
-            return EV_FS_EAI_BADFLAGS_MSG;
-
-        case manapi::ev::ERR_BADHINTS:
-            return EV_FS_EAI_BADHINTS_MSG;
-
-        case manapi::ev::ERR_CANCELED:
-            return EV_FS_EAI_CANCELED_MSG;
-
-        case manapi::ev::ERR_FAIL:
-            return EV_FS_EAI_FAIL_MSG;
-
-        case manapi::ev::ERR_FAMILY:
-            return EV_FS_EAI_FAMILY_MSG;
-
-        case manapi::ev::ERR_MEMORY:
-            return EV_FS_EAI_MEMORY_MSG;
-
-        case manapi::ev::ERR_NODATA:
-            return EV_FS_EAI_NODATA_MSG;
-
-        case manapi::ev::ERR_NONAME:
-            return EV_FS_EAI_NONAME_MSG;
-
-        case manapi::ev::ERR_OVERFLOW:
-            return EV_FS_EAI_OVERFLOW_MSG;
-
-        case manapi::ev::ERR_PROTOCOL:
-            return EV_FS_EAI_PROTOCOL_MSG;
-
-        case manapi::ev::ERR_SERVICE:
-            return EV_FS_EAI_SERVICE_MSG;
-
-        case manapi::ev::ERR_SOCKTYPE:
-            return EV_FS_EAI_SOCKTYPE_MSG;
-
-        case manapi::ev::FS_EALREADY:
-            return EV_FS_EALREADY_MSG;
-
-        case manapi::ev::FS_EBADF:
-            return EV_FS_EBADF_MSG;
-
-        case manapi::ev::FS_EBUSY:
-            return EV_FS_EBUSY_MSG;
-
-        case manapi::ev::FS_ECANCELED:
-            return EV_FS_ECANCELED_MSG;
-
-        case manapi::ev::FS_ECHARSET:
-            return EV_FS_ECHARSET_MSG;
-
-        case manapi::ev::FS_ECONNABORTED:
-            return EV_FS_ECONNABORTED_MSG;
-
-        case manapi::ev::FS_ECONNREFUSED:
-            return EV_FS_ECONNREFUSED_MSG;
-
-        case manapi::ev::FS_ECONNRESET:
-            return EV_FS_ECONNRESET_MSG;
-
-        case manapi::ev::FS_EDESTADDRREQ:
-            return EV_FS_EDESTADDRREQ_MSG;
-
-        case manapi::ev::FS_EEXIST:
-            return EV_FS_EEXIST_MSG;
-
-        case manapi::ev::FS_EFAULT:
-            return EV_FS_EFAULT_MSG;
-
-        case manapi::ev::FS_EFBIG:
-            return EV_FS_EFBIG_MSG;
-
-        case manapi::ev::FS_EHOSTUNREACH:
-            return EV_FS_EHOSTUNREACH_MSG;
-
-        case manapi::ev::FS_EINTR:
-            return EV_FS_EINTR_MSG;
-
-        case manapi::ev::FS_EINVAL:
-            return EV_FS_EINVAL_MSG;
-
-        case manapi::ev::FS_EIO:
-            return EV_FS_EIO_MSG;
-
-        case manapi::ev::FS_EISCONN:
-            return EV_FS_EISCONN_MSG;
-
-        case manapi::ev::FS_EISDIR:
-            return EV_FS_EISDIR_MSG;
-
-        case manapi::ev::FS_ELOOP:
-            return EV_FS_ELOOP_MSG;
-
-        case manapi::ev::FS_EMFILE:
-            return EV_FS_EMFILE_MSG;
-
-        case manapi::ev::FS_EMSGSIZE:
-            return EV_FS_EMSGSIZE_MSG;
-
-        case manapi::ev::FS_ENAMETOOLONG:
-            return EV_FS_ENAMETOOLONG_MSG;
-
-        case manapi::ev::FS_ENETDOWN:
-            return EV_FS_ENETDOWN_MSG;
-
-        case manapi::ev::FS_ENETUNREACH:
-            return EV_FS_ENETUNREACH_MSG;
-
-        case manapi::ev::FS_ENFILE:
-            return EV_FS_ENFILE_MSG;
-
-        case manapi::ev::FS_ENOBUFS:
-            return EV_FS_ENOBUFS_MSG;
-
-        case manapi::ev::FS_ENODEV:
-            return EV_FS_ENODEV_MSG;
-
-        case manapi::ev::FS_ENOENT:
-            return EV_FS_ENOENT_MSG;
-
-        case manapi::ev::FS_ENOMEM:
-            return EV_FS_ENOMEM_MSG;
-
-        case manapi::ev::FS_ENONET:
-            return EV_FS_ENONET_MSG;
-
-        case manapi::ev::FS_ENOPROTOOPT:
-            return EV_FS_ENOPROTOOPT_MSG;
-
-        case manapi::ev::FS_ENOSPC:
-            return EV_FS_ENOSPC_MSG;
-
-        case manapi::ev::FS_ENOSYS:
-            return EV_FS_ENOSYS_MSG;
-
-        case manapi::ev::FS_ENOTCONN:
-            return EV_FS_ENOTCONN_MSG;
-
-        case manapi::ev::FS_ENOTDIR:
-            return EV_FS_ENOTDIR_MSG;
-
-        case manapi::ev::FS_ENOTEMPTY:
-            return EV_FS_ENOTEMPTY_MSG;
-
-        case manapi::ev::FS_ENOTSOCK:
-            return EV_FS_ENOTSOCK_MSG;
-
-        case manapi::ev::FS_ENOTSUP:
-            return EV_FS_ENOTSUP_MSG;
-
-        case manapi::ev::FS_EOVERFLOW:
-            return EV_FS_EOVERFLOW_MSG;
-
-        case manapi::ev::FS_EPERM:
-            return EV_FS_EPERM_MSG;
-
-        case manapi::ev::FS_EPIPE:
-            return EV_FS_EPIPE_MSG;
-
-        case manapi::ev::FS_EPROTO:
-            return EV_FS_EPROTO_MSG;
-
-        case manapi::ev::FS_EPROTONOSUPPORT:
-            return EV_FS_EPROTONOSUPPORT_MSG;
-
-        case manapi::ev::FS_EPROTOTYPE:
-            return EV_FS_EPROTOTYPE_MSG;
-
-        case manapi::ev::FS_ERANGE:
-            return EV_FS_ERANGE_MSG;
-
-        case manapi::ev::FS_EROFS:
-            return EV_FS_EROFS_MSG;
-
-        case manapi::ev::FS_ESHUTDOWN:
-            return EV_FS_ESHUTDOWN_MSG;
-
-        case manapi::ev::FS_ESPIPE:
-            return EV_FS_ESPIPE_MSG;
-
-        case manapi::ev::FS_ESRCH:
-            return EV_FS_ESRCH_MSG;
-
-        case manapi::ev::FS_ETIMEDOUT:
-            return EV_FS_ETIMEDOUT_MSG;
-
-        case manapi::ev::FS_ETXTBSY:
-            return EV_FS_ETXTBSY_MSG;
-
-        case manapi::ev::FS_EXDEV:
-            return EV_FS_EXDEV_MSG;
-
-        case manapi::ev::FS_UNKNOWN:
-            return EV_FS_UNKNOWN_MSG;
-
-        case manapi::ev::FS_EOF:
-            return EV_FS_EOF_MSG;
-
-        case manapi::ev::FS_ENXIO:
-            return EV_FS_ENXIO_MSG;
-
-        case manapi::ev::FS_EMLINK:
-            return EV_FS_EMLINK_MSG;
-
-        case manapi::ev::FS_EHOSTDOWN:
-            return EV_FS_EHOSTDOWN_MSG;
-
-        case manapi::ev::FS_EREMOTEIO:
-            return EV_FS_EREMOTEIO_MSG;
-
-        case manapi::ev::FS_ENOTTY:
-            return EV_FS_ENOTTY_MSG;
-
-        case manapi::ev::FS_EFTYPE:
-            return EV_FS_EFTYPE_MSG;
-
-        case manapi::ev::FS_EILSEQ:
-            return EV_FS_EILSEQ_MSG;
-
-        case manapi::ev::FS_ESOCKTNOSUPPORT:
-            return EV_FS_ESOCKTNOSUPPORT_MSG;
-
-        case manapi::ev::FS_ENODATA:
-            return EV_FS_ENODATA_MSG;
-
-        case manapi::ev::FS_EUNATCH:
-            return EV_FS_EUNATCH_MSG;
-        default:
-            return manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_INIT];
-    }
-}
+// #define XX(code, msg) static const char *EV_FS_## code ##_MSG = msg;
+// XX(E2BIG, "argument list too long")
+// XX(EACCES, "permission denied")
+// XX(EADDRINUSE, "address already in use")
+// XX(EADDRNOTAVAIL, "address not available")
+// XX(EAFNOSUPPORT, "address family not supported")
+// XX(EAGAIN, "resource temporarily unavailable")
+// XX(EAI_ADDRFAMILY, "address family not supported")
+// XX(EAI_AGAIN, "temporary failure")
+// XX(EAI_BADFLAGS, "bad ai_flags value")
+// XX(EAI_BADHINTS, "invalid value for hints")
+// XX(EAI_CANCELED, "request canceled")
+// XX(EAI_FAIL, "permanent failure")
+// XX(EAI_FAMILY, "ai_family not supported")
+// XX(EAI_MEMORY, "out of memory")
+// XX(EAI_NODATA, "no address")
+// XX(EAI_NONAME, "unknown node or service")
+// XX(EAI_OVERFLOW, "argument buffer overflow")
+// XX(EAI_PROTOCOL, "resolved protocol is unknown")
+// XX(EAI_SERVICE, "service not available for socket type")
+// XX(EAI_SOCKTYPE, "socket type not supported")
+// XX(EALREADY, "connection already in progress")
+// XX(EBADF, "bad file descriptor")
+// XX(EBUSY, "resource busy or locked")
+// XX(ECANCELED, "operation canceled")
+// XX(ECHARSET, "invalid Unicode character")
+// XX(ECONNABORTED, "software caused connection abort")
+// XX(ECONNREFUSED, "connection refused")
+// XX(ECONNRESET, "connection reset by peer")
+// XX(EDESTADDRREQ, "destination address required")
+// XX(EEXIST, "file already exists")
+// XX(EFAULT, "bad address in system call argument")
+// XX(EFBIG, "file too large")
+// XX(EHOSTUNREACH, "host is unreachable")
+// XX(EINTR, "interrupted system call")
+// XX(EINVAL, "invalid argument")
+// XX(EIO, "i/ o error")
+// XX(EISCONN, "socket is already connected")
+// XX(EISDIR, "illegal operation on a directory")
+// XX(ELOOP, "too many symbolic links encountered")
+// XX(EMFILE, "too many open files")
+// XX(EMSGSIZE, "message too long")
+// XX(ENAMETOOLONG, "name too long")
+// XX(ENETDOWN, "network is down")
+// XX(ENETUNREACH, "network is unreachable")
+// XX(ENFILE, "file table overflow")
+// XX(ENOBUFS, "no buffer space available")
+// XX(ENODEV, "no such device")
+// XX(ENOENT, "no such file or directory")
+// XX(ENOMEM, "not enough memory")
+// XX(ENONET, "machine is not on the network")
+// XX(ENOPROTOOPT, "protocol not available")
+// XX(ENOSPC, "no space left on device")
+// XX(ENOSYS, "function not implemented")
+// XX(ENOTCONN, "socket is not connected")
+// XX(ENOTDIR, "not a directory")
+// XX(ENOTEMPTY, "directory not empty")
+// XX(ENOTSOCK, "socket operation on non-socket")
+// XX(ENOTSUP, "operation not supported on socket")
+// XX(EOVERFLOW, "value too large for defined data type")
+// XX(EPERM, "operation not permitted")
+// XX(EPIPE, "broken pipe")
+// XX(EPROTO, "protocol error")
+// XX(EPROTONOSUPPORT, "protocol not supported")
+// XX(EPROTOTYPE, "protocol wrong type for socket")
+// XX(ERANGE, "result too large")
+// XX(EROFS, "read-only file system")
+// XX(ESHUTDOWN, "cannot send after transport endpoint shutdown")
+// XX(ESPIPE, "invalid seek")
+// XX(ESRCH, "no such process")
+// XX(ETIMEDOUT, "connection timed out")
+// XX(ETXTBSY, "text file is busy")
+// XX(EXDEV, "cross-device link not permitted")
+// XX(UNKNOWN, "unknown error")
+// XX(EOF, "end of file")
+// XX(ENXIO, "no such device or address")
+// XX(EMLINK, "too many links")
+// XX(EHOSTDOWN, "host is down")
+// XX(EREMOTEIO, "remote I/ O error")
+// XX(ENOTTY, "inappropriate ioctl for device")
+// XX(EFTYPE, "inappropriate file type or format")
+// XX(EILSEQ, "illegal byte sequence")
+// XX(ESOCKTNOSUPPORT, "socket type not supported")
+// XX(ENODATA, "no data available")
+// XX(EUNATCH, "protocol driver not attached")
+// #undef XX
+//
+// #define MANAPIHTTP_FILESYSTEM_COPY_BUFFER_SIZE 4096LL
+//
+// const char *fserr2msg (int num) {
+//     switch (num) {
+//         case manapi::ev::ERR_2BIG:
+//             return EV_FS_E2BIG_MSG;
+//
+//         case manapi::ev::ERR_ACCES:
+//             return EV_FS_EACCES_MSG;
+//
+//         case manapi::ev::ERR_ADDRINUSE:
+//             return EV_FS_EADDRINUSE_MSG;
+//
+//         case manapi::ev::ERR_ADDRNOTAVAIL:
+//             return EV_FS_EADDRNOTAVAIL_MSG;
+//
+//         case manapi::ev::ERR_AFNOSUPPORT:
+//             return EV_FS_EAFNOSUPPORT_MSG;
+//
+//         case manapi::ev::ERR_AGAIN:
+//             return EV_FS_EAGAIN_MSG;
+//
+//         case manapi::ev::ERR_AI_ADDRFAMILY:
+//             return EV_FS_EAI_ADDRFAMILY_MSG;
+//
+//         case manapi::ev::ERR_AI_AGAIN:
+//             return EV_FS_EAI_AGAIN_MSG;
+//
+//         case manapi::ev::ERR_AI_BADFLAGS:
+//             return EV_FS_EAI_BADFLAGS_MSG;
+//
+//         case manapi::ev::ERR_AI_BADHINTS:
+//             return EV_FS_EAI_BADHINTS_MSG;
+//
+//         case manapi::ev::ERR_AI_CANCELED:
+//             return EV_FS_EAI_CANCELED_MSG;
+//
+//         case manapi::ev::ERR_AI_FAIL:
+//             return EV_FS_EAI_FAIL_MSG;
+//
+//         case manapi::ev::ERR_AI_FAMILY:
+//             return EV_FS_EAI_FAMILY_MSG;
+//
+//         case manapi::ev::ERR_AI_MEMORY:
+//             return EV_FS_EAI_MEMORY_MSG;
+//
+//         case manapi::ev::ERR_AI_NODATA:
+//             return EV_FS_EAI_NODATA_MSG;
+//
+//         case manapi::ev::ERR_AI_NONAME:
+//             return EV_FS_EAI_NONAME_MSG;
+//
+//         case manapi::ev::ERR_AI_OVERFLOW:
+//             return EV_FS_EAI_OVERFLOW_MSG;
+//
+//         case manapi::ev::ERR_AI_PROTOCOL:
+//             return EV_FS_EAI_PROTOCOL_MSG;
+//
+//         case manapi::ev::ERR_AI_SERVICE:
+//             return EV_FS_EAI_SERVICE_MSG;
+//
+//         case manapi::ev::ERR_AI_SOCKTYPE:
+//             return EV_FS_EAI_SOCKTYPE_MSG;
+//
+//         case manapi::ev::ERR_ALREADY:
+//             return EV_FS_EALREADY_MSG;
+//
+//         case manapi::ev::ERR_BADF:
+//             return EV_FS_EBADF_MSG;
+//
+//         case manapi::ev::ERR_BUSY:
+//             return EV_FS_EBUSY_MSG;
+//
+//         case manapi::ev::ERR_CANCELED:
+//             return EV_FS_ECANCELED_MSG;
+//
+//         case manapi::ev::ERR_CHARSET:
+//             return EV_FS_ECHARSET_MSG;
+//
+//         case manapi::ev::ERR_CONNABORTED:
+//             return EV_FS_ECONNABORTED_MSG;
+//
+//         case manapi::ev::ERR_CONNREFUSED:
+//             return EV_FS_ECONNREFUSED_MSG;
+//
+//         case manapi::ev::ERR_CONNRESET:
+//             return EV_FS_ECONNRESET_MSG;
+//
+//         case manapi::ev::ERR_DESTADDRREQ:
+//             return EV_FS_EDESTADDRREQ_MSG;
+//
+//         case manapi::ev::ERR_EXIST:
+//             return EV_FS_EEXIST_MSG;
+//
+//         case manapi::ev::ERR_FAULT:
+//             return EV_FS_EFAULT_MSG;
+//
+//         case manapi::ev::ERR_FBIG:
+//             return EV_FS_EFBIG_MSG;
+//
+//         case manapi::ev::ERR_HOSTUNREACH:
+//             return EV_FS_EHOSTUNREACH_MSG;
+//
+//         case manapi::ev::ERR_INTR:
+//             return EV_FS_EINTR_MSG;
+//
+//         case manapi::ev::ERR_INVAL:
+//             return EV_FS_EINVAL_MSG;
+//
+//         case manapi::ev::ERR_IO:
+//             return EV_FS_EIO_MSG;
+//
+//         case manapi::ev::ERR_ISCONN:
+//             return EV_FS_EISCONN_MSG;
+//
+//         case manapi::ev::ERR_ISDIR:
+//             return EV_FS_EISDIR_MSG;
+//
+//         case manapi::ev::ERR_LOOP:
+//             return EV_FS_ELOOP_MSG;
+//
+//         case manapi::ev::ERR_MFILE:
+//             return EV_FS_EMFILE_MSG;
+//
+//         case manapi::ev::ERR_MSGSIZE:
+//             return EV_FS_EMSGSIZE_MSG;
+//
+//         case manapi::ev::ERR_NAMETOOLONG:
+//             return EV_FS_ENAMETOOLONG_MSG;
+//
+//         case manapi::ev::ERR_NETDOWN:
+//             return EV_FS_ENETDOWN_MSG;
+//
+//         case manapi::ev::ERR_NETUNREACH:
+//             return EV_FS_ENETUNREACH_MSG;
+//
+//         case manapi::ev::ERR_NFILE:
+//             return EV_FS_ENFILE_MSG;
+//
+//         case manapi::ev::ERR_NOBUFS:
+//             return EV_FS_ENOBUFS_MSG;
+//
+//         case manapi::ev::ERR_NODEV:
+//             return EV_FS_ENODEV_MSG;
+//
+//         case manapi::ev::ERR_NOENT:
+//             return EV_FS_ENOENT_MSG;
+//
+//         case manapi::ev::ERR_NOMEM:
+//             return EV_FS_ENOMEM_MSG;
+//
+//         case manapi::ev::ERR_NONET:
+//             return EV_FS_ENONET_MSG;
+//
+//         case manapi::ev::ERR_NOPROTOOPT:
+//             return EV_FS_ENOPROTOOPT_MSG;
+//
+//         case manapi::ev::ERR_NOSPC:
+//             return EV_FS_ENOSPC_MSG;
+//
+//         case manapi::ev::ERR_NOSYS:
+//             return EV_FS_ENOSYS_MSG;
+//
+//         case manapi::ev::ERR_NOTCONN:
+//             return EV_FS_ENOTCONN_MSG;
+//
+//         case manapi::ev::ERR_NOTDIR:
+//             return EV_FS_ENOTDIR_MSG;
+//
+//         case manapi::ev::ERR_NOTEMPTY:
+//             return EV_FS_ENOTEMPTY_MSG;
+//
+//         case manapi::ev::ERR_NOTSOCK:
+//             return EV_FS_ENOTSOCK_MSG;
+//
+//         case manapi::ev::ERR_NOTSUP:
+//             return EV_FS_ENOTSUP_MSG;
+//
+//         case manapi::ev::ERR_OVERFLOW:
+//             return EV_FS_EOVERFLOW_MSG;
+//
+//         case manapi::ev::ERR_PERM:
+//             return EV_FS_EPERM_MSG;
+//
+//         case manapi::ev::ERR_PIPE:
+//             return EV_FS_EPIPE_MSG;
+//
+//         case manapi::ev::ERR_PROTO:
+//             return EV_FS_EPROTO_MSG;
+//
+//         case manapi::ev::ERR_PROTONOSUPPORT:
+//             return EV_FS_EPROTONOSUPPORT_MSG;
+//
+//         case manapi::ev::ERR_PROTOTYPE:
+//             return EV_FS_EPROTOTYPE_MSG;
+//
+//         case manapi::ev::ERR_RANGE:
+//             return EV_FS_ERANGE_MSG;
+//
+//         case manapi::ev::ERR_ROFS:
+//             return EV_FS_EROFS_MSG;
+//
+//         case manapi::ev::ERR_SHUTDOWN:
+//             return EV_FS_ESHUTDOWN_MSG;
+//
+//         case manapi::ev::ERR_SPIPE:
+//             return EV_FS_ESPIPE_MSG;
+//
+//         case manapi::ev::ERR_SRCH:
+//             return EV_FS_ESRCH_MSG;
+//
+//         case manapi::ev::ERR_TIMEDOUT:
+//             return EV_FS_ETIMEDOUT_MSG;
+//
+//         case manapi::ev::ERR_TXTBSY:
+//             return EV_FS_ETXTBSY_MSG;
+//
+//         case manapi::ev::ERR_XDEV:
+//             return EV_FS_EXDEV_MSG;
+//
+//         case manapi::ev::ERR_UNKNOWN:
+//             return EV_ERR_UNKNOWN_MSG;
+//
+//         case manapi::ev::ERR_OF:
+//             return EV_FS_EOF_MSG;
+//
+//         case manapi::ev::ERR_NXIO:
+//             return EV_FS_ENXIO_MSG;
+//
+//         case manapi::ev::ERR_MLINK:
+//             return EV_FS_EMLINK_MSG;
+//
+//         case manapi::ev::ERR_HOSTDOWN:
+//             return EV_FS_EHOSTDOWN_MSG;
+//
+//         case manapi::ev::ERR_REMOTEIO:
+//             return EV_FS_EREMOTEIO_MSG;
+//
+//         case manapi::ev::ERR_NOTTY:
+//             return EV_FS_ENOTTY_MSG;
+//
+//         case manapi::ev::ERR_FTYPE:
+//             return EV_FS_EFTYPE_MSG;
+//
+//         case manapi::ev::ERR_ILSEQ:
+//             return EV_FS_EILSEQ_MSG;
+//
+//         case manapi::ev::ERR_SOCKTNOSUPPORT:
+//             return EV_FS_ESOCKTNOSUPPORT_MSG;
+//
+//         case manapi::ev::ERR_NODATA:
+//             return EV_FS_ENODATA_MSG;
+//
+//         case manapi::ev::ERR_UNATCH:
+//             return EV_FS_EUNATCH_MSG;
+//         default:
+//             return manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_INIT];
+//     }
+// }
 
 std::string manapi::filesystem::path::basename(std::string_view path) {
     size_t pos = path.find_last_of(std::filesystem::path::preferred_separator);
@@ -407,7 +405,7 @@ template<typename T>
 bool async_fs_operation_result_error (std::shared_ptr<manapi::ev::fs> &w, typename manapi::async::promise<T>::reject_t &reject, manapi::async::cancellation_action &cancellation) {
     if (w->result() < 0) {
         cancellation.disable();
-        reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FILESYSTEM_FAILED, manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_FS_IO_OPERATIONS], fserr2msg(w->result()))));
+        reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FILESYSTEM_FAILED, manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_FS_IO_OPERATIONS], uv_err_name(w->result()))));
 
         return true;
     }
@@ -528,7 +526,7 @@ manapi::future<void> manapi::filesystem::async_mkdir(std::string path, int mode,
                 -> void {
                     cancel.disable();
                     auto rhs = w->result();
-                    if ((rhs != ev::FS_EEXIST&&rhs != ev::FS_EPERM) && async_fs_operation_result_error<void>(w, reject, cancel)) {
+                    if ((rhs != ev::ERR_EXIST&&rhs != ev::ERR_PERM) && async_fs_operation_result_error<void>(w, reject, cancel)) {
                         return;
                     }
                     resolve();
@@ -544,7 +542,7 @@ manapi::future<void> manapi::filesystem::async_mkdir(std::string path, int mode,
             -> void {
                 cancel.disable();
                 auto rhs = w->result();
-                if ((rhs != ev::FS_EEXIST&&rhs != ev::FS_EPERM) && async_fs_operation_result_error<void>(w,  reject, cancel)) {
+                if ((rhs != ev::ERR_EXIST&&rhs != ev::ERR_PERM) && async_fs_operation_result_error<void>(w,  reject, cancel)) {
                     return;
                 }
                 resolve();

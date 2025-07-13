@@ -113,7 +113,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
     while (true) {
         if (features.compressor_for_file) {
             if (features.replacers) {
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "replacers can not be using during compress");
+                THROW_MANAPIHTTP_EXCEPTION2(ERR_AI_FAILED_PRECONDITION, "replacers can not be using during compress");
             }
 
             bool rst_compress = false;
@@ -192,14 +192,14 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
             // partial enabled
             if (res->partial_enabled() && res->config()->partial_data_min_size <= fileSize) {
                 if (features.compressor_for_file) {
-                    THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION,
+                    THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION,
                                            "the compress '{}' with the partial content is not supported.",
                                            features.compress);
                 }
 
 
                 if (features.replacers) {
-                    THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "replacers can not be use with partial");
+                    THROW_MANAPIHTTP_EXCEPTION2(ERR_AI_FAILED_PRECONDITION, "replacers can not be use with partial");
                 }
 
                 res->status(http::PARTIAL_CONTENT_206);
@@ -231,7 +231,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                         break;
 
                     default:
-                        THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "multi bytes not supported");
+                        THROW_MANAPIHTTP_EXCEPTION2(ERR_AI_FAILED_PRECONDITION, "multi bytes not supported");
                 }
 
                 size = back - start + 1;
@@ -412,11 +412,11 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(uq_handle_d
     auto formdata = std::make_unique<formdata_send>(std::move(res->formdata()));
 
     if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "formdata: Compression isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_AI_FAILED_PRECONDITION, "formdata: Compression isn't supported");
     }
 
     if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "formdata: Replacers isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_AI_FAILED_PRECONDITION, "formdata: Replacers isn't supported");
     }
 
     auto size = co_await formdata->payload_size();
@@ -516,11 +516,11 @@ err:
 
 void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Compression isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_AI_FAILED_PRECONDITION, "Compression isn't supported");
     }
 
     if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_AI_FAILED_PRECONDITION, "Replacers isn't supported");
     }
 
 
@@ -593,11 +593,11 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
 
 void manapi::net::http::internal::send_response_stream_cb(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Compression isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_AI_FAILED_PRECONDITION, "Compression isn't supported");
     }
 
     if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_AI_FAILED_PRECONDITION, "Replacers isn't supported");
     }
 
     if (http_v1_1_is_chunked_data(cdata, res.get()))
@@ -640,11 +640,11 @@ void manapi::net::http::internal::send_response_stream_cb(uq_handle_data_t cdata
 
 void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Compression isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_AI_FAILED_PRECONDITION, "Compression isn't supported");
     }
 
     if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
+        THROW_MANAPIHTTP_EXCEPTION2 (ERR_AI_FAILED_PRECONDITION, "Replacers isn't supported");
     }
 
     if (http_v1_1_is_chunked_data(cdata, res.get()))

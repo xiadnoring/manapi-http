@@ -25,14 +25,7 @@ MANAPI_EV_DEFAULT(check, uv_check_t)
 MANAPI_EV_DEFAULT(prepare, uv_prepare_t)
 MANAPI_EV_DEFAULT(idle, uv_idle_t)
 MANAPI_EV_DEFAULT(connect, uv_connect_t)
-
-manapi::ev::connect::connect() : s_() {
-}
-
-int manapi::ev::connect::bind(uv_tcp_t *p, const sockaddr *addr, uv_connect_cb cb) MANAPI_EV_NOEXPECT {
-    return uv_tcp_connect(&this->s_, p, addr, cb);
-}
-
+MANAPI_EV_DEFAULT(work, uv_work_t)
 MANAPI_EV_DEFAULT(tcp, uv_tcp_t)
 
 MANAPI_EV_DEFAULT(udp, uv_udp_t)
@@ -45,6 +38,14 @@ MANAPI_EV_DEFAULT(fs, uv_fs_t)
 
 MANAPI_EV_STREAM(udp, uv_udp_t)
 MANAPI_EV_STREAM(tcp, uv_tcp_t)
+
+manapi::ev::connect::connect() : s_() {
+}
+
+int manapi::ev::connect::bind(uv_tcp_t *p, const sockaddr *addr, uv_connect_cb cb) MANAPI_EV_NOEXPECT {
+    return uv_tcp_connect(&this->s_, p, addr, cb);
+}
+
 
 void manapi::ev::buffer_deleter::operator()(manapi::ev::buff_t *data) {
     delete[] data;
@@ -386,7 +387,7 @@ ssize_t manapi::ev::fs::try_write(ev::file fileno, const void *buff, ssize_t nbu
 
     handle = (HANDLE) ::_get_osfhandle(fileno);
     if (handle == INVALID_HANDLE_VALUE) {
-        return FS_EBADF;
+        return ERR_BADF;
     }
 
     if (offset != -1) {
@@ -467,7 +468,7 @@ ssize_t manapi::ev::fs::try_read(ev::file fileno, void *buff, ssize_t nbuff, int
     handle = (HANDLE) ::_get_osfhandle(fileno);
 
     if (handle == INVALID_HANDLE_VALUE) {
-        return FS_EBADF;
+        return ERR_BADF;
     }
 
     if (offset != -1) {
@@ -854,4 +855,18 @@ int manapi::ev::getnameinfo::bind(loop_ref loop, const sockaddr *addr, int flags
 
 int manapi::ev::getnameinfo::bind(loop_ref loop, const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT {
     return this->bind(loop, addr, flags, callback_watcher_getnameinfo);
+}
+
+manapi::ev::work::work() : s_() {}
+
+int manapi::ev::work::cancel() MANAPI_EV_NOEXPECT {
+    return uv_cancel(reinterpret_cast<uv_req_t *>(&this->s_));
+}
+
+int manapi::ev::work::bind(loop_ref loop, uv_work_cb cb, uv_after_work_cb after_cb) MANAPI_EV_NOEXPECT {
+    return uv_queue_work(loop, &this->s_, cb, after_cb);
+}
+
+int manapi::ev::work::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
+    return this->bind(loop, callback_watcher_work, callback_watcher_after_work);
 }

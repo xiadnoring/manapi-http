@@ -633,7 +633,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, TLS:
                 if (!m->top->send_size) {
                     alr = m->watcher->try_write(fastfast, rhs);
                     if (alr < 0) {
-                        if (alr == ev::FS_EAGAIN)
+                        if (alr == ev::ERR_AGAIN)
                             alr = 0;
                         else
                             /* fatal error */

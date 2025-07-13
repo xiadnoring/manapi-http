@@ -241,6 +241,7 @@ bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) {
 void manapi::timerpool::clear() {
     if (!(this->data_->flags & TIMERPOOL_FLAG_ACTIVE)) {
         this->data_->sorted_tasks.clear();
+        this->reinit_timer_(this->data_);
     }
 }
 

@@ -126,7 +126,7 @@ void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<v
         ctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), ctx->taskpool_, std::move(timerpool_), ctx->logger_);
     }
 
-    assert(!manapi::async::internal::current_() && "Async ctx already exists");
+    //assert(!manapi::async::internal::current_() && "Async ctx already exists");
 
     if (!manapi::async::internal::current_())
         manapi::async::context::current(ctx);
@@ -208,6 +208,10 @@ const manapi::async::shared_cthread &manapi::async::current() {
     return async::internal::current_cthread_;
 }
 
+
+const std::shared_ptr<manapi::async::cthread> & manapi::async::internal::current_() {
+    return async::internal::current_cthread_;
+}
 
 manapi::async::context::~context() = default;
 

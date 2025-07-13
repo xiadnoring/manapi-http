@@ -1080,7 +1080,7 @@ manapi::error::status manapi::json_builder::_check_string() {
         if (res.ok())
             break;
 
-        if (res.code() == ERR_FAILED_PRECONDITION)
+        if (res.code() == ERR_AI_FAILED_PRECONDITION)
             continue;
 
         return std::move(res);
@@ -1094,7 +1094,7 @@ manapi::error::status manapi::json_builder::_check_numeric() {
         auto res = _check_default();
         if (res.ok())
             break;
-        if (res.code() == ERR_FAILED_PRECONDITION)
+        if (res.code() == ERR_AI_FAILED_PRECONDITION)
             continue;
         return std::move(res);
     }
@@ -1114,7 +1114,7 @@ manapi::error::status manapi::json_builder::_check_object() {
             if (res.ok())
                 break;
         }
-        if (res.code() == ERR_FAILED_PRECONDITION)
+        if (res.code() == ERR_AI_FAILED_PRECONDITION)
             continue;
         return std::move(res);
     }
@@ -1127,7 +1127,7 @@ manapi::error::status manapi::json_builder::_check_array() {
         auto res = _check_default();
         if (res.ok())
             break;
-        if (res.code() == ERR_FAILED_PRECONDITION)
+        if (res.code() == ERR_AI_FAILED_PRECONDITION)
             continue;
         return std::move(res);
     }

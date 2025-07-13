@@ -155,92 +155,92 @@ namespace manapi::ev {
     };
 #endif
 
-    enum fs_errors {
-        FS_ESRCH = UV_ESRCH , /*3*/
-        FS_E2BIG = UV_E2BIG,/*7*/
-        FS_EBADF = UV_EBADF ,
-        FS_EAGAIN = UV_EAGAIN , /*11*/
-        FS_EACCES = UV_EACCES, /*13*/
-        FS_EAFNOSUPPORT = UV_EAFNOSUPPORT, /*97*/
-        FS_EADDRINUSE = UV_EADDRINUSE, /*98*/
-        FS_EADDRNOTAVAIL = UV_EADDRNOTAVAIL, /*99*/
-        ERR_ADDRFAMILY = UV_EAI_ADDRFAMILY ,/*3000*/
-        ERR_AGAIN = UV_EAI_AGAIN ,/*3001*/
-        ERR_BADFLAGS = UV_EAI_BADFLAGS ,/*3002*/
-        ERR_CANCELED = UV_EAI_CANCELED ,/*3003*/
-        ERR_FAIL = UV_EAI_FAIL ,/*3004*/
-        ERR_FAMILY = UV_EAI_FAMILY ,/*3005*/
-        ERR_MEMORY = UV_EAI_MEMORY ,/*3006*/
-        ERR_NODATA = UV_EAI_NODATA ,/*3007*/
-        ERR_NONAME = UV_EAI_NONAME ,/*3008*/
-        ERR_OVERFLOW = UV_EAI_OVERFLOW ,/*-3009*/
-        ERR_SERVICE = UV_EAI_SERVICE ,/*-3010*/
-        ERR_BADHINTS = UV_EAI_BADHINTS ,/*-3013*/
-        ERR_PROTOCOL = UV_EAI_PROTOCOL , /*-3014*/
-        ERR_SOCKTYPE = UV_EAI_SOCKTYPE ,/*-3011*/
-        FS_EALREADY = UV_EALREADY ,/*-114 */
-        FS_EBUSY = UV_EBUSY ,/*-16 */
-        FS_ECANCELED = UV_ECANCELED ,/*-125 */
-        FS_ECHARSET = UV_ECHARSET ,/* -4080 */
-        FS_ECONNABORTED = UV_ECONNABORTED ,/*-103 */
-        FS_ECONNREFUSED = UV_ECONNREFUSED ,/*-111 */
-        FS_ECONNRESET = UV_ECONNRESET ,/*-104 */
-        FS_EDESTADDRREQ = UV_EDESTADDRREQ ,/*-89 */
-        FS_EEXIST = UV_EEXIST ,/*-17 */
-        FS_EFAULT = UV_EFAULT ,/* -14 */
-        FS_EFBIG = UV_EFBIG ,/*-27 */
-        FS_EHOSTUNREACH = UV_EHOSTUNREACH ,/*-113 */
-        FS_EINTR = UV_EINTR ,/*-4 */
-        FS_EINVAL = UV_EINVAL ,/*-22 */
-        FS_EIO = UV_EIO ,/*-5 */
-        FS_EISCONN = UV_EISCONN ,/*-106 */
-        FS_EISDIR = UV_EISDIR ,/*-21 */
-        FS_ELOOP = UV_ELOOP ,/*-40 */
-        FS_EMFILE = UV_EMFILE ,/*-24 */
-        FS_EMSGSIZE = UV_EMSGSIZE ,/*-90 */
-        FS_ENAMETOOLONG = UV_ENAMETOOLONG ,/*-36 */
-        FS_ENETDOWN = UV_ENETDOWN ,/*-100 */
-        FS_ENETUNREACH = UV_ENETUNREACH ,/*-101 */
-        FS_ENFILE = UV_ENFILE ,/*-23 */
-        FS_ENOBUFS = UV_ENOBUFS ,/*-105 */
-        FS_ENODEV = UV_ENODEV ,/*-19 */
-        FS_ENOENT = UV_ENOENT ,/* -2 */
-        FS_ENOMEM = UV_ENOMEM ,/*-12 */
-        FS_ENONET = UV_ENONET ,/*-64 */
-        FS_ENOPROTOOPT = UV_ENOPROTOOPT ,/*-92 */
-        FS_ENOSPC = UV_ENOSPC ,/*-28 */
-        FS_ENOSYS = UV_ENOSYS ,/* -38 */
-        FS_ENOTCONN = UV_ENOTCONN ,/*-107 */
-        FS_ENOTDIR = UV_ENOTDIR ,/*-20 */
-        FS_ENOTEMPTY = UV_ENOTEMPTY ,/*-39 */
-        FS_ENOTSOCK = UV_ENOTSOCK ,/* -88 */
-        FS_ENOTSUP = UV_ENOTSUP ,/*-95 */
-        FS_EOVERFLOW = UV_EOVERFLOW ,/* -75 */
-        FS_EPERM = UV_EPERM ,/*-1 */
-        FS_EPIPE = UV_EPIPE ,/*-32 */
-        FS_EPROTO = UV_EPROTO ,/* -71 */
-        FS_EPROTONOSUPPORT = UV_EPROTONOSUPPORT ,/* -93 */
-        FS_EPROTOTYPE = UV_EPROTOTYPE ,/* -91 */
-        FS_ERANGE = UV_ERANGE ,/*-34 */
-        FS_EROFS = UV_EROFS ,/* -30 */
-        FS_ESHUTDOWN = UV_ESHUTDOWN ,/* -108 */
-        FS_ESPIPE = UV_ESPIPE ,/*-29 */
-        FS_ETIMEDOUT = UV_ETIMEDOUT ,/*-110 */
-        FS_ETXTBSY = UV_ETXTBSY ,/*-26 */
-        FS_EXDEV = UV_EXDEV ,/*-18 */
-        FS_UNKNOWN = UV_UNKNOWN ,/*-4094 */
-        FS_EOF = UV_EOF ,/* -4095 */
-        FS_ENXIO = UV_ENXIO ,/* -6 */
-        FS_EMLINK = UV_EMLINK ,/*-31 */
-        FS_EHOSTDOWN = UV_EHOSTDOWN ,/* -112 */
-        FS_EREMOTEIO = UV_EREMOTEIO ,/*-121 */
-        FS_ENOTTY = UV_ENOTTY ,/*-25 */
-        FS_EFTYPE = UV_EFTYPE ,/*-4028 */
-        FS_EILSEQ = UV_EILSEQ ,/*-84 */
-        FS_ESOCKTNOSUPPORT = UV_ESOCKTNOSUPPORT ,/*-94 */
-        FS_ENODATA = UV_ENODATA ,/*-61 */
-        FS_EUNATCH = UV_EUNATCH,/*-49 */
-        FS_ERRNO_MAX = UV_ERRNO_MAX/* -4096 */
+    enum sys_errors {
+        ERR_SRCH = UV_ESRCH , /*3*/
+        ERR_2BIG = UV_E2BIG,/*7*/
+        ERR_BADF = UV_EBADF ,
+        ERR_AGAIN = UV_EAGAIN , /*11*/
+        ERR_ACCES = UV_EACCES, /*13*/
+        ERR_AFNOSUPPORT = UV_EAFNOSUPPORT, /*97*/
+        ERR_ADDRINUSE = UV_EADDRINUSE, /*98*/
+        ERR_ADDRNOTAVAIL = UV_EADDRNOTAVAIL, /*99*/
+        ERR_AI_ADDRFAMILY = UV_EAI_ADDRFAMILY ,/*3000*/
+        ERR_AI_AGAIN = UV_EAI_AGAIN ,/*3001*/
+        ERR_AI_BADFLAGS = UV_EAI_BADFLAGS ,/*3002*/
+        ERR_AI_CANCELED = UV_EAI_CANCELED ,/*3003*/
+        ERR_AI_FAIL = UV_EAI_FAIL ,/*3004*/
+        ERR_AI_FAMILY = UV_EAI_FAMILY ,/*3005*/
+        ERR_AI_MEMORY = UV_EAI_MEMORY ,/*3006*/
+        ERR_AI_NODATA = UV_EAI_NODATA ,/*3007*/
+        ERR_AI_NONAME = UV_EAI_NONAME ,/*3008*/
+        ERR_AI_OVERFLOW = UV_EAI_OVERFLOW ,/*-3009*/
+        ERR_AI_SERVICE = UV_EAI_SERVICE ,/*-3010*/
+        ERR_AI_BADHINTS = UV_EAI_BADHINTS ,/*-3013*/
+        ERR_AI_PROTOCOL = UV_EAI_PROTOCOL , /*-3014*/
+        ERR_AI_SOCKTYPE = UV_EAI_SOCKTYPE ,/*-3011*/
+        ERR_ALREADY = UV_EALREADY ,/*-114 */
+        ERR_BUSY = UV_EBUSY ,/*-16 */
+        ERR_CANCELED = UV_ECANCELED ,/*-125 */
+        ERR_CHARSET = UV_ECHARSET ,/* -4080 */
+        ERR_CONNABORTED = UV_ECONNABORTED ,/*-103 */
+        ERR_CONNREFUSED = UV_ECONNREFUSED ,/*-111 */
+        ERR_CONNRESET = UV_ECONNRESET ,/*-104 */
+        ERR_DESTADDRREQ = UV_EDESTADDRREQ ,/*-89 */
+        ERR_EXIST = UV_EEXIST ,/*-17 */
+        ERR_FAULT = UV_EFAULT ,/* -14 */
+        ERR_FBIG = UV_EFBIG ,/*-27 */
+        ERR_HOSTUNREACH = UV_EHOSTUNREACH ,/*-113 */
+        ERR_INTR = UV_EINTR ,/*-4 */
+        ERR_INVAL = UV_EINVAL ,/*-22 */
+        ERR_IO = UV_EIO ,/*-5 */
+        ERR_ISCONN = UV_EISCONN ,/*-106 */
+        ERR_ISDIR = UV_EISDIR ,/*-21 */
+        ERR_LOOP = UV_ELOOP ,/*-40 */
+        ERR_MFILE = UV_EMFILE ,/*-24 */
+        ERR_MSGSIZE = UV_EMSGSIZE ,/*-90 */
+        ERR_NAMETOOLONG = UV_ENAMETOOLONG ,/*-36 */
+        ERR_NETDOWN = UV_ENETDOWN ,/*-100 */
+        ERR_NETUNREACH = UV_ENETUNREACH ,/*-101 */
+        ERR_NFILE = UV_ENFILE ,/*-23 */
+        ERR_NOBUFS = UV_ENOBUFS ,/*-105 */
+        ERR_NODEV = UV_ENODEV ,/*-19 */
+        ERR_NOENT = UV_ENOENT ,/* -2 */
+        ERR_NOMEM = UV_ENOMEM ,/*-12 */
+        ERR_NONET = UV_ENONET ,/*-64 */
+        ERR_NOPROTOOPT = UV_ENOPROTOOPT ,/*-92 */
+        ERR_NOSPC = UV_ENOSPC ,/*-28 */
+        ERR_NOSYS = UV_ENOSYS ,/* -38 */
+        ERR_NOTCONN = UV_ENOTCONN ,/*-107 */
+        ERR_NOTDIR = UV_ENOTDIR ,/*-20 */
+        ERR_NOTEMPTY = UV_ENOTEMPTY ,/*-39 */
+        ERR_NOTSOCK = UV_ENOTSOCK ,/* -88 */
+        ERR_NOTSUP = UV_ENOTSUP ,/*-95 */
+        ERR_OVERFLOW = UV_EOVERFLOW ,/* -75 */
+        ERR_PERM = UV_EPERM ,/*-1 */
+        ERR_PIPE = UV_EPIPE ,/*-32 */
+        ERR_PROTO = UV_EPROTO ,/* -71 */
+        ERR_PROTONOSUPPORT = UV_EPROTONOSUPPORT ,/* -93 */
+        ERR_PROTOTYPE = UV_EPROTOTYPE ,/* -91 */
+        ERR_RANGE = UV_ERANGE ,/*-34 */
+        ERR_ROFS = UV_EROFS ,/* -30 */
+        ERR_SHUTDOWN = UV_ESHUTDOWN ,/* -108 */
+        ERR_SPIPE = UV_ESPIPE ,/*-29 */
+        ERR_TIMEDOUT = UV_ETIMEDOUT ,/*-110 */
+        ERR_TXTBSY = UV_ETXTBSY ,/*-26 */
+        ERR_XDEV = UV_EXDEV ,/*-18 */
+        ERR_UNKNOWN = UV_UNKNOWN ,/*-4094 */
+        ERR_OF = UV_EOF ,/* -4095 */
+        ERR_NXIO = UV_ENXIO ,/* -6 */
+        ERR_MLINK = UV_EMLINK ,/*-31 */
+        ERR_HOSTDOWN = UV_EHOSTDOWN ,/* -112 */
+        ERR_REMOTEIO = UV_EREMOTEIO ,/*-121 */
+        ERR_NOTTY = UV_ENOTTY ,/*-25 */
+        ERR_FTYPE = UV_EFTYPE ,/*-4028 */
+        ERR_ILSEQ = UV_EILSEQ ,/*-84 */
+        ERR_SOCKTNOSUPPORT = UV_ESOCKTNOSUPPORT ,/*-94 */
+        ERR_NODATA = UV_ENODATA ,/*-61 */
+        ERR_UNATCH = UV_EUNATCH,/*-49 */
+        ERR_RRNO_MAX = UV_ERRNO_MAX/* -4096 */
     };
 
     struct buffer_deleter {
@@ -274,6 +274,8 @@ namespace manapi::ev {
     void callback_watcher_random (uv_random_t *s, int status, void *buf, size_t buflen);
     void callback_watcher_getaddrinfo (uv_getaddrinfo_t *req, int status, struct addrinfo *res);
     void callback_watcher_getnameinfo (uv_getnameinfo_t *req, int status, const char *hostname, const char *service);
+    void callback_watcher_work (uv_work_t *req);
+    void callback_watcher_after_work (uv_work_t *req, int status);
     void callback_close_cb (uv_handle_t *s);
 
     class async {
@@ -663,6 +665,19 @@ namespace manapi::ev {
     private:
         uv_getnameinfo_t s_;
     };
+
+    class work {
+        MANAPI_EV_DEFAULT_PRIVATE_VAR(work, uv_work_t)
+    public:
+        MANAPI_EV_DEFAULT(work, uv_work_t)
+        work();
+        int cancel () MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, uv_work_cb cb, uv_after_work_cb after_cb) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+    private:
+        uv_work_t s_;
+    };
+
     using shared_async = std::shared_ptr<async>;
     using shared_tcp = std::shared_ptr<tcp>;
     using shared_udp = std::shared_ptr<udp>;
@@ -675,6 +690,10 @@ namespace manapi::ev {
     using shared_io = std::shared_ptr<io>;
     using shared_write = std::shared_ptr<write>;
     using shared_udp_send = std::shared_ptr<udp_send>;
+    using shared_getaddrinfo = std::shared_ptr<getaddrinfo>;
+    using shared_getnameinfo = std::shared_ptr<getnameinfo>;
+    using shared_work = std::shared_ptr<work>;
+
 }
 
 #undef MANAPI_EV_CAST_HANDLE

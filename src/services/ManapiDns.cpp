@@ -18,5 +18,5 @@ manapi::future<int> manapi::dns::getaddrinfo(const char * node, const char* serv
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "getaddrinfo:Something gets wrong", e.what());
     }
-    co_return ev::ERR_FAIL;
+    co_return ev::ERR_AI_FAIL;
 }

@@ -179,7 +179,7 @@ void * manapi::net::worker::WolfSSL_TLS::ssl_create_context(size_t version) {
         case http::versions::TLS_v1_2:    method = wolfTLSv1_2_server_method();   break;
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         case http::versions::TLS_v1_3:    method = wolfTLS_server_method();       break;
-        default: THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION,
+        default: THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION,
             "can not find the initialization method openssl (tls_version): {}", version);
     }
 

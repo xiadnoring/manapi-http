@@ -200,6 +200,12 @@ namespace manapi::ev::internal {
         manapi::async::cancellation_action token;
     };
 
+    struct work_ctx {
+        std::shared_ptr<ev::work> s_;
+        work_cb cb;
+        after_work_cb after_cb;
+    };
+
     struct adding_watcher_io_data_init_t {
         union {
             manapi::fd_t fd = 0;
@@ -471,26 +477,29 @@ void manapi::ev::callback_watcher_udp_recv (uv_udp_t *s, ssize_t nread, const uv
 
 void manapi::ev::callback_watcher_udp_send (uv_udp_send_t *s, int status) {
     assert(s->data && "ev:User data wasn't set");
-    auto &cb = static_cast<manapi::ev::internal::udp_send_ctx *> (s->data)
-        ->send;
+    std::unique_ptr<manapi::ev::internal::udp_send_ctx> ss (static_cast<manapi::ev::internal::udp_send_ctx *> (s->data));
+    s->data = nullptr;
+    auto &cb =ss->send;
     assert(cb && "ev:User callback wasn't set");
-    cb (static_cast<manapi::ev::internal::udp_send_ctx *> (s->data)->s_, status);
+    cb (ss->s_, status);
 }
 
 void manapi::ev::callback_watcher_write (uv_write_t *s, int status) {
     assert(s->data && "ev:User data wasn't set");
-    auto &cb = static_cast<manapi::ev::internal::write_ctx *> (s->data)
-        ->write;
+    std::unique_ptr<manapi::ev::internal::write_ctx> ss (static_cast<manapi::ev::internal::write_ctx *> (s->data));
+    s->data = nullptr;
+    auto &cb = ss->write;
     assert(cb && "ev:User callback wasn't set");
-    cb (static_cast<manapi::ev::internal::write_ctx *> (s->data)->s_, status);
+    cb (ss->s_, status);
 }
 
 void manapi::ev::callback_watcher_connect_tcp(uv_connect_t *s, int status) {
     assert(s->data && "ev:User data wasn't set");
-    auto &cb = static_cast<manapi::ev::internal::connect_tcp_ctx *> (s->data)
-        ->cb;
+    std::unique_ptr<manapi::ev::internal::connect_tcp_ctx> ss (static_cast<manapi::ev::internal::connect_tcp_ctx *> (s->data));
+    s->data = nullptr;
+    auto &cb = ss->cb;
     assert(cb && "ev:User callback wasn't set");
-    cb (static_cast<manapi::ev::internal::connect_tcp_ctx *> (s->data)->tcp, status);
+    cb (ss->tcp, status);
 }
 
 
@@ -500,14 +509,11 @@ void manapi::ev::callback_watcher_fs(uv_fs_t *req) {
 
     if (req->data) {
         /* otherwise it was cancelled */
-        auto w = std::move(static_cast<manapi::ev::internal::fs_ctx *> (req->data)->s_);
-
-        static_cast<manapi::ev::internal::fs_ctx *> (req->data)
-            ->cb(w);
-        req_own.reset();
-
-        delete static_cast<manapi::ev::internal::fs_ctx *> (req->data);
+        std::unique_ptr<manapi::ev::internal::fs_ctx> ss (static_cast<manapi::ev::internal::fs_ctx *> (req->data));
         req->data = nullptr;
+
+        if (ss->cb)
+            ss->cb(ss->s_);
     }
 }
 
@@ -515,10 +521,10 @@ void manapi::ev::callback_watcher_random(uv_random_t *s, int status, void *buff,
     assert(s->data && "ev:User data wasn't set");
     if (s->data) {
         /* otherwise it was cancelled */
-        static_cast<manapi::ev::internal::random_ctx *> (s->data)
-            ->cb(static_cast<manapi::ev::internal::random_ctx *> (s->data)->s_, status, buff, size);
-        delete static_cast<manapi::ev::internal::random_ctx *> (s->data);
+        std::unique_ptr<manapi::ev::internal::random_ctx> ss (static_cast<manapi::ev::internal::random_ctx *> (s->data));
         s->data = nullptr;
+        if (ss->cb)
+            ss->cb(ss->s_, status, buff, size);
     }
 }
 
@@ -526,10 +532,10 @@ void manapi::ev::callback_watcher_getnameinfo(uv_getnameinfo_t *req, int status,
     assert(req->data && "ev:User data wasn't set");
     if (req->data) {
         /* otherwise it was cancelled */
-        static_cast<manapi::ev::internal::getnameinfo_ctx *> (req->data)
-            ->cb(static_cast<manapi::ev::internal::getnameinfo_ctx *> (req->data)->s_, status, hostname, service);
-        delete static_cast<manapi::ev::internal::getnameinfo_ctx *> (req->data);
+        std::unique_ptr<manapi::ev::internal::getnameinfo_ctx> s (static_cast<manapi::ev::internal::getnameinfo_ctx *> (req->data));
         req->data = nullptr;
+        if (s->cb)
+            s->cb(s->s_, status, hostname, service);
     }
 }
 
@@ -539,24 +545,49 @@ void manapi::ev::callback_watcher_getaddrinfo(uv_getaddrinfo_t *req, int status,
 
     if (req->data) {
         /* otherwise it was cancelled */
-        static_cast<manapi::ev::internal::getaddrinfo_ctx *> (req->data)
-            ->cb(static_cast<manapi::ev::internal::getaddrinfo_ctx *> (req->data)->s_, status, res_own.release());
-        delete static_cast<manapi::ev::internal::getaddrinfo_ctx *> (req->data);
+        std::unique_ptr<manapi::ev::internal::getaddrinfo_ctx> s (static_cast<manapi::ev::internal::getaddrinfo_ctx *> (req->data));
         req->data = nullptr;
+        if (s->cb)
+            s->cb(s->s_, status, res_own.release());
+    }
+}
+
+void manapi::ev::callback_watcher_after_work(uv_work_t *req, int status) {
+    assert(req->data && "ev:User data wasn't set");
+
+    if (req->data) {
+        /* otherwise it was cancelled */
+        std::unique_ptr<manapi::ev::internal::work_ctx> s (static_cast<manapi::ev::internal::work_ctx *> (req->data));
+        req->data = nullptr;
+        if (s->after_cb)
+            s->after_cb(s->s_, status);
+    }
+}
+
+void manapi::ev::callback_watcher_work(uv_work_t *req) {
+    assert(req->data && "ev:User data wasn't set");
+
+    if (req->data) {
+        auto s = static_cast<manapi::ev::internal::work_ctx *> (req->data);
+        /* otherwise it was cancelled */
+        if (s->cb)
+            s->cb(s->s_);
     }
 }
 
 
 void manapi::ev::callback_watcher_tcp_connection_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
     assert(handle->data && "ev:User data wasn't set");
-    static_cast<manapi::ev::internal::tcp_connection_ctx *> (handle->data)
-        ->alloc_cb(static_cast<manapi::ev::internal::tcp_connection_ctx *> (handle->data)->s_, suggested_size, buf);
+    auto s = static_cast<manapi::ev::internal::tcp_connection_ctx *> (handle->data);
+    assert((s->alloc_cb && "ev:User cb wasn't set"));
+    s->alloc_cb(s->s_, suggested_size, buf);
 }
 
 void manapi::ev::callback_watcher_udp_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
     assert(handle->data && "ev:User data wasn't set");
-    static_cast<manapi::ev::internal::udp_ctx *> (handle->data)
-        ->alloc_cb(static_cast<manapi::ev::internal::udp_ctx *> (handle->data)->s_, suggested_size, buf);
+    auto s = static_cast<manapi::ev::internal::udp_ctx *> (handle->data);
+    assert((s->alloc_cb && "ev:User cb wasn't set"));
+    s->alloc_cb(s->s_, suggested_size, buf);
 }
 
 void manapi::ev::callback_close_cb(uv_handle_t *s) {
@@ -564,10 +595,9 @@ void manapi::ev::callback_close_cb(uv_handle_t *s) {
 
     switch (s->type) {
         case ev::EV_TCP: {
-            if (static_cast<manapi::ev::internal::tcp_ctx *> (s->data)) {
-                static_cast<manapi::ev::internal::tcp_ctx *> (s->data)->
-                    close_cb->operator()(static_cast<manapi::ev::internal::tcp_connection_ctx *> (s->data)->s_);
-            }
+            auto ss = static_cast<manapi::ev::internal::tcp_ctx *> (s->data);
+            if (ss->close_cb)
+                ss->close_cb->operator()(ss->s_);
             break;
         }
         default: {
@@ -1449,6 +1479,14 @@ std::shared_ptr<manapi::ev::write> manapi::event_loop::create_watcher_write(ev::
         throw manapi::exception (manapi::ERR_INTERNAL, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED]);
     }
     w->data(new ev::internal::write_ctx{.s_ = w, .write = std::move(callback)});
+    return std::move(w);
+}
+
+manapi::ev::shared_work manapi::event_loop::append_task(std::move_only_function<void(const ev::shared_work &w)> work, std::move_only_function<void(const ev::shared_work &w, int status)> after_work) {
+    auto w = std::make_shared<ev::work>();
+    if (auto rhs = w->bind(this->loop()))
+        throw manapi::exception (manapi::ERR_INTERNAL, manapi::error::default_msgs[error::ERRMSG_WATCHER_BIND_FAILED]);
+    w->data(new ev::internal::work_ctx{.s_ = w, .cb = std::move(work), .after_cb = std::move(after_work)});
     return std::move(w);
 }
 

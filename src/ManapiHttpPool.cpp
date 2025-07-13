@@ -128,7 +128,7 @@ manapi::future<void> manapi::net::http_pool::_pool() {
                         auto it_http_impl = http_implementation.find(*http_impl_name);
                         if (it_http_impl == http_implementation.end()) {
                             MANAPIHTTP_LOG("http implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
-                            THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "http implementation not found");
+                            THROW_MANAPIHTTP_EXCEPTION2(ERR_AI_FAILED_PRECONDITION, "http implementation not found");
                         }
                         auto httpwrk = it_http_impl->second (workerptr);
                         if (!httpwrk.ok())
@@ -148,7 +148,7 @@ manapi::future<void> manapi::net::http_pool::_pool() {
     else
     {
         MANAPIHTTP_LOG("implementation by {} not found in {}. Available: [{}]", implementation, transport, concat_keys_in_map(implementations));
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "implementation not found");
+        THROW_MANAPIHTTP_EXCEPTION2(ERR_AI_FAILED_PRECONDITION, "implementation not found");
     }
 }
 
