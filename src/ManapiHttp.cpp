@@ -131,7 +131,8 @@ manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data
                     co_await save_config(t);
 
                 // cache config
-                co_await manapi::filesystem::async_write(data["cache_path"].as_string() + site::default_config_name, data["cache"].dump(),
+                co_await manapi::filesystem::async_write(filesystem::path::join(data["cache_path"].as_string(), std::string{site::default_config_name}),
+                    data["cache"].dump(),
                     ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
             }
 
@@ -139,7 +140,7 @@ manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data
         });
     }
     catch (std::exception const &e) {
-        async::current()->logger()->error(manapi::logger::default_service, ERR_AI_FAILED_PRECONDITION, "http: couldn't save the configuration file due to {}", e.what());
+        async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "http: couldn't save the configuration file due to {}", e.what());
     }
 
     if (data2->init_watcher) {
@@ -176,7 +177,7 @@ manapi::future<> manapi::net::http::server::init_pool_() {
                 pool.insert({this->data2->next_pool_id, std::move(p)});
             }
             catch (std::exception const &e) {
-                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_AI_FAILED_PRECONDITION, "init pool failed due to {}", e.what());
+                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "init pool failed due to {}", e.what());
             }
 
             if (p) {

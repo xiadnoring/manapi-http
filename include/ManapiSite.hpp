@@ -226,7 +226,7 @@ namespace manapi::net::http {
 
         std::shared_ptr<data_t> data;
 
-        static std::string default_config_name;
+        static std::string_view default_config_name;
     private:
         static http_handler_function default_error_handler;
 

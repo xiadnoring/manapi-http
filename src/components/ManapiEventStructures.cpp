@@ -1,6 +1,6 @@
 #include "components/ManapiEventStructures.hpp"
 
-#define MANAPI_EV_NOEXPECT noexcept(true)
+#define MANAPI_EV_NOEXPECT MANAPIHTTP_NOEXPECT
 #define MANAPI_EV_CAST_STREAM(x) reinterpret_cast<uv_stream_t *> (x)
 #define MANAPI_EV_CAST_HANDLE(x) reinterpret_cast <uv_handle_t *> (x)
 #define MANAPI_EV_DEFAULT(name_class, name_struct) \
@@ -13,7 +13,7 @@ name_struct* manapi::ev::name_class::custom () MANAPI_EV_NOEXPECT { return &this
 bool manapi::ev::name_class::is_active() MANAPI_EV_NOEXPECT { return uv_is_active(MANAPI_EV_CAST_HANDLE(&this->s_)); } \
 manapi::ev::name_class::~name_class () = default;
 #define MANAPI_EV_STREAM(name_class, name_struct) \
-int manapi::ev::name_class::listen (int backlog, uv_connection_cb cb) MANAPI_EV_NOEXPECT {  return uv_listen(MANAPI_EV_CAST_STREAM(&this->s_), backlog, cb); } \
+int manapi::ev::name_class::listen (int tcp_backlog, uv_connection_cb cb) MANAPI_EV_NOEXPECT {  return uv_listen(MANAPI_EV_CAST_STREAM(&this->s_), tcp_backlog, cb); } \
 int manapi::ev::name_class::ip4_addr (const char *ip, int port, sockaddr_in *addr) MANAPI_EV_NOEXPECT { return uv_ip4_addr(ip, port, addr); } \
 int manapi::ev::name_class::ip6_addr (const char *ip, int port, sockaddr_in6 *addr) MANAPI_EV_NOEXPECT {  return uv_ip6_addr(ip, port, addr); }
 #define MANAPI_EV_CHECK(expr) { auto rhs = expr; if (rhs) { std::cout << rhs << "\n"; THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_INTERNAL, #expr); } }
@@ -167,8 +167,8 @@ manapi::ev::tcp::tcp() : s_() {
 
 }
 
-int manapi::ev::tcp::listen(int backlog) MANAPI_EV_NOEXPECT {
-    return this->listen(backlog, reinterpret_cast<uv_connection_cb>(ev::callback_watcher_tcp_accept));
+int manapi::ev::tcp::listen(int tcp_backlog) MANAPI_EV_NOEXPECT {
+    return this->listen(tcp_backlog, reinterpret_cast<uv_connection_cb>(ev::callback_watcher_tcp_accept));
 }
 
 int manapi::ev::tcp::bind(loop_ref loop) noexcept(true) {
@@ -869,4 +869,12 @@ int manapi::ev::work::bind(loop_ref loop, uv_work_cb cb, uv_after_work_cb after_
 
 int manapi::ev::work::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
     return this->bind(loop, callback_watcher_work, callback_watcher_after_work);
+}
+
+const char * manapi::ev::strerror(int errnum) MANAPIHTTP_NOEXPECT {
+    return uv_strerror(errnum);
+}
+
+const char * manapi::ev::namerror(int errnum) MANAPIHTTP_NOEXPECT {
+    return uv_err_name(errnum);
 }

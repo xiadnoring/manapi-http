@@ -17,7 +17,7 @@ namespace manapi::net::wgrpc {
     public:
         config (const manapi::json &n);
 
-        int backlog;
+        int tcp_backlog;
         std::size_t max_buffered_size;
         std::size_t buffer_size;
         manapi::json ssl;

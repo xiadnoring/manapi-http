@@ -1,6 +1,12 @@
+/**
+ * @file ManapiErrors.hpp
+ * @brief Provides utilities to work with errors
+ *
+ * @author Timur Zajnullin
+ */
+
 #pragma once
 
-#include <map>
 #include <string>
 #include <memory>
 #include <format>
@@ -20,7 +26,7 @@ namespace manapi {
         ERR_PERMISSION_DENIED,
         ERR_UNAUTHENTICATED,
         ERR_RESOURCE_EXHAUSTED,
-        ERR_AI_FAILED_PRECONDITION,
+        ERR_FAILED_PRECONDITION,
         ERR_ABORTED,
         ERR_UNAVAILABLE,
         ERR_OUT_OF_RANGE,
@@ -118,6 +124,7 @@ namespace manapi {
         status status_already_exists (std::string_view msg);
         status status_permission_denied (std::string_view msg);
         status status_unauthenticated (std::string_view msg);
+        status status_resource_exhausted ();
         status status_resource_exhausted (std::string_view msg);
         status status_failed_precondition (std::string_view msg);
         status status_aborted (std::string_view msg);

@@ -21,28 +21,34 @@ struct wgrpc_connection_data_t {
     std::unique_ptr<manapi::timer> timer;
 };
 
-thread_local std::set<std::pair<uintptr_t, ssize_t>> wgrpc_tasks_exists;
-thread_local std::set<std::pair<uintptr_t, ssize_t>> wgrpc_connect_exists;
-thread_local std::set<manapi::net::wgrpc::net_listener *> wgrpc_tcp_listeners;
+struct wgrpc_thread_local_storage_t {
+    std::set<std::pair<uintptr_t, ssize_t>> wgrpc_tasks_exists;
+    std::set<std::pair<uintptr_t, ssize_t>> wgrpc_connect_exists;
+    std::set<manapi::net::wgrpc::net_listener *> wgrpc_tcp_listeners;
+};
 
-decltype(wgrpc_tasks_exists)::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
-    return wgrpc_tasks_exists.find({static_cast<std::uintptr_t>(keys[1]), static_cast<ssize_t>(keys[0])});
+struct manapi::net::wgrpc::server_ctx::data_t {
+    multithread_storage ms;
+    async::shared_cthread ctx;
+};
+
+struct manapi::net::wgrpc::server::data_t {
+    server_ctx ctx;
+    std::shared_ptr<multithread_storage::worker_t> worker;
+    manapi::json data;
+    std::unique_ptr<grpc::Server> server;
+    std::shared_ptr<wgrpc::config> config;
+    std::size_t finishid;
+};
+
+thread_local wgrpc_thread_local_storage_t wgrpc_storage;
+
+std::set<std::pair<uintptr_t, ssize_t>>::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
+    return wgrpc_storage.wgrpc_tasks_exists.find({static_cast<std::uintptr_t>(keys[1]), static_cast<ssize_t>(keys[0])});
 }
 
-decltype(wgrpc_connect_exists)::iterator wgrpc_connect_find (std::intptr_t keys[2]) {
-    return wgrpc_connect_exists.find({static_cast<std::uintptr_t>(keys[1]), static_cast<ssize_t>(keys[0])});
-}
-
-manapi::net::wgrpc::config::config(const manapi::json &n) {
-    this->buffer_size = config::get_config_param<std::size_t>(n, "buffer_size", 4096);
-    this->max_buffered_size = config::get_config_param<std::size_t>(n, "max_buffered_size", 65536);
-    this->ssl = config::get_config_object_param(n, "ssl", json::object());
-    this->backlog = config::get_config_param(n, "backlog", 10);
-}
-
-manapi::net::wgrpc::net_listener::net_listener(absl::AnyInvocable<void(absl::Status)> on_shutdown) {
-    this->on_shutdown = std::move(on_shutdown);
-    this->ev = manapi::async::current()->eventloop();
+std::set<std::pair<uintptr_t, ssize_t>>::iterator wgrpc_connect_find (std::intptr_t keys[2]) {
+    return wgrpc_storage.wgrpc_connect_exists.find({static_cast<std::uintptr_t>(keys[1]), static_cast<ssize_t>(keys[0])});
 }
 
 void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_eventloop ev, absl::AnyInvocable<void(absl::Status)> on_shutdown) {
@@ -69,6 +75,62 @@ void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_eve
     catch (std::exception const &e) {
         manapi_log_error("grpc:Close tcp listener failed due to %s", e.what());
     }
+}
+bool task_handle_cancel (grpc_event_engine::experimental::EventEngine::TaskHandle handle) {
+    auto it = wgrpc_tasks_find(handle.keys);
+    if (it == wgrpc_storage.wgrpc_tasks_exists.end())
+        return false;
+
+    wgrpc_storage.wgrpc_tasks_exists.erase(it);
+
+    /* timer */
+    std::unique_ptr<manapi::timer> timer (reinterpret_cast<manapi::timer *> (
+        std::exchange(handle.keys[1], 0)));
+
+    if (!timer)
+        return false;
+
+    timer->stop();
+
+    return true;
+}
+
+bool task_handle_cancel (manapi::timer *t, long long time) {
+    grpc_event_engine::experimental::EventEngine::TaskHandle handle;
+    handle.keys[0] = time;
+    handle.keys[1] = reinterpret_cast<std::intptr_t>(t);
+    return task_handle_cancel(handle);
+}
+
+bool manapi::net::wgrpc::event_engine_wrapper::Cancel(TaskHandle handle) {
+    auto &ctx = manapi::async::internal::current_();
+    if (ctx) {
+        return task_handle_cancel(handle);
+    }
+
+    this->ev->custom_callback([this, handle] (event_loop *ev)
+        -> void { this->Cancel(handle); });
+
+    return true;
+}
+
+void wgrpc_shutdown () {
+    while (!wgrpc_storage.wgrpc_tcp_listeners.empty()) {
+        auto it = wgrpc_storage.wgrpc_tcp_listeners.begin();
+        (*it)->shutdown(false);
+    }
+}
+
+manapi::net::wgrpc::config::config(const manapi::json &n) {
+    this->buffer_size = config::get_config_param<std::size_t>(n, "buffer_size", 4096);
+    this->max_buffered_size = config::get_config_param<std::size_t>(n, "max_buffered_size", 65536);
+    this->ssl = config::get_config_object_param(n, "ssl", json::object());
+    this->tcp_backlog = config::get_config_param(n, "tcp_backlog", 10);
+}
+
+manapi::net::wgrpc::net_listener::net_listener(absl::AnyInvocable<void(absl::Status)> on_shutdown) {
+    this->on_shutdown = std::move(on_shutdown);
+    this->ev = manapi::async::current()->eventloop();
 }
 
 manapi::net::wgrpc::net_listener::~net_listener() {
@@ -102,14 +164,23 @@ absl::Status manapi::net::wgrpc::net_listener::Start() {
 
 void manapi::net::wgrpc::net_listener::shutdown(bool notify) noexcept {
     if (this->connection) {
-        assert(async::internal::current_());
-        wgrpc_tcp_listeners.erase(this);
+        auto &s = async::internal::current_();
+        if (s) {
+            wgrpc_storage.wgrpc_tcp_listeners.erase(this);
             unbind_net_listener(std::move(this->connection), this->ev, notify ? std::move(this->on_shutdown) : nullptr);
+        }
+        else {
+            this->ev->custom_callback([this, ev = this->ev, notify, conn = std::move(this->connection), cb = std::move(on_shutdown)] (event_loop *ev_) mutable
+                -> void {
+                wgrpc_storage.wgrpc_tcp_listeners.erase(this);
+                unbind_net_listener(conn, ev, notify ? std::move(cb) : nullptr);
+            });
+        }
     }
 }
 
 void manapi::net::wgrpc::net_listener::set(ev::shared_tcp connection) {
-    assert(wgrpc_tcp_listeners.insert(this).second);
+    assert(wgrpc_storage.wgrpc_tcp_listeners.insert(this).second);
     this->connection = std::move(connection);
 }
 
@@ -408,44 +479,6 @@ manapi::net::wgrpc::event_engine_wrapper::~event_engine_wrapper() {
 
 }
 
-bool task_handle_cancel (grpc_event_engine::experimental::EventEngine::TaskHandle handle) {
-    auto it = wgrpc_tasks_find(handle.keys);
-    if (it == wgrpc_tasks_exists.end())
-        return false;
-
-    wgrpc_tasks_exists.erase(it);
-
-    /* timer */
-    std::unique_ptr<manapi::timer> timer (reinterpret_cast<manapi::timer *> (
-        std::exchange(handle.keys[1], 0)));
-
-    if (!timer)
-        return false;
-
-    timer->stop();
-
-    return true;
-}
-
-bool task_handle_cancel (manapi::timer *t, long long time) {
-    grpc_event_engine::experimental::EventEngine::TaskHandle handle;
-    handle.keys[0] = time;
-    handle.keys[1] = reinterpret_cast<std::intptr_t>(t);
-    return task_handle_cancel(handle);
-}
-
-bool manapi::net::wgrpc::event_engine_wrapper::Cancel(TaskHandle handle) {
-    auto &ctx = manapi::async::internal::current_();
-    if (ctx) {
-        return task_handle_cancel(handle);
-    }
-
-    this->ev->custom_callback([this, handle] (event_loop *ev)
-        -> void { this->Cancel(handle); });
-
-    return true;
-}
-
 grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrpc::event_engine_wrapper::Connect(
     OnConnectCallback on_connect, const ResolvedAddress &addr,
     const grpc_event_engine::experimental::EndpointConfig &args,
@@ -514,7 +547,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
     auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
 
-    assert(wgrpc_connect_exists.insert({reinterpret_cast<std::uintptr_t>(data.get()), time}).second);
+    assert(wgrpc_storage.wgrpc_connect_exists.insert({reinterpret_cast<std::uintptr_t>(data.get()), time}).second);
 
     handle.keys[0] = time;
     handle.keys[1] = reinterpret_cast<std::intptr_t>(data.release());
@@ -545,10 +578,10 @@ bool manapi::net::wgrpc::event_engine_wrapper::CancelConnect(ConnectionHandle ha
     //assert(ctx && "bug: I think grpc closes the connection only in the event loop");
     if (ctx) {
         auto it = wgrpc_connect_find(handle.keys);
-        if (it == wgrpc_connect_exists.end())
+        if (it == wgrpc_storage.wgrpc_connect_exists.end())
             return false;
 
-        wgrpc_connect_exists.erase(it);
+        wgrpc_storage.wgrpc_connect_exists.erase(it);
 
         std::unique_ptr<wgrpc_connection_data_t> p (reinterpret_cast<wgrpc_connection_data_t *> (std::exchange(handle.keys[1], 0)));
         if (!p)
@@ -628,7 +661,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
 
 
 
-    assert(wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(timer.get()), time}).second);
+    assert(wgrpc_storage.wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(timer.get()), time}).second);
 
     task.keys[0] = time;
     task.keys[1] = reinterpret_cast<std::intptr_t> (timer.release());
@@ -653,7 +686,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
             task_handle_cancel(ptr, time);
         });
 
-    assert(wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(timer.get()), time}).second);
+    assert(wgrpc_storage.wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(timer.get()), time}).second);
 
     task.keys[0] = time;
     task.keys[1] = reinterpret_cast<std::intptr_t> (timer.release());
@@ -674,20 +707,6 @@ absl::StatusOr<std::unique_ptr<grpc_event_engine::experimental::EventEngine::DNS
     }
     return absl::UnimplementedError("dns");
 }
-
-struct manapi::net::wgrpc::server_ctx::data_t {
-    multithread_storage ms;
-    async::shared_cthread ctx;
-};
-
-struct manapi::net::wgrpc::server::data_t {
-    server_ctx ctx;
-    std::shared_ptr<multithread_storage::worker_t> worker;
-    manapi::json data;
-    std::unique_ptr<grpc::Server> server;
-    std::shared_ptr<wgrpc::config> config;
-    std::size_t finishid;
-};
 
 manapi::future<manapi::error::status_or<std::shared_ptr<grpc::ChannelCredentials>>> manapi::net::wgrpc::secure_channel_credentials(std::string certfile) {
     try {
@@ -733,8 +752,8 @@ manapi::net::wgrpc::server::server(wgrpc::server_ctx ctx) {
 manapi::net::wgrpc::server::~server() = default;
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::config(std::string path) {
-    if (this->data_->ctx.ctx() != manapi::async::current())
-        co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
+    // if (this->data_->ctx.ctx() != manapi::async::current())
+    //     co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
 
     if (this->data_->worker)
         co_return error::status_already_exists("wgrpc:Config exists");
@@ -775,8 +794,8 @@ err:
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::config_object(manapi::json config) {
-    if (this->data_->ctx.ctx() != manapi::async::current())
-        co_return error::status_already_exists("grpc:Server can only be run in a single instance");
+    // if (this->data_->ctx.ctx() != manapi::async::current())
+    //     co_return error::status_already_exists("grpc:Server can only be run in a single instance");
 
     if (this->data_->worker)
         co_return error::status_already_exists("wgrpc:Config exists");
@@ -811,8 +830,8 @@ err:
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::move_only_function<manapi::error::status(grpc::ServerBuilder &b)> cb) {
-    if (this->data_->ctx.ctx() != manapi::async::current())
-        co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
+    // if (this->data_->ctx.ctx() != manapi::async::current())
+    //     co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
 
     if (this->data_->finishid) {
         co_return error::status_already_exists("grpc:Server is already running");
@@ -837,7 +856,7 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
     std::string server_address = absl::StrFormat("%s:%s", ip.data(), port.data());
 
     grpc::ServerBuilder builder;
-    auto cq = builder.AddCompletionQueue();
+    //auto cq = builder.AddCompletionQueue();
 
     std::shared_ptr<grpc::ServerCredentials> creds;
     if (ssl_it == grpc_->end<json::OBJECT>() || !ssl_it->second.is_object())
@@ -845,12 +864,13 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
     else {
         auto const cert = ci::get_config_param<std::string>(ssl_it->second, "cert", {});
         auto const key = ci::get_config_param<std::string>(ssl_it->second, "key", {});
+        auto const peer_verify = ci::get_config_param<bool>(ssl_it->second, "verify_peer", true);
 
         try {
             grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
             pkcp.cert_chain = co_await manapi::filesystem::async_read(cert);
             pkcp.private_key = co_await manapi::filesystem::async_read(key);
-            grpc::SslServerCredentialsOptions ssl_opts(GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE);
+            grpc::SslServerCredentialsOptions ssl_opts(peer_verify ? GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY : GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE);
             ssl_opts.pem_root_certs="";
             ssl_opts.pem_key_cert_pairs.push_back(pkcp);
             creds = grpc::SslServerCredentials(ssl_opts);
@@ -869,14 +889,10 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
 
     try {
         this->data_->finishid = manapi::async::current()->eventloop()->subscribe_finish([data = this->data_] () -> manapi::future<> {
-            manapi_log_trace("grpc:Shutdown() finished");
-            while (!wgrpc_tcp_listeners.empty()) {
-                auto it = wgrpc_tcp_listeners.begin();
-                (*it)->shutdown(false);
-            }
-
+            //wgrpc_shutdown();
             co_await data->ctx.storage().unsubscribe(std::move(data->worker));
-
+            co_await server::stop_(data);
+            manapi_log_trace("grpc:Shutdown() finished");
             co_return;
         });
     }
@@ -894,8 +910,7 @@ manapi::error::status manapi::net::wgrpc::server::stop() {
             return manapi::error::status_not_found("wgrpc:Server isn't running");
 
         manapi::async::current()->eventloop()->unsubscribe_finish(std::exchange(this->data_->finishid, 0));
-        if (this->data_->server)
-            this->data_->server->Shutdown();
+        manapi::async::run(server::stop_(this->data_));
 
         return error::status_ok();
     }
@@ -903,6 +918,16 @@ manapi::error::status manapi::net::wgrpc::server::stop() {
         manapi_log_error("%s due to %s", "wgrpc stop:Something get wrong", e.what());
     }
     return error::status_internal("wgrpc stop:Something get wrong");
+}
+
+manapi::future<> manapi::net::wgrpc::server::stop_(std::shared_ptr<data_t> data) {
+    manapi::async::tmutex mx;
+    mx.try_to_lock();
+    manapi::async::current()->eventloop()->append_task([&mx, server = data->server.get()] (const ev::shared_work &w) -> void {
+        server->Shutdown();
+        mx.unlock();
+    }, nullptr);
+    co_await mx.lock_guard();
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::subscribe_() {

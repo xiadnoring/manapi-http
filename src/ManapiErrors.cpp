@@ -26,7 +26,7 @@ std::string_view manapi::get_msg_by_err_num (manapi::err_num err) {
         case manapi::ERR_DEADLINE_EXCEEDED: return "ERR_DEADLINE_EXCEEDED";
         case manapi::ERR_PERMISSION_DENIED: return "ERR_PERMISSION_DENIED";
         case manapi::ERR_RESOURCE_EXHAUSTED: return "ERR_RESOURCE_EXHAUSTED";
-        case manapi::ERR_AI_FAILED_PRECONDITION: return "ERR_AI_FAILED_PRECONDITION";
+        case manapi::ERR_FAILED_PRECONDITION: return "ERR_FAILED_PRECONDITION";
         case manapi::ERR_FILESYSTEM_FAILED: return "ERR_FILESYSTEM_FAILED";
     }
 
@@ -150,12 +150,16 @@ manapi::error::status manapi::error::status_unauthenticated(std::string_view msg
     return {ERR_UNAUTHENTICATED, msg};
 }
 
+manapi::error::status manapi::error::status_resource_exhausted() {
+    return {ERR_RESOURCE_EXHAUSTED, "bad alloc"};
+}
+
 manapi::error::status manapi::error::status_resource_exhausted(std::string_view msg) {
     return {ERR_RESOURCE_EXHAUSTED, msg};
 }
 
 manapi::error::status manapi::error::status_failed_precondition(std::string_view msg) {
-    return {ERR_AI_FAILED_PRECONDITION, msg};
+    return {ERR_FAILED_PRECONDITION, msg};
 }
 
 manapi::error::status manapi::error::status_aborted(std::string_view msg) {
@@ -231,7 +235,7 @@ manapi::error::status manapi::error::status_resource_exhausted(std::string_view 
 }
 
 manapi::error::status manapi::error::status_failed_precondition(std::string_view msg, manapi::json data) {
-    return {ERR_AI_FAILED_PRECONDITION, msg, std::move(data)};
+    return {ERR_FAILED_PRECONDITION, msg, std::move(data)};
 }
 
 manapi::error::status manapi::error::status_aborted(std::string_view msg, manapi::json data) {

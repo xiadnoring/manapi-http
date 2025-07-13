@@ -1,5 +1,5 @@
 /*
- * =====================[SHA256]==========================
+ * =====================[sha256]==========================
  * Updated to C++, zedwood.com 2012
  * Based on Olivier Gay's version
  * See Modified BSD License below:
@@ -39,9 +39,37 @@
 #include <cstring>
 #include <fstream>
 #include "ManapiHash.hpp"
+
+#include "ManapiDebug.hpp"
 #include "include/ManapiUtils.hpp"
+
+
+#define SHA2_SHFR(x, n)    (x >> n)
+#define SHA2_ROTR(x, n)   ((x >> n) | (x << ((sizeof(x) << 3) - n)))
+#define SHA2_ROTL(x, n)   ((x << n) | (x >> ((sizeof(x) << 3) - n)))
+#define SHA2_CH(x, y, z)  ((x & y) ^ (~x & z))
+#define SHA2_MAJ(x, y, z) ((x & y) ^ (x & z) ^ (y & z))
+#define SHA256_F1(x) (SHA2_ROTR(x,  2) ^ SHA2_ROTR(x, 13) ^ SHA2_ROTR(x, 22))
+#define SHA256_F2(x) (SHA2_ROTR(x,  6) ^ SHA2_ROTR(x, 11) ^ SHA2_ROTR(x, 25))
+#define SHA256_F3(x) (SHA2_ROTR(x,  7) ^ SHA2_ROTR(x, 18) ^ SHA2_SHFR(x,  3))
+#define SHA256_F4(x) (SHA2_ROTR(x, 17) ^ SHA2_ROTR(x, 19) ^ SHA2_SHFR(x, 10))
+#define SHA2_UNPACK32(x, str)                 \
+{                                             \
+*((str) + 3) = (uint8) ((x)      );       \
+*((str) + 2) = (uint8) ((x) >>  8);       \
+*((str) + 1) = (uint8) ((x) >> 16);       \
+*((str) + 0) = (uint8) ((x) >> 24);       \
+}
+#define SHA2_PACK32(str, x)                   \
+{                                             \
+*(x) =   ((uint32) *((str) + 3)      )    \
+| ((uint32) *((str) + 2) <<  8)    \
+| ((uint32) *((str) + 1) << 16)    \
+| ((uint32) *((str) + 0) << 24);   \
+}
+
 namespace manapi::net::hash {
-    const unsigned int SHA256::sha256_k[64] = //UL = uint32
+    const unsigned int sha256::sha256_k[64] = //UL = uint32
             {0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
              0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
              0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
@@ -59,7 +87,7 @@ namespace manapi::net::hash {
              0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
              0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
 
-    void SHA256::transform(const unsigned char *message, unsigned int block_nb)
+    void sha256::transform(const unsigned char *message, unsigned int block_nb)
     {
         uint32 w[64];
         uint32 wv[8];
@@ -97,7 +125,7 @@ namespace manapi::net::hash {
         }
     }
 
-    void SHA256::init()
+    sha256::sha256() : m_block{}
     {
         m_h[0] = 0x6a09e667;
         m_h[1] = 0xbb67ae85;
@@ -111,7 +139,7 @@ namespace manapi::net::hash {
         m_tot_len = 0;
     }
 
-    void SHA256::update(const unsigned char *message, unsigned int len)
+    void sha256::update(const unsigned char *message, unsigned int len)
     {
         unsigned int block_nb;
         unsigned int new_len, rem_len, tmp_len;
@@ -134,7 +162,7 @@ namespace manapi::net::hash {
         m_tot_len += (block_nb + 1) << 6;
     }
 
-    void SHA256::final(unsigned char *digest)
+    void sha256::final(unsigned char *digest)
     {
         unsigned int block_nb;
         unsigned int pm_len;
@@ -153,20 +181,39 @@ namespace manapi::net::hash {
         }
     }
 
-    std::string sha256(std::string input)
-    {
-        unsigned char digest[SHA256::DIGEST_SIZE];
-        memset(digest,0,SHA256::DIGEST_SIZE);
+    manapi::error::status_or<std::string> sha256str (std::string_view input) {
+        try {
+            std::string output;
+            output.resize(sha256::DIGEST_SIZE);
+            auto err = sha256str(input, output.data(), output.size());
+            if (!err.ok())
+                return std::move(err);
+            return std::move(output);
+        }
+        catch (std::bad_alloc const &e) {
+            return error::status_resource_exhausted();
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s due to %s", "sha256str:Failed", e.what());
+        }
+        return error::status_internal("sha256str:Failed");
+    }
 
-        SHA256 ctx = SHA256();
-        ctx.init();
-        ctx.update( (unsigned char*)input.c_str(), input.length());
+    manapi::error::status sha256str(std::string_view input, char *output, std::size_t size) {
+        if (size < sha256::DIGEST_SIZE)
+            return error::status_out_of_range("sha256str:Output string is too small");
+        auto digest = reinterpret_cast<uint8_t *> (output);
+
+        memset(digest,0,sha256::DIGEST_SIZE);
+
+        sha256 ctx;
+        ctx.update( reinterpret_cast<const uint8_t*>(input.data()), input.size());
         ctx.final(digest);
 
-        char buf[2*SHA256::DIGEST_SIZE+1];
-        buf[2*SHA256::DIGEST_SIZE] = 0;
-        for (int i = 0; i < SHA256::DIGEST_SIZE; i++)
+        char buf[2*sha256::DIGEST_SIZE];
+        for (int i = 0; i < sha256::DIGEST_SIZE; i++)
             sprintf(buf+i*2, "%02x", digest[i]);
-        return std::string(buf);
+
+        return error::status_ok();
     }
 }

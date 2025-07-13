@@ -29,24 +29,24 @@ enum http_v3_stream_flags {
 };
 
 template<typename T>
-requires(version_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+requires(version_is_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 bool manapi_quiche_h3_event_headers_has_more_frames_ (T event) {
     return quiche_h3_event_headers_has_more_frames(static_cast<T>(event));
 }
 
 template<typename T>
-requires(version_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+requires(version_is_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 bool manapi_quiche_h3_event_headers_has_more_frames_ (T event) {
     return quiche_h3_event_headers_has_body(static_cast<T>(event));
 }
 template<typename ...Args>
-requires(version_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+requires(version_is_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 ssize_t manapi_quiche_h3_send_additional_headers_(Args&&...args) {
     return quiche_h3_send_additional_headers(args...);
 }
 
 template<typename ...Args>
-requires(version_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+requires(version_is_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 ssize_t manapi_quiche_h3_send_additional_headers_(Args&&...args) { /* skip */ return 0; }
 
 manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(net::http::site site,
@@ -108,7 +108,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
 
     do {
         if (auto rhs = this->udp_accept_->recv_start()) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_AI_FAILED_PRECONDITION, "couldn't start recv due to result - {}", rhs);
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't start recv due to result - {}", rhs);
             goto err;
         }
 
@@ -116,11 +116,11 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         this->quiche_h3_config_ = quiche_h3_config_new();
 
         if (quiche_config_load_cert_chain_from_pem_file(this->quiche_config_, cert.data())) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION, "QUICHE: failed to load cert chain from pem file: {}", cert);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load cert chain from pem file: {}", cert);
         }
 
         if (quiche_config_load_priv_key_from_pem_file(this->quiche_config_, key.data())) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION, "QUICHE: failed to load priv key from pem file: {}", key);
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load priv key from pem file: {}", key);
         }
 
         if(quiche_config_set_application_protos(this->quiche_config_,
@@ -184,7 +184,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
                     else if (manapi::string::equals("bbr2", cc_algo, 0b10))
                         algo = QUICHE_CC_BBR2;
 
-                    else THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION, "invalid quic:cc_algo: {}", cc_algo);
+                    else THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "invalid quic:cc_algo: {}", cc_algo);
 
                     quiche_config_set_cc_algorithm (this->quiche_config_, algo);
                 }
@@ -198,7 +198,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
     while (0);
     return;
 err:
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_AI_FAILED_PRECONDITION, "quiche: init(...) failed");
+    THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "quiche: init(...) failed");
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::stop(std::function<void()> cb) {
@@ -1189,7 +1189,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::cloudfla
                         int rhs;
                         auto cheaders = q_headers.get() + header_cursor;
                         if (header_cursor != 0) {
-                            if constexpr (version_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0")) {
+                            if constexpr (version_is_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0")) {
                                 rhs = manapi_quiche_h3_send_additional_headers_(s->conn->http3_conn, s->conn->conn, s->id, cheaders, i - header_cursor, false, finish && i == headers_size);
                             }
                             else {

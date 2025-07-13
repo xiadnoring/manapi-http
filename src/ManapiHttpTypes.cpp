@@ -1,7 +1,7 @@
 #include "ManapiHttpTypes.hpp"
 #include "include/ManapiUtils.hpp"
 
-static const std::map<std::size_t, std::string_view> status_to_string_map = {
+static const std::map<int, std::string_view> status_to_string_map = {
     {100, manapi::net::http::STATUS.CONTINUE_100},
     {101, manapi::net::http::STATUS.SWITCHING_PROTOCOLS_101},
     {102, manapi::net::http::STATUS.PROCESSING_102},
@@ -81,10 +81,10 @@ static const std::map<std::size_t, std::string_view> status_to_string_map = {
     {526, manapi::net::http::STATUS.INVALID_SSL_CERTIFICATE_526}
 };
 
-std::string_view manapi::net::http::status_to_string(std::size_t status) {
-    auto it = status_to_string_map.find(status);
-    if (it != status_to_string_map.end()) {
+manapi::error::status_or<std::string_view> manapi::net::http::status_to_string(int status) {
+    auto const it = status_to_string_map.find(status);
+    if (it != status_to_string_map.end())
         return it->second;
-    }
-    return STATUS.EMPTY;
+
+    return error::status_not_found("http:Status not found");
 }

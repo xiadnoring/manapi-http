@@ -2,7 +2,7 @@
 #include "include/ManapiUtils.hpp"
 #include "ManapiFilesystem.hpp"
 
-const std::map <std::string, std::string> manapi::mime::mime_by_extension = {
+const std::map <std::string_view, std::string_view> mime_by_extension = {
     {"txt", manapi::mime::types.TEXT_PLAIN},
     {"mp4", manapi::mime::types.VIDEO_MP4},
     {"js",  manapi::mime::types.TEXT_JS},
@@ -34,33 +34,32 @@ const std::map <std::string, std::string> manapi::mime::mime_by_extension = {
     {"",    manapi::mime::types.APPLICATION_OCTET_STREAM}
 };
 
-const std::set <std::string> manapi::mime::mime_types_media = {"video", "audio", "image"};
-const std::set <std::string> manapi::mime::mimes_binary = {manapi::mime::types.APPLICATION_OCTET_STREAM, manapi::mime::types.APPLICATION_ZIP, manapi::mime::types.APPLICATION_GZIP, manapi::mime::types.APPLICATION_TAR, manapi::mime::types.APPLICATION_RAR};
+const std::set <std::string_view> mime_types_media = {"video", "audio", "image"};
+const std::set <std::string_view> mimes_binary = {manapi::mime::types.APPLICATION_OCTET_STREAM, manapi::mime::types.APPLICATION_ZIP, manapi::mime::types.APPLICATION_GZIP, manapi::mime::types.APPLICATION_TAR, manapi::mime::types.APPLICATION_RAR};
 
-const std::string_view manapi::mime::type_mime(const std::string &mime) {
-    auto it = mime.find('/');
-    if (it == std::string::npos) { return std::string_view (mime.data(), 0); }
-    return std::string_view (mime.data(), it);
+std::string_view manapi::mime::mime_type(std::string_view mime) {
+    auto const it = mime.find('/');
+    if (it == std::string::npos) { return std::string_view{}; }
+    return {mime.data(), it};
 }
 
-bool manapi::mime::mime_media (const std::string &mime) {
+bool manapi::mime::mime_media (std::string_view mime) {
     // string_view cannot be used
-    return mime_types_media.contains(std::string(type_mime(mime)));
+    return mime_types_media.contains(std::string(mime_type(mime)));
 }
 
-bool manapi::mime::mime_partitial_data(const std::string &mime) {
+bool manapi::mime::mime_partitial_data(std::string_view mime) {
     // string_view cannot be used
-    const auto type = std::string(type_mime(mime));
+    const auto type = std::string(mime_type(mime));
     return mime_types_media.contains(type) || mimes_binary.contains(mime);
 }
 
-const std::string & manapi::mime::mime_by_file_path(const std::string &path) {
+std::string_view manapi::mime::mime_by_file_path(std::string_view path) {
     const std::string extension = manapi::filesystem::path::extension(path);
 
-    if (manapi::mime::mime_by_extension.contains(extension))
-    {
-        return manapi::mime::mime_by_extension.at(extension);
-    }
+    auto const mit = mime_by_extension.find(extension);
+    if (mit != mime_by_extension.end())
+        return mit->second;
 
-    return manapi::mime::mime_by_extension.at("bin");
+    return manapi::mime::types.APPLICATION_OCTET_STREAM;
 }

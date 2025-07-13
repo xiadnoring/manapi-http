@@ -44,12 +44,13 @@ manapi::future<std::shared_ptr<manapi::multithread_storage::worker_t>> manapi::m
                 if (err)
                     return;
 
-                w->cb(*this->data_->data);
+                this->call_sync_callback_(w.get());
             });
     });
 
     auto lk = co_await this->data_->mx.lock_guard();
     this->data_->workers.insert(w);
+    this->call_sync_callback_(w.get());
     co_return std::move(w);
 }
 
@@ -123,6 +124,16 @@ void manapi::multithread_storage::notify_(const std::shared_ptr<worker_t> &m) {
 
 void manapi::multithread_storage::unsubscribe_(const std::shared_ptr<worker_t> &w) {
     this->data_->workers.erase(w);
+}
+
+void manapi::multithread_storage::call_sync_callback_(worker_t *w) {
+    try {
+        if (w)
+            w->cb(*this->data_->data);
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("mutlithread storage: subscribe cb failed due to %s", e.what());
+    }
 }
 
 void manapi::multithread_storage::call_callback_(worker_t *w) {

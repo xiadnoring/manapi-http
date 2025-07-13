@@ -227,7 +227,7 @@ namespace manapi::net {
                 }
             }
             catch (std::exception const &e) {
-                throw manapi::exception(manapi::ERR_AI_FAILED_PRECONDITION,
+                throw manapi::exception(manapi::ERR_FAILED_PRECONDITION,
                     std::format("param is invalid: {}", e.what()));
             }
 

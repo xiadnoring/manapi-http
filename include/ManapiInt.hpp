@@ -1,3 +1,10 @@
+/**
+ * @file ManapiInt.hpp
+ * @brief Provides integer types
+ *
+ * @author Timur Zajnullin
+ */
+
 #pragma once
 
 #if defined(_MSC_VER)

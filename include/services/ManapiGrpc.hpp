@@ -47,6 +47,8 @@ namespace manapi::net::wgrpc {
 
         manapi::error::status stop ();
     private:
+        static manapi::future<> stop_ (std::shared_ptr<data_t> data);
+
         manapi::future<manapi::error::status> subscribe_ ();
 
         void setup_user_config_ ();

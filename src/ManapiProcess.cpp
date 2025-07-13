@@ -3,11 +3,12 @@
 #include "ManapiProcess.hpp"
 #include "include/ManapiUtils.hpp"
 #include "ManapiDebug.hpp"
+#include "services/ManapiEventLoop.hpp"
 
-manapi::error::status manapi::process::set_env(std::string_view name, std::string_view key) {
-    if (auto rhs = uv_os_setenv(name.data(), key.data())) {
-        return error::status_internal("failed to set env");
-    }
+manapi::error::status manapi::process::set_env(std::string_view name, std::string_view value) {
+    if (auto rhs = uv_os_setenv(name.data(), value.data()))
+        return error::status_internal("set_env:Failed to set env", {
+            {"msg", manapi::ev::strerror(rhs)}, {"code", rhs}});
     return error::status_ok();
 }
 
@@ -22,7 +23,8 @@ manapi::error::status_or<std::string> manapi::process::get_env(std::string_view 
             continue;
         }
 
-        return error::status_internal("failed to get env");
+        return error::status_internal("get_env:Failed to get env", {
+            {"msg", manapi::ev::strerror(rhs)}, {"code", rhs}});
     }
 
     result.resize(size);

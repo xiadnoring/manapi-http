@@ -41,7 +41,7 @@ manapi::net::http::http_handler_function manapi::net::http::site::default_error_
     .get_mask = nullptr,
 };
 
-std::string manapi::net::http::site::default_config_name      = "config_.json";
+std::string_view manapi::net::http::site::default_config_name      = "config_.json";
 
 // ======================[ configs funcs]==========================
 
@@ -99,6 +99,9 @@ const std::string & manapi::net::http::site::config_cache_dir() {
 }
 
 void manapi::net::http::site::on_config_update(std::shared_ptr<data_t> data, const manapi::json &n) {
+    if (n.is_null())
+        return;
+
     auto &site = data->config_->at("site");
     auto &cache = data->config_->at("cache");
     auto &site_time =data->config_->at("site_time");
@@ -281,14 +284,14 @@ manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {
         co_await manapi::filesystem::async_mkdir(cache_path, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
 
         manapi::filesystem::path::append_delimiter(cache_path);
-        auto path = cache_path + site::default_config_name;
+        auto path = manapi::filesystem::path::join(cache_path, std::string{site::default_config_name});
         try {
             if (co_await manapi::filesystem::async_exists(path)) {
                 cache = manapi::json(co_await manapi::filesystem::async_read(path), true);
             }
         }
         catch (std::exception const &e) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_AI_FAILED_PRECONDITION, "cached data couldn't be loaded from the config due to {}", e.what());
+            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "cached data couldn't be loaded from the config due to {}", e.what());
         }
     }
     catch (manapi::exception const &e) {
@@ -463,12 +466,12 @@ manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> da
 }
 
 void manapi::net::http::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION, "The method {} already contains in the url {}", method, url); }
+    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "The method {} already contains in the url {}", method, url); }
 }
 
 void manapi::net::http::site::check_exists_method_on_url(const std::string &url,
     const std::unique_ptr<handlers_static_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION, "The method {} already contains in the static url {}", method, url); }
+    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "The method {} already contains in the static url {}", method, url); }
 }
 
 std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::handler(http::request_data_t *request_data) const {
@@ -716,7 +719,7 @@ manapi::net::http::http_uri_part *manapi::net::http::site::handler(std::string m
             break;
         }
         default:
-            THROW_MANAPIHTTP_EXCEPTION(ERR_AI_FAILED_PRECONDITION, "{}", "can not use the special pages with the static files");
+            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "{}", "can not use the special pages with the static files");
     }
 
 

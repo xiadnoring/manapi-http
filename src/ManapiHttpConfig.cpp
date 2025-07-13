@@ -51,7 +51,7 @@ manapi::net::http::config::config(const json &config) {
     this->max_header_key_size = get_config_param<ssize_t>(config, "max_header_key_size", 64);
     this->max_header_value_size = get_config_param<ssize_t>(config, "max_header_value_size", 4096);
     this->buffer_size = get_config_param<ssize_t>(config, "buffer_size", 4096);
-    this->backlog = get_config_param<ssize_t>(config, "backlog", 200);
+    this->tcp_backlog = get_config_param<ssize_t>(config, "tcp_backlog", 200);
 
     this->keep_alive = get_config_param<ssize_t>(config, "keep_alive", 2);
     this->implementation = get_config_param<std::string>(config, "implementation", "default");
@@ -128,9 +128,10 @@ std::string_view manapi::net::http::config::stringify_http_version(int version) 
     }
 }
 
-manapi::net::http::versions::http manapi::net::http::config::parse_http_version(std::string_view version) {
+manapi::error::status_or<manapi::net::http::versions::http> manapi::net::http::config::parse_http_version(std::string_view version) MANAPIHTTP_NOEXPECT {
     auto it = http_version_to_parse.find(version);
     if (it != http_version_to_parse.end())
         return it->second;
-    return http::versions::http::HTTP_v1_1;
+
+    return error::status_not_found("http version invalid");
 }

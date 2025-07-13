@@ -57,6 +57,8 @@ namespace manapi {
 
         void unsubscribe_ (const std::shared_ptr<worker_t> &w);
 
+        void call_sync_callback_ (worker_t *w);
+
         void call_callback_ (worker_t *w);
 
         std::shared_ptr<data_t> data_;

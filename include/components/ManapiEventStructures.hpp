@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "uv.h"
+#include "../ManapiUtils.hpp"
 #include "../ManapiDebug.hpp"
 
 #ifdef _WIN32
@@ -11,7 +12,7 @@
 #endif
 
 #define MANAPI_EV_NODISCARD [[nodiscard]]
-#define MANAPI_EV_NOEXPECT noexcept(true)
+#define MANAPI_EV_NOEXPECT MANAPIHTTP_NOEXPECT
 #define MANAPI_EV_CAST_STREAM(x) reinterpret_cast<uv_stream_t *> (x)
 #define MANAPI_EV_CAST_HANDLE(x) reinterpret_cast <uv_handle_t *> (x)
 #define MANAPI_EV_DEFAULT_PRIVATE_VAR(name_class, name_struct)
@@ -25,7 +26,7 @@
         bool is_active () MANAPI_EV_NOEXPECT; \
         ~name_class ();
 #define MANAPI_EV_STREAM(name_class, name_struct) \
-        int listen (int backlog, uv_connection_cb cb) MANAPI_EV_NOEXPECT; \
+        int listen (int tcp_backlog, uv_connection_cb cb) MANAPI_EV_NOEXPECT; \
         static int ip4_addr (const char *ip, int port, sockaddr_in *addr) MANAPI_EV_NOEXPECT; \
         static int ip6_addr (const char *ip, int port, sockaddr_in6 *addr) MANAPI_EV_NOEXPECT;
 #define MANAPI_EV_CHECK(expr) if (expr) { THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_INTERNAL, #expr); }
@@ -386,7 +387,7 @@ namespace manapi::ev {
 
         tcp ();
 
-        int listen (int backlog) MANAPI_EV_NOEXPECT;
+        int listen (int tcp_backlog) MANAPI_EV_NOEXPECT;
 
         int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
 
@@ -694,6 +695,9 @@ namespace manapi::ev {
     using shared_getnameinfo = std::shared_ptr<getnameinfo>;
     using shared_work = std::shared_ptr<work>;
 
+    const char *strerror (int errnum) MANAPIHTTP_NOEXPECT;
+
+    const char *namerror (int errnum) MANAPIHTTP_NOEXPECT;
 }
 
 #undef MANAPI_EV_CAST_HANDLE

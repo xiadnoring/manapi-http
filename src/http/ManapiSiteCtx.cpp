@@ -8,7 +8,7 @@ struct manapi::net::http::server_ctx::data_t {
 manapi::net::http::server_ctx::server_ctx() {
     auto n = std::make_unique<worker_data_t>();
     this->data_ = std::make_shared<data_t>(
-    multithread_storage (manapi::json::object(), static_cast<void*>(n.release()), +[] (void *ptr)
+    multithread_storage (nullptr, static_cast<void*>(n.release()), +[] (void *ptr)
         -> void { delete static_cast<worker_data_t*> (ptr); }));
 }
 

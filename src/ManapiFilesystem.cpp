@@ -405,7 +405,7 @@ template<typename T>
 bool async_fs_operation_result_error (std::shared_ptr<manapi::ev::fs> &w, typename manapi::async::promise<T>::reject_t &reject, manapi::async::cancellation_action &cancellation) {
     if (w->result() < 0) {
         cancellation.disable();
-        reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FILESYSTEM_FAILED, manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_FS_IO_OPERATIONS], uv_err_name(w->result()))));
+        reject(std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION(manapi::ERR_FILESYSTEM_FAILED, manapi::error::default_msgs[manapi::error::ERRMSG_FS_FAILURE_FS_IO_OPERATIONS], manapi::ev::namerror(w->result()))));
 
         return true;
     }
