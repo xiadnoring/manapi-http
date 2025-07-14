@@ -45,13 +45,19 @@ manapi::future<manapi::error::status> manapi::filesystem::fstream::open(int flag
         this->data->file = co_await manapi::filesystem::async_open(this->data->path, flags, mode,
             async::cancellation_action::unit(this->data->cancellation));
     }
-    catch (manapi::exception const &e) {
+    catch (std::bad_alloc const  &) {
         this->data->file = -1;
-        co_return manapi::error::status_filesystem_failed("file open failed", {{"errmsg", e.what()}});
+        co_return manapi::error::status_resource_exhausted();
+    }
+    catch (manapi::exception const &e) {
+        manapi_log_error("%s due to %s", "file open failed", e.what());
+        this->data->file = -1;
+        co_return manapi::error::status_filesystem_failed("file open failed");
     }
     catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "file open failed", e.what());
         this->data->file = -1;
-        co_return manapi::error::status_filesystem_failed("file open failed", {{"errmsg", e.what()}});
+        co_return manapi::error::status_filesystem_failed("file open failed");
     }
 
     co_return manapi::error::status_ok();

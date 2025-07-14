@@ -3,31 +3,21 @@
 #include "ManapiJsonMask.hpp"
 
 namespace manapi {
-    inline manapi::json format_path (const std::vector<std::string_view> &p) {
-        manapi::json a = manapi::json::array();
-        a.as_array().reserve(p.size());
-        for (const auto &e : p) {
-            if (e.data() || !e.size())
-                a.push_back(std::string(e));
-            else
-                a.push_back(std::to_string(e.size()));
+    inline std::string json_format_path (const std::vector<std::string_view> *p) {
+        std::string res;
+        if (p) {
+            std::size_t size = 0;
+            for (auto &c : *p)
+                size += c.size();
+            size += p->size() - 1;
+            res.reserve(size);
+            for (const auto &c : *p) {
+                res += c;
+                res += '/';
+            }
         }
-        return std::move(a);
-    }
 
-    inline manapi::json jm_msg_with_path (std::vector<std::string_view> *p) {
-        if (p)
-            return {{"path", format_path(*p)}};
-        return manapi::json::object();
-    }
-
-    template<typename T>
-    manapi::json jm_msg_with_path_and_param (std::vector<std::string_view> *p, T &&val) {
-        auto obj = manapi::json::object();
-        obj.insert({"data", std::forward<T>(val)});
-        if (p)
-            obj.insert({"path", format_path(*p)});
-        return std::move(obj);
+        return std::move(res);
     }
 
     const constexpr char *json_type_to_str (manapi::json::types type) {

@@ -1,5 +1,9 @@
 #include "components/ManapiEventStructures.hpp"
 
+#include "async/ManapiAsyncContext.hpp"
+#include "ManapiAsync.hpp"
+#include "../include/ManapiDebug.hpp"
+
 #define MANAPI_EV_NOEXPECT MANAPIHTTP_NOEXPECT
 #define MANAPI_EV_CAST_STREAM(x) reinterpret_cast<uv_stream_t *> (x)
 #define MANAPI_EV_CAST_HANDLE(x) reinterpret_cast <uv_handle_t *> (x)
@@ -877,4 +881,46 @@ const char * manapi::ev::strerror(int errnum) MANAPIHTTP_NOEXPECT {
 
 const char * manapi::ev::namerror(int errnum) MANAPIHTTP_NOEXPECT {
     return uv_err_name(errnum);
+}
+
+manapi::sys_error::status::status() {
+    this->syserr_ = 0;
+}
+
+manapi::sys_error::status::~status() = default;
+
+manapi::sys_error::status::status(manapi::err_num code, std::string_view msg, int syserr) : manapi::error::status(code, msg) {
+    this->syserr_ = syserr;
+}
+
+manapi::sys_error::status::status(status &&n) MANAPIHTTP_NOEXPECT = default;
+
+manapi::sys_error::status & manapi::sys_error::status::operator=(status &&n) MANAPIHTTP_NOEXPECT = default;
+
+void manapi::sys_error::status::log() const {
+    MANAPIHTTP_LOG ("{}: msg: {} syserr: {} sysname: {} sysmsg: {}", this->status_msg(), this->msg_, this->syserr_, this->sysname(), this->sysmsg());
+}
+
+int manapi::sys_error::status::syserr() const {
+    return this->syserr_;
+}
+
+std::string_view manapi::sys_error::status::sysname() const {
+    return ev::namerror(this->syserr_);
+}
+
+std::string_view manapi::sys_error::status::sysmsg() const {
+    return ev::strerror(this->syserr_);
+}
+
+manapi::sys_error::status manapi::sys_error::status_invalid_argument(std::string_view msg, int syserr) {
+    return sys_error::status{ERR_INVALID_ARGUMENT, msg, syserr};
+}
+
+manapi::sys_error::status manapi::sys_error::status_internal(std::string_view msg, int syserr) {
+    return sys_error::status{ERR_INTERNAL, msg, syserr};
+}
+
+manapi::sys_error::status manapi::sys_error::status_ok() {
+    return sys_error::status{ERR_OK, "OK", 0};
 }

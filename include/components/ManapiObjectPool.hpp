@@ -105,7 +105,8 @@ namespace manapi {
             }
             catch (std::exception const &e) {
                 this->free(b, sizeof (T));
-                return manapi::error::status_internal("object init failed", {"msg", e.what()});
+                manapi_log_error("%s due to %s", "object init failed", e.what());
+                return manapi::error::status_internal("object init failed");
             }
         }
 

@@ -772,7 +772,7 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::config(std::st
             if (!co_await manapi::filesystem::async_exists(path))
                 co_await manapi::filesystem::async_write(path, "{}", ev::IRUSR|ev::IWUSR|ev::IXUSR|ev::IRGRP|ev::IWGRP);
             auto text = co_await manapi::filesystem::async_read(path);
-            res = this->setup_config_(manapi::json::parse(text), n);
+            res = this->setup_config_(manapi::json::parse(text).unwrap(), n);
             if (res.ok())
                 n["grpc_path"] = std::move(path);
 

@@ -157,7 +157,8 @@ int main () {
             }
 
         }, [] (std::exception_ptr err) -> void {
-            assert(!err);
+            if (err)
+                std::rethrow_exception(err);
         });
 
         /**

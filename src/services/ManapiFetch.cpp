@@ -219,13 +219,12 @@ manapi::future<manapi::error::status> manapi::net::fetch::async_doit() {
     std::unique_ptr<curl_mime, curl_mime_deleter> form {nullptr};
 
     if (this->data->flags & FLAG_WAS_USED)
-        co_return error::status_failed_precondition("fetch was already used. create another fetch object or reinit current",
-            {{"url", this->data->url_}});
+        co_return error::status_failed_precondition("fetch was already used. create another fetch object or reinit current");
 
     this->data->flags |= FLAG_WAS_USED;
 
     if (!this->data->data_->curl)
-        co_return error::status_internal("curl can not be init", {{"url", this->data->url_}});
+        co_return error::status_internal("curl can not be init");
 
     CURLcode status;
     std::exception_ptr err{nullptr};
@@ -380,11 +379,7 @@ manapi::future<manapi::error::status> manapi::net::fetch::async_doit() {
 
         if (resp != CURLE_OK) {
             this->clear_();
-            co_return error::status_internal("Connection failed", {
-                {"url", this->data->url_},
-                {"code", static_cast<int>(resp)},
-                {"msg", curl_easy_strerror(resp)}
-            });
+            co_return error::status_internal("Connection failed");
         }
 
         if (this->data->data_->headers && !this->data->data_->headers->empty()) {

@@ -27,12 +27,12 @@ enum json_builder_flags {
     JSON_FLAG_USE_BIGINT = 256
 };
 
-manapi::error::status json_invalid_char (std::string_view n, std::size_t pos) {
-    return manapi::error::status_invalid_argument("json: invalid char", {{"chr", n[pos]}, {"pos", pos}});
+manapi::json_error::status json_invalid_char (std::string_view n, std::size_t pos) {
+    return manapi::json_error::status_invalid_argument("json: invalid char", pos, {});
 }
 
-manapi::error::status json_unexpected_end (std::size_t pos) {
-    return manapi::error::status_invalid_argument("json: unexpected end of JSON input at", {{"pos", pos}});
+manapi::json_error::status json_unexpected_end (std::size_t pos) {
+    return manapi::json_error::status_invalid_argument("json: unexpected end of JSON input at", pos, {});
 }
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
@@ -115,18 +115,18 @@ manapi::json_builder & manapi::json_builder::operator<<(char c) {
     return *this;
 }
 
-manapi::error::status manapi::json_builder::parse(std::string_view str) {
+manapi::json_error::status manapi::json_builder::parse(std::string_view str) {
     if (this->flags & JSON_FLAG_GETTING)
         this->flags ^= JSON_FLAG_GETTING;
     size_t j = 0;
     return this->_parse(str, j);
 }
 
-manapi::error::status manapi::json_builder::parse(char c) {
+manapi::json_error::status manapi::json_builder::parse(char c) {
     return this->parse(std::string_view(&c, 1));
 }
 
-manapi::error::status_or<manapi::json> manapi::json_builder::get() {
+manapi::json_error::status_or<manapi::json> manapi::json_builder::get() {
     this->flags |= JSON_FLAG_GETTING;
     if (!(this->flags & JSON_FLAG_READY))
     {
@@ -139,8 +139,7 @@ manapi::error::status_or<manapi::json> manapi::json_builder::get() {
         // maybe no content provided
         // TODO: think
         if (!_check_eq_type())
-            return error::status_invalid_argument("json_mask: types not match", jm_msg_with_path_and_param(this->path.get(),
-                json_type_to_str(this->type)));
+            return json_error::status_invalid_argument("json_mask: types not match", this->i, json_format_path(this->path.get()));
     }
     this->_reset ();
     return std::move(this->object);
@@ -158,7 +157,7 @@ void manapi::json_builder::clear() {
     this->_reset();
 }
 
-manapi::error::status manapi::json_builder::_parse(std::string_view plain_text, size_t &j, bool root) {
+manapi::json_error::status manapi::json_builder::_parse(std::string_view plain_text, size_t &j, bool root) {
     this->end_cut = plain_text.size() + this->i;
 
     this->i += j;
@@ -177,10 +176,10 @@ manapi::error::status manapi::json_builder::_parse(std::string_view plain_text, 
             return std::move(res);
     }
 
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_type(std::string_view plain_text, size_t &j) {
+manapi::json_error::status manapi::json_builder::_check_type(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); this->i++, j++)
     {
         const unsigned char &c = plain_text.at(j);
@@ -222,14 +221,13 @@ manapi::error::status manapi::json_builder::_check_type(std::string_view plain_t
         this->start_cut = this->i;
 
         if (!_check_eq_type ())
-            return error::status_invalid_argument("json_mask: type not equals",
-                jm_msg_with_path_and_param(this->path.get(), json_type_to_str(this->type)));
+            return json_error::status_invalid_argument("json_mask: type not equals", j, json_format_path(this->path.get()));
     }
 
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_build_string(std::string_view plain_text, size_t &j) {
+manapi::json_error::status manapi::json_builder::_build_string(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
         auto res = _check_max_mean(true);
@@ -275,7 +273,7 @@ manapi::error::status manapi::json_builder::_build_string(std::string_view plain
                     case '"':
                         break;
                     default:
-                        return error::status_invalid_argument("json: bad escaped character", {{"pos", this->i}});
+                        return json_error::status_invalid_argument("json: bad escaped character", this->i, json_format_path(this->path.get()));
                 }
             }
             else
@@ -320,7 +318,7 @@ manapi::error::status manapi::json_builder::_build_string(std::string_view plain
                     }
 
                     // error
-                    return error::status_invalid_argument ("json: bad unicode escape", {{"pos", this->i}});
+                    return json_error::status_invalid_argument ("json: bad unicode escape", this->i, json_format_path(this->path.get()));
                 }
 
                 switch (c) {
@@ -329,7 +327,7 @@ manapi::error::status manapi::json_builder::_build_string(std::string_view plain
                     case '\r':
                     case '\f':
                     case '\b':
-                        return error::status_invalid_argument("json: bad control character", {{"pos", this->i}});
+                        return json_error::status_invalid_argument("json: bad control character", this->i, json_format_path(this->path.get()));
                 }
 
                 if (c == '\\')
@@ -387,10 +385,10 @@ manapi::error::status manapi::json_builder::_build_string(std::string_view plain
 
         this->flags |= JSON_FLAG_READY;
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_build_numeric(std::string_view plain_text, size_t &j) {
+manapi::json_error::status manapi::json_builder::_build_numeric(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, this->i++)
     {
         unsigned char c = plain_text[j];
@@ -420,7 +418,7 @@ manapi::error::status manapi::json_builder::_build_numeric(std::string_view plai
                 // its true or false or null
                 this->action = JSON_CALLBACK_BUILD_NUMERIC_STRING;
 
-                return error::status_ok();
+                return json_error::status_ok();
             }
 
             if (this->buffer.size() == 1 && this->buffer[0] == '-')
@@ -527,10 +525,10 @@ manapi::error::status manapi::json_builder::_build_numeric(std::string_view plai
         this->flags |= JSON_FLAG_READY;
     }
 
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_build_numeric_string(std::string_view plain_text, size_t &j) {
+manapi::json_error::status manapi::json_builder::_build_numeric_string(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); this->i++, j++)
     {
         unsigned char c = plain_text[j];
@@ -576,15 +574,15 @@ manapi::error::status manapi::json_builder::_build_numeric_string(std::string_vi
         }
 
         // TODO escape sub_plain_text
-        return error::status_invalid_argument("json: invalid string", {{"data", value}});
+        return json_error::status_invalid_argument("json: invalid string", j, json_format_path(this->path.get()));
         // throw json_parse_exception(ERR_JSON_INVALID_STRING, std::format("Invalid string: '{}' ({}, {})",
         //                                        value, this->start_cut + 1,
         //                                        this->end_cut));
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_build_object(std::string_view plain_text, size_t &j) {
+manapi::json_error::status manapi::json_builder::_build_object(std::string_view plain_text, size_t &j) {
     doit:
     if (this->item != nullptr)
     {
@@ -713,10 +711,10 @@ manapi::error::status manapi::json_builder::_build_object(std::string_view plain
 
         this->flags |= JSON_FLAG_READY;
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) {
+manapi::json_error::status manapi::json_builder::_build_array(std::string_view plain_text, size_t &j) {
     doit:
     if (this->item != nullptr)
     {
@@ -843,10 +841,10 @@ manapi::error::status manapi::json_builder::_build_array(std::string_view plain_
 
         this->flags |= JSON_FLAG_READY;
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_end(std::string_view plain_text, size_t &j) {
+manapi::json_error::status manapi::json_builder::_check_end(std::string_view plain_text, size_t &j) {
     for (; j < plain_text.size(); j++, i++)
     {
         if (!unicode::is_space_symbol(plain_text[j]))
@@ -855,7 +853,7 @@ manapi::error::status manapi::json_builder::_check_end(std::string_view plain_te
             //json::error_invalid_char(plain_text, j);
         }
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
 void manapi::json_builder::_reset_type() {
@@ -935,7 +933,7 @@ bool manapi::json_builder::_check_eq_type() {
     return true;
 }
 
-manapi::error::status manapi::json_builder::_check_max_mean(bool building) {
+manapi::json_error::status manapi::json_builder::_check_max_mean(bool building) {
     if (!this->max_mean_size)
         goto ok;
 
@@ -975,11 +973,11 @@ manapi::error::status manapi::json_builder::_check_max_mean(bool building) {
                 goto ok;
         }
     }
-    return error::status_invalid_argument("json_mask: value is greater or equals max_mean", jm_msg_with_path_and_param(this->path.get(), *this->max_mean_size));
-    ok: return error::status_ok();
+    return json_error::status_invalid_argument("json_mask: value is greater or equals max_mean", this->i, json_format_path(this->path.get()));
+    ok: return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_min_mean() {
+manapi::json_error::status manapi::json_builder::_check_min_mean() {
     if (!this->min_mean_size)
         goto ok;
 
@@ -1007,11 +1005,11 @@ manapi::error::status manapi::json_builder::_check_min_mean() {
             goto ok;
     }
 
-    return error::status_invalid_argument("json_mask: value is lower or equals min_mean", jm_msg_with_path_and_param(this->path.get(), *this->min_mean_size));
-    ok: return error::status_ok();
+    return json_error::status_invalid_argument("json_mask: value is lower or equals min_mean", this->i, json_format_path(this->path.get()));
+    ok: return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_type_none_complex_value() {
+manapi::json_error::status manapi::json_builder::_check_type_none_complex_value() {
     auto &current = get_current_type();
     auto fit = current.find("value");
     if (fit == current.end<json::OBJECT>())
@@ -1028,13 +1026,13 @@ manapi::error::status manapi::json_builder::_check_type_none_complex_value() {
             goto ok;
         }
 
-        return error::status_invalid_argument("json_mask: value aren't match", jm_msg_with_path_and_param(this->path.get(), this->object));
+        return json_error::status_invalid_argument("json_mask: value aren't match", this->i, json_format_path(this->path.get()));
     }
     ok:
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_default() {
+manapi::json_error::status manapi::json_builder::_check_default() {
     if (this->current_types) {
         auto res = this->_check_max_mean();
         if (!res.ok())
@@ -1052,28 +1050,28 @@ manapi::error::status manapi::json_builder::_check_default() {
         goto ok;
         err:
         if (this->_next_type())
-            return error::status_failed_precondition("json_mask: again");
+            return json_error::status_invalid_argument("json_mask: no one type is match", this->i, json_format_path(this->path.get()));
 
         return std::move(res);
     }
 
-    ok: return error::status_ok();
+    ok: return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_meta_value() {
+manapi::json_error::status manapi::json_builder::_check_meta_value() {
     const auto &current = get_current_type ();
     if (!(this->object.is_array() || this->object.is_object())) {
         auto fit = current.find("value");
         if (fit != current.end<manapi::json::OBJECT>()) {
             if (fit->second != this->object) {
-                return error::status_invalid_argument("json_mask: value aren't match", jm_msg_with_path_and_param(this->path.get(), this->object));
+                return json_error::status_invalid_argument("json_mask: value aren't match", this->i, json_format_path(this->path.get()));
             }
         }
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_string() {
+manapi::json_error::status manapi::json_builder::_check_string() {
     while (true)
     {
         auto res = this->_check_default();
@@ -1085,10 +1083,10 @@ manapi::error::status manapi::json_builder::_check_string() {
 
         return std::move(res);
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_numeric() {
+manapi::json_error::status manapi::json_builder::_check_numeric() {
     while (true)
     {
         auto res = _check_default();
@@ -1098,10 +1096,10 @@ manapi::error::status manapi::json_builder::_check_numeric() {
             continue;
         return std::move(res);
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_object() {
+manapi::json_error::status manapi::json_builder::_check_object() {
     while (true)
     {
         auto res = _check_default();
@@ -1118,10 +1116,10 @@ manapi::error::status manapi::json_builder::_check_object() {
             continue;
         return std::move(res);
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_array() {
+manapi::json_error::status manapi::json_builder::_check_array() {
     while (true)
     {
         auto res = _check_default();
@@ -1131,10 +1129,10 @@ manapi::error::status manapi::json_builder::_check_array() {
             continue;
         return std::move(res);
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::_check_part_object() {
+manapi::json_error::status manapi::json_builder::_check_part_object() {
     while (true) {
         json_mask mask_child;
         mask_child.set_api_tree({{"obj", get_current_type()}, {"none", false}});
@@ -1146,10 +1144,10 @@ manapi::error::status manapi::json_builder::_check_part_object() {
         if (!_next_type())
             return std::move(res);
     }
-    return error::status_ok();
+    return json_error::status_ok();
 }
 
-manapi::error::status manapi::json_builder::call_action_(const std::string_view &plain_text, size_t &j) {
+manapi::json_error::status manapi::json_builder::call_action_(const std::string_view &plain_text, size_t &j) {
     switch (this->action) {
         case JSON_CALLBACK_CHECK_TYPE:
             return this->_check_type((plain_text), j);
@@ -1166,7 +1164,7 @@ manapi::error::status manapi::json_builder::call_action_(const std::string_view 
         case JSON_CALLBACK_CHECK_END:
             return this->_check_end((plain_text), j);
         default:
-            return error::status_internal("unreachable");
+            return json_error::status_invalid_argument("unreachable", this->i, json_format_path(this->path.get()));
     }
 }
 
@@ -1210,9 +1208,9 @@ void manapi::json_builder::_valid_utf_string(std::string_view str) {
     }
 }
 
-manapi::error::status_or<const manapi::json *> manapi::json_builder::next_parent_cb(json_builder *p) {
+manapi::json_error::status_or<const manapi::json *> manapi::json_builder::next_parent_cb(json_builder *p) {
     if (!p->_next_type())
-        return error::status_invalid_argument("json_mask: again");
+        return json_error::status_invalid_argument("json_mask: no one type is match", p->i, json_format_path(p->path.get()));
 
     p->_check_part_object();
 

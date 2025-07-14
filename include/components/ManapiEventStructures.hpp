@@ -5,6 +5,7 @@
 
 #include "uv.h"
 #include "../ManapiUtils.hpp"
+#include "../ManapiErrors.hpp"
 #include "../ManapiDebug.hpp"
 
 #ifdef _WIN32
@@ -706,3 +707,58 @@ namespace manapi::ev {
 #undef MANAPI_EV_CHECK
 #undef MANAPI_EV_DEFAULT
 #undef MANAPI_EV_CAST_STREAM
+
+namespace manapi::sys_error {
+    class status final : public manapi::error::status {
+    public:
+        status ();
+
+        ~status () override;
+
+        status (manapi::err_num code, std::string_view msg, int syserr);
+
+        status (status &&n) MANAPIHTTP_NOEXPECT;
+
+        status &operator=(status &&n) MANAPIHTTP_NOEXPECT;
+
+        void log () const override;
+
+        [[nodiscard]] int syserr () const;
+
+        [[nodiscard]] std::string_view sysname () const;
+
+        [[nodiscard]] std::string_view sysmsg () const;
+    private:
+        int syserr_;
+    };
+
+    template<typename T, typename E = manapi::sys_error::status>
+    class status_or final : public manapi::error::status_or<T, E> {
+    public:
+        status_or (sys_error::status n) : error::status_or<T, E>(std::move(n)) {}
+
+        status_or (T &&n) : error::status_or<T, E>(std::forward<decltype(n)>(n)) {}
+
+        status_or(status_or &&n) MANAPIHTTP_NOEXPECT = default;
+
+        status_or&operator=(status_or &&n) MANAPIHTTP_NOEXPECT = default;
+
+        [[nodiscard]] int syserr () const {
+            return this->err_.syserr();
+        }
+
+        [[nodiscard]] std::string_view sysname () const {
+            return this->err_.sysname();
+        }
+
+        [[nodiscard]] std::string_view sysmsg () const {
+            return this->err_.sysmsg();
+        }
+    };
+
+    sys_error::status status_invalid_argument (std::string_view msg, int syserr);
+
+    sys_error::status status_internal (std::string_view msg, int syserr);
+
+    sys_error::status status_ok ();
+}

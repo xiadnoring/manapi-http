@@ -12,7 +12,6 @@
 #include <format>
 
 #include "ManapiUtils.hpp"
-#include "ManapiJson.hpp"
 
 namespace manapi {
     /**
@@ -173,9 +172,9 @@ namespace manapi {
         public:
             status ();
 
-            status (err_num code, std::string_view msg);
+            virtual ~status ();
 
-            status (err_num code, std::string_view msg, manapi::json data);
+            status (err_num code, std::string_view msg);
 
             status (status &&n) noexcept;
 
@@ -196,13 +195,6 @@ namespace manapi {
             [[nodiscard]] err_num code () const;
 
             /**
-             * Get the additional error data from the status as a json
-             *
-             * @return the additional error data
-             */
-            [[nodiscard]] manapi::json &data ();
-
-            /**
              * Is there no error
              *
              * @return true if there's no error
@@ -212,7 +204,7 @@ namespace manapi {
             /**
              * do log using the status
              */
-            void log () const;
+            virtual void log () const;
 
             /**
              * get the error code as a string
@@ -227,23 +219,26 @@ namespace manapi {
              * @throws manapi::exception with the error code from the status
              */
             void unwrap () const;
-        private:
-            manapi::json data_;
+        protected:
             std::string_view msg_;
             err_num code_;
         };
 
-        template<typename T>
-        requires(!std::is_same_v<status, T>)
+        template<typename T, typename E = manapi::error::status>
+        requires(!std::is_same_v<E, T>)
         class status_or {
         public:
             status_or (T value) : err_() {
                 this->value_ = std::move(value);
             }
 
-            status_or (status status) {
-                this->err_ = std::move(status);
+            status_or (E st) {
+                this->err_ = std::move(st);
             }
+
+            status_or(status_or &&n) MANAPIHTTP_NOEXPECT = default;
+
+            status_or&operator=(status_or &&n) MANAPIHTTP_NOEXPECT = default;
 
             /**
              * get the error code from the status
@@ -298,12 +293,12 @@ namespace manapi {
              *
              * @return the error status
              */
-            error::status err () {
+            E err () {
                 return std::move(this->err_);
             }
-        private:
+        protected:
             std::optional<T> value_;
-            error::status err_;
+            E err_;
         };
 
         status status_ok ();
@@ -328,26 +323,6 @@ namespace manapi {
         status status_data_loss (std::string_view msg);
         status status_filesystem_failed (std::string_view msg);
         status status_parse_failed (std::string_view msg);
-
-        status status_ok (manapi::json data);
-        status status_unknown (std::string_view msg, manapi::json data);
-        status status_cancelled (std::string_view msg, manapi::json data);
-        status status_invalid_argument (std::string_view msg, manapi::json data);
-        status status_deadline_exceeded (std::string_view msg, manapi::json data);
-        status status_not_found (std::string_view msg, manapi::json data);
-        status status_already_exists (std::string_view msg, manapi::json data);
-        status status_permission_denied (std::string_view msg, manapi::json data);
-        status status_unauthenticated (std::string_view msg, manapi::json data);
-        status status_resource_exhausted (std::string_view msg, manapi::json data);
-        status status_failed_precondition (std::string_view msg, manapi::json data);
-        status status_aborted (std::string_view msg, manapi::json data);
-        status status_unavailable (std::string_view msg, manapi::json data);
-        status status_out_of_range (std::string_view msg, manapi::json data);
-        status status_unimplemented (std::string_view msg, manapi::json data);
-        status status_internal (std::string_view msg, manapi::json data);
-        status status_data_loss (std::string_view msg, manapi::json data);
-        status status_filesystem_failed (std::string_view msg, manapi::json data);
-        status status_parse_failed (std::string_view msg, manapi::json data);
     }
 }
 

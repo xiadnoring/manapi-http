@@ -9,6 +9,7 @@
 #include <string>
 
 #include "ManapiErrors.hpp"
+#include "components/ManapiEventStructures.hpp"
 
 namespace manapi::process {
     /**
@@ -18,7 +19,7 @@ namespace manapi::process {
      * @param value value of the environment
      * @return
      */
-    manapi::error::status set_env (std::string_view name, std::string_view value);
+    manapi::sys_error::status set_env (std::string_view name, std::string_view value);
 
     /**
      * Get a process environment
@@ -26,5 +27,5 @@ namespace manapi::process {
      * @param name name of the environment
      * @return value of the environment
      */
-    manapi::error::status_or<std::string> get_env (std::string_view name);
+    manapi::sys_error::status_or<std::string> get_env (std::string_view name);
 }

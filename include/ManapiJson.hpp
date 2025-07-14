@@ -8,77 +8,123 @@
 #include <deque>
 #include <set>
 
+#include "ManapiErrors.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiBigint.hpp"
 #include "ManapiInt.hpp"
 
 namespace manapi {
+    /**
+     * provides json error nums
+     */
     enum json_err_num {
         ERR_JSON_INVALID_CHAR = 0,
-        ERR_JSON_INVALID_STRING = 1,
-        ERR_JSON_NO_SUCH_KEY = 2,
-        ERR_JSON_OUT_OF_RANGE = 3,
-        ERR_JSON_DUPLICATE_KEY = 4,
-        ERR_JSON_UNSUPPORTED_TYPE = 5,
-        ERR_JSON_BUG = 6,
-        ERR_JSON_UNEXPECTED_END = 7,
-        ERR_JSON_MASK_VERIFY_FAILED = 8,
-        ERR_JSON_BAD_ESCAPED_CHAR = 9
-    };
-
-    class json_parse_exception : public std::exception {
-    public:
-        explicit json_parse_exception(const json_err_num &errnum, const std::string &msg);
-        // json_parse_exception (json_parse_exception &&n) noexcept ;
-        // json_parse_exception &operator=(json_parse_exception &&n) noexcept;
-        [[nodiscard]] const char *what () const noexcept override;
-        [[nodiscard]] const json_err_num &err_num () const;
-    private:
-        std::string message;
-        json_err_num errnum;
+        ERR_JSON_INVALID_STRING,
+        ERR_JSON_NO_SUCH_KEY,
+        ERR_JSON_OUT_OF_RANGE,
+        ERR_JSON_DUPLICATE_KEY,
+        ERR_JSON_UNSUPPORTED_TYPE,
+        ERR_JSON_BUG,
+        ERR_JSON_UNEXPECTED_END,
+        ERR_JSON_MASK_VERIFY_FAILED,
+        ERR_JSON_BAD_ESCAPED_CHAR
     };
 
     class json {
     public:
         typedef std::map <std::string, manapi::json, std::less<>> OBJECT;
+
         typedef std::vector <manapi::json> ARRAY;
+
         typedef double long DECIMAL;
+
         typedef ssize_t INTEGER;
+
         typedef nullptr_t NULLPTR;
+
         typedef std::string STRING;
+
         typedef std::string_view STRING_VIEW;
+
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         typedef bigint BIGINT;
 #endif
         typedef bool BOOLEAN;
+
         typedef std::pair <json, json> PAIR;
 
         typedef std::u32string UNICODE_STRING;
 
         enum types {
+            /* null type */
             type_null = 0,
+            /* integer, decimal, bigint types */
             type_number = 1,
+            /* string type */
             type_string = 2,
+            /* decimal type */
             type_decimal = 3,
+            /* boolean type */
             type_boolean = 4,
+            /* std::map type */
             type_object = 5,
+            /* std::vector type */
             type_array = 6,
+            /* ssize_t type */
             type_integer = 7,
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
+            /* bigint type */
             type_bigint = 8,
 #endif
+            /* pair<string, string> type */
             type_pair = 9
         };
 
+        /**
+         * Generate a JSON object
+         * @return the created JSON object
+         */
         static json object ();
+
+        /**
+         * Generate a JSON array
+         * @return the created JSON array
+         */
         static json array ();
 
+        /**
+         * Generate a JSON array from the provided initializer list
+         * @param data the provided initializer list
+         * @return the create JSON array
+         */
         static json array (const std::initializer_list<json> &data);
+
+        /**
+         * Generate a JSON object from the provided initializer list
+         * @param data the provided initializer list
+         * @return the created JSON object
+         */
         static json object (const std::initializer_list<json> &data);
 
+        /**
+         * Generate a JSON array using the other JSON
+         *
+         * If the provided JSON is a pair, it returns JSON array with 2 items from the pair,
+         * but otherwise, it returns JSON array with 1 items
+         *
+         * @param data the provided JSON
+         * @return the created JSON array
+         */
         static json array (manapi::json data);
 
-        static json parse (STRING_VIEW data);
+        /**
+         * Parse JSON from the string
+         *
+         * @param data the source string
+         * @return the json object on success, otherwise it returns ParseError, InternalError, ResourceExhausted
+         */
+        static manapi::error::status_or<json> parse (STRING_VIEW data);
+
         static std::string stringify (const json &n, int spaces = 2);
 
         json();
@@ -130,42 +176,42 @@ namespace manapi {
         template<typename T>
         requires(std::is_integral_v<T>)
         json(const T &n) {
-            this->_parse (static_cast<INTEGER>(n));
+            this->parse_ (static_cast<INTEGER>(n));
         }
 
         template<typename T>
         requires(std::is_floating_point_v<T>)
         json (const T &n) {
-            this->_parse (static_cast<DECIMAL>(n));
+            this->parse_ (static_cast<DECIMAL>(n));
         }
 
         template<typename V>
         json(std::vector<V> array) {
-            this->_set_array();
+            this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
 
         template<typename V>
         json(std::deque<V> array) {
-            this->_set_array();
+            this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
 
         template<typename V>
         json(std::stack<V> array) {
-            this->_set_array();
+            this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
 
         template<typename V>
         json(std::set<V> array) {
-            this->_set_array();
+            this->set_array_();
             while (!array.empty()) { this->push_back(std::move(array.extract(array.begin()).value())); }
         }
 
         template<typename V, std::size_t N>
         json(std::array<V, N> array) {
-            this->_set_array();
+            this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
 
@@ -667,127 +713,152 @@ namespace manapi {
     protected:
         bool root = true;
     private:
-        [[nodiscard]] OBJECT &_as_object () const;
-        [[nodiscard]] ARRAY &_as_array () const;
-        [[nodiscard]] STRING &_as_string () const;
-        [[nodiscard]] INTEGER &_as_integer () const;
-        [[nodiscard]] DECIMAL &_as_decimal () const;
-        [[nodiscard]] BOOLEAN &_as_bool () const;
+        [[nodiscard]] OBJECT &as_object_ () const;
+        [[nodiscard]] ARRAY &as_array_ () const;
+        [[nodiscard]] STRING &as_string_ () const;
+        [[nodiscard]] INTEGER &as_integer_ () const;
+        [[nodiscard]] DECIMAL &as_decimal_ () const;
+        [[nodiscard]] BOOLEAN &as_bool_ () const;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        [[nodiscard]] BIGINT &_as_bigint () const;
+        [[nodiscard]] BIGINT &as_bigint_ () const;
 #endif
-        [[nodiscard]] PAIR &_as_pair () const;
+        [[nodiscard]] PAIR &as_pair_ () const;
 
         // string
-        void _parse (const UNICODE_STRING &plain_text);
+        manapi::error::status parse_ (const UNICODE_STRING &plain_text);
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        void _parse (STRING_VIEW plain_text, bool bigint = false, size_t bigint_precision = 128);
+        manapi::error::status parse_ (STRING_VIEW plain_text, bool bigint = false, size_t bigint_precision = 128);
 #else
-        void _parse (STRING_VIEW plain_text);
+        manapi::error::status parse_ (STRING_VIEW plain_text);
 #endif
         // integers
-        void _parse (size_t num);
-        void _parse (INTEGER num);
-        void _parse (int num);
-        void _parse (double num);
-        void _parse (DECIMAL num);
+        void parse_ (size_t num);
+        void parse_ (INTEGER num);
+        void parse_ (int num);
+        void parse_ (double num);
+        void parse_ (DECIMAL num);
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        void _parse (BIGINT num);
+        void parse_ (BIGINT num);
 #endif
-        void _parse (OBJECT obj);
-        void _parse (ARRAY arr);
-        void _parse (BOOLEAN val);
+        void parse_ (OBJECT obj);
+        void parse_ (ARRAY arr);
+        void parse_ (BOOLEAN val);
         // other
-        void _parse (const nullptr_t &n);
+        void parse_ (const nullptr_t &n);
 
         static void delete_value_static (short type, void *src);
 
         void delete_value ();
-        void _set_object ();
-        void _set_bool ();
-        void _set_array ();
-        void _set_string ();
-        void _set_integer ();
-        void _set_decimal ();
+        void set_object_ ();
+        void set_bool_ ();
+        void set_array_ ();
+        void set_string_ ();
+        void set_integer_ ();
+        void set_decimal_ ();
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        void _set_bigint ();
+        void set_bigint_ ();
 #endif
-        void _set_nullptr ();
-        void _set_pair ();
-        void _set_object (OBJECT val);
-        void _set_bool (BOOLEAN val);
-        void _set_array (ARRAY val);
-        void _set_string (STRING val);
-        void _set_string (STRING_VIEW val);
-        void _set_integer (INTEGER val);
-        void _set_decimal (DECIMAL val);
+        void set_nullptr_ ();
+        void set_pair_ ();
+        void set_object_ (OBJECT val);
+        void set_bool_ (BOOLEAN val);
+        void set_array_ (ARRAY val);
+        void set_string_ (STRING val);
+        void set_string_ (STRING_VIEW val);
+        void set_integer_ (INTEGER val);
+        void set_decimal_ (DECIMAL val);
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        void _set_bigint (BIGINT val);
+        void set_bigint_ (BIGINT val);
 #endif
-        void _set_pair (json first, json second);
+        void set_pair_ (json first, json second);
 #if MANAPIHTTP_JSON_DEBUG
-        void _debug_symb_reinit () {
-            _debug_bool_src = nullptr;
-            _debug_array_src = nullptr;
+        void debug_symb_reinit_ () {
+            this->debug_bool_src_ = nullptr;
+            this->debug_array_src_ = nullptr;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-            _debug_bigint_src = nullptr;
+            this->debug_bigint_src_ = nullptr;
 #endif
-            _debug_object_src = nullptr;
-            _debug_string_src = nullptr;
-            _debug_integer_src = nullptr;
-            _debug_decimal_src = nullptr;
-            _debug_pair_src = nullptr;
+            this->debug_object_src_ = nullptr;
+            this->debug_string_src_ = nullptr;
+            this->debug_integer_src_ = nullptr;
+            this->debug_decimal_src_ = nullptr;
+            this->debug_pair_src_ = nullptr;
 
-            switch (type)
+            switch (this->type)
             {
                 case type_array:
-                    _debug_array_src = &this->as_array();
+                    this->debug_array_src_ = &this->as_array();
                 break;
                 case type_object:
-                    _debug_object_src = &this->as_object();
+                    this->debug_object_src_ = &this->as_object();
                 break;
                 case type_integer:
-                    _debug_integer_src = &this->as_integer();
+                    this->debug_integer_src_ = &this->as_integer();
                 break;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
                 case type_bigint:
-                    _debug_bigint_src = &this->as_bigint();
+                    this->debug_bigint_src_ = &this->as_bigint();
                 break;
 #endif
                 case type_boolean:
-                    _debug_bool_src = &this->as_bool();
+                    this->debug_bool_src_ = &this->as_bool();
                 break;
                 case type_decimal:
-                    _debug_decimal_src = &this->as_decimal();
+                    this->debug_decimal_src_ = &this->as_decimal();
                 break;
                 case type_pair:
-                    _debug_pair_src = &this->_as_pair();
+                    this->debug_pair_src_ = &this->as_pair_();
                 break;
                 case type_string:
-                    _debug_string_src = this->as_string().data();
+                    this->debug_string_src_ = this->as_string().data();
                 break;
                 default:
                     break;
             }
         }
 #else
-        inline void _debug_symb_reinit () {};
+        inline void debug_symb_reinit_ () {};
 #endif
 
         void    *src = nullptr;
         types   type = type_null;
 
 #if MANAPIHTTP_JSON_DEBUG
-        const BOOLEAN *_debug_bool_src    = nullptr;
-        const ARRAY   *_debug_array_src   = nullptr;
+        const BOOLEAN *debug_bool_src_    = nullptr;
+        const ARRAY   *debug_array_src_   = nullptr;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        const BIGINT  *_debug_bigint_src  = nullptr;
+        const BIGINT  *debug_bigint_src_  = nullptr;
 #endif
-        const OBJECT  *_debug_object_src  = nullptr;
-        const char  *_debug_string_src  = nullptr;
-        const INTEGER *_debug_integer_src  = nullptr;
-        const DECIMAL *_debug_decimal_src = nullptr;
-        const PAIR    *_debug_pair_src = nullptr;
+        const OBJECT  *debug_object_src_  = nullptr;
+        const char  *debug_string_src_  = nullptr;
+        const INTEGER *debug_integer_src_  = nullptr;
+        const DECIMAL *debug_decimal_src_ = nullptr;
+        const PAIR    *debug_pair_src_ = nullptr;
 #endif
+    };
+
+    class json_parse_exception : public std::exception {
+    public:
+        /**
+         * Generate Json Parse Exception Instance
+         * @param errnum the json error number
+         * @param msg the json error message
+         */
+        explicit json_parse_exception(const json_err_num &errnum, const std::string &msg);
+
+        /**
+         * Get the json error message
+         * @return the json error message
+         */
+        [[nodiscard]] const char *what () const noexcept override;
+
+        /**
+         * Get the json error number
+         * @return the json error number
+         */
+        [[nodiscard]] const json_err_num &err_num () const;
+    private:
+        std::string message;
+        json_err_num errnum;
     };
 }

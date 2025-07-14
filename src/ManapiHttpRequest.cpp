@@ -210,9 +210,8 @@ void manapi::net::http::request::prepare_get_params_() {
         // verify params
         auto &mask = this->get_mask();
         auto res = mask->valid(*this->get_params_);
-        if (mask && !res.ok()) {
-            THROW_MANAPIHTTP_EXCEPTION (ERR_INVALID_ARGUMENT, "GET params verify failed: {}", res.data().dump(4));
-        }
+        if (mask && !res.ok())
+            res.unwrap();
     }
 }
 

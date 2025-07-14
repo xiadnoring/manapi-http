@@ -1057,7 +1057,7 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
                         co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR);
                 }
                 catch (std::exception const &e) {
-                    co_return error::status_filesystem_failed("mkdir cache directory failed", {{"msg", e.what()}});
+                    co_return error::status_filesystem_failed("mkdir cache directory failed");
                 }
 
                 filepath = folder + generate_cache_name(file, compress);
