@@ -968,11 +968,15 @@ manapi::json manapi::json::array(const std::initializer_list<json> &data) {
     return std::move(arr);
 }
 
-std::map<std::string, manapi::json>::iterator manapi::json::find(const STRING &key) {
+// std::map<std::string, manapi::json>::iterator manapi::json::find(const STRING &key) {
+//     return this->as_object().find(key);
+// }
+
+std::map<std::string, manapi::json, std::less<>>::iterator manapi::json::find(STRING_VIEW key) {
     return this->as_object().find(key);
 }
 
-std::map<std::string, manapi::json>::const_iterator manapi::json::find(const STRING &key) const {
+std::map<std::string, manapi::json>::const_iterator manapi::json::find(STRING_VIEW key) const {
     return this->as_object().find(key);
 }
 

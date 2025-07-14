@@ -123,7 +123,7 @@ namespace manapi::net::http {
     int http_v2_work (http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize);
     ssize_t http_v2_write (const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish);
     int http_v2_rst_stream (const worker::shared_conn &s, int errcode);
-    manapi::future<ssize_t> http_v2_response (worker::base *worker, const worker::shared_conn &connection, int status, std::map<std::string, std::string> headers, bool finish);
+    manapi::future<int> http_v2_response (worker::base *worker, const worker::shared_conn &connection, int status, std::map<std::string, std::string, std::less<>> headers, bool finish);
 }
 
 #endif //MANAPIHTTP_HTTP_HTTPV2_HPP

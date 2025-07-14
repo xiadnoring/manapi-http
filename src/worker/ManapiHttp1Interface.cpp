@@ -49,7 +49,7 @@ void default_wrk_http_all_update_limit_rate(const manapi::net::worker::shared_co
     HTTP_ALL_SWITCH (update_limit_rate, conn, httpctx, w);
 }
 
-manapi::future<ssize_t> default_wrk_http_all_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
+manapi::future<int> default_wrk_http_all_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
     HTTP_ALL_SWITCH(send_response, conn, global, w, res, finish);
 }
 
@@ -335,15 +335,18 @@ exec:
 
 
     send_error: {
-        auto const msg = manapi::net::http::status_to_string(status);
-        auto const s = manapi::net::http::internal::generate_default_page (status, msg);
-        auto const h = std::format("HTTP/{} {} {}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-            manapi::net::http::config::stringify_http_version(conn->version), status, msg, s.size());
-        if (h.size() != w->sync_write_ex(conn, h.data(), h.size(), false, 1e5))
-            goto err;
-        if (s.size() != w->sync_write_ex(conn, s.data(), s.size(), true, 1e5))
-            goto err;
-        w->close_connection (conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
+        auto msg = manapi::net::http::status_to_string(status);
+        if (msg.ok()) {
+            auto status_message = msg.unwrap();
+            auto const s = manapi::net::http::internal::generate_default_page (status, status_message);
+            auto const h = std::format("HTTP/{} {} {}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                manapi::net::http::config::stringify_http_version(conn->version), status, status_message, s.size());
+            if (h.size() != w->sync_write_ex(conn, h.data(), h.size(), false, 1e5))
+                goto err;
+            if (s.size() != w->sync_write_ex(conn, s.data(), s.size(), true, 1e5))
+                goto err;
+            w->close_connection (conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
+        }
     }
     err: return manapi::ERR_ABORTED;
 }
@@ -399,11 +402,13 @@ std::string stringify_headers(manapi::net::http::response *res, std::string_view
     return data;
 }
 
-manapi::future<ssize_t> default_wrk_http1_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global,
+manapi::future<int> default_wrk_http1_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global,
     manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
     const auto response = stringify_http_info(res, conn->version, "\r\n") + stringify_headers(res, "\r\n") + "\r\n";
-
-    co_return co_await w->write (conn, response.data(), response.size(), finish);
+    auto rhs = co_await w->fwrite (conn, response.data(), response.size(), finish);
+    if (rhs != response.size())
+        co_return manapi::ERR_ABORTED;
+    co_return manapi::ERR_OK;
 }
 
 

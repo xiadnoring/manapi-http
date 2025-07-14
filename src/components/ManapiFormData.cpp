@@ -64,7 +64,7 @@ struct manapi::net::formdata_recv::formdata_recv_ctx_t {
     std::string boundary;
 
     std::unique_ptr<formdata_recv_headers_t> hctx;
-    std::unique_ptr<std::map<std::string, std::string>> headers;
+    std::unique_ptr<std::map<std::string, std::string, std::less<>>> headers;
 };
 
 manapi::net::formdata_recv::formdata_recv(onrecv_cb_t onrecv_cb, manapi::net::worker::base *worker, worker::shared_conn *conn, http::request_data_t *req) {
@@ -705,7 +705,7 @@ void manapi::net::formdata_send::append_file(const std::string &name, std::strin
     auto filename = manapi::filesystem::path::basename(filepath);
     auto filemime = manapi::mime::mime_by_file_path(filename);
 
-    this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::move(filemime)}}});
+    this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::string{filemime}}}});
 }
 
 void manapi::net::formdata_send::append_file(const std::string &name, std::string filepath, std::string filename, std::string filemime) {
@@ -746,20 +746,22 @@ ssize_t manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const 
     for (const auto &param : this->data) {
         s += static_cast<ssize_t>(boundary_size + (sizeof ("\r\n") - 1));
         if (param.second.type == DATA_PLAIN) {
-            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION,
-                http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()}}}})});
+            std::string const name = json{param.first}.dump();
+            std::string const val = http::stringify_header_value({{"form-data", {{"name", name}}}});
+            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION, val});
             s += static_cast<ssize_t> (header.size());
             s += (sizeof ("\r\n") - 1);
         }
         else if (param.second.type == DATA_FILE) {
-            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION,
-                http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()},
-                    {"filename", json{param.second.file.value().filename}.dump()}}}})});
+            std::string const name = json{param.first}.dump();
+            std::string const filename = json{param.second.file.value().filename}.dump();
+            std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
+            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION, val});
             s += static_cast<ssize_t> (header.size());
             s += (sizeof ("\r\n") - 1);
 
-            header = http::stringify_header({http::HEADER.CONTENT_TYPE,
-                http::stringify_header_value({{param.second.file.value().filemime}})});
+            val = http::stringify_header_value({{param.second.file.value().filemime}});
+            header = http::stringify_header({http::HEADER.CONTENT_TYPE, val});
             s += static_cast<ssize_t> (header.size());
             s += (sizeof ("\r\n") - 1);
         }
@@ -781,8 +783,9 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
         co_await write (nline, sizeof (nline) - 1);
 
         if (param.second.type == DATA_PLAIN) {
+            std::string const name = json{param.first}.dump();
             std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION,
-                http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()}}}})});
+                http::stringify_header_value({{"form-data", {{"name", name}}}})});
 
             co_await write (header.data(), static_cast<ssize_t>(header.size()));
             co_await write (nline, sizeof (nline) - 1);
@@ -796,14 +799,15 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
         }
 
         if (param.second.type == DATA_FILE) {
-            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION,
-                http::stringify_header_value({{"form-data", {{"name", json{param.first}.dump()},
-                    {"filename", json{std::move(param.second.file.value().filename)}.dump()}}}})});
+            std::string name = json{param.first}.dump();
+            std::string const filename = json{std::move(param.second.file.value().filename)}.dump();
+            std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
+            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION, val});
             co_await write (header.data(), static_cast<ssize_t>(header.size()));
             co_await write (nline, sizeof (nline) - 1);
 
-            header = http::stringify_header({http::HEADER.CONTENT_TYPE,
-                http::stringify_header_value({{std::move(param.second.file.value().filemime)}})});
+            val = http::stringify_header_value({{std::move(param.second.file.value().filemime)}});
+            header = http::stringify_header({http::HEADER.CONTENT_TYPE, val});
             co_await write (header.data(), static_cast<ssize_t>(header.size()));
             co_await write (nline, sizeof (nline) - 1);
 

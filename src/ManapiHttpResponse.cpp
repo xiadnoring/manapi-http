@@ -52,14 +52,20 @@ manapi::net::http::response::~response() {
 
 
 void manapi::net::http::response::header(const std::string &key, std::string value) {
-    this->headers_[key] = std::move(value);
+    this->headers_.insert_or_assign(key, std::move(value));
 }
 
-void manapi::net::http::response::remove_header(const std::string &key) {
-    this->headers_.erase(key);
+void manapi::net::http::response::header(std::string_view key, std::string value) {
+    this->headers_.insert_or_assign(std::string{key}, value);
 }
 
-bool manapi::net::http::response::has_header(const std::string &key) {
+void manapi::net::http::response::remove_header(std::string_view key) {
+    auto const it = this->headers_.find(key);
+    if (it != this->headers_.end())
+        this->headers_.erase(it);
+}
+
+bool manapi::net::http::response::has_header(std::string_view key) {
     return this->headers_.contains(key);
 }
 
@@ -85,7 +91,7 @@ void manapi::net::http::response::text(std::string plain_text) {
 }
 
 void manapi::net::http::response::json(manapi::json data, size_t spaces) {
-    header(HEADER.CONTENT_TYPE, manapi::mime::types.APPLICATION_JSON);
+    header(std::string{HEADER.CONTENT_TYPE}, std::string{manapi::mime::types.APPLICATION_JSON});
     text(std::move(data.dump (static_cast<int>(spaces))));
 }
 
@@ -153,10 +159,10 @@ int manapi::net::http::response::status_code() const {
 }
 
 std::string_view manapi::net::http::response::status_message() {
-    return status_to_string(this->status_code_);
+    return status_to_string(this->status_code_).unwrap();
 }
 
-std::map<std::string, std::string> &manapi::net::http::response::headers() {
+std::map<std::string, std::string, std::less<>> &manapi::net::http::response::headers() {
     return this->headers_;
 }
 

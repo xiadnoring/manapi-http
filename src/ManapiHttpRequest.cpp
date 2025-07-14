@@ -40,11 +40,11 @@ int manapi::net::http::request::http_version() const {
     return this->request_data->http;
 }
 
-[[nodiscard]] const std::map<std::string, std::string> &manapi::net::http::request::ref_headers () const {
+[[nodiscard]] const std::map<std::string, std::string, std::less<>> &manapi::net::http::request::ref_headers () const {
     return this->request_data->headers;
 }
 
-std::map<std::string, std::string> manapi::net::http::request::headers() const {
+std::map<std::string, std::string, std::less<>> manapi::net::http::request::headers() const {
     return std::move(this->request_data->headers);
 }
 

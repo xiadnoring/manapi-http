@@ -4,7 +4,7 @@
 
 #include "http/ManapiHttp1.hpp"
 
-#include "ManapiBase64.hpp"
+#include "../../include/crypto/ManapiBase64.hpp"
 #include "ManapiFilesystem.hpp"
 #include "ManapiString.hpp"
 #include "services/ManapiFetch.hpp"
@@ -456,13 +456,11 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                             continue;
                         }
                         if (manapi::string::equals(param.value, "http2-settings", 0b10)) {
-                            try {
-                                ctx->s1 = encrypt::base64::from_base64(param.value);
-                            }
-                            catch (...) {
+                            auto res = manapi::crypto::base64_decode(param.value);
+                            if (!res.ok())
                                 return EHTTP_V1_1_PROTOCOL_ERROR;
-                            }
 
+                            ctx->s1 = res.unwrap();
                             continue;
                         }
                     }

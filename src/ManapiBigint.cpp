@@ -7,107 +7,98 @@
 #include <algorithm>
 #include <memory.h>
 #include <codecvt>
+#include <gmp.h>
+
 #include "include/ManapiUtils.hpp"
 #include "./ManapiErrors.hpp"
 #include "./ManapiJson.hpp"
 #include "./ManapiTime.hpp"
 #include "./ManapiDebug.hpp"
 
-manapi::bigint zero (0);
+struct manapi::bigint::data_t {
+    mpf_ptr m;
+};
+
+void manapi::bigint::data_t_deleter::operator()(data_t *n) noexcept(true) {
+    mpf_clear(n->m);
+}
 
 manapi::bigint::bigint() {
-    mpf_init2 (x, 128);
+    this->init_(128);
     this->parse(static_cast<ssize_t>(0));
 }
 
-// manapi::bigint::bigint(const long long int &num, std::size_t precision) {
-//     mpf_init2 (x, precision);
-//     this->parse(num);
-// }
-
 manapi::bigint::bigint(ssize_t num, std::size_t precision) {
-    mpf_init2 (x, precision);
+    this->init_(precision);
     this->parse(num);
 }
 
 manapi::bigint::bigint(int num, std::size_t precision) {
-    mpf_init2 (x, precision);
+    this->init_(precision);
     this->parse(static_cast<ssize_t> (num));
 }
 
 manapi::bigint::bigint(double num, std::size_t precision) {
-    mpf_init2 (x, precision);
+    this->init_(precision);
     this->parse(num);
 }
 
 manapi::bigint::bigint(long double num, std::size_t precision) {
-    mpf_init2 (x, precision);
+    this->init_(precision);
     this->parse(num);
 }
 
-// manapi::bigint::bigint(const unsigned long &num, std::size_t precision) {
-//     mpf_init2 (x, precision);
-//     this->parse(num);
-// }
-
 manapi::bigint::bigint(std::string_view num, std::size_t precision) {
-    mpf_init2 (x, precision);
+    this->init_(precision);
     this->parse(num);
 }
 
 manapi::bigint::bigint(const std::wstring &num, std::size_t precision) {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
 
-    mpf_init2 (x, precision);
+    this->init_(precision);
     this->parse(converter.to_bytes(num));
 }
 
-manapi::bigint::bigint(const mpf_t &num, std::size_t precision) {
-    mpf_set (x, num);
-    set_precision(precision);
-}
+// manapi::bigint::bigint(mpf_ptr num, std::size_t precision) {
+//     mpf_set (*x, num);
+//     precision(precision);
+// }
 
-manapi::bigint::bigint(bigint &&other) noexcept {
-    memcpy (x, other.x, sizeof (x));
-    memset (other.x, 0, sizeof (other.x));
-}
+manapi::bigint::bigint(bigint &&other) noexcept = default;
+
+manapi::bigint &manapi::bigint::operator=(bigint &&other) noexcept = default;
 
 manapi::bigint::bigint(const manapi::bigint &other) {
-    mpf_init (x);
-
+    this->init_(128);
     *this = other;
 }
 
-manapi::bigint::~bigint() {
-    cleanup();
-}
+manapi::bigint::~bigint() = default;
 
 // parse
 
-void manapi::bigint::parse(std::string_view num) {
-    if (mpf_set_str (x, num.data(), 10))
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT, "bigint: parse failed");
+int manapi::bigint::parse(std::string_view num) {
+    if (mpf_set_str (this->x->m, num.data(), 10))
+        return ERR_INVALID_ARGUMENT;
+    return ERR_OK;
 }
 
-// void manapi::bigint::parse(const long long int &num) {
-//     mpf_set_si (x, num);
-// }
-
 void manapi::bigint::parse(ssize_t num) {
-    mpf_set_si (x, num);
+    mpf_set_si (this->x->m, num);
 }
 
 void manapi::bigint::parse(double num) {
-    mpf_set_d (x, num);
+    mpf_set_d (this->x->m, num);
 }
 
 void manapi::bigint::parse(long double num) {
-    mpf_set_d (x, static_cast <double> (num));
+    mpf_set_d (this->x->m, static_cast <double> (num));
 }
 
 std::string manapi::bigint::stringify() const {
     mp_exp_t exponent;
-    char *ptr       = mpf_get_str (nullptr, &exponent, 10, 0, x);
+    char *ptr       = mpf_get_str (nullptr, &exponent, 10, 0, this->x->m);
     std::string ret = ptr;
 
     if (!ret.empty()) {
@@ -129,19 +120,19 @@ std::string manapi::bigint::stringify() const {
 }
 
 ssize_t manapi::bigint::integerify() const {
-    return mpf_get_si(x);
+    return mpf_get_si(this->x->m);
 }
 
 double manapi::bigint::decimalify() const {
-    return mpf_get_d(x);
+    return mpf_get_d(this->x->m);
 }
 
 manapi::bigint manapi::bigint::operator+(const manapi::bigint &oth) const {
     bigint n;
 
-    n.set_precision(mpf_get_prec (x));
+    n.precision(mpf_get_prec (this->x->m));
 
-    mpf_add (n.x, x, oth.x);
+    mpf_add (n.x->m, this->x->m, oth.x->m);
 
     return std::move(n);
 }
@@ -149,9 +140,9 @@ manapi::bigint manapi::bigint::operator+(const manapi::bigint &oth) const {
 manapi::bigint manapi::bigint::operator+(ssize_t oth) const {
     bigint n;
 
-    n.set_precision(mpf_get_prec (x));
+    n.precision(mpf_get_prec (this->x->m));
 
-    mpf_add_ui (n.x, x, oth);
+    mpf_add_ui (n.x->m, this->x->m, oth);
 
     return std::move(n);
 }
@@ -161,55 +152,53 @@ manapi::bigint manapi::bigint::operator+(int oth) const {
 }
 
 manapi::bigint manapi::bigint::operator/(const manapi::bigint &oth) const {
-    if (oth == zero)
-    {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_DATA_LOSS, "{}", "Divided by zero");
-    }
+    if (oth == 0)
+        THROW_MANAPIHTTP_EXCEPTION(ERR_DATA_LOSS, "Divided by zero");
 
     bigint n;
 
-    n.set_precision(mpf_get_prec (x));
+    n.precision(mpf_get_prec (this->x->m));
 
-    mpf_div (n.x, x, oth.x);
+    mpf_div (n.x->m, this->x->m, oth.x->m);
 
     return std::move(n);
 }
 
 manapi::bigint manapi::bigint::operator/(int oth) const {
-    return std::move(bigint(*this / bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this / bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::operator/(ssize_t oth) const {
-    return std::move(bigint(*this / bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this / bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::operator/(double oth) const {
-    return std::move(bigint(*this / bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this / bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::operator/(long double oth) const {
-    return std::move(bigint(*this / bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this / bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::root(ssize_t oth) const {
     bigint n;
-    n.set_precision(mpf_get_prec(x));
-    mpf_pow_ui(n.x, x, oth);
+    n.precision(mpf_get_prec(this->x->m));
+    mpf_pow_ui(n.x->m, this->x->m, oth);
     return std::move(n);
 }
 
 manapi::bigint manapi::bigint::sqrt(ssize_t oth) const {
     bigint n = *this;
-    mpf_sqrt_ui(n.x, oth);
+    mpf_sqrt_ui(n.x->m, oth);
     return std::move(n);
 }
 
 manapi::bigint manapi::bigint::operator-(const manapi::bigint &oth) const {
     bigint n;
 
-    n.set_precision(mpf_get_prec (x));
+    n.precision(mpf_get_prec (this->x->m));
 
-    mpf_sub (n.x, x, oth.x);
+    mpf_sub (n.x->m, this->x->m, oth.x->m);
 
     return std::move(n);
 }
@@ -221,62 +210,62 @@ manapi::bigint manapi::bigint::operator-(int oth) const {
 manapi::bigint manapi::bigint::operator-(ssize_t oth) const {
     bigint n;
 
-    n.set_precision(mpf_get_prec (x));
+    n.precision(mpf_get_prec (this->x->m));
 
-    mpf_sub_ui (n.x, x, oth);
+    mpf_sub_ui (n.x->m, this->x->m, oth);
 
     return std::move(n);
 }
 
 manapi::bigint manapi::bigint::operator-(double oth) const {
-    return std::move(bigint(*this - bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this - bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::operator+(double oth) const {
-    return std::move(bigint(*this + bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this + bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::operator-(long double oth) const {
-    return std::move(bigint(*this + bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this + bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::operator+(long double oth) const {
-    return std::move(bigint(*this + bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this + bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::operator*(const manapi::bigint &oth) const {
     bigint n;
 
-    n.set_precision(mpf_get_prec (x));
+    n.precision(mpf_get_prec (this->x->m));
 
-    mpf_mul (n.x, x, oth.x);
+    mpf_mul (n.x->m, this->x->m, oth.x->m);
 
     return std::move(n);
 }
 
 manapi::bigint manapi::bigint::operator*(ssize_t oth) const {
-    return std::move(bigint(*this * bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this * bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::operator*(int oth) const {
-    return std::move(bigint(*this * bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this * bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::operator*(long double oth) const {
-    return std::move(bigint(*this * bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this * bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint manapi::bigint::operator*(double oth) const {
-    return std::move(bigint(*this * bigint (oth, mpf_get_prec(x))));
+    return std::move(bigint(*this * bigint (oth, mpf_get_prec(this->x->m))));
 }
 
 manapi::bigint& manapi::bigint::operator-=(const manapi::bigint &oth) {
-    mpf_sub (x, x, oth.x);
+    mpf_sub (this->x->m, this->x->m, oth.x->m);
     return *this;
 }
 
 manapi::bigint& manapi::bigint::operator+=(const manapi::bigint &oth) {
-    mpf_add (x, x, oth.x);
+    mpf_add (this->x->m, this->x->m, oth.x->m);
     return *this;
 }
 
@@ -321,7 +310,7 @@ manapi::bigint& manapi::bigint::operator+=(long double oth) {
 }
 
 manapi::bigint& manapi::bigint::operator*=(const manapi::bigint &oth) {
-    mpf_mul (x, x, oth.x);
+    mpf_mul (this->x->m, this->x->m, oth.x->m);
     return *this;
 }
 
@@ -366,28 +355,28 @@ manapi::bigint& manapi::bigint::operator/=(long double oth) {
 }
 
 manapi::bigint& manapi::bigint::operator/=(const manapi::bigint &oth) {
-    mpf_div (x, x, oth.x);
+    mpf_div (this->x->m, this->x->m, oth.x->m);
     return *this;
 }
 
 bool manapi::bigint::operator==(const manapi::bigint &oth) const {
-    return mpf_cmp (x, oth.x) == 0;
+    return mpf_cmp (this->x->m, oth.x->m) == 0;
 }
 
 bool manapi::bigint::operator==(ssize_t oth) const {
-    return *this == bigint (oth, mpf_get_prec(x));
+    return *this == bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator==(double oth) const {
-    return *this == bigint (oth, mpf_get_prec(x));
+    return *this == bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator==(int oth) const {
-    return *this == bigint (oth, mpf_get_prec(x));
+    return *this == bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator==(std::string_view oth) const {
-    return *this == bigint (oth, mpf_get_prec(x));
+    return *this == bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator!=(const manapi::bigint &oth) const {
@@ -395,59 +384,59 @@ bool manapi::bigint::operator!=(const manapi::bigint &oth) const {
 }
 
 bool manapi::bigint::operator!=(ssize_t oth) const {
-    return *this != bigint (oth, mpf_get_prec(x));
+    return *this != bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator!=(double oth) const {
-    return *this != bigint (oth, mpf_get_prec(x));
+    return *this != bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator!=(int oth) const {
-    return *this != bigint (oth, mpf_get_prec(x));
+    return *this != bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator!=(std::string_view oth) const {
-    return *this != bigint (oth, mpf_get_prec(x));
+    return *this != bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator>(const manapi::bigint &oth) const {
-    return mpf_cmp (x, oth.x) < 0;
+    return mpf_cmp (this->x->m, oth.x->m) < 0;
 }
 
 bool manapi::bigint::operator>(ssize_t oth) const {
-    return *this > bigint (oth, mpf_get_prec(x));
+    return *this > bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator>(double oth) const {
-    return *this > bigint (oth, mpf_get_prec(x));
+    return *this > bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator>(int oth) const {
-    return *this > bigint (oth, mpf_get_prec(x));
+    return *this > bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator>(std::string_view oth) const {
-    return *this > bigint (oth, mpf_get_prec(x));
+    return *this > bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator<(const manapi::bigint &oth) const {
-    return mpf_cmp (x, oth.x) > 0;
+    return mpf_cmp (this->x->m, oth.x->m) > 0;
 }
 
 bool manapi::bigint::operator<(ssize_t oth) const {
-    return *this < bigint (oth, mpf_get_prec(x));
+    return *this < bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator<(double oth) const {
-    return *this < bigint (oth, mpf_get_prec(x));
+    return *this < bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator<(int oth) const {
-    return *this < bigint (oth, mpf_get_prec(x));
+    return *this < bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator<(std::string_view oth) const {
-    return *this < bigint (oth, mpf_get_prec(x));
+    return *this < bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator>=(const manapi::bigint &oth) const {
@@ -455,19 +444,19 @@ bool manapi::bigint::operator>=(const manapi::bigint &oth) const {
 }
 
 bool manapi::bigint::operator>=(ssize_t oth) const {
-    return *this >= bigint (oth, mpf_get_prec(x));
+    return *this >= bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator>=(double oth) const {
-    return *this >= bigint (oth, mpf_get_prec(x));
+    return *this >= bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator>=(int oth) const {
-    return *this >= bigint (oth, mpf_get_prec(x));
+    return *this >= bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator>=(std::string_view oth) const {
-    return *this >= bigint (oth, mpf_get_prec(x));
+    return *this >= bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator<=(const manapi::bigint &oth) const {
@@ -475,83 +464,89 @@ bool manapi::bigint::operator<=(const manapi::bigint &oth) const {
 }
 
 bool manapi::bigint::operator<=(ssize_t oth) const {
-    return *this <= bigint (oth, mpf_get_prec(x));
+    return *this <= bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator<=(double oth) const {
-    return *this <= bigint (oth, mpf_get_prec(x));
+    return *this <= bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator<=(int oth) const {
-    return *this <= bigint (oth, mpf_get_prec(x));
+    return *this <= bigint (oth, mpf_get_prec(this->x->m));
 }
 
 bool manapi::bigint::operator<=(std::string_view oth) const {
-    return *this <= bigint (oth, mpf_get_prec(x));
+    return *this <= bigint (oth, mpf_get_prec(this->x->m));
 }
 
 manapi::bigint &manapi::bigint::operator--() {
-    mpf_sub_ui (x, x, 1);
+    mpf_sub_ui (this->x->m, this->x->m, 1);
     return *this;
 }
 
 manapi::bigint &manapi::bigint::operator++() {
-    mpf_add_ui (x, x, 1);
+    mpf_add_ui (this->x->m, this->x->m, 1);
     return *this;
 }
 
 manapi::bigint manapi::bigint::operator!() const {
-    bigint copy (x);
+    bigint copy (*this);
 
-    mpf_neg (copy.x, copy.x);
+    mpf_neg (copy.x->m, copy.x->m);
 
     return std::move(copy);
 }
 
 manapi::bigint manapi::bigint::operator-() const {
-    bigint copy (x);
+    bigint copy (*this);
 
-    mpf_neg (copy.x, copy.x);
+    mpf_neg (copy.x->m, copy.x->m);
 
     return std::move(copy);
 }
 
 manapi::bigint & manapi::bigint::operator=(std::string_view oth) {
-    return *this = bigint (oth, mpf_get_prec(x));
+    return *this = bigint (oth, mpf_get_prec(this->x->m));
 }
 
 manapi::bigint& manapi::bigint::operator=(const manapi::bigint &oth) {
-    cleanup();
-
-    mpf_init(x);
-    mpf_set_prec(x, oth.get_precision());
-    mpf_set(x, oth.x);
+    mpf_set(this->x->m, oth.x->m);
 
     return *this;
 }
 
 manapi::bigint & manapi::bigint::operator=(ssize_t oth) {
-    return *this = bigint (oth, mpf_get_prec(x));
+    return *this = bigint (oth, mpf_get_prec(this->x->m));
 }
 
 manapi::bigint & manapi::bigint::operator=(int oth) {
-    return *this = bigint (oth, mpf_get_prec(x));
+    return *this = bigint (oth, mpf_get_prec(this->x->m));
 }
 
 manapi::bigint & manapi::bigint::operator=(double oth) {
-    return *this = bigint (oth, mpf_get_prec(x));
+    return *this = bigint (oth, mpf_get_prec(this->x->m));
 }
 
-void manapi::bigint::cleanup() {
-    mpf_clear (x);
+void manapi::bigint::init_(std::size_t precision) {
+    if (this->x) {
+        mpf_clear(this->x->m);
+        this->x->m = nullptr;
+    }
+    else
+        this->x.reset(new data_t);
+
+    mpf_init2(this->x->m, precision);
+
+    if (!this->x->m)
+        throw std::bad_alloc();
 }
 
-void manapi::bigint::set_precision(std::size_t precision) {
-    mpf_set_prec (x, precision);
+void manapi::bigint::precision(std::size_t precision) {
+    mpf_set_prec (this->x->m, precision);
 }
 
-size_t manapi::bigint::get_precision() const {
-    return mpf_get_prec(x);
+size_t manapi::bigint::precision() const {
+    return mpf_get_prec(this->x->m);
 }
 
 // other

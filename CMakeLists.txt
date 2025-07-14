@@ -275,7 +275,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiBigint.hpp
         include/ManapiHttpTypes.hpp
         include/ManapiFilesystem.hpp
-        include/ManapiBase64.hpp
+        include/crypto/ManapiBase64.hpp
         include/compress/ManapiCompress.hpp
         include/services/ManapiTaskFunction.hpp
         include/ManapiHash.hpp
@@ -454,6 +454,8 @@ set(MANAPIHTTP_HTTP_FILES
         include/services/ManapiDns.hpp
         src/services/ManapiDns.cpp
         src/ManapiTime.cpp
+        src/crypto/ManapiBase64.cpp
+        src/services/ManapiFetch2.cpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

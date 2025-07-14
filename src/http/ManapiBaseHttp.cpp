@@ -60,7 +60,7 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
     if (res->request_data()->http < versions::HTTP_v2) {
         auto const keepalive = cdata->worker->config()->keep_alive;
         if (keepalive) {
-            res->header(HEADER.CONNECTION, HEADER.KEEP_ALIVE);
+            res->header(HEADER.CONNECTION, std::string{HEADER.KEEP_ALIVE});
         }
         else {
             res->header(HEADER.CONNECTION, "close");
@@ -91,14 +91,14 @@ void manapi::net::http::internal::send_response(uq_handle_data_t cdata, std::uni
         break;
         default: {
             auto const cdataptr = cdata.get();
-            manapi::async::run<ssize_t>(mask_response(cdataptr, res.get(), true),
-                [cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *result)
+            manapi::async::run<int>(mask_response(cdataptr, res.get(), true),
+                [cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, int *result)
                 -> void {
                     if (err) {
                         /* failed */
                         return;
                     }
-                    cdata->cb->call(true);
+                    cdata->cb->call(result && *result == ERR_OK);
             });
         }
     }
@@ -163,17 +163,19 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
         try {
             // set headers
 
-            std::string mimetype = mime::mime_by_file_path(
+            std::string_view mimetype = mime::mime_by_file_path(
                 resfile.empty() ? filepath : resfile);
             std::vector<replace_founded_item> replacers;
 
             if (mimetype.size() > sizeof ("text")) {
                 if (strncmp("text", mimetype.data(), sizeof ("text") - 1) == 0) {
-                    mimetype = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
+                    auto mimegen = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
+                    res->header(HEADER.CONTENT_TYPE, std::move(mimegen));
                 }
             }
-
-            res->header(HEADER.CONTENT_TYPE, mimetype);
+            else {
+                res->header(HEADER.CONTENT_TYPE, std::string{mimetype});
+            }
 
             // get file size
             ssize_t fileSize = co_await manapi::filesystem::async_file_size(filepath);
@@ -240,14 +242,14 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                 res->header(HEADER.CONTENT_RANGE, std::format("bytes {}-{}/{}", start, back, fileSize));
 
                 auto task = mask_response(cdata.get(), res.get(), size == 0);
-                manapi::async::run<ssize_t>(std::move(task),
-                    [size, start, f, cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *value) mutable
+                manapi::async::run<int>(std::move(task),
+                    [size, start, f, cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, int *value) mutable
                     -> void {
                         if (err) {
                             return;
                         }
 
-                        if (value && *value >= 0) {
+                        if (value && *value == ERR_OK) {
                             // set start position
                             f.seekg(start);
                             // set size and send
@@ -262,14 +264,14 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
 
                 if (fileSize) {
                     auto task = mask_response(cdata.get(), res.get(), false);
-                    manapi::async::run<ssize_t>(std::move(task),
-                        [res = std::move(res), fileSize, replacers = std::move(replacers), f = std::move(f), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *value) mutable
+                    manapi::async::run<int>(std::move(task),
+                        [res = std::move(res), fileSize, replacers = std::move(replacers), f = std::move(f), cdata = std::move(cdata)] (std::exception_ptr err, int *value) mutable
                         -> void {
                             if (err) {
                                 return;
                             }
 
-                            if (value && *value >= 0) {
+                            if (value && *value == ERR_OK) {
                                 if (replacers.empty()) {
                                     // without replacers
                                     manapi::async::run( send_file(std::move(cdata), f, fileSize));
@@ -282,8 +284,8 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                 }
                 else {
                     auto task = mask_response(cdata.get(), res.get(), true);
-                    manapi::async::run<ssize_t>(std::move(task), [cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *result)
-                        -> void { if (err) { return; } cdata->cb->call(true); });
+                    manapi::async::run<int>(std::move(task), [cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, int *result)
+                        -> void { if (err) { return; } cdata->cb->call(result && *result == ERR_OK); });
                 }
             }
         }
@@ -317,15 +319,15 @@ manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_d
     }
 
     auto task = mask_response(cdata.get(), res.get(), plaintext.empty());
-    manapi::async::run<ssize_t>(std::move(task),
-        [plaintext = std::move(plaintext), cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *value) mutable
+    manapi::async::run<int>(std::move(task),
+        [plaintext = std::move(plaintext), cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, int *value) mutable
         -> void {
             if (err) {
                 /* failed */
                 return;
             }
 
-            if (value && *value >= 0) {
+            if (value && *value == ERR_OK) {
                 /* ok */
                 manapi::async::run (send_text(std::move(cdata), std::move(plaintext)));
             }
@@ -348,7 +350,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
     auto content_length = std::make_unique<ssize_t>(0);
 
     proxy->handle_async_headers (
-        [&content_length = *content_length.get(), proxy = proxy.get(), cdata = cdata.get(), res = res.get()](std::map<std::string, std::string> headers) mutable
+        [&content_length = *content_length.get(), proxy = proxy.get(), cdata = cdata.get(), res = res.get()](std::map<std::string, std::string, std::less<>> headers) mutable
         -> manapi::future<bool> {
         res->status_code(proxy->status_code());
 
@@ -359,7 +361,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(uq_handle_
         }
 
         const auto rhs1 = co_await mask_response(cdata, res, content_length == 0);
-        if (rhs1 < 0) {
+        if (rhs1 != ERR_OK) {
             co_return false;
         }
 
@@ -422,15 +424,15 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(uq_handle_d
     auto size = co_await formdata->payload_size();
 
     auto task = mask_response(cdata.get(), res.get(), false);
-    manapi::async::run<ssize_t> (std::move(task),
-        [size, formdata = std::move(formdata), cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, ssize_t *result) mutable
+    manapi::async::run<int> (std::move(task),
+        [size, formdata = std::move(formdata), cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, int *result) mutable
         -> void {
             if (err) {
                 /* failed */
                 return;
             }
 
-            if (result && *result >= 0) {
+            if (result && *result == ERR_OK) {
                 auto boundary = formdata->generate_boundary();
                 size += formdata->multipart_size(static_cast<ssize_t>(boundary.size()));
 
@@ -528,15 +530,15 @@ void manapi::net::http::internal::send_response_sync_cb(uq_handle_data_t cdata, 
         res->header(http::HEADER.TRANSFER_ENCODING, "chunked");
 
     auto task = mask_response(cdata.get(), res.get(), false);
-    manapi::async::run<ssize_t> ( std::move(task),
-        [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result) mutable
+    manapi::async::run<int> ( std::move(task),
+        [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, int *result) mutable
         -> void {
             if (err) {
 
                 return;
             }
 
-            if (result && *result >= 0) {
+            if (result && *result == ERR_OK) {
                 auto cb_sync = std::make_unique<http::response::resp_callback_sync>(std::move(res->callback_sync()));
                 manapi::async::run ([res = std::move(res), cb_sync = std::move(cb_sync), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
@@ -604,15 +606,15 @@ void manapi::net::http::internal::send_response_stream_cb(uq_handle_data_t cdata
         res->header(http::HEADER.TRANSFER_ENCODING, "chunked");
 
     auto task = mask_response(cdata.get(), res.get(), false);
-    manapi::async::run<ssize_t> (std::move(task),
-        [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result) mutable
+    manapi::async::run<int> (std::move(task),
+        [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, int *result) mutable
         -> void {
             if (err) {
 
                 return;
             }
 
-            if (result && *result >= 0) {
+            if (result && *result == ERR_OK) {
                 auto cb_async = std::make_unique<http::response::resp_stream>(std::move(res->callback_stream()));
                 manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
@@ -651,15 +653,15 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
         res->header(http::HEADER.TRANSFER_ENCODING, "chunked");
 
     auto task = mask_response(cdata.get(), res.get(), false);
-    manapi::async::run<ssize_t> (std::move(task),
-        [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, ssize_t *result) mutable
+    manapi::async::run<int> (std::move(task),
+        [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, int *result) mutable
         -> void {
             if (err) {
 
                 return;
             }
 
-            if (result && *result >= 0) {
+            if (result && *result == ERR_OK) {
                 auto cb_async = std::make_unique<http::response::resp_callback_async>(std::move(res->callback_async()));
                 manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
@@ -702,7 +704,7 @@ void manapi::net::http::internal::send_response_async_cb(uq_handle_data_t cdata,
         });
 }
 
-manapi::future<ssize_t> manapi::net::http::internal::mask_response(handle_data_t *cdata, response* res, bool finish) {
+manapi::future<int> manapi::net::http::internal::mask_response(handle_data_t *cdata, response* res, bool finish) {
     auto const global = cdata->worker->wrk_global();
     return global->send_response(cdata->conn, global, cdata->worker.get(), res, finish);
 }
@@ -759,12 +761,8 @@ namespace manapi::net::http::internal {
                         if (exists) {
                             if (st_mode & ev::IFREG) {
                                 const auto ext = manapi::filesystem::path::extension(path);
-                                auto mime = mime::mime_by_extension.find(ext);
-                                bool binary = false;
-                                if (mime != mime::mime_by_extension.end()) {
-                                    binary = mime::mime_partitial_data(mime->second);
-                                }
-
+                                auto const mime = mime::mime_by_file_extension(ext);
+                                bool const binary = mime::mime_partitial_data(mime);
                                 auto client = std::make_unique<manapi_socket_information>();
 
                                 if (handle_request_stringify_ip(client.get(), cdata->worker.get(), cdata->conn.get())) {

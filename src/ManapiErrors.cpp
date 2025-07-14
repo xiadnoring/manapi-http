@@ -122,6 +122,10 @@ manapi::error::status manapi::error::status_unknown(std::string_view msg) {
     return {ERR_UNKNOWN, msg};
 }
 
+manapi::error::status manapi::error::status_cancelled() {
+    return {ERR_CANCELLED, {"cancelled"}};
+}
+
 manapi::error::status manapi::error::status_cancelled(std::string_view msg) {
     return {ERR_CANCELLED, msg};
 }
@@ -180,6 +184,10 @@ manapi::error::status manapi::error::status_unimplemented(std::string_view msg) 
 
 manapi::error::status manapi::error::status_internal(std::string_view msg) {
     return {ERR_INTERNAL, msg};
+}
+
+manapi::error::status manapi::error::status_internal() {
+    return error::status_internal("failed");
 }
 
 manapi::error::status manapi::error::status_data_loss(std::string_view msg) {

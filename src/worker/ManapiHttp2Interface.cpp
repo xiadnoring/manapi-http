@@ -194,7 +194,7 @@ int default_wrk_http2_global_cleanup (manapi::net::worker::wrk_interface_global_
     return 0;
 }
 
-manapi::future<ssize_t> default_wrk_http2_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global,
+manapi::future<int> default_wrk_http2_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global,
     manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
     co_return co_await manapi::net::http::http_v2_response(w, conn, res->status_code(), std::move(res->headers()), finish);
 }

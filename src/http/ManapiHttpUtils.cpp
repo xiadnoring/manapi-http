@@ -32,9 +32,13 @@ manapi::error::status_or<std::pair<std::string_view, std::string_view>> manapi::
     return std::move(parsed);
 }
 
-std::string manapi::net::http::stringify_header (const std::pair<std::string, std::string> &header)
-{
-    return std::move(header.first + ": " + header.second);
+std::string manapi::net::http::stringify_header (const std::pair<std::string_view, std::string_view> &header) {
+    std::string res;
+    res.resize(header.first.size() + header.second.size() + (sizeof (": ") - 1));
+    res += header.first;
+    res += ": ";
+    res += header.second;
+    return std::move(res);
 }
 
 void manapi::net::http::request_data_clear(request_data_t &data) {
@@ -387,7 +391,7 @@ std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_
 err: THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "error was occurred");
 }
 
-std::string manapi::net::http::stringify_header_value (const std::vector <header_value_t> &header_value) {
+std::string manapi::net::http::stringify_header_value (const std::vector <header_value_view_t> &header_value) {
     std::string result;
 
     if (!header_value.empty()) {
@@ -418,7 +422,9 @@ std::string manapi::net::http::stringify_header_value (const std::vector <header
 
                 point_param:
 
-                result += param->first + '=' + param->second;
+                result += param->first;
+                result += '=';
+                result += param->second;
             }
         }
     }

@@ -55,11 +55,12 @@ bool manapi::mime::mime_partitial_data(std::string_view mime) {
 }
 
 std::string_view manapi::mime::mime_by_file_path(std::string_view path) {
-    const std::string extension = manapi::filesystem::path::extension(path);
+    return mime_by_file_extension(manapi::filesystem::path::extension(path));
+}
 
-    auto const mit = mime_by_extension.find(extension);
-    if (mit != mime_by_extension.end())
-        return mit->second;
-
-    return manapi::mime::types.APPLICATION_OCTET_STREAM;
+std::string_view manapi::mime::mime_by_file_extension(std::string_view ext) {
+    auto const mit = mime_by_extension.find(ext);
+    if (mit == mime_by_extension.end())
+        return mime::types.APPLICATION_OCTET_STREAM;
+    return mit->second;
 }

@@ -85,7 +85,7 @@ namespace manapi::net::worker {
         // void recv_buffer_dealloc_(const ev::buff_t *buf) override;
 
     private:
-        static manapi::future<ssize_t> cloudflare_wrk_http3_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish);
+        static manapi::future<int> cloudflare_wrk_http3_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish);
 
         void update_limit_rate ();
 

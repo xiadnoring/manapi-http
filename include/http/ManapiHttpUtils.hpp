@@ -26,6 +26,11 @@ namespace manapi::net::http {
         std::map <std::string, std::string> params;
     };
 
+    struct header_value_view_t {
+        std::string_view value;
+        std::map <std::string_view, std::string_view> params;
+    };
+
     struct manapi_socket_information
     {
         std::string ip;
@@ -38,9 +43,9 @@ namespace manapi::net::http {
 
     struct request_data_t {
         // just headers
-        std::map<std::string, std::string> headers;
+        std::map<std::string, std::string, std::less<>> headers;
         // contains params from url .../[param1]-[param2]/...
-        std::map<std::string, std::string> params;
+        std::map<std::string, std::string, std::less<>> params;
 
         // GET, POST, HEAD
         std::string method;
@@ -72,9 +77,9 @@ namespace manapi::net::http {
 
     manapi::error::status_or<std::pair<std::string_view, std::string_view>> parse_header (std::string_view header);
 
-    std::string stringify_header (const std::pair<std::string, std::string> &header);
+    std::string stringify_header (const std::pair<std::string_view, std::string_view> &header);
 
-    std::string stringify_header_value (const std::vector <header_value_t> &header_value);
+    std::string stringify_header_value (const std::vector <header_value_view_t> &header_value);
 
     int version_ip_by_addr (const sockaddr *addr);
 

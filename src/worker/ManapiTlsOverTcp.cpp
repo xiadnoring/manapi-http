@@ -369,6 +369,11 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
     auto connection = std::unique_ptr<connection_interface> (uptr->as<connection_interface>());
     auto w = (dynamic_cast<TLS*>(connection->worker));
 
+    if (connection->watcher) {
+        connection->watcher->read_stop();
+        manapi::async::current()->eventloop()->stop_watcher(std::move(connection->watcher));
+    }
+
     if (connection->ssl) {
         auto ssl = std::exchange(connection->ssl, nullptr);
         std::cout << ("SSL FREE\n");

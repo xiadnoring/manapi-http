@@ -40,7 +40,7 @@ namespace manapi {
 
     class json {
     public:
-        typedef std::map <std::string, manapi::json> OBJECT;
+        typedef std::map <std::string, manapi::json, std::less<>> OBJECT;
         typedef std::vector <manapi::json> ARRAY;
         typedef double long DECIMAL;
         typedef ssize_t INTEGER;
@@ -497,9 +497,11 @@ namespace manapi {
         auto end ()
         { return this->as_array().end(); }
 
-        OBJECT::iterator find (const STRING &key);
+        //OBJECT::iterator find (const STRING &key);
 
-        OBJECT::const_iterator find (const STRING &key) const;
+        OBJECT::iterator find (STRING_VIEW key);
+
+        OBJECT::const_iterator find (STRING_VIEW key) const;
 
         [[nodiscard]] const ARRAY &each() const;
         [[nodiscard]] const OBJECT &entries() const;

@@ -306,12 +306,9 @@ namespace manapi {
             error::status err_;
         };
 
-        /**
-         *
-         * @return
-         */
         status status_ok ();
         status status_unknown (std::string_view msg);
+        status status_cancelled ();
         status status_cancelled (std::string_view msg);
         status status_invalid_argument (std::string_view msg);
         status status_deadline_exceeded (std::string_view msg);
@@ -327,6 +324,7 @@ namespace manapi {
         status status_out_of_range (std::string_view msg);
         status status_unimplemented (std::string_view msg);
         status status_internal (std::string_view msg);
+        status status_internal ();
         status status_data_loss (std::string_view msg);
         status status_filesystem_failed (std::string_view msg);
         status status_parse_failed (std::string_view msg);

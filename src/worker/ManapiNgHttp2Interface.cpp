@@ -587,10 +587,10 @@ ssize_t ng_wrk_http2_read_cb (nghttp2_session *session, int32_t stream_id, uint8
     return res;
 }
 
-manapi::future<ssize_t> ng_wrk_http2_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
+manapi::future<int> ng_wrk_http2_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
     auto const s = conn->as<http_v2_stream_t>();
     if (!s)
-        co_return -1;
+        co_return manapi::ERR_ABORTED;
 
     auto const http_v2_ctx = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *> (conn->wrk.data);
     auto &headers = res->headers();
@@ -631,15 +631,15 @@ manapi::future<ssize_t> ng_wrk_http2_send_response (const manapi::net::worker::s
     auto const rhs = nghttp2_submit_response(http_v2_ctx->ctx.get(), s->id, nvs, hs, fpr);
     if (rhs) {
         MANAPIHTTP_LOG("nghttp2: failed to send headers due to {}", nghttp2_strerror(rhs));
-        co_return -1;
+        co_return manapi::ERR_INTERNAL;
     }
 
     if (auto const err = nghttp2_session_send(http_v2_ctx->ctx.get())) {
         if (err != NGHTTP2_ERR_WOULDBLOCK)
-            co_return -1;
+            co_return manapi::ERR_ABORTED;
     }
 
-    co_return 1;
+    co_return manapi::ERR_OK;
 }
 
 manapi::error::status manapi::net::worker::ng_wrk_http2_global_init(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {

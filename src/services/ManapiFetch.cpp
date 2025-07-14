@@ -41,13 +41,13 @@ struct manapi::net::fetch::shared_data {
     std::size_t async_buffer_size;
     manapi::slice async_buffer{};
     std::shared_ptr<CURL> curl {nullptr};
-    std::unique_ptr<std::map<std::string, std::string>> headers{nullptr};
+    std::unique_ptr<std::map<std::string, std::string, std::less<>>> headers{nullptr};
     std::unique_ptr<struct curl_slist, curl_slist_deleter> curl_headers {nullptr};
 
     std::unique_ptr<std::move_only_function <ssize_t(char *, ssize_t)>> handler_recv_body{nullptr};
     std::unique_ptr<std::move_only_function <manapi::future<>(std::shared_ptr<shared_data> data, bool finish)>> async_handler_recv_body{nullptr};
-    std::unique_ptr<std::move_only_function <manapi::future<bool>(std::shared_ptr<shared_data> data, std::map <std::string, std::string>)>> async_handler_headers{nullptr};
-    std::unique_ptr<std::move_only_function <bool(std::map <std::string, std::string>)>> handler_headers{nullptr};
+    std::unique_ptr<std::move_only_function <manapi::future<bool>(std::shared_ptr<shared_data> data, std::map <std::string, std::string, std::less<>>)>> async_handler_headers{nullptr};
+    std::unique_ptr<std::move_only_function <bool(std::map <std::string, std::string, std::less<>>)>> handler_headers{nullptr};
 
     std::unique_ptr<std::move_only_function<manapi::future<>(std::shared_ptr<shared_data> data, bool)>> async_user_body_cb{nullptr};
     std::unique_ptr<std::move_only_function<ssize_t(char *buffer, ssize_t size)>> sync_user_body_cb{nullptr};
@@ -414,7 +414,7 @@ errjmp:
     co_return error::status_invalid_argument(curl_easy_strerror(status));
 }
 
-std::map <std::string, std::string> manapi::net::fetch::headers() {
+std::map <std::string, std::string, std::less<>> manapi::net::fetch::headers() {
     return std::move(*std::exchange(this->data->data_->headers, nullptr));
 }
 
@@ -682,16 +682,16 @@ void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::futur
     });
 }
 
-void manapi::net::fetch::handle_headers(std::move_only_function<bool(std::map <std::string, std::string>)> handler) {
+void manapi::net::fetch::handle_headers(std::move_only_function<bool(std::map <std::string, std::string, std::less<>>)> handler) {
     if (this->data->data_->async_handler_headers) { this->data->data_->async_handler_headers = {nullptr}; }
     this->data->data_->handler_headers = std::make_unique<decltype(handler)>(std::move(handler));
 }
 
-void manapi::net::fetch::handle_async_headers(std::move_only_function<manapi::future<bool>(std::map<std::string, std::string>)> handler) {
+void manapi::net::fetch::handle_async_headers(std::move_only_function<manapi::future<bool>(std::map<std::string, std::string, std::less<>>)> handler) {
     if (this->data->data_->handler_headers) { this->data->data_->handler_headers = {nullptr}; }
     this->data->data_->async_handler_headers
     = std::make_unique<decltype(this->data->data_->async_handler_headers)::element_type>(
-        [handler = std::move(handler)] (std::shared_ptr<shared_data> data, std::map<std::string, std::string> headers) mutable
+        [handler = std::move(handler)] (std::shared_ptr<shared_data> data, std::map<std::string, std::string, std::less<>> headers) mutable
         -> manapi::future<bool> { return handler(std::move(headers)); });
 }
 
@@ -886,7 +886,7 @@ void manapi::net::fetch::body(std::move_only_function<ssize_t(char *, ssize_t)> 
     this->data->data_->handler_send_body = std::make_unique<decltype(handler)>(std::move(handler));
 }
 
-void manapi::net::fetch::headers(std::map<std::string, std::string> headers) {
+void manapi::net::fetch::headers(std::map<std::string, std::string, std::less<>> headers) {
     {
         auto content_length = headers.find(http::HEADER.CONTENT_LENGTH);
         if (content_length != headers.end()) {
@@ -922,7 +922,8 @@ void manapi::net::fetch::json_headers(manapi::json headers) {
         }
     }
 
-    if (headers.contains(http::HEADER.TRANSFER_ENCODING)) {
+    auto it = headers.find(http::HEADER.TRANSFER_ENCODING);
+    if (it != headers.end<json::OBJECT>()) {
         this->data->flags |= FLAG_TRANSFER_ENCODING;
     }
 

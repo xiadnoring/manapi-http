@@ -159,12 +159,12 @@ int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint
 
     auto rhs = ctx->worker->sync_write_ex(ctx->conn, header, sizeof (header), force && !size, maxcnt);
     if (rhs != sizeof (header))
-        return -1;
+        return manapi::ERR_INTERNAL;
 
     if (nbuff) {
         rhs = ctx->worker->sync_write_ex(ctx->conn, buffs, nbuff, size, force, maxcnt);
         if (rhs != size)
-            return -1;
+            return manapi::ERR_INTERNAL;
     }
 
     if (!(ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_BLOCK_WRITE)
@@ -175,7 +175,7 @@ int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint
             true, manapi::ev::WRITE);
     }
 
-    return 0;
+    return manapi::ERR_OK;
 }
 
 int http_v2_send_window_frame (manapi::net::http::http_v2_t *ctx,  int stream_id, int size) {
@@ -209,7 +209,7 @@ int http_v2_send_window_frame (manapi::net::http::http_v2_t *ctx,  int stream_id
          * window is 1 to 2^31-1 (2,147,483,647) octets.
          */
 
-        return -1;
+        return manapi::ERR_INTERNAL;
     }
 
     char out[4];
@@ -228,24 +228,28 @@ int http_v2_send_ping_frame (manapi::net::http::http_v2_t *ctx, char *data) {
         buf.len = 8;
 
         if (http_v2_send_frame(ctx, HTTP2_FRAME_PING, HTTP2_FLAG_PING_ACK, 0,&buf, 1, buf.len)) {
-            return -1;
+            return manapi::ERR_INTERNAL;
         }
     }
     else {
-        auto s = manapi::crypto::random_string(8);
+        auto res = manapi::crypto::random_string(8);
         if (!ctx->pings) {
             ctx->pings = std::make_unique<decltype(ctx->pings)::element_type>();
         }
+        if (!res.ok())
+            return manapi::ERR_INTERNAL;
+
+        auto s = res.unwrap();
         manapi::ev::buff_t buf;
         buf.base = s.data();
         buf.len = static_cast<size_t>(8);
         if (http_v2_send_frame(ctx, HTTP2_FRAME_PING, 0, 0, &buf, 1, buf.len)) {
-            return -1;
+            return manapi::ERR_INTERNAL;
         }
         ctx->pings->insert(std::move(s));
     }
 
-    return 0;
+    return manapi::ERR_OK;
 }
 
 int http_v2_send_data_frame (manapi::net::http::http_v2_t *ctx,  int stream_id, manapi::ev::buff_t buffs[], uint32_t nbuff, ssize_t size, bool finish) {
@@ -272,9 +276,9 @@ int http_v2_verify_setting (int key, int value) {
             /* ignore */
         }
         /* setting incorrect */
-        return -1;
+        return manapi::ERR_INTERNAL;
     }
-    return 0;
+    return manapi::ERR_OK;
 }
 
 
@@ -396,10 +400,10 @@ uint8_t http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net:
     }
     catch (std::exception const &e) {
         MANAPIHTTP_LOG("http2: priority update failed due to {}", e.what());
-        return -1;
+        return manapi::ERR_INTERNAL;
     }
 
-    return 0;
+    return manapi::ERR_OK;
 }
 
 int http_v2_real_priority_by_stream (manapi::net::http::http_v2_stream_t *s) {
@@ -421,7 +425,7 @@ int http_v2_update_priority (manapi::net::http::http_v2_t *ctx, const manapi::ne
     }
 
     if (http_v2_remove_priority(ctx, s, rs))
-        return -1;
+        return manapi::ERR_INTERNAL;
 
     return http_v2_insert_priority(ctx, sconn, s, as);
 }
@@ -429,9 +433,8 @@ int http_v2_update_priority (manapi::net::http::http_v2_t *ctx, const manapi::ne
 int http_v2_apply_setting (manapi::net::http::http_v2_t *ctx, int key, int value, bool server) {
     auto const settings = server ? ctx->server.get() : ctx->client.get();
 
-    if (http_v2_verify_setting(key, value)) {
-        return -1;
-    }
+    if (http_v2_verify_setting(key, value))
+        return manapi::ERR_INTERNAL;
 
     switch (key) {
         case HTTP2_SETTING_HEADER_TABLE_SIZE: {
@@ -506,15 +509,15 @@ int http_v2_send_goaway (manapi::net::http::http_v2_t *ctx, http_v2_goaway_t *ht
                                                                                     "err code: {}, stream id: {}, msg: {}", http_goaway->err_code, ctx->last_stream_id, http_goaway->err_msg);
 
     if (auto rhs = http_v2_send_frame(ctx, HTTP2_FRAME_GOAWAY, 0, 0, data, 2, data[0].len + data[1].len)) {
-        return -1;
+        return manapi::ERR_INTERNAL;
     }
 
-    return 0;
+    return manapi::ERR_OK;
 }
 
 int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<std::pair<short, int>> & options) {
     if (ctx->timeout) {
-        return -1;
+        return manapi::ERR_INTERNAL;
     }
 
     size_t const len = options.size() * 6;
@@ -522,7 +525,7 @@ int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<
     buffer.reserve(len);
     for (int i = 0; i < options.size(); ++i) {
         if (http_v2_apply_setting(ctx, options[i].first, options[i].second, true)) {
-            return -1;
+            return manapi::ERR_INTERNAL;
         }
 
         stringify_number<short>(options[i].first, buffer.data() + i * 6);
@@ -532,7 +535,7 @@ int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<
     bufs.base = buffer.data();
     bufs.len = len;
     if (http_v2_send_frame(ctx, HTTP2_FRAME_SETTINGS, 0, 0, &bufs, 1, bufs.len)) {
-        return -1;
+        return manapi::ERR_INTERNAL;
     }
 
     /* check for priority */
@@ -628,7 +631,7 @@ int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, uint32_t id) {
     try {
         auto it = ctx->streams->find(id);
         if (it == ctx->streams->end()) {
-            return -1;
+            return manapi::ERR_INTERNAL;
         }
         auto s = it->second->as<http_v2_stream_t>();
 
@@ -647,10 +650,10 @@ int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, uint32_t id) {
     }
     catch (std::exception const &e) {
         MANAPIHTTP_LOG("http2: stream erase failed due to {}", e.what());
-        return -1;
+        return manapi::ERR_INTERNAL;
     }
 
-    return 0;
+    return manapi::ERR_OK;
 }
 
 bool http_v2_stream_on_write (const manapi::net::worker::shared_conn &conn, manapi::net::http::http_v2_stream_t *data) {
@@ -693,7 +696,7 @@ int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi
         const auto allow = static_cast<int>(ssw - s->read_window);
         if (!(s->flags & (manapi::net::http::HTTP2_STREAM_CLOSED|manapi::net::http::HTTP2_STREAM_RECV_END))) {
             if (http_v2_send_window_frame(s->ctx, s->id, allow))
-                return -1;
+                return manapi::ERR_INTERNAL;
 
             s->read_window += allow;
         }
@@ -704,11 +707,11 @@ int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi
         const auto allow = config->window_connection_size - s->ctx->read_window;
         if (http_v2_send_window_frame(s->ctx, 0,
             allow)) {
-            return -1;
+            return manapi::ERR_INTERNAL;
             }
         s->ctx->read_window += allow;
     }
-    return 0;
+    return manapi::ERR_OK;
 }
 
 int manapi::net::http::http_v2_on_read_stream(const worker::shared_conn &conn) {
@@ -1444,14 +1447,14 @@ header_skip:
 
                                 auto hit = sdata->req->headers.find(http::HEADER.CONTENT_LENGTH);
                                 if (hit == sdata->req->headers.end()) {
-                                    sdata->req->body_size = -1;
+                                    sdata->req->body_size = manapi::ERR_INTERNAL;
                                 }
                                 else {
                                     try {
                                         sdata->req->body_size = std::stoll(hit->second);
                                     }
                                     catch (...) {
-                                        sdata->req->body_size = -1;
+                                        sdata->req->body_size = manapi::ERR_INTERNAL;
                                     }
 
                                     if (sdata->req->body_size < 0) {
@@ -2329,12 +2332,11 @@ int manapi::net::http::http_v2_rst_stream(const worker::shared_conn &s, int errc
     return http_v2_rst_stream_ex (data->ctx, data->id, errcode);
 }
 
-manapi::future<ssize_t> manapi::net::http::http_v2_response(worker::base *worker, const worker::shared_conn &connection, int status, std::map<std::string, std::string> headers, bool finish) {
+manapi::future<int> manapi::net::http::http_v2_response(worker::base *worker, const worker::shared_conn &connection, int status, std::map<std::string, std::string, std::less<>> headers, bool finish) {
     auto const s = connection->as<http_v2_stream_t>();
 
-    if (s->flags & ev::DISCONNECT) {
-        co_return -1;
-    }
+    if (s->flags & ev::DISCONNECT)
+        co_return manapi::ERR_ABORTED;
 
     *s->ctx->encoder = decltype(s->ctx->encoder)::element_type ();
     s->ctx->encoder->max_table_size(s->ctx->server->header_table_size);
@@ -2364,10 +2366,10 @@ manapi::future<ssize_t> manapi::net::http::http_v2_response(worker::base *worker
         buf.base = (char*)data.data() + cnt;
         buf.len = static_cast<std::size_t>(left);
         if (http_v2_send_frame(s->ctx, ft, cflag, s->id, &buf, 1, buf.len)) {
-            co_return -1;
+            co_return manapi::ERR_INTERNAL;
         }
         cflag = 0;
         cnt += left;
     }
-    co_return 1;
+    co_return manapi::ERR_OK;
 }

@@ -29,24 +29,24 @@ enum http_v3_stream_flags {
 };
 
 template<typename T>
-requires(version_is_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+requires(manapi::macros::version_is_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 bool manapi_quiche_h3_event_headers_has_more_frames_ (T event) {
     return quiche_h3_event_headers_has_more_frames(static_cast<T>(event));
 }
 
 template<typename T>
-requires(version_is_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+requires(manapi::macros::version_is_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 bool manapi_quiche_h3_event_headers_has_more_frames_ (T event) {
     return quiche_h3_event_headers_has_body(static_cast<T>(event));
 }
 template<typename ...Args>
-requires(version_is_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+requires(manapi::macros::version_is_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 ssize_t manapi_quiche_h3_send_additional_headers_(Args&&...args) {
     return quiche_h3_send_additional_headers(args...);
 }
 
 template<typename ...Args>
-requires(version_is_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
+requires(manapi::macros::version_is_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 ssize_t manapi_quiche_h3_send_additional_headers_(Args&&...args) { /* skip */ return 0; }
 
 manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(net::http::site site,
@@ -440,7 +440,11 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::
                 return;
             }
 
-            std::string new_scid = crypto::random_string(MANAPIHTTP_QUICHE_CONN_ID_SIZE);
+            auto res = manapi::crypto::random_string(MANAPIHTTP_QUICHE_CONN_ID_SIZE);
+            if (!res.ok())
+                return;
+
+            std::string new_scid = res.unwrap();
             const int64_t written = quiche_retry(reinterpret_cast<uint8_t *> (scid), scid_len, reinterpret_cast<uint8_t *>(dcid), dcid_len,
              reinterpret_cast<uint8_t *>(new_scid.data()), new_scid.size(), reinterpret_cast<uint8_t *>(token), token_len, version, out, sizeof (out));
 
@@ -1111,7 +1115,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::flush_write_(const shared_c
 }
 
 
-manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::cloudflare_wrk_http3_send_response( const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response *res, bool finish) {
+manapi::future<int> manapi::net::worker::http_v3_cloudflare_quiche::cloudflare_wrk_http3_send_response( const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response *res, bool finish) {
     struct q_headers_deleter {
         void operator()(quiche_h3_header *v) {
            delete[] v;
@@ -1189,7 +1193,7 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::cloudfla
                         int rhs;
                         auto cheaders = q_headers.get() + header_cursor;
                         if (header_cursor != 0) {
-                            if constexpr (version_is_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0")) {
+                            if constexpr (macros::version_is_greater_or_equal(MANAPIHTTP_QUICHE_VERSION, "0.23.0")) {
                                 rhs = manapi_quiche_h3_send_additional_headers_(s->conn->http3_conn, s->conn->conn, s->id, cheaders, i - header_cursor, false, finish && i == headers_size);
                             }
                             else {
@@ -1235,7 +1239,10 @@ manapi::future<ssize_t> manapi::net::worker::http_v3_cloudflare_quiche::cloudfla
     w->event_on(conn, std::move(prev_cb));
     w->event_flags(conn, prev_events);
 
-    co_return rhs;
+    if (rhs > 0)
+        co_return ERR_OK;
+
+    co_return ERR_ABORTED;
 }
 
 #endif

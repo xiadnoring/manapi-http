@@ -71,13 +71,15 @@ namespace manapi::net::http {
 
         std::string_view status_message ();
 
-        std::map<std::string, std::string> &headers ();
+        std::map<std::string, std::string, std::less<>> &headers ();
 
         void header (const std::string &key, std::string value);
 
-        void remove_header (const std::string &key);
+        void header (std::string_view key, std::string value);
 
-        bool has_header (const std::string &key);
+        void remove_header (std::string_view key);
+
+        bool has_header (std::string_view key);
 
         const std::string &header (const std::string &key);
 
@@ -150,7 +152,7 @@ namespace manapi::net::http {
 
         std::unique_ptr<std::string> compress_;
 
-        std::map<std::string, std::string> headers_;
+        std::map<std::string, std::string, std::less<>> headers_;
 
         std::unique_ptr<std::vector <std::pair <ssize_t, ssize_t> > > ranges_;
 

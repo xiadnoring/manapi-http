@@ -92,8 +92,8 @@ namespace manapi::net {
         fetch &operator=(fetch &&n) noexcept;
         void handle_body(std::move_only_function<ssize_t(char *, ssize_t)> handler);
         void handle_async_body(std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool fin)> handler);
-        void handle_headers (std::move_only_function<bool(std::map <std::string, std::string>)> handler);
-        void handle_async_headers (std::move_only_function<manapi::future<bool>(std::map<std::string, std::string>)> handler);
+        void handle_headers (std::move_only_function<bool(std::map <std::string, std::string, std::less<>>)> handler);
+        void handle_async_headers (std::move_only_function<manapi::future<bool>(std::map<std::string, std::string, std::less<>>)> handler);
         manapi::error::status enable_alpn (bool status);
         manapi::error::status enable_http3 ();
         manapi::error::status enable_http2 ();
@@ -104,7 +104,7 @@ namespace manapi::net {
         manapi::future<error::status> body (file_transfer_info file_info);
         void async_body (std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)> handler);
         void body (std::move_only_function<ssize_t(char *, ssize_t)> handler);
-        void headers (std::map <std::string, std::string> headers);
+        void headers (std::map <std::string, std::string, std::less<>> headers);
         void json_headers (manapi::json headers);
         const std::shared_ptr<CURL> &custom ();
         manapi::error::status enable_verify_peer (bool status);
@@ -122,7 +122,7 @@ namespace manapi::net {
         future<std::string> text();
         future<manapi::json> json();
 
-        std::map <std::string, std::string> headers();
+        std::map <std::string, std::string, std::less<>> headers();
 
         void clear ();
     private:

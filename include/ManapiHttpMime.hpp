@@ -93,8 +93,16 @@ namespace manapi::mime {
     /**
      * Get MIME type from the file path
      *
-     * @param path File Path
+     * @param path the file path
      * @return MIME type
      */
     std::string_view mime_by_file_path (std::string_view path);
+
+    /**
+     * Get MIME type by the file extension
+     *
+     * @param ext the file extension
+     * @return MIME type
+     */
+    std::string_view mime_by_file_extension (std::string_view ext);
 }

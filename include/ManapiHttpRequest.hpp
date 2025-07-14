@@ -33,9 +33,9 @@ namespace manapi::net::http {
 
         [[nodiscard]] int http_version() const;
 
-        [[nodiscard]] const std::map<std::string, std::string> &ref_headers () const;
+        [[nodiscard]] const std::map<std::string, std::string, std::less<>> &ref_headers () const;
 
-        [[nodiscard]] std::map<std::string, std::string> headers () const;
+        [[nodiscard]] std::map<std::string, std::string, std::less<>> headers () const;
 
         [[nodiscard]] const std::string &param (const std::string &param) const;
 
