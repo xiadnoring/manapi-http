@@ -195,6 +195,83 @@ int main () {
             co_return resp.text(std::to_string(a.load()));
         });
 
+
+        router.GET("/noise", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            ssize_t len = 10737418240 / 2;
+
+            resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, std::to_string(len));
+            co_return resp.callback_sync([current = (ssize_t)0, len] (char *buffer, ssize_t size, bool &flg) mutable
+                    -> ssize_t {
+                size = std::min(size, len - current);
+                memset(buffer, '\0', size);
+                len -= size;
+                if (!len)
+                    flg = true;
+                return size;
+            });
+        });
+
+
+        router.POST ("/uploadtest", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            co_return resp.callback_stream([&req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
+                ssize_t result = 0;
+                auto c = std::chrono::steady_clock::now();
+                try {
+                    co_await req.callback_sync([&c, &result, &cb] (const char *buffer, ssize_t size, bool fin)
+                        -> ssize_t {
+                        result += size;
+                        if (c + std::chrono::seconds (1) <= std::chrono::steady_clock::now()) {
+                            auto a = std::format("{}\n", (double)result / 1024 / 1024);
+                            result = 0;
+                            c = std::chrono::steady_clock::now();
+                            std::cout << a << "\n";
+                        }
+                        return size;
+                    });
+                }
+                catch (std::exception const &e) {
+                    std::cout << e.what() << "\n";
+                }
+                auto bb = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - c);
+                std::string err = std::format("{}\n", ((double)result / 1024 / 1024) / ((double)bb.count()/1000));
+                manapi::slice b (err.size());
+                b.copy_from(err.data(), 0, err.size());
+                co_await cb(b, true);
+            });
+        });
+
+        router.POST ("/upload", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
+            ssize_t result = 0;
+            manapi::net::hash::sha256 hash;
+            try {
+                co_await req.callback_sync([&result, &hash] (const char *buffer, ssize_t size, bool fin)
+                    -> ssize_t {
+                    if (fin) {
+                        std::cout << "FINSH\n";
+                    }
+                    hash.update(reinterpret_cast<const uint8_t *>(buffer), size);
+                    result += size;
+                    return size;
+                });
+            }
+            catch (std::exception const &e) {
+                std::cout << e.what() << "\n";
+            }
+
+            std::string b;
+            b.resize(36);
+            hash.final(reinterpret_cast<uint8_t *>(b.data()));
+
+            b = manapi::crypto::strdec2strhex(b).unwrap();
+
+            std::cout << result << " " << b << "\n";
+
+            co_return resp.text(std::format("{} : {}", result, b));
+        });
+
         router.GET("/mem", "/home/Timur/Downloads/VideoDownloader");
 
         manapi::async::run([router] () mutable -> manapi::future<> {
