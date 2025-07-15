@@ -16,7 +16,7 @@
 #include "./ManapiDebug.hpp"
 
 struct manapi::bigint::data_t {
-    mpf_ptr m;
+    mpf_t m;
 };
 
 void manapi::bigint::data_t_deleter::operator()(data_t *n) noexcept(true) {
@@ -510,6 +510,7 @@ manapi::bigint & manapi::bigint::operator=(std::string_view oth) {
 }
 
 manapi::bigint& manapi::bigint::operator=(const manapi::bigint &oth) {
+    mpf_set_prec(this->x->m, oth.precision());
     mpf_set(this->x->m, oth.x->m);
 
     return *this;
@@ -530,15 +531,11 @@ manapi::bigint & manapi::bigint::operator=(double oth) {
 void manapi::bigint::init_(std::size_t precision) {
     if (this->x) {
         mpf_clear(this->x->m);
-        this->x->m = nullptr;
     }
     else
-        this->x.reset(new data_t);
+        this->x.reset(new data_t{});
 
     mpf_init2(this->x->m, precision);
-
-    if (!this->x->m)
-        throw std::bad_alloc();
 }
 
 void manapi::bigint::precision(std::size_t precision) {

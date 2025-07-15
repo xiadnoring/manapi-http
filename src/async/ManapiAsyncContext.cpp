@@ -204,7 +204,7 @@ const std::vector<manapi::async::shared_cthread> & manapi::async::context::loops
 }
 
 const manapi::async::shared_cthread &manapi::async::current() {
-    assert(async::internal::current_cthread_ && "async ctx doesn't exists in that thread");
+   assert(async::internal::current_cthread_ && "async ctx doesn't exists in that thread");
     return async::internal::current_cthread_;
 }
 

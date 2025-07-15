@@ -1017,7 +1017,7 @@ manapi::json_error::status manapi::json_builder::_check_type_none_complex_value(
         goto ok;
     }
     {
-        auto &value = current["value"];
+        auto &value = fit->second;
         if (value.is_array() || value.is_object())
         {
             goto ok;
@@ -1050,7 +1050,7 @@ manapi::json_error::status manapi::json_builder::_check_default() {
         goto ok;
         err:
         if (this->_next_type())
-            return json_error::status_invalid_argument("json_mask: no one type is match", this->i, json_format_path(this->path.get()));
+            return json_error::status{ERR_FAILED_PRECONDITION, "prev type isn't the same", this->i, {}};
 
         return std::move(res);
     }

@@ -218,7 +218,7 @@ namespace manapi {
              *
              * @throws manapi::exception with the error code from the status
              */
-            void unwrap () const;
+            virtual void unwrap () const;
         protected:
             std::string_view msg_;
             err_num code_;

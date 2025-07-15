@@ -19,34 +19,46 @@
 
 UTEST(json, block_parse_1) {
     auto res = manapi::json::parse(R"( { "hello"            : "world" ,   "world":   "hello"   } )");
-    ASSERT_TRUE(res["hello"] == "world");
-    ASSERT_TRUE(res["world"] == "hello");
+    ASSERT_EQ(res.ok(), true);
+    auto val = res.unwrap();
+    ASSERT_TRUE(val["hello"] == "world");
+    ASSERT_TRUE(val["world"] == "hello");
 }
 
 UTEST(json, block_parse_2) {
-    auto res = manapi::json::parse(TEST_JSON_TEXT_LARGE);
+    auto rhs = manapi::json::parse(TEST_JSON_TEXT_LARGE);
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
     ASSERT_TRUE(res[0]["_id"] == std::string{"686402978cc071126e7518cc"});
 }
 
 UTEST(json, block_parse_unsigned_integer) {
-    auto res = manapi::json::parse(R"({"int": 18446744073709551615})");
+    auto rhs = manapi::json::parse(R"({"int": 18446744073709551615})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
     ASSERT_EQ(static_cast<std::size_t>(res["int"].as_integer()), 18446744073709551615UL);
 }
 
 UTEST(json, block_parse_bool) {
-    auto res = manapi::json::parse(R"({"true": true, "false": false})");
+    auto rhs = manapi::json::parse(R"({"true": true, "false": false})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
     ASSERT_EQ(res["true"].as_bool(), true);
     ASSERT_EQ(res["false"].as_bool(), false);
 }
 
 UTEST(json, block_parse_integer) {
-    auto res = manapi::json::parse(R"({"int": 9223372036854775807, "nint": -9223372036854775807})");
+    auto rhs = manapi::json::parse(R"({"int": 9223372036854775807, "nint": -9223372036854775807})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
     ASSERT_EQ(res["int"].as_integer(), 9223372036854775807);
     ASSERT_EQ(res["nint"].as_integer(), -9223372036854775807);
 }
 
 UTEST(json, block_parse_decimal) {
-    auto res = manapi::json::parse(R"({"edec": 1e5, "dec": 10.0, "pi": 3.14159265358979323846})");
+    auto rhs = manapi::json::parse(R"({"edec": 1e5, "dec": 10.0, "pi": 3.14159265358979323846})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
     ASSERT_EQ(res["edec"].as_decimal(), 1e5);
     ASSERT_EQ(res["dec"].as_decimal(), 10.0);
     auto a = (double)res["pi"].as_decimal();
@@ -55,20 +67,28 @@ UTEST(json, block_parse_decimal) {
 }
 
 UTEST(json, block_parse_string) {
-    auto res = manapi::json::parse(R"({"str": "hello"})");
+    auto rhs = manapi::json::parse(R"({"str": "hello"})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
     ASSERT_TRUE(res["str"] == "hello");
 }
 
 UTEST(json, block_parse_string_unicode) {
-    auto res = manapi::json::parse(R"({"str": "🇦🇪🏕️👬😎😎😎😎🥴🥴😼😼😼"})");
+    auto rhs = manapi::json::parse(R"({"str": "🇦🇪🏕️👬😎😎😎😎🥴🥴😼😼😼"})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
     ASSERT_TRUE(res["str"] == "🇦🇪🏕️👬😎😎😎😎🥴🥴😼😼😼");
 
-    res = manapi::json::parse(R"({"\u003c\u003c\u003c\u0026gt": "\u003c\u003c\u003c\u0026gt"})");
+    rhs = manapi::json::parse(R"({"\u003c\u003c\u003c\u0026gt": "\u003c\u003c\u003c\u0026gt"})");
+    ASSERT_TRUE(rhs.ok());
+    res = rhs.unwrap();
     ASSERT_TRUE(res["<<<&gt"] == "<<<&gt");
 }
 
 UTEST(json, block_parse_null) {
-    auto res = manapi::json::parse(R"({"null": null})");
+    auto rhs = manapi::json::parse(R"({"null": null})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
     ASSERT_TRUE(res["null"] == nullptr);
 }
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
@@ -113,7 +133,9 @@ UTEST(json, block_parse_bigint_exp_decimal_integer) {
 }
 
 UTEST(json, block_parse_array) {
-    manapi::json res = manapi::json::parse(R"([[[[[[[[[[[[[[[[[[[[[[78]]]]]]]]]]]]]]]]]]]]]])");
+    auto rhs = manapi::json::parse(R"([[[[[[[[[[[[[[[[[[[[[[78]]]]]]]]]]]]]]]]]]]]]])");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
     int deep = 0;
     while (res.is_array()) {
         deep++;
@@ -124,7 +146,9 @@ UTEST(json, block_parse_array) {
 }
 
 UTEST(json, block_parse_object) {
-    manapi::json res = manapi::json::parse(R"({"1":{"2":{"3":{"4":{"5":{"6":{"7":{"8":78}}}}}}}})");
+    auto rhs = manapi::json::parse(R"({"1":{"2":{"3":{"4":{"5":{"6":{"7":{"8":78}}}}}}}})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
     int deep = 0;
     while (res.is_object()) {
         deep++;

@@ -723,6 +723,8 @@ namespace manapi::sys_error {
 
         void log () const override;
 
+        void unwrap() const override;
+
         [[nodiscard]] int syserr () const;
 
         [[nodiscard]] std::string_view sysname () const;

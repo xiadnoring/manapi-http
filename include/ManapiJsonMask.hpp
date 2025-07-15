@@ -22,6 +22,8 @@ namespace manapi {
 
             void log () const override;
 
+            void unwrap() const override;
+
             std::string path ();
 
             std::string additional_data ();

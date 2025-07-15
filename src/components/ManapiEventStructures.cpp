@@ -901,6 +901,12 @@ void manapi::sys_error::status::log() const {
     MANAPIHTTP_LOG ("{}: msg: {} syserr: {} sysname: {} sysmsg: {}", this->status_msg(), this->msg_, this->syserr_, this->sysname(), this->sysmsg());
 }
 
+void manapi::sys_error::status::unwrap() const {
+    if (this->code_ != ERR_OK)
+        THROW_MANAPIHTTP_EXCEPTION (this->code_, "{}: msg: {} syserr: {} sysname: {} sysmsg: {}",
+            this->status_msg(), this->msg_, this->syserr_, this->sysname(), this->sysmsg());
+}
+
 int manapi::sys_error::status::syserr() const {
     return this->syserr_;
 }

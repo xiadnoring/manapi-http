@@ -47,6 +47,11 @@ void manapi::json_error::status::log() const {
     MANAPIHTTP_LOG ("{}: msg: {}, pos: {}, path: {}, data: {}", this->status_msg(), this->msg_, this->pos_, this->path_, this->data_);
 }
 
+void manapi::json_error::status::unwrap() const {
+    if (this->code_ != ERR_OK)
+        THROW_MANAPIHTTP_EXCEPTION(this->code_, "{}: msg: {}, pos: {}, path: {}, data: {}", this->status_msg(), this->msg_, this->pos_, this->path_, this->data_);
+}
+
 std::string manapi::json_error::status::path() {
     return std::move(this->path_);
 }
@@ -376,7 +381,8 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
                     if (quotes) {
                         if (builder.is_ready()) {
                             auto res = builder.get();
-                            res.unwrap();
+                            if (!res.ok())
+                                res.unwrap();
                             insert_meta_row_(parsed, "value", res.unwrap());
                             quotes = false;
                         }
