@@ -22,7 +22,7 @@ namespace manapi::net {
 
         static manapi::future<fetch2> fetch (std::string url, manapi::json params = manapi::json::object(), async::cancellation_action cancellation = nullptr);
 
-        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<curlformdata> body, async::cancellation_action cancellation = nullptr);
+        static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<fetch_formdata> body, async::cancellation_action cancellation = nullptr);
 
         static manapi::future<fetch2> fetch (std::string url, manapi::json params, std::optional<std::string> body, async::cancellation_action cancellation = nullptr);
 

@@ -58,7 +58,7 @@ manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, 
     return fetch_(std::move(url), std::move(params), std::optional<std::string> {}, std::move(cancellation));
 }
 
-manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<curlformdata> body, async::cancellation_action cancellation) {
+manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<fetch_formdata> body, async::cancellation_action cancellation) {
     return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
 }
 

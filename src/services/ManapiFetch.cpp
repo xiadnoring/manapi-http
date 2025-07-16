@@ -16,6 +16,13 @@
 
 // Utils
 
+enum body_type {
+    BODY_NONE = 0,
+    BODY_PLAIN = 1,
+    BODY_MULTIPART = 2,
+    BODY_CALLBACK = 3
+};
+
 enum status_flags {
     FLAG_TRANSFER_ENCODING = 1,
     FLAG_CONTENT_LENGTH = 2,
@@ -30,6 +37,20 @@ enum status_flags {
 enum status_data_flags {
     FLAG_DATA_EOF = 1,
     FLAG_DATA_CLOSED = 2
+};
+
+struct curl_deleter {
+    void operator() (CURL *curl)
+    { curl_free(curl); }
+};
+struct curl_slist_deleter {
+    void operator() (curl_slist *list)
+    { curl_slist_free_all(list); }
+};
+
+struct curl_mime_deleter {
+    void operator() (curl_mime *mime)
+    { curl_mime_free(mime); }
 };
 
 struct manapi::net::fetch::shared_data {
@@ -72,7 +93,7 @@ struct manapi::net::fetch::data_t {
     std::unique_ptr<std::string> body_default_{};
     std::unique_ptr<std::string> method_{};
 
-    std::unique_ptr<curlformdata> body_formdata_{};
+    std::unique_ptr<fetch_formdata> body_formdata_{};
 };
 
 size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata)
@@ -150,7 +171,7 @@ void manapi::net::fetch::default_setup_curl_() {
 }
 
 size_t curl_send_formdata_cb_read (char *buffer, size_t size, size_t nitems, void *userp) {
-    auto &func = *static_cast<decltype(manapi::net::curlformdata::multipart_param_value_file::callback) *> (userp);
+    auto &func = *static_cast<decltype(manapi::net::fetch_formdata::multipart_param_value_file::callback) *> (userp);
     return func (buffer, size * nitems);
 }
 
@@ -163,38 +184,38 @@ void curl_send_formdata_cb_free (void *userp) {
 }
 
 
-manapi::net::curlformdata::curlformdata() = default;
+manapi::net::fetch_formdata::fetch_formdata() = default;
 
-manapi::net::curlformdata::~curlformdata() = default;
+manapi::net::fetch_formdata::~fetch_formdata() = default;
 
-manapi::net::curlformdata::curlformdata(curlformdata &&fd) noexcept : mdata(std::move(fd.mdata)) {}
+manapi::net::fetch_formdata::fetch_formdata(fetch_formdata &&fd)  MANAPI_EV_NOEXPECT : mdata(std::move(fd.mdata)) {}
 
-manapi::net::curlformdata & manapi::net::curlformdata::operator=(curlformdata &&fd) noexcept {
+manapi::net::fetch_formdata & manapi::net::fetch_formdata::operator=(fetch_formdata &&fd) MANAPI_EV_NOEXPECT {
     this->mdata = std::move(fd.mdata);
     return *this;
 }
 
-void manapi::net::curlformdata::setdata(const std::string &name, std::string value) {
-    this->mdata.insert({name, {.strdata = std::move(std::move(value)), .filedata = {}, .type = PARAM_DEFAULT}});
+void manapi::net::fetch_formdata::setdata(std::string name, std::string value) {
+    this->mdata.insert({std::move(name), {.strdata = std::move(std::move(value)), .filedata = {}, .type = PARAM_DEFAULT}});
 }
 
-void manapi::net::curlformdata::setfile(const std::string &filename, std::string filepath) {
-    this->mdata.insert({filename, {.strdata = std::move(filepath), .filedata = {}, .type = PARAM_FILE}});
+void manapi::net::fetch_formdata::setfile(std::string name, std::string filepath) {
+    this->mdata.insert({std::move(name), {.strdata = std::move(filepath), .filedata = {}, .type = PARAM_FILE}});
 }
 
-void manapi::net::curlformdata::setcallback(const std::string &name, const long long &size, std::move_only_function<size_t(void *buff, size_t buff_size)> cb) {
-    this->mdata.insert({name, {.strdata = {}, .filedata = multipart_param_value_file({std::move(cb), size}), .type = PARAM_CALLBACK}});
+void manapi::net::fetch_formdata::setcallback(std::string name, ssize_t size, std::move_only_function<size_t(void *buff, size_t buff_size)> cb) {
+    this->mdata.insert({std::move(name), {.strdata = {}, .filedata = multipart_param_value_file({std::move(cb), size}), .type = PARAM_CALLBACK}});
 }
 
-void manapi::net::curlformdata::clear() {
+void manapi::net::fetch_formdata::clear() {
     this->mdata.clear();
 }
 
-manapi::net::curlformdata::tdata::iterator manapi::net::curlformdata::begin() {
+manapi::net::fetch_formdata::tdata::iterator manapi::net::fetch_formdata::begin() {
     return this->mdata.begin();
 }
 
-manapi::net::curlformdata::tdata::iterator manapi::net::curlformdata::end() {
+manapi::net::fetch_formdata::tdata::iterator manapi::net::fetch_formdata::end() {
     return this->mdata.end();
 }
 
@@ -209,17 +230,22 @@ manapi::net::fetch::fetch(std::string url, manapi::async::cancellation_action ca
     this->default_setup_curl_();
 }
 
-manapi::net::fetch::fetch(fetch &&n) noexcept = default;
+manapi::net::fetch::fetch(const fetch &n) {
+    this->data = n.data;
+}
 
 manapi::net::fetch::~fetch() = default;
 
-manapi::net::fetch & manapi::net::fetch::operator=(fetch &&n) noexcept = default;
+manapi::net::fetch & manapi::net::fetch::operator=(const fetch &n) {
+    this->data = n.data;
+    return *this;
+}
 
 manapi::future<manapi::error::status> manapi::net::fetch::async_doit() {
     std::unique_ptr<curl_mime, curl_mime_deleter> form {nullptr};
 
     if (this->data->flags & FLAG_WAS_USED)
-        co_return error::status_failed_precondition("fetch was already used. create another fetch object or reinit current");
+        co_return error::status_already_exists("fetch was already used. create another fetch object or reinit current");
 
     this->data->flags |= FLAG_WAS_USED;
 
@@ -317,20 +343,20 @@ manapi::future<manapi::error::status> manapi::net::fetch::async_doit() {
                     if ((status=curl_mime_name(field, param.first.data()))!=CURLE_OK)
                         goto errjmp;
                     switch (param.second.type) {
-                        case curlformdata::PARAM_DEFAULT: {
-                            auto str = param.second.strdata.value();
+                        case fetch_formdata::PARAM_DEFAULT: {
+                            auto &str = param.second.strdata;
                             if ((status = curl_mime_data(field, str.data(), str.size())) != CURLE_OK)
                                 goto errjmp;
                             break;
                         }
-                        case curlformdata::PARAM_FILE: {
-                            auto str = param.second.strdata.value();
+                        case fetch_formdata::PARAM_FILE: {
+                            auto &str = param.second.strdata;
                             if ((status=curl_mime_filedata(field, str.data()))!=CURLE_OK)
                                 goto errjmp;
                             break;
                         }
-                        case curlformdata::PARAM_CALLBACK: {
-                            auto &cbdata = param.second.filedata.value();
+                        case fetch_formdata::PARAM_CALLBACK: {
+                            auto &cbdata = param.second.filedata;
                             if ((status=curl_mime_data_cb(field, cbdata.filesize, curl_send_formdata_cb_read, curl_send_formdata_cb_seek, curl_send_formdata_cb_free, &cbdata.callback))!=CURLE_OK)
                                 goto errjmp;
                             break;
@@ -378,6 +404,7 @@ manapi::future<manapi::error::status> manapi::net::fetch::async_doit() {
         this->data->cancellation = nullptr;
 
         if (resp != CURLE_OK) {
+            lk.call();
             this->clear_();
             co_return error::status_internal("Connection failed");
         }
@@ -421,6 +448,9 @@ void manapi::net::fetch::clear() {
 }
 
 void manapi::net::fetch::clear_() {
+    if (this->data) {
+
+    }
     *this->data = fetch::data_t{.data_ = std::move(this->data->data_), .url_ = std::move(this->data->url_)};
     *this->data->data_ = fetch::shared_data{};
 
@@ -710,10 +740,10 @@ manapi::error::status manapi::net::fetch::enable_http1_1() {
     return res == CURLE_OK ? error::status_ok() : error::status_invalid_argument(curl_easy_strerror(res));
 }
 
-void manapi::net::fetch::body(curlformdata params) {
+void manapi::net::fetch::body(fetch_formdata params) {
     this->data->body_ = BODY_MULTIPART;
     if (!this->data->body_formdata_)
-        this->data->body_formdata_ = std::make_unique<curlformdata>(std::move(params));
+        this->data->body_formdata_ = std::make_unique<fetch_formdata>(std::move(params));
     else
         *this->data->body_formdata_ = std::move(params);
 }
