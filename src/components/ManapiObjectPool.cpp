@@ -1,6 +1,6 @@
 #include "components/ManapiObjectPool.hpp"
 
-#include <assert.h>
+#include <cassert>
 #include <cstring>
 
 #include "../include/ManapiUtils.hpp"
@@ -119,6 +119,7 @@ struct object_pool_deleter {
                 auto pn = std::move(buffs.back());
                 buffs.pop_back();
 
+                std::cout << (std::size_t)pn.first << " " << pn.second << "\n";
                 delete static_cast<char *>(pn.first);
             }
         }

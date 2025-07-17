@@ -1,4 +1,5 @@
 #include "components/ManapiEventStructures.hpp"
+#include "../include/ManapiEventStructuresInternal.hpp"
 
 #include "async/ManapiAsyncContext.hpp"
 #include "ManapiAsync.hpp"
@@ -67,6 +68,10 @@ int manapi::ev::async::bind(loop_ref loop, uv_async_cb cb) MANAPI_EV_NOEXPECT {
 
 int manapi::ev::async::send() MANAPI_EV_NOEXPECT {
     return uv_async_send(&this->s_);
+}
+
+int manapi::ev::async::set() MANAPI_EV_NOEXPECT {
+    return this->set(callback_watcher_async);
 }
 
 int manapi::ev::async::set(uv_async_cb cb) MANAPI_EV_NOEXPECT {

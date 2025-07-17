@@ -14,6 +14,7 @@
 #include "components/ManapiTimerObject.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 #include "async/ManapiAsyncThreadsMutex.hpp"
+#include "../include/ManapiEventStructuresInternal.hpp"
 
 #ifdef _WIN32
 #   define NOMINMAX

@@ -3,14 +3,11 @@
 #include <type_traits>
 #include <memory>
 
-#include "uv.h"
+#include <uv.h>
+
 #include "../ManapiUtils.hpp"
 #include "../ManapiErrors.hpp"
 #include "../ManapiDebug.hpp"
-
-#ifdef _WIN32
-#   include <io.h>
-#endif
 
 #define MANAPI_EV_NODISCARD [[nodiscard]]
 #define MANAPI_EV_NOEXPECT MANAPIHTTP_NOEXPECT
@@ -33,16 +30,30 @@
 #define MANAPI_EV_CHECK(expr) if (expr) { THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_INTERNAL, #expr); }
 
 namespace manapi {
+    /**
+     * Cross platform representation of a fd object
+     */
     typedef uv_os_fd_t fd_t;
+    /**
+     * Cross platform representation of a socket object
+     */
     typedef uv_os_sock_t socket_t;
 }
 
 namespace manapi::ev {
+    /**
+     * Cross platform representation of a buffer object
+     */
     typedef uv_buf_t buff_t;
+    /**
+     *Cross platform representation of a stream object
+     */
     typedef uv_stream_t stream_t;
 
     enum pf_ip_types {
+        /* equals PF_INET */
         IPv4 = PF_INET,
+        /* equals PF_INET6 */
         IPv6 = PF_INET6
     };
 
@@ -106,19 +117,31 @@ namespace manapi::ev {
 
 #if defined(_WIN32)
     enum fs_o_modes {
+        /* read by owner */
         IRUSR = S_IREAD,
+        /* write by owner */
         IWUSR = S_IWRITE,
+        /* execute by owner */
         IXUSR = S_IEXEC,
+        /* read, write, execute by owner */
         IRWXU = S_IREAD|S_IWRITE|S_IEXEC,
 
+        /* read by owner */
         IRGRP = S_IREAD,
+        /* write by owner */
         IWGRP = S_IWRITE,
+        /* execute by owner  */
         IXGRP = S_IEXEC,
+        /* read, write, execute by owner */
         IRWXG = S_IREAD|S_IWRITE|S_IEXEC,
 
+        /* read by owner */
         IROTH = S_IREAD,
+        /* write by owner */
         IWOTH = S_IWRITE,
+        /* execute by owner */
         IXOTH = S_IEXEC,
+        /* read, write, execute by owner */
         IRWXO = S_IREAD|S_IWRITE|S_IEXEC,
 
         IFREG = S_IFREG,
@@ -132,19 +155,31 @@ namespace manapi::ev {
     };
 #else
     enum fs_o_stat {
+        /* read by owner */
         IRUSR = S_IRUSR,
+        /* write by owner */
         IWUSR = S_IWUSR,
+        /* execute by owner */
         IXUSR = S_IXUSR,
+        /* read, write, execute by owner */
         IRWXU = S_IRWXU,
 
+        /* read by group */
         IRGRP = S_IRGRP,
+        /* write by group */
         IWGRP = S_IWGRP,
+        /* execute by group  */
         IXGRP = S_IXGRP,
+        /* read, write, execute by group */
         IRWXG = S_IRWXG,
 
+        /* read by others */
         IROTH = S_IROTH,
+        /* write by others */
         IWOTH = S_IWOTH,
+        /* execute by others */
         IXOTH = S_IXOTH,
+        /* read, write, execute by others */
         IRWXO = S_IRWXO,
 
         IFREG = S_IFREG,
@@ -158,141 +193,253 @@ namespace manapi::ev {
 #endif
 
     enum sys_errors {
-        ERR_SRCH = UV_ESRCH , /*3*/
-        ERR_2BIG = UV_E2BIG,/*7*/
+
+        /* operation not permitted (-1) */
+        ERR_PERM = UV_EPERM ,
+        /* no such file or directory (-2) */
+        ERR_NOENT = UV_ENOENT ,
+        /* no such process (-3) */
+        ERR_SRCH = UV_ESRCH ,
+        /* interrupted system call (-4) */
+        ERR_INTR = UV_EINTR ,
+        /* i/o error (-5) */
+        ERR_IO = UV_EIO ,
+        /* no such device or address (-6) */
+        ERR_NXIO = UV_ENXIO ,
+        /* argument list too long (-7) */
+        ERR_2BIG = UV_E2BIG,
+        /* bad file descriptor (-9) */
         ERR_BADF = UV_EBADF ,
-        ERR_AGAIN = UV_EAGAIN , /*11*/
-        ERR_ACCES = UV_EACCES, /*13*/
-        ERR_AFNOSUPPORT = UV_EAFNOSUPPORT, /*97*/
-        ERR_ADDRINUSE = UV_EADDRINUSE, /*98*/
-        ERR_ADDRNOTAVAIL = UV_EADDRNOTAVAIL, /*99*/
-        ERR_AI_ADDRFAMILY = UV_EAI_ADDRFAMILY ,/*3000*/
-        ERR_AI_AGAIN = UV_EAI_AGAIN ,/*3001*/
-        ERR_AI_BADFLAGS = UV_EAI_BADFLAGS ,/*3002*/
-        ERR_AI_CANCELED = UV_EAI_CANCELED ,/*3003*/
-        ERR_AI_FAIL = UV_EAI_FAIL ,/*3004*/
-        ERR_AI_FAMILY = UV_EAI_FAMILY ,/*3005*/
-        ERR_AI_MEMORY = UV_EAI_MEMORY ,/*3006*/
-        ERR_AI_NODATA = UV_EAI_NODATA ,/*3007*/
-        ERR_AI_NONAME = UV_EAI_NONAME ,/*3008*/
-        ERR_AI_OVERFLOW = UV_EAI_OVERFLOW ,/*-3009*/
-        ERR_AI_SERVICE = UV_EAI_SERVICE ,/*-3010*/
-        ERR_AI_BADHINTS = UV_EAI_BADHINTS ,/*-3013*/
-        ERR_AI_PROTOCOL = UV_EAI_PROTOCOL , /*-3014*/
-        ERR_AI_SOCKTYPE = UV_EAI_SOCKTYPE ,/*-3011*/
-        ERR_ALREADY = UV_EALREADY ,/*-114 */
-        ERR_BUSY = UV_EBUSY ,/*-16 */
-        ERR_CANCELED = UV_ECANCELED ,/*-125 */
-        ERR_CHARSET = UV_ECHARSET ,/* -4080 */
-        ERR_CONNABORTED = UV_ECONNABORTED ,/*-103 */
-        ERR_CONNREFUSED = UV_ECONNREFUSED ,/*-111 */
-        ERR_CONNRESET = UV_ECONNRESET ,/*-104 */
-        ERR_DESTADDRREQ = UV_EDESTADDRREQ ,/*-89 */
-        ERR_EXIST = UV_EEXIST ,/*-17 */
-        ERR_FAULT = UV_EFAULT ,/* -14 */
-        ERR_FBIG = UV_EFBIG ,/*-27 */
-        ERR_HOSTUNREACH = UV_EHOSTUNREACH ,/*-113 */
-        ERR_INTR = UV_EINTR ,/*-4 */
-        ERR_INVAL = UV_EINVAL ,/*-22 */
-        ERR_IO = UV_EIO ,/*-5 */
-        ERR_ISCONN = UV_EISCONN ,/*-106 */
-        ERR_ISDIR = UV_EISDIR ,/*-21 */
-        ERR_LOOP = UV_ELOOP ,/*-40 */
-        ERR_MFILE = UV_EMFILE ,/*-24 */
-        ERR_MSGSIZE = UV_EMSGSIZE ,/*-90 */
-        ERR_NAMETOOLONG = UV_ENAMETOOLONG ,/*-36 */
-        ERR_NETDOWN = UV_ENETDOWN ,/*-100 */
-        ERR_NETUNREACH = UV_ENETUNREACH ,/*-101 */
-        ERR_NFILE = UV_ENFILE ,/*-23 */
-        ERR_NOBUFS = UV_ENOBUFS ,/*-105 */
-        ERR_NODEV = UV_ENODEV ,/*-19 */
-        ERR_NOENT = UV_ENOENT ,/* -2 */
-        ERR_NOMEM = UV_ENOMEM ,/*-12 */
-        ERR_NONET = UV_ENONET ,/*-64 */
-        ERR_NOPROTOOPT = UV_ENOPROTOOPT ,/*-92 */
-        ERR_NOSPC = UV_ENOSPC ,/*-28 */
-        ERR_NOSYS = UV_ENOSYS ,/* -38 */
-        ERR_NOTCONN = UV_ENOTCONN ,/*-107 */
-        ERR_NOTDIR = UV_ENOTDIR ,/*-20 */
-        ERR_NOTEMPTY = UV_ENOTEMPTY ,/*-39 */
-        ERR_NOTSOCK = UV_ENOTSOCK ,/* -88 */
-        ERR_NOTSUP = UV_ENOTSUP ,/*-95 */
-        ERR_OVERFLOW = UV_EOVERFLOW ,/* -75 */
-        ERR_PERM = UV_EPERM ,/*-1 */
-        ERR_PIPE = UV_EPIPE ,/*-32 */
-        ERR_PROTO = UV_EPROTO ,/* -71 */
-        ERR_PROTONOSUPPORT = UV_EPROTONOSUPPORT ,/* -93 */
-        ERR_PROTOTYPE = UV_EPROTOTYPE ,/* -91 */
-        ERR_RANGE = UV_ERANGE ,/*-34 */
-        ERR_ROFS = UV_EROFS ,/* -30 */
-        ERR_SHUTDOWN = UV_ESHUTDOWN ,/* -108 */
-        ERR_SPIPE = UV_ESPIPE ,/*-29 */
-        ERR_TIMEDOUT = UV_ETIMEDOUT ,/*-110 */
-        ERR_TXTBSY = UV_ETXTBSY ,/*-26 */
-        ERR_XDEV = UV_EXDEV ,/*-18 */
-        ERR_UNKNOWN = UV_UNKNOWN ,/*-4094 */
-        ERR_OF = UV_EOF ,/* -4095 */
-        ERR_NXIO = UV_ENXIO ,/* -6 */
-        ERR_MLINK = UV_EMLINK ,/*-31 */
-        ERR_HOSTDOWN = UV_EHOSTDOWN ,/* -112 */
-        ERR_REMOTEIO = UV_EREMOTEIO ,/*-121 */
-        ERR_NOTTY = UV_ENOTTY ,/*-25 */
-        ERR_FTYPE = UV_EFTYPE ,/*-4028 */
-        ERR_ILSEQ = UV_EILSEQ ,/*-84 */
-        ERR_SOCKTNOSUPPORT = UV_ESOCKTNOSUPPORT ,/*-94 */
-        ERR_NODATA = UV_ENODATA ,/*-61 */
-        ERR_UNATCH = UV_EUNATCH,/*-49 */
-        ERR_RRNO_MAX = UV_ERRNO_MAX/* -4096 */
+        /* resource temporarily unavailable (-11) */
+        ERR_AGAIN = UV_EAGAIN ,
+        /* not enough memory (-12) */
+        ERR_NOMEM = UV_ENOMEM ,
+        /* permission denied (-13) */
+        ERR_ACCES = UV_EACCES,
+        /* bad address in system call argument (-14) */
+        ERR_FAULT = UV_EFAULT ,
+        /* resource busy or locked (-16) */
+        ERR_BUSY = UV_EBUSY ,
+        /* file already exists (-17) */
+        ERR_EXIST = UV_EEXIST ,
+        /* cross-device link not permitted (-18) */
+        ERR_XDEV = UV_EXDEV ,
+        /* no such device (-19) */
+        ERR_NODEV = UV_ENODEV ,
+        /* not a directory (-20) */
+        ERR_NOTDIR = UV_ENOTDIR ,
+        /* illegal operation on a directory (-21) */
+        ERR_ISDIR = UV_EISDIR ,
+        /* invalid argument (-22) */
+        ERR_INVAL = UV_EINVAL ,
+        /* file table overflow (-23) */
+        ERR_NFILE = UV_ENFILE ,
+        /* too many open files (-24) */
+        ERR_MFILE = UV_EMFILE ,
+        /* inappropriate ioctl for device (-25) */
+        ERR_NOTTY = UV_ENOTTY ,
+        /* text file is busy (-26) */
+        ERR_TXTBSY = UV_ETXTBSY ,
+        /* file too large (-27) */
+        ERR_FBIG = UV_EFBIG ,
+        /* no space left on device (-28) */
+        ERR_NOSPC = UV_ENOSPC ,
+        /* invalid seek (-29) */
+        ERR_SPIPE = UV_ESPIPE ,
+        /* read-only file system (-30) */
+        ERR_ROFS = UV_EROFS ,
+        /* too many links (-31) */
+        ERR_MLINK = UV_EMLINK ,
+        /* broken pipe (-32) */
+        ERR_PIPE = UV_EPIPE ,
+        /* result too large (-34 ) */
+        ERR_RANGE = UV_ERANGE ,
+        /* name too long (-36) */
+        ERR_NAMETOOLONG = UV_ENAMETOOLONG ,
+        /* function not implemented (-38) */
+        ERR_NOSYS = UV_ENOSYS ,
+        /* directory not empty (-39) */
+        ERR_NOTEMPTY = UV_ENOTEMPTY ,
+        /* too many symbolic links encountered (-40) */
+        ERR_LOOP = UV_ELOOP ,
+        /* protocol driver not attached (-49) */
+        ERR_UNATCH = UV_EUNATCH,
+        /* (-61) */
+        ERR_NODATA = UV_ENODATA ,
+        /* machine is not on the network (-64) */
+        ERR_NONET = UV_ENONET ,
+        /* protocol error (-71) */
+        ERR_PROTO = UV_EPROTO ,
+        /* value too large for defined data type (-75) */
+        ERR_OVERFLOW = UV_EOVERFLOW ,
+        /* illegal byte sequence (-84) */
+        ERR_ILSEQ = UV_EILSEQ ,
+        /* socket operation on non-socket (-88) */
+        ERR_NOTSOCK = UV_ENOTSOCK ,
+        /* destination address required (-89) */
+        ERR_DESTADDRREQ = UV_EDESTADDRREQ ,
+        /* message too long (-90) */
+        ERR_MSGSIZE = UV_EMSGSIZE ,
+        /* protocol wrong type for socket (-91) */
+        ERR_PROTOTYPE = UV_EPROTOTYPE ,
+        /* protocol not available (-92) */
+        ERR_NOPROTOOPT = UV_ENOPROTOOPT ,
+        /* protocol not supported (-93) */
+        ERR_PROTONOSUPPORT = UV_EPROTONOSUPPORT ,
+        /* socket type not supported (-94) */
+        ERR_SOCKTNOSUPPORT = UV_ESOCKTNOSUPPORT ,
+        /* operation not supported on socket (-95) */
+        ERR_NOTSUP = UV_ENOTSUP ,
+        /* address family not supported (-97) */
+        ERR_AFNOSUPPORT = UV_EAFNOSUPPORT,
+        /* address already in use (-98)*/
+        ERR_ADDRINUSE = UV_EADDRINUSE,
+        /* address not available (-99) */
+        ERR_ADDRNOTAVAIL = UV_EADDRNOTAVAIL,
+        /* network is down (-100) */
+        ERR_NETDOWN = UV_ENETDOWN ,
+        /* network is unreachable (-101) */
+        ERR_NETUNREACH = UV_ENETUNREACH ,
+        /* software caused connection abort (-103) */
+        ERR_CONNABORTED = UV_ECONNABORTED ,
+        /* connection reset by peer (-104) */
+        ERR_CONNRESET = UV_ECONNRESET ,
+        /* no buffer space available (-105) */
+        ERR_NOBUFS = UV_ENOBUFS ,
+        /* socket is already connected (-106) */
+        ERR_ISCONN = UV_EISCONN ,
+        /* socket is not connected (-107) */
+        ERR_NOTCONN = UV_ENOTCONN ,
+        /* cannot send after transport endpoint shutdown (-108) */
+        ERR_SHUTDOWN = UV_ESHUTDOWN ,
+        /* connection timed out (-110) */
+        ERR_TIMEDOUT = UV_ETIMEDOUT ,
+        /* connection refused (-111) */
+        ERR_CONNREFUSED = UV_ECONNREFUSED ,
+        /* (-112) */
+        ERR_HOSTDOWN = UV_EHOSTDOWN ,
+        /* host is unreachable (-113) */
+        ERR_HOSTUNREACH = UV_EHOSTUNREACH ,
+        /* connection already in progress (-114) */
+        ERR_ALREADY = UV_EALREADY ,
+        /* (-121) */
+        ERR_REMOTEIO = UV_EREMOTEIO ,
+        /* operation canceled (-125) */
+        ERR_CANCELED = UV_ECANCELED ,
+        /* address family not supported (-3000) */
+        ERR_AI_ADDRFAMILY = UV_EAI_ADDRFAMILY ,
+        /* temporary failure (-3001) */
+        ERR_AI_AGAIN = UV_EAI_AGAIN ,
+        /* bad ai_flags value (-3002) */
+        ERR_AI_BADFLAGS = UV_EAI_BADFLAGS ,
+        /* request canceled (-3003) */
+        ERR_AI_CANCELED = UV_EAI_CANCELED ,
+        /* permanent failure (-3004) */
+        ERR_AI_FAIL = UV_EAI_FAIL ,
+        /* ai_family not supported (-3005) */
+        ERR_AI_FAMILY = UV_EAI_FAMILY ,
+        /* out of memory (-3006) */
+        ERR_AI_MEMORY = UV_EAI_MEMORY ,
+        /* no address (-3007) */
+        ERR_AI_NODATA = UV_EAI_NODATA ,
+        /* unknown node or service (-3008) */
+        ERR_AI_NONAME = UV_EAI_NONAME ,
+        /* argument buffer overflow (-3009) */
+        ERR_AI_OVERFLOW = UV_EAI_OVERFLOW ,
+        /* service not available for socket type (-3010) */
+        ERR_AI_SERVICE = UV_EAI_SERVICE ,
+        /* socket type not supported (-3011) */
+        ERR_AI_SOCKTYPE = UV_EAI_SOCKTYPE ,
+        /* invalid value for hints (-3013) */
+        ERR_AI_BADHINTS = UV_EAI_BADHINTS ,
+        /* resolved protocol is unknown (-3014) */
+        ERR_AI_PROTOCOL = UV_EAI_PROTOCOL ,
+        /* inappropriate file type or format (-4028) */
+        ERR_FTYPE = UV_EFTYPE ,
+        /* invalid Unicode character (-4080) */
+        ERR_CHARSET = UV_ECHARSET ,
+        /* unknown error (-4094) */
+        ERR_UNKNOWN = UV_UNKNOWN ,
+        /* end of file (-4095) */
+        ERR_OF = UV_EOF ,
+        /* (-4096) */
+        ERR_RRNO_MAX = UV_ERRNO_MAX
     };
 
     struct buffer_deleter {
         void operator()(ev::buff_t *data);
     };
 
+    /**
+     * Data type used for streaming directory iteration.
+     * Used by fs::opendir(), fs::readdir(), and fs::closedir().
+     * dirents represents a user provided array of uv_dirent_t`s used to hold results.
+     * `nentries is the user provided maximum array size of dirents.
+     */
     typedef uv_dir_t dir_t;
-    typedef uv_file file;
-    typedef uv_loop_t *loop_ref;
-    typedef uv_uid_t uid_t;
-    typedef uv_gid_t gid_t;
-    typedef uv_dirent_t dirent_t;
-    typedef uv_statfs_t statfs_t;
-    typedef uv_stat_t stat_t;
 
-    void callback_watcher_tcp_connection_alloc (uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
-    void callback_watcher_udp_alloc (uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
-    void callback_watcher_async (uv_async_t *s);
-    void callback_watcher_timer (uv_timer_t *s);
-    void callback_watcher_io (uv_poll_t *s, int status, int revents);
-    void callback_watcher_idle (uv_idle_t *s);
-    void callback_watcher_check (uv_check_t *s);
-    void callback_watcher_prepare (uv_prepare_t *s);
-    void callback_watcher_tcp_accept (uv_tcp_t *s, int status);
-    void callback_watcher_tcp_read (uv_stream_t *s,  ssize_t nread, const uv_buf_t *buf);
-    void callback_watcher_udp_recv (uv_udp_t *s, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags);
-    void callback_watcher_udp_send (uv_udp_send_t *s, int status);
-    void callback_watcher_connect_tcp (uv_connect_t *s, int status);
-    void callback_watcher_write (uv_write_t *s, int status);
-    void callback_watcher_fs (uv_fs_t *req);
-    void callback_watcher_random (uv_random_t *s, int status, void *buf, size_t buflen);
-    void callback_watcher_getaddrinfo (uv_getaddrinfo_t *req, int status, struct addrinfo *res);
-    void callback_watcher_getnameinfo (uv_getnameinfo_t *req, int status, const char *hostname, const char *service);
-    void callback_watcher_work (uv_work_t *req);
-    void callback_watcher_after_work (uv_work_t *req, int status);
-    void callback_close_cb (uv_handle_t *s);
+    /* Cross platform representation of a file handle. */
+    typedef uv_file file;
+
+    /* Loop data reference */
+    typedef uv_loop_t *loop_ref;
+
+    typedef uv_uid_t uid_t;
+
+    typedef uv_gid_t gid_t;
+
+    /* Cross platform (reduced) equivalent of struct dirent. Used in fs::scandir_next(). */
+    typedef uv_dirent_t dirent_t;
+
+    /* Reduced cross platform equivalent of struct statfs. Used in fs::statfs(). */
+    typedef uv_statfs_t statfs_t;
+
+    /* Stores the result of fs::stat() and other stat requests. */
+    typedef uv_stat_t stat_t;
 
     class async {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(async, uv_async_t)
     public:
         MANAPI_EV_DEFAULT(async, uv_async_t)
 
+        /**
+         * initialize the async watcher
+         */
         async ();
 
+        /**
+         * bind the watcher
+         * @param loop the loop reference
+         * @return the status code
+         */
         int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+
+        /**
+         * bind the watcher
+         * @param loop the loop reference
+         * @param cb the callback
+         * @return the status code
+         */
         int bind (loop_ref loop, uv_async_cb cb) MANAPI_EV_NOEXPECT;
 
+        /**
+         * send a request
+         * @return the status code
+         */
         int send () MANAPI_EV_NOEXPECT;
 
-        int set (uv_async_cb cb = callback_watcher_async) MANAPI_EV_NOEXPECT;
+        /**
+         * set the event loop callback
+         * @return the status code
+         */
+        int set () MANAPI_EV_NOEXPECT;
+
+        /**
+         * set the custom callback
+         * @param cb the custom callback
+         * @return the status code
+         */
+        int set (uv_async_cb cb) MANAPI_EV_NOEXPECT;
     private:
 
         uv_async_t s_;
@@ -302,12 +449,36 @@ namespace manapi::ev {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(idle, uv_idle_t)
     public:
         MANAPI_EV_DEFAULT(idle, uv_idle_t)
+
+        /**
+         * initialize the idle watcher
+         */
         idle ();
+
+        /**
+         * bind the watcher
+         * @param loop the loop reference
+         * @return the status code
+         */
         int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
 
+        /**
+         * start listening to the watcher with the event loop callback
+         * @return the status code
+         */
         int start () MANAPI_EV_NOEXPECT;
+
+        /**
+         * start listening to the watcher with the custom callback
+         * @param cb the custom callback
+         * @return the status code
+         */
         int start (uv_idle_cb cb) MANAPI_EV_NOEXPECT;
 
+        /**
+         * stop listening to the watcher
+         * @return the status code
+         */
         int stop () MANAPI_EV_NOEXPECT;
     private:
         uv_idle_t s_;
@@ -317,12 +488,36 @@ namespace manapi::ev {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(check, uv_check_t)
     public:
         MANAPI_EV_DEFAULT(check, uv_check_t)
+
+        /**
+         * initalize the watcher
+         */
         check ();
 
+        /**
+         * bind the watcher
+         * @param loop the loop reference
+         * @return the status code
+         */
         int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+
+        /**
+         * start listening to the watcher with the event loop callback
+         * @return the status code
+         */
         int start () MANAPI_EV_NOEXPECT;
+
+        /**
+         * start listening to the watcher with the custom callback
+         * @param cb the custom callback
+         * @return the status code
+         */
         int start (uv_check_cb cb) MANAPI_EV_NOEXPECT;
 
+        /**
+         * stop listening to the watcher
+         * @return the status code
+         */
         int stop () MANAPI_EV_NOEXPECT;
     private:
         uv_check_t s_;
@@ -346,10 +541,15 @@ namespace manapi::ev {
         }
 
         int start (int revents, uv_poll_cb cb) MANAPI_EV_NOEXPECT;
+
         int start (int revents) MANAPI_EV_NOEXPECT;
+
         int start () MANAPI_EV_NOEXPECT;
+
         int restart (int revents) MANAPI_EV_NOEXPECT;
+
         int stop () MANAPI_EV_NOEXPECT;
+
         int events () MANAPI_EV_NOEXPECT;
     private:
         uv_poll_t s_;
@@ -363,6 +563,7 @@ namespace manapi::ev {
         write ();
 
         int bind (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_write_cb cb) MANAPI_EV_NOEXPECT;
+
         int bind (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs) MANAPI_EV_NOEXPECT;
     private:
         uv_write_t s_{};
@@ -434,6 +635,7 @@ namespace manapi::ev {
         udp ();
 
         int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+
         int s_bind (const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
 
         int recv_start () MANAPI_EV_NOEXPECT;
@@ -488,6 +690,7 @@ namespace manapi::ev {
         int bind(loop_ref loop) MANAPI_EV_NOEXPECT;
 
         int start (uint64_t timeout, uint64_t repeat) MANAPI_EV_NOEXPECT;
+
         int start (uint64_t timeout, uint64_t repeat, uv_timer_cb cb) MANAPI_EV_NOEXPECT;
 
         int stop () MANAPI_EV_NOEXPECT;
@@ -513,116 +716,153 @@ namespace manapi::ev {
         int cancel () MANAPI_EV_NOEXPECT;
 
         int open (const char *path, int flags, int mode, uv_fs_cb open_cb) MANAPI_EV_NOEXPECT;
+
         int open (const char *path, int flags, int mode) MANAPI_EV_NOEXPECT;
 
         int read (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb read_cb) MANAPI_EV_NOEXPECT;
+
         int read (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
 
         int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb write_cb) MANAPI_EV_NOEXPECT;
+
         int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
 
         static ssize_t try_write (ev::file fileno, const void *buff, ssize_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
+
         static ssize_t try_read (ev::file fileno, void *buff, ssize_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
 
         int close (ev::file fileno, uv_fs_cb close_cb) MANAPI_EV_NOEXPECT;
+
         int close (ev::file fileno) MANAPI_EV_NOEXPECT;
 
         int unlink (const char *path, uv_fs_cb unlink_cb) MANAPI_EV_NOEXPECT;
+
         int unlink (const char *path) MANAPI_EV_NOEXPECT;
 
         int mkdir (const char *path, int mode, uv_fs_cb mkdir_cb) MANAPI_EV_NOEXPECT;
+
         int mkdir (const char *path, int mode) MANAPI_EV_NOEXPECT;
 
         int mkdtemp (const char *path, uv_fs_cb mkdtemp_cb) MANAPI_EV_NOEXPECT;
+
         int mkdtemp (const char *path) MANAPI_EV_NOEXPECT;
 
         int mkstemp (const char *path, uv_fs_cb mkstemp_cb) MANAPI_EV_NOEXPECT;
+
         int mkstemp (const char *path) MANAPI_EV_NOEXPECT;
 
         int rmdir (const char *path, uv_fs_cb rmdir_cb) MANAPI_EV_NOEXPECT;
+
         int rmdir (const char *path) MANAPI_EV_NOEXPECT;
 
         int opendir (const char *path, uv_fs_cb opendir) MANAPI_EV_NOEXPECT;
+
         int opendir (const char *path) MANAPI_EV_NOEXPECT;
 
         int closedir (ev::dir_t * dir, uv_fs_cb closedir_cb) MANAPI_EV_NOEXPECT;
+
         int closedir (ev::dir_t * dir) MANAPI_EV_NOEXPECT;
 
         int readdir (ev::dir_t * dir, uv_fs_cb readdir_cb) MANAPI_EV_NOEXPECT;
+
         int readdir (ev::dir_t * dir) MANAPI_EV_NOEXPECT;
 
         int scandir (const char *path, int flags, uv_fs_cb scandir_cb) MANAPI_EV_NOEXPECT;
+
         int scandir (const char *path, int flags) MANAPI_EV_NOEXPECT;
 
         int scandir_next (ev::dirent_t *dir) MANAPI_EV_NOEXPECT;
 
         int stat (const char *path, uv_fs_cb stat_cb) MANAPI_EV_NOEXPECT;
+
         int stat (const char *path) MANAPI_EV_NOEXPECT;
 
         int fstat (ev::file file, uv_fs_cb fstat_cb) MANAPI_EV_NOEXPECT;
+
         int fstat (ev::file file) MANAPI_EV_NOEXPECT;
 
         int lstat (const char *path, uv_fs_cb lstat_cb) MANAPI_EV_NOEXPECT;
+
         int lstat (const char *path) MANAPI_EV_NOEXPECT;
 
         int statfs (const char *path, uv_fs_cb statfs_cb) MANAPI_EV_NOEXPECT;
+
         int statfs (const char *path) MANAPI_EV_NOEXPECT;
 
         int rename (const char *path, const char *new_path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int rename (const char *path, const char *new_path) MANAPI_EV_NOEXPECT;
 
         int fsync (ev::file file, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int fsync (ev::file file) MANAPI_EV_NOEXPECT;
 
         int fdatasync (ev::file file, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int fdatasync (ev::file file) MANAPI_EV_NOEXPECT;
 
         int ftruncate (ev::file file, int64_t off, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int ftruncate (ev::file file, int64_t off) MANAPI_EV_NOEXPECT;
 
         int copyfile (const char *path1, const char *path2, int flags, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int copyfile (const char *path1, const char *path2, int flags) MANAPI_EV_NOEXPECT;
 
         int sendfile (ev::file outfd, ev::file infd, int64_t off, size_t length, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int sendfile (ev::file outfd, ev::file infd, int64_t off, size_t length) MANAPI_EV_NOEXPECT;
 
         int access (const char *path, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int access (const char *path, int mode) MANAPI_EV_NOEXPECT;
 
         int chmod (const char *path, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int chmod (const char *path, int mode) MANAPI_EV_NOEXPECT;
 
         int fchmod (ev::file file, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int fchmod (ev::file file, int mode) MANAPI_EV_NOEXPECT;
 
         int utime (const char *path, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int utime (const char *path, double atime, double mtime) MANAPI_EV_NOEXPECT;
 
         int futime (ev::file file, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int futime (ev::file file, double atime, double mtime) MANAPI_EV_NOEXPECT;
 
         int lutime (const char *path, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int lutime (const char *path, double atime, double mtime) MANAPI_EV_NOEXPECT;
 
         int link (const char *path, const char *new_path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int link (const char *path, const char *new_path) MANAPI_EV_NOEXPECT;
 
         int symlink (const char *path, const char *new_path, int flags, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int symlink (const char *path, const char *new_path, int flags) MANAPI_EV_NOEXPECT;
 
         int readlink (const char *path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int readlink (const char *path) MANAPI_EV_NOEXPECT;
 
         int realpath (const char *path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int realpath (const char *path) MANAPI_EV_NOEXPECT;
 
         int chown (const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int chown (const char *path, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT;
 
         int fchown (ev::file file, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int fchown (ev::file file, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT;
 
         int lchown (const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+
         int lchown (const char *path, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT;
         
         MANAPI_EV_NODISCARD ssize_t result () const MANAPI_EV_NOEXPECT;
@@ -635,9 +875,13 @@ namespace manapi::ev {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(random, uv_random_t)
     public:
         MANAPI_EV_DEFAULT(random, uv_random_t)
+
         random ();
+
         int cancel () MANAPI_EV_NOEXPECT;
+
         int bind (loop_ref loop, char *buff, std::size_t size, uv_random_cb cb) MANAPI_EV_NOEXPECT;
+
         int bind (loop_ref loop, char *buff, std::size_t size) MANAPI_EV_NOEXPECT;
     private:
         uv_random_t s_;
@@ -647,10 +891,15 @@ namespace manapi::ev {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(getaddrinfo, uv_getaddrinfo_t)
     public:
         MANAPI_EV_DEFAULT(getaddrinfo, uv_getaddrinfo_t)
+
         getaddrinfo ();
+
         int cancel () MANAPI_EV_NOEXPECT;
+
         int bind (loop_ref loop, const char *node, const char *service, const struct addrinfo *hints, uv_getaddrinfo_cb getaddrinfo_cb) MANAPI_EV_NOEXPECT;
+
         int bind (loop_ref loop, const char *node, const char *service, const struct addrinfo *hints) MANAPI_EV_NOEXPECT;
+
         static void free (::addrinfo *n) MANAPI_EV_NOEXPECT;
     private:
         uv_getaddrinfo_t s_;
@@ -660,9 +909,13 @@ namespace manapi::ev {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(getnameinfo, uv_getnameinfo_t)
     public:
         MANAPI_EV_DEFAULT(getnameinfo, uv_getnameinfo_t)
+
         getnameinfo ();
+
         int cancel () MANAPI_EV_NOEXPECT;
+
         int bind (loop_ref loop, const sockaddr *addr, int flags, uv_getnameinfo_cb cb) MANAPI_EV_NOEXPECT;
+
         int bind (loop_ref loop, const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
     private:
         uv_getnameinfo_t s_;
@@ -672,9 +925,13 @@ namespace manapi::ev {
         MANAPI_EV_DEFAULT_PRIVATE_VAR(work, uv_work_t)
     public:
         MANAPI_EV_DEFAULT(work, uv_work_t)
+
         work();
+
         int cancel () MANAPI_EV_NOEXPECT;
+
         int bind (loop_ref loop, uv_work_cb cb, uv_after_work_cb after_cb) MANAPI_EV_NOEXPECT;
+
         int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
     private:
         uv_work_t s_;
@@ -709,34 +966,71 @@ namespace manapi::ev {
 #undef MANAPI_EV_CAST_STREAM
 
 namespace manapi::sys_error {
+    /**
+     * error status for the OS event
+     */
     class status final : public manapi::error::status {
     public:
+        /**
+         * initialize error status
+         */
         status ();
 
         ~status () override;
 
+        /**
+         * initialize error status
+         *
+         * @param code the error code
+         * @param msg the error msg
+         * @param syserr the syserror code
+         */
         status (manapi::err_num code, std::string_view msg, int syserr);
 
         status (status &&n) MANAPIHTTP_NOEXPECT;
 
         status &operator=(status &&n) MANAPIHTTP_NOEXPECT;
 
+        /**
+         * print log to the logger() if it exists,
+         * otherwise it prints to the stdout
+         */
         void log () const override;
 
+        /**
+         * throw a error if it exists, otherwise it does nothing
+         */
         void unwrap() const override;
 
+        /**
+         * Get the system code error
+         * @return the system code error
+         */
         [[nodiscard]] int syserr () const;
 
+        /**
+         * Get the system name error
+         * @return the system name error
+         */
         [[nodiscard]] std::string_view sysname () const;
 
+        /**
+         * Get the system msg error
+         * @return the system msg error
+         */
         [[nodiscard]] std::string_view sysmsg () const;
     private:
+        /* the system error code */
         int syserr_;
     };
 
     template<typename T, typename E = manapi::sys_error::status>
     class status_or final : public manapi::error::status_or<T, E> {
     public:
+        /**
+         * Initialize the status_or() instence
+         * @param n the status error
+         */
         status_or (sys_error::status n) : error::status_or<T, E>(std::move(n)) {}
 
         status_or (T &&n) : error::status_or<T, E>(std::forward<decltype(n)>(n)) {}
@@ -745,22 +1039,50 @@ namespace manapi::sys_error {
 
         status_or&operator=(status_or &&n) MANAPIHTTP_NOEXPECT = default;
 
+        /**
+         * Get the system code error
+         * @return the system code error
+         */
         [[nodiscard]] int syserr () const {
             return this->err_.syserr();
         }
 
+        /**
+         * Get the system name error
+         * @return the system name error
+         */
         [[nodiscard]] std::string_view sysname () const {
             return this->err_.sysname();
         }
 
+        /**
+         * Get the system msg error
+         * @return the system msg error
+         */
         [[nodiscard]] std::string_view sysmsg () const {
             return this->err_.sysmsg();
         }
     };
 
+    /**
+     * Generate an InvalidArgument error
+     * @param msg the error msg
+     * @param syserr the system error code
+     * @return the generated error
+     */
     sys_error::status status_invalid_argument (std::string_view msg, int syserr);
 
+    /**
+     * Generate an InternalError error
+     * @param msg the error msg
+     * @param syserr the system error code
+     * @return the generated error
+     */
     sys_error::status status_internal (std::string_view msg, int syserr);
 
+    /**
+     * Generate an Ok error
+     * @return the generated Ok error
+     */
     sys_error::status status_ok ();
 }
