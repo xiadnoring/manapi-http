@@ -442,7 +442,7 @@ manapi::future<T> async_fs_operation (std::move_only_function<bool(std::shared_p
 
     co_return co_await promise([&] (typename promise::resolve_t resolve, typename promise::reject_t reject)
         -> void {
-        auto watcher = manapi::async::current()->eventloop()->create_watcher_fs([resolve = std::move(resolve), reject, event_cb = std::move(event_cb), cancellation] (std::shared_ptr<manapi::ev::fs> &w) mutable
+        auto watcher = manapi::async::current()->eventloop()->create_watcher_fs([resolve = std::move(resolve), reject, event_cb = std::move(event_cb), cancellation] (const std::shared_ptr<manapi::ev::fs> &w) mutable
             -> void {
             async_fs_operation_event_handler<T>(w, std::move(resolve), std::move(reject), std::move(cancellation), event_cb);
         });

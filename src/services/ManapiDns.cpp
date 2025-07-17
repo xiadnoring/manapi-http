@@ -5,7 +5,7 @@ manapi::future<int> manapi::dns::getaddrinfo(const char * node, const char* serv
         using promise = manapi::async::promise_sync<int>;
         co_return co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
             manapi::async::current()->eventloop()->create_watcher_getaddrinfo(node, service, hints,
-                [resolve = std::move(resolve), &res] (std::shared_ptr<ev::getaddrinfo> & w, int status, addrinfo *rhs) -> void {
+                [resolve = std::move(resolve), &res] (const std::shared_ptr<ev::getaddrinfo> & w, int status, addrinfo *rhs) -> void {
                     if (res)
                         std::swap(*res, rhs);
 

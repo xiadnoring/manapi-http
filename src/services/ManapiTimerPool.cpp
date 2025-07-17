@@ -110,7 +110,7 @@ void manapi::timerpool::start() {
     this->data_->flags |= TIMERPOOL_FLAG_ACTIVE;
 
 
-    this->data_->timer = this->data_->events->create_watcher_timer([data = this->data_] (std::shared_ptr<ev::timer> &w)
+    this->data_->timer = this->data_->events->create_watcher_timer([data = this->data_] (const std::shared_ptr<ev::timer> &w)
         -> void {
         timerpool::start_(data);
     });

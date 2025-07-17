@@ -43,7 +43,7 @@ void manapi::net::worker::TLS::configure_connection(const shared_conn & connecti
     cb.call(true);
 }
 
-manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(ev::shared_tcp &w) {
+manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(const ev::shared_tcp &w) {
     auto connection = TCP::accept(w, [this] () -> shared_conn {
         auto p = std::make_unique<TLS::connection_interface>();
         auto ms = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
@@ -463,7 +463,7 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
     TCP::close_connection(conn, CLOSE_CONN_ERR);
 }
 
-void manapi::net::worker::TLS::onrecv(std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) {
+void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) {
     auto buff = buffer.as<char>();
     auto size = static_cast<ssize_t>(buffer.size());
     auto const data = conn->as<TLS::connection_interface>();

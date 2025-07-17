@@ -370,7 +370,7 @@ void quiche_set_header_(quiche_h3_header *header, std::string_view key, std::str
     };
 }
 
-void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) {
+void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) {
     socklen_t sockaddr_len = 0;
     uint8_t out[MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE];
 

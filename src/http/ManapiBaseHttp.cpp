@@ -22,7 +22,7 @@
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 
 std::string manapi::net::http::internal::generate_default_page(int status, std::string_view msg) {
-    return ("<html>\n\t<head>\n\t\t"
+    return std::format("<html>\n\t<head>\n\t\t"
                             "<title>{0} {1}</title>\n\t</head>\n\t<body>\n\t\t<center>\n\t\t\t"
                             "<h1>{0} {1}</h1>\n\t\t</center>\n\t\t<hr>\n\t\t"
                             "<center>{3}/{2}</center>\n\t"
@@ -167,11 +167,9 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                 resfile.empty() ? filepath : resfile);
             std::vector<replace_founded_item> replacers;
 
-            if (mimetype.size() > sizeof ("text")) {
-                if (strncmp("text", mimetype.data(), sizeof ("text") - 1) == 0) {
-                    auto mimegen = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
-                    res->header(HEADER.CONTENT_TYPE, std::move(mimegen));
-                }
+            if (mimetype.starts_with("text/")) {
+                auto mimegen = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
+                res->header(HEADER.CONTENT_TYPE, std::move(mimegen));
             }
             else {
                 res->header(HEADER.CONTENT_TYPE, std::string{mimetype});

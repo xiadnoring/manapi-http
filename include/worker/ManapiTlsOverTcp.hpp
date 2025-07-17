@@ -27,7 +27,7 @@ namespace manapi::net::worker {
         
         void configure_connection(const shared_conn &connection, oncont_cb cb) override;
 
-        shared_conn accept (ev::shared_tcp &w) override;
+        shared_conn accept (const ev::shared_tcp &w) override;
 
         void close_connection(shared_conn conn, int flags) override;
 
@@ -91,7 +91,7 @@ namespace manapi::net::worker {
 
         void shutdown_async_ (shared_conn conn);
 
-        void onrecv(std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) override;
+        void onrecv(const std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) override;
 
         void *ctx = nullptr;
         int ssl_session_ctx_id{1};

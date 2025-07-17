@@ -188,7 +188,7 @@ manapi::future<> manapi::net::http::server::init_pool_() {
 }
 
 void manapi::net::http::server::pool_(std::move_only_function<void()> cb) {
-    this->data2->init_watcher = async::current()->eventloop()->create_watcher_async([data2 = this->data2, cb = std::move(cb)] (std::shared_ptr<ev::async> &w) mutable
+    this->data2->init_watcher = async::current()->eventloop()->create_watcher_async([data2 = this->data2, cb = std::move(cb)] (const std::shared_ptr<ev::async> &w) mutable
         -> void {
         cb();
 

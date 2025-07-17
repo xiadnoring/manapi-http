@@ -43,15 +43,15 @@ namespace manapi::net::worker {
 
         void configure_connection (const shared_conn & connection, oncont_cb cb) override;
 
-        void onaccept(std::shared_ptr<ev::tcp> &watcher, int status);
+        void onaccept(const std::shared_ptr<ev::tcp> &watcher, int status);
 
-        virtual void onrecv (std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer);
+        virtual void onrecv (const std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer);
 
         static std::shared_ptr<worker::TCP> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
 
-        virtual shared_conn accept (ev::shared_tcp &w, std::move_only_function<shared_conn()> init);
+        virtual shared_conn accept (const ev::shared_tcp &w, std::move_only_function<shared_conn()> init);
 
-        virtual shared_conn accept (ev::shared_tcp &w);
+        virtual shared_conn accept (const ev::shared_tcp &w);
 
         void close_connection(shared_conn conn, int flags) override;
 

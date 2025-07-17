@@ -287,7 +287,7 @@ manapi::net::wgrpc::net_endpoint::net_endpoint(manapi::ev::shared_tcp conn,
         this->memory_allocator = std::move(memory_allocator);
 
         manapi::async::current()->eventloop()->read_callback(this->conn,
-            [this] (std::shared_ptr<manapi::ev::tcp> &, ssize_t nread, const manapi::ev::buff_t *buf) -> void {
+            [this] (const std::shared_ptr<manapi::ev::tcp> &, ssize_t nread, const manapi::ev::buff_t *buf) -> void {
                 bytebuffer buffer;
 
                 if (buf && buf->base)
@@ -335,7 +335,7 @@ manapi::net::wgrpc::net_endpoint::net_endpoint(manapi::ev::shared_tcp conn,
             });
 
         manapi::async::current()->eventloop()->alloc_callback(this->conn,
-            [this] (std::shared_ptr<manapi::ev::tcp> &, size_t suggested_size, manapi::ev::buff_t *buf)
+            [this] (const std::shared_ptr<manapi::ev::tcp> &, size_t suggested_size, manapi::ev::buff_t *buf)
             -> void {
                 ssize_t size = suggested_size;
                 if (!(this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ)) {
@@ -614,7 +614,7 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
     auto local_addr = std::make_shared<grpc_event_engine::experimental::EventEngine::ResolvedAddress> ();
     b->set(manapi::async::current()->eventloop()->create_watcher_tcp_accept(
         [local_addr, on_accept = std::move(on_accept), memory_allocator_factory = std::move(memory_allocator_factory)]
-        (std::shared_ptr<manapi::ev::tcp> & w, int status) mutable
+        (const std::shared_ptr<manapi::ev::tcp> & w, int status) mutable
         -> void {
         auto conn = manapi::async::current()->eventloop()->create_watcher_tcp_connection(nullptr, nullptr);
 

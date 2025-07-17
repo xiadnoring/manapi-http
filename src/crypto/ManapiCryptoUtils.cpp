@@ -68,7 +68,7 @@ manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *
         res = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) mutable
             -> void {
             try {
-                auto w = manapi::async::current()->eventloop()->create_watcher_random(buff, len, [resolve, reject] (std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size) mutable
+                auto w = manapi::async::current()->eventloop()->create_watcher_random(buff, len, [resolve, reject] (const std::shared_ptr<ev::random> &w, int status, void *buff, std::size_t size) mutable
                     -> void {
                         if (status) {
                             resolve(manapi::error::status_internal("random() failed"));

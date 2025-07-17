@@ -26,26 +26,26 @@
 #endif
 
 namespace manapi::ev {
-    typedef std::move_only_function<void(ev::shared_tcp &, size_t suggested_size, ev::buff_t* buf)> tcp_alloc_cb;
-    typedef std::move_only_function<void(ev::shared_udp &, size_t suggested_size, ev::buff_t* buf)> udp_alloc_cb;
-    typedef std::move_only_function<void(ev::shared_async &)> async_cb;
-    typedef std::move_only_function<void(ev::shared_tcp &w, int status)> tcp_accept_cb;
-    typedef std::move_only_function<void(ev::shared_timer &)> timer_cb;
-    typedef std::move_only_function<void(ev::shared_prepare &)> prepare_cb;
-    typedef std::move_only_function<void(ev::shared_check &)> check_cb;
-    typedef std::move_only_function<void(ev::shared_idle &)> idle_cb;
-    typedef std::move_only_function<void(ev::shared_io &, int status, int revents)> io_cb;
-    typedef std::move_only_function<void(ev::shared_tcp &, int status)> connect_tcp_cb;
-    typedef std::move_only_function<void(ev::shared_tcp &, ssize_t nread, const uv_buf_t *buf)> tcp_connection_cb;
-    typedef std::move_only_function<void(ev::shared_udp &, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags)> udp_cb;
-    typedef std::move_only_function<void(ev::shared_udp_send &, int status)> udp_send_cb;
-    typedef std::move_only_function<void(ev::shared_write &, int status)> write_cb;
-    typedef std::move_only_function<void(ev::shared_fs &)> fs_cb;
-    typedef std::move_only_function<void(ev::shared_random &w, int status, void *buff, std::size_t size)> random_cb;
-    typedef std::move_only_function<void(ev::shared_getaddrinfo &w, int status, struct addrinfo *res)> getaddrinfo_cb;
-    typedef std::move_only_function<void(ev::shared_getnameinfo &w, int status, const char *hostname, const char *service)> getnameinfo_cb;
-    typedef std::move_only_function<void(ev::shared_work &w)> work_cb;
-    typedef std::move_only_function<void(ev::shared_work &w, int status)> after_work_cb;
+    typedef std::move_only_function<void(const ev::shared_tcp &, size_t suggested_size, ev::buff_t* buf)> tcp_alloc_cb;
+    typedef std::move_only_function<void(const ev::shared_udp &, size_t suggested_size, ev::buff_t* buf)> udp_alloc_cb;
+    typedef std::move_only_function<void(const ev::shared_async &)> async_cb;
+    typedef std::move_only_function<void(const ev::shared_tcp &w, int status)> tcp_accept_cb;
+    typedef std::move_only_function<void(const ev::shared_timer &)> timer_cb;
+    typedef std::move_only_function<void(const ev::shared_prepare &)> prepare_cb;
+    typedef std::move_only_function<void(const ev::shared_check &)> check_cb;
+    typedef std::move_only_function<void(const ev::shared_idle &)> idle_cb;
+    typedef std::move_only_function<void(const ev::shared_io &, int status, int revents)> io_cb;
+    typedef std::move_only_function<void(const ev::shared_tcp &, int status)> connect_tcp_cb;
+    typedef std::move_only_function<void(const ev::shared_tcp &, ssize_t nread, const uv_buf_t *buf)> tcp_connection_cb;
+    typedef std::move_only_function<void(const ev::shared_udp &, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags)> udp_cb;
+    typedef std::move_only_function<void(const ev::shared_udp_send &, int status)> udp_send_cb;
+    typedef std::move_only_function<void(const ev::shared_write &, int status)> write_cb;
+    typedef std::move_only_function<void(const ev::shared_fs &)> fs_cb;
+    typedef std::move_only_function<void(const ev::shared_random &w, int status, void *buff, std::size_t size)> random_cb;
+    typedef std::move_only_function<void(const ev::shared_getaddrinfo &w, int status, struct addrinfo *res)> getaddrinfo_cb;
+    typedef std::move_only_function<void(const ev::shared_getnameinfo &w, int status, const char *hostname, const char *service)> getnameinfo_cb;
+    typedef std::move_only_function<void(const ev::shared_work &w)> work_cb;
+    typedef std::move_only_function<void(const ev::shared_work &w, int status)> after_work_cb;
 
     template<typename T>
     using close_cb_t = std::move_only_function<void(const std::shared_ptr<T> &)>;
@@ -81,9 +81,13 @@ namespace manapi {
     class event_loop {
     public:
         explicit event_loop(std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::logger> logger);
+
         ~event_loop();
+
         manapi::future<> start (std::shared_ptr<event_loop> le);
+
         void sync_start (std::shared_ptr<event_loop> le);
+
         void setup_handle_interrupt ();
 
         manapi::future<> stop ();
@@ -91,9 +95,11 @@ namespace manapi {
         void wait ();
 
         size_t subscribe_finish (std::move_only_function<manapi::future<void>()> cb);
+
         void unsubscribe_finish (std::size_t id);
 
         std::size_t subscribe_clean_up (std::move_only_function<void()> cb);
+
         void unsubscribe_clean_up (std::size_t id);
 
         manapi::ev::loop_ref loop();
@@ -279,7 +285,7 @@ namespace manapi {
         void handle_curl_check_connections ();
 #endif
 
-        void custom_watcher_callback_async (std::shared_ptr<ev::async>  &w);
+        void custom_watcher_callback_async (const std::shared_ptr<ev::async>  &w);
     private:
 #if MANAPIHTTP_CURL_DEPENDENCY
         static std::shared_ptr<ev::io> handle_curl_watcher_gen(event_loop *data, socket_t fd);
@@ -312,18 +318,26 @@ namespace manapi {
 
         void async_break_loop_ ();
 
-        void try_tasks_ (ev::shared_idle &w);
+        void try_tasks_ (const ev::shared_idle &w);
 
         bool status;
 
         std::shared_ptr<threadpool<task>> etaskpool_;
+
         std::shared_ptr<async::mutex> mx;
+
         std::unique_ptr<uv_loop_t> loop_;
+
         std::shared_ptr<threadpool<task>> taskpool_;
+
         std::map <size_t, std::move_only_function<manapi::future<void>()>> map_finish_cb;
+
         std::map <size_t, std::move_only_function<void()>> map_clean_up_cb;
+
         std::shared_ptr<ev::async> interrupted_watcher_{nullptr};
+
         std::shared_ptr<ev::async> stop_watcher_{nullptr};
+
         async::promise<void>::resolve_t resolve_stop{nullptr};
 
 #if MANAPIHTTP_CURL_DEPENDENCY
@@ -331,7 +345,9 @@ namespace manapi {
 #endif
 
         std::unique_ptr<ev::internal::custom_callback_t> callback_watcher_{};
+
         std::shared_ptr<ev::idle> idle_tasks_;
+
         std::shared_ptr<manapi::logger> logger_;
     };
 }

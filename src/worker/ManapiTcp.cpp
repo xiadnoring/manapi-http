@@ -90,7 +90,7 @@ void manapi::net::worker::TCP::init() {
             [this] (const manapi::timer& t) -> void { this->update_limit_rate(); });
 
         this->watcher_accept_ = manapi::async::current()->eventloop()->create_watcher_tcp_accept(
-            [this] (std::shared_ptr<ev::tcp> & w, int status)
+            [this] (const std::shared_ptr<ev::tcp> & w, int status)
             -> void {
                 this->onaccept(w, status);
             });
@@ -164,7 +164,7 @@ void manapi::net::worker::TCP::configure_connection(const worker::shared_conn &c
     cb.call(true);
 }
 
-void manapi::net::worker::TCP::onaccept(std::shared_ptr<ev::tcp> &watcher, int status) {
+void manapi::net::worker::TCP::onaccept(const std::shared_ptr<ev::tcp> &watcher, int status) {
     if (status) {
         return;
     }
@@ -195,7 +195,7 @@ void manapi::net::worker::TCP::onaccept(std::shared_ptr<ev::tcp> &watcher, int s
     }
 }
 
-void manapi::net::worker::TCP::onrecv(std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer) {
+void manapi::net::worker::TCP::onrecv(const std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer) {
     auto const connection = conn->as<connection_interface>();
     auto const size = static_cast<int>(buffer.size());
 
@@ -218,7 +218,7 @@ std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::
     return std::move(worker);
 }
 
-manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tcp &w, std::move_only_function<shared_conn()> init) {
+manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::shared_tcp &w, std::move_only_function<shared_conn()> init) {
     /**
      * Receving using 65k buffers,
      * but if we copy that buffer we
@@ -237,7 +237,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
             return connection;
 
         ev::shared_tcp client = manapi::async::current()->eventloop()->create_watcher_tcp_connection(
-            [this, weak = std::weak_ptr(connection)] (std::shared_ptr<ev::tcp> &w, ssize_t nread, const uv_buf_t *buf)
+            [this, weak = std::weak_ptr(connection)] (const std::shared_ptr<ev::tcp> &w, ssize_t nread, const uv_buf_t *buf)
             -> void {
                 try {
                     bytebuffer object;
@@ -267,7 +267,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
                     manapi::async::current()->logger()->error(manapi::logger::default_service,
                         manapi::ERR_INTERNAL, "tcp: onrecv(...) unexpected error: {}", e.what());
                 }
-        }, [this] (std::shared_ptr<ev::tcp> &, size_t suggested_size, ev::buff_t *buff) -> void {
+        }, [this] (const std::shared_ptr<ev::tcp> &, size_t suggested_size, ev::buff_t *buff) -> void {
             auto buffer = this->bufferpool().buffer(suggested_size);
             buff->len = buffer.size();
             buff->base = static_cast<char *>(buffer.release());
@@ -351,7 +351,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (ev::shared_tc
     return nullptr;
 }
 
-manapi::net::worker::shared_conn manapi::net::worker::TCP::accept(ev::shared_tcp &w) {
+manapi::net::worker::shared_conn manapi::net::worker::TCP::accept(const ev::shared_tcp &w) {
     return std::move(this->accept(w,
         [this] () -> shared_conn {
             auto p = std::make_unique<connection_interface>();
@@ -747,7 +747,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                     && (conn->top->cur_send_size >= this->config_->max_merge_buffer_stack || flush)) {
                     auto w = manapi::async::current()->eventloop()
                         ->create_watcher_write(conn->watcher.get(), [connection, b = std::move(sent), s = std::move(s)]
-                            (std::shared_ptr<ev::write> &w, int status)
+                            (const std::shared_ptr<ev::write> &w, int status)
                             mutable -> void {
                             auto conn = connection->as<connection_interface>();
 

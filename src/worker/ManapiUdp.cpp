@@ -34,7 +34,7 @@ void manapi::net::worker::udp::init() {
 
     MANAPIHTTP_LOG("UDP PORT USED: {}. {}:{}", port, address, port);
 
-    this->udp_accept_ = manapi::async::current()->eventloop()->create_watcher_udp([this] (std::shared_ptr<ev::udp> &w, ssize_t nread, const ev::buff_t *buf, const sockaddr *addr, unsigned flags)
+    this->udp_accept_ = manapi::async::current()->eventloop()->create_watcher_udp([this] (const std::shared_ptr<ev::udp> &w, ssize_t nread, const ev::buff_t *buf, const sockaddr *addr, unsigned flags)
         -> void {
         assert (nread >= 0);
 
@@ -44,7 +44,7 @@ void manapi::net::worker::udp::init() {
 
         this->recv_buffer_dealloc_(buf);
     },
-    [this](std::shared_ptr<ev::udp> &w, ssize_t nread, ev::buff_t *buff)
+    [this](const std::shared_ptr<ev::udp> &w, ssize_t nread, ev::buff_t *buff)
         -> void {
         this->recv_buffer_alloc_(nread, buff);
     });
