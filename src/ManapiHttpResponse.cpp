@@ -254,7 +254,7 @@ int manapi::net::http::response::data_type() const {
     return this->type_;
 }
 
-std::unique_ptr<std::map<std::string, std::string>> &manapi::net::http::response::replacers() {
+std::unique_ptr<std::vector<std::pair<std::string, std::string>>> &manapi::net::http::response::replacers() {
     return this->replacers_;
 }
 
@@ -300,7 +300,7 @@ void manapi::net::http::response::check_type_(int type) {
     }
 }
 
-void manapi::net::http::response::replacers(std::map<std::string, std::string> replacers) {
+void manapi::net::http::response::replacers(std::vector<std::pair<std::string, std::string>> replacers) {
     this->compress_enabled (false);
     this->partial_enabled (false);
 

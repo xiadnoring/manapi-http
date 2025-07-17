@@ -10,7 +10,6 @@
 #include "ManapiHttpConfig.hpp"
 #include "components/ManapiFormData.hpp"
 #include "services/ManapiFetch.hpp"
-
 #include "http/ManapiHttpUtils.hpp"
 
 namespace manapi::net::http {
@@ -49,7 +48,7 @@ namespace manapi::net::http {
 
         void status_code (size_t status_code);
 
-        void replacers (std::map<std::string, std::string> replacers);
+        void replacers (std::vector<std::pair<std::string, std::string>> replacers);
 
         void partial_enabled (bool state);
 
@@ -117,7 +116,7 @@ namespace manapi::net::http {
 #endif
         std::string compress ();
 
-        std::unique_ptr<std::map <std::string, std::string>> &replacers ();
+        std::unique_ptr<std::vector <std::pair<std::string, std::string>>> &replacers ();
 
         void custom_data (custom_data_t data);
 
@@ -161,7 +160,7 @@ namespace manapi::net::http {
 
         manapi::net::http::request_data_t * request_data_;
 
-        std::unique_ptr<std::map<std::string, std::string>> replacers_;
+        std::unique_ptr<std::vector<std::pair<std::string, std::string>>> replacers_;
 
         std::unique_ptr<http::request> req_;
 

@@ -5,9 +5,14 @@
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>{{status_message}}</title>
+    <title>{{status_code}} - {{status_message}}</title>
 </head>
 <body>
-    {{status_code}} - {{status_message}}
+    <div style="width:100%;display: flex;justify-content: center;flex-direction: column;align-items:center;justify-items: center;">
+        <p>{{status_code}} - {{status_message}}</p>
+        <div>
+            <img height="500" src="https://httpcats.com/{{status_code}}.jpg" alt="{{status_message}}">
+        </div>
+    </div>
 </body>
 </html>

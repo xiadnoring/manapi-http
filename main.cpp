@@ -18,6 +18,7 @@
 #include "ManapiString.hpp"
 #include "async/ManapiAsyncTimer.hpp"
 #include "async/ManapiEasyCancellation.hpp"
+#include "ext/ManapiMustache.hpp"
 
 #include "protobuf/helloworld.grpc.pb.h"
 #include "services/ManapiGrpc.hpp"
@@ -213,6 +214,14 @@ int main () {
             });
         });
 
+        router.GET("/+error", [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+            resp.replacers({
+                {"status_code", std::to_string(resp.status_code())},
+                {"status_message", std::string{resp.status_message()}}
+            });
+
+            co_return resp.file("/home/Timur/Desktop/WorkSpace/ManapiHTTP/examples/error.html");
+        });
 
         router.POST ("/uploadtest", [] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {

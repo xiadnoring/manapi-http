@@ -91,6 +91,7 @@ class ManapiHttpConan(ConanFile):
             self.options["grpc"].shared = True
             self.options["nghttp2"].shared = True
             self.options["nghttp3"].shared = True
+            self.options["kainjow_mustache"].shared = True
 
         self.options["libcurl"].with_nghttp2 = True
         self.options["quiche"].shared = True

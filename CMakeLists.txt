@@ -458,6 +458,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/services/ManapiFetch2.cpp
         src/ManapiDebug.cpp
         src/include/ManapiEventStructuresInternal.hpp
+        include/ext/ManapiMustache.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

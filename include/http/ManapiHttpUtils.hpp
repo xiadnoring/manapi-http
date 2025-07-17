@@ -18,7 +18,7 @@ namespace manapi::net::http {
         std::string compress;
         compress_file_cb *compressor_for_file = nullptr;
         compress_str_cb *compressor_for_string = nullptr;
-        std::unique_ptr<std::map <std::string, std::string>> replacers;
+        std::unique_ptr<std::vector <std::pair<std::string, std::string>>> replacers;
     };
 
     struct header_value_t {

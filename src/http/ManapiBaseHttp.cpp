@@ -18,6 +18,7 @@
 #include "../include/ManapiDefaultErrors.hpp"
 #include "crypto/ManapiCryptoUtils.hpp"
 #include "../include/ManapiUtils.hpp"
+#include "ext/ManapiMustache.hpp"
 
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 
@@ -181,13 +182,19 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
 
             // replacers
             if (features.replacers) {
-                replacers = co_await found_replacers_in_file(manapi::async::current(), filepath, 0, fileSize, *features.replacers);
-
-                for (const auto &replacer: replacers) {
-                    dynamicFileSize = static_cast<ssize_t> (
-                        dynamicFileSize - (replacer.pos.second - replacer.pos.first + 1) + replacer.value->size());
+                if (fileSize <= 65536) {
+                    auto token = res->req()->cancellation().sub();
+                    token.timeout(5000);
+                    auto data = co_await manapi::filesystem::async_read(filepath, ev::FS_O_RDONLY, -1, std::move(token));
+                    res->text(std::move(data));
+                    manapi::async::run(send_response_text(std::move(cdata), std::move(res), std::move(features)));
+                    co_return;
                 }
+
+                manapi_log_error("file too large to use replacers. max size: %d", 65536);
             }
+
+
 
             // partial enabled
             if (res->partial_enabled() && res->config()->partial_data_min_size <= fileSize) {
@@ -195,11 +202,6 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                     THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION,
                                            "the compress '{}' with the partial content is not supported.",
                                            features.compress);
-                }
-
-
-                if (features.replacers) {
-                    THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "replacers can not be use with partial");
                 }
 
                 res->status(http::PARTIAL_CONTENT_206);
@@ -298,6 +300,17 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
 manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features) {
     // may contains decoded / encoded body
     std::string plaintext = std::move(res->text());
+
+    if (features.replacers) {
+        manapi::kainjow::mustache::data data;
+        for (auto &v : *features.replacers) {
+            data.set(v.first, v.second);
+        }
+
+        std::string input = std::move(plaintext);
+        manapi::kainjow::mustache::mustache tmpl (input);
+        plaintext = tmpl.render(data);
+    }
 
     if (features.compressor_for_string) {
         // encode content !
@@ -757,7 +770,7 @@ namespace manapi::net::http::internal {
                         });
 
                         if (exists) {
-                            if (st_mode & ev::IFREG) {
+                            if (st_mode & (ev::IFREG|ev::IFLNK)) {
                                 const auto ext = manapi::filesystem::path::extension(path);
                                 auto const mime = mime::mime_by_file_extension(ext);
                                 bool const binary = mime::mime_partitial_data(mime);
@@ -800,14 +813,11 @@ namespace manapi::net::http::internal {
                                 }
                             }
 
-                            if (st_mode & ev::IFDIR) {
-
+                            else if (st_mode & (ev::IFDIR|ev::IFCHR|ev::IFBLK|ev::IFSOCK)) {
+                                cdata->router = std::move(cdata->router->error);
+                                send_error_response(std::move(cdata), http::FORBIDDEN_403);
+                                co_return;
                             }
-
-                            cdata->router = std::move(cdata->router->error);
-                            send_error_response(std::move(cdata), http::FORBIDDEN_403);
-
-                            co_return;
                         }
 
                         cdata->router = std::move(cdata->router->error);
