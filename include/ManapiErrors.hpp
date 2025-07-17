@@ -119,15 +119,7 @@ namespace manapi {
         /**
          * Unrecoverable data loss or corruption.
          */
-        ERR_DATA_LOSS,
-        /**
-         * Filesystem error
-         */
-        ERR_FILESYSTEM_FAILED,
-        /**
-         * Parse error
-         */
-        ERR_PARSE_FAILED
+        ERR_DATA_LOSS
     };
 
     /**
@@ -321,8 +313,6 @@ namespace manapi {
         status status_internal (std::string_view msg);
         status status_internal ();
         status status_data_loss (std::string_view msg);
-        status status_filesystem_failed (std::string_view msg);
-        status status_parse_failed (std::string_view msg);
     }
 }
 

@@ -728,9 +728,14 @@ manapi::future<ssize_t> manapi::net::formdata_send::payload_size() const {
     ssize_t s = 0;
     for (const auto &param : this->data) {
         switch (param.second.type) {
-            case DATA_FILE:
-                s += co_await manapi::filesystem::async_file_size(param.second.data);
-            break;
+            case DATA_FILE: {
+                auto res = co_await manapi::filesystem::async_file_size(param.second.data);
+                // if (!res.ok())
+                //     res.unwrap();
+
+                s += res.unwrap();
+                break;
+            }
             case DATA_PLAIN:
                 s += static_cast<ssize_t>(param.second.data.size());
             break;
@@ -816,9 +821,8 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
             manapi::filesystem::fstream f (param.second.data);
             auto res = co_await f.open(ev::FS_O_RDONLY);
 
-            if (!res.ok()) {
-                THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to read file ({}) to send it as form data parameter", param.second.data);
-            }
+            if (!res.ok())
+                res.unwrap();
 
             std::exception_ptr err{nullptr};
 
@@ -831,7 +835,7 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
                 while (fsize) {
                     auto rhs = co_await f.read(buffer.data(), buffer_size);
                     if (rhs < 0) {
-                        THROW_MANAPIHTTP_EXCEPTION(ERR_FILESYSTEM_FAILED, "Failed to read file ({}) to send it as formdata parameter", param.second.data);
+                        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "Failed to read file ({}) to send it as formdata parameter", param.second.data);
                     }
                     if (rhs == 0) {
                         continue;

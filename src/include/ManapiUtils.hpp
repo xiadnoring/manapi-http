@@ -25,6 +25,8 @@
 #define HANDLER(_req, _resp) (REQ(_req), RESP(_resp))
 
 #ifdef _WIN32
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
 #   define MANAPIHTTP_NONUNIX true
 #else
 #   define MANAPIHTTP_NONUNIX false

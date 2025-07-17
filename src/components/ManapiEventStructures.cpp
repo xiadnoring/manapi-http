@@ -928,8 +928,24 @@ manapi::sys_error::status manapi::sys_error::status_invalid_argument(std::string
     return sys_error::status{ERR_INVALID_ARGUMENT, msg, syserr};
 }
 
+manapi::sys_error::status manapi::sys_error::status_resource_exhausted() {
+    return sys_error::status{ERR_RESOURCE_EXHAUSTED, "bad alloc", ev::ERR_NOMEM};
+}
+
+manapi::sys_error::status manapi::sys_error::status_cancelled() {
+    return sys_error::status_cancelled("cancelled");
+}
+
+manapi::sys_error::status manapi::sys_error::status_cancelled(std::string_view msg) {
+    return sys_error::status{ERR_CANCELLED, msg, ev::ERR_CANCELED};
+}
+
 manapi::sys_error::status manapi::sys_error::status_internal(std::string_view msg, int syserr) {
     return sys_error::status{ERR_INTERNAL, msg, syserr};
+}
+
+manapi::sys_error::status manapi::sys_error::status_not_found(std::string_view msg) {
+    return sys_error::status{ERR_NOT_FOUND, msg, ev::ERR_INVAL};
 }
 
 manapi::sys_error::status manapi::sys_error::status_ok() {

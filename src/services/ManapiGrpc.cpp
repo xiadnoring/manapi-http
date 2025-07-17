@@ -710,8 +710,11 @@ absl::StatusOr<std::unique_ptr<grpc_event_engine::experimental::EventEngine::DNS
 
 manapi::future<manapi::error::status_or<std::shared_ptr<grpc::ChannelCredentials>>> manapi::net::wgrpc::secure_channel_credentials(std::string certfile) {
     try {
+        auto res = co_await manapi::filesystem::async_read(certfile);
+        if (!res.ok())
+            co_return res.err();
         grpc::SslCredentialsOptions ssl_opts;
-        ssl_opts.pem_root_certs=co_await manapi::filesystem::async_read(certfile);
+        ssl_opts.pem_root_certs=res.unwrap();
 
         auto ssl_creds = grpc::SslCredentials(ssl_opts);
         co_return std::move(ssl_creds);
@@ -769,12 +772,20 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::config(std::st
         bool update = false;
 
         if (!n.contains("grpc")) {
-            if (!co_await manapi::filesystem::async_exists(path))
+            auto res_exists = co_await manapi::filesystem::async_exists(path);
+            if (!res_exists.ok() || !res_exists.unwrap())
                 co_await manapi::filesystem::async_write(path, "{}", ev::IRUSR|ev::IWUSR|ev::IXUSR|ev::IRGRP|ev::IWGRP);
-            auto text = co_await manapi::filesystem::async_read(path);
-            res = this->setup_config_(manapi::json::parse(text).unwrap(), n);
-            if (res.ok())
-                n["grpc_path"] = std::move(path);
+            auto res_text = co_await manapi::filesystem::async_read(path);
+            if (res_text.ok()) {
+                auto text = res_text.unwrap();
+                res = this->setup_config_(manapi::json::parse(text).unwrap(), n);
+                if (res.ok())
+                    n["grpc_path"] = std::move(path);
+            }
+            else {
+                MANAPIHTTP_LOG("wgrpc:Failed to read data from the grpc_path: {} due to {}:{} {}({}, {})",
+                    path, res_text.status_msg(), res_text.message(), res_text.syserr(), res_text.sysname(), res_text.sysmsg());
+            }
 
             update = true;
         }
@@ -868,8 +879,14 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
 
         try {
             grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
-            pkcp.cert_chain = co_await manapi::filesystem::async_read(cert);
-            pkcp.private_key = co_await manapi::filesystem::async_read(key);
+            auto read_res = co_await manapi::filesystem::async_read(cert);
+            if (!read_res.ok())
+                co_return read_res.err();
+            pkcp.cert_chain = read_res.unwrap();
+            read_res = co_await manapi::filesystem::async_read(key);
+            if (!read_res.ok())
+                co_return read_res.err();
+            pkcp.private_key = read_res.unwrap();
             grpc::SslServerCredentialsOptions ssl_opts(peer_verify ? GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY : GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE);
             ssl_opts.pem_root_certs="";
             ssl_opts.pem_key_cert_pairs.push_back(pkcp);

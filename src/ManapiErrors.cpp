@@ -28,7 +28,6 @@ std::string_view manapi::get_msg_by_err_num (manapi::err_num err) {
         case manapi::ERR_PERMISSION_DENIED: return "ERR_PERMISSION_DENIED";
         case manapi::ERR_RESOURCE_EXHAUSTED: return "ERR_RESOURCE_EXHAUSTED";
         case manapi::ERR_FAILED_PRECONDITION: return "ERR_FAILED_PRECONDITION";
-        case manapi::ERR_FILESYSTEM_FAILED: return "ERR_FILESYSTEM_FAILED";
     }
 
     return "ERR_UNKNOWN";
@@ -186,14 +185,6 @@ manapi::error::status manapi::error::status_internal() {
 
 manapi::error::status manapi::error::status_data_loss(std::string_view msg) {
     return {ERR_DATA_LOSS, msg};
-}
-
-manapi::error::status manapi::error::status_filesystem_failed(std::string_view msg) {
-    return {ERR_FILESYSTEM_FAILED, msg};
-}
-
-manapi::error::status manapi::error::status_parse_failed(std::string_view msg) {
-    return {ERR_PARSE_FAILED, msg};
 }
 
 void manapi::debug::log_log(log_level level, const char *file, int line, const char *fmt, ...) {

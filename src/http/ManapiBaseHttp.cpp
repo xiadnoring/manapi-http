@@ -177,7 +177,8 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
             }
 
             // get file size
-            ssize_t fileSize = co_await manapi::filesystem::async_file_size(filepath);
+            auto stat_res = co_await manapi::filesystem::async_file_size(filepath);
+            ssize_t fileSize = stat_res.unwrap();
             ssize_t dynamicFileSize = fileSize;
 
             // replacers
@@ -186,7 +187,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(uq_handle_d
                     auto token = res->req()->cancellation().sub();
                     token.timeout(5000);
                     auto data = co_await manapi::filesystem::async_read(filepath, ev::FS_O_RDONLY, -1, std::move(token));
-                    res->text(std::move(data));
+                    res->text(data.unwrap());
                     manapi::async::run(send_response_text(std::move(cdata), std::move(res), std::move(features)));
                     co_return;
                 }
@@ -1037,7 +1038,11 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
     std::string cached;
 
     try {
-        auto filetime = co_await manapi::filesystem::async_last_time_write(file);
+        std::chrono::time_point<std::chrono::system_clock> filetime;
+        {
+            auto ft_res = co_await manapi::filesystem::async_last_time_write(file);
+            filetime = ft_res.unwrap();
+        }
         // compressor
         if (force_compress) {
             cached.clear();
@@ -1061,11 +1066,12 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
                     co_return std::move(file);
 
                 try {
-                    if (!co_await filesystem::async_exists (folder))
+                    auto exists = co_await filesystem::async_exists (folder);
+                    if (!exists.ok() || !exists.unwrap())
                         co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR);
                 }
                 catch (std::exception const &e) {
-                    co_return error::status_filesystem_failed("mkdir cache directory failed");
+                    co_return error::status_internal("mkdir cache directory failed");
                 }
 
                 filepath = folder + generate_cache_name(file, compress);

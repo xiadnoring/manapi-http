@@ -144,13 +144,21 @@ namespace manapi::ev {
         /* read, write, execute by owner */
         IRWXO = S_IREAD|S_IWRITE|S_IEXEC,
 
+        /* regular file */
         IFREG = S_IFREG,
+        /* socket */
         IFSOCK = 0,
+        /* symbolic link */
         IFLNK = 0,
+        /* block device */
         IFBLK = 0,
+        /* directory */
         IFDIR = S_IFDIR,
+        /* character device */
         IFCHR = S_IFCHR,
+        /* FIFO */
         IFIFO = 0,
+        /* bit mask for the file type bit field */
         IFMT = S_IFMT
     };
 #else
@@ -182,13 +190,22 @@ namespace manapi::ev {
         /* read, write, execute by others */
         IRWXO = S_IRWXO,
 
+        /* regular file */
         IFREG = S_IFREG,
+        /* socket */
         IFSOCK = S_IFSOCK,
+        /* symbolic link */
         IFLNK = S_IFLNK,
+        /* block device */
         IFBLK = S_IFBLK,
+        /* directory */
         IFDIR = S_IFDIR,
+        /* character device */
         IFCHR = S_IFCHR,
-        IFIFO = S_IFIFO
+        /* FIFO */
+        IFIFO = S_IFIFO,
+        /* bit mask for the file type bit field */
+        IFMT = S_IFMT
     };
 #endif
 
@@ -1035,6 +1052,8 @@ namespace manapi::sys_error {
 
         status_or (T &&n) : error::status_or<T, E>(std::forward<decltype(n)>(n)) {}
 
+        status_or (const T &n) : error::status_or<T, E>(n) {}
+
         status_or(status_or &&n) MANAPIHTTP_NOEXPECT = default;
 
         status_or&operator=(status_or &&n) MANAPIHTTP_NOEXPECT = default;
@@ -1073,12 +1092,38 @@ namespace manapi::sys_error {
     sys_error::status status_invalid_argument (std::string_view msg, int syserr);
 
     /**
+     * Generate an ResourceExhausted error
+     * @return the generated error
+     */
+    sys_error::status status_resource_exhausted ();
+
+    /**
+     * Generate an ResourceExhausted error
+     * @return the generated error
+     */
+    sys_error::status status_cancelled ();
+
+    /**
+     * Generate an ResourceExhausted error
+     * @param msg the error msg
+     * @return the generated error
+     */
+    sys_error::status status_cancelled (std::string_view msg);
+
+    /**
      * Generate an InternalError error
      * @param msg the error msg
      * @param syserr the system error code
      * @return the generated error
      */
     sys_error::status status_internal (std::string_view msg, int syserr);
+
+    /**
+     * Generate an NotFound error
+     * @param msg the error msg
+     * @return the generated error
+     */
+    sys_error::status status_not_found (std::string_view msg);
 
     /**
      * Generate an Ok error

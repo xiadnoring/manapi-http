@@ -42,8 +42,12 @@ manapi::future<manapi::error::status> manapi::filesystem::fstream::open(int flag
     }
 
     try {
-        this->data->file = co_await manapi::filesystem::async_open(this->data->path, flags, mode,
+        auto res = co_await manapi::filesystem::async_open(this->data->path, flags, mode,
             async::cancellation_action::unit(this->data->cancellation));
+        if (!res.ok())
+            co_return res.err();
+
+        this->data->file = res.unwrap();
     }
     catch (std::bad_alloc const  &) {
         this->data->file = -1;
@@ -52,12 +56,12 @@ manapi::future<manapi::error::status> manapi::filesystem::fstream::open(int flag
     catch (manapi::exception const &e) {
         manapi_log_error("%s due to %s", "file open failed", e.what());
         this->data->file = -1;
-        co_return manapi::error::status_filesystem_failed("file open failed");
+        co_return manapi::error::status_internal("file open failed");
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "file open failed", e.what());
         this->data->file = -1;
-        co_return manapi::error::status_filesystem_failed("file open failed");
+        co_return manapi::error::status_internal("file open failed");
     }
 
     co_return manapi::error::status_ok();
@@ -77,8 +81,13 @@ manapi::future<ssize_t> manapi::filesystem::fstream::read(void *buff, ssize_t bu
     while (true) {
         ssize_t rhs;
 
-        rhs = co_await manapi::filesystem::async_read(this->data->file, buff, buff_size, this->data->off_,
+        auto res = co_await manapi::filesystem::async_read(this->data->file, buff, buff_size, this->data->off_,
             manapi::async::cancellation_action::unit(this->data->cancellation));
+
+        if (!res.ok())
+            co_return res.syserr();
+
+        rhs = res.unwrap();
 
         if (rhs < 0)
             break;
@@ -98,8 +107,13 @@ manapi::future<ssize_t> manapi::filesystem::fstream::write(const void *buff, ssi
     while (true) {
         ssize_t rhs;
 
-        rhs = co_await manapi::filesystem::async_write(this->data->file, buff, buff_size, this->data->off_,
+        auto res = co_await manapi::filesystem::async_write(this->data->file, buff, buff_size, this->data->off_,
             manapi::async::cancellation_action::unit(this->data->cancellation));
+
+        if (!res.ok())
+            co_return res.syserr();
+
+        rhs = res.unwrap();
 
         if (this->data->off_ >= 0) {
             this->data->off_ += rhs;
@@ -146,9 +160,13 @@ manapi::future<ssize_t> manapi::filesystem::fstream::read(manapi::slice_view sli
     while (true) {
         ssize_t rhs;
 
-        rhs = co_await manapi::filesystem::async_read(this->data->file, slice, this->data->off_,
+        auto res = co_await manapi::filesystem::async_read(this->data->file, slice, this->data->off_,
             manapi::async::cancellation_action::unit(this->data->cancellation));
 
+        if (!res.ok())
+            co_return res.syserr();
+
+        rhs = res.unwrap();
 
         if (rhs < 0)
             break;
@@ -168,8 +186,13 @@ manapi::future<ssize_t> manapi::filesystem::fstream::write(manapi::slice_view sl
     while (true) {
         ssize_t rhs;
 
-        rhs = co_await manapi::filesystem::async_write(this->data->file, slice, this->data->off_,
+        auto res = co_await manapi::filesystem::async_write(this->data->file, slice, this->data->off_,
             manapi::async::cancellation_action::unit(this->data->cancellation));
+
+        if (!res.ok())
+            co_return res.syserr();
+
+        rhs = res.unwrap();
 
         if (this->data->off_ >= 0)
             this->data->off_ += rhs;

@@ -147,7 +147,7 @@ manapi::future<> manapi::net::http::request::file(std::string filepath) {
     auto res = co_await f.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_TRUNC);
 
     if (!res.ok()) {
-        THROW_MANAPIHTTP_EXCEPTION (ERR_FILESYSTEM_FAILED, "http request: Failed to open the file ({}) to write", filepath);
+        THROW_MANAPIHTTP_EXCEPTION (ERR_INTERNAL, "http request: Failed to open the file ({}) to write", filepath);
     }
 
     std::exception_ptr err{nullptr};

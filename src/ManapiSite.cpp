@@ -200,13 +200,16 @@ manapi::future<> manapi::net::http::site::config(std::string path) {
             if (!config.contains("site") || !config["site"].is_object()) {
 
                 try {
-                    if (!co_await manapi::filesystem::async_exists(path))
+                    auto exists = co_await manapi::filesystem::async_exists(path);
+                    if (!exists.ok() || !exists.unwrap())
                     {
                         std::string data = manapi::json::object().dump(4);
-                        co_await manapi::filesystem::async_write(path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+                        auto res = co_await manapi::filesystem::async_write(path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+                        res.unwrap();
                     }
 
-                    auto obj = manapi::json(co_await manapi::filesystem::async_read (path), true);
+                    auto res = co_await manapi::filesystem::async_read (path);
+                    auto obj = manapi::json(res.unwrap(), true);
 
                     if (!obj.is_object())
                         obj = manapi::json::object();
@@ -286,8 +289,10 @@ manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {
         manapi::filesystem::path::append_delimiter(cache_path);
         auto path = manapi::filesystem::path::join(cache_path, std::string{site::default_config_name});
         try {
-            if (co_await manapi::filesystem::async_exists(path)) {
-                cache = manapi::json(co_await manapi::filesystem::async_read(path), true);
+            auto exists = co_await manapi::filesystem::async_exists(path);
+            if (!exists.ok() || exists.unwrap()) {
+                auto res = co_await manapi::filesystem::async_read(path);
+                cache = manapi::json(res.unwrap(), true);
             }
         }
         catch (std::exception const &e) {
@@ -384,11 +389,15 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_compressed_ca
                 }
 
                 if (!del.empty()) {
-                    manapi::async::run(manapi::filesystem::async_unlink(std::move(del),
-                        manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err) -> void {
-                        if (err) {
-                            /* ignore :) */
-                        }
+                    manapi::async::run<manapi::sys_error::status>(manapi::filesystem::async_unlink(std::move(del),
+                        manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err, manapi::sys_error::status *s) -> void {
+                            if (err) {
+                                /* ignore :) */
+                                return;
+                            }
+                            if (!s->ok()) {
+                                s->log();
+                            }
                     });
                 }
 
@@ -423,11 +432,14 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_locked_cache_
                     if (fit->second.is_object()) {
                         auto compressit = fit->second.find("compressed");
                         if (compressit != fit->second.end<json::OBJECT>() && compressit->second.is_string()) {
-                            manapi::async::run(manapi::filesystem::async_unlink(compressit->second.as_string(),
-                                manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err) -> void {
-                                if (err) {
-                                    /* ignore :) */
-                                }
+                            manapi::async::run<manapi::sys_error::status>(manapi::filesystem::async_unlink(compressit->second.as_string(),
+                                manapi::async::timeout_cancellation(5000)), [] (std::exception_ptr err, manapi::sys_error::status *s) -> void {
+                                    if (err) {
+                                        /* ignore :) */
+                                        return;
+                                    }
+                                    if (!s->ok())
+                                        s->log();
                             });
                         }
                     }

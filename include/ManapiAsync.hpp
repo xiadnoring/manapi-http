@@ -20,11 +20,15 @@ namespace manapi {
 
         namespace internal {
             static thread_local std::size_t current_stack_cnt = 0;
+
             static thread_local std::shared_ptr<cthread> current_cthread_ = nullptr;
 
             const std::shared_ptr<threadpool<task>> &ethreadpool_(const std::shared_ptr<cthread> &ctx);
+
             const std::shared_ptr<cthread> &current_ ();
+
             std::size_t current_stack_cnt_crt ();
+
             void current_stack_cnt_set (std::size_t cnt);
         }
 
@@ -42,6 +46,7 @@ namespace manapi {
         }
 
         std::coroutine_handle<> waiting;
+
         std::exception_ptr exception;
     };
 
@@ -102,13 +107,14 @@ namespace manapi {
 
             std::suspend_always initial_suspend() { return {}; }
 
+            void return_value (const T &t) {
+                this->value = t;
+            }
+
             void return_value (T &&t) {
                 this->value = std::move(t);
             }
 
-            void return_value (const T &t) {
-                this->value = t;
-            }
 
             future get_return_object()
             {
