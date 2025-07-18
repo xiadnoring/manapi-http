@@ -4,9 +4,11 @@
 #include "ManapiInitTools.hpp"
 #include "services/ManapiEventLoop.hpp"
 #include "ManapiDebug.hpp"
-#include <openssl/ssl.h>
-
 #include "ManapiProcess.hpp"
+
+#if MANAPIHTTP_OPENSSL_DEPENDENCY
+#   include <openssl/ssl.h>
+#endif
 
 // static int cnt = 0;
 //
@@ -74,7 +76,6 @@ void manapi::init_tools::ssl_library_init() {
         OpenSSL_add_ssl_algorithms();
         SSL_load_error_strings();
         OpenSSL_add_all_algorithms();
-
 #endif
 }
 void manapi::init_tools::ev_library_init() {
@@ -92,5 +93,28 @@ void manapi::init_tools::ev_library_init() {
 void manapi::init_tools::curl_library_init() {
 #if MANAPIHTTP_CURL_DEPENDENCY
     curl_global_init(CURL_GLOBAL_DEFAULT);
+#endif
+}
+
+void manapi::clear_tools::ssl_library_thread_clear() MANAPIHTTP_NOEXPECT {
+#if MANAPIHTTP_OPENSSL_DEPENDENCY
+    OPENSSL_thread_stop();
+#endif
+}
+
+void manapi::clear_tools::ssl_library_clear() MANAPIHTTP_NOEXPECT {
+#if MANAPIHTTP_OPENSSL_DEPENDENCY
+    OPENSSL_thread_stop();
+    OPENSSL_cleanup();
+#endif
+}
+
+void manapi::clear_tools::ev_library_clear() MANAPIHTTP_NOEXPECT {
+
+}
+
+void manapi::clear_tools::curl_library_clear() MANAPIHTTP_NOEXPECT {
+#if MANAPIHTTP_CURL_DEPENDENCY
+    curl_global_cleanup();
 #endif
 }

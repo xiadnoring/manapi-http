@@ -903,7 +903,9 @@ manapi::sys_error::status::status(status &&n) MANAPIHTTP_NOEXPECT = default;
 manapi::sys_error::status & manapi::sys_error::status::operator=(status &&n) MANAPIHTTP_NOEXPECT = default;
 
 void manapi::sys_error::status::log() const {
-    MANAPIHTTP_LOG ("{}: msg: {} syserr: {} sysname: {} sysmsg: {}", this->status_msg(), this->msg_, this->syserr_, this->sysname(), this->sysmsg());
+    if (this->syserr_)
+        MANAPIHTTP_LOG ("{}: msg: {} syserr: {} sysname: {} sysmsg: {}", this->status_msg(), this->msg_, this->syserr_, this->sysname(), this->sysmsg());
+    error::status::log();
 }
 
 void manapi::sys_error::status::unwrap() const {
@@ -945,7 +947,7 @@ manapi::sys_error::status manapi::sys_error::status_internal(std::string_view ms
 }
 
 manapi::sys_error::status manapi::sys_error::status_not_found(std::string_view msg) {
-    return sys_error::status{ERR_NOT_FOUND, msg, ev::ERR_INVAL};
+    return sys_error::status{ERR_NOT_FOUND, msg, ev::ERR_NOENT};
 }
 
 manapi::sys_error::status manapi::sys_error::status_ok() {

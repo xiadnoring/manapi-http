@@ -120,7 +120,7 @@ struct object_pool_deleter {
                 buffs.pop_back();
 
                 std::cout << (std::size_t)pn.first << " " << pn.second << "\n";
-                delete static_cast<char *>(pn.first);
+                delete[] static_cast<char *>(pn.first);
             }
         }
 

@@ -1068,9 +1068,10 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
                 try {
                     auto exists = co_await filesystem::async_exists (folder);
                     if (!exists.ok() || !exists.unwrap())
-                        co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR);
+                        (co_await filesystem::async_mkdir(folder, ev::IRUSR|ev::IWUSR)).unwrap();
                 }
                 catch (std::exception const &e) {
+                    manapi_log_error("%s due to %s", "mkdir cache directory failed", e.what());
                     co_return error::status_internal("mkdir cache directory failed");
                 }
 

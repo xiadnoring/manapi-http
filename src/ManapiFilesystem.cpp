@@ -14,22 +14,21 @@
 #include "include/ManapiDefaultErrors.hpp"
 
 std::string_view manapi::filesystem::path::basename(std::string_view path) {
-    size_t pos = path.find_last_of(std::filesystem::path::preferred_separator);
-
+    std::size_t pos = path.find_last_of(std::filesystem::path::preferred_separator);
     if (pos != std::string::npos) {
         pos ++;
         return std::string_view{path.data() + pos, path.size() - pos};
     }
-
     return path;
 }
 
 std::string_view manapi::filesystem::path::extension(std::string_view path) {
     size_t pos = path.find_last_of('.');
 
-    if (pos != std::string::npos)
+    if (pos != std::string::npos) {
         pos ++;
         return std::string_view{path.data() + pos, path.size() - pos};
+    }
     return {};
 }
 
@@ -127,12 +126,17 @@ manapi::future<manapi::sys_error::status> async_fs_simple_operation (std::move_o
 
 manapi::future<manapi::sys_error::status_or<bool>> manapi::filesystem::async_exists(std::string path, manapi::async::cancellation_action cancellation) {
     bool exists = false;
+
     auto res = co_await filesystem::async_stat(std::move(path),
         [&exists] (ev::stat_t *st) -> void {
         exists = (st->st_mode & ev::IFMT);
     }, std::move(cancellation));
+
     if (res.ok())
         co_return exists;
+
+    if (res.syserr() == ev::ERR_NOENT)
+        co_return false;
 
     co_return std::move(res);
 }
@@ -675,107 +679,48 @@ manapi::future<manapi::sys_error::status> manapi::filesystem::async_fstat(ev::fi
         }, cancellation);
 }
 
-std::string manapi::filesystem::path::back (std::string str) {
-    size_t size = str.size();
-
+void clean_delimiters_at_end (std::string_view &str) {
     // clean delimiters at the end
-    for (size_t i = size - 1; i > 1; i--) {
-        if (delimiter == str[i]) {
-            str.pop_back();
-            size--;
+    while (!str.empty() && str.back() == manapi::filesystem::path::delimiter)
+        str = str.substr(0, str.size() - 1);
+}
 
-            continue;
-        }
-
-        break;
-    }
-
-    bool delimiter_prev = false;
-    for (size_t i = size - 1; i != 0; i--) {
-        while (i >= 0 && str[i] == delimiter) {
-            i--;
-
-            str.pop_back();
-
-            delimiter_prev = true;
-        }
-
-
-        if (delimiter_prev)
-        {
-            break;
-        }
-
-        else
-        {
-            str.pop_back();
-        }
-    }
+std::string_view manapi::filesystem::path::back (std::string_view str) {
+    clean_delimiters_at_end(str);
+    auto it = str.rfind(filesystem::path::delimiter);
+    if (it != std::string_view::npos)
+        str = str.substr(0, it);
 
     return str;
 }
 
-std::string manapi::filesystem::path::clean (std::string_view str) {
+void manapi::filesystem::path::append(std::string &path, std::string_view next) {
+    if (next.empty())
+        return;
+    if (!path.empty() && path.back() != path::delimiter)
+        path.push_back(path::delimiter);
+    clean_delimiters_at_end(next);
+    path.append(next.data(), next.size());
+}
+
+std::string manapi::filesystem::path::current_path() {
+    return std::filesystem::current_path().string();
+}
+
+std::string manapi::filesystem::path::serialize (std::string_view str) {
     std::string cleaned;
-    size_t size = str.size();
-
-    // clean delimiters at the end
-    for (size_t i = size - 1; i > 1; i--) {
-        if (delimiter == str[i]) {
-            size --;
-            continue;
+    cleaned.reserve(str.size());
+    clean_delimiters_at_end(str);
+    std::size_t prev_delimiter_pos = 0;
+    while (!str.empty()) {
+        auto it = str.find(filesystem::path::delimiter);
+        if (it == std::string_view::npos)
+            str = std::string_view{};
+        else {
+            if (it < prev_delimiter_pos && it - 1 != prev_delimiter_pos)
+                cleaned.append(str.data(), it + 1);
+            str = str.substr(it + 1);
         }
-
-        break;
-    }
-
-    // skip double delimiters
-    bool delimiter_prev = false;
-
-    for (size_t i = 0; i < size; i++) {
-        if (str[i] == delimiter) {
-            if (i + 1 != size) {
-
-                // check for . or ..
-                if (str[i + 1] == '.') {
-                    if (i + 2 != size) {
-                        if (str[i + 2] == '/') {
-                            i = i + 2 - 1;
-                            continue;
-                        }
-                        else if (str[i + 2] == '.') {
-                            bool can_back = cleaned.size() > 1;
-
-                            if (i + 3 != size) {
-                                if (str[i + 3] == '/' && can_back) {
-                                    cleaned = back (cleaned);
-                                    i = i + 3 - 1;
-
-                                    continue;
-                                }
-                            }
-                            else if (can_back) {
-                                cleaned = back (cleaned);
-
-                                break;
-                            }
-                        }
-                    }
-                    else {
-                        break;
-                    }
-                }
-            }
-
-            if (delimiter_prev)
-                continue;
-
-            delimiter_prev = true;
-        }
-        else if (delimiter_prev)
-            delimiter_prev = false;
-
-        cleaned += str[i];
     }
 
     return std::move(cleaned);
@@ -972,16 +917,16 @@ manapi::future<manapi::sys_error::status_or<std::pair<std::string, manapi::ev::f
         }, std::move(cancellation));
 }
 
-manapi::future<manapi::sys_error::status_or<ssize_t>> manapi::filesystem::async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation) {
-    using promise = manapi::async::promise<sys_error::status_or<ssize_t>>;
+manapi::future<manapi::sys_error::status_or<std::size_t>> manapi::filesystem::async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<sys_error::status_or<std::size_t>>;
 
-    co_return co_await async_fs_operation<sys_error::status_or<ssize_t>>([path = std::move(path), flags] (std::shared_ptr<ev::fs> w)
+    co_return co_await async_fs_operation<sys_error::status_or<std::size_t>>([path = std::move(path), flags] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->scandir(path.data(), flags);
         }, [callback = std::move(callback)](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, manapi::async::cancellation_action &cancel) mutable
         -> void {
             cancel.disable();
-            if (async_fs_operation_result_error<sys_error::status_or<ssize_t>>(w, resolve, cancel)) {
+            if (async_fs_operation_result_error<sys_error::status_or<std::size_t>>(w, resolve, cancel)) {
                 return;
             }
             auto ptr = static_cast<ev::dir_t *> (w->custom()->ptr);
@@ -990,16 +935,16 @@ manapi::future<manapi::sys_error::status_or<ssize_t>> manapi::filesystem::async_
         }, std::move(cancellation));
 }
 
-manapi::future<manapi::sys_error::status_or<ssize_t>> manapi::filesystem::async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation) {
-    using promise = manapi::async::promise<sys_error::status_or<ssize_t>>;
+manapi::future<manapi::sys_error::status_or<std::size_t>> manapi::filesystem::async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *)> callback, async::cancellation_action cancellation) {
+    using promise = manapi::async::promise<sys_error::status_or<std::size_t>>;
 
-    co_return co_await async_fs_operation<sys_error::status_or<ssize_t>>([dir] (std::shared_ptr<ev::fs> w)
+    co_return co_await async_fs_operation<sys_error::status_or<std::size_t>>([dir] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->readdir(dir);
         }, [callback = std::move(callback)](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, manapi::async::cancellation_action &cancel) mutable
         -> void {
             cancel.disable();
-            if (async_fs_operation_result_error<sys_error::status_or<ssize_t>>(w, resolve, cancel)) {
+            if (async_fs_operation_result_error<sys_error::status_or<std::size_t>>(w, resolve, cancel)) {
                 return;
             }
             auto ptr = static_cast<ev::dir_t *> (w->custom()->ptr);

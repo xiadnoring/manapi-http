@@ -128,39 +128,39 @@ int main () {
 
         auto service = std::make_shared<GreeterServiceImpl>();
 
-        manapi::net::wgrpc::server grpc_server (grpc_server_ctx);
-        manapi::async::run([grpc_server, service] () mutable -> manapi::future<> {
-            auto res = co_await grpc_server.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/grpc.json");
-
-            res.log();
-
-            res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::error::status {
-                builder.RegisterService(service.get());
-                return manapi::error::status_ok();
-            });
-
-            res.log();
-            if (res.ok()) {
-                manapi::async::run([] () -> manapi::future<> {
-                    auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
-                    if (!creds.ok()) {
-                        creds.err().log();
-                        co_return;
-                    }
-                    GreeterClient greeter(grpc::CreateChannel("localhost:8080", creds.unwrap()));
-                    std::string user = "Xiadnoring Client";
-                    auto res = co_await greeter.SayHello(user);
-                    if (res.ok())
-                        std::cout << res.unwrap() << "\n";
-                    else
-                        res.err().log();
-                });
-            }
-
-        }, [] (std::exception_ptr err) -> void {
-            if (err)
-                std::rethrow_exception(err);
-        });
+        // manapi::net::wgrpc::server grpc_server (grpc_server_ctx);
+        // manapi::async::run([grpc_server, service] () mutable -> manapi::future<> {
+        //     auto res = co_await grpc_server.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/grpc.json");
+        //
+        //     res.log();
+        //
+        //     res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::error::status {
+        //         builder.RegisterService(service.get());
+        //         return manapi::error::status_ok();
+        //     });
+        //
+        //     res.log();
+        //     if (res.ok()) {
+        //         manapi::async::run([] () -> manapi::future<> {
+        //             auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
+        //             if (!creds.ok()) {
+        //                 creds.err().log();
+        //                 co_return;
+        //             }
+        //             GreeterClient greeter(grpc::CreateChannel("localhost:8080", creds.unwrap()));
+        //             std::string user = "Xiadnoring Client";
+        //             auto res = co_await greeter.SayHello(user);
+        //             if (res.ok())
+        //                 std::cout << res.unwrap() << "\n";
+        //             else
+        //                 res.err().log();
+        //         });
+        //     }
+        //
+        // }, [] (std::exception_ptr err) -> void {
+        //     if (err)
+        //         std::rethrow_exception(err);
+        // });
 
         /**
          * http
@@ -293,6 +293,10 @@ int main () {
 
         bind();
     });
+
+    manapi::clear_tools::curl_library_clear();
+    manapi::clear_tools::ev_library_clear();
+    manapi::clear_tools::ssl_library_clear();
 
     return 0;
 }

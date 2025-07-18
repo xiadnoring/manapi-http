@@ -156,6 +156,8 @@ void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<v
                     thr->eventloop()->wait();
 
                     manapi::async::context::current(nullptr);
+
+                    manapi::clear_tools::ssl_library_thread_clear();
                 });
             }));
         });

@@ -31,3 +31,13 @@ namespace manapi::init_tools {
      */
     void curl_library_init ();
 }
+
+namespace manapi::clear_tools {
+    void ssl_library_thread_clear () MANAPIHTTP_NOEXPECT;
+
+    void ssl_library_clear () MANAPIHTTP_NOEXPECT;
+
+    void ev_library_clear () MANAPIHTTP_NOEXPECT;
+
+    void curl_library_clear () MANAPIHTTP_NOEXPECT;
+}

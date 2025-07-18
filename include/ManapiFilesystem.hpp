@@ -124,9 +124,9 @@ namespace manapi::filesystem {
 
     future<sys_error::status> async_access (std::string path, int mode, async::cancellation_action cancellation = nullptr);
 
-    future<sys_error::status_or<ssize_t>> async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation = nullptr);
+    future<sys_error::status_or<std::size_t>> async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation = nullptr);
 
-    future<sys_error::status_or<ssize_t>> async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation = nullptr);
+    future<sys_error::status_or<std::size_t>> async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation = nullptr);
 }
 
 
@@ -141,12 +141,17 @@ namespace manapi::filesystem::path {
 
     void append_delimiter(std::string &path);
 
-    std::string clean (std::string_view str);
+    std::string serialize (std::string_view str);
 
-    std::string back (std::string str);
+    std::string_view back (std::string_view str);
+
+    void append (std::string &path, std::string_view next);
+
+    std::string current_path ();
 
     template <class... Args>
-    std::string join(std::string_view path, Args&&...args) {
-        return clean(std::string{path} + (... + (string_delimiter + std::forward<Args>(args))));
+    std::string join(std::string path, Args&&...args) {
+        (..., path::append(path, std::forward<Args>(args) ));
+        return std::move(path);
     }
 }

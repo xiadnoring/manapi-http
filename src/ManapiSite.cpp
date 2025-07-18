@@ -284,7 +284,10 @@ manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {
         if (cache_path.empty())
             cache_path = manapi::filesystem::path::join(std::filesystem::temp_directory_path().string(), MANAPIHTTP_NAME, "cache");
 
-        co_await manapi::filesystem::async_mkdir(cache_path, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
+        {
+            auto mkdir_res = co_await manapi::filesystem::async_mkdir(cache_path, ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IXUSR|ev::IXGRP, true);
+            mkdir_res.unwrap();
+        }
 
         manapi::filesystem::path::append_delimiter(cache_path);
         auto path = manapi::filesystem::path::join(cache_path, std::string{site::default_config_name});
