@@ -138,9 +138,8 @@ namespace manapi {
 
         using value_type = T;
         using promise_type = promise;
-        explicit future(std::coroutine_handle<promise> handle) : handle_ (std::exchange(handle, nullptr)) {
 
-        }
+        explicit future(std::coroutine_handle<promise> handle) : handle_ (std::exchange(handle, nullptr)) {}
 
         ~future() {
             this->reset();
@@ -163,11 +162,11 @@ namespace manapi {
             }
         }
 
-        std::coroutine_handle<promise> release () {
+        std::coroutine_handle<promise> release () MANAPIHTTP_NOEXPECT {
             return std::exchange(this->handle_, nullptr);
         }
 
-        void operator()() {
+        void operator()() MANAPIHTTP_NOEXPECT {
             this->resume_promise(this->handle_);
         }
 
@@ -232,25 +231,37 @@ namespace manapi {
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        static void resume_promise (const std::coroutine_handle<T1> &handle) {
+        static void resume_promise (const std::coroutine_handle<T1> &handle) MANAPIHTTP_NOEXPECT {
             handle.resume();
         }
 
         template <typename T1 = T>
         requires(std::is_same_v<T, void>)
         void onfinish (std::move_only_function<void(std::exception_ptr err)> cb) {
-            if (this->handle_) {
-                auto &promise = this->handle_.promise();
-                promise.finish_cb = std::move(std::make_unique<decltype(cb)>(std::move(cb)));
-            }
+            this->onfinish(std::make_unique<decltype(cb)>(std::move(cb)));
         }
 
         template <typename T1 = T>
         requires(!std::is_same_v<T, void>)
         void onfinish (std::move_only_function<void(std::exception_ptr err, T *v)> cb) {
+            this->onfinish(std::make_unique<decltype(cb)>(std::move(cb)));
+        }
+
+        template <typename T1 = T>
+        requires(std::is_same_v<T, void>)
+        void onfinish (std::unique_ptr<std::move_only_function<void(std::exception_ptr err)>> cb) MANAPIHTTP_NOEXPECT {
             if (this->handle_) {
                 auto &promise = this->handle_.promise();
-                promise.finish_cb = std::move(std::make_unique<decltype(cb)>(std::move(cb)));
+                promise.finish_cb = std::move(cb);
+            }
+        }
+
+        template <typename T1 = T>
+        requires(!std::is_same_v<T, void>)
+        void onfinish (std::unique_ptr<std::move_only_function<void(std::exception_ptr err, T *v)>> cb) MANAPIHTTP_NOEXPECT {
+            if (this->handle_) {
+                auto &promise = this->handle_.promise();
+                promise.finish_cb = std::move(cb);
             }
         }
 

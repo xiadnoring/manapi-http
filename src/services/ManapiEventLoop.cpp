@@ -399,11 +399,11 @@ void evloop_stack_trace () {
 #if MANAPIHTTP_CPPTRACE_DEPENDENCY
         cpptrace::generate_trace().print();
 #else
-        std::cerr << "stack trace is disabled\n";
+        manapi_log_error("stack trace is disabled");
 #endif
     }
     catch (std::exception const &e) {
-        std::cerr << "stack trace print failed due to " << e.what() << "\n";
+        manapi_log_error("%s due to %s", "stack trace print failed", e.what());
     }
 }
 
@@ -533,17 +533,20 @@ void manapi::ev::callback_watcher_connect_tcp(uv_connect_t *s, int status) {
 
 void manapi::ev::callback_watcher_fs(uv_fs_t *req) {
     assert(req->data && "ev:User data wasn't set");
-    std::unique_ptr<uv_fs_t, fs_req_deleter> req_own (req);
 
     if (req->data) {
         /* otherwise it was cancelled */
         std::unique_ptr<manapi::ev::internal::fs_ctx> ss (static_cast<manapi::ev::internal::fs_ctx *> (req->data));
+        std::unique_ptr<uv_fs_t, fs_req_deleter> req_own (req);
         req->data = nullptr;
 
         MANAPI_EV_TRY_CALLBACK
         if (ss->cb)
             ss->cb(ss->s_);
         MANAPI_EV_CATCH_CALLBACK("fs")
+    }
+    else {
+        std::unique_ptr<uv_fs_t, fs_req_deleter> req_own (req);
     }
 }
 
@@ -655,6 +658,7 @@ void manapi::ev::callback_close_cb(uv_handle_t *s) {
 
 
 ssize_t double_store_in_ssize (double a) { ssize_t b = 0; memcpy (&b, &a, sizeof (a)); return a; }
+
 double ssize_store_in_double (ssize_t a) { double b = 0; memcpy (&b, &a, sizeof (a)); return b; };
 
 

@@ -13,34 +13,30 @@
 #include "async/ManapiEasyCancellation.hpp"
 #include "include/ManapiDefaultErrors.hpp"
 
-std::string manapi::filesystem::path::basename(std::string_view path) {
+std::string_view manapi::filesystem::path::basename(std::string_view path) {
     size_t pos = path.find_last_of(std::filesystem::path::preferred_separator);
 
-    if (pos != std::string::npos)
-    {
-        return std::string{path.substr(pos + 1)};
+    if (pos != std::string::npos) {
+        pos ++;
+        return std::string_view{path.data() + pos, path.size() - pos};
     }
 
-    return std::string{path};
+    return path;
 }
 
-std::string manapi::filesystem::path::extension(std::string_view path) {
+std::string_view manapi::filesystem::path::extension(std::string_view path) {
     size_t pos = path.find_last_of('.');
 
     if (pos != std::string::npos)
-    {
-        return std::string{path.substr(pos + 1)};
-    }
-
-    return std::string{};
+        pos ++;
+        return std::string_view{path.data() + pos, path.size() - pos};
+    return {};
 }
 
 
 void manapi::filesystem::path::append_delimiter (std::string &path) {
     if (path.empty() || path.back() != std::filesystem::path::preferred_separator)
-    {
         path.push_back(std::filesystem::path::preferred_separator);
-    }
 }
 
 template<typename T>
@@ -84,27 +80,35 @@ manapi::future<T> async_fs_operation (std::move_only_function<bool(std::shared_p
       async_fs_operation_event_cb<T> event_cb,  manapi::async::cancellation_action cancellation) {
     using promise = manapi::async::promise_sync<T>;
     async_fs_operation_deleter t {cancellation};
-
-    co_return co_await promise([&] (typename promise::resolve_t resolve, typename promise::reject_t reject)
-        -> void {
-        auto watcher = manapi::async::current()->eventloop()->create_watcher_fs([resolve, event_cb = std::move(event_cb), cancellation] (const std::shared_ptr<manapi::ev::fs> &w) mutable
+    try {
+        co_return co_await promise([&] (typename promise::resolve_t resolve, typename promise::reject_t reject)
             -> void {
-            async_fs_operation_event_handler<T>(w, std::move(resolve), std::move(cancellation), event_cb);
-        });
-
-        if (!start_cb(watcher)) {
-            resolve(manapi::sys_error::status_internal("fs i/o init watcher failed", manapi::ev::ERR_UNKNOWN));
-            return;
-        }
-
-        if (cancellation.contains_cancel_callback()) {
-            cancellation.cancel_callback([watcher = std::move(watcher), resolve = std::move(resolve)] () mutable
+            auto watcher = manapi::async::current()->eventloop()->create_watcher_fs([resolve, event_cb = std::move(event_cb), cancellation] (const std::shared_ptr<manapi::ev::fs> &w) mutable
                 -> void {
-                manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(watcher));
-                resolve (manapi::sys_error::status_cancelled("fs i/o operation has been cancelled"));
+                async_fs_operation_event_handler<T>(w, std::move(resolve), std::move(cancellation), event_cb);
             });
-        }
-    });
+
+            if (!start_cb(watcher)) {
+                resolve(manapi::sys_error::status_internal("fs i/o init watcher failed", manapi::ev::ERR_UNKNOWN));
+                return;
+            }
+
+            if (cancellation.contains_cancel_callback()) {
+                cancellation.cancel_callback([watcher = std::move(watcher), resolve = std::move(resolve)] () mutable
+                    -> void {
+                    manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(watcher));
+                    resolve (manapi::sys_error::status_cancelled("fs i/o operation has been cancelled"));
+                });
+            }
+        });
+    }
+    catch (std::bad_alloc const &) {
+        co_return manapi::sys_error::status_resource_exhausted();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "fs operation failed", e.what());
+        co_return manapi::sys_error::status_internal("fs operation failed", manapi::ev::ERR_UNKNOWN);
+    }
 }
 
 manapi::future<manapi::sys_error::status> async_fs_simple_operation (std::move_only_function<bool(std::shared_ptr<manapi::ev::fs> w)> start_cb, manapi::async::cancellation_action cancellation) {

@@ -135,9 +135,9 @@ namespace manapi::filesystem::path {
 
     static const std::string string_delimiter (&delimiter, 1);
 
-    std::string basename (std::string_view path);
+    std::string_view basename (std::string_view path);
 
-    std::string extension (std::string_view path);
+    std::string_view extension (std::string_view path);
 
     void append_delimiter(std::string &path);
 

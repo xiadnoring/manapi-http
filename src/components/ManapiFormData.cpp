@@ -705,7 +705,7 @@ void manapi::net::formdata_send::append_file(const std::string &name, std::strin
     auto filename = manapi::filesystem::path::basename(filepath);
     auto filemime = manapi::mime::mime_by_file_path(filename);
 
-    this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::string{filemime}}}});
+    this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::string{filename}, std::string{filemime}}}});
 }
 
 void manapi::net::formdata_send::append_file(const std::string &name, std::string filepath, std::string filename, std::string filemime) {

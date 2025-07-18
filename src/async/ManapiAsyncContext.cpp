@@ -215,26 +215,41 @@ const std::shared_ptr<manapi::async::cthread> & manapi::async::internal::current
 
 manapi::async::context::~context() = default;
 
-void manapi::async::internal::run_prepare_error_(std::exception_ptr err) {
-    int errnum = manapi::ERR_OK;
-    std::string errmsg;
+void manapi::async::internal::run_prepare_error_(std::exception_ptr err) MANAPIHTTP_NOEXPECT {
+    try {
+        int errnum = manapi::ERR_OK;
+        std::string errmsg;
 
-    manapi::extract_exception_ptr(std::move(err), &errnum, &errmsg);
+        manapi::extract_exception_ptr(std::move(err), &errnum, &errmsg);
 
-    manapi::async::current()->logger()->error(manapi::logger::default_service, manapi::ERR_UNKNOWN,
-        manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], errnum, std::move(errmsg));
+        manapi::async::current()->logger()->error(manapi::logger::default_service, manapi::ERR_UNKNOWN,
+            manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], errnum, std::move(errmsg));
+    }
+    catch (std::exception const &ex) {
+        manapi_log_error("%s due to %s", "logger failed", ex.what());
+    }
 }
 
 
-void manapi::async::internal::run_prepare_std_exception_(std::exception const &e) {
-    manapi::async::current()->logger()->error(manapi::logger::default_service, manapi::ERR_UNKNOWN,
-                    manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], manapi::ERR_UNKNOWN, e.what(), "");
+void manapi::async::internal::run_prepare_std_exception_(std::exception const &e) MANAPIHTTP_NOEXPECT {
+    try {
+        manapi::async::current()->logger()->error(manapi::logger::default_service, manapi::ERR_UNKNOWN,
+                        manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], manapi::ERR_UNKNOWN, e.what(), "");
+    }
+    catch (std::exception const &ex) {
+        manapi_log_error("%s due to %s", "logger failed", ex.what());
+    }
 }
 
 
-void manapi::async::internal::run_prepare_manapi_exception_(manapi::exception &e) {
-    manapi::async::current()->logger()->error(manapi::logger::default_service, manapi::ERR_UNKNOWN,
-                    manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], e.err_num(), e.what());
+void manapi::async::internal::run_prepare_manapi_exception_(manapi::exception &e) MANAPIHTTP_NOEXPECT {
+    try {
+        manapi::async::current()->logger()->error(manapi::logger::default_service, manapi::ERR_UNKNOWN,
+                        manapi::error::default_msgs[manapi::error::ERRMSG_UNHANDLED_EXCEPTION], e.err_num(), e.what());
+    }
+    catch (std::exception const &ex) {
+        manapi_log_error("%s due to %s", "logger failed", ex.what());
+    }
 }
 
 const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::internal::ethreadpool_(const shared_cthread &ctx) {

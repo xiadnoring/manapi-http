@@ -187,7 +187,7 @@ manapi::error::status manapi::error::status_data_loss(std::string_view msg) {
     return {ERR_DATA_LOSS, msg};
 }
 
-void manapi::debug::log_log(log_level level, const char *file, int line, const char *fmt, ...) {
+void manapi::debug::log_log(log_level level, const char *file, int line, const char *fmt, ...) MANAPIHTTP_NOEXPECT {
 
     // Remove path from filename
     const char* base = strrchr(file, '/');

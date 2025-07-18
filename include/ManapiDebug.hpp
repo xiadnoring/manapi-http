@@ -26,7 +26,7 @@ namespace manapi::debug {
     };
 #endif
 
-    void log_log(log_level level, const char* file, int line, const char* fmt, ...);
+    void log_log(log_level level, const char* file, int line, const char* fmt, ...) MANAPIHTTP_NOEXPECT;
 
     // Convenience macros
 #define manapi_log_trace(...) manapi::debug::log_log(manapi::debug::LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
