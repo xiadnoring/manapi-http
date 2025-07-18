@@ -10,6 +10,7 @@
 #include "http/ManapiURLParams.hpp"
 #include "include/ManapiDefaultErrors.hpp"
 #include "include/ManapiHttpStructs.hpp"
+#include "include/ManapiSiteInternal.hpp"
 
 
 manapi::net::http::request::request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::shared_conn *conn, worker::shared_worker worker, const http_handler_function *handler)  {

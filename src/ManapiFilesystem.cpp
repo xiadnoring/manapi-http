@@ -290,28 +290,39 @@ struct fileno_deleter {
     manapi::ev::file fileno;
 
     ~fileno_deleter() {
-        manapi::async::run<manapi::sys_error::status>(manapi::filesystem::async_close(this->fileno, manapi::async::timeout_cancellation(64000)),
-            [] (std::exception_ptr err, manapi::sys_error::status *s)
+        std::move_only_function<void(std::exception_ptr, manapi::sys_error::status *)> cb;
+
+        MANAPIHTTP_MUST_ALLOC_START
+        cb = [] (std::exception_ptr err, manapi::sys_error::status *s)
             -> void {
-                if (err) {
-                    int errnum;
-                    std::string msg;
-                    std::string_view status = "exception";
+            if (err) {
+                int errnum;
+                std::string msg;
+                std::string_view status = "exception";
 
-                    manapi::extract_exception_ptr(std::move(err), &errnum, &msg);
-                    manapi_log_error("%.*s:FD close failed %.*s", status.size(), status.data(),
-                        msg.size(), msg.data());
-                }
-                else {
-                    if (s->ok())
-                        return;
+                manapi::extract_exception_ptr(std::move(err), &errnum, &msg);
+                manapi_log_error("%.*s:FD close failed %.*s", status.size(), status.data(),
+                    msg.size(), msg.data());
+            }
+            else {
+                if (s->ok())
+                    return;
 
-                    auto const status = s->status_msg();
-                    auto const msg = s->msg();
-                    manapi_log_error("%.*s:FD close failed %.*s", status.size(), status.data(),
-                        msg.size(), msg.data());
-                }
-        });
+                auto const status = s->status_msg();
+                auto const msg = s->msg();
+                manapi_log_error("%.*s:FD close failed %.*s", status.size(), status.data(),
+                    msg.size(), msg.data());
+            }
+        };
+        MANAPIHTTP_MUST_ALLOC_END
+
+        manapi::future<manapi::sys_error::status> task(nullptr);
+
+        MANAPIHTTP_MUST_ALLOC_START
+        task = manapi::filesystem::async_close(this->fileno, manapi::async::timeout_cancellation(64000));
+        MANAPIHTTP_MUST_ALLOC_END
+
+        manapi::async::run<manapi::sys_error::status>(std::move(task), std::move(cb));
     }
 };
 

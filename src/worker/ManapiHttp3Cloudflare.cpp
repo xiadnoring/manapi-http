@@ -11,6 +11,7 @@
 #include "crypto/ManapiAEAD.hpp"
 #include "ManapiString.hpp"
 #include "ManapiVersions.hpp"
+#include "../include/ManapiSiteInternal.hpp"
 
 #define MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE 1350
 #define MANAPIHTTP_QUICHE_CONN_ID_SIZE 16

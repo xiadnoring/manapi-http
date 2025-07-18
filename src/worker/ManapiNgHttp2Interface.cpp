@@ -5,11 +5,13 @@
 
 #include <cstring>
 
+#include "nghttp2/nghttp2.h"
+#include "nghttp2/nghttp2ver.h"
+
 #include "ManapiHttpResponse.hpp"
 #include "components/ManapiURLDecodeStream.hpp"
 #include "http/ManapiBaseHttp.hpp"
-#include "nghttp2/nghttp2.h"
-#include "nghttp2/nghttp2ver.h"
+#include "../include/ManapiSiteInternal.hpp"
 
 
 extern manapi::net::worker::http_v2_callbacks_t ng_wrk_http2_callbacks;
@@ -107,7 +109,8 @@ int ng_wrk_http2_on_stream_close_callback (nghttp2_session *session, int32_t str
     if (!conn)
         return 0;
 
-    nghttp2_session_set_stream_user_data(sess->ctx.get(), stream_id, nullptr);
+    if (nghttp2_session_set_stream_user_data(sess->ctx.get(), stream_id, nullptr))
+        return manapi::ERR_INVALID_ARGUMENT;
 
     // delete stream
     return 0;
@@ -204,7 +207,7 @@ int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const nghttp2
             if (frame->hd.flags & NGHTTP2_FLAG_END_HEADERS) {
                 sess->gctx->base_worker->waiting(sess->conn, false);
 
-                int status = 200;
+                int status = manapi::net::http::OK_200;
 
                 auto heit = s->req->headers.extract(":path");
                 if (heit.empty()) {

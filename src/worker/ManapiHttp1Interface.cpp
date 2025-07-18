@@ -4,6 +4,7 @@
 #include "http/ManapiHttp1.hpp"
 #include "ManapiHttpResponse.hpp"
 #include "ManapiString.hpp"
+#include "../include/ManapiSiteInternal.hpp"
 #include "../include/ManapiUtils.hpp"
 
 #define HTTP_ALL_SWITCH(namecb, ...) \

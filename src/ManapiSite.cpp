@@ -11,7 +11,7 @@
 #include "services/ManapiThreadPool.hpp"
 #include "worker/ManapiHttp3Cloudflare.hpp"
 #include "worker/ManapiWolfSslOverTcp.hpp"
-
+#include "include/ManapiSiteInternal.hpp"
 #include "ManapiHttpResponse.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "async/ManapiEasyCancellation.hpp"
@@ -188,78 +188,92 @@ void manapi::net::http::site::setup() {
 
 }
 
-manapi::future<> manapi::net::http::site::config(std::string path) {
-    this->data->server_config = co_await this->data->sctx.storage().subscribe([data = this->data] (auto &&f1)
-        -> void { on_config_update(data, std::forward<decltype(f1)>(f1)); });
+manapi::future<manapi::error::status> manapi::net::http::site::config(std::string path) {
+    try {
+        this->data->server_config = co_await this->data->sctx.storage().subscribe([data = this->data] (auto &&f1)
+            -> void { on_config_update(data, std::forward<decltype(f1)>(f1)); });
 
-    co_await this->data->sctx.storage().edit_async (this->data->server_config,
-        [this, path = std::move(path)] (manapi::json &config) mutable -> manapi::future<bool> {
-            if (!config.is_object())
-                config = manapi::json::object();
+        co_await this->data->sctx.storage().edit_async (this->data->server_config,
+            [this, path = std::move(path)] (manapi::json &config) mutable -> manapi::future<bool> {
+                if (!config.is_object())
+                    config = manapi::json::object();
 
-            if (!config.contains("site") || !config["site"].is_object()) {
+                if (!config.contains("site") || !config["site"].is_object()) {
 
-                try {
-                    auto exists = co_await manapi::filesystem::async_exists(path);
-                    if (!exists.ok() || !exists.unwrap())
-                    {
-                        std::string data = manapi::json::object().dump(4);
-                        auto res = co_await manapi::filesystem::async_write(path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
-                        res.unwrap();
+                    try {
+                        auto exists = co_await manapi::filesystem::async_exists(path);
+                        if (!exists.ok() || !exists.unwrap())
+                        {
+                            std::string data = manapi::json::object().dump(4);
+                            auto res = co_await manapi::filesystem::async_write(path, std::move(data), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+                            res.unwrap();
+                        }
+
+                        auto res = co_await manapi::filesystem::async_read (path);
+                        auto obj = manapi::json(res.unwrap(), true);
+
+                        if (!obj.is_object())
+                            obj = manapi::json::object();
+
+                        config["site"] = std::move(obj);
+                    }
+                    catch (std::exception const &e) {
+                        MANAPIHTTP_LOG("server router: config read failed due to {}", e.what());
                     }
 
-                    auto res = co_await manapi::filesystem::async_read (path);
-                    auto obj = manapi::json(res.unwrap(), true);
+                    config["site_time"] = 0;
+                    config["site_path"] = std::move(path);
+                    config["cache_time"] = 0;
 
-                    if (!obj.is_object())
-                        obj = manapi::json::object();
-
-                    config["site"] = std::move(obj);
+                    co_await this->setup_config(config);
+                    *this->data->config_ = config;
+                    co_return true;
                 }
-                catch (std::exception const &e) {
-                    MANAPIHTTP_LOG("server router: config read failed due to {}", e.what());
+                *this->data->config_ = config;
+                co_return false;
+        });
+        co_return error::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "config() failed", e.what());
+    }
+    co_return error::status_internal("config() failed");
+}
+
+manapi::future<manapi::error::status> manapi::net::http::site::config_object(json config) {
+    try {
+        this->data->server_config = co_await this->data->sctx.storage().subscribe([data = this->data] (auto &&f1)
+            -> void { on_config_update(data, std::forward<decltype(f1)>(f1)); });
+
+        co_await this->data->sctx.storage().edit_async (this->data->server_config,
+            [this, nconfig = std::move(config)] (manapi::json &config) mutable -> manapi::future<bool> {
+                if (!config.is_object())
+                    config = manapi::json::object();
+
+                if (!config.contains("site") || !config["site"].is_object()) {
+
+                    try {
+                        if (!nconfig.is_object())
+                            nconfig = manapi::json::object();
+
+                        config["site"] = std::move(nconfig);
+                    }
+                    catch (std::exception const &e) {
+                        MANAPIHTTP_LOG("server router: config read failed due to {}", e.what());
+                    }
                 }
 
                 config["site_time"] = 0;
-                config["site_path"] = std::move(path);
-                config["cache_time"] = 0;
 
                 co_await this->setup_config(config);
-                *this->data->config_ = config;
                 co_return true;
-            }
-            *this->data->config_ = config;
-            co_return false;
-    });
-}
-
-manapi::future<> manapi::net::http::site::config_object(json config) {
-    this->data->server_config = co_await this->data->sctx.storage().subscribe([data = this->data] (auto &&f1)
-        -> void { on_config_update(data, std::forward<decltype(f1)>(f1)); });
-
-    co_await this->data->sctx.storage().edit_async (this->data->server_config,
-        [this, nconfig = std::move(config)] (manapi::json &config) mutable -> manapi::future<bool> {
-            if (!config.is_object())
-                config = manapi::json::object();
-
-            if (!config.contains("site") || !config["site"].is_object()) {
-
-                try {
-                    if (!nconfig.is_object())
-                        nconfig = manapi::json::object();
-
-                    config["site"] = std::move(nconfig);
-                }
-                catch (std::exception const &e) {
-                    MANAPIHTTP_LOG("server router: config read failed due to {}", e.what());
-                }
-            }
-
-            config["site_time"] = 0;
-
-            co_await this->setup_config(config);
-            co_return true;
-    });
+        });
+        co_return error::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "config() failed", e.what());
+    }
+    co_return error::status_internal("config() failed");
 }
 
 manapi::future<> manapi::net::http::site::setup_config(manapi::json &n) {

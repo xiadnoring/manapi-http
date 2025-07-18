@@ -73,7 +73,9 @@ bool manapi::filesystem::fstream::is_open() const {
 
 manapi::filesystem::fstream::~fstream() {
     if (1 == this->data.use_count()) {
-        manapi::async::run(fstream::close_(std::exchange(this->data->file, -1)));
+        MANAPIHTTP_MUST_ALLOC_START
+        manapi::async::run(fstream::close_(this->data->file));
+        MANAPIHTTP_MUST_ALLOC_END
     }
 }
 

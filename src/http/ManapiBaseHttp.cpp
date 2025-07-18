@@ -19,6 +19,7 @@
 #include "crypto/ManapiCryptoUtils.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "ext/ManapiMustache.hpp"
+#include "../include/ManapiSiteInternal.hpp"
 
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 

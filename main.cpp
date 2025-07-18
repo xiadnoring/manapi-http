@@ -287,8 +287,8 @@ int main () {
         manapi::async::run([router] () mutable -> manapi::future<> {
            //co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main");
 
-            co_await router.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json");
-            co_await router.start();
+            (co_await router.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
+            (co_await router.start()).unwrap();
         });
 
         bind();

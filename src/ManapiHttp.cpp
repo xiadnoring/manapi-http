@@ -16,9 +16,11 @@
 
 #include "services/ManapiTaskFunction.hpp"
 #include "ManapiHttp.hpp"
+#include "include/ManapiSiteInternal.hpp"
 #include "include/ManapiUtils.hpp"
 #include "async/ManapiAsyncPromise.hpp"
 #include "include/ManapiUtils.hpp"
+
 manapi::net::http::server::~server() = default;
 
 manapi::net::http::server::server(server &&n) noexcept : site(n) {
@@ -41,38 +43,60 @@ manapi::net::http::server & manapi::net::http::server::operator=(const server &n
     return *this;
 }
 
+struct manapi::net::http::server::data2_t {
+    std::unique_ptr<async::mutex> mx;
+    std::atomic <bool> stopping;
+    pools_t pools;
+    std::size_t event_id;
+    std::size_t clean_up_id;
+    std::size_t next_pool_id;
+    async::promise<void>::resolve_t resolve_stop;
+    std::shared_ptr<ev::async> init_watcher;
+};
+
 manapi::net::http::server::server(server_ctx sctx)
         : site(std::move(sctx)) {
     this->data2 = std::make_shared<data2_t>(std::make_unique<async::mutex>(), true, pools_t(), 0UL, 0UL, 0UL, nullptr, nullptr);
     this->setup ();
 }
 
-manapi::future<void> manapi::net::http::server::start() {
-    auto lk = co_await this->data2->mx->lock_guard();
+manapi::future<manapi::error::status> manapi::net::http::server::start() {
+    try {
+        auto lk = co_await this->data2->mx->lock_guard();
 
-    if (!this->data2->stopping.exchange(false)) {
-        co_return;
-    }
+        if (!this->data2->stopping.exchange(false)) {
+            co_return error::status_already_exists("already running");
+        }
 
-    this->data2->event_id = async::current()->eventloop()->subscribe_finish([data = this->data, data2 = this->data2] ()
-        -> future<> {
-        co_return co_await stop_(data, data2, true);
-    });
-
-    this->data2->clean_up_id = async::current()->eventloop()->subscribe_clean_up([data2 = this->data2] ()
-        -> void {
-        clean_up(data2);
-    });
-
-    co_await this->init_pool_();
-
-    using promise = async::promise<void, std::false_type>;
-    co_await  promise([this, &lk] (promise::resolve_t resolve, promise::reject_t reject) -> void {
-        this->pool_([&lk, resolve = std::move(resolve)] () mutable -> void {
-            lk.call();
-            resolve ();
+        this->data2->event_id = async::current()->eventloop()->subscribe_finish([data = this->data, data2 = this->data2] ()
+            -> future<> {
+            auto res = co_await stop_(data, data2, true);
+            res.log();
         });
-    });
+
+        this->data2->clean_up_id = async::current()->eventloop()->subscribe_clean_up([data2 = this->data2] ()
+            -> void {
+            clean_up(data2);
+        });
+
+        co_await this->init_pool_();
+
+        using promise = async::promise<void, std::false_type>;
+        co_await  promise([this, &lk] (promise::resolve_t resolve, promise::reject_t reject) -> void {
+            this->pool_([&lk, resolve = std::move(resolve)] () mutable -> void {
+                lk.call();
+                resolve ();
+            });
+        });
+        co_return error::status_ok();
+    }
+    catch (std::bad_alloc const &) {
+        co_return error::status_resource_exhausted();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "start() failed", e.what());
+    }
+    co_return error::status_internal("start() failed");
 }
 
 void manapi::net::http::server::GET(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
@@ -103,61 +127,68 @@ void manapi::net::http::server::GET(std::string uri, std::string folder, handler
     this->handler ("GET", std::move(uri), std::move(folder), std::move(handler), std::move(get_mask), std::move(post_mask));
 }
 
-manapi::future<void> manapi::net::http::server::stop() {
+manapi::future<manapi::error::status> manapi::net::http::server::stop() {
     co_return co_await this->stop_(this->data, this->data2, false);
 }
 
-manapi::future<void> manapi::net::http::server::stop_(std::shared_ptr<site::data_t> data, std::shared_ptr<data2_t> data2, bool evloop) {
-    auto lk = co_await data2->mx->lock_guard();
-
-    if (data2->stopping.exchange(true)) {
-        co_return;
-    }
-
-    if (!evloop) {
-        async::current()->eventloop()->unsubscribe_finish(std::exchange(data2->event_id, 0));
-        async::current()->eventloop()->unsubscribe_clean_up(std::exchange(data2->clean_up_id, 0));
-    }
-
-    co_await stop_pool(data2);
-
+manapi::future<manapi::error::status> manapi::net::http::server::stop_(std::shared_ptr<site::data_t> data, std::shared_ptr<data2_t> data2, bool evloop) {
     try {
-        co_await data->sctx.storage().edit_async(data->server_config, [t = data] (json &data) -> manapi::future<bool> {
-            if (!data.contains("saved") || data["saved"] != true) {
-                data["saved"] = true;
-                if (data.contains("site_path")
-                    && data["site"].contains("save_config")
-                    && data["site"]["save_config"] == true)
-                    co_await save_config(t);
+        auto lk = co_await data2->mx->lock_guard();
 
-                // cache config
-                co_await manapi::filesystem::async_write(filesystem::path::join(data["cache_path"].as_string(), std::string{site::default_config_name}),
-                    data["cache"].dump(),
-                    ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
-            }
+        if (data2->stopping.exchange(true)) {
+            co_return error::status_not_found("not exists");
+        }
 
-            co_return false;
-        });
+        if (!evloop) {
+            async::current()->eventloop()->unsubscribe_finish(std::exchange(data2->event_id, 0));
+            async::current()->eventloop()->unsubscribe_clean_up(std::exchange(data2->clean_up_id, 0));
+        }
+
+        co_await stop_pool(data2);
+
+        try {
+            co_await data->sctx.storage().edit_async(data->server_config, [t = data] (json &data) -> manapi::future<bool> {
+                if (!data.contains("saved") || data["saved"] != true) {
+                    data["saved"] = true;
+                    if (data.contains("site_path")
+                        && data["site"].contains("save_config")
+                        && data["site"]["save_config"] == true)
+                        co_await save_config(t);
+
+                    // cache config
+                    co_await manapi::filesystem::async_write(filesystem::path::join(data["cache_path"].as_string(), std::string{site::default_config_name}),
+                        data["cache"].dump(),
+                        ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
+                }
+
+                co_return false;
+            });
+        }
+        catch (std::exception const &e) {
+            async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "http: couldn't save the configuration file due to {}", e.what());
+        }
+
+        if (data2->init_watcher) {
+            printf("unwatch_async(this->data2->init_watcher);\n");
+            async::current()->eventloop()->stop_watcher(std::move(data2->init_watcher));
+            printf("finish unwatch_async(this->data2->init_watcher);\n");
+        }
+
+        if (data->server_config) {
+            co_await data->sctx.storage().unsubscribe(data->server_config);
+            data->server_config.reset();
+        }
+
+        if (!evloop) {
+            /* clean up */
+            clean_up(data2);
+        }
+        co_return error::status_ok();
     }
     catch (std::exception const &e) {
-        async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "http: couldn't save the configuration file due to {}", e.what());
+        manapi_log_error("%s due to %s", "stop() failed", e.what());
     }
-
-    if (data2->init_watcher) {
-        printf("unwatch_async(this->data2->init_watcher);\n");
-        async::current()->eventloop()->stop_watcher(std::move(data2->init_watcher));
-        printf("finish unwatch_async(this->data2->init_watcher);\n");
-    }
-
-    if (data->server_config) {
-        co_await data->sctx.storage().unsubscribe(data->server_config);
-        data->server_config.reset();
-    }
-
-    if (!evloop) {
-        /* clean up */
-        clean_up(data2);
-    }
+    co_return error::status_internal("stop() failed");
 }
 
 manapi::future<> manapi::net::http::server::init_pool_() {
@@ -173,15 +204,19 @@ manapi::future<> manapi::net::http::server::init_pool_() {
 
             try {
                 p = std::make_unique<http_pool> (*it, this->data->server_config, *this, this->data2->next_pool_id, async::current()->eventloop());
-                co_await p->run();
-                pool.insert({this->data2->next_pool_id, std::move(p)});
+                auto res = co_await p->run();
+                if (res.ok())
+                    pool.insert({this->data2->next_pool_id, std::move(p)});
+                else
+                    res.log();
             }
             catch (std::exception const &e) {
                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "init pool failed due to {}", e.what());
             }
 
             if (p) {
-                co_await p->stop();
+                auto err = co_await p->stop();
+                err.log();
             }
         }
     }
@@ -212,7 +247,9 @@ manapi::future<> manapi::net::http::server::stop_pool(std::shared_ptr<data2_t> d
     for (const auto &pool: pools)
     {
         MANAPIHTTP_LOG ("pool #{} is stopping...", pool.first);
-        co_await pool.second->stop();
+        auto res= co_await pool.second->stop();
+        if (!res.ok())
+            res.log();
         MANAPIHTTP_LOG ("pool #{} stopped successfully", pool.first);
     }
 }

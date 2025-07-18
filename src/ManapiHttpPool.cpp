@@ -35,24 +35,34 @@ manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithrea
 
 manapi::net::http_pool::~http_pool() = default;
 
-manapi::future<> manapi::net::http_pool::stop() {
-    auto lk = co_await this->mx->lock_guard();
-    MANAPIHTTP_LOG("{}", "shutdown socket");
-    if (this->worker) {
-        using promise = manapi::async::promise<void, std::false_type>;
-        co_await promise ([this] (promise::resolve_t resolve, promise::reject_t reject) -> void {
-            try {
-                this->worker->stop(std::move(resolve));
-            }
-            catch (...) {
-                reject(std::current_exception());
-            }
-        });
+manapi::future<manapi::error::status> manapi::net::http_pool::stop() {
+    try {
+        auto lk = co_await this->mx->lock_guard();
+        MANAPIHTTP_LOG("{}", "shutdown socket");
+        if (this->worker) {
+            using promise = manapi::async::promise<void, std::false_type>;
+            co_await promise ([this] (promise::resolve_t resolve, promise::reject_t reject) -> void {
+                try {
+                    this->worker->stop(std::move(resolve));
+                }
+                catch (...) {
+                    reject(std::current_exception());
+                }
+            });
+        }
+        co_return error::status_ok();
     }
+    catch (std::bad_alloc const &) {
+        co_return error::status_resource_exhausted();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "stop() failed", e.what());
+    }
+    co_return error::status_internal("stop() failed");
 }
 
-manapi::future<void> manapi::net::http_pool::run() {
-    co_return co_await this->_pool();
+manapi::future<manapi::error::status> manapi::net::http_pool::run() {
+    co_return co_await this->pool_();
 }
 
 template<typename T>
@@ -70,86 +80,96 @@ std::string concat_keys_in_map (const std::map<std::string, T> &m) {
     return std::move(available);
 }
 
-manapi::future<void> manapi::net::http_pool::_pool() {
-    MANAPIHTTP_LOG("pool init #{}", this->id);
+manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
+    try {
+        MANAPIHTTP_LOG("pool init #{}", this->id);
 
-    auto lk = co_await this->mx->lock_guard();
+        auto lk = co_await this->mx->lock_guard();
 
-    MANAPIHTTP_LOG("pool start #{}", this->id);
+        MANAPIHTTP_LOG("pool start #{}", this->id);
 
-    auto implementation = this->config->implementation;
-    auto transport = this->config->transport;
-    auto implementations = this->site.transport_protocol_worker(transport);
+        auto implementation = this->config->implementation;
+        auto transport = this->config->transport;
+        auto implementations = this->site.transport_protocol_worker(transport);
 
-    if (implementations.contains(implementation))
-    {
-        try {
-            auto generate = implementations[implementation];
-            this->worker = generate (this->site, this->worker_config, this->config);
-            this->worker->init();
+        if (implementations.contains(implementation))
+        {
+            try {
+                auto generate = implementations[implementation];
+                this->worker = generate (this->site, this->worker_config, this->config);
+                this->worker->init();
 
 
-            worker::wrk_interface_global_t wrk{};
-            auto res = worker::default_wrk_http_all_global_init(&wrk, this->worker.get());
-            auto workerptr = dynamic_cast<worker::interface_worker *> (this->worker.get());
+                worker::wrk_interface_global_t wrk{};
+                auto res = worker::default_wrk_http_all_global_init(&wrk, this->worker.get());
+                auto workerptr = dynamic_cast<worker::interface_worker *> (this->worker.get());
 
-            if (!res.ok())
-                res.unwrap();
+                if (!res.ok())
+                    res.unwrap();
 
-            workerptr->wrk_global(&wrk);
-            auto wrkptr = workerptr->wrk_global();
+                workerptr->wrk_global(&wrk);
+                auto wrkptr = workerptr->wrk_global();
 
-            if (implementation != "quiche") {
-                auto versions = this->config->http_versions;
-                std::vector<int> hlist = {
-                    http::versions::HTTP_v0_9,
-                    http::versions::HTTP_v1_0,
-                    http::versions::HTTP_v1_1,
-                    http::versions::HTTP_v2,
-                    http::versions::HTTP_v3
-                };
+                if (implementation != "quiche") {
+                    auto versions = this->config->http_versions;
+                    std::vector<int> hlist = {
+                        http::versions::HTTP_v0_9,
+                        http::versions::HTTP_v1_0,
+                        http::versions::HTTP_v1_1,
+                        http::versions::HTTP_v2,
+                        http::versions::HTTP_v3
+                    };
 
-                for (auto version : hlist) {
-                    if (version == http::versions::HTTP_v1_1
-                        || this->config->contains_http_version(version)) {
-                        if (version >= http::versions::HTTP_v0_9 && version < http::versions::HTTP_v1_1)
-                            version = http::versions::HTTP_v1_1;
+                    for (auto version : hlist) {
+                        if (version == http::versions::HTTP_v1_1
+                            || this->config->contains_http_version(version)) {
+                            if (version >= http::versions::HTTP_v0_9 && version < http::versions::HTTP_v1_1)
+                                version = http::versions::HTTP_v1_1;
 
-                        auto &http_implementation = this->site.http_protocol_worker(static_cast<http::versions::http>(version));
-                        std::string *http_impl_name{nullptr};
-                        switch (version) {
-                            case http::versions::HTTP_v1_1: http_impl_name = &this->config->http1_implementation; break;
-                            case http::versions::HTTP_v2: http_impl_name = &this->config->http2_implementation; break;
-                            case http::versions::HTTP_v3: http_impl_name = &this->config->http3_implementation; break;
-                        }
+                            auto &http_implementation = this->site.http_protocol_worker(static_cast<http::versions::http>(version));
+                            std::string *http_impl_name{nullptr};
+                            switch (version) {
+                                case http::versions::HTTP_v1_1: http_impl_name = &this->config->http1_implementation; break;
+                                case http::versions::HTTP_v2: http_impl_name = &this->config->http2_implementation; break;
+                                case http::versions::HTTP_v3: http_impl_name = &this->config->http3_implementation; break;
+                            }
 
-                        assert(http_impl_name);
+                            assert(http_impl_name);
 
-                        auto it_http_impl = http_implementation.find(*http_impl_name);
-                        if (it_http_impl == http_implementation.end()) {
-                            MANAPIHTTP_LOG("http implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
-                            THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "http implementation not found");
-                        }
-                        auto httpwrk = it_http_impl->second (workerptr);
-                        if (!httpwrk.ok())
-                            httpwrk.unwrap();
+                            auto it_http_impl = http_implementation.find(*http_impl_name);
+                            if (it_http_impl == http_implementation.end()) {
+                                MANAPIHTTP_LOG("http implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
+                                co_return error::status_failed_precondition("http implementation not found");
+                            }
+                            auto httpwrk = it_http_impl->second (workerptr);
+                            if (!httpwrk.ok())
+                                httpwrk.unwrap();
 
-                        res = worker::default_wrk_http_all_global_add_version(wrkptr, version, std::move(httpwrk.unwrap()));
-                        if (!res.ok())
-                            res.unwrap();
+                            res = worker::default_wrk_http_all_global_add_version(wrkptr, version, std::move(httpwrk.unwrap()));
+                            if (!res.ok())
+                                res.unwrap();
+                            }
                     }
                 }
             }
+            catch (std::exception const &e) {
+                MANAPIHTTP_LOG("worker init failed due to {}", e.what());
+            }
         }
-        catch (std::exception const &e) {
-            MANAPIHTTP_LOG("worker init failed due to {}", e.what());
+        else
+        {
+            MANAPIHTTP_LOG("implementation by {} not found in {}. Available: [{}]", implementation, transport, concat_keys_in_map(implementations));
+            co_return error::status_failed_precondition("implementation not found");
         }
+        co_return error::status_ok();
     }
-    else
-    {
-        MANAPIHTTP_LOG("implementation by {} not found in {}. Available: [{}]", implementation, transport, concat_keys_in_map(implementations));
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "implementation not found");
+    catch (std::bad_alloc const &) {
+        co_return error::status_resource_exhausted();
     }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "pool() failed", e.what());
+    }
+    co_return error::status_internal("pool() failed");
 }
 
 const manapi::net::http::site & manapi::net::http_pool::get_site() const {

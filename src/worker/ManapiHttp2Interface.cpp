@@ -4,6 +4,7 @@
 #include "worker/ManapiHttp1Interface.hpp"
 #include "ManapiHttpResponse.hpp"
 #include "../include/ManapiUtils.hpp"
+#include "../include/ManapiSiteInternal.hpp"
 
 extern manapi::net::worker::http_v2_callbacks_t default_wrk_http2_callbacks;
 

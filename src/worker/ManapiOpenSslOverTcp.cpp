@@ -210,7 +210,7 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_new_(void *ctx) {
 }
 
 int manapi::net::worker::OpenSSL_TLS::ssl_write_(void *ssl, const void *buff, int size) {
-    //ERR_clear_error();
+    ERR_clear_error();
     return SSL_write(static_cast<SSL*>(ssl), buff, size);
 }
 

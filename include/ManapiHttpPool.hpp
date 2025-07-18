@@ -21,20 +21,45 @@
 namespace manapi::net {
     class http_pool {
     public:
+        /**
+         * initialize the http pool instance
+         * @param config config
+         * @param worker_config worker config
+         * @param site http site
+         * @param id ID
+         * @param events event loop
+         */
         explicit http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, class http::site site, size_t id, std::shared_ptr<event_loop> events);
+
+        /* deconstructor */
         ~http_pool();
 
-        manapi::future<> stop ();
-        manapi::future<void> run ();
+        /**
+         * stop the server
+         * @return InternalError, ResourceExhausted on error
+         */
+        manapi::future<manapi::error::status> stop ();
 
+        /**
+         * start the server
+         * @return InternalError, ResourceExausted, FailedPrecondition on error
+         */
+        manapi::future<manapi::error::status> run ();
+
+        /**
+         * get the site instance
+         * @return the site instance
+         */
         const http::site &get_site () const;
     private:
-        manapi::future<void> _pool ();
+        manapi::future<manapi::error::status> pool_ ();
 
-        size_t id;
+        std::size_t id;
+
         std::shared_ptr<multithread_storage::worker_t> worker_config;
 
         std::shared_ptr <http::config> config;
+
         std::shared_ptr <worker::base> worker;
 
         // pool
@@ -42,6 +67,7 @@ namespace manapi::net {
         std::shared_ptr<manapi::async::mutex> mx;
 
         std::shared_ptr<event_loop> events;
+
         std::unique_ptr<std::promise <int> > pool_promise;
 
         http::site site;
