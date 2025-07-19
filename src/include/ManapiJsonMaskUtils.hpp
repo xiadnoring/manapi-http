@@ -8,7 +8,7 @@
 namespace manapi {
     inline std::string json_format_path (const std::vector<std::string_view> *p) {
         std::string res;
-        if (p) {
+        if (p && !p->empty()) {
             std::size_t size = 0;
             for (auto &c : *p) {
                 if (c.data())
@@ -23,9 +23,9 @@ namespace manapi {
                     res += c;
                 }
                 else {
-                    auto n = static_cast<std::size_t>(ceil(std::log10(p->size())));
+                    auto n = static_cast<std::size_t>(ceil(std::log10(c.size())));
                     res.resize(res.size() + n + 1);
-                    auto err = std::snprintf(res.data() + res.size() - n - 1, n + 1, "%zu", p->size());
+                    auto err = std::snprintf(res.data() + res.size() - n - 1, n + 1, "%zu", c.size());
                     res.resize(res.size() - 1);
                     if (err < 0)
                         manapi_log_error("bug:snprintf() return < 0 on format path");

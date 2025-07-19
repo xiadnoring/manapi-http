@@ -290,7 +290,7 @@ std::string manapi::json::dump(int spaces, int first_spaces) const {
         const bool spaces_enabled  = spaces > 0;
         const int total_spaces = first_spaces + spaces;
 
-        auto map = as_object();
+        auto &map = as_object();
         str += '{';
 
         JSON_DUMP_NEED_NEW_LINE
@@ -330,7 +330,7 @@ std::string manapi::json::dump(int spaces, int first_spaces) const {
         const bool spaces_enabled = spaces > 0;
         const int total_spaces = first_spaces + spaces;
 
-        auto arr = as_array();
+        auto &arr = as_array();
         str += '[';
 
         JSON_DUMP_NEED_NEW_LINE
@@ -368,7 +368,7 @@ std::string manapi::json::dump(int spaces, int first_spaces) const {
         THROW_MANAPIHTTP_JSON_ERROR (ERR_JSON_BUG, "Bug has been deteceted: {}", "type = type_pair");
     }
 
-    return str;
+    return std::move(str);
 }
 
 void manapi::json::error_invalid_char(const UNICODE_STRING &plain_text, size_t i) {

@@ -81,7 +81,8 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                             auto const sdata = s->second->as<manapi::net::http::http_v2_stream_t>();
                             auto const req_ptr = sdata->req.get();
                             assert(req_ptr);
-                            std::cout << s->first<<" " << req_ptr->uri  << "\n";
+
+                            manapi_log_trace("http2: %d stream on %.*s", s->first, req_ptr->uri.size(), req_ptr->uri.data());
 
                             auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(s->second, w2,
                                 req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(

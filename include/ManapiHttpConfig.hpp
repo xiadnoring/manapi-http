@@ -302,6 +302,7 @@ namespace manapi::net::http {
          */
         manapi::json quic;
 
+        bool force_conn_shutdown;
 
         std::move_only_function<bool(const std::string &name)> function_contains_compressor_ = nullptr;
     };

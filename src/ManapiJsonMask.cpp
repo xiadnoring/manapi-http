@@ -647,9 +647,11 @@ manapi::json_error::status default_compare_information(const T &val, const manap
     if (fit != p.end())
     {
 
-        if (!json_verify_max_mean<T>(fit->second, val))
+        if (!json_verify_max_mean<T>(fit->second, val)) {
+            auto const d = fit->second.dump();
             return manapi::json_error::status_invalid_argument("json_mask: value is greater or equals max_mean",
-                std::format("max_mean={}", fit->second.dump()), 0, manapi::json_format_path(path));
+                std::format("max_mean={}", d), 0, manapi::json_format_path(path));
+        }
     }
 
     return manapi::json_error::status_ok();

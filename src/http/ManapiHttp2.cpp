@@ -169,10 +169,10 @@ int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint
 
     if (!(ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_BLOCK_WRITE)
         && !ctx->worker->is_writable(ctx->conn)) {
-        auto b = ctx->conn->as<manapi::net::worker::TCP::connection_interface>();
         ctx->flags |= manapi::net::http::HTTP2_CTX_FLAG_BLOCK_WRITE;
         ctx->worker->event_toggle(ctx->conn,
             true, manapi::ev::WRITE);
+        manapi_log_trace("http2: wait write event");
     }
 
     return manapi::ERR_OK;
@@ -294,7 +294,7 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, const manapi::ne
     if (prit.second) {
         if (prit.first == ctx->priorities->begin()) {
             if (sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
-                std::cout << "unlk " << sdata->id <<  "\n";
+                manapi_log_trace("http2: unlock %d stream", sdata->id);
                 sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
             }
 
@@ -308,12 +308,12 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, const manapi::ne
                 if (prev_sdata->flags & (HTTP2_STREAM_PRIORITY_LOCKED|HTTP2_STREAM_PRIORITY_INCR)) {
                     /* it also must be locked or the previous stream has priority incr. flag */
                     sdata->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
-                std::cout << "lk " << sdata->id <<  "\n";
+                manapi_log_trace("http2: lock %d stream", sdata->id);
                 }
                 else if (!(sdata->flags & HTTP2_STREAM_PRIORITY_INCR)) {
                     if (sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
                         sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
-                std::cout << "unlk " << sdata->id <<  "\n";
+                        manapi_log_trace("http2: unlock %d stream", sdata->id);
                     }
 
                     flg = true;
@@ -322,7 +322,7 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, const manapi::ne
             else {
                 /* it has a lower priority */
                 sdata->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
-                std::cout << "lk " << sdata->id <<  "\n";
+                manapi_log_trace("http2: lock %d stream", sdata->id);
             }
         }
         if (flg) {
@@ -335,13 +335,13 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, const manapi::ne
                 }
                 if (it->first == prit.first->first) {
                     if (sdata->flags & HTTP2_STREAM_PRIORITY_INCR) {
-                      s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
-                std::cout << "lk " << s_oth_data->id <<  "\n";
+                        s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
+                        manapi_log_trace("http2: lock %d stream", s_oth_data->id);
                     }
                 }
                 else {
                     s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
-                std::cout << "lk " << s_oth_data->id <<  "\n";
+                    manapi_log_trace("http2: lock %d stream", s_oth_data->id);
                 }
             }
         }
@@ -381,7 +381,7 @@ uint8_t http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net:
 
                                 cnt += 1;
                                 sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
-                std::cout << "unlk " << sdata->id <<  "\n";
+                                manapi_log_trace("http2: unlock %d stream", sdata->id);
 
                                 sdata->ctx->http_v2_worker->feed_event(pit->second,
                                     manapi::ev::WRITE, nullptr, 0, nullptr);
@@ -505,8 +505,8 @@ int http_v2_send_goaway (manapi::net::http::http_v2_t *ctx, http_v2_goaway_t *ht
     stringify_number<int> (ctx->last_stream_id, data[0].base);
     stringify_number<int>(http_goaway->err_code, data[0].base + 4);
 
-    manapi::async::current()->logger()->debug(manapi::logger::default_service, "HTTP2: GOAWAY SEND. "
-                                                                                    "err code: {}, stream id: {}, msg: {}", http_goaway->err_code, ctx->last_stream_id, http_goaway->err_msg);
+    manapi_log_trace("http2: GOAWAY SEND. err code: %d, stream id: %zu, msg: %.*s",
+        http_goaway->err_code, ctx->last_stream_id, http_goaway->err_msg.size(), http_goaway->err_msg.data());
 
     if (auto rhs = http_v2_send_frame(ctx, HTTP2_FRAME_GOAWAY, 0, 0, data, 2, data[0].len + data[1].len)) {
         return manapi::ERR_INTERNAL;
@@ -640,7 +640,7 @@ int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, uint32_t id) {
             s->flags |= HTTP2_STREAM_SEND_END;
         }
 
-        std::cout << "rm " << s->id << '\n';
+        manapi_log_trace("http2: erase %d stream", s->id);
 
         if (http_v2_remove_priority (ctx, s, http_v2_real_priority_by_stream(s))) {
             /* ignore */
@@ -666,6 +666,8 @@ bool http_v2_stream_on_write (const manapi::net::worker::shared_conn &conn, mana
 }
 
 int manapi::net::http::http_v2_on_write(http_v2_t *ctx) {
+    manapi_log_trace("http2: write event received");
+
     if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE)
         ctx->flags ^= HTTP2_CTX_FLAG_BLOCK_WRITE;
 
@@ -982,8 +984,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 ctx->http_v2_worker->close_connection(it->second, worker::CLOSE_CONN_ERR);
                             }
 
-                            manapi::async::current()->logger()->debug(manapi::logger::default_service, "HTTP2: GOAWAY RECV. "
-                                                                                                       "err code: {}, stream id: {}, msg: {}", ctx->n1, ctx->n2, ctx->frame_buffer);
+                            manapi_log_trace("HTTP2: GOAWAY RECV. err code: %d, stream id: %zu, msg: %.*s",
+                                ctx->n1, ctx->n2, ctx->frame_buffer.size(), ctx->frame_buffer.data());
 
                             ctx->n1 = 0;
                             ctx->n2 = 0;

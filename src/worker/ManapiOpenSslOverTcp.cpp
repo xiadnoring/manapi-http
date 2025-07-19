@@ -267,7 +267,7 @@ err:
 void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
     auto const cipher_list = this->config_->get_config_param<std::string>(this->config_->ssl, "ciphers", {});
     auto const ssl_v2 = this->config_->get_config_param<bool>(this->config_->ssl, "ssl_v2", false);
-    auto const ssl_v3 = this->config_->get_config_param<bool>(this->config_->ssl, "ssl_v3", true);
+    auto const ssl_v3 = this->config_->get_config_param<bool>(this->config_->ssl, "ssl_v3", false);
     auto const ticket = this->config_->get_config_param<bool>(this->config_->ssl, "ticket", true);
     auto const sess_timeout = this->config_->get_config_param<uint32_t>(this->config_->ssl, "sess_timeout", 300);
     auto const sess_cache = this->config_->get_config_param<bool>(this->config_->ssl, "sess_cache", false);
@@ -339,6 +339,8 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
         SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
     }
 
+    SSL_CTX_set_read_ahead(ctx, 1);
+
     //long cache_mode = SSL_SESS_CACHE_SERVER;
     SSL_CTX_sess_set_cache_size(ctx, sess_cache_size);
 
@@ -348,7 +350,11 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
     if (single_dh_use)
         SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
 
-    SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
+    SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS
+        |SSL_MODE_AUTO_RETRY
+        |SSL_MODE_ENABLE_PARTIAL_WRITE
+        |SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER
+    );
 
     if (cipher_list.empty()) {
         SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);

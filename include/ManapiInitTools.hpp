@@ -30,6 +30,11 @@ namespace manapi::init_tools {
      * Initialize curl library
      */
     void curl_library_init ();
+
+    /**
+     * Enable Log Trace
+     */
+    void log_trace_init ();
 }
 
 namespace manapi::clear_tools {

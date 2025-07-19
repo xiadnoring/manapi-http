@@ -52,7 +52,7 @@ manapi::net::http::config::config(const json &config) {
     this->max_header_value_size = get_config_param<ssize_t>(config, "max_header_value_size", 4096);
     this->buffer_size = get_config_param<ssize_t>(config, "buffer_size", 4096);
     this->tcp_backlog = get_config_param<ssize_t>(config, "tcp_backlog", 200);
-
+    this->force_conn_shutdown = get_config_param<bool>(config, "force_conn_shutdown", false);
     this->keep_alive = get_config_param<ssize_t>(config, "keep_alive", 2);
     this->implementation = get_config_param<std::string>(config, "implementation", "default");
     this->transport = get_config_param<std::string>(config, "transport", "tcp");

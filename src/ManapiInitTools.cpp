@@ -2,12 +2,18 @@
 #include <memory>
 
 #include "ManapiInitTools.hpp"
+
+
 #include "services/ManapiEventLoop.hpp"
 #include "ManapiDebug.hpp"
 #include "ManapiProcess.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 #   include <openssl/ssl.h>
+#   include <openssl/rand.h>
+#   include <openssl/err.h>
+#   include <openssl/bio.h>
+#   include <openssl/engine.h>
 #endif
 
 // static int cnt = 0;
@@ -76,6 +82,8 @@ void manapi::init_tools::ssl_library_init() {
         OpenSSL_add_ssl_algorithms();
         SSL_load_error_strings();
         OpenSSL_add_all_algorithms();
+        ERR_load_crypto_strings();
+        RAND_poll();
 #endif
 }
 void manapi::init_tools::ev_library_init() {
@@ -96,6 +104,10 @@ void manapi::init_tools::curl_library_init() {
 #endif
 }
 
+void manapi::init_tools::log_trace_init() {
+    debug::log_trace_enabled = true;
+}
+
 void manapi::clear_tools::ssl_library_thread_clear() MANAPIHTTP_NOEXPECT {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
     OPENSSL_thread_stop();
@@ -106,6 +118,13 @@ void manapi::clear_tools::ssl_library_clear() MANAPIHTTP_NOEXPECT {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
     OPENSSL_thread_stop();
     OPENSSL_cleanup();
+    ENGINE_cleanup();
+    CONF_modules_unload(1);
+    ERR_free_strings();
+    EVP_cleanup();
+    sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
+    //SSL_COMP_free_compression_methods();
+    CRYPTO_cleanup_all_ex_data();
 #endif
 }
 

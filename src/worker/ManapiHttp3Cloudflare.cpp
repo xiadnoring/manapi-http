@@ -159,7 +159,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init() {
         if (quic_debug) {
             if (quiche_enable_debug_logging([] (const char *line, void *argp)
                 -> void {
-                MANAPIHTTP_LOG2(line);
+                manapi_log_debug(line);
             }, this)) {
                 /* already exists */
             }
@@ -352,9 +352,10 @@ void manapi::net::worker::http_v3_cloudflare_quiche::quiche_timeout_again_(conne
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::connection_interface_eraser(connection *ptr) {
-    auto uptr = std::unique_ptr<manapi::net::worker::connection> (ptr);
-    delete uptr->as<connection_t>();
-    std::cout << "CONN CLOSE\n";
+    auto const uptr = std::unique_ptr<manapi::net::worker::connection> (ptr);
+    auto const p = uptr->as<connection_t>();
+    manapi_log_trace("quiche: close %p conn", p);
+    delete p;
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::stream_interface_eraser(worker::connection *ptr) {
@@ -951,7 +952,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_buffers_(const sh
         return CONN_IO_OK;
     }
     catch (std::exception const &e) {
-        std::cerr << e.what() << "\n";
+        manapi_log_error("%s due to %s", "flush read failed", e.what());
     }
 
     return CONN_IO_ERROR;
@@ -1027,7 +1028,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::force_close_(shared_conn co
         quiche_conn_stats(conn_data->conn, &stats);
         quiche_conn_path_stats(conn_data->conn, 0, &path_stats);
 
-        fprintf(stderr, "connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu\n",
+        manapi_log_trace("quiche: connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu",
                 stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
         conn_data->worker->connections.erase(conn_data->cid);

@@ -102,9 +102,10 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) {
 
     connection->status |= CONN_TLS_SHUTDOWN;
 
-    if ((flags & (CLOSE_CONN_SHUTDOWN))
+    if (!this->config_->force_conn_shutdown
+        && ((flags & (CLOSE_CONN_SHUTDOWN))
         || (!flags && (!this->config_->keep_alive
-        || !(connection->status & CONN_KEEP_ALIVE)))) {
+        || !(connection->status & CONN_KEEP_ALIVE))))) {
 
         if (connection->status & CONN_KEEP_ALIVE) {
             connection->status ^= CONN_KEEP_ALIVE;
@@ -268,7 +269,7 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
 
                         if (erhs) {
                             if (erhs == CONN_IO_WANT_WRITE) {
-                                if (this->flush_write_(conn, finish && !nbuff))
+                                if (this->flush_write_(conn, true))
                                     return CONN_IO_ERROR;
                                 return total + current;
                             }
@@ -302,7 +303,7 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
 
     if (err) {
         if (err == CONN_IO_WANT_WRITE) {
-            if (this->flush_write_(conn, cfinish))
+            if (this->flush_write_(conn, true))
                 return CONN_IO_ERROR;
             return total;
         }
@@ -376,7 +377,7 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
 
     if (connection->ssl) {
         auto ssl = std::exchange(connection->ssl, nullptr);
-        std::cout << ("SSL FREE\n");
+        manapi_log_trace("TLS:Free SSL conn");
         if (w)
             w->ssl_free_(ssl);
     }
@@ -542,21 +543,21 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
             }
             else {
                 rhs = this->ssl_accept_(data->ssl);
-                auto const status = this->ssl_get_error_(data->ssl, rhs);
+                if (rhs <= 0) {
+                    auto const status = this->ssl_get_error_(data->ssl, rhs);
 
-                if (status == this->ssl_error_want_read_ || status == this->ssl_error_want_write_) {
-                    /* force write all data */
-                    if (this->ssl_bio_flush_write_(conn, data, 1e5)) {
-                        goto err;
+                    if (status == this->ssl_error_want_read_ || status == this->ssl_error_want_write_) {
+                        /* force write all data */
+                        if (this->ssl_bio_flush_write_(conn, data, 1e5)) {
+                            goto err;
+                        }
+
+                        if (this->flush_write_(conn, true))
+                            goto err;
                     }
-
-                    if (this->flush_write_(conn, true))
+                    else
                         goto err;
                 }
-                else if (status) {
-                    goto err;
-                }
-
                 if (ssl_is_init_fininshed_ (data->ssl) && data->accept_timer) {
                     data->accept_timer.stop();
                     data->accept_timer.clear();
@@ -635,7 +636,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, TLS:
 
             if (rhs > 0) {
                 ssize_t alr = 0;
-                if (!m->top->send_size) {
+                if (!m->top->send_size && rhs > 1e6) {
                     alr = m->watcher->try_write(fastfast, rhs);
                     if (alr < 0) {
                         if (alr == ev::ERR_AGAIN)

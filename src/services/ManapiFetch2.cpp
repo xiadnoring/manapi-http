@@ -30,14 +30,13 @@ manapi::net::fetch2::~fetch2() {
         && this->fetchdata.use_count() == 1
         && !(this->fetchdata->flags & FETCH2_DATA_FLAG_RESULT)) {
         /* was skipped, need to be cancelled */
-        std::cout << "CANCEN\n";
-
+        manapi_log_trace("active fetch (%p) was destroyed, so it will be cancelled", this->fetchdata.get());
         manapi::async::run(
             fetch2::continue_receiving(std::move(this->fetchdata)),
             +[] (std::exception_ptr err) -> void {
                 std::string msg;
                 if (err) {
-                    manapi::extract_exception_ptr(err, nullptr, &msg);
+                    manapi::extract_exception_ptr(std::move(err), nullptr, &msg);
                     manapi::async::current()->logger()->error(
                         manapi::logger::default_service, ERR_INTERNAL,
                         "fetch2: failed to close stalled or cancelled connection due to {}", msg);

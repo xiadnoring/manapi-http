@@ -82,11 +82,11 @@ std::string concat_keys_in_map (const std::map<std::string, T> &m) {
 
 manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
     try {
-        MANAPIHTTP_LOG("pool init #{}", this->id);
+        manapi_log_trace("http: pool init №%zu", this->id);
 
         auto lk = co_await this->mx->lock_guard();
 
-        MANAPIHTTP_LOG("pool start #{}", this->id);
+        manapi_log_trace("http: pool start №%zu", this->id);
 
         auto implementation = this->config->implementation;
         auto transport = this->config->transport;
@@ -138,7 +138,7 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
 
                             auto it_http_impl = http_implementation.find(*http_impl_name);
                             if (it_http_impl == http_implementation.end()) {
-                                MANAPIHTTP_LOG("http implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
+                                MANAPIHTTP_LOG("http: implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
                                 co_return error::status_failed_precondition("http implementation not found");
                             }
                             auto httpwrk = it_http_impl->second (workerptr);
@@ -153,12 +153,14 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
                 }
             }
             catch (std::exception const &e) {
-                MANAPIHTTP_LOG("worker init failed due to {}", e.what());
+                MANAPIHTTP_LOG("http: worker init failed due to {}", e.what());
             }
         }
         else
         {
-            MANAPIHTTP_LOG("implementation by {} not found in {}. Available: [{}]", implementation, transport, concat_keys_in_map(implementations));
+            auto keys = concat_keys_in_map(implementations);
+            manapi_log_error("http: implementation by %.*s not found in %.*s. Available: [%.*s]", implementation.size(),
+                implementation.data(), transport.size(), transport.data(), keys.size(), keys.data());
             co_return error::status_failed_precondition("implementation not found");
         }
         co_return error::status_ok();
@@ -167,7 +169,7 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
         co_return error::status_resource_exhausted();
     }
     catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "pool() failed", e.what());
+        manapi_log_error("%s due to %s", "http: pool() failed", e.what());
     }
     co_return error::status_internal("pool() failed");
 }

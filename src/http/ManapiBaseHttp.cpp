@@ -342,7 +342,8 @@ manapi::future<void> manapi::net::http::internal::send_response_text(uq_handle_d
 
             if (value && *value == ERR_OK) {
                 /* ok */
-                manapi::async::run (send_text(std::move(cdata), std::move(plaintext)));
+                if (!plaintext.empty())
+                    manapi::async::run (send_text(std::move(cdata), std::move(plaintext)));
             }
     });
 

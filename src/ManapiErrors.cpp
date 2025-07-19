@@ -5,9 +5,11 @@
 #include "ManapiJson.hpp"
 #include "include/ManapiUtils.hpp"
 
-#include <stdarg.h>
-#include <time.h>
-#include <string.h>
+#include <cstdarg>
+#include <ctime>
+#include <cstring>
+
+bool manapi::debug::log_trace_enabled = false;
 
 std::string_view manapi::get_msg_by_err_num (manapi::err_num err) {
     switch (err) {
@@ -188,6 +190,8 @@ manapi::error::status manapi::error::status_data_loss(std::string_view msg) {
 }
 
 void manapi::debug::log_log(log_level level, const char *file, int line, const char *fmt, ...) MANAPIHTTP_NOEXPECT {
+    if (level == log_level::LOG_TRACE && !manapi::debug::log_trace_enabled)
+        return;
 
     // Remove path from filename
     const char* base = strrchr(file, '/');

@@ -167,7 +167,7 @@ ssize_t ng_wrk_http2_send_callback(nghttp2_session *session, const uint8_t *data
     auto const s = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(user_data);
 
     auto const rhs = s->gctx->base_worker->sync_write(s->conn, data,
-        static_cast<ssize_t>(length), false);
+        static_cast<ssize_t>(length), true);
 
     if (rhs > 0)
         return rhs;
@@ -269,8 +269,7 @@ int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const nghttp2
 
                         auto const sdata = s->second->as<http_v2_stream_t>();
                         auto const req_ptr = sdata->req.get();
-                        std::cout << s->first<<" " << req_ptr->uri << "\n";
-
+                        manapi_log_trace("http2: %d stream on %.*s", s->first, req_ptr->uri.size(), req_ptr->uri.data());
                         auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(s->second, w2,
                             req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
                             [w, sconn = s->second, conn, req = std::move(sdata->req)] (bool ok) mutable
