@@ -53,8 +53,6 @@ namespace manapi {
 
         typedef std::pair <json, json> PAIR;
 
-        typedef std::u32string UNICODE_STRING;
-
         enum types {
             /* null type */
             type_null = 0,
@@ -82,81 +80,141 @@ namespace manapi {
 
         /**
          * Generate a JSON object
-         * @return the created JSON object
+         * @return created JSON object
          */
         static json object ();
 
         /**
          * Generate a JSON array
-         * @return the created JSON array
+         * @return created JSON array
          */
         static json array ();
 
         /**
          * Generate a JSON array from the provided initializer list
          * @param data the provided initializer list
-         * @return the create JSON array
+         * @return create JSON array
          */
         static json array (const std::initializer_list<json> &data);
 
         /**
          * Generate a JSON object from the provided initializer list
          * @param data the provided initializer list
-         * @return the created JSON object
+         * @return created JSON object
          */
         static json object (const std::initializer_list<json> &data);
 
         /**
-         * Generate a JSON array using the other JSON
+         * Generate a JSON array using an other JSON
          *
          * If the provided JSON is a pair, it returns JSON array with 2 items from the pair,
          * but otherwise, it returns JSON array with 1 items
          *
-         * @param data the provided JSON
-         * @return the created JSON array
+         * @param data provided JSON
+         * @return created JSON array
          */
         static json array (manapi::json data);
 
         /**
-         * Parse JSON from the string
+         * Parse JSON from string
          *
-         * @param data the source string
-         * @return the json object on success, otherwise it returns ParseError, InternalError, ResourceExhausted
+         * @param data source string
+         * @return a json object on success, otherwise it returns ParseError, InternalError, ResourceExhausted
          */
         static manapi::error::status_or<json> parse (STRING_VIEW data);
 
+        /**
+         * Stringify JSON as a string
+         * @param n source JSON
+         * @param spaces count of spaces
+         * @return stringified JSON
+         */
         static std::string stringify (const json &n, int spaces = 2);
 
+        /**
+         * initialize JSON as a null
+         */
         json();
 
+        /**
+         * initialize JSON using an other JSON
+         * @param other JSON
+         */
         json(const json &other);
 
+        /**
+         * make it movable
+         * @param other JSON
+         */
         json(json &&other) noexcept;
 
+        /**
+         * initialize JSON using an initializer list
+         * @param data initializer list
+         */
         json(const std::initializer_list<json> &data);
 
-        // Do not use explicit
-
+        /**
+         * initialize JSON from a source string
+         * @param str source string
+         * @param parse source is a JSON string if |parse| is true
+         */
         json(STRING_VIEW str, bool parse = false);
 
-        json(const UNICODE_STRING &str, bool parse = false);
-
+        /**
+         * initialize JSON from an integer
+         * @param num source integer
+         */
         json(INTEGER num);
 
+        /**
+         * initialize JSON from a source array of chars
+         * @param plain_text array of chars
+         * @param parse source is a JSON string if it is true
+         */
         json(const char *plain_text, bool parse = false);
 
+        /**
+         * initialize JSON from a source string
+         * @param str source string
+         */
         json(STRING str);
 
+        /**
+         * initialize JSON from a decimal
+         * @param num source decimal
+         */
         json(DECIMAL num);
 
+        /**
+         * initialize JSON as a nullptr
+         * @param n nullptr
+         */
         json(const NULLPTR &n);
 
+        /**
+         * initialize JSON as a boolean
+         * @param value source boolean
+         */
         json(BOOLEAN value);
 
+        /**
+         * initialize JSON as an object
+         * @param obj source object
+         */
         json(OBJECT obj);
 
+        /**
+         * initialize JSON as an array
+         * @param arr source array
+         */
         json(ARRAY arr);
 
+        /**
+         * initialize JSON as an object
+         * @tparam T type of value in the mapped object
+         * @param n source mapped object
+         */
         template<typename T>
         json (std::map<std::string, T> n) {
             while (!n.empty()) {
@@ -165,6 +223,11 @@ namespace manapi {
             }
         }
 
+        /**
+         * initialize JSON as an object
+         * @tparam T type of value in the unordered mapped object
+         * @param n source mapped object
+         */
         template<typename T>
         json (std::unordered_map<std::string, T> n) {
             while (!n.empty()) {
@@ -173,70 +236,151 @@ namespace manapi {
             }
         }
 
+        /**
+         * initialize JSON as an integer
+         * @tparam T type of the integer
+         * @param n source integer
+         */
         template<typename T>
         requires(std::is_integral_v<T>)
         json(const T &n) {
             this->parse_ (static_cast<INTEGER>(n));
         }
 
+        /**
+         * initialize JSON as a decimal
+         * @tparam T type of the decimal
+         * @param n source decimal
+         */
         template<typename T>
         requires(std::is_floating_point_v<T>)
         json (const T &n) {
             this->parse_ (static_cast<DECIMAL>(n));
         }
 
+        /**
+         * initialize JSON as an array
+         * @tparam V type of values in the array
+         * @param array source array
+         */
         template<typename V>
         json(std::vector<V> array) {
             this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
 
+        /**
+         * initialize JSON as an array
+         * @tparam V type of values in the array
+         * @param array source array
+         */
         template<typename V>
         json(std::deque<V> array) {
             this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
 
+        /**
+         * initialize JSON as an array
+         * @tparam V type of values in the array
+         * @param array source array
+         */
         template<typename V>
         json(std::stack<V> array) {
             this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
 
+        /**
+         * initialize JSON as an array
+         * @tparam V type of values in the set
+         * @param array source set
+         */
         template<typename V>
         json(std::set<V> array) {
             this->set_array_();
             while (!array.empty()) { this->push_back(std::move(array.extract(array.begin()).value())); }
         }
 
+        /**
+         * initialize JSON as an array
+         * @tparam V type of values in the array
+         * @tparam N size of the array
+         * @param array source array
+         */
         template<typename V, std::size_t N>
         json(std::array<V, N> array) {
             this->set_array_();
             for (auto &v: array) { this->push_back(std::move(v)); }
         }
 
+        /* deconstructor */
         ~json();
 
+        /**
+         * contains()
+         * @param key string
+         * @return true if the key exists in the JSON
+         */
         [[nodiscard]] bool contains (const std::string &key) const;
 
+        /**
+         * get a value by the key
+         * @param key key
+         * @return value if it exists, otherwise it throws an exception
+         */
         const json &operator[] (const STRING &key) const;
-        const json &operator[] (const UNICODE_STRING &key) const;
+
+        /**
+         * get a value by the index
+         * @param index index
+         * @return value if it exists, otherwise it throws an exception
+         */
         const json &operator[] (size_t index) const;
 
+        /**
+         * get a value by the key
+         * @param key key
+         * @return value if it exists, otherwise it throws an exception
+         */
         json &operator[] (const STRING &key);
-        json &operator[] (const UNICODE_STRING &key);
+
+        /**
+         * get a value by the index
+         * @param index index
+         * @return value if it exists, otherwise it throws an exception
+         */
         json &operator[] (size_t index);
 
+        /**
+         * get a value by the key
+         * @param key key
+         * @return value if it exists, otherwise it throws an exception
+         */
         [[nodiscard]] const json &at (const STRING &key) const;
-        [[nodiscard]] const json &at (const UNICODE_STRING &key) const;
+
+        /**
+         * get a value by the index
+         * @param index index
+         * @return value if it exists, otherwise it throws an exception
+         */
         [[nodiscard]] const json &at (size_t index) const;
 
+        /**
+         * get a value by the key
+         * @param key key
+         * @return value if it exists, otherwise it throws an exception
+         */
         json &at (const std::string &key);
-        json &at (const UNICODE_STRING &key);
+
+        /**
+         * get a value by the index
+         * @param index index
+         * @return value if it exists, otherwise it throws an exception
+         */
         json &at (size_t index);
 
         // TRASH (no with const json &obj)
-        json &operator= (const UNICODE_STRING &str);
         json &operator= (STRING str);
         json &operator= (const char *str);
         json &operator= (BOOLEAN b);
@@ -476,15 +620,11 @@ namespace manapi {
 
         std::pair<OBJECT::iterator, bool> insert (const STRING &key, json obj);
 
-        std::pair<OBJECT::iterator, bool> insert (const UNICODE_STRING &key, json obj);
-
         std::pair<OBJECT::iterator, bool> insert (const OBJECT::value_type &v);
 
         std::pair<OBJECT::iterator, bool> insert (OBJECT::value_type &&v);
 
         void erase (const STRING &key);
-
-        void erase (const UNICODE_STRING &key);
 
         ARRAY::iterator erase (ARRAY::iterator it);
 
@@ -547,14 +687,12 @@ namespace manapi {
 
         OBJECT::iterator find (STRING_VIEW key);
 
-        OBJECT::const_iterator find (STRING_VIEW key) const;
+        [[nodiscard]] OBJECT::const_iterator find (STRING_VIEW key) const;
 
         [[nodiscard]] const ARRAY &each() const;
         [[nodiscard]] const OBJECT &entries() const;
         [[nodiscard]] ARRAY &each();
         [[nodiscard]] OBJECT &entries();
-
-        [[nodiscard]] bool contains       (const UNICODE_STRING &key) const;
 
         manapi::json &first ();
 
@@ -564,16 +702,60 @@ namespace manapi {
 
         [[nodiscard]] const manapi::json &second () const;
 
+        /**
+         * check the JSON type
+         * @return true if it's an object
+         */
         [[nodiscard]] bool is_object      () const;
+
+        /**
+         * check the JSON type
+         * @return true if it's an array
+         */
         [[nodiscard]] bool is_array       () const;
+
+        /**
+         * check the JSON type
+         * @return true if it's a string
+         */
         [[nodiscard]] bool is_string      () const;
+
+        /**
+         * check the JSON type
+         * @return true if it's a integer
+         */
         [[nodiscard]] bool is_integer     () const;
+
+        /**
+         * check the JSON type
+         * @return true if it's a null
+         */
         [[nodiscard]] bool is_null        () const;
+
+        /**
+         * check the JSON type
+         * @return true if it's a decimal
+         */
         [[nodiscard]] bool is_decimal     () const;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
+
+        /**
+         * check the JSON type
+         * @return true if it's a integer
+         */
         [[nodiscard]] bool is_bigint      () const;
 #endif
+
+        /**
+         * check the JSON type
+         * @return true if it's a bool
+         */
         [[nodiscard]] bool is_bool        () const;
+
+        /**
+         * check the JSON type
+         * @return true if it's a pair
+         */
         [[nodiscard]] bool is_pair        () const;
 
         /**
@@ -581,41 +763,77 @@ namespace manapi {
          * @return
          */
         [[nodiscard]] const OBJECT &as_object () const;
+
+        /**
+         * strict object retrieval
+         * @return
+         */
         [[nodiscard]] OBJECT &as_object ();
+
         /**
          * strict array retrieval
          * @return
          */
         [[nodiscard]] const ARRAY &as_array () const;
+
+        /**
+         * strict array retrieval
+         * @return
+         */
         [[nodiscard]] ARRAY &as_array ();
+
         /**
          * strict string retrieval
          * @return
          */
         [[nodiscard]] const STRING &as_string () const;
+
+        /**
+         * strict string retrieval
+         * @return
+         */
         [[nodiscard]] STRING &as_string ();
+
         /**
          * strict integer retrieval
          * @return
          */
         [[nodiscard]] const INTEGER &as_integer () const;
+
+        /**
+         * strict integer retrieval
+         * @return
+         */
         [[nodiscard]] INTEGER &as_integer ();
+
         /**
          * strict null retrieval
          * @return
          */
         [[nodiscard]] NULLPTR as_null () const;
+
         /**
          * strict decimal retrieval
          * @return
          */
         [[nodiscard]] const DECIMAL &as_decimal () const;
+
+        /**
+         * strict decimal retrieval
+         * @return
+         */
         [[nodiscard]] DECIMAL &as_decimal ();
+
         /**
          * strict boolean retrieval
          * @return
          */
         [[nodiscard]] const BOOLEAN &as_bool () const;
+
+        /**
+         * strict boolean retrieval
+         * @return
+         */
         [[nodiscard]] BOOLEAN &as_bool ();
 
         /**
@@ -625,6 +843,7 @@ namespace manapi {
          * @return
          */
         [[nodiscard]] OBJECT as_object_cast () const;
+
         /**
          * non-strict array retrieval
          *
@@ -632,6 +851,7 @@ namespace manapi {
          * @return
          */
         [[nodiscard]] ARRAY as_array_cast () const;
+
         /**
          * non-strict string retrieval
          *
@@ -642,6 +862,7 @@ namespace manapi {
          * @return
          */
         [[nodiscard]] STRING as_string_cast () const;
+
         /**
          * non-strict integer retrieval
          *
@@ -651,6 +872,7 @@ namespace manapi {
          * @return
          */
         [[nodiscard]] INTEGER as_integer_cast () const;
+
         /**
          * non-strict null retrieval
          *
@@ -658,6 +880,7 @@ namespace manapi {
          * @return
          */
         [[nodiscard]] NULLPTR as_null_cast () const;
+
         /**
          * non-strict deciaml retrieval
          *
@@ -667,6 +890,7 @@ namespace manapi {
          * @return
          */
         [[nodiscard]] DECIMAL as_decimal_cast () const;
+
         /**
          * non-strict boolean retrieval
          *
@@ -675,13 +899,20 @@ namespace manapi {
          */
         [[nodiscard]] BOOLEAN as_bool_cast () const;
 
+        /**
+         * get a JSON string
+         * @param spaces additional spaces
+         * @param first_spaces left alignment
+         * @return JSON string
+         */
         [[nodiscard]] std::string dump (int spaces = 0, int first_spaces = 0) const;
 
         [[nodiscard]] size_t size () const;
+
         [[nodiscard]] bool empty () const;
 
-        static void error_invalid_char (const UNICODE_STRING &plain_text, size_t i);
         static void error_invalid_char (const STRING_VIEW &plain_text, size_t i);
+
         static void error_unexpected_end (size_t i);
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
@@ -695,23 +926,35 @@ namespace manapi {
          * @return
          */
         [[nodiscard]] BIGINT as_bigint_cast () const;
+
         json &operator+= (const BIGINT &num);
+
         json(BIGINT num);
+
         json operator* (const BIGINT &num) const;
+
         json &operator*= (const BIGINT &num);
+
         json operator- (const BIGINT &num) const;
+
         json operator+ (const BIGINT &num) const;
+
         json &operator= (BIGINT num);
+
         json & operator-= (const BIGINT &num);
+
         /**
          * strict bigint retrieval
          * @return
          */
         [[nodiscard]] const BIGINT &as_bigint () const;
+
+        /**
+         * strict bigint retrieval
+         * @return
+         */
         [[nodiscard]] BIGINT &as_bigint ();
 #endif
-    protected:
-        bool root = true;
     private:
         [[nodiscard]] OBJECT &as_object_ () const;
         [[nodiscard]] ARRAY &as_array_ () const;
@@ -724,8 +967,6 @@ namespace manapi {
 #endif
         [[nodiscard]] PAIR &as_pair_ () const;
 
-        // string
-        manapi::error::status parse_ (const UNICODE_STRING &plain_text);
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         manapi::error::status parse_ (STRING_VIEW plain_text, bool bigint = false, size_t bigint_precision = 128);
 #else

@@ -50,7 +50,7 @@ int manapi::net::http::url_decode_stream::handle_char_(const char &c) {
             this->hex_symbols[this->hex_index] = c;
 
             if (this->hex_index == 1) {
-                char x = static_cast<char> (manapi::unicode::hex2dec(this->hex_symbols[0]) << 4 | manapi::unicode::hex2dec(
+                char x = static_cast<char> (manapi::unicode::onehex2dec(this->hex_symbols[0]) << 4 | manapi::unicode::onehex2dec(
                                      this->hex_symbols[1]));
 
                 if (((this->hex_symbols[0] >= 'a' && this->hex_symbols[0] <= 'z') || (this->hex_symbols[0] >= 'A' && this->hex_symbols[0] <= 'Z')

@@ -286,7 +286,7 @@ manapi::json_error::status manapi::json_builder::_build_string(std::string_view 
                         // U+0080 - U+07FF -> 110xxxyy10yyzzzz
                         // U+0800 - U+FFFF -> 1110wwww10xxxxyy10yyzzzz
                         // U+010000 - U+10FFFF -> 11110uvv10vvwwww10xxxxyy10yyzzzz
-                        this->utf_escaped[this->utf_escaped_status++] = unicode::hex2dec(c);
+                        this->utf_escaped[this->utf_escaped_status++] = unicode::onehex2dec(static_cast<uint8_t>(c));
 
                         if (this->utf_escaped_status == sizeof (this->utf_escaped)) {
 

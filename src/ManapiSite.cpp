@@ -873,8 +873,7 @@ manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(const 
                     break;
                 }
 
-                if (manapi::unicode::escape_char_need(uri[i]))
-                {
+                if (uri[i] == '\\') {
                     title = "";
                     break;
                 }
@@ -888,7 +887,7 @@ manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(const 
                 {
                     is_regex = true;
 
-                    buff = manapi::unicode::escape_string(buff);
+                    //buff = manapi::unicode::escape_string(buff);
                 }
 
                 // if null -> create
@@ -905,12 +904,9 @@ manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(const 
             i = temp;
         }
 
-        if (is_regex)
-        {
-            if (manapi::unicode::escape_char_need(uri[i]))
-            {
+        if (is_regex) {
+            if (uri[i] == '\\' || uri[i] == '"')
                 buff.push_back('\\');
-            }
 
             buff += uri[i];
             continue;

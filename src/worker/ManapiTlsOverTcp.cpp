@@ -71,8 +71,10 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(const ev::shar
         return nullptr;
 
     auto data = connection->as<TLS::connection_interface>();
-    if (!(data->status & CONN_CLOSED))
+    if (!(data->status & CONN_CLOSED)) {
+        manapi_log_trace("TCP:%p read_start()", data->watcher.get());
         data->watcher->read_start();
+    }
 
     return std::move(connection);
 }
@@ -344,12 +346,14 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) n
 
         if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == CONN_READ
             && data->watcher && !data->watcher->is_active()) {
+            manapi_log_trace("TCP:%p read_start()", data->watcher.get());
             data->watcher->read_start();
         }
     }
 
     if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == 0
             && data->watcher && data->watcher->is_active()) {
+        manapi_log_trace("TCP:%p read_stop()", data->watcher.get());
         data->watcher->read_stop();
     }
 
@@ -370,14 +374,16 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
     auto connection = std::unique_ptr<connection_interface> (uptr->as<connection_interface>());
     auto w = (dynamic_cast<TLS*>(connection->worker));
 
-    if (connection->watcher) {
+    auto const watcher = connection->watcher;
+    if (watcher) {
+        manapi_log_trace("TCP:%p read_stop()", watcher);
         connection->watcher->read_stop();
         manapi::async::current()->eventloop()->stop_watcher(std::move(connection->watcher));
     }
 
     if (connection->ssl) {
         auto ssl = std::exchange(connection->ssl, nullptr);
-        manapi_log_trace("TLS:Free SSL conn");
+        manapi_log_trace("TLS:Free SSL %p conn", watcher);
         if (w)
             w->ssl_free_(ssl);
     }
@@ -470,8 +476,10 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
     auto const data = conn->as<TLS::connection_interface>();
 
     data->transfered += size;
-    if (data->transfered >= this->config_->speed_limit_rate && data->watcher)
+    if (data->transfered >= this->config_->speed_limit_rate && data->watcher) {
+        manapi_log_trace("TCP:%p read_stop()", data->watcher.get());
         data->watcher->read_stop();
+    }
 
     while (size) {
         auto rhs = this->ssl_bio_write_(data->rbio, buff, static_cast<int>(size));
@@ -606,6 +614,7 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
 int manapi::net::worker::TLS::check_read_stack_full_(connection_interface *data) {
     if (data->top->recv_size >= this->config_->max_buffer_stack && data->watcher) {
         /* sadness */
+        manapi_log_trace("TCP:%p read_stop()", data->watcher.get());
         if (auto rhs = data->watcher->read_stop()) {
             return rhs;
         }
@@ -836,6 +845,7 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
 
         if (data->status & ((CONN_READ|CONN_CLOSED|CONN_REMOVED)) == CONN_READ
             && data->watcher && !data->watcher->is_active()) {
+            manapi_log_trace("TCP:%p read_start()", data->watcher.get());
             data->watcher->read_start();
         }
 

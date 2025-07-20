@@ -177,4 +177,76 @@ UTEST(json, stream_parse_2) {
     ASSERT_TRUE(res[0]["_id"] == std::string{"686402978cc071126e7518cc"});
 }
 
+UTEST(json, dump) {
+    manapi::json a = {{"hello", "world"}};
+
+    ASSERT_TRUE(a.dump() == R"({"hello": "world"})");
+}
+
+UTEST(json, dump_2) {
+    manapi::json a = {{"hello", "world"}};
+    ASSERT_TRUE(manapi::json::parse(a.dump(0, 2)).unwrap()["hello"] == "world");
+    a = "hello";
+    ASSERT_TRUE(a.dump(0, 2) == R"(  "hello")");
+    a = 78;
+    ASSERT_TRUE(a.dump(0, 2) == R"(  78)");
+}
+
+UTEST(json, dump_3) {
+    manapi::json a = {
+        {"pi", 3.141},
+        {"happy", true},
+        {"name", "Niels"},
+        {"nothing", nullptr},
+        {"answer", {
+            {"everything", 42}
+        }},
+        {"list", {1, 0, 2}},
+        {"object", {
+            {"currency", "USD"},
+            {"value", 42.99}
+        }}
+    };
+
+    ASSERT_TRUE_MSG( a.dump() == R"({"answer": {"everything": 42}, "happy": true, "list": [1, 0, 2], "name": "Niels", "nothing": null, "object": {"currency": "USD", "value": 42.990000}, "pi": 3.141000})",
+        "dump(n)");
+    ASSERT_TRUE_MSG(a.dump(2) == R"({
+  "answer": {
+    "everything": 42
+  },
+  "happy": true,
+  "list": [
+    1,
+    0,
+    2
+  ],
+  "name": "Niels",
+  "nothing": null,
+  "object": {
+    "currency": "USD",
+    "value": 42.990000
+  },
+  "pi": 3.141000
+})", "dump(n, 2)");
+
+    ASSERT_TRUE_MSG(a.dump(2, 2) == R"(  {
+    "answer": {
+      "everything": 42
+    },
+    "happy": true,
+    "list": [
+      1,
+      0,
+      2
+    ],
+    "name": "Niels",
+    "nothing": null,
+    "object": {
+      "currency": "USD",
+      "value": 42.990000
+    },
+    "pi": 3.141000
+  })", "dump(n, 2, 2)");
+}
+
 #endif

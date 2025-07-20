@@ -62,7 +62,7 @@ void manapi::encoding::decode_url(std::string &dest, std::string_view str) {
                 dest += str[i];
                 continue;
             }
-            dest.push_back(static_cast<char> (manapi::unicode::hex2dec(str[i+1]) << 4 | manapi::unicode::hex2dec(
+            dest.push_back(static_cast<char> (manapi::unicode::onehex2dec(str[i+1]) << 4 | manapi::unicode::onehex2dec(
                                      str[i+2])));
             i = i + 2;
         }

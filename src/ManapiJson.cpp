@@ -40,17 +40,6 @@ manapi::json::json(STRING str) {
     set_string_(std::move(str));
 }
 
-manapi::json::json(const UNICODE_STRING &str, bool parse) {
-    if (parse)
-    {
-        this->parse_(str).unwrap();
-    }
-    else
-    {
-        set_string_(unicode::str32to4(str));
-    }
-}
-
 manapi::json::json(INTEGER num) {
     this->parse_(num);
 }
@@ -210,10 +199,6 @@ void manapi::json::parse_(BOOLEAN val) {
     set_bool_(val);
 }
 
-manapi::error::status manapi::json::parse_(const UNICODE_STRING &plain_text) {
-    return this->parse_(unicode::str32to4(plain_text));
-}
-
 void manapi::json::parse_(const NULLPTR &n) {
     set_nullptr_();
 }
@@ -247,132 +232,126 @@ void manapi::json::parse_(size_t num) {
     this->parse_ (static_cast<INTEGER> (num));
 }
 
-std::string manapi::json::dump(int spaces, int first_spaces) const {
-#define JSON_DUMP_NEED_NEW_LINE if (spaces_enabled) str += '\n';
+void json_dump_ (std::string &res, const manapi::json *n, int spaces, int first_spaces, bool root = true) {
+#define JSON_DUMP_NEED_NEW_LINE if (spaces_enabled) res += '\n';
 #define JSON_DUMP_NEED_NEW_LINE_OR_SPACE    JSON_DUMP_NEED_NEW_LINE \
-                                            else str += ' ';
-#define JSON_DUMP_NEED_SPACES   for (int z = 0; z < total_spaces; z++) str += ' ';
-#define JSON_DUMP_LAST_SPACES   for (int z = 0; z < first_spaces; z++) str += ' ';
-    std::string str;
+                                            else res += ' ';
+#define JSON_DUMP_NEED_SPACES   for (int z = 0; z < total_spaces; z++) res += ' ';
+#define JSON_DUMP_LAST_SPACES   for (int z = 0; z < first_spaces; z++) res += ' ';
+    const int total_spaces = first_spaces + spaces;
 
-    if (this->type == type_string)
-    {
-        str = '"' + unicode::escape_string(as_string()) + '"';
+    if (root) {
+        JSON_DUMP_LAST_SPACES
     }
 
-    else if (this->type == type_decimal)
-    {
-        str = std::to_string(as_decimal());
-    }
-
-    else if (this->type == type_integer)
-    {
-        str = std::to_string(as_integer());
-    }
-
+    switch (n->data_type()) {
+        case manapi::json::type_string:
+            res += manapi::unicode::escape_string(n->as_string());
+        break;
+        case manapi::json::type_decimal:
+            res += std::to_string(n->as_decimal());
+        break;
+        case manapi::json::type_integer:
+            res += std::to_string(n->as_integer());
+        break;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-    else if (this->type == type_bigint)
-    {
-        str = '"' + as_bigint().stringify() + '"';
-    }
+        case manapi::json::type_bigint:
+            res += '"';
+            res += n->as_bigint().stringify();
+            res += '"';
+        break;
 #endif
-    else if (this->type == type_boolean)
-    {
-        str = as_bool() ? JSON_TRUE : JSON_FALSE;
-    }
+        case manapi::json::type_boolean:
+            res += n->as_bool() ? JSON_TRUE : JSON_FALSE;
+        break;
+        case manapi::json::type_null:
+            res += JSON_NULL;
+        break;
+        case manapi::json::type_object: {
+            const bool spaces_enabled  = spaces > 0;
 
-    else if (this->type == type_null)
-    {
-        str = JSON_NULL;
-    }
+            auto &map = n->as_object();
 
-    else if (this->type == type_object) {
-        const bool spaces_enabled  = spaces > 0;
-        const int total_spaces = first_spaces + spaces;
+            res += '{';
 
-        auto &map = as_object();
-        str += '{';
+            JSON_DUMP_NEED_NEW_LINE
 
-        JSON_DUMP_NEED_NEW_LINE
+            if (!map.empty()) {
+                auto it = map.begin();
 
-        if (!map.empty()) {
-            auto it = map.begin();
+                goto skip;;
+                // first
+                for (;it != map.end();++it) {
+                    res += ',';
 
-            // first
-            if (it != map.end()) {
-                JSON_DUMP_NEED_SPACES
+                    JSON_DUMP_NEED_NEW_LINE_OR_SPACE
+                    skip:
+                    JSON_DUMP_NEED_SPACES
 
-                str += '"';
-                str += unicode::escape_string(it->first) + "\": " + it->second.dump(spaces, total_spaces);
-                ++it;
+                    res += manapi::unicode::escape_string(it->first);
+                    res += ": ";
+                    json_dump_(res, &it->second, spaces, total_spaces, false);
+                }
             }
 
-            // others
-            for (; it != map.end(); ++it) {
-                str += ',';
+            JSON_DUMP_NEED_NEW_LINE
 
-                JSON_DUMP_NEED_NEW_LINE_OR_SPACE
+            JSON_DUMP_LAST_SPACES
+
+            res += '}';
+            break;
+        }
+        case manapi::json::type_array: {
+            const bool spaces_enabled = spaces > 0;
+
+            auto &arr = n->as_array();
+
+            res += '[';
+
+            JSON_DUMP_NEED_NEW_LINE
+
+
+            if (!arr.empty()) {
+                // dump items
+                size_t i = 0;
+
+                // first
                 JSON_DUMP_NEED_SPACES
+                json_dump_ (res, &arr.at(i), spaces, total_spaces, false);
+                i++;
 
-                str += '"';
-                str += unicode::escape_string(it->first) + "\": " + it->second.dump(spaces, total_spaces);
+                // others
+                for (; i < arr.size(); i++) {
+                    res += ',';
+
+                    JSON_DUMP_NEED_NEW_LINE_OR_SPACE
+                    JSON_DUMP_NEED_SPACES
+
+                    json_dump_ (res, &arr.at(i), spaces, total_spaces, false);
+                }
             }
+
+            JSON_DUMP_NEED_NEW_LINE
+            JSON_DUMP_LAST_SPACES
+
+            res += ']';
+            break;
+        }
+        case manapi::json::type_pair: {
+            res += '[';
+            json_dump_ (res, &n->first(), spaces, total_spaces, false);
+            json_dump_ (res, &n->second(), spaces, total_spaces, false);
+            res += ']';
+            break;
         }
 
-        JSON_DUMP_NEED_NEW_LINE
-
-        JSON_DUMP_LAST_SPACES
-
-        str += '}';
     }
-
-    else if (this->type == type_array) {
-        const bool spaces_enabled = spaces > 0;
-        const int total_spaces = first_spaces + spaces;
-
-        auto &arr = as_array();
-        str += '[';
-
-        JSON_DUMP_NEED_NEW_LINE
-
-
-        if (!arr.empty()) {
-            // dump items
-            size_t i = 0;
-
-            // first
-            JSON_DUMP_NEED_SPACES
-            str += arr.at(i).dump(spaces, total_spaces);
-
-            i++;
-
-            // others
-            for (; i < arr.size(); i++) {
-                str += ',';
-
-                JSON_DUMP_NEED_NEW_LINE_OR_SPACE
-                JSON_DUMP_NEED_SPACES
-
-                str += arr.at(i).dump(spaces, total_spaces);
-            }
-        }
-
-        JSON_DUMP_NEED_NEW_LINE
-        JSON_DUMP_LAST_SPACES
-
-        str += ']';
-    }
-
-    else if (this->type == type_pair)
-    {
-        THROW_MANAPIHTTP_JSON_ERROR (ERR_JSON_BUG, "Bug has been deteceted: {}", "type = type_pair");
-    }
-
-    return std::move(str);
 }
 
-void manapi::json::error_invalid_char(const UNICODE_STRING &plain_text, size_t i) {
-    THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_INVALID_CHAR, "Invalid char '{}' at {}", unicode::str32to4(plain_text[i]), i + 1);
+std::string manapi::json::dump(int spaces, int first_spaces) const {
+    std::string res;
+    json_dump_(res, this, spaces, first_spaces);
+    return std::move(res);
 }
 
 void manapi::json::error_invalid_char(const STRING_VIEW &plain_text, size_t i) {
@@ -497,10 +476,6 @@ manapi::json &manapi::json::operator[](const STRING &key) {
     return this->at(key);
 }
 
-manapi::json &manapi::json::operator[](const UNICODE_STRING &key) {
-    return this->at(key);
-}
-
 manapi::json &manapi::json::operator[](size_t index) {
     return this->at(index);
 }
@@ -509,16 +484,8 @@ const manapi::json & manapi::json::operator[](const STRING &key) const {
     return this->at(key);
 }
 
-const manapi::json & manapi::json::operator[](const UNICODE_STRING &key) const {
-    return this->at(key);
-}
-
 const manapi::json & manapi::json::operator[](size_t index) const {
     return this->at(index);
-}
-
-manapi::json &manapi::json::at(const UNICODE_STRING &key)  {
-    return this->at(unicode::str32to4(key));
 }
 
 manapi::json &manapi::json::at(const std::string &key)  {
@@ -557,10 +524,6 @@ const manapi::json & manapi::json::at(const std::string &key) const {
         THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_NO_SUCH_KEY, "No such key. ({})", unicode::escape_string(key));
 
     return map.at(key);
-}
-
-const manapi::json & manapi::json::at(const UNICODE_STRING &key) const {
-    return this->at(unicode::str32to4(key));
 }
 
 const manapi::json & manapi::json::at(size_t index) const {
@@ -610,11 +573,6 @@ manapi::json &manapi::json::operator=(nullptr_t const &n) {
     return *this;
 }
 
-manapi::json &manapi::json::operator=(const UNICODE_STRING &str) {
-    this->operator=(unicode::str32to4(str));
-    return *this;
-}
-
 manapi::json &manapi::json::operator=(const char *str) {
     this->operator=(STRING(str));
     return *this;
@@ -631,7 +589,6 @@ manapi::json &manapi::json::operator=(BIGINT num) {
 manapi::json &manapi::json::operator=(const manapi::json &obj) {
     if (&obj != this)
     {
-        this->root                  = true;
 
         switch (obj.type) {
             case type_string:
@@ -783,10 +740,6 @@ manapi::json &manapi::json::operator*=(const BIGINT &num) {
 }
 #endif
 
-std::pair<manapi::json::OBJECT::iterator, bool> manapi::json::insert(const UNICODE_STRING &key, manapi::json obj) {
-    return this->insert ({unicode::str32to4(key), std::move(obj)});
-}
-
 std::pair<std::map<std::string, manapi::json>::iterator, bool> manapi::json::insert(const OBJECT::value_type &v) {
     return this->insert ({v.first, v.second});
 }
@@ -794,8 +747,6 @@ std::pair<std::map<std::string, manapi::json>::iterator, bool> manapi::json::ins
 std::pair<std::map<std::string, manapi::json>::iterator, bool> manapi::json::insert(OBJECT::value_type &&v) {
     if (this->type != type_object)
         THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
-
-    v.second.root=false;
 
     return as_object().insert(std::forward<decltype(v)>(v));
 }
@@ -813,8 +764,6 @@ void manapi::json::push_back(manapi::json::ARRAY::const_iterator begin, manapi::
 void manapi::json::push_back(manapi::json obj) {
     if (this->type != type_array)
         THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
-
-    obj.root = false;
 
     as_array().push_back(std::move(obj));
 }
@@ -961,10 +910,6 @@ manapi::json::OBJECT & manapi::json::entries() {
     return as_object();
 }
 
-bool manapi::json::contains(const UNICODE_STRING &key) const {
-    return contains(unicode::str32to4(key));
-}
-
 manapi::json & manapi::json::first() {
     return this->as_pair_().first;
 }
@@ -983,10 +928,6 @@ const manapi::json & manapi::json::second() const {
 
 bool manapi::json::contains(const std::string &key) const {
     return this->as_object().contains(key);
-}
-
-void manapi::json::erase(const UNICODE_STRING &key) {
-    erase(unicode::str32to4(key));
 }
 
 std::vector<manapi::json>::iterator manapi::json::erase(ARRAY::iterator it) {

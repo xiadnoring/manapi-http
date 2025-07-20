@@ -37,8 +37,6 @@ namespace manapi {
 
         explicit bigint(std::string_view num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
-        explicit bigint(const std::wstring &num, unsigned long int precision = MANAPI_BIGINT_DEFAULT_PRECISION);
-
         explicit bigint(ssize_t num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);
 
         explicit bigint(int num, std::size_t precision = MANAPI_BIGINT_DEFAULT_PRECISION);

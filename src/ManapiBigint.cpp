@@ -53,13 +53,6 @@ manapi::bigint::bigint(std::string_view num, std::size_t precision) {
     this->parse(num);
 }
 
-manapi::bigint::bigint(const std::wstring &num, std::size_t precision) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-
-    this->init_(precision);
-    this->parse(converter.to_bytes(num));
-}
-
 // manapi::bigint::bigint(mpf_ptr num, std::size_t precision) {
 //     mpf_set (*x, num);
 //     precision(precision);
