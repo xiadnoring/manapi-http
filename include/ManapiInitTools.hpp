@@ -10,6 +10,7 @@
 #include <atomic>
 #include <mutex>
 
+#include "ManapiDebug.hpp"
 #include "ManapiUtils.hpp"
 
 /**
@@ -34,7 +35,7 @@ namespace manapi::init_tools {
     /**
      * Enable Log Trace
      */
-    void log_trace_init ();
+    void log_trace_init (manapi::debug::trace_level lvl);
 }
 
 namespace manapi::clear_tools {

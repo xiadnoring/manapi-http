@@ -917,7 +917,9 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
         manapi_log_error("%s due to %s", "wgrpc:Failed to subscribe shutdown service", e.what());
     }
 
-    MANAPIHTTP_LOG("grpc:Server listening on {}", server_address);
+    manapi_log_trace("TCP PORT USED: %.*s. %.*s:%.*s (grpc)", port.size(), port.data(),
+        ip.size(), ip.data(), port.size(), port.data());
+
     co_return error::status_ok();
 }
 

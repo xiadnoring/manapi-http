@@ -236,10 +236,10 @@ int main () {
 - [ ] Async
   - [x] Mutex, Conditional Variable, Future  
   - [x] Default Async Context
-  - [ ] ⭐ Some improvements
+  - [x] ⭐ Some improvements
 - [ ] Debugging
   - [x] Error Codes
-  - [ ] Stack Error
+  - [x] Stack Error
   - [x] Async I/O Debug
 - [ ] Configuration
   - [x] limit-rate (TCP: HTTP/1.1, HTTP/2)
@@ -286,7 +286,7 @@ int main () {
 - Hyprland Arch Linux x86_64 kernel 6.9.3-zen1-1-zen wayland Debug/Release
 - Windows 11 Pro 22h2 x86_64 MSVC Debug
 
-## Made by
+## Made from
 
 [![ГБОУ РИЛИ](assets/rili.png)](https://rilirb.ru)
 

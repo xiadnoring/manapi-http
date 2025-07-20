@@ -202,8 +202,7 @@ void manapi::net::worker::TCP::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
 
     connection->transfered += size;
     if (connection->transfered >= this->config_->speed_limit_rate) {
-        manapi_log_trace("TCP:%p read_stop()", connection->watcher.get());
-        connection->watcher->read_stop();
+        this->read_stop_(connection);
     }
 
     if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
@@ -410,10 +409,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) {
             }
         }
 
-        if (connection->watcher) {
-            manapi_log_trace("TCP:%p read_stop()", connection->watcher.get());
-            connection->watcher->read_stop();
-        }
+        this->read_stop_(connection);
 
         if (connection->top) {
             if (connection->top->recv_size) {
@@ -638,21 +634,19 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) {
     if (data->watcher && !(status & ev::DISCONNECT)) {
         if (status & ev::READ) {
             if (!data->watcher->is_active()) {
-                manapi_log_trace("TCP:%p read_start()", data->watcher.get());
-                assert(!data->watcher->read_start());
+                this->read_start_(data);
             }
         }
         else {
             if (data->watcher->is_active()) {
-                manapi_log_trace("TCP:%p read_stop()", data->watcher.get());
-                assert(!data->watcher->read_stop());
+                this->read_stop_(data);
             }
         }
     }
 
     if ((status & CONN_CLOSED|CONN_WRITE|CONN_RECV_END|CONN_READ) == (CONN_RECV_END|CONN_READ)
         && data->ev_callback) {
-        if (this->call_user_callback(data->ev_callback, conn, CONN_RECV_END, nullptr, 0, nullptr))
+        if (manapi::net::worker::TCP::call_user_callback(data->ev_callback, conn, CONN_RECV_END, nullptr, 0, nullptr))
             this->close_connection(conn, CLOSE_CONN_ERR);
     }
 
@@ -686,6 +680,20 @@ manapi::bytebuffer manapi::net::worker::TCP::recv_first_buffer(const shared_conn
     }
 
     return std::move(object);
+}
+
+void manapi::net::worker::TCP::read_start_(connection_interface *data) {
+    if (!data->watcher || data->watcher->is_active() || data->transfered > this->config_->speed_limit_rate)
+        return;
+    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_start()", data->watcher.get());
+    assert(!data->watcher->read_start());
+}
+
+void manapi::net::worker::TCP::read_stop_(connection_interface *data) {
+    if (!data->watcher || !data->watcher->is_active())
+        return;
+    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_stop()", data->watcher.get());
+    assert(!data->watcher->read_stop());
 }
 
 int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection, bool flush) {
@@ -836,10 +844,8 @@ void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, connection_i
         }
     }
     if (data->status & ev::READ
-            && !(data->status & (CONN_CLOSED|CONN_REMOVED))
-            && data->watcher && !data->watcher->is_active()) {
-        manapi_log_trace("TCP:%p read_start()", data->watcher.get());
-        data->watcher->read_start();
+            && !(data->status & (CONN_CLOSED|CONN_REMOVED))) {
+        this->read_start_(data);
     }
 }
 
@@ -889,8 +895,7 @@ void manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &s
         && conn_data->ev_callback) {
         conn_data->transfered = 0;
         if ((conn_data->status & (ev::READ|ev::DISCONNECT)) == ev::READ) {
-            manapi_log_trace("TCP:%p read_start()", conn_data->watcher.get());
-            conn_data->watcher->read_start();
+            this->read_start_(conn_data);
         }
 
         if (conn_data->status & ev::WRITE && conn_data->ev_callback) {
@@ -933,12 +938,12 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
     auto const watcher = connection->watcher;
 
     if (connection->watcher) {
-        manapi_log_trace("TCP:%p read_stop()", watcher);
+        manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_stop()", watcher);
         connection->watcher->read_stop();
         manapi::async::current()->eventloop()->stop_watcher(std::move(connection->watcher));
     }
 
-    manapi_log_trace("TCP:Free TCP %p conn", watcher);
+    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "TCP:Free TCP %p conn", watcher);
 
     auto const wrk = dynamic_cast<TCP*> (connection->worker);
     if (wrk) {

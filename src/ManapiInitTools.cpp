@@ -104,8 +104,8 @@ void manapi::init_tools::curl_library_init() {
 #endif
 }
 
-void manapi::init_tools::log_trace_init() {
-    debug::log_trace_enabled = true;
+void manapi::init_tools::log_trace_init(manapi::debug::trace_level lvl) {
+    debug::log_trace_enabled = lvl;
 }
 
 void manapi::clear_tools::ssl_library_thread_clear() MANAPIHTTP_NOEXPECT {

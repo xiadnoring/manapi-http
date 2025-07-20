@@ -9,7 +9,7 @@
 #include <ctime>
 #include <cstring>
 
-bool manapi::debug::log_trace_enabled = false;
+int manapi::debug::log_trace_enabled = -1;
 
 std::string_view manapi::get_msg_by_err_num (manapi::err_num err) {
     switch (err) {
@@ -189,8 +189,8 @@ manapi::error::status manapi::error::status_data_loss(std::string_view msg) {
     return {ERR_DATA_LOSS, msg};
 }
 
-void manapi::debug::log_log(log_level level, const char *file, int line, const char *fmt, ...) MANAPIHTTP_NOEXPECT {
-    if (level == log_level::LOG_TRACE && !manapi::debug::log_trace_enabled)
+void log_log_ (manapi::debug::log_level type, int level, const char *file, int line, const char *fmt, va_list args) {
+    if (type == manapi::debug::LOG_TRACE && level > manapi::debug::log_trace_enabled)
         return;
 
     // Remove path from filename
@@ -202,21 +202,31 @@ void manapi::debug::log_log(log_level level, const char *file, int line, const c
     fprintf(
         stderr,
         "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m ",
-        level_colors[level],
-        level_colors[level],
-        level_strings[level],
+        manapi::debug::level_colors[type],
+        manapi::debug::level_colors[type],
+        manapi::debug::level_strings[type],
         base,
         line
     );
 
     // Print user message
-    va_list args;
-    va_start(args, fmt);
     vfprintf(stderr, fmt, args);
-    va_end(args);
 
     // Newline and flush
     fprintf(stderr, "\n");
     fflush(stderr);
+}
 
+void manapi::debug::log_log(log_level type, const char *file, int line, const char *fmt, ...) MANAPIHTTP_NOEXPECT {
+    va_list args;
+    va_start(args, fmt);
+    log_log_(type, LOG_TRACE_HIGH, file, line, fmt, args);
+    va_end(args);
+}
+
+void manapi::debug::log_log(log_level type, const char *file, int line, int level, const char *fmt, ...) MANAPI_EV_NOEXPECT {
+    va_list args;
+    va_start(args, fmt);
+    log_log_(type, level, file, line, fmt, args);
+    va_end(args);
 }

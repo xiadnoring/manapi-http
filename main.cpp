@@ -95,7 +95,7 @@ private:
 
 
 int main () {
-    manapi::init_tools::log_trace_init();
+    manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_MEDIUM);
 
     int threads = 2;
     try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ManapiUtils.hpp"
+
 namespace manapi::debug {
 
 
@@ -11,6 +13,12 @@ namespace manapi::debug {
         LOG_ERROR,
         LOG_FATAL
     } log_level;
+
+    typedef enum {
+        LOG_TRACE_HIGH = 0,
+        LOG_TRACE_MEDIUM,
+        LOG_TRACE_LOW
+    } trace_level;
 
     static const char* level_strings[] = {
         "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
@@ -26,9 +34,11 @@ namespace manapi::debug {
     };
 #endif
 
-    extern bool log_trace_enabled;
+    extern int log_trace_enabled;
 
-    void log_log(log_level level, const char* file, int line, const char* fmt, ...) MANAPIHTTP_NOEXPECT;
+    void log_log(log_level type, const char* file, int line, const char* fmt, ...) MANAPIHTTP_NOEXPECT;
+
+    void log_log(log_level type, const char* file, int line, int level, const char* fmt, ...) MANAPIHTTP_NOEXPECT;
 
     // Convenience macros
 #define manapi_log_trace(...) manapi::debug::log_log(manapi::debug::LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)

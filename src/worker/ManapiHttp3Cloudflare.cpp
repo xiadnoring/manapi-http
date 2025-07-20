@@ -354,7 +354,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::quiche_timeout_again_(conne
 void manapi::net::worker::http_v3_cloudflare_quiche::connection_interface_eraser(connection *ptr) {
     auto const uptr = std::unique_ptr<manapi::net::worker::connection> (ptr);
     auto const p = uptr->as<connection_t>();
-    manapi_log_trace("quiche: close %p conn", p);
+    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "quiche: close %p conn", p);
     delete p;
 }
 
@@ -1028,7 +1028,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::force_close_(shared_conn co
         quiche_conn_stats(conn_data->conn, &stats);
         quiche_conn_path_stats(conn_data->conn, 0, &path_stats);
 
-        manapi_log_trace("quiche: connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu",
+        manapi_log_trace(debug::LOG_TRACE_MEDIUM, "quiche: connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu",
                 stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
         conn_data->worker->connections.erase(conn_data->cid);
