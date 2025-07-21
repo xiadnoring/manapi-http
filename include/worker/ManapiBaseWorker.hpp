@@ -130,7 +130,8 @@ namespace manapi::net::worker {
             CONN_IO_OK = 0,
             CONN_IO_ERROR = -1,
             CONN_IO_WANT_READ = -1000,
-            CONN_IO_WANT_WRITE = -1001
+            CONN_IO_WANT_WRITE = -1001,
+            CONN_IO_AGAIN = -1002,
         };
 
         base ();
@@ -152,8 +153,6 @@ namespace manapi::net::worker {
         virtual void init () = 0;
 
         virtual void close_connection (shared_conn conn, int flags) = 0;
-
-        virtual void configure_connection (const shared_conn &conn, oncont_cb cb) = 0;
 
         virtual ssize_t sync_write_ex (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) = 0;
 

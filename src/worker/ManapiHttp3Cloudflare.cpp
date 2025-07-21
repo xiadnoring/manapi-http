@@ -781,10 +781,6 @@ ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write_ex(const shar
     return res;
 }
 
-void manapi::net::worker::http_v3_cloudflare_quiche::configure_connection(const shared_conn &conn, oncont_cb cb)  {
-    cb.call(true);
-}
-
 int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_conn &conn) {
     return conn->as<connection_stream_t>()->flags & CONN_MASK_GETTING;
 }

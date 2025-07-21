@@ -10,15 +10,17 @@
 #include "ManapiHttpRequest.hpp"
 #include "ManapiHttpTypes.hpp"
 #include "ManapiHttpMime.hpp"
+#include "include/ManapiSiteInternal.hpp"
+#include "http/ManapiBaseHttp.hpp"
 
 void manapi::net::http::custom_data_deleter_t::operator()(custom_data_t *n) {
     if (n && n->clean)
         n->clean(n->src);
 }
 
-manapi::net::http::response::response(manapi::net::http::request_data_t * request_data, int status, http::config *config, std::unique_ptr<http::request> req):
+manapi::net::http::response::response(internal::handle_data_t *cdata, int status, http::config *config, std::unique_ptr<http::request> req):
     req_(std::move(req)), config_(config), status_code_(status) {
-    this->request_data_ = request_data;
+    this->cdata_ = cdata;
     this->type_ = internal::RESPONSE_NO_DATA;
     this->flags = 0;
     this->data_ = nullptr;
@@ -48,6 +50,9 @@ manapi::net::http::response::~response() {
         default:
             break;
     }
+
+    if (this->cdata_)
+        delete this->cdata_;
 }
 
 
@@ -186,8 +191,8 @@ std::string manapi::net::http::response::compress() {
 
 
     if ((this->flags & internal::RESPONSE_FLAG_COMPRESS_ENABLED)) {
-        auto it = this->request_data_->headers.find(HEADER.ACCEPT_ENCODING);
-        if (it != this->request_data_->headers.end()) {
+        auto it = this->cdata_->req_data->headers.find(HEADER.ACCEPT_ENCODING);
+        if (it != this->cdata_->req_data->headers.end()) {
 
             if (this->compress_) {
                 compress = *this->compress_;
@@ -217,8 +222,8 @@ void manapi::net::http::response::detect_ranges () {
         return;
     }
 
-    auto it = this->request_data_->headers.find(HEADER.RANGE);
-    if (it == this->request_data_->headers.end()) {
+    auto it = this->cdata_->req_data->headers.find(HEADER.RANGE);
+    if (it == this->cdata_->req_data->headers.end()) {
         return;
     }
 
@@ -286,12 +291,20 @@ manapi::net::http::response::resp_stream & manapi::net::http::response::callback
 }
 
 manapi::net::http::request_data_t * manapi::net::http::response::request_data() {
-    return this->request_data_;
+    return this->cdata_->req_data;
 }
 
 manapi::net::http::request * manapi::net::http::response::req() {
     assert(this->req_.get());
     return this->req_.get();
+}
+
+manapi::net::http::internal::handle_data_t * manapi::net::http::response::connection_data() MANAPI_EV_NOEXPECT {
+    return this->cdata_;
+}
+
+manapi::net::http::internal::handle_data_t * manapi::net::http::response::connection_data_release() MANAPI_EV_NOEXPECT {
+    return std::exchange(this->cdata_, nullptr);
 }
 
 void manapi::net::http::response::check_type_(int type) {

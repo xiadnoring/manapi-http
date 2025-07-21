@@ -41,8 +41,6 @@ namespace manapi::net::worker {
 
         void waiting(const shared_conn &conn, bool state) override;
 
-        void configure_connection (const shared_conn & connection, oncont_cb cb) override;
-
         void onaccept(const std::shared_ptr<ev::tcp> &watcher, int status);
 
         virtual void onrecv (const std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer);
@@ -73,9 +71,9 @@ namespace manapi::net::worker {
 
         bytebuffer recv_first_buffer(const shared_conn &conn) override;
     protected:
-        void read_start_ (connection_interface *data);
+        virtual void read_start_ (connection_interface *data);
 
-        void read_stop_ (connection_interface *data);
+        virtual void read_stop_ (connection_interface *data);
 
         virtual int flush_write_ (const shared_conn &connection, bool flush = false);
 

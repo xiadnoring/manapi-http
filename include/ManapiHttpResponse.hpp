@@ -13,6 +13,10 @@
 #include "http/ManapiHttpUtils.hpp"
 
 namespace manapi::net::http {
+    namespace internal {
+        struct handle_data_t;
+    }
+
     struct custom_data_t {
         void *src = nullptr;
         std::move_only_function <void(void *)> clean;
@@ -30,7 +34,7 @@ namespace manapi::net::http {
         using resp_stream = std::move_only_function<manapi::future<>(resp_stream_cb cb)>;
         using resp_proxy_setup_cb = std::move_only_function<void(class manapi::net::fetch &)>;
 
-        response (manapi::net::http::request_data_t *request_data, int status, http::config *config, std::unique_ptr<http::request> req);
+        response (internal::handle_data_t* cdata, int status, http::config *config, std::unique_ptr<http::request> req);
 
         ~response ();
 
@@ -133,6 +137,10 @@ namespace manapi::net::http {
         request_data_t *request_data ();
 
         http::request *req ();
+
+        internal::handle_data_t *connection_data () MANAPI_EV_NOEXPECT;
+
+        internal::handle_data_t *connection_data_release () MANAPI_EV_NOEXPECT;
     private:
         void check_type_ (int type);
 
@@ -158,11 +166,11 @@ namespace manapi::net::http {
         // custom data for layers
         std::unique_ptr<custom_data_t, custom_data_deleter_t> custom_data_;
 
-        manapi::net::http::request_data_t * request_data_;
-
         std::unique_ptr<std::vector<std::pair<std::string, std::string>>> replacers_;
 
         std::unique_ptr<http::request> req_;
+
+        internal::handle_data_t *cdata_;
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
         std::unique_ptr<std::move_only_function<void(class manapi::net::fetch &)>> proxy_setup;

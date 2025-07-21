@@ -112,10 +112,6 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags)
     this->callbacks->http_v2_rst_stream(conn, HTTP2_ERROR_REFUSED_STREAM);
 }
 
-void manapi::net::worker::http_v2::configure_connection(const shared_conn &conn, oncont_cb cb) {
-    cb.call(true);
-}
-
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) {
     auto const data = conn->as<http_v2_stream_base_t>();
     data->speed_min_delay = static_cast<int>(this->w->config()->speed_check_delay);

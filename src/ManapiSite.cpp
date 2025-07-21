@@ -663,9 +663,9 @@ manapi::net::http::site & manapi::net::http::site::operator=(const site &n) = de
 
 
 manapi::net::http::http_uri_part *manapi::net::http::site::handler(std::string method, std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    size_t  type            = URI_PAGE_DEFAULT;
+    size_t type = URI_PAGE_DEFAULT;
 
-    http_uri_part *cur      = build_uri_part(uri, type);
+    http_uri_part *cur = build_uri_part(uri, type);
 
     http_handler_function functions;
 

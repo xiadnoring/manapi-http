@@ -27,20 +27,20 @@ namespace manapi::net::http::internal {
     typedef std::unique_ptr<handle_data_t> uq_handle_data_t;
 
     std::string generate_default_page (int status, std::string_view msg);
-    void send_response (uq_handle_data_t cdata, std::unique_ptr<response> res);
-    future<void> send_response_file (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
-    future<void> send_response_text (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
-    future<void> send_response_proxy (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
-    future<void> send_response_formdata (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
-    void send_response_sync_cb (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
-    void send_response_stream_cb (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
-    void send_response_async_cb (uq_handle_data_t cdata, std::unique_ptr<response> res, response_features_t features);
-    future<int> mask_response (handle_data_t* cdata, response *res, bool finish);
-    void handle_income_request (uq_handle_data_t cdata, int status);
+    void send_response (std::unique_ptr<response> res);
+    future<void> send_response_file (std::unique_ptr<response> res, response_features_t features);
+    future<void> send_response_text (std::unique_ptr<response> res, response_features_t features);
+    future<void> send_response_proxy (std::unique_ptr<response> res, response_features_t features);
+    future<void> send_response_formdata (std::unique_ptr<response> res, response_features_t features);
+    void send_response_sync_cb (std::unique_ptr<response> res, response_features_t features);
+    void send_response_stream_cb (std::unique_ptr<response> res, response_features_t features);
+    void send_response_async_cb (std::unique_ptr<response> res, response_features_t features);
+    future<int> mask_response (response *res, bool finish);
+    void handle_income_request (uq_handle_data_t cdata,int status);
     void send_error_response (uq_handle_data_t cdata, int status = http::INTERNAL_SERVER_ERROR_500);
     //future<void> send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size, std::vector<replace_founded_item> replacers);
-    future<void> send_file(uq_handle_data_t cdata, filesystem::fstream f, ssize_t size);
-    future<void> send_text(uq_handle_data_t cdata, std::string text);
+    future<void> send_file(std::unique_ptr<response> res, filesystem::fstream f, ssize_t size);
+    future<void> send_text(std::unique_ptr<response> res, std::string text);
     void expect_header (uq_handle_data_t cdata);
 
     /**

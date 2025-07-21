@@ -17,19 +17,22 @@ namespace manapi::net::worker {
         static std::shared_ptr<worker::OpenSSL_TLS> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
         void stop(std::function<void()> cb) override;
     protected:
-        bool ssl_is_init_fininshed_ (void *ssl) override;
-        int ssl_get_error_ (void *ssl, int rhs) override;
-        int ssl_accept_ (void *ssl) override;
-        void *ssl_new_ (void *ctx) override;
-        int ssl_write_ (void *ssl, const void *buff, int size) override;
-        int ssl_read_ (void *ssl, void *buff, int size) override;
-        int ssl_shutdown_ (void *ssl) override;
-        void ssl_set_shutdown_(void *ssl, int flags) override;
-        void ssl_free_(void *ssl) override;
-        int ssl_bio_read_(void *wbio, void *buff, int size) override;
-        int ssl_bio_write_(void *rbio, const void *buff, int size) override;
-        int ssl_bio_should_retry_(void *bio) override;
-
+        bool ssl_is_init_fininshed_ (void *ssl) MANAPIHTTP_NOEXPECT override;
+        int ssl_get_error_ (void *ssl, int rhs) MANAPIHTTP_NOEXPECT override;
+        int ssl_accept_ (void *ssl) MANAPIHTTP_NOEXPECT override;
+        void *ssl_new_ (void *ctx) MANAPIHTTP_NOEXPECT override;
+        int ssl_write_ (void *ssl, const void *buff, int size) MANAPIHTTP_NOEXPECT override;
+        int ssl_read_ (void *ssl, void *buff, int size) MANAPIHTTP_NOEXPECT override;
+        int ssl_shutdown_ (void *ssl) MANAPIHTTP_NOEXPECT override;
+        void ssl_set_shutdown_(void *ssl, int flags) MANAPIHTTP_NOEXPECT override;
+        void ssl_free_(void *ssl) MANAPIHTTP_NOEXPECT override;
+        int ssl_bio_read_(void *wbio, void *buff, int size) MANAPIHTTP_NOEXPECT override;
+        int ssl_bio_write_(void *rbio, const void *buff, int size) MANAPIHTTP_NOEXPECT override;
+        int ssl_bio_should_retry_(void *bio) MANAPIHTTP_NOEXPECT override;
+        int ssl_get_early_data_status_(void *ssl) MANAPIHTTP_NOEXPECT override;
+        int ssl_read_early_data_(void *ssl, void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT override;
+        int ssl_write_early_data_(void *ssl, const void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT override;
+        uint32_t ssl_get_max_early_data_(void *ctx) MANAPIHTTP_NOEXPECT override;
         bool recv_setup_connection(connection_interface *storage) override;
         void* ssl_create_context (size_t version) override;
         void ssl_configure_context () override;

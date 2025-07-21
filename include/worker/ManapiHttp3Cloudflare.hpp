@@ -56,8 +56,6 @@ namespace manapi::net::worker {
 
         void close_connection(shared_conn conn, int flags) override;
 
-        void configure_connection(const shared_conn &conn, oncont_cb cb) override;
-
         int event_flags(const shared_conn &conn) override;
 
         int event_flags(const shared_conn &conn, int flags) override;

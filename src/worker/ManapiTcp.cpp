@@ -161,10 +161,6 @@ void manapi::net::worker::TCP::waiting(const shared_conn &conn, bool state) {
         d->status ^= CONN_IO_WAITING;
 }
 
-void manapi::net::worker::TCP::configure_connection(const worker::shared_conn &connection, oncont_cb cb) {
-    cb.call(true);
-}
-
 void manapi::net::worker::TCP::onaccept(const std::shared_ptr<ev::tcp> &watcher, int status) {
     if (status) {
         return;
@@ -685,14 +681,14 @@ manapi::bytebuffer manapi::net::worker::TCP::recv_first_buffer(const shared_conn
 void manapi::net::worker::TCP::read_start_(connection_interface *data) {
     if (!data->watcher || data->watcher->is_active() || data->transfered > this->config_->speed_limit_rate)
         return;
-    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_start()", data->watcher.get());
+    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_start()", data);
     assert(!data->watcher->read_start());
 }
 
 void manapi::net::worker::TCP::read_stop_(connection_interface *data) {
     if (!data->watcher || !data->watcher->is_active())
         return;
-    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_stop()", data->watcher.get());
+    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_stop()", data);
     assert(!data->watcher->read_stop());
 }
 
@@ -935,15 +931,15 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
     auto uptr = std::unique_ptr<worker::connection> (ptr);
     auto connection = std::unique_ptr<connection_interface> (uptr->as<connection_interface>());
 
-    auto const watcher = connection->watcher;
-
     if (connection->watcher) {
-        manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_stop()", watcher);
-        connection->watcher->read_stop();
+        if (connection->watcher->is_active()) {
+            manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_stop()", connection.get());
+            connection->watcher->read_stop();
+        }
         manapi::async::current()->eventloop()->stop_watcher(std::move(connection->watcher));
     }
 
-    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "TCP:Free TCP %p conn", watcher);
+    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "TCP:Free TCP %p conn", connection.get());
 
     auto const wrk = dynamic_cast<TCP*> (connection->worker);
     if (wrk) {
