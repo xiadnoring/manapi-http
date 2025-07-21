@@ -380,6 +380,8 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) {
         return;
     }
 
+    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:close_connection() %p flags=%d",connection, flags);
+
     conn->cancellation.cancel();
 
     if ((flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOF|CLOSE_CONN_SHUTDOWN))
@@ -733,7 +735,12 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
             if (current && current->next)
                 conn->top->send.deque = std::move(current->next);
 
-            ssize_t rhs = conn->watcher->try_write(s, conn->top->cur_send_size);
+            ssize_t rhs;
+            if (conn->top->cur_send_size == conn->top->send_size)
+                rhs = conn->watcher->try_write(s, conn->top->cur_send_size);
+            else
+                rhs = 0;
+
             if (request == rhs) {
                 conn->top->send_size -= conn->top->cur_send_size;
                 conn->top->cur_send_size = 0;
@@ -761,22 +768,24 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                 conn->top->cur_send_size -= cursor;
                 conn->top->send_size -= cursor;
 
-                std::unique_ptr<ev::buff_t, ev::buffer_deleter> sn (
-                    new ev::buff_t[conn->top->cur_send_size]);
-                auto const buffptr = sn.get();
-
-                for (std::size_t i = 0; i < conn->top->cur_send_size; i++) {
-                    buffptr[i] = s[i + cursor];
-                }
-
-                if (rhs && sent) {
-                    sent->buffer.shift_add(rhs);
-                    buffptr->base += rhs;
-                    buffptr->len -= rhs;
-                }
-
                 if (conn->top->cur_send_size
                     && (conn->top->cur_send_size >= this->config_->max_merge_buffer_stack || flush)) {
+
+                    std::unique_ptr<ev::buff_t, ev::buffer_deleter> sn (
+                        new ev::buff_t[conn->top->cur_send_size]);
+                    auto const buffptr = sn.get();
+
+                    for (std::size_t i = 0; i < conn->top->cur_send_size; i++) {
+                        buffptr[i] = s[i + cursor];
+                    }
+
+                    if (rhs && sent) {
+                        sent->buffer.shift_add(rhs);
+                        buffptr->base += rhs;
+                        buffptr->len -= rhs;
+                    }
+
+
                     auto w = manapi::async::current()->eventloop()
                         ->create_watcher_write(conn->watcher.get(), [connection, b = std::move(sent), s = std::move(sn)]
                             (const std::shared_ptr<ev::write> &w, int status)
@@ -810,13 +819,22 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                     conn->top->cur_send_size = 0;
                     }
                 else {
+                    if (rhs && sent) {
+                        sent->buffer.shift_add(rhs);
+                    }
+
                     if (sent) {
                         assert (current);
                         if (conn->top->send.last_deque) {
                             current->next = std::move(conn->top->send.deque);
                         }
+                        else {
+                            conn->top->send.last_deque = current;
+                            conn->top->send.deque_cursor = conn->top->send.last_deque->buffer.size();
+                            conn->top->send.last_deque->buffer.resize(current->buffer.realsize() - current->buffer.shift());
+                        }
+
                         conn->top->send.deque = std::move(sent);
-                        conn->top->send.last_deque = current;
                     }
                 }
             }

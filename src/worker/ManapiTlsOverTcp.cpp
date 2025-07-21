@@ -81,6 +81,8 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) {
     if (connection->status & CONN_REMOVED)
         return;
 
+    manapi_log_trace(debug::LOG_TRACE_LOW, "TLS:close_connection() %p flags=%d", connection, flags);
+
     if ((connection->status & CONN_TLS_SHUTDOWN)) {
         if ((flags & (CLOSE_CONN_EOF)))
             goto eof;
@@ -183,34 +185,43 @@ ssize_t manapi::net::worker::TLS::sync_write_ex(const shared_conn &conn, ev::buf
 
                 if (rhs > 0)
                     current += rhs;
+                else {
+                    int err = this->ssl_get_error_(connection->ssl, rhs);
 
-                int err = this->ssl_get_error_(connection->ssl, rhs);
+                    if (err) {
+                        if (err == this->ssl_error_want_read_
+                            || err == this->ssl_error_want_write_) {
+                            auto const erhs = this->ssl_bio_flush_write_(conn, connection, maxcnt);
 
-                if (err) {
-                    if (err == this->ssl_error_want_read_
-                        || err == this->ssl_error_want_write_) {
-                        auto const erhs = this->ssl_bio_flush_write_(conn, connection, maxcnt);
+                            if (erhs) {
+                                if (erhs == CONN_IO_WANT_WRITE) {
+                                    if (this->flush_write_(conn, true))
+                                        return CONN_IO_ERROR;
+                                    return total + current;
+                                }
 
-                        if (erhs) {
-                            if (erhs == CONN_IO_WANT_WRITE) {
-                                if (this->flush_write_(conn, true))
-                                    return CONN_IO_ERROR;
-                                return total + current;
+                                return CONN_IO_ERROR;
                             }
 
-                            return CONN_IO_ERROR;
-                        }
+                            if (this->flush_write_(conn, true))
+                                return CONN_IO_ERROR;
 
-                        if (this->flush_write_(conn, true))
-                            return CONN_IO_ERROR;
+                            if (err == this->ssl_error_want_read_)
+                                return total + current;
 
-                        if (err == this->ssl_error_want_read_)
-                            return total + current;
+                            continue;
+                            }
 
-                        continue;
+                        return CONN_IO_ERROR;
                     }
 
-                    return CONN_IO_ERROR;
+                    if (err == this->ssl_error_zero_return_) {
+                        this->close_connection(conn, CONN_TLS_SHUTDOWN);
+                        return CONN_IO_ERROR;
+                    }
+
+                    if (err == this->ssl_error_ssl_)
+                        return CONN_IO_ERROR;
                 }
             }
 
@@ -693,7 +704,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, TLS:
 
             if (rhs > 0) {
                 ssize_t alr = 0;
-                if (!m->top->send_size && rhs > 1e6) {
+                if (!m->top->send_size && rhs > 32) {
                     alr = m->watcher->try_write(fastfast, rhs);
                     if (alr < 0) {
                         if (alr == ev::ERR_AGAIN)

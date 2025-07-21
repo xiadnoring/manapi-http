@@ -978,9 +978,11 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
             // }
 
             assert(sv.size() == rhs);
-            if ((co_await cdata->worker->fwrite (cdata->conn, sv, !readsome)) <= 0)
+            if ((co_await cdata->worker->fwrite (cdata->conn, sv, !readsome)) <= 0) {
+                manapi_log_trace(debug::LOG_TRACE_MEDIUM, "send_file() %p failed due to %s", cdata->conn.get(), "fwrite() <= 0");
                 /* failed to send */
-                    goto err;
+                goto err;
+            }
 
             if ((rhs = co_await parallel.get_or(0)) <= 0) {
                 break;
@@ -996,7 +998,8 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
 
         co_return;
     }
-    catch (...) {
+    catch (std::exception const &e) {
+        manapi_log_trace(debug::LOG_TRACE_MEDIUM, "send_file() %p failed due to %s", cdata->conn.get(), e.what());
         error = std::current_exception();
     }
 
