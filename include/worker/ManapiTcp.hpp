@@ -27,7 +27,7 @@ namespace manapi::net::worker {
         };
 
         enum connection_status {
-            CONN_KEEP_ALIVE     = 256,
+            CONN_TCP_RESERVED     = 256,
             CONN_LIMIT_RATE     = 512,
         };
 

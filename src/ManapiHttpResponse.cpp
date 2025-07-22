@@ -307,6 +307,27 @@ manapi::net::http::internal::handle_data_t * manapi::net::http::response::connec
     return std::exchange(this->cdata_, nullptr);
 }
 
+void manapi::net::http::response::finish(std::unique_ptr<std::move_only_function<void(std::exception_ptr)>> cb) {
+    if (this->finish_cb)
+        THROW_MANAPIHTTP_EXCEPTION(ERR_ALREADY_EXISTS, "finish callback already exists");
+    this->finish_cb = std::move(cb);
+}
+
+void manapi::net::http::response::finish() MANAPIHTTP_NOEXPECT {
+    if (!this->finish_cb)
+        return;
+
+    try {
+        auto cb = std::move(*this->finish_cb);
+        this->finish_cb.reset();
+
+        cb(nullptr);
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "response finish failed", e.what());
+    }
+}
+
 void manapi::net::http::response::check_type_(int type) {
     if (this->type_ != type || !this->data_) {
         THROW_MANAPIHTTP_EXCEPTION (ERR_INVALID_ARGUMENT, "data is missing in the response. type = {}", static_cast<int>(this->type_));

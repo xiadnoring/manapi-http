@@ -328,9 +328,6 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
 
         conn->top = std::make_unique<connection_io>();
 
-        if (this->config_->keep_alive)
-            conn->status |= CONN_KEEP_ALIVE;
-
         auto const sn = reinterpret_cast <sockaddr *>(connection->ipdata->client.data);
         arr[0] = static_cast<char>(http::version_ip_by_addr (sn));
         http::ip_by_addr(sn, arr.data() + 1);
@@ -386,11 +383,10 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) {
 
     if ((flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOF|CLOSE_CONN_SHUTDOWN))
         || !this->config_->keep_alive
-        || !(connection->status & CONN_KEEP_ALIVE)) {
+        || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)) {
 
-        if (connection->status & CONN_KEEP_ALIVE) {
-            connection->status ^= CONN_KEEP_ALIVE;
-        }
+        if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
+            conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
 
         connection->status |= CONN_REMOVED|CONN_CLOSED;
 
@@ -477,8 +473,6 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) {
             }));
 
         conn->cancellation.reset();
-
-        connection->status |= CONN_KEEP_ALIVE;
 
         if (connection->t) {
             connection->t.stop();
@@ -895,9 +889,8 @@ void manapi::net::worker::TCP::timeout_(shared_conn conn) {
 
     data->status |= (ev::DISCONNECT);
 
-    if (data->status & CONN_KEEP_ALIVE) {
-        data->status ^= CONN_KEEP_ALIVE;
-    }
+    if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
+        conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
 
     this->close_connection(conn, CLOSE_CONN_ERR);
 }

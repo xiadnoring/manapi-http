@@ -8,15 +8,15 @@
 #include <future>
 #include <functional>
 
-#include "ManapiUtils.hpp"
-#include "ManapiHttpConfig.hpp"
-#include "ManapiUtils.hpp"
-#include "ManapiJson.hpp"
+#include "../ManapiUtils.hpp"
+#include "../ManapiHttpConfig.hpp"
+#include "../ManapiUtils.hpp"
+#include "../ManapiJson.hpp"
 #include "ManapiSite.hpp"
-#include "http/ManapiSiteCtx.hpp"
-#include "services/ManapiTask.hpp"
-#include "worker/ManapiBaseWorker.hpp"
-#include "http/ManapiBaseHttp.hpp"
+#include "ManapiSiteCtx.hpp"
+#include "../services/ManapiTask.hpp"
+#include "../worker/ManapiBaseWorker.hpp"
+#include "ManapiBaseHttp.hpp"
 
 namespace manapi::net {
     class http_pool {

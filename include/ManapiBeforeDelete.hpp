@@ -8,6 +8,7 @@
 #pragma once
 
 #include <functional>
+#include "ManapiDebug.hpp"
 #include "ManapiUtils.hpp"
 
 namespace manapi {
@@ -89,14 +90,24 @@ namespace manapi {
         }
 
         ~vbefore_delete() {
-            if (this->f) { auto cb = std::move(this->f); cb(v); }
+            try {
+                if (this->f) { auto cb = std::move(this->f); cb(v); }
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("%s due to %s", "vbefore_delete failed", e.what());
+            }
         }
 
         /**
          * Call the callback and remove it
          */
         void call (T n) {
-            if (this->f) { auto cb = std::move(this->f); cb(std::move(n)); }
+            try {
+                if (this->f) { auto cb = std::move(this->f); cb(std::move(n)); }
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("%s due to %s", "vbefore_delete failed", e.what());
+            }
         }
 
         vbefore_delete (vbefore_delete &&n) noexcept = default;

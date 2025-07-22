@@ -281,10 +281,9 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiHash.hpp
         include/services/ManapiFetch.hpp
         include/services/ManapiTimerPool.hpp
-        include/ManapiHttpPool.hpp
+        include/http/ManapiHttpPool.hpp
         include/ManapiJsonMask.hpp
-        include/ManapiSite.hpp
-        include/ManapiSite.hpp
+        include/http/ManapiSite.hpp
         include/ManapiHttpConfig.hpp
         include/ext/ManapiJsonWebTokenTraits.hpp
         include/ext/ManapiJsonWebTokenDefaults.hpp
@@ -319,9 +318,9 @@ set(MANAPIHTTP_HTTP_FILES
         src/services/ManapiTaskFunction.cpp
         src/services/ManapiFetch.cpp
         src/ManapiJsonMask.cpp
-        src/ManapiHttpPool.cpp
+        src/http/ManapiHttpPool.cpp
         src/services/ManapiTimerPool.cpp
-        src/ManapiSite.cpp
+        src/http/ManapiSite.cpp
         src/ManapiHttpConfig.cpp
         src/ManapiUnicode.cpp
         src/ManapiJsonBuilder.cpp

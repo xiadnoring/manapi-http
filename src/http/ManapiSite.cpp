@@ -1,36 +1,40 @@
 #include "ManapiFilesystem.hpp"
-#include "ManapiSite.hpp"
+#include "http/ManapiSite.hpp"
 
 #include "encoding/ManapiUnicode.hpp"
 #include "worker/ManapiBaseWorker.hpp"
 #include "worker/ManapiTcp.hpp"
 #include "worker/ManapiOpenSslOverTcp.hpp"
-#include "include/ManapiUtils.hpp"
+#include "../include/ManapiUtils.hpp"
 
 #include "services/ManapiTaskFunction.hpp"
 #include "services/ManapiThreadPool.hpp"
 #include "worker/ManapiHttp3Cloudflare.hpp"
 #include "worker/ManapiWolfSslOverTcp.hpp"
-#include "include/ManapiSiteInternal.hpp"
+#include "../include/ManapiSiteInternal.hpp"
 #include "ManapiHttpResponse.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "async/ManapiEasyCancellation.hpp"
-#include "include/worker/ManapiNgHttp2Interface.hpp"
+#include "../include/worker/ManapiNgHttp2Interface.hpp"
 #include "worker/ManapiHttp1Interface.hpp"
 #include "worker/ManapiHttp2Interface.hpp"
 
-namespace manapi::net {
-    namespace worker {
-        struct wrk_http2_ctx_global_t;
-    }
-
-    // default, +error, +layout in url
-    enum uri_page_type {
-        URI_PAGE_DEFAULT    = 0,
-        URI_PAGE_ERROR      = 1,
-        URI_PAGE_LAYER      = 2
-    };
+namespace manapi::net::worker {
+    struct wrk_http2_ctx_global_t;
 }
+
+// default, +error, +layout in url
+enum uri_page_type {
+    URI_PAGE_DEFAULT    = 0,
+    URI_PAGE_ERROR      = 1,
+    URI_PAGE_LAYER      = 2
+};
+
+enum handler_template_types {
+    HANDLER_TEMPLATE_NONE_TYPE = 0,
+    HANDLER_TEMPLATE_SYNC_CB_TYPE,
+    HANDLER_TEMPLATE_ASYNC_CB_TYPE
+};
 
 manapi::net::http::http_handler_function manapi::net::http::site::default_error_handler
     = {
@@ -41,7 +45,82 @@ manapi::net::http::http_handler_function manapi::net::http::site::default_error_
     .get_mask = nullptr,
 };
 
-std::string_view manapi::net::http::site::default_config_name      = "config_.json";
+std::string_view manapi::net::http::site::default_config_name = "config_.json";
+
+manapi::net::http::handler_template_t::handler_template_t() : handler_template_t(nullptr) {}
+
+manapi::net::http::handler_template_t::handler_template_t(const nullptr_t &n) {
+    this->type = HANDLER_TEMPLATE_NONE_TYPE;
+    this->data = nullptr;
+}
+
+manapi::net::http::handler_template_t::handler_template_t(handler_template_t &&n) MANAPIHTTP_NOEXPECT {
+    this->type = n.type;
+    this->data = n.data;
+
+    n.data = nullptr;
+    n.type = HANDLER_TEMPLATE_NONE_TYPE;
+}
+
+manapi::net::http::handler_template_t & manapi::net::http::handler_template_t::operator=( handler_template_t &&n) MANAPIHTTP_NOEXPECT {
+    this->type = n.type;
+    this->data = n.data;
+
+    n.data = nullptr;
+    n.type = HANDLER_TEMPLATE_NONE_TYPE;
+    return *this;
+}
+
+manapi::net::http::handler_template_t::handler_template_t(http::async_handler_t cb) {
+    auto s = std::make_unique<async_handler_t>(std::move(cb));
+    this->type = HANDLER_TEMPLATE_ASYNC_CB_TYPE;
+    this->data = s.release();
+}
+
+manapi::net::http::handler_template_t::handler_template_t(http::sync_handler_t cb) {
+    auto s = std::make_unique<sync_handler_t>(std::move(cb));
+    this->type = HANDLER_TEMPLATE_SYNC_CB_TYPE;
+    this->data = s.release();
+}
+
+manapi::net::http::handler_template_t::~handler_template_t() {
+    switch (this->type) {
+        case HANDLER_TEMPLATE_NONE_TYPE: break;
+        case HANDLER_TEMPLATE_SYNC_CB_TYPE:
+            delete static_cast<sync_handler_t *> (this->data);
+        break;
+        case HANDLER_TEMPLATE_ASYNC_CB_TYPE:
+            delete static_cast<async_handler_t *>(this->data);
+        break;
+        default:
+            break;
+    }
+}
+
+bool manapi::net::http::handler_template_t::is_async_cb() const MANAPIHTTP_NOEXPECT {
+    return this->type == HANDLER_TEMPLATE_ASYNC_CB_TYPE;
+}
+
+bool manapi::net::http::handler_template_t::is_sync_cb() const MANAPIHTTP_NOEXPECT {
+    return this->type == HANDLER_TEMPLATE_SYNC_CB_TYPE;
+}
+
+manapi::error::status_or<manapi::net::http::async_handler_t *> manapi::net::http::handler_template_t::async_cb() MANAPIHTTP_NOEXPECT {
+    if (this->type == HANDLER_TEMPLATE_ASYNC_CB_TYPE)
+        return static_cast<async_handler_t *>(this->data);
+    return error::status_not_found("async cb not found");
+}
+
+manapi::error::status_or<manapi::net::http::sync_handler_t *> manapi::net::http::handler_template_t::sync_cb() MANAPIHTTP_NOEXPECT {
+    if (this->type == HANDLER_TEMPLATE_SYNC_CB_TYPE)
+        return static_cast<sync_handler_t *>(this->data);
+    return error::status_not_found("sync cb not found");
+}
+
+manapi::net::http::handler_template_t::operator bool() const MANAPIHTTP_NOEXPECT {
+    return this->type != HANDLER_TEMPLATE_NONE_TYPE && this->data;
+}
+
 
 // ======================[ configs funcs]==========================
 

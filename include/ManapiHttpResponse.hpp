@@ -141,6 +141,10 @@ namespace manapi::net::http {
         internal::handle_data_t *connection_data () MANAPI_EV_NOEXPECT;
 
         internal::handle_data_t *connection_data_release () MANAPI_EV_NOEXPECT;
+
+        void finish (std::unique_ptr<std::move_only_function<void(std::exception_ptr)>> cb);
+
+        void finish () MANAPIHTTP_NOEXPECT;
     private:
         void check_type_ (int type);
 
@@ -151,11 +155,11 @@ namespace manapi::net::http {
 
         http::config *config_;
 
-        int type_;
+        uint8_t type_;
 
         int status_code_;
 
-        int flags;
+        uint8_t flags;
 
         std::unique_ptr<std::string> compress_;
 
@@ -171,6 +175,8 @@ namespace manapi::net::http {
         std::unique_ptr<http::request> req_;
 
         internal::handle_data_t *cdata_;
+
+        std::unique_ptr<std::move_only_function<void(std::exception_ptr err)>> finish_cb;
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
         std::unique_ptr<std::move_only_function<void(class manapi::net::fetch &)>> proxy_setup;

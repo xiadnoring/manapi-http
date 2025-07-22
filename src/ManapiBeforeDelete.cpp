@@ -12,9 +12,12 @@ manapi::before_delete::before_delete(before_delete &&n) noexcept {
 }
 
 manapi::before_delete::~before_delete() {
-    if (this->f && this->autostart)
-    {
-        this->f();
+    try {
+        if (this->f && this->autostart)
+            this->f();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "before_delete failed", e.what());
     }
 }
 
@@ -25,11 +28,16 @@ manapi::before_delete & manapi::before_delete::operator=(before_delete &&n) noex
 }
 
 void manapi::before_delete::call () {
-    this->disable();
+    try {
+        this->disable();
 
-    if (this->f) {
-        auto cb = std::move(this->f);
-        cb();
+        if (this->f) {
+            auto cb = std::move(this->f);
+            cb();
+        }
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "before_delete failed", e.what());
     }
 }
 
@@ -48,18 +56,28 @@ manapi::sbefore_delete::sbefore_delete(std::move_only_function<void()> f) {
 manapi::sbefore_delete::sbefore_delete(sbefore_delete &&n) noexcept = default;
 
 manapi::sbefore_delete::~sbefore_delete() {
-    if (this->f) {
-        auto cb = std::move(this->f);
-        cb();
+    try {
+        if (this->f) {
+            auto cb = std::move(this->f);
+            cb();
+        }
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "sbefore_delete failed", e.what());
     }
 }
 
 manapi::sbefore_delete & manapi::sbefore_delete::operator=(sbefore_delete &&n) noexcept = default;
 
 void manapi::sbefore_delete::call() {
-    if (this->f) {
-        auto cb = std::move(this->f);
-        cb();
+    try {
+        if (this->f) {
+            auto cb = std::move(this->f);
+            cb();
+        }
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "sbefore_delete failed", e.what());
     }
 }
 

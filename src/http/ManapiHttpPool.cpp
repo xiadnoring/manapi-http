@@ -12,11 +12,11 @@
 #include <thread>
 #include <unordered_map>
 #include <fcntl.h>
-#include "include/ManapiUtils.hpp"
-#include "ManapiHttpPool.hpp"
+#include "../include/ManapiUtils.hpp"
+#include "../../include/http/ManapiHttpPool.hpp"
 #include "services/ManapiTaskFunction.hpp"
 #include "http/ManapiHttp1.hpp"
-#include <http/ManapiHttp2.hpp>
+#include "http/ManapiHttp2.hpp"
 
 #include "worker/ManapiHttp1Interface.hpp"
 

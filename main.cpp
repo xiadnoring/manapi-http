@@ -95,7 +95,7 @@ private:
 
 
 int main () {
-    manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_LOW);
+    manapi::init_tools::log_trace_init((manapi::debug::trace_level)std::stoi(manapi::process::get_env("MANAPIHTTP_LOGTRACE").unwrap()));
 
     int threads = 2;
     try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }
@@ -182,13 +182,25 @@ int main () {
             co_return resp.file(manapi::filesystem::path::join(folder, "index.html"));
         });
 
-        router.GET("/stat", [server_ctx] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
-            co_return resp.text(std::to_string(server_ctx.storage().as<manapi::net::http::server_ctx::worker_data_t>()->count.load()));
+        router.GET("/stat", [server_ctx, &a] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
+            co_return resp.text(std::format("online: {} requests: {}",
+                server_ctx.storage().as<manapi::net::http::server_ctx::worker_data_t>()->count.load(),
+                a.load()));
         });
 
-        router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
-            -> manapi::future<> {
-            co_return resp.text("");
+        router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response *resp)
+            -> void {
+            a.fetch_add(1);
+            resp->text("");
+            resp->finish();
+        });
+
+        router.GET ("/timer", [&a] (manapi::net::http::request &req, manapi::net::http::response *resp)
+            -> void {
+            manapi::async::current()->timerpool()->append_timer_sync(1500,
+                [resp] (manapi::timer t) -> void {
+                    resp->finish();
+            });
         });
 
         router.GET ("/free", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)

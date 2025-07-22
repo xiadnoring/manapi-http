@@ -97,13 +97,12 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) {
             (flags & (CLOSE_CONN_SHUTDOWN))
             || (!flags
                 && (!this->config_->keep_alive
-                    || !(connection->status & CONN_KEEP_ALIVE)
+                    || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
                     )
                 ))) {
 
-        if (connection->status & CONN_KEEP_ALIVE) {
-            connection->status ^= CONN_KEEP_ALIVE;
-        }
+        if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
+            conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
 
         if (connection->ev_callback) {
             auto cb = std::move(connection->ev_callback);

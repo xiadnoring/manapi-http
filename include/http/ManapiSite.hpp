@@ -12,16 +12,16 @@
 #include <list>
 #include <set>
 
-#include "ManapiUtils.hpp"
-#include "ManapiAsync.hpp"
-#include "ManapiJson.hpp"
-#include "ManapiJsonMask.hpp"
-#include "compress/ManapiCompress.hpp"
+#include "../ManapiUtils.hpp"
+#include "../ManapiAsync.hpp"
+#include "../ManapiJson.hpp"
+#include "../ManapiJsonMask.hpp"
+#include "../compress/ManapiCompress.hpp"
 
-#include "async/ManapiAsyncMutex.hpp"
-#include "http/ManapiHttpUtils.hpp"
-#include "ManapiHttpConfig.hpp"
-#include "http/ManapiSiteCtx.hpp"
+#include "../async/ManapiAsyncMutex.hpp"
+#include "ManapiHttpUtils.hpp"
+#include "../ManapiHttpConfig.hpp"
+#include "ManapiSiteCtx.hpp"
 
 namespace manapi::net::worker {
     class base;
@@ -34,7 +34,9 @@ namespace manapi::net::http {
 }
 
 namespace manapi::net::http {
-    typedef std::move_only_function <future<void>(manapi::net::http::request &req, manapi::net::http::response &res)> handler_template_t;
+    typedef std::move_only_function <future<>(manapi::net::http::request &req, manapi::net::http::response &res)> async_handler_t;
+
+    typedef std::move_only_function <void (manapi::net::http::request &req, manapi::net::http::response *res)> sync_handler_t;
 
     struct http_handler_function;
 
@@ -44,18 +46,55 @@ namespace manapi::net::http {
 
     struct http_handler_page;
 
-    typedef std::map<std::string, std::unique_ptr<http_uri_part>>   handlers_map_t;
+    typedef std::map<std::string, std::unique_ptr<http_uri_part>> handlers_map_t;
 
-    typedef std::pair<std::regex, std::unique_ptr<http_uri_part>>   handlers_regex_pair_t;
+    typedef std::pair<std::regex, std::unique_ptr<http_uri_part>> handlers_regex_pair_t;
 
-    typedef std::map<std::string, handlers_regex_pair_t>            handlers_regex_map_t;
+    typedef std::map<std::string, handlers_regex_pair_t> handlers_regex_map_t;
 
-    typedef std::vector<std::string>                                handlers_regex_titles_t;
+    typedef std::vector<std::string> handlers_regex_titles_t;
 
-    typedef std::map <std::string, http_static_handler_function>    handlers_static_types_t;
+    typedef std::map <std::string, http_static_handler_function> handlers_static_types_t;
 
-    typedef std::map <std::string, http_handler_function>           handlers_types_t;
+    typedef std::map <std::string, http_handler_function> handlers_types_t;
 
+    class handler_template_t {
+    public:
+        handler_template_t ();
+
+        handler_template_t (const nullptr_t &n);
+
+        handler_template_t (handler_template_t &&n) MANAPIHTTP_NOEXPECT;
+
+        handler_template_t&operator=(handler_template_t &&n) MANAPIHTTP_NOEXPECT;
+
+        template<typename func>
+        requires(!std::is_function_v<func> && std::is_convertible_v<func, async_handler_t>)
+        handler_template_t (func a) : handler_template_t (async_handler_t(std::move(a))) {}
+
+        template<typename func>
+        requires(!std::is_function_v<func> && std::is_convertible_v<func, sync_handler_t>)
+        handler_template_t (func a) : handler_template_t (sync_handler_t(std::move(a))) {}
+
+        explicit handler_template_t (http::async_handler_t cb);
+
+        explicit handler_template_t (http::sync_handler_t cb);
+
+        ~handler_template_t();
+
+        MANAPIHTTP_NODISCARD bool is_async_cb () const MANAPIHTTP_NOEXPECT;
+
+        MANAPIHTTP_NODISCARD bool is_sync_cb () const MANAPIHTTP_NOEXPECT;
+
+        manapi::error::status_or<http::async_handler_t*> async_cb () MANAPIHTTP_NOEXPECT;
+
+        manapi::error::status_or<http::sync_handler_t*> sync_cb () MANAPIHTTP_NOEXPECT;
+
+        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXPECT;
+    private:
+        int type;
+        void *data;
+    };
 
     class site {
     public:

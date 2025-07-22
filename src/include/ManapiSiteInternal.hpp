@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ManapiSite.hpp"
+#include "../../include/http/ManapiSite.hpp"
 
 struct manapi::net::http::http_uri_part {
     std::unique_ptr<handlers_map_t>             map = nullptr;

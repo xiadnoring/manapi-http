@@ -285,11 +285,12 @@ exec:
             }
 
             w->waiting(conn, false);
+
             it_header = req_ptr->headers.find(manapi::net::http::HEADER.TRANSFER_ENCODING);
             if (it_header != req_ptr->headers.end()) {
                 auto const values = manapi::net::http::parse_header_value(it_header->second);
                 for (const auto &v : values) {
-                    if (manapi::string::equals(v.value, "chunked", 0b11)) {
+                    if (manapi::string::equals(v.value, "chunked", 0b10)) {
                         wrk_data->flgs |= HTTP1_BODY_CHUNKED;
                         conn->wrk.flags |= manapi::net::worker::WRK_INTERFACE_CUSTOM_READ;
                         wrk_data->chunked_ctx = std::make_unique<manapi::net::http::http_v1_1_chunked_t>();
@@ -300,6 +301,31 @@ exec:
                     goto send_error;
                 }
             }
+
+            it_header = req_ptr->headers.find(manapi::net::http::HEADER.CONNECTION);
+            if (it_header !=  req_ptr->headers.end()) {
+                auto const values = manapi::net::http::parse_header_value(it_header->second);
+
+                bool keep_alive_ = false;
+                bool close_ = false;
+
+                for (const auto &v : values) {
+                    if (manapi::string::equals(v.value, "keep-alive", 0b10))
+                        keep_alive_ = true;
+                    else if (manapi::string::equals(v.value, "close", 0b10))
+                        close_ = true;
+                    else
+                        goto send_error;
+                }
+
+                if (keep_alive_ & close_)
+                    goto send_error;
+
+                if (keep_alive_ || !close_)
+                    conn->wrk.flags |= manapi::net::worker::WRK_INTERFACE_TCP_KEEP_ALIVE;
+            }
+            else
+                conn->wrk.flags |= manapi::net::worker::WRK_INTERFACE_TCP_KEEP_ALIVE;
 
             auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(conn,
                 dynamic_cast<manapi::net::worker::interface_worker *>(w)->copy(), req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(

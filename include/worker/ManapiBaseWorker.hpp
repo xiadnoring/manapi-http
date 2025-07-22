@@ -4,7 +4,7 @@
 #include <functional>
 
 #include "../ManapiHttpConfig.hpp"
-#include "../ManapiSite.hpp"
+#include "../http/ManapiSite.hpp"
 
 namespace manapi::net::worker {
     struct sockaddr_st {
@@ -19,7 +19,8 @@ namespace manapi::net::worker {
     enum wrk_interface_flags {
         WRK_INTERFACE_CUSTOM_READ = 1,
         WRK_INTERFACE_CUSTOM_RATE_LIMIT = 2,
-        WRK_INTERFACE_CONN_RETRY = 4
+        WRK_INTERFACE_CONN_RETRY = 4,
+        WRK_INTERFACE_TCP_KEEP_ALIVE = 8
     };
 
     enum close_flags_t {

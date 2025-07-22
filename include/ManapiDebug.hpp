@@ -15,7 +15,8 @@ namespace manapi::debug {
     } log_level;
 
     typedef enum {
-        LOG_TRACE_HIGH = 0,
+        LOG_TRACE_NONE = 0,
+        LOG_TRACE_HIGH,
         LOG_TRACE_MEDIUM,
         LOG_TRACE_LOW
     } trace_level;

@@ -751,13 +751,88 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
     return manapi::ERR_OK;
 }
 
+manapi::error::status execute_user_callback (manapi::net::http::handler_template_t &handle, manapi::net::http::request *req,
+    manapi::net::http::response *resp, std::move_only_function<void(std::exception_ptr err)> after_work) {
+
+    if (handle.is_async_cb()) {
+        auto err = handle.async_cb();
+        if (!err.ok())
+            return err.err();
+        manapi::async::run(err.unwrap()->operator()(*req, *resp), std::move(after_work));
+    }
+    else if (handle.is_sync_cb()) {
+        auto err = handle.sync_cb();
+        if (!err.ok())
+            return err.err();
+
+        auto after_work_uq = std::make_unique<decltype(after_work)>(std::move(after_work));
+        resp->finish(std::move(after_work_uq));
+
+        err.unwrap()->operator()(*req, resp);
+    }
+
+    return manapi::error::status_ok();
+}
+
 namespace manapi::net::http::internal {
+    void handle_income_request_err_ (std::unique_ptr<response> res, std::exception_ptr err) {
+        uq_handle_data_t cdata (res->connection_data_release());
+        std::string msg;
+        manapi::extract_exception_ptr(std::move(err), nullptr, &msg);
+        manapi::async::current()->logger()->error(manapi::logger::default_service,
+            manapi::ERR_INTERNAL, "an error occurred while processing the HTTP request due to {}", msg);
+        cdata->router = std::move(cdata->router->error);
+        send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
+        return;
+    }
+    void handle_income_request_next_ (handler_template_t *handler, std::unique_ptr<response> res, int index) {
+        auto const cdata_ptr = res->connection_data();
+        auto const res_ptr = res.get();
+
+        auto &layer = cdata_ptr->router->layer;
+        if (index >= 0 && index < layer.size()) {
+            execute_user_callback (layer[index]->handler, res_ptr->req(), res_ptr,
+                [handler, res = std::move(res), index = index + 1] (std::exception_ptr err) mutable -> void {
+                    if (err)
+                        return handle_income_request_err_(std::move(res), std::move(err));
+
+                    if (!res->req()->propagation())
+                        // skip other layers and handlers
+                        send_response(std::move(res));
+                    else
+                        handle_income_request_next_(handler, std::move(res), index);
+            });
+
+            return;
+        }
+
+
+        if (handler) {
+            execute_user_callback (*handler, res_ptr->req(), res_ptr,
+            [res = std::move(res)] (std::exception_ptr err) mutable -> void {
+                    if (err)
+                        return handle_income_request_err_(std::move(res), std::move(err));
+
+                    try {
+                        send_response(std::move(res));
+                    }
+                    catch (const std::exception &e) {
+                        MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+                    }
+            });
+        }
+        else {
+            send_response (std::move(res));
+        }
+    }
+
     void handle_income_request_(uq_handle_data_t cdata, int status) {
         try {
             // handler function not be found
             if (!cdata->router->handler) {
                 // check exists static folder/file
                 if (cdata->router->statics) {
+
                     // if statics exists
                     std::string path;
 
@@ -798,36 +873,17 @@ namespace manapi::net::http::internal {
                                     co_return;
                                 }
 
+                                auto const handler = (cdata->router->statics->layer
+                                    && cdata->router->statics->layer->handler) ? &cdata->router->statics->layer->handler : nullptr;
+
                                 auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
                                 auto res = std::make_unique<http::response> (cdata.release(), status, cdata->worker->config(), std::move(req));
-                                auto const cdata_ptr = res->connection_data();
-                                // handle layers
-                                for (auto &layer: cdata_ptr->router->layer) {
-                                    co_await layer->handler(*res->req(), *res);
-
-                                    if (!req->propagation()) {
-                                        // skip other layers and handlers
-                                        break;
-                                    }
-                                }
 
                                 res->compress_enabled(!binary);
                                 res->partial_enabled(binary);
                                 res->file(path);
 
-                                if (cdata_ptr->router->statics->layer
-                                    && cdata_ptr->router->statics->layer->handler) {
-                                    co_await cdata_ptr->router->statics->layer->handler (*res->req(), *res);
-                                }
-
-                                try {
-                                    send_response(std::move(res));
-                                    co_return;
-                                }
-                                catch (const std::exception &e) {
-                                    MANAPIHTTP_LOG("Unexpected error: {}", e.what());
-                                    co_return;
-                                }
+                                handle_income_request_next_ (handler, std::move(res), 0);
                             }
 
                             else if (st_mode & (ev::IFDIR|ev::IFCHR|ev::IFBLK|ev::IFSOCK)) {
@@ -864,42 +920,15 @@ namespace manapi::net::http::internal {
                 cdata->worker.get(), cdata->conn.get())) {
                 /* error */
                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "stringify_ip(): ip get failed");
-                }
+            }
+
+            auto handler = &cdata->router->handler->handler;
 
             auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
             auto res = std::make_unique<http::response> (cdata.release(), status, cdata->worker->config(), std::move(req));
-            auto const cdata_ptr = res->connection_data();
-            auto task = [res = res.get(), data = cdata_ptr->router.get()] () -> future<> {
 
-                // handle layers
-                for (const auto &layer: data->layer) {
-                    co_await layer->handler(*res->req(), *res);
+            handle_income_request_next_ (handler, std::move(res), 0);
 
-                    if (!res->req()->propagation()) {
-                        // skip other layers and handlers
-                        break;
-                    }
-                }
-
-                co_await data->handler->handler(*res->req(), *res);
-            };
-
-            manapi::async::run( std::move(task),
-                [res = std::move(res)] (std::exception_ptr err) mutable
-                    -> void {
-                    if (err) {
-                        uq_handle_data_t cdata (res->connection_data_release());
-                        std::string msg;
-                        manapi::extract_exception_ptr(std::move(err), nullptr, &msg);
-                        manapi::async::current()->logger()->error(manapi::logger::default_service,
-                            manapi::ERR_INTERNAL, "an error occurred while processing the HTTP request due to {}", msg);
-                        cdata->router = std::move(cdata->router->error);
-                        send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
-                        return;
-                    }
-
-                    internal::send_response(std::move(res));
-                });
             return;
         }
         catch (const manapi::exception &e) {

@@ -10,10 +10,10 @@
 #include <future>
 
 #include "ManapiUtils.hpp"
-#include "ManapiSite.hpp"
+#include "http/ManapiSite.hpp"
 #include "services/ManapiThreadPool.hpp"
 #include "ManapiJsonMask.hpp"
-#include "ManapiHttpPool.hpp"
+#include "http/ManapiHttpPool.hpp"
 #include "services/ManapiTimerPool.hpp"
 
 #include "ManapiHttpResponse.hpp"

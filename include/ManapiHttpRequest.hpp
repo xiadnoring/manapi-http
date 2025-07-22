@@ -12,7 +12,7 @@
 #include "ManapiJsonMask.hpp"
 #include "components/ManapiFormData.hpp"
 #include "http/ManapiHttpUtils.hpp"
-#include "ManapiSite.hpp"
+#include "http/ManapiSite.hpp"
 #include "worker/ManapiBaseWorker.hpp"
 
 namespace manapi::net::http {
