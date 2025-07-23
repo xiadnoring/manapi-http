@@ -79,8 +79,8 @@ std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::wor
     return std::move(worker);
 }
 
-void manapi::net::worker::http_v3_cloudflare_quiche::init() {
-    udp::init();
+void manapi::net::worker::http_v3_cloudflare_quiche::init(std::size_t deep) {
+    udp::init(deep + 1);
 
     auto const verify_peer = this->config_->get_config_param<bool>(this->config_->ssl, "verify_peer", true);
     auto const cert = this->config_->get_config_param<std::string>(this->config_->ssl, "cert", {});

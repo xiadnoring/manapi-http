@@ -459,6 +459,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/include/ManapiEventStructuresInternal.hpp
         include/ext/ManapiMustache.hpp
         src/include/ManapiSiteInternal.hpp
+        src/include/worker/ManapiQuicOpenSsl.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

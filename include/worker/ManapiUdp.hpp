@@ -13,7 +13,7 @@ namespace manapi::net::worker {
     public:
         explicit udp(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
         ~udp() override;
-        void init() override;
+        void init(std::size_t deep) override;
         void stop(std::function<void()> cb) override;
         virtual void onrecv (const std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) = 0;
     protected:

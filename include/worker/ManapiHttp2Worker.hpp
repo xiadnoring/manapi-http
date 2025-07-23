@@ -69,7 +69,7 @@ namespace manapi::net::worker {
 
         std::unique_ptr<worker_watcher_cb> event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) override;
 
-        void init() override;
+        void init(std::size_t deep) override;
 
         connection::ipdata_t *ipdata(worker::connection *conn) override;
 

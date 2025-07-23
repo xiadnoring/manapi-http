@@ -14,7 +14,7 @@ namespace manapi::net::worker {
     public:
         WolfSSL_TLS (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
         ~WolfSSL_TLS ();
-        void init() override;
+        void init(std::size_t deep) override;
         static std::shared_ptr<worker::WolfSSL_TLS> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
     protected:
         bool ssl_is_init_fininshed_ (void *ssl) override;
@@ -29,8 +29,9 @@ namespace manapi::net::worker {
         int ssl_bio_read_(void *wbio, void *buff, int size) override;
         int ssl_bio_should_retry_(void *bio) override;
         int ssl_bio_write_(void *rbio, const void *buff, int size) override;
-
-
+        int ssl_read_early_data_(void *ssl, void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT override;
+        int ssl_write_early_data_(void *ssl, const void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT override;
+        bool ssl_early_data_is_enabled_(void *ctx) MANAPIHTTP_NOEXPECT override;
         bool recv_setup_connection(connection_interface *data) override;
         void* ssl_create_context (size_t version) override;
         void ssl_configure_context () override;

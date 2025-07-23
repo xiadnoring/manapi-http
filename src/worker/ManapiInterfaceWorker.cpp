@@ -1,7 +1,9 @@
 #include "worker/ManapiInterfaceWorker.hpp"
 #include "../include/ManapiUtils.hpp"
 
-manapi::net::worker::interface_worker::interface_worker(net::http::site site, std::shared_ptr<multithread_storage::worker_t> data, manapi::net::http::config *config) : site_(std::move(site)), config_(config), worker_data_(std::move(data)) {
+manapi::net::worker::interface_worker::interface_worker(net::http::site site, std::shared_ptr<multithread_storage::worker_t> data, manapi::net::http::config *config)
+    : site_(std::move(site)), config_(config), worker_data_(std::move(data)), worker_pool_id_(0) {
+    this->deep_worker_id_ = 0;
 }
 
 manapi::net::worker::interface_worker::~interface_worker() {
@@ -25,6 +27,18 @@ manapi::net::http::site & manapi::net::worker::interface_worker::site() {
 
 manapi::net::http::config *manapi::net::worker::interface_worker::config() {
     return this->config_;
+}
+
+void manapi::net::worker::interface_worker::worker_pool_id(std::size_t worker_pool_id) MANAPIHTTP_NOEXPECT {
+    this->worker_pool_id_ = worker_pool_id;
+}
+
+std::size_t manapi::net::worker::interface_worker::worker_pool_id() const MANAPIHTTP_NOEXPECT {
+    return this->worker_pool_id_;
+}
+
+std::size_t manapi::net::worker::interface_worker::deep_worker_id() const MANAPIHTTP_NOEXPECT {
+    return this->deep_worker_id_;
 }
 
 const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::interface_worker::worker_data() {

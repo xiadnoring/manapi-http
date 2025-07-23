@@ -23,7 +23,7 @@ namespace manapi::net::worker {
 
         ~TLS () override;
 
-        void init () override;
+        void init (std::size_t deep) override;
 
         shared_conn accept (const ev::shared_tcp &w) override;
 
@@ -41,8 +41,7 @@ namespace manapi::net::worker {
         ssl_error_want_write_, ssl_error_zero_return_,
         ssl_error_ssl_, ssl_error_syscall_,
         ssl_send_shutdown_, ssl_recv_shutdown_;
-        char early_data_not_sent_, early_data_accepted_, early_data_rejected_,
-        early_data_read_finish_, early_data_read_error_, early_data_read_success_;
+        char early_data_read_finish_, early_data_read_error_, early_data_read_success_;
 
         virtual bool ssl_is_init_fininshed_ (void *ssl) MANAPIHTTP_NOEXPECT = 0;
 
@@ -56,9 +55,7 @@ namespace manapi::net::worker {
 
         virtual int ssl_read_ (void *ssl, void *buff, int size) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual int ssl_get_early_data_status_ (void *ssl) MANAPIHTTP_NOEXPECT = 0;
-
-        virtual uint32_t ssl_get_max_early_data_ (void *ctx) MANAPIHTTP_NOEXPECT = 0;
+        virtual bool ssl_early_data_is_enabled_ (void *ctx) MANAPIHTTP_NOEXPECT = 0;
 
         virtual int ssl_write_early_data_ (void *ssl, const void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT = 0;
 

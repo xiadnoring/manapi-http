@@ -65,7 +65,7 @@ namespace manapi {
 
         void clear_ ();
 
-        void stop ();
+        void stop () MANAPIHTTP_NOEXPECT;
 
         void callback_async (async_cb_t cb);
 

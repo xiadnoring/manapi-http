@@ -65,7 +65,7 @@ bool manapi::net::worker::TCP::is_valid_connection(worker::connection *connectio
     return !!connection->ipdata;
 }
 
-void manapi::net::worker::TCP::init() {
+void manapi::net::worker::TCP::init(std::size_t deep) {
     try {
         addrinfo hints = {
             .ai_family      = PF_UNSPEC,

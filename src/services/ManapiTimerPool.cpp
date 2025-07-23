@@ -58,7 +58,7 @@ manapi::timer manapi::timerpool::append_timer_async(size_t ms, manapi::timer::as
 //     return this->data_->events->remove_timer(id);
 // }
 
-void manapi::timerpool::remove_timer(std::shared_ptr<timer::timer_data_t> data) {
+void manapi::timerpool::remove_timer(std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXPECT {
     // if (this->data_->flags & TIMERPOOL_FLAG_RUNNING) {
     //     this->data_->prepare_remove.push_back(id);
     //     return;
@@ -143,7 +143,7 @@ void manapi::timerpool::run_once() {
 }
 
 
-void manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task) {
+void manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task) MANAPIHTTP_NOEXPECT {
     if (!data_->sorted_tasks.empty()) {
         if (data_->sorted_tasks.begin() == sorted_task) {
             sorted_task = data_->sorted_tasks.erase(sorted_task);
@@ -215,7 +215,7 @@ int64_t manapi::timerpool::calculate_repeat_(const std::shared_ptr<data_t> &data
     return static_cast<int64_t>((std::chrono::duration_cast<std::chrono::milliseconds>(pnt - know)).count());
 }
 
-bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) {
+bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) MANAPIHTTP_NOEXPECT {
     if (data_->timer) {
         auto const delay = calculate_repeat_(data_);
         if (delay >= 0) {

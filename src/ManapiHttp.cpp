@@ -198,6 +198,15 @@ manapi::future<> manapi::net::http::server::init_pool_() {
     {
         auto bb = this->data->config_;
         auto &pools = bb->at("site")["pools"];
+
+        {
+            auto &pools_data = this->data->server_config->as<server_ctx::worker_data_t>()->pools;
+            while (pools_data.size() < pools.size()) {
+                pools_data.push_back(server_ctx::pool_t({},
+                    std::make_unique<std::mutex>()));
+            }
+        }
+
         for (auto it = pools.begin<json::ARRAY>(); it != pools.end<json::ARRAY>(); ++it, this->data2->next_pool_id++)
         {
             std::unique_ptr<http_pool> p;

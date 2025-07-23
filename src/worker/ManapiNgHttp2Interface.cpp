@@ -651,7 +651,7 @@ manapi::error::status manapi::net::worker::ng_wrk_http2_global_init(manapi::net:
         auto tp = std::make_unique<ng_wrk_http2_ctx_global_t>();
 
         tp->worker = std::make_shared<worker::http_v2>(w, &ng_wrk_http2_callbacks);
-        tp->worker->init();
+        tp->worker->init(0);
 
         tp->base_worker = w;
 

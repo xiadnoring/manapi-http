@@ -26,6 +26,12 @@
 
 #include "../include/ManapiUtils.hpp"
 
+struct ssl_worker_ctx_t {
+    std::map<std::string, SSL_SESSION*, std::less<>> sessions;
+    SSL_CTX *ctx;
+    manapi::timer sessions_flush_timer;
+};
+
 struct ssl_bio_deleter_t {
     void operator() (BIO *b) {
         BIO_free(b);
@@ -172,15 +178,27 @@ manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::http::site site, std::shared_
     this->ssl_error_ssl_ = SSL_ERROR_SSL;
     this->ssl_recv_shutdown_ = SSL_RECEIVED_SHUTDOWN;
     this->ssl_send_shutdown_ = SSL_SENT_SHUTDOWN;
-    this->early_data_accepted_ = SSL_EARLY_DATA_ACCEPTED;
     this->early_data_read_error_ = SSL_READ_EARLY_DATA_ERROR;
     this->early_data_read_finish_ = SSL_READ_EARLY_DATA_FINISH;
     this->early_data_read_success_ = SSL_READ_EARLY_DATA_SUCCESS;
-    this->early_data_not_sent_ = SSL_EARLY_DATA_NOT_SENT;
-    this->early_data_rejected_ = SSL_EARLY_DATA_REJECTED;
+
+    this->pool_data_ = nullptr;
 }
 
 manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
+    if (this->pool_data_) {
+        std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
+        auto &wdata = this->pool_data_->data[this->deep_worker_id_];
+        if (wdata.ref) {
+            if (!(--wdata.ref)) {
+                auto ctx_data = static_cast<ssl_worker_ctx_t *> (wdata.data);
+                ctx_data->sessions_flush_timer.stop();
+                delete ctx_data;
+                wdata.data = nullptr;
+            }
+        }
+    }
+
     SSL_CTX_free(static_cast<SSL_CTX*>(this->ctx));
 }
 
@@ -191,9 +209,75 @@ std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_T
 }
 
 void manapi::net::worker::OpenSSL_TLS::stop(std::function<void()> cb) {
-    this->cache_cleaner.stop();
-    this->cache_cleaner = nullptr;
     TLS::stop(std::move(cb));
+}
+
+void ssl_flush_sessions (std::mutex *mx, ssl_worker_ctx_t *ctx_data) {
+    std::lock_guard<std::mutex> lk (*mx);
+    auto &sessions = ctx_data->sessions;
+    auto const current_time = ::time(nullptr);
+
+    for (auto it = sessions.begin(); it != sessions.end(); ) {
+        auto const created_at = SSL_SESSION_get_time_ex(it->second);
+        auto const timeout_in = SSL_SESSION_get_timeout(it->second);
+
+        if (created_at + timeout_in < current_time) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "openssl:Remove SSL session %p", it->second);
+            SSL_SESSION_free(it->second);
+            it = sessions.erase(it);
+        }
+        else {
+            it++;
+        }
+    }
+}
+
+void manapi::net::worker::OpenSSL_TLS::init(std::size_t deep) {
+    TLS::init(deep + 1);
+
+    this->deep_worker_id_ = deep;
+
+    try {
+        this->pool_data_ = &this->worker_data_->as<http::server_ctx::worker_data_t>()->pools[this->worker_pool_id_];
+        std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
+
+        if (this->pool_data_->data.size() <= deep)
+            this->pool_data_->data.resize(deep + 1);
+
+        if (!(this->pool_data_->data[deep].ref))
+            this->pool_data_->data[deep].data = new ssl_worker_ctx_t{};
+
+        auto ctx_data = static_cast<ssl_worker_ctx_t *>(this->pool_data_->data[deep].data);
+        this->pool_data_->data[deep].ref++;
+
+        if (!ctx_data->sessions_flush_timer) {
+            ctx_data->sessions_flush_timer = manapi::async::current()->timerpool()->append_interval_sync(
+                10000, [ctx_data, mx = this->pool_data_->mx.get()](const manapi::timer& t)
+                    ->void {
+                ssl_flush_sessions (mx, ctx_data);
+            });
+        }
+
+        if (!ctx_data->ctx) {
+            auto strtls = this->config_->get_config_param<std::string> (this->config_->ssl, "tls", "1.3");
+            int tls_version = http::versions::TLS_v1_3;
+            if (strtls == "1.3") tls_version = http::versions::TLS_v1_3;
+            else if (strtls == "1.2") tls_version = http::versions::TLS_v1_2;
+            else if (strtls == "1.1") tls_version = http::versions::TLS_v1_1;
+            ctx_data->ctx = static_cast<SSL_CTX *>(this->ssl_create_context(tls_version));
+            this->ctx = ctx_data->ctx;
+            this->ssl_configure_context();
+        }
+
+        this->ctx = ctx_data->ctx;
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "OpenSSL", e.what());
+    }
+}
+
+manapi::net::http::server_ctx::pool_t * manapi::net::worker::OpenSSL_TLS::openssl_pool_data_() MANAPIHTTP_NOEXPECT {
+    return this->pool_data_;
 }
 
 bool manapi::net::worker::OpenSSL_TLS::ssl_is_init_fininshed_(void *ssl) MANAPIHTTP_NOEXPECT {
@@ -250,10 +334,6 @@ int manapi::net::worker::OpenSSL_TLS::ssl_bio_should_retry_(void *bio) MANAPIHTT
     return BIO_should_retry(static_cast<BIO*>(bio));
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_get_early_data_status_(void *ssl) MANAPIHTTP_NOEXPECT {
-    return SSL_get_early_data_status(static_cast<SSL*>(ssl));
-}
-
 int manapi::net::worker::OpenSSL_TLS::ssl_read_early_data_(void *ssl, void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT {
     ERR_clear_error();
     return SSL_read_early_data(static_cast<SSL*>(ssl), buf, num, readbytes);
@@ -264,9 +344,128 @@ int manapi::net::worker::OpenSSL_TLS::ssl_write_early_data_(void *ssl, const voi
     return SSL_write_early_data(static_cast<SSL*>(ssl), buf, num, readbytes);
 }
 
-uint32_t manapi::net::worker::OpenSSL_TLS::ssl_get_max_early_data_(void *ctx) MANAPIHTTP_NOEXPECT {
-    return SSL_CTX_get_max_early_data(static_cast<SSL_CTX*>(ctx));
+bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MANAPIHTTP_NOEXPECT {
+    return SSL_CTX_get_max_early_data(static_cast<SSL_CTX*>(ctx)) > 0;
 }
+
+// SSL_SESSION *ssl_get_session(SSL *ssl, const unsigned char *data, int len, int *copy) MANAPIHTTP_NOEXPECT {
+//     auto const ctx = SSL_get_SSL_CTX(ssl);
+//     auto const w = static_cast<manapi::net::worker::OpenSSL_TLS*>(SSL_CTX_get_app_data(ctx));
+//     if (!w)
+//         return nullptr;
+//
+//     std::string_view id (reinterpret_cast<const char*>(data), len);
+//     auto pool_data = w->openssl_pool_data_();
+//     if (!pool_data)
+//         return nullptr;
+//
+//     auto const deep = w->deep_worker_id();
+//     if (pool_data->data.size() <= deep)
+//         return nullptr;
+//
+//     auto ctx_data = static_cast<ssl_worker_ctx_t *> (pool_data->data[deep].data);
+//     if (!ctx_data)
+//         return nullptr;
+//
+//     std::lock_guard<std::mutex> lk (*pool_data->mx);
+//     auto it = ctx_data->sessions.find(id);
+//
+//     if (it == ctx_data->sessions.end())
+//         return nullptr;
+//
+//     auto const res = it->second;
+//
+//     *copy = 1;
+//     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "openssl:Get SSL session %p", res);
+//
+//     return res;
+// }
+//
+// int ssl_new_session(SSL *ssl, SSL_SESSION *sess) MANAPIHTTP_NOEXPECT {
+//     try {
+//         auto const ctx = SSL_get_SSL_CTX(ssl);
+//         auto const w = static_cast<manapi::net::worker::OpenSSL_TLS*>(SSL_CTX_get_app_data(ctx));
+//         if (!w || !sess)
+//             return 0;
+//
+//         // sess = SSL_SESSION_dup(sess);
+//         // if (!sess)
+//         //     return 0;
+//
+//         uint32_t id_len;
+//         auto id_src = SSL_SESSION_get_id(sess, &id_len);
+//
+//         std::string_view id (reinterpret_cast<const char*>(id_src), id_len);
+//
+//
+//         auto pool_data = w->openssl_pool_data_();
+//         if (!pool_data)
+//             return 0;
+//
+//         auto const deep = w->deep_worker_id();
+//         if (deep >= pool_data->data.size())
+//             return 0;
+//
+//         auto ctx_data = static_cast<ssl_worker_ctx_t *> (pool_data->data[deep].data);
+//         if (!ctx_data)
+//             return 0;
+//
+//         std::lock_guard<std::mutex> lk (*pool_data->mx);
+//
+//         if (!SSL_SESSION_up_ref(sess))
+//             return 0;
+//
+//         if (!ctx_data->sessions.insert({std::string{id}, sess}).second) {
+//             SSL_SESSION_free(sess);
+//             return 0;
+//         }
+//
+//         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "openssl:New SSL session %p", sess);
+//
+//         return 1;
+//     }
+//     catch (std::exception const &e) {
+//         manapi_log_error("%s failed due to %s", "OpenSSL:new session", e.what());
+//     }
+//     return 0;
+// }
+//
+// void ssl_remove_session (SSL_CTX *ctx, SSL_SESSION *sess) MANAPIHTTP_NOEXPECT {
+//     std::size_t deep;
+//     manapi::net::http::server_ctx::pool_t *pool_data;
+//     std::string_view id;
+//     ssl_worker_ctx_t *ctx_data;
+//     const unsigned char*id_src;
+//     uint32_t id_len;
+//
+//     auto const w = static_cast<manapi::net::worker::OpenSSL_TLS*>(SSL_CTX_get_app_data(ctx));
+//     if (!w || !sess)
+//         goto finish;
+//
+//     id_src = SSL_SESSION_get_id(sess, &id_len);
+//
+//     id = std::string_view(reinterpret_cast<const char*>(id_src), id_len);
+//
+//     pool_data = w->openssl_pool_data_();
+//     if (!pool_data)
+//         goto finish;
+//
+//     deep = w->deep_worker_id();
+//     if (deep >= pool_data->data.size())
+//         goto finish;
+//
+//     ctx_data = static_cast<ssl_worker_ctx_t *> (pool_data->data[deep].data);
+//     if (ctx_data) {
+//         std::lock_guard<std::mutex> lk (*pool_data->mx);
+//         auto it = ctx_data->sessions.find(id);
+//         if (it != ctx_data->sessions.end()) {
+//             manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "openssl:Remove SSL session %p", sess);
+//             SSL_SESSION_free(it->second);
+//             ctx_data->sessions.erase(it);
+//         }
+//     }
+// finish:
+// }
 
 bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(connection_interface *data) {
     ERR_clear_error();
@@ -288,7 +487,11 @@ err:
     return false;
 }
 
+
 void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
+    if (this->ctx)
+        return this->ctx;
+
     auto const cipher_list = this->config_->get_config_param<std::string>(this->config_->ssl, "ciphers", {});
     auto const ssl_v2 = this->config_->get_config_param<bool>(this->config_->ssl, "ssl_v2", false);
     auto const ssl_v3 = this->config_->get_config_param<bool>(this->config_->ssl, "ssl_v3", false);
@@ -325,6 +528,7 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
     if (!ctx)
         THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot create the openssl context for the tcp connection");
 
+    SSL_CTX_set_app_data(ctx, this);
 
     auto ktls = http::config::get_config_param<bool>(
         this->config_->ssl, "ktls", true);
@@ -357,11 +561,16 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
         SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
 
     if (sess_cache) {
+        //SSL_SESS_CACHE_NO_INTERNAL_STORE
         SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_SERVER);
 
         if (!SSL_CTX_set_session_id_context(ctx,
             reinterpret_cast<const unsigned char *>(&this->ssl_session_ctx_id), sizeof(this->ssl_session_ctx_id)))
             goto err;
+
+        // SSL_CTX_sess_set_get_cb(ctx, ssl_get_session);
+        // SSL_CTX_sess_set_new_cb(ctx, ssl_new_session);
+        // SSL_CTX_sess_set_remove_cb(ctx, ssl_remove_session);
     }
     else {
         SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
@@ -421,11 +630,6 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
 
         return -1;
     }, this);
-
-    this->cache_cleaner = manapi::async::current()->timerpool()->append_timer_sync(
-        10000, [ctx](manapi::timer t)->void {
-        SSL_CTX_flush_sessions_ex(ctx, ::time(0));
-    });
 
     return ctx;
 err:

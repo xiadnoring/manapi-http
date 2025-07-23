@@ -13,9 +13,16 @@ namespace manapi::net::worker {
     class OpenSSL_TLS : public worker::TLS {
     public:
         OpenSSL_TLS (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
+
         ~OpenSSL_TLS ();
+
         static std::shared_ptr<worker::OpenSSL_TLS> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
+
         void stop(std::function<void()> cb) override;
+
+        void init(std::size_t deep) override;
+
+        http::server_ctx::pool_t *openssl_pool_data_ () MANAPIHTTP_NOEXPECT;
     protected:
         bool ssl_is_init_fininshed_ (void *ssl) MANAPIHTTP_NOEXPECT override;
         int ssl_get_error_ (void *ssl, int rhs) MANAPIHTTP_NOEXPECT override;
@@ -29,15 +36,14 @@ namespace manapi::net::worker {
         int ssl_bio_read_(void *wbio, void *buff, int size) MANAPIHTTP_NOEXPECT override;
         int ssl_bio_write_(void *rbio, const void *buff, int size) MANAPIHTTP_NOEXPECT override;
         int ssl_bio_should_retry_(void *bio) MANAPIHTTP_NOEXPECT override;
-        int ssl_get_early_data_status_(void *ssl) MANAPIHTTP_NOEXPECT override;
         int ssl_read_early_data_(void *ssl, void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT override;
         int ssl_write_early_data_(void *ssl, const void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT override;
-        uint32_t ssl_get_max_early_data_(void *ctx) MANAPIHTTP_NOEXPECT override;
+        bool ssl_early_data_is_enabled_(void *ctx) MANAPIHTTP_NOEXPECT override;
         bool recv_setup_connection(connection_interface *storage) override;
         void* ssl_create_context (size_t version) override;
         void ssl_configure_context () override;
-
-        manapi::timer cache_cleaner;
+    private:
+        http::server_ctx::pool_t *pool_data_;
     };
 }
 #endif

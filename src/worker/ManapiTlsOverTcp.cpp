@@ -28,16 +28,8 @@ manapi::net::worker::TLS::TLS(net::http::site site, std::shared_ptr<multithread_
 
 manapi::net::worker::TLS::~TLS() = default;
 
-void manapi::net::worker::TLS::init() {
-    TCP::init();
-    auto strtls = this->config_->get_config_param<std::string> (this->config_->ssl, "tls", "1.3");
-    int tls_version = http::versions::TLS_v1_3;
-    if (strtls == "1.3") tls_version = http::versions::TLS_v1_3;
-    else if (strtls == "1.2") tls_version = http::versions::TLS_v1_2;
-    else if (strtls == "1.1") tls_version = http::versions::TLS_v1_1;
-    this->ctx = this->ssl_create_context(tls_version);
-    // setup ctx (load certs)
-    this->ssl_configure_context();
+void manapi::net::worker::TLS::init(std::size_t deep) {
+    TCP::init(deep + 1);
 }
 
 manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(const ev::shared_tcp &w) {
@@ -466,7 +458,10 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
                             nullptr, 0, &readbytes);
 
                         if (early_res == this->early_data_read_finish_) {
+                            data->status ^= CONN_TLS_EARLY_DATA;
                             data->status |= CONN_TLS_EARLY_FINISHED;
+                            manapi_log_trace(debug::LOG_TRACE_LOW,
+                                "TLS:Early data was read %p", data);
                             continue;
                         }
 
@@ -481,16 +476,9 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
                                     goto err;
                                 if (this->flush_write_(conn, true))
                                     goto err;
+
                                 break;
                             }
-                        }
-
-                        auto const status = (this->ssl_get_early_data_status_(data->ssl));
-
-                        if (status == this->early_data_not_sent_) {
-                            data->status ^= CONN_TLS_EARLY_DATA;
-                            data->status |= CONN_TLS_EARLY_FINISHED;
-                            continue;
                         }
                     }
 
@@ -578,6 +566,8 @@ int manapi::net::worker::TLS::manapi_do_process(const shared_conn &conn, connect
                             switch (res) {
                                 case CONN_IO_OK:
                                     data->status ^= CONN_TLS_EARLY_DATA;
+                                    manapi_log_trace(debug::LOG_TRACE_LOW,
+                                        "TLS:Early data was read %p", data);
                                     break;
                                 case CONN_IO_ERROR:
                                     return CONN_IO_ERROR;
@@ -638,8 +628,9 @@ int manapi::net::worker::TLS::manapi_do_process(const shared_conn &conn, connect
 }
 
 int manapi::net::worker::TLS::manapi_do_handshake_(const shared_conn &conn, connection_interface *data) {
-    if (!(data->status & (CONN_TLS_EARLY_DATA|CONN_TLS_EARLY_FINISHED)) && this->ssl_get_max_early_data_(this->ctx)) {
+    if (!(data->status & (CONN_TLS_EARLY_DATA|CONN_TLS_EARLY_FINISHED)) && this->ssl_early_data_is_enabled_(this->ctx)) {
         data->status |= CONN_TLS_EARLY_DATA;
+        manapi_log_trace(debug::LOG_TRACE_LOW, "TLS:Try early data %p", data);
         return CONN_IO_OK;
     }
 
@@ -846,6 +837,8 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, TLS::
                         switch (res) {
                             case CONN_IO_OK:
                                 m->status ^= CONN_TLS_EARLY_DATA;
+                                manapi_log_trace(debug::LOG_TRACE_LOW,
+                                    "TLS:Early data was read %p", m);
                                 break;
                             case CONN_IO_ERROR:
                                 return CONN_IO_ERROR;

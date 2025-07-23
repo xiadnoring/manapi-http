@@ -15,7 +15,7 @@ manapi::net::worker::udp::~udp() {
     freeaddrinfo(this->local);
 }
 
-void manapi::net::worker::udp::init() {
+void manapi::net::worker::udp::init(std::size_t deep) {
     addrinfo hints = {
         .ai_family = PF_UNSPEC,
         .ai_socktype = SOCK_DGRAM,

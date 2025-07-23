@@ -56,7 +56,7 @@ namespace manapi {
 
         // future<void> async_remove_timer (size_t id);
 
-        void remove_timer (std::shared_ptr<timer::timer_data_t> data);
+        void remove_timer (std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXPECT;
 
         // future<manapi::timer> async_append_interval_sync (size_t ms, std::move_only_function<void(manapi::timer t)> task);
         //
@@ -86,7 +86,7 @@ namespace manapi {
         //
         // std::optional<manapi::timer> _cb_event (void *data);
 
-        static void erase_task_ (const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task);
+        static void erase_task_ (const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task) MANAPIHTTP_NOEXPECT;
 
         static void start_ (const std::shared_ptr<data_t> &data);
 
@@ -94,7 +94,7 @@ namespace manapi {
 
         static int64_t calculate_repeat_ (const std::shared_ptr<data_t> &data_);
 
-        static bool reinit_timer_ (const std::shared_ptr<data_t> &data_);
+        static bool reinit_timer_ (const std::shared_ptr<data_t> &data_) MANAPIHTTP_NOEXPECT;
 
         static void update_interval_state_ (const std::shared_ptr<data_t> &data_, std::shared_ptr<manapi::timer::timer_data_t> data);
 

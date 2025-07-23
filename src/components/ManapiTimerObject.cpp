@@ -127,7 +127,7 @@ void manapi::timer::clear_() {
     }
 }
 
-void manapi::timer::stop() {
+void manapi::timer::stop() MANAPIHTTP_NOEXPECT {
     if (!this->data)
         return;
 

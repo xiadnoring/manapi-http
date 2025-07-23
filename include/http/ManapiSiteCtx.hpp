@@ -11,9 +11,21 @@ namespace manapi::net::http {
         struct data_t;
 
     public:
+        struct pool_worker_t {
+            void *data;
+            std::size_t ref;
+        };
+
+        struct pool_t {
+            std::vector<pool_worker_t> data;
+            std::unique_ptr<std::mutex> mx;
+        };
+
         struct worker_data_t {
             std::atomic<ssize_t> count;
+            std::vector<pool_t> pools;
         };
+
         server_ctx ();
 
         ~server_ctx ();

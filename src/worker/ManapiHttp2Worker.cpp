@@ -146,7 +146,7 @@ std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::htt
     return std::exchange(conn_data->ev_callback, std::move(callback));
 }
 
-void manapi::net::worker::http_v2::init() {
+void manapi::net::worker::http_v2::init(std::size_t deep) {
 
 }
 
