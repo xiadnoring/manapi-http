@@ -38,7 +38,7 @@ manapi::net::http_pool::~http_pool() = default;
 manapi::future<manapi::error::status> manapi::net::http_pool::stop() {
     try {
         auto lk = co_await this->mx->lock_guard();
-        MANAPIHTTP_LOG("{}", "shutdown socket");
+        manapi_log_trace(debug::LOG_TRACE_MEDIUM, "shutdown socket");
         if (this->worker) {
             using promise = manapi::async::promise<void, std::false_type>;
             co_await promise ([this] (promise::resolve_t resolve, promise::reject_t reject) -> void {
@@ -92,22 +92,18 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
         auto transport = this->config->transport;
         auto implementations = this->site.transport_protocol_worker(transport);
 
+        http::site::implemenet_http_cb const *implement_http_callback{nullptr};
+
         if (implementations.contains(implementation))
         {
             try {
                 auto &generate = implementations[implementation];
                 this->worker = generate (this->site, this->worker_config, this->config);
                 auto const workerptr = dynamic_cast<worker::interface_worker *> (this->worker.get());
-                workerptr->worker_pool_id(this->id);
-                auto res = workerptr->init(0);
 
-                if (!res.ok()) {
-                    res.log();
-                    res.unwrap();
-                }
 
                 worker::wrk_interface_global_t wrk{};
-                res = worker::default_wrk_http_all_global_init(&wrk, this->worker.get());
+                auto res = worker::default_wrk_http_all_global_init(&wrk, this->worker.get());
 
                 if (!res.ok()) {
                     res.log();
@@ -117,8 +113,20 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
                 workerptr->wrk_global(&wrk);
                 auto wrkptr = workerptr->wrk_global();
 
-                if (implementation != "quiche") {
-                    auto versions = this->config->http_versions;
+                if (implementation == "quiche") {
+                    if (!this->config->contains_http_version(http::versions::HTTP_v0_9)
+                        && !this->config->contains_http_version(http::versions::HTTP_v1_0)
+                        && !this->config->contains_http_version(http::versions::HTTP_v1_1)
+                        && !this->config->contains_http_version(http::versions::HTTP_v2)
+                        && this->config->contains_http_version(http::versions::HTTP_v3)
+                        && this->config->http3_implementation == "quiche") {
+
+                    }
+                    else {
+                        co_return manapi::error::status_internal("http: QUIC(quiche) must be only working with HTTP3(quiche)");
+                    }
+                }
+                else {
                     std::vector<int> hlist = {
                         http::versions::HTTP_v0_9,
                         http::versions::HTTP_v1_0,
@@ -148,6 +156,8 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
                                 MANAPIHTTP_LOG("http: implementation by {} not found. Available: [{}]",*http_impl_name, concat_keys_in_map(http_implementation));
                                 co_return error::status_failed_precondition("http implementation not found");
                             }
+
+                            implement_http_callback = &it_http_impl->second;
                             auto httpwrk = it_http_impl->second (workerptr);
                             if (!httpwrk.ok())
                                 httpwrk.unwrap();
@@ -155,8 +165,16 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
                             res = worker::default_wrk_http_all_global_add_version(wrkptr, version, std::move(httpwrk.unwrap()));
                             if (!res.ok())
                                 res.unwrap();
-                            }
+                        }
                     }
+                }
+
+                workerptr->worker_pool_id(this->id);
+                res = workerptr->init(0);
+
+                if (!res.ok()) {
+                    res.log();
+                    res.unwrap();
                 }
             }
             catch (std::exception const &e) {

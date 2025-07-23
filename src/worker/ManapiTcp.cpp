@@ -492,18 +492,27 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) {
 
 void manapi::net::worker::TCP::stop(std::function<void()> cb) {
     if (this->watcher_accept_) {
-        manapi::async::current()->eventloop()
-            ->stop_callback(this->watcher_accept_, [this, cb = std::move(cb)] (const ev::shared_tcp &w) -> void {
-                this->flags |= NET_WORKER_CLOSED;
-                this->finish = std::move(cb);
+        try {
+            manapi::async::current()->eventloop()
+                ->stop_callback(this->watcher_accept_, [this, cb = std::move(cb)] (const ev::shared_tcp &w) -> void {
+                    this->flags |= NET_WORKER_CLOSED;
+                    this->finish = std::move(cb);
 
-                if (!this->count) {
-                    this->finish();
-                }
-            });
-        manapi::async::current()->eventloop()
-            ->stop_watcher (std::move(this->watcher_accept_));
+                    if (!this->count) {
+                        this->finish();
+                    }
+                });
+            manapi::async::current()->eventloop()
+                ->stop_watcher (std::move(this->watcher_accept_));
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s failed due to %s", "TCP:Stop", e.what());
+            if (cb)
+                cb();
+        }
     }
+    else
+        cb();
 }
 
 void manapi::net::worker::TCP::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) {

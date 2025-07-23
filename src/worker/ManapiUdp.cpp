@@ -82,13 +82,27 @@ err:
 }
 
 void manapi::net::worker::udp::stop(std::function<void()> cb) {
-    this->udp_accept_->recv_stop();
-    manapi::async::current()->eventloop()->stop_callback(this->udp_accept_,
-        [cb = std::move(cb)] (const ev::shared_udp &w) -> void {
-        cb ();
-    });
-    manapi::async::current()->eventloop()
-        ->stop_watcher(std::move(this->udp_accept_));
+    if (this->udp_accept_) {
+        try {
+            this->udp_accept_->recv_stop();
+
+            manapi::async::current()->eventloop()->stop_callback(this->udp_accept_,
+                [cb = std::move(cb)] (const ev::shared_udp &w) -> void {
+                cb ();
+            });
+
+            manapi::async::current()->eventloop()
+                ->stop_watcher(std::move(this->udp_accept_));
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s failed due to %s", "udp:Stop", e.what());
+
+            if (cb)
+                cb();
+        }
+    }
+    else
+        cb();
 }
 
 void manapi::net::worker::udp::recv_buffer_dealloc_(const ev::buff_t *buf) {

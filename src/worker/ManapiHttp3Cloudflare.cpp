@@ -216,14 +216,17 @@ err:
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::stop(std::function<void()> cb) {
-    udp::stop([this, cb = std::move(cb)] () -> void {
+    std::function<void()> cb_next;
+    MANAPIHTTP_MUST_ALLOC_START
+    cb_next = [this, cb = std::move(cb)] () -> void {
         this->flags |= NET_WORKER_CLOSED;
         this->finish = cb;
 
-        if (!this->count) {
+        if (!this->count)
             this->finish();
-        }
-    });
+    };
+    MANAPIHTTP_MUST_ALLOC_END;
+    udp::stop(std::move(cb_next));
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_conn conn, int flags) {

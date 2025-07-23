@@ -18,6 +18,7 @@
 #include "../include/worker/ManapiNgHttp2Interface.hpp"
 #include "worker/ManapiHttp1Interface.hpp"
 #include "worker/ManapiHttp2Interface.hpp"
+#include "../include/worker/ManapiQuicOpenSsl.hpp"
 
 namespace manapi::net::worker {
     struct wrk_http2_ctx_global_t;
@@ -249,6 +250,10 @@ void manapi::net::http::site::setup() {
 
 #if MANAPIHTTP_QUICHE_DEPENDENCY
     this->transport_protocol_worker("quic", "quiche", worker::http_v3_cloudflare_quiche::create);
+#endif
+
+#ifdef MANAPIHTTP_OPENSSL_QUIC_SUPPORT
+    this->transport_protocol_worker("quic", "openssl", worker::openssl_quic::create);
 #endif
 
 #ifdef MANAPIHTTP_DEFAULT_QUIC
