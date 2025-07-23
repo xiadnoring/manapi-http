@@ -211,6 +211,8 @@ namespace manapi {
              * @throws manapi::exception with the error code from the status
              */
             virtual void unwrap () const;
+
+            MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXPECT;
         protected:
             std::string_view msg_;
             err_num code_;

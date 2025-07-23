@@ -65,7 +65,7 @@ bool manapi::net::worker::TCP::is_valid_connection(worker::connection *connectio
     return !!connection->ipdata;
 }
 
-void manapi::net::worker::TCP::init(std::size_t deep) {
+manapi::error::status manapi::net::worker::TCP::init(std::size_t deep) {
     try {
         addrinfo hints = {
             .ai_family      = PF_UNSPEC,
@@ -76,14 +76,13 @@ void manapi::net::worker::TCP::init(std::size_t deep) {
         auto &address = this->config_->address;
         auto &port = this->config_->port;
 
-        if (getaddrinfo(address.data(), port.data(), &hints, &this->local) != 0) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "failed to resolve host");
-        }
+        if (getaddrinfo(address.data(), port.data(), &hints, &this->local) != 0)
+            return error::status_internal("tcp:failed to resolve host");
 
         this->config_->server_len=(this->local->ai_addrlen);
         memcpy (&this->config_->server_addr,this->local->ai_addr, this->local->ai_addrlen);
 
-        manapi_log_trace("TCP PORT USED: %.*s. %.*s:%.*s", port.size(), port.data(),
+        manapi_log_trace(debug::LOG_TRACE_HIGH, "TCP PORT USED: %.*s. %.*s:%.*s", port.size(), port.data(),
             address.size(), address.data(), port.size(), port.data());
 
         /* every 1 second */
@@ -101,29 +100,29 @@ void manapi::net::worker::TCP::init(std::size_t deep) {
         if (this->local->ai_family == ev::IPv4) {
             if (auto rhs = this->watcher_accept_->ip4_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in *>(&this->sockaddrin))) {
                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set ipv4 addr due to result - {}", rhs);
-                goto err;
+                return error::status_internal("tcp:ip4_addr failed");
             }
         }
         else if (this->local->ai_family == ev::IPv6) {
             if (auto rhs = this->watcher_accept_->ip6_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin))) {
                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set ipv6 addr due to result - {}", rhs);
-                goto err;
+                return error::status_internal("tcp:ip6_addr failed");
             }
         }
 
         if (auto rhs = this->watcher_accept_->nodelay(this->config_->tcp_no_delay)) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set nodelay due to result - {}", rhs);
-            goto err;
+            return error::status_internal("tcp:nodelay failed");
         }
 
         if (auto rhs = this->watcher_accept_->simultaneous_accepts(this->config_->simultaneous_accepts)) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set simultaneous_accepts due to result - {}", rhs);
-            goto err;
+            return error::status_internal("tcp:simultaneous_accepts failed");
         }
 
         if (auto rhs = this->watcher_accept_->keepalive(!!this->config_->keep_alive, this->config_->keep_alive)) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set keep-alive due to result - {}", rhs);
-            goto err;
+            return error::status_internal("tcp:keepalive failed");
         }
 
         {
@@ -133,24 +132,23 @@ void manapi::net::worker::TCP::init(std::size_t deep) {
 #endif
             if (auto rhs = this->watcher_accept_->s_bind(reinterpret_cast<sockaddr *> (&this->sockaddrin), bind_flags)) {
                 manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't bind socket due to result - {} {}", rhs, uv_err_name (rhs));
-                goto err;
+                return error::status_internal("tcp:s_bind failed");
             }
         }
 
         if (auto rhs = this->watcher_accept_->listen(this->config_->tcp_backlog)) {
             manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't listen socket due to result - {}", rhs);
-            goto err;
+            return error::status_internal("tcp:listen failed");
         }
 
 
-        return;
+        return error::status_ok();
     }
     catch (std::exception const &e) {
-        manapi::async::current()->logger()->error(manapi::logger::default_service,
-            ERR_FAILED_PRECONDITION, "tcp: init failed(...) due to {}", e.what());
+        manapi_log_error("%s due to %s", "tcp: init failed", e.what());
     }
 err:
-    THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "tcp: init(...) failed");
+    return error::status_internal("tcp: init failed");
 }
 
 void manapi::net::worker::TCP::waiting(const shared_conn &conn, bool state) {

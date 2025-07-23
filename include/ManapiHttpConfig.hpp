@@ -79,6 +79,8 @@ namespace manapi::net::http {
          */
         bool contains_http_version (int version);
 
+        std::vector<std::string_view> alpns ();
+
         /**
          * Is the compressor is availabled by the passed name
          *

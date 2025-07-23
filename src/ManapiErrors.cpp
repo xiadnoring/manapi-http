@@ -109,6 +109,10 @@ void manapi::error::status::unwrap() const {
         THROW_MANAPIHTTP_EXCEPTION(this->code_, "{}: msg: {}", this->status_msg(), this->msg_);
 }
 
+manapi::error::status::operator bool() const noexcept(true) {
+    return this->code_ == ERR_OK;
+}
+
 manapi::error::status manapi::error::status_ok() {
     return {};
 }

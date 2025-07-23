@@ -20,7 +20,7 @@ namespace manapi::net::worker {
 
         void stop(std::function<void()> cb) override;
 
-        void init(std::size_t deep) override;
+        manapi::error::status init(std::size_t deep) override;
 
         http::server_ctx::pool_t *openssl_pool_data_ () MANAPIHTTP_NOEXPECT;
     protected:
@@ -40,8 +40,8 @@ namespace manapi::net::worker {
         int ssl_write_early_data_(void *ssl, const void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT override;
         bool ssl_early_data_is_enabled_(void *ctx) MANAPIHTTP_NOEXPECT override;
         bool recv_setup_connection(connection_interface *storage) override;
-        void* ssl_create_context (size_t version) override;
-        void ssl_configure_context () override;
+        manapi::error::status_or<void*> ssl_create_context (size_t version);
+        manapi::error::status ssl_configure_context (void* ctx);
     private:
         http::server_ctx::pool_t *pool_data_;
     };

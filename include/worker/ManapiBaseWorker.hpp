@@ -151,7 +151,7 @@ namespace manapi::net::worker {
 
         virtual bool is_valid_connection (worker::connection *connection) = 0;
 
-        virtual void init (std::size_t deep) = 0;
+        virtual error::status init (std::size_t deep) = 0;
 
         virtual void close_connection (shared_conn conn, int flags) = 0;
 

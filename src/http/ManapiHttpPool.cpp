@@ -99,14 +99,20 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
                 this->worker = generate (this->site, this->worker_config, this->config);
                 auto const workerptr = dynamic_cast<worker::interface_worker *> (this->worker.get());
                 workerptr->worker_pool_id(this->id);
-                workerptr->init(0);
+                auto res = workerptr->init(0);
 
+                if (!res.ok()) {
+                    res.log();
+                    res.unwrap();
+                }
 
                 worker::wrk_interface_global_t wrk{};
-                auto res = worker::default_wrk_http_all_global_init(&wrk, this->worker.get());
+                res = worker::default_wrk_http_all_global_init(&wrk, this->worker.get());
 
-                if (!res.ok())
+                if (!res.ok()) {
+                    res.log();
                     res.unwrap();
+                }
 
                 workerptr->wrk_global(&wrk);
                 auto wrkptr = workerptr->wrk_global();

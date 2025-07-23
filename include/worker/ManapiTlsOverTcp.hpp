@@ -23,7 +23,7 @@ namespace manapi::net::worker {
 
         ~TLS () override;
 
-        void init (std::size_t deep) override;
+        error::status init (std::size_t deep) override;
 
         shared_conn accept (const ev::shared_tcp &w) override;
 
@@ -89,10 +89,6 @@ namespace manapi::net::worker {
         void update_limit_rate_connection(const shared_conn &sconn) override;
 
         static void connection_interface_eraser(worker::connection *data);
-
-        virtual void* ssl_create_context (size_t version) = 0;
-
-        virtual void ssl_configure_context () = 0;
 
         void shutdown_async_ (shared_conn conn);
 

@@ -4,8 +4,7 @@
 #include "../include/ManapiUtils.hpp"
 
 int manapi::net::worker::http_v2_flush_recv(const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) {
-    while (s->recv->last_deque
-        && (s->flags & manapi::ev::READ)) {
+    while (s->recv->last_deque && (s->flags & manapi::ev::READ)) {
 
         auto b = std::move(s->recv->deque->buffer);
         ssize_t sz;
@@ -93,6 +92,8 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags)
         return;
     }
 
+    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "http2:close_connection() %p flags=%d", data, flags);
+
     data->flags |= CONN_CLOSED|CONN_REMOVED;
 
     if (data->ev_callback) {
@@ -146,8 +147,8 @@ std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::htt
     return std::exchange(conn_data->ev_callback, std::move(callback));
 }
 
-void manapi::net::worker::http_v2::init(std::size_t deep) {
-
+manapi::error::status manapi::net::worker::http_v2::init(std::size_t deep) {
+    return error::status_ok();
 }
 
 manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v2::ipdata(worker::connection *conn) {

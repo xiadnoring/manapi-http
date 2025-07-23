@@ -16,9 +16,13 @@ struct quiche_h3_config;
 namespace manapi::net::worker {
     class http_v3_cloudflare_quiche : public udp {
     public:
+        struct queue_udp_send_t {
+            ev::udp_send *w;
+            std::unique_ptr<queue_udp_send_t> next;
+        };
 
         struct connection_t {
-            std::string cid;
+            std::string_view cid;
             int flags;
             http_v3_cloudflare_quiche *worker;
             quiche_conn *conn;
@@ -26,6 +30,8 @@ namespace manapi::net::worker {
             std::unique_ptr<std::map <int64_t, std::shared_ptr<worker::connection>>> streams;
             manapi::timer timeout;
             shared_conn self;
+            uint32_t queue_send_size;
+            std::unique_ptr<queue_udp_send_t> queue_send;
         };
 
         struct connection_stream_t : worker::base::connection_base_t {
@@ -44,7 +50,7 @@ namespace manapi::net::worker {
 
         static std::shared_ptr<worker::http_v3_cloudflare_quiche> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
 
-        void init(std::size_t deep) override;
+        manapi::error::status init(std::size_t deep) override;
 
         void stop(std::function<void()> cb) override;
 
@@ -125,7 +131,7 @@ namespace manapi::net::worker {
 
         static void stream_interface_eraser (worker::connection *ptr);
 
-        std::map <std::string_view, shared_conn> connections;
+        std::map <std::string, shared_conn, std::less<>> connections;
         quiche_config *quiche_config_{nullptr};
         quiche_h3_config *quiche_h3_config_{nullptr};
         manapi::timer limit_rate_timer{};

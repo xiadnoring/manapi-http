@@ -284,68 +284,10 @@ int http_v2_verify_setting (int key, int value) {
 
 int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, const manapi::net::worker::shared_conn &sconn, manapi::net::http::http_v2_stream_t *sdata, uint8_t upriority) {
     using namespace manapi::net::http;
-    bool flg = false;
-    if (upriority == 78) {
-        sdata->flags |= manapi::net::http::HTTP2_STREAM_WINDOW_EMPTY;
-    }
+
     //std::cout << "insert " << sdata->id << " " << (int)upriority << "\n";
     auto const prit = ctx->priorities->insert(
         {{upriority, sdata->id}, sconn});
-    if (prit.second) {
-        if (prit.first == ctx->priorities->begin()) {
-            if (sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
-                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: unlock %d stream", sdata->id);
-                sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
-            }
-
-            flg = true;
-        }
-        else {
-            auto const prev_prit = std::prev(prit.first);
-            if (prev_prit->first == prit.first->first) {
-                /* the priorities are same */
-                auto prev_sdata = (*prev_prit->second).as<http_v2_stream_t>();
-                if (prev_sdata->flags & (HTTP2_STREAM_PRIORITY_LOCKED|HTTP2_STREAM_PRIORITY_INCR)) {
-                    /* it also must be locked or the previous stream has priority incr. flag */
-                    sdata->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
-                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: lock %d stream", sdata->id);
-                }
-                else if (!(sdata->flags & HTTP2_STREAM_PRIORITY_INCR)) {
-                    if (sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
-                        sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
-                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: unlock %d stream", sdata->id);
-                    }
-
-                    flg = true;
-                }
-            }
-            else {
-                /* it has a lower priority */
-                sdata->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
-                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: lock %d stream", sdata->id);
-            }
-        }
-        if (flg) {
-            /* it's so important to us */
-            for (auto it = std::next(prit.first); it != ctx->priorities->end(); ++it) {
-                auto const s_oth_data = (*it->second).as<http_v2_stream_t>();
-                if (s_oth_data->flags & HTTP2_STREAM_PRIORITY_LOCKED) {
-                    /* no work left */
-                    break;
-                }
-                if (it->first == prit.first->first) {
-                    if (sdata->flags & HTTP2_STREAM_PRIORITY_INCR) {
-                        s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
-                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: lock %d stream", s_oth_data->id);
-                    }
-                }
-                else {
-                    s_oth_data->flags |= HTTP2_STREAM_PRIORITY_LOCKED;
-                    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: lock %d stream", s_oth_data->id);
-                }
-            }
-        }
-    }
 
     return 0;
 }
@@ -355,46 +297,10 @@ uint8_t http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net:
 
     //std::cout << "remove " << s->id << " " << (int)upriority << "\n";
 
-    if (upriority == 78) {
-        if (s->flags & manapi::net::http::HTTP2_STREAM_WINDOW_EMPTY)
-            s->flags ^= manapi::net::http::HTTP2_STREAM_WINDOW_EMPTY;
-    }
-
     try {
         auto opit = ctx->priorities->find({upriority, s->id});
         assert(opit!=ctx->priorities->end());
         if (opit != ctx->priorities->end()) {
-            if (opit == ctx->priorities->begin()) {
-                {
-                    int cnt = 0;
-                    auto pit = std::next(opit);
-                    if (pit != ctx->priorities->end()) {
-                        auto const priority = pit->first;
-                        for (; pit != ctx->priorities->end(); ++pit) {
-                            if (pit->first != priority)
-                                break;
-
-                            auto sdata = (*pit->second).as<http_v2_stream_t>();
-                            if ((sdata->flags & HTTP2_STREAM_PRIORITY_LOCKED)) {
-                                if (cnt && (sdata->flags & HTTP2_STREAM_PRIORITY_INCR))
-                                    break;
-
-                                cnt += 1;
-                                sdata->flags ^= HTTP2_STREAM_PRIORITY_LOCKED;
-                                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: unlock %d stream", sdata->id);
-
-                                sdata->ctx->http_v2_worker->feed_event(pit->second,
-                                    manapi::ev::WRITE, nullptr, 0, nullptr);
-
-
-                                if (sdata->flags & HTTP2_STREAM_PRIORITY_INCR)
-                                    break;
-                            }
-                        }
-                    }
-                }
-            }
-
             ctx->priorities->erase(opit);
         }
     }
@@ -404,30 +310,6 @@ uint8_t http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net:
     }
 
     return manapi::ERR_OK;
-}
-
-int http_v2_real_priority_by_stream (manapi::net::http::http_v2_stream_t *s) {
-    if ((s->write_window <= 0))
-        return 78;
-    return s->priority;
-}
-
-int http_v2_update_priority (manapi::net::http::http_v2_t *ctx, const manapi::net::worker::shared_conn &sconn, manapi::net::http::http_v2_stream_t *s) {
-    uint8_t rs;
-    uint8_t as;
-    if (http_v2_real_priority_by_stream (s) == s->priority) {
-        rs = 78;
-        as = s->priority;
-    }
-    else {
-        rs = s->priority;
-        as = 78;
-    }
-
-    if (http_v2_remove_priority(ctx, s, rs))
-        return manapi::ERR_INTERNAL;
-
-    return http_v2_insert_priority(ctx, sconn, s, as);
 }
 
 int http_v2_apply_setting (manapi::net::http::http_v2_t *ctx, int key, int value, bool server) {
@@ -538,16 +420,6 @@ int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<
         return manapi::ERR_INTERNAL;
     }
 
-    /* check for priority */
-    for (const auto &conn : *ctx->streams) {
-        auto const s = conn.second->as<manapi::net::http::http_v2_stream_t>();
-        if (s->flags & manapi::net::http::HTTP2_STREAM_WINDOW_EMPTY && (s->write_window > 0)) {
-            if (http_v2_update_priority(ctx, conn.second, s))
-                return manapi::ERR_UNKNOWN;
-        }
-    }
-
-
     ctx->timeout = manapi::async::current()->timerpool()->append_timer_sync(3000,
         [ctx, conn = ctx->conn] (manapi::timer t) -> void {
             http_v2_goaway_t http_goaway = {
@@ -642,7 +514,7 @@ int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, uint32_t id) {
 
         manapi_log_trace(debug::LOG_TRACE_LOW, "http2: erase %d stream", s->id);
 
-        if (http_v2_remove_priority (ctx, s, http_v2_real_priority_by_stream(s))) {
+        if (http_v2_remove_priority (ctx, s, s->priority)) {
             /* ignore */
         }
 
@@ -689,10 +561,9 @@ int manapi::net::http::http_v2_on_write(http_v2_t *ctx) {
 }
 
 int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi::net::http::http_v2_stream_t *s) {
-    auto ssw = (s->recv_size + 1) * s->ctx->worker->config()->buffer_size;
+    auto ssw = (s->recv_size) * s->ctx->worker->config()->buffer_size;
     auto config = s->ctx->worker->config();
-    ssw = std::max(static_cast<ssize_t>(0),
-        static_cast<ssize_t>(config->window_stream_size - ssw));
+    ssw = std::max<ssize_t>(0, static_cast<ssize_t>(config->window_stream_size - ssw));
 
     if (s->read_window < ssw) {
         const auto allow = static_cast<int>(ssw - s->read_window);
@@ -707,10 +578,9 @@ int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi
     auto const window_half = config->window_connection_size / 2;
     if (s->ctx->read_window <= window_half) {
         const auto allow = config->window_connection_size - s->ctx->read_window;
-        if (http_v2_send_window_frame(s->ctx, 0,
-            allow)) {
+        if (http_v2_send_window_frame(s->ctx, 0, allow)) {
             return manapi::ERR_INTERNAL;
-            }
+        }
         s->ctx->read_window += allow;
     }
     return manapi::ERR_OK;
@@ -718,9 +588,16 @@ int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi
 
 int manapi::net::http::http_v2_on_read_stream(const worker::shared_conn &conn) {
     auto const s = conn->as<http_v2_stream_t>();
-    if (auto const rhs = worker::http_v2_flush_recv (conn, s)) {
+
+    auto const bs = s->ctx->worker->config()->max_buffer_stack;
+    bool const read_blocked = s->recv_size >= bs;
+
+    if (auto const rhs = worker::http_v2_flush_recv (conn, s))
         return rhs;
-    }
+
+    if (read_blocked && s->recv_size < read_blocked)
+        s->ctx->worker->event_toggle(s->ctx->conn, true, ev::READ);
+
     return http_v2_process_window (conn, s);
 }
 
@@ -1054,10 +931,12 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     ctx->http_v2_worker->close_connection(s->second, worker::CLOSE_CONN_ERR);
                                 }
                                 else {
+                                    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2:Window Update %d %d. Prev: %d",
+                                        ctx->frame_stream_id, ctx->n1, sdata->write_window);
+
                                     sdata->write_window += ctx->n1;
 
-                                    if (sdata->write_window > 0 && sdata->flags & HTTP2_STREAM_WINDOW_EMPTY) {
-                                        http_v2_update_priority(ctx, s->second, sdata);
+                                    if (sdata->write_window > 0) {
                                         if ((sdata->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE
                                         && (sdata->ev_callback)) {
                                             sdata->ev_callback->operator()(s->second, ev::WRITE, nullptr, 0, nullptr);
@@ -1071,6 +950,9 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                         "overflow");
                                     goto repeat;
                                 }
+
+                                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2:Window Update %d %d. Prev: %d",
+                                    ctx->frame_stream_id, ctx->n1, ctx->write_window);
 
                                 ctx->write_window += static_cast<int>(ctx->n1);
                                 if (ctx->write_window <= ctx->n1) {
@@ -1203,15 +1085,6 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 if (http_v2_send_frame(ctx, HTTP2_FRAME_SETTINGS, HTTP2_FLAG_SETTINGS_ACK, 0, nullptr, 0, 0)) {
                                     return EHTTP_V2_PROTOCOL_ERROR;
                                 }
-                                /* check for priority */
-                                for (const auto &conn : *ctx->streams) {
-                                    auto const s = conn.second->as<http_v2_stream_t>();
-                                    if (s->flags & HTTP2_STREAM_WINDOW_EMPTY && (s->write_window > 0)) {
-                                        if (http_v2_update_priority(ctx, conn.second, s))
-                                            return EHTTP_V2_PROTOCOL_ERROR;
-                                    }
-                                }
-
                             }
 
                             ctx->n1 = 0;
@@ -1525,7 +1398,7 @@ header_skip:
                             }
 
                             if (http_v2_insert_priority (ctx, s->second, sdata,
-                                http_v2_real_priority_by_stream(sdata))) {
+                                sdata->priority)) {
                                 http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_INTERNAL_ERROR;
                                 http_goaway.err_msg = "priority status failed";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -1688,9 +1561,8 @@ header_skip:
                                         return EHTTP_V2_PROTOCOL_ERROR;
 
 
-                                    // if (sdata->recv_size >= config->max_buffer_stack) {
-                                    //     ctx->worker->event_toggle(ctx->conn, false, ev::READ);
-                                    // }
+                                    if (sdata->recv_size >= config->max_buffer_stack)
+                                        ctx->worker->event_toggle(ctx->conn, false, ev::READ);
                                 }
                             }
                             else {
@@ -2151,7 +2023,7 @@ header_skip:
 
                             auto const prev_sdata_flags = sdata->flags;
 
-                            if (http_v2_remove_priority(ctx, sdata, http_v2_real_priority_by_stream(sdata))) {
+                            if (http_v2_remove_priority(ctx, sdata, sdata->priority)) {
                                 http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "priority update failed";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -2165,7 +2037,7 @@ header_skip:
                             // else if (sdata->flags & HTTP2_STREAM_PRIORITY_INCR)
                             //     sdata->flags ^= HTTP2_STREAM_PRIORITY_INCR;
 
-                            if (http_v2_insert_priority(ctx, sit->second, sdata, http_v2_real_priority_by_stream(sdata))) {
+                            if (http_v2_insert_priority(ctx, sit->second, sdata, sdata->priority)) {
                                 http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
                                 http_goaway.err_msg = "priority update failed";
                                 ctx->current = HTTP2_CALLBACK_GOAWAY;
@@ -2243,7 +2115,7 @@ header_skip:
 
 ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) {
     auto s = conn->as<http_v2_stream_t>();
-    if (s->flags & (HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_PRIORITY_LOCKED))
+    if (s->flags & (HTTP2_STREAM_CLOSED/**|http::HTTP2_STREAM_PRIORITY_LOCKED**/))
         return (s->flags & ev::DISCONNECT) ? -1 : 0;
 
     if (s->ctx->flags & http::HTTP2_CTX_FLAG_BLOCK_WRITE)
@@ -2255,11 +2127,7 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::bu
     if (copy <= 0)
         return 0;
 
-    if (!(s->write_window -= static_cast<int>(copy))) {
-        if (http_v2_update_priority(s->ctx, conn, s))
-            return -1;
-    }
-
+    s->write_window -= static_cast<int>(copy);
     s->ctx->write_window -= static_cast<int>(copy);
 
     ssize_t res = 0;

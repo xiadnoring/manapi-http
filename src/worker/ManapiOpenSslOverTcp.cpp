@@ -232,8 +232,10 @@ void ssl_flush_sessions (std::mutex *mx, ssl_worker_ctx_t *ctx_data) {
     }
 }
 
-void manapi::net::worker::OpenSSL_TLS::init(std::size_t deep) {
-    TLS::init(deep + 1);
+manapi::error::status manapi::net::worker::OpenSSL_TLS::init(std::size_t deep) {
+    auto res = TLS::init(deep + 1);
+    if (!res.ok())
+        return std::move(res);
 
     this->deep_worker_id_ = deep;
 
@@ -264,16 +266,21 @@ void manapi::net::worker::OpenSSL_TLS::init(std::size_t deep) {
             if (strtls == "1.3") tls_version = http::versions::TLS_v1_3;
             else if (strtls == "1.2") tls_version = http::versions::TLS_v1_2;
             else if (strtls == "1.1") tls_version = http::versions::TLS_v1_1;
-            ctx_data->ctx = static_cast<SSL_CTX *>(this->ssl_create_context(tls_version));
-            this->ctx = ctx_data->ctx;
-            this->ssl_configure_context();
+            auto status = this->ssl_create_context(tls_version);
+            if (!status.ok())
+                return status.err();
+            ctx_data->ctx = static_cast<SSL_CTX*>(status.unwrap());
+            res = this->ssl_configure_context(ctx_data->ctx);
+            if (!res.ok())
+                return std::move(res);
         }
-
         this->ctx = ctx_data->ctx;
+        return error::status_ok();
     }
     catch (std::exception const &e) {
-        manapi_log_error("%s failed due to %s", "OpenSSL", e.what());
+        manapi_log_error("%s due to %s", "openssl_tls:Failed", e.what());
     }
+    return error::status_internal("openssl_tls:Failed");
 }
 
 manapi::net::http::server_ctx::pool_t * manapi::net::worker::OpenSSL_TLS::openssl_pool_data_() MANAPIHTTP_NOEXPECT {
@@ -488,7 +495,7 @@ err:
 }
 
 
-void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
+manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
     if (this->ctx)
         return this->ctx;
 
@@ -624,11 +631,11 @@ void * manapi::net::worker::OpenSSL_TLS::ssl_create_context(size_t version) {
             choise: {
                 *out = reinterpret_cast<const unsigned char *> (buff.data());
                 *outlen = buff.size();
-                return 0;
+                return SSL_TLSEXT_ERR_OK;
             }
         }
 
-        return -1;
+        return SSL_TLSEXT_ERR_ALERT_FATAL;
     }, this);
 
     return ctx;
@@ -639,31 +646,31 @@ err:
     char *buf;
     size_t len = BIO_get_mem_data(bio.get(), &buf);
 
-    std::string ret(buf, len);
-
-    THROW_MANAPIHTTP_EXCEPTION (ERR_FAILED_PRECONDITION, "couldn't setup SSL ctx due to \n{}", ret);
+    manapi_log_error("%s due to %.*s", "openssl_tls:create context failed", len, buf);
+    return error::status_internal("openssl_tls:create context failed");
 }
 
-void manapi::net::worker::OpenSSL_TLS::ssl_configure_context() {
+manapi::error::status manapi::net::worker::OpenSSL_TLS::ssl_configure_context(void*ctx) {
     ERR_clear_error();
 
     auto verify_peer = this->config_->get_config_param<bool>(this->config_->ssl, "verify_peer", true);
     auto cert = this->config_->get_config_param<std::string>(this->config_->ssl, "cert", {});
     auto key = this->config_->get_config_param<std::string>(this->config_->ssl, "key", {});
 
-    if (SSL_CTX_use_certificate_file(static_cast<SSL_CTX*>(this->ctx), cert.data(), SSL_FILETYPE_PEM) <= 0)
-        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot use cert file openssl");
+    if (SSL_CTX_use_certificate_file(static_cast<SSL_CTX*>(ctx), cert.data(), SSL_FILETYPE_PEM) <= 0)
+        return error::status_failed_precondition("openssl_tls:Cannot use cert file");
 
 
-    if (SSL_CTX_use_PrivateKey_file(static_cast<SSL_CTX*>(this->ctx), key.data(), SSL_FILETYPE_PEM) <= 0)
-        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot use private key file openssl");
+    if (SSL_CTX_use_PrivateKey_file(static_cast<SSL_CTX*>(ctx), key.data(), SSL_FILETYPE_PEM) <= 0)
+        return error::status_failed_precondition("openssl_tls:Cannot use private key file");
 
 
-    if (!SSL_CTX_check_private_key(static_cast<SSL_CTX*>(this->ctx)))
-        MANAPIHTTP_LOG("Private key does not match the certificate public key.\nCertificate File: {}, Pivate Key File: {}", cert.data(), key.data());
+    if (!SSL_CTX_check_private_key(static_cast<SSL_CTX*>(ctx)))
+        return error::status_failed_precondition("openssl_tls:Private key does not match the certificate public key");
 
-    SSL_CTX_set_verify(static_cast<SSL_CTX*>(this->ctx), verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
-    SSL_CTX_set_verify_depth(static_cast<SSL_CTX*>(this->ctx), 1);
+    SSL_CTX_set_verify(static_cast<SSL_CTX*>(ctx), verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, nullptr);
+    SSL_CTX_set_verify_depth(static_cast<SSL_CTX*>(ctx), 1);
+    return error::status_ok();
 }
 
 

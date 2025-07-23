@@ -28,8 +28,8 @@ manapi::net::worker::TLS::TLS(net::http::site site, std::shared_ptr<multithread_
 
 manapi::net::worker::TLS::~TLS() = default;
 
-void manapi::net::worker::TLS::init(std::size_t deep) {
-    TCP::init(deep + 1);
+manapi::error::status manapi::net::worker::TLS::init(std::size_t deep) {
+    return TCP::init(deep + 1);
 }
 
 manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(const ev::shared_tcp &w) {

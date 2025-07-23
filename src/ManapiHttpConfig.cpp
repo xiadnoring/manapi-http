@@ -24,8 +24,8 @@ manapi::net::http::config::config(const json &config) {
     this->http_versions = 0;
     this->server_len = 0;
     this->max_working_streams = get_config_param<ssize_t> (config, "max_working_streams", 6);
-    this->window_stream_size = get_config_param<ssize_t> (config, "window_stream_size", 400000);
-    this->window_connection_size = get_config_param<ssize_t> (config, "window_connection_size", 2000000);
+    this->window_stream_size = get_config_param<ssize_t> (config, "window_stream_size", 2000000);
+    this->window_connection_size = get_config_param<ssize_t> (config, "window_connection_size", 4000000);
     this->max_concurrent_streams = get_config_param<ssize_t> (config, "max_concurrent_streams", -1);
     this->max_frame_size = get_config_param<ssize_t>(config, "max_frame_size", -1);
     this->max_hpack_table_size = get_config_param<ssize_t>(config, "max_hpack_table_size", -1);
@@ -104,6 +104,22 @@ bool manapi::net::http::config::contains_http_version(int version) {
         default: return false;
     }
     return this->http_versions & num;
+}
+
+std::vector<std::string_view> manapi::net::http::config::alpns() {
+    std::vector<std::string_view> tests;
+    if (this->http_versions & HTTP_VER_BIT_0_9)
+        tests.push_back("http/0.9");
+    if (this->http_versions & HTTP_VER_BIT_1_0)
+        tests.push_back("http/1.0");
+    if (this->http_versions & HTTP_VER_BIT_1_1)
+        tests.push_back("http/1.1");
+    if (this->http_versions & HTTP_VER_BIT_2)
+        tests.push_back("h2");
+    if (this->http_versions & HTTP_VER_BIT_3)
+        tests.push_back("h3");
+
+    return std::move(tests);
 }
 
 bool manapi::net::http::config::contains_compressor(const std::string &name) {

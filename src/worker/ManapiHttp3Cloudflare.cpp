@@ -50,6 +50,19 @@ template<typename ...Args>
 requires(manapi::macros::version_is_less(MANAPIHTTP_QUICHE_VERSION, "0.23.0"))
 ssize_t manapi_quiche_h3_send_additional_headers_(Args&&...args) { /* skip */ return 0; }
 
+struct udp_send_buff_deleter {
+    void operator () (manapi::ev::buff_t *buff) {
+        delete[] buff->base;
+        delete buff;
+    }
+};
+
+struct udp_send_addr_storage_deleter {
+    void operator () (char *buff) {
+        delete[] buff;
+    }
+};
+
 manapi::net::worker::http_v3_cloudflare_quiche::http_v3_cloudflare_quiche(net::http::site site,
     std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) : udp(std::move(site), std::move(wdata), config) {
     this->flags = 0;
@@ -79,8 +92,10 @@ std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::wor
     return std::move(worker);
 }
 
-void manapi::net::worker::http_v3_cloudflare_quiche::init(std::size_t deep) {
-    udp::init(deep + 1);
+manapi::error::status manapi::net::worker::http_v3_cloudflare_quiche::init(std::size_t deep) {
+    auto status = udp::init(deep + 1);
+    if (!status)
+        return std::move(status);
 
     auto const verify_peer = this->config_->get_config_param<bool>(this->config_->ssl, "verify_peer", true);
     auto const cert = this->config_->get_config_param<std::string>(this->config_->ssl, "cert", {});
@@ -116,13 +131,11 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init(std::size_t deep) {
         this->quiche_config_ = quiche_config_new(QUICHE_PROTOCOL_VERSION);
         this->quiche_h3_config_ = quiche_h3_config_new();
 
-        if (quiche_config_load_cert_chain_from_pem_file(this->quiche_config_, cert.data())) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load cert chain from pem file: {}", cert);
-        }
+        if (quiche_config_load_cert_chain_from_pem_file(this->quiche_config_, cert.data()))
+            return error::status_internal("cf quiche: failed to load cert chain from pem file");
 
-        if (quiche_config_load_priv_key_from_pem_file(this->quiche_config_, key.data())) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "QUICHE: failed to load priv key from pem file: {}", key);
-        }
+        if (quiche_config_load_priv_key_from_pem_file(this->quiche_config_, key.data()))
+            return error::status_internal("cf quiche: failed to load private key from pem file");
 
         if(quiche_config_set_application_protos(this->quiche_config_,
             reinterpret_cast <const uint8_t *> (QUICHE_H3_APPLICATION_PROTOCOL), sizeof(QUICHE_H3_APPLICATION_PROTOCOL) - 1)) {
@@ -184,8 +197,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init(std::size_t deep) {
 
                     else if (manapi::string::equals("bbr2", cc_algo, 0b10))
                         algo = QUICHE_CC_BBR2;
-
-                    else THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "invalid quic:cc_algo: {}", cc_algo);
+                    else
+                        return error::status_internal("cf quiche:Invalid cc_algo");
 
                     quiche_config_set_cc_algorithm (this->quiche_config_, algo);
                 }
@@ -197,9 +210,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::init(std::size_t deep) {
             [this] (manapi::timer t) -> void { this->update_limit_rate(); });
     }
     while (0);
-    return;
+    return error::status_ok();
 err:
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "quiche: init(...) failed");
+    return error::status_internal("quiche: init() failed");
 }
 
 void manapi::net::worker::http_v3_cloudflare_quiche::stop(std::function<void()> cb) {
@@ -303,35 +316,140 @@ int manapi::net::worker::http_v3_cloudflare_quiche::gen_mint_token_(char *dcid, 
     return 0;
 }
 
-int manapi::net::worker::http_v3_cloudflare_quiche::quiche_flush_egress_(connection_t *data) {
-    if (data->flags & CONN_CLOSED) {
-        return -1;
+manapi::error::status quiche_udp_send_data_ (manapi::ev::udp *udp, manapi::ev::buff_t *buff, sockaddr *send_addr, socklen_t send_len) {
+    try {
+        ssize_t const sent = udp->try_send(buff, 1, send_addr);
+        if (sent != buff->len) {
+            std::unique_ptr<manapi::ev::buff_t, udp_send_buff_deleter> buffs (new manapi::ev::buff_t{});
+            auto queue_item = std::make_unique<manapi::net::worker::http_v3_cloudflare_quiche::queue_udp_send_t>();
+
+            buffs->len = buff->len;
+            buffs->base = new char[buff->len];
+
+            std::unique_ptr<char, udp_send_addr_storage_deleter> addr_storage;
+
+            addr_storage.reset(new char[send_len]);
+
+            memcpy (addr_storage.get(), send_addr, send_len);
+
+            auto buffptr = buffs.get();
+            auto send_to = reinterpret_cast<sockaddr *>(addr_storage.get());
+
+            manapi::ev::udp_send_cb cb = [buffs = std::move(buffs), addr_storage = std::move(addr_storage)]
+                    (const manapi::ev::shared_udp_send &n, int status)
+                        -> void {
+                if (status) {
+                    manapi_log_trace (manapi::debug::LOG_TRACE_MEDIUM, "udp_send:Send failed due to %s(%d):%s",
+                        manapi::ev::namerror(status), status, manapi::ev::strerror(status));
+                }
+            };
+
+            auto res = manapi::async::current()->eventloop()->create_watcher_udp_send(
+                udp, std::move(cb), buffptr, 1, send_to);
+
+            if (!res.ok())
+                return res.err();
+        }
+
+        return manapi::error::status_ok();
+    }
+    catch (std::bad_alloc const &) {
+        return manapi::error::status_resource_exhausted();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "quiche_udp_send_data_ failed", e.what());
     }
 
-    uint8_t out[MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE];
+    return manapi::error::status_internal("quiche_udp_send_data_ failed");
+}
 
-    quiche_send_info send_info;
+int manapi::net::worker::http_v3_cloudflare_quiche::quiche_flush_egress_(connection_t *data) {
+    if (data->flags & CONN_CLOSED)
+        return -1;
 
-    while (true) {
-        ssize_t written = quiche_conn_send(data->conn, out, sizeof(out), &send_info);
+    try {
+        uint8_t out[MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE];
 
-        if (written == QUICHE_ERR_DONE) {
-            /* done writing */
-            break;
+        quiche_send_info send_info;
+
+        while (true) {
+            ssize_t written = quiche_conn_send(data->conn, out, sizeof(out), &send_info);
+
+            if (written == QUICHE_ERR_DONE) {
+                /* done writing */
+                break;
+            }
+
+            if (written < 0) {
+                /* failed to create packet */
+                return -2;
+            }
+
+            ev::buff_t buff;
+            buff.base = reinterpret_cast<char *> (out);
+            buff.len = static_cast<std::size_t>(written);
+            ssize_t const sent = this->udp_accept_->try_send(&buff, 1, reinterpret_cast<sockaddr *>(&send_info.to));
+
+            if (sent != written) {
+                if (sent == ev::ERR_AGAIN) {
+                    std::unique_ptr<ev::buff_t, udp_send_buff_deleter> buffs (new ev::buff_t{});
+                    auto queue_item = std::make_unique<queue_udp_send_t>();
+
+                    buffs->len = written;
+                    buffs->base = new char[written];
+
+                    std::unique_ptr<char, udp_send_addr_storage_deleter> addr_storage;
+
+                    addr_storage.reset(new char[send_info.to_len]);
+
+                    memcpy (addr_storage.get(), &send_info.to, send_info.to_len);
+
+                    auto buffptr = buffs.get();
+                    auto send_to = reinterpret_cast<sockaddr *>(addr_storage.get());
+
+                    ev::udp_send_cb cb = [buffs = std::move(buffs), addr_storage = std::move(addr_storage), data]
+                        (const ev::shared_udp_send &n, int status)
+                            -> void {
+                        if (status) {
+                            manapi_log_trace (debug::LOG_TRACE_MEDIUM, "udp_send:Send failed due to %s(%d):%s",
+                                ev::namerror(status), status, ev::strerror(status));
+
+                            if (status == ev::ERR_CANCELED)
+                                return;
+                        }
+
+                        assert(data->queue_send->w == n.get());
+
+                        data->queue_send = std::move(data->queue_send->next);
+                        data->queue_send_size--;
+
+                        if (!data->queue_send_size) {
+
+                        }
+                    };
+
+                    auto res = manapi::async::current()->eventloop()->create_watcher_udp_send(
+                        this->udp_accept_.get(), std::move(cb), buffptr, 1, send_to);
+
+                    if (res.ok()) {
+                        auto w = res.unwrap();
+
+                        queue_item->w = w.get();
+                        queue_item->next = std::move(data->queue_send);
+
+                        data->queue_send = std::move(queue_item);
+                        data->queue_send_size++;
+
+                        return 0;
+                    }
+                }
+                return -1;
+            }
         }
-
-        if (written < 0) {
-            /* failed to create packet */
-            return -2;
-        }
-
-        ev::buff_t buff;
-        buff.base = reinterpret_cast<char *> (out);
-        buff.len = static_cast<std::size_t>(written);
-        ssize_t const sent = this->udp_accept_->try_send(&buff, 1, reinterpret_cast<sockaddr *>(&send_info.to));
-        if (sent != written) {
-            return -1;
-        }
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "quiche_flush_egress_()", e.what());
+        return -1;
     }
 
     return 0;
@@ -426,9 +544,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
             ev::buff_t buff2;
             buff2.base = reinterpret_cast<char *> (out);
             buff2.len = static_cast<std::size_t>(written);
-            ssize_t rhs = this->udp_accept_->try_send(&buff2, 1, reinterpret_cast<sockaddr *>(sockaddr_src));
+            auto rhs = quiche_udp_send_data_(this->udp_accept_.get(), &buff2, reinterpret_cast<sockaddr *>(sockaddr_src), sockaddr_len);
 
-            if (rhs != written) {
+            if (!rhs) {
                 /* failed to send */
             }
 
@@ -457,9 +575,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
             ev::buff_t buff2;
             buff2.base = reinterpret_cast<char *> (out);
             buff2.len = static_cast<std::size_t>(written);
-            ssize_t rhs = this->udp_accept_->try_send(&buff2, 1, reinterpret_cast<sockaddr *>(sockaddr_src));
+            auto rhs = quiche_udp_send_data_(this->udp_accept_.get(), &buff2, reinterpret_cast<sockaddr *>(sockaddr_src), sockaddr_len);
 
-            if (rhs != written) {
+            if (!rhs) {
                 /* failed to send */
             }
 
@@ -482,7 +600,9 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
             return;
         }
 
-        auto p = std::make_unique<connection_t>(std::string{}, 0, this, quiche_conn_, nullptr, nullptr);
+        std::string conn_id{dcid, dcid_len};
+
+        auto p = std::make_unique<connection_t>(std::string_view{conn_id}, 0, this, quiche_conn_, nullptr, nullptr);
         auto connection = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
         p.release();
 
@@ -493,14 +613,13 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
 
         conn_data->streams = std::make_unique<decltype(conn_data->streams)::element_type>();
         conn_data->self = connection;
-        conn_data->cid = std::string{dcid, dcid_len};
 
         connection->ipdata = std::make_unique<decltype(connection)::element_type::ipdata_t>();
         memcpy (connection->ipdata->client.data, sockaddr_src, sockaddr_len);
         connection->ipdata->len = sockaddr_len;
 
         auto res = this->connections.insert({
-            std::string_view{conn_data->cid},
+            std::move(conn_id),
             std::move(connection)
         });
 
@@ -735,8 +854,12 @@ ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write(const shared_
 
 ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) {
     auto s = conn->as<connection_stream_t>();
+
     if (s->flags & ev::DISCONNECT)
         return -1;
+
+    if (s->conn->queue_send_size > maxcnt)
+        return 0;
 
     ssize_t res = 0;
 
@@ -1027,7 +1150,15 @@ void manapi::net::worker::http_v3_cloudflare_quiche::force_close_(shared_conn co
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "quiche: connection closed, recv=%zu sent=%zu lost=%zu rtt=%zu ns cwnd=%zu",
                 stats.recv, stats.sent, stats.lost, path_stats.rtt, path_stats.cwnd);
 
-        conn_data->worker->connections.erase(conn_data->cid);
+        while (conn_data->queue_send) {
+            manapi::async::current()->eventloop()->stop_watcher_ptr(conn_data->queue_send->w);
+            conn_data->queue_send = std::move(conn_data->queue_send->next);
+        }
+
+        auto it = conn_data->worker->connections.find(conn_data->cid);
+
+        if (it != conn_data->worker->connections.end())
+            conn_data->worker->connections.erase(it);
 
         if (conn_data->timeout) {
             conn_data->timeout.stop();

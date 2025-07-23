@@ -37,7 +37,7 @@ namespace manapi::net::worker {
 
         bool is_valid_connection(worker::connection *connection) override;
 
-        void init (std::size_t deep) override;
+        error::status init (std::size_t deep) override;
 
         void waiting(const shared_conn &conn, bool state) override;
 

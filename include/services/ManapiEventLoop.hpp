@@ -219,6 +219,18 @@ namespace manapi {
          */
         std::shared_ptr<ev::write> create_watcher_write (ev::tcp *conn, ev::write_cb callback, const ev::buff_t *bufs, uint32_t nbuf);
 
+
+        /**
+         *
+         * @param conn UDP connection
+         * @param callback Callback
+         * @param bufs
+         * @param nbuf
+         * @throws manapi::exception with ERR_INTERNAL code
+         * @return
+         */
+        manapi::error::status_or<std::shared_ptr<ev::udp_send>> create_watcher_udp_send (ev::udp *conn, ev::udp_send_cb callback, const ev::buff_t *bufs, uint32_t nbuf, sockaddr *addr);
+
         ev::shared_work append_task (std::move_only_function<void(const ev::shared_work &w)> work, std::move_only_function<void(const ev::shared_work &w, int status)> after_work);
 
         void stop_watcher_ptr (ev::io *w);

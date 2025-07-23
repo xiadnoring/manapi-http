@@ -1353,6 +1353,28 @@ std::shared_ptr<manapi::ev::write> manapi::event_loop::create_watcher_write(ev::
     return std::move(w);
 }
 
+manapi::error::status_or<std::shared_ptr<manapi::ev::udp_send>> manapi::event_loop::create_watcher_udp_send(ev::udp *conn, ev::udp_send_cb callback, const ev::buff_t *bufs, uint32_t nbuf, sockaddr *addr) {
+    try {
+        auto ctx = std::make_unique<ev::internal::udp_send_ctx>(nullptr, std::move(callback));
+        auto w = std::make_shared<ev::udp_send>();
+
+        if (auto rhs = w->bind(conn->custom(), bufs, nbuf, addr))
+            return error::status_internal("eventloop:Bind failed");
+
+        ctx->s_ = w;
+        w->data(ctx.release());
+
+        return std::move(w);
+    }
+    catch (std::bad_alloc const &) {
+        return error::status_resource_exhausted();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "eventloop:Create watcher failed", e.what());
+    }
+    return manapi::error::status_internal("eventloop:Create watcher failed");
+}
+
 manapi::ev::shared_work manapi::event_loop::append_task(std::move_only_function<void(const ev::shared_work &w)> work, std::move_only_function<void(const ev::shared_work &w, int status)> after_work) {
     auto w = std::make_shared<ev::work>();
     if (auto rhs = w->bind(this->loop()))
