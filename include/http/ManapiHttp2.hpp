@@ -80,7 +80,6 @@ namespace manapi::net::http {
 
         std::unique_ptr<std::map<std::pair<uint8_t, int>, worker::shared_conn >> priorities;
         std::unique_ptr<std::set<std::string>> pings;
-
         uint16_t status;
     };
 
@@ -94,10 +93,10 @@ namespace manapi::net::http {
         HTTP2_STREAM_IO_WAITING = worker::base::CONN_IO_WAITING,
         HTTP2_STREAM_TOP_READ = worker::base::CONN_TOP_READ,
         HTTP2_STREAM_PRIORITY_INCR = 256,
-        HTTP2_STREAM_RESERVED = 512,
+        HTTP2_STREAM_PRIORITY_LOCKED = 512,
         HTTP2_STREAM_BLOCK_WRITE = 1024,
         HTTP2_STREAM_BAD_STATUS = 2048,
-        HTTP2_STREAM_RESERVED_2 = 4096
+        HTTP2_STREAM_WINDOW_EMPTY = 4096
         //HTTP2_STREAM_START_WORK_WAIT = 2048
     };
 
