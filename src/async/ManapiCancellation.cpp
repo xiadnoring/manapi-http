@@ -6,8 +6,8 @@
 
 enum status_flags {
     FLAG_CANCEL = 0x1,
-    FLAG_DISABLED = 0x4,
-    FLAG_ASK_CANCEL = 0x8,
+    FLAG_DISABLED = 0x2,
+    FLAG_ASK_CANCEL = 0x4,
 };
 
 struct manapi::async::cancellation_action::data_t {
@@ -183,13 +183,18 @@ size_t manapi::async::cancellation_action::timeout() const {
 void manapi::async::cancellation_action::disable() {
     if (this->data) {
         this->data->status_ |= (FLAG_DISABLED);
+
+        if (data->timeout_struct_) {
+            data->timeout_struct_.stop();
+            data->timeout_struct_ = nullptr;
+        }
     }
 }
 
 void manapi::async::cancellation_action::send_async_() {
     if (this->data) {
         if (this->data->status_ & FLAG_CANCEL) {
-            cancellation_action::cancel_(std::move(this->data));
+            cancellation_action::cancel_((this->data));
         }
     }
 }

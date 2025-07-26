@@ -99,13 +99,10 @@ namespace manapi::net::worker {
         int recv_size;
     };
 
+    struct connection_base_t;
 
     class base {
     public:
-        struct connection_base_t {
-            ssize_t transfered;
-            ssize_t transfered_k;
-        };
 
         typedef std::map<uintptr_t, shared_conn> conn_by_port;
 
@@ -135,6 +132,14 @@ namespace manapi::net::worker {
             CONN_IO_AGAIN = -1002,
         };
 
+        enum stream_flags {
+            /**
+             * says to create a new unidirectional stream
+             * instead of a bidirectional stream
+             */
+            CONN_STREAM_FLAG_UNI
+        };
+
         base ();
 
         virtual ~base ();
@@ -149,9 +154,7 @@ namespace manapi::net::worker {
 
         virtual const std::shared_ptr<multithread_storage::worker_t> & worker_data() = 0;
 
-        virtual bool is_valid_connection (worker::connection *connection) = 0;
-
-        virtual error::status init (std::size_t deep) = 0;
+        virtual manapi::future<error::status> init (std::size_t deep) = 0;
 
         virtual void close_connection (shared_conn conn, int flags) = 0;
 
@@ -197,9 +200,41 @@ namespace manapi::net::worker {
 
         void event_toggle (const shared_conn & conn, bool state, int flag);
 
+        /**
+         * Get the ipdata structure from the connection object |conn|
+         * @param conn connection object
+         * @return reference to the ipdata structure
+         */
         virtual connection::ipdata_t *ipdata (worker::connection *conn);
 
+        /**
+         * Get the app bufferpool
+         * @return
+         */
         object_pool &bufferpool();
+
+        /**
+         * Obtain the stream identifier from the stream |s|
+         * @param s stream
+         * @return always 0 if streams not supported, otherwise it returns a stream id
+         */
+        virtual std::size_t stream_id (shared_conn s) MANAPIHTTP_NOEXPECT;
+
+        /**
+         * Create a new stream in |conn|
+         *
+         * @param flags stream flags
+         * @return a stream connection on success, otherwise it returns Unimplemeneted, InternalError, ResourceExhausted
+         */
+        virtual error::status_or<shared_conn> new_stream (shared_conn conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT;
+
+        /**
+         * Close the provided stream in |conn|
+         * @param conn connection
+         * @param s stream
+         * @return Ok on success, otherwise it returns Unimplemented, InternalError
+         */
+        virtual error::status close_stream (shared_conn conn, shared_conn s) MANAPIHTTP_NOEXPECT;
 
         static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt);
 
@@ -214,9 +249,10 @@ namespace manapi::net::worker {
         static ssize_t buffs_cut_by_size (ev::buff_t *buff, uint32_t &nbuff, ssize_t limit_size, bool &fin);
 
         static int call_user_callback (const std::unique_ptr<worker_watcher_cb> &cb, const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p);
-    protected:
 
         void feed_event_read_ (const shared_conn &conn, worker_watcher_cb *cb, connection_io_part *recv, int *recv_size, int conn_flags, int flags, const char *buff, ssize_t size, ibuffpool_t *p);
+    protected:
+
     };
 
     using shared_worker = std::shared_ptr<worker::base>;

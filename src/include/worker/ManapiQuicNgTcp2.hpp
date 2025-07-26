@@ -31,8 +31,7 @@
 //         std::unique_ptr<worker_watcher_cb> event_on(const shared_conn &conn, std::unique_ptr<worker_watcher_cb> callback) override;
 //
 //         void feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) override;
-//
-//         bool is_valid_connection(worker::connection *connection) override;
+/
 //
 //         bool is_writable(const shared_conn &conn) override;
 //

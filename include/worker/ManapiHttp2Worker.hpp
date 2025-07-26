@@ -69,13 +69,11 @@ namespace manapi::net::worker {
 
         std::unique_ptr<worker_watcher_cb> event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) override;
 
-        manapi::error::status init(std::size_t deep) override;
+        manapi::future<manapi::error::status> init(std::size_t deep) override;
 
         connection::ipdata_t *ipdata(worker::connection *conn) override;
 
         bool is_writable(const shared_conn &conn) override;
-
-        bool is_valid_connection(worker::connection *connection) override;
 
         void stop(std::function<void()> cb) override;
 

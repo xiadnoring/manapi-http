@@ -4,6 +4,7 @@
 #include "async/ManapiAsyncSocket.hpp"
 #include "ManapiInitTools.hpp"
 #include "../include/ManapiUtils.hpp"
+#include "../include/worker/ManapiBaseUtils.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 
@@ -232,10 +233,10 @@ void ssl_flush_sessions (std::mutex *mx, ssl_worker_ctx_t *ctx_data) {
     }
 }
 
-manapi::error::status manapi::net::worker::OpenSSL_TLS::init(std::size_t deep) {
-    auto res = TLS::init(deep + 1);
+manapi::future<manapi::error::status> manapi::net::worker::OpenSSL_TLS::init(std::size_t deep) {
+    auto res = co_await TLS::init(deep + 1);
     if (!res.ok())
-        return std::move(res);
+        co_return std::move(res);
 
     this->deep_worker_id_ = deep;
 
@@ -268,19 +269,19 @@ manapi::error::status manapi::net::worker::OpenSSL_TLS::init(std::size_t deep) {
             else if (strtls == "1.1") tls_version = http::versions::TLS_v1_1;
             auto status = this->ssl_create_context(tls_version);
             if (!status.ok())
-                return status.err();
+                co_return status.err();
             ctx_data->ctx = static_cast<SSL_CTX*>(status.unwrap());
             res = this->ssl_configure_context(ctx_data->ctx);
             if (!res.ok())
-                return std::move(res);
+                co_return std::move(res);
         }
         this->ctx = ctx_data->ctx;
-        return error::status_ok();
+        co_return error::status_ok();
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "openssl_tls:Failed", e.what());
     }
-    return error::status_internal("openssl_tls:Failed");
+    co_return error::status_internal("openssl_tls:Failed");
 }
 
 manapi::net::http::server_ctx::pool_t * manapi::net::worker::OpenSSL_TLS::openssl_pool_data_() MANAPIHTTP_NOEXPECT {
@@ -474,7 +475,7 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MAN
 // finish:
 // }
 
-bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(connection_interface *data) {
+bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(tls_connection_t *data) {
     ERR_clear_error();
 
     data->wbio = BIO_new(BIO_s_mem());

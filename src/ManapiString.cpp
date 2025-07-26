@@ -64,7 +64,8 @@ std::vector<std::string_view> manapi::string::split(std::string_view s, char c) 
         }
     }
 
-    n.emplace_back(s.data() + j, s.data() + s.size());
+    if (s.size())
+        n.emplace_back(s.data() + j, s.data() + s.size());
 
     return std::move(n);
 }

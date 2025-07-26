@@ -207,7 +207,7 @@ manapi::error::status manapi::net::worker::default_wrk_http2_global_init (manapi
     auto tp = std::make_unique<wrk_http2_ctx_global_t>();
 
     tp->worker = std::make_shared<worker::http_v2>(w, &default_wrk_http2_callbacks);
-    tp->worker->init(0);
+    // tp->worker->init(0);
 
     global->data = tp.release();
 

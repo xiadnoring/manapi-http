@@ -21,28 +21,9 @@ namespace manapi::net::worker {
             std::unique_ptr<queue_udp_send_t> next;
         };
 
-        struct connection_t {
-            std::string_view cid;
-            int flags;
-            http_v3_cloudflare_quiche *worker;
-            quiche_conn *conn;
-            quiche_h3_conn *http3_conn;
-            std::unique_ptr<std::map <int64_t, std::shared_ptr<worker::connection>>> streams;
-            manapi::timer timeout;
-            shared_conn self;
-            uint32_t queue_send_size;
-            std::unique_ptr<queue_udp_send_t> queue_send;
-        };
+        struct connection_t;
 
-        struct connection_stream_t : worker::base::connection_base_t {
-            int flags;
-            int64_t id;
-            connection_t *conn;
-            std::unique_ptr<http::request_data_t> req;
-            std::unique_ptr<struct connection_io> top;
-            std::unique_ptr<worker_watcher_cb> ev_callback;
-            int speed_min_delay;
-        };
+        struct connection_stream_t;
 
         explicit http_v3_cloudflare_quiche(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata,manapi::net::http::config * config);
 
@@ -50,7 +31,7 @@ namespace manapi::net::worker {
 
         static std::shared_ptr<worker::http_v3_cloudflare_quiche> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
 
-        manapi::error::status init(std::size_t deep) override;
+        manapi::future<manapi::error::status> init(std::size_t deep) override;
 
         void stop(std::function<void()> cb) override;
 
@@ -69,8 +50,6 @@ namespace manapi::net::worker {
         std::unique_ptr<worker_watcher_cb> event_on(const shared_conn &conn, std::unique_ptr<worker_watcher_cb> callback) override;
 
         void feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) override;
-
-        bool is_valid_connection(worker::connection *connection) override;
 
         bool is_writable(const shared_conn &conn) override;
 

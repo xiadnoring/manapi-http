@@ -170,7 +170,7 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
                 }
 
                 workerptr->worker_pool_id(this->id);
-                res = workerptr->init(0);
+                res = co_await workerptr->init(0);
 
                 if (!res.ok()) {
                     res.log();

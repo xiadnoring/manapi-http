@@ -401,6 +401,8 @@ namespace manapi::ev {
     /* Loop data reference */
     typedef uv_loop_t *loop_ref;
 
+    typedef uv_handle_t handle;
+
     typedef uv_uid_t uid_t;
 
     typedef uv_gid_t gid_t;

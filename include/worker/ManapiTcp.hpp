@@ -14,17 +14,10 @@
 #include "../async/ManapiCancellation.hpp"
 
 namespace manapi::net::worker {
+    struct tcp_connection_t;
+
     class TCP : public worker::interface_worker {
     public:
-        struct connection_interface : base::connection_base_t {
-            manapi::timer t;
-            worker::base *worker;
-            int status = 0;
-            std::shared_ptr<ev::tcp> watcher;
-            std::unique_ptr<struct connection_io> top;
-            std::unique_ptr<worker_watcher_cb> ev_callback;
-            int speed_min_delay;
-        };
 
         enum connection_status {
             CONN_TCP_RESERVED     = 256,
@@ -35,9 +28,7 @@ namespace manapi::net::worker {
 
         ~TCP () override;
 
-        bool is_valid_connection(worker::connection *connection) override;
-
-        error::status init (std::size_t deep) override;
+        manapi::future<error::status> init (std::size_t deep) override;
 
         void waiting(const shared_conn &conn, bool state) override;
 
@@ -71,13 +62,13 @@ namespace manapi::net::worker {
 
         bytebuffer recv_first_buffer(const shared_conn &conn) override;
     protected:
-        virtual void read_start_ (connection_interface *data);
+        virtual void read_start_ (tcp_connection_t *data);
 
-        virtual void read_stop_ (connection_interface *data);
+        virtual void read_stop_ (tcp_connection_t *data);
 
         virtual int flush_write_ (const shared_conn &connection, bool flush = false);
 
-        void flush_read_ (const shared_conn &conn, connection_interface *data);
+        void flush_read_ (const shared_conn &conn, tcp_connection_t *data);
 
         void update_limit_rate ();
 

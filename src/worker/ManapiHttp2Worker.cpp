@@ -123,22 +123,28 @@ int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flag
     auto const data = conn->as<http_v2_stream_base_t>();
     auto const prev = std::exchange(data->flags, ((data->flags >> 2) << 2) | (flags & CONN_MASK_UPDATE));
 
-    if ((data->flags & CONN_CLOSED) && flags && data->ev_callback) {
-        if (this->call_user_callback(data->ev_callback, conn, CONN_CLOSED, nullptr, 0, nullptr))
-            this->close_connection(conn, CLOSE_CONN_ERR);
-        return prev;
+    if (data->ev_callback) {
+        if (data->flags & CONN_CLOSED) {
+            if (http_v2::call_user_callback(data->ev_callback, conn, CONN_CLOSED, nullptr, 0, nullptr))
+                this->close_connection(conn, CLOSE_CONN_ERR);
+        }
+        else {
+            if (flags & ev::WRITE) {
+                this->callbacks->http_v2_want_write(conn);
+            }
+
+            if (flags & ev::READ) {
+                this->callbacks->http_v2_on_read_stream (conn);
+
+                if (data->flags & CONN_RECV_END) {
+                    if (this->call_user_callback(data->ev_callback, conn,
+                        CONN_RECV_END, nullptr, 0, nullptr))
+                        this->close_connection(conn, CLOSE_CONN_ERR);
+                }
+            }
+        }
     }
-    if (flags & ev::WRITE) {
-        this->callbacks->http_v2_want_write(conn);
-    }
-    if (flags & ev::READ
-        && data->ev_callback) {
-        this->callbacks->http_v2_on_read_stream (conn);
-    }
-    if ((data->flags & CONN_RECV_END) && (flags & ev::READ) && data->ev_callback) {
-        if (this->call_user_callback(data->ev_callback, conn, CONN_RECV_END, nullptr, 0, nullptr))
-            this->close_connection(conn, CLOSE_CONN_ERR);
-    }
+
     return prev;
 }
 
@@ -147,8 +153,8 @@ std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::htt
     return std::exchange(conn_data->ev_callback, std::move(callback));
 }
 
-manapi::error::status manapi::net::worker::http_v2::init(std::size_t deep) {
-    return error::status_ok();
+manapi::future<manapi::error::status> manapi::net::worker::http_v2::init(std::size_t deep) {
+    co_return error::status_ok();
 }
 
 manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v2::ipdata(worker::connection *conn) {
@@ -158,10 +164,6 @@ manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v2::ipdata
 bool manapi::net::worker::http_v2::is_writable(const shared_conn &conn) {
     auto const s = conn->as<http_v2_stream_base_t>();
     return this->callbacks->http_v2_is_writable(conn);
-}
-
-bool manapi::net::worker::http_v2::is_valid_connection(worker::connection *connection) {
-    return true;
 }
 
 void manapi::net::worker::http_v2::stop(std::function<void()> cb) {

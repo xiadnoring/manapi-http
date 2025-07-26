@@ -10,20 +10,16 @@
 #include "./ManapiTcp.hpp"
 
 namespace manapi::net::worker {
+    struct tls_connection_t;
+
     class TLS : public worker::TCP {
     public:
-        struct connection_interface : TCP::connection_interface {
-            void *ssl;
-            manapi::timer accept_timer;
-            void *rbio;
-            void *wbio;
-        };
 
         TLS (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
 
         ~TLS () override;
 
-        error::status init (std::size_t deep) override;
+        manapi::future<error::status> init (std::size_t deep) override;
 
         shared_conn accept (const ev::shared_tcp &w) override;
 
@@ -84,7 +80,7 @@ namespace manapi::net::worker {
 
         virtual int ssl_bio_should_retry_ (void *bio) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual bool recv_setup_connection(connection_interface *storage) = 0;
+        virtual bool recv_setup_connection(tls_connection_t *storage) = 0;
 
         void update_limit_rate_connection(const shared_conn &sconn) override;
 
@@ -98,15 +94,15 @@ namespace manapi::net::worker {
 
         int ssl_session_ctx_id{1};
     private:
-        int check_read_stack_full_ (connection_interface *data);
+        int check_read_stack_full_ (tls_connection_t *data);
 
-        int manapi_do_process (const shared_conn &conn, connection_interface *data);
+        int manapi_do_process (const shared_conn &conn, tls_connection_t *data);
 
-        int manapi_do_handshake_ (const shared_conn &conn, connection_interface *data);
+        int manapi_do_handshake_ (const shared_conn &conn, tls_connection_t *data);
 
-        int ssl_bio_flush_write_ (const shared_conn &conn, TLS::connection_interface *m, int max_cnt);
+        int ssl_bio_flush_write_ (const shared_conn &conn, tls_connection_t *m, int max_cnt);
 
-        int ssl_bio_flush_read_ (const shared_conn &conn, TLS::connection_interface *m, int max_cnt);
+        int ssl_bio_flush_read_ (const shared_conn &conn, tls_connection_t *m, int max_cnt);
 
         int ssl_flush_recv (const shared_conn &conn, connection_io_part *top, int *cnt);
     };

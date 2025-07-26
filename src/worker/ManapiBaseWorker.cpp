@@ -243,7 +243,17 @@ manapi::object_pool & manapi::net::worker::base::bufferpool() {
     return manapi::async::current()->memory_fabric();
 }
 
+std::size_t manapi::net::worker::base::stream_id(shared_conn s) MANAPIHTTP_NOEXPECT {
+    return 0;
+}
 
+manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::new_stream(shared_conn conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT {
+    return error::status_unimplemented("worker:Streams not supported");
+}
+
+manapi::error::status manapi::net::worker::base::close_stream(shared_conn conn, shared_conn s) MANAPIHTTP_NOEXPECT {
+    return error::status_unimplemented("worker:Streams not supported");
+}
 
 
 void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt) {

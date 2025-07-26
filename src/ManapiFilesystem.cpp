@@ -292,8 +292,9 @@ struct fileno_deleter {
     ~fileno_deleter() {
         std::move_only_function<void(std::exception_ptr, manapi::sys_error::status *)> cb;
 
+        auto b = manapi::async::timeout_cancellation(64000);
         MANAPIHTTP_MUST_ALLOC_START
-        cb = [] (std::exception_ptr err, manapi::sys_error::status *s)
+        cb = [b] (std::exception_ptr err, manapi::sys_error::status *s)
             -> void {
             if (err) {
                 int errnum;
@@ -319,7 +320,7 @@ struct fileno_deleter {
         manapi::future<manapi::sys_error::status> task(nullptr);
 
         MANAPIHTTP_MUST_ALLOC_START
-        task = manapi::filesystem::async_close(this->fileno, manapi::async::timeout_cancellation(64000));
+        task = manapi::filesystem::async_close(this->fileno, std::move(b));
         MANAPIHTTP_MUST_ALLOC_END
 
         manapi::async::run<manapi::sys_error::status>(std::move(task), std::move(cb));

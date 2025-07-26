@@ -920,6 +920,7 @@ namespace manapi::net::http::internal {
                 cdata->worker.get(), cdata->conn.get())) {
                 /* error */
                 manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "stringify_ip(): ip get failed");
+                return;
             }
 
             auto handler = &cdata->router->handler->handler;

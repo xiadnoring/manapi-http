@@ -6,6 +6,8 @@
 #include <memory.h>
 #include "../include/ManapiUtils.hpp"
 #include "async/ManapiAsyncSocket.hpp"
+#include "async/ManapiEasyCancellation.hpp"
+#include "services/ManapiDns.hpp"
 
 manapi::net::worker::udp::udp(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : worker::interface_worker(std::move(site), std::move(wdata), config) {
 
@@ -15,7 +17,7 @@ manapi::net::worker::udp::~udp() {
     freeaddrinfo(this->local);
 }
 
-manapi::error::status manapi::net::worker::udp::init(std::size_t deep) {
+manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t deep) {
     addrinfo hints = {
         .ai_family = PF_UNSPEC,
         .ai_socktype = SOCK_DGRAM,
@@ -25,8 +27,11 @@ manapi::error::status manapi::net::worker::udp::init(std::size_t deep) {
     auto &address = this->config_->address;
     auto &port = this->config_->port;
 
-    if (getaddrinfo(address.data(), port.data(), &hints, &this->local) != 0)
-        return error::status_internal("failed to resolve host");
+    int rhs = co_await dns::getaddrinfo(address.data(), port.data(), &hints, &this->local, async::timeout_cancellation(5000));
+    if (rhs) {
+        manapi_log_trace(debug::LOG_TRACE_HIGH, "%s failed due to %s", "dns::getaddrinfo()", ev::strerror(rhs));
+        co_return error::status_internal("failed to resolve host");
+    }
 
     this->config_->server_len=(this->local->ai_addrlen);
     memcpy (&this->config_->server_addr,this->local->ai_addr, this->local->ai_addrlen);
@@ -52,15 +57,17 @@ manapi::error::status manapi::net::worker::udp::init(std::size_t deep) {
     memset(&this->sockaddrin, '\0', sizeof (sockaddr));
 
     if (this->local->ai_family == ev::IPv4) {
-        if (auto rhs = this->udp_accept_->ip4_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in *>(&this->sockaddrin))) {
+        rhs = this->udp_accept_->ip4_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in *>(&this->sockaddrin));
+        if (rhs) {
             manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set ipv4 addr due to result - {}", rhs);
-            return error::status_internal("udp:ip4_addr failed");
+            co_return error::status_internal("udp:ip4_addr failed");
         }
     }
     else if (this->local->ai_family == ev::IPv6) {
-        if (auto rhs = this->udp_accept_->ip6_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin))) {
+        rhs = this->udp_accept_->ip6_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin));
+        if (rhs) {
             manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set ipv6 addr due to result - {}", rhs);
-            return error::status_internal("udp:ip6_addr failed");
+            co_return error::status_internal("udp:ip6_addr failed");
         }
     }
 
@@ -69,16 +76,17 @@ manapi::error::status manapi::net::worker::udp::init(std::size_t deep) {
 #if defined(__unix__) && !defined(__APPLE__)
         bind_flags |= ev::UDP_REUSEPORT;
 #endif
-        if (auto rhs = this->udp_accept_->s_bind(reinterpret_cast<sockaddr *>(&this->sockaddrin), bind_flags)) {
+        rhs = this->udp_accept_->s_bind(reinterpret_cast<sockaddr *>(&this->sockaddrin), bind_flags);
+        if (rhs) {
             manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't bind socket due to result - {}", rhs);
-            return error::status_internal("udp:s_bind failed");
+            co_return error::status_internal("udp:s_bind failed");
         }
     }
 
 
-    return error::status_ok();
+    co_return error::status_ok();
 err:
-    return error::status_internal("udp:couldn't initialize udp connection");
+    co_return error::status_internal("udp:couldn't initialize udp connection");
 }
 
 void manapi::net::worker::udp::stop(std::function<void()> cb) {
