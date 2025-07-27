@@ -38,8 +38,8 @@ namespace manapi::net::http {
         EHTTP_V1_1_CHUNKED_WAIT = -3
     };
 
-    bool http_v1_1_is_token_char (const char &c);
-    int http_v1_1_work (http_v1_1_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize);
-    int http_v1_1_chunked_read (http_v1_1_chunked_t *ctx, worker::base *worker, const worker::shared_conn &conn, http::config *config, const char *buffer, ssize_t size);
-    int http_v1_1_chunked_flush (http_v1_1_chunked_t *ctx, worker::base *worker, const worker::shared_conn &conn);
+    bool http_v1_1_is_token_char (const char &c) MANAPIHTTP_NOEXPECT;
+    int http_v1_1_work (http_v1_1_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize) MANAPIHTTP_NOEXPECT;
+    int http_v1_1_chunked_read (http_v1_1_chunked_t *ctx, worker::base *worker, const worker::shared_conn &conn, http::config *config, const char *buffer, ssize_t size) MANAPIHTTP_NOEXPECT;
+    int http_v1_1_chunked_flush (http_v1_1_chunked_t *ctx, worker::base *worker, const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT;
 }

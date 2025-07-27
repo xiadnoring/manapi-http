@@ -17,7 +17,7 @@ UTEST(parse, headers_ok_1) {
     auto v = manapi::net::http::parse_header(R"(hello: world1;"test"=56,"world2";test="78")");
     ASSERT_TRUE(v.ok());
     auto h = v.unwrap();
-    auto hv = manapi::net::http::parse_header_value(h.second);
+    auto hv = manapi::net::http::parse_header_value(h.second).unwrap();
     auto hk = std::string{h.first};
     manapi::string::lower_ascii(hk);
 

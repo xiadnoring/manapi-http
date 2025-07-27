@@ -29,6 +29,10 @@ namespace manapi::net::worker {
         CLOSE_CONN_SHUTDOWN = 4
     };
 
+    enum wrk_global_flags {
+        WRK_GLOBAL_FLAG_MULTISTREAM = 1
+    };
+
     struct wrk_interface_t {
         uint8_t flags;
         void *data;
@@ -64,14 +68,17 @@ namespace manapi::net::worker {
     using worker_watcher_cb = std::move_only_function<void(const shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)>;
 
     struct wrk_interface_global_t {
+        uint64_t flags;
         void *data;
-        int (*init_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
-        int (*cleanup_cb)(worker::connection *conn, wrk_interface_global_t *global, worker::base *w);
-        int (*cleanup_global_cb)(wrk_interface_global_t *data, worker::base *w);
-        void (*flush_custom_read_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
-        int (*accept_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w);
-        void (*custom_read_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w);
-        void (*update_limit_rate)(const manapi::net::worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w);
+        uint64_t (*flags_cb)(const shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPI_EV_NOEXPECT;
+        int (*alpn_cb)(const shared_conn &conn, wrk_interface_global_t *global, char *alpn, std::size_t alpn_size, worker::base *w) MANAPIHTTP_NOEXPECT;
+        int (*init_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
+        int (*cleanup_cb)(worker::connection *conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
+        int (*cleanup_global_cb)(wrk_interface_global_t *data, worker::base *w) MANAPIHTTP_NOEXPECT;
+        void (*flush_custom_read_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
+        int (*accept_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
+        void (*custom_read_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
+        void (*update_limit_rate)(const manapi::net::worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
         manapi::future<int> (*send_response)(const manapi::net::worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w, http::response* res, bool finish);
     };
 
@@ -156,23 +163,23 @@ namespace manapi::net::worker {
 
         virtual manapi::future<error::status> init (std::size_t deep) = 0;
 
-        virtual void close_connection (shared_conn conn, int flags) = 0;
+        virtual void close_connection (shared_conn conn, int flags) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual ssize_t sync_write_ex (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) = 0;
+        virtual ssize_t sync_write_ex (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual ssize_t sync_write_ex (const shared_conn &conn, manapi::slice_view buffs, bool finish, int maxcnt);
+        virtual ssize_t sync_write_ex (const shared_conn &conn, manapi::slice_view buffs, bool finish, int maxcnt) MANAPIHTTP_NOEXPECT;
 
-        virtual ssize_t sync_write (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) = 0;
+        virtual ssize_t sync_write (const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXPECT = 0;
 
-        ssize_t sync_write_ex (const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt);
+        ssize_t sync_write_ex (const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXPECT;
 
-        ssize_t sync_write (const shared_conn &conn, slice_view buffs, bool finish);
+        ssize_t sync_write (const shared_conn &conn, slice_view buffs, bool finish) MANAPIHTTP_NOEXPECT;
 
-        ssize_t sync_write (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
+        ssize_t sync_write (const shared_conn &conn, const void *buff, ssize_t size, bool finish) MANAPIHTTP_NOEXPECT;
 
-        virtual bool is_writable (const shared_conn &conn) = 0;
+        virtual bool is_writable (const shared_conn &conn) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual void waiting (const shared_conn &conn, bool state) = 0;
+        virtual void waiting (const shared_conn &conn, bool state) MANAPIHTTP_NOEXPECT = 0;
 
         manapi::future<ssize_t> write (const shared_conn &conn, const void *buff, ssize_t size, bool finish);
 
@@ -184,34 +191,34 @@ namespace manapi::net::worker {
 
         manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice_view slice, bool finish);
 
-        [[nodiscard]] virtual std::size_t recv_count (const shared_conn &conn) const = 0;
+        [[nodiscard]] virtual std::size_t recv_count (const shared_conn &conn) const MANAPIHTTP_NOEXPECT = 0;
 
-        virtual bytebuffer recv_first_buffer (const shared_conn &conn) = 0;
+        virtual bytebuffer recv_first_buffer (const shared_conn &conn) MANAPIHTTP_NOEXPECT = 0;
 
         virtual void stop (std::function<void()> cb) = 0;
 
-        virtual std::unique_ptr<worker_watcher_cb> event_on (const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) = 0;
+        virtual std::unique_ptr<worker_watcher_cb> event_on (const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual int event_flags (const shared_conn & conn, int flags) = 0;
+        virtual int event_flags (const shared_conn & conn, int flags) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual int event_flags (const shared_conn & conn) = 0;
+        virtual int event_flags (const shared_conn & conn) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) = 0;
+        virtual void feed_event (const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXPECT = 0;
 
-        void event_toggle (const shared_conn & conn, bool state, int flag);
+        void event_toggle (const shared_conn & conn, bool state, int flag) MANAPIHTTP_NOEXPECT;
 
         /**
          * Get the ipdata structure from the connection object |conn|
          * @param conn connection object
          * @return reference to the ipdata structure
          */
-        virtual connection::ipdata_t *ipdata (worker::connection *conn);
+        virtual connection::ipdata_t *ipdata (worker::connection *conn) MANAPIHTTP_NOEXPECT;
 
         /**
          * Get the app bufferpool
          * @return
          */
-        object_pool &bufferpool();
+        object_pool &bufferpool() MANAPIHTTP_NOEXPECT;
 
         /**
          * Obtain the stream identifier from the stream |s|
@@ -236,21 +243,21 @@ namespace manapi::net::worker {
          */
         virtual error::status close_stream (shared_conn conn, shared_conn s) MANAPIHTTP_NOEXPECT;
 
-        static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt);
+        static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt) MANAPIHTTP_NOEXPECT;
 
-        static ssize_t connection_io_recv (struct connection_io_part *top, char *buffer, ssize_t size, int *cnt);
+        static ssize_t connection_io_recv (struct connection_io_part *top, char *buffer, ssize_t size, int *cnt) MANAPIHTTP_NOEXPECT;
 
-        static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, int *cnt, int max_cnt);
+        static ssize_t connection_io_send (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, int *cnt, int max_cnt) MANAPIHTTP_NOEXPECT;
 
-        static void connection_io_send_start (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, ibuffpool_t *buff, int *cnt);
+        static int connection_io_send_start (struct connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, ibuffpool_t *buff, int *cnt) MANAPIHTTP_NOEXPECT;
 
-        static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, int *cnt);
+        static void connection_io_trim (struct connection_io_part *top, buffer_deque *parent, int *cnt) MANAPIHTTP_NOEXPECT;
 
-        static ssize_t buffs_cut_by_size (ev::buff_t *buff, uint32_t &nbuff, ssize_t limit_size, bool &fin);
+        static ssize_t buffs_cut_by_size (ev::buff_t *buff, uint32_t &nbuff, ssize_t limit_size, bool &fin) MANAPIHTTP_NOEXPECT;
 
-        static int call_user_callback (const std::unique_ptr<worker_watcher_cb> &cb, const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p);
+        static int call_user_callback (worker_watcher_cb *cb, const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) MANAPIHTTP_NOEXPECT;
 
-        void feed_event_read_ (const shared_conn &conn, worker_watcher_cb *cb, connection_io_part *recv, int *recv_size, int conn_flags, int flags, const char *buff, ssize_t size, ibuffpool_t *p);
+        void feed_event_read_ (const shared_conn &conn, worker_watcher_cb *cb, connection_io_part *recv, int *recv_size, int conn_flags, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXPECT;
     protected:
 
     };

@@ -3,6 +3,7 @@
 #include <memory>
 #include <functional>
 
+#include "ManapiErrors.hpp"
 #include "../ManapiUtils.hpp"
 
 namespace manapi::async {
@@ -64,19 +65,20 @@ namespace manapi::async {
          *
          * @throw manapi::exception with error code @code ERR_CANCELLATION_FAILED@endcode in case of failure while sending a signal
          */
-        void cancel ();
+        void cancel () MANAPIHTTP_NOEXPECT;
 
         /**
          * Request a callback to cancel your action
          */
-        void ask_cancel_callback ();
+        void ask_cancel_callback () MANAPIHTTP_NOEXPECT;
 
         /**
          * Set a timeout in milliseconds
          *
          * @param timeout Timeout in milliseconds
+         * @return Ok on succes, otherwise it returns InternalError, ResourceExhausted
          */
-        void timeout (size_t timeout);
+        manapi::error::status timeout (size_t timeout) MANAPIHTTP_NOEXPECT;
 
         /**
          * It will return a message stating that it asks
@@ -99,9 +101,9 @@ namespace manapi::async {
          */
         void disable ();
     private:
-        void send_async_();
-        static void stop_timeout_ (std::shared_ptr<data_t> data);
-        static void cancel_ (std::shared_ptr<data_t> data);
+        void send_async_() MANAPIHTTP_NOEXPECT;
+        static void stop_timeout_ (std::shared_ptr<data_t> data) MANAPIHTTP_NOEXPECT;
+        static void cancel_ (std::shared_ptr<data_t> data) MANAPIHTTP_NOEXPECT;
         std::shared_ptr<data_t> data;
     };
 }

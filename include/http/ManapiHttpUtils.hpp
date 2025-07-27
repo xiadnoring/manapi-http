@@ -73,7 +73,7 @@ namespace manapi::net::http {
 
     void request_data_clear (request_data_t &data);
 
-    std::vector <header_value_t> parse_header_value (std::string_view header_value);
+    manapi::error::status_or<std::vector <header_value_t>> parse_header_value (std::string_view header_value) MANAPIHTTP_NOEXPECT;
 
     manapi::error::status_or<std::pair<std::string_view, std::string_view>> parse_header (std::string_view header);
 

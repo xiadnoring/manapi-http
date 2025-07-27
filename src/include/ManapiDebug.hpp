@@ -28,36 +28,48 @@
 #define THROW_MANAPIHTTP_EXCEPTION2(errnum, ...) throw RETHROW_MANAPIHTTP_EXCEPTION2 (errnum, __VA_ARGS__)
 
 namespace manapi::debug {
-    void do_log_ (std::string_view file_name, std::string_view func, std::size_t line, err_num errnum, std::string_view data);
+    void do_log_ (std::string_view file_name, std::string_view func, std::size_t line, err_num errnum, std::string_view data) MANAPIHTTP_NOEXPECT;
 
     template <class... Args>
-    void log_ (size_t line, std::string_view file_name, std::string_view func, err_num errnum, std::string_view format, Args&& ...args)
+    void log_ (size_t line, std::string_view file_name, std::string_view func, err_num errnum, std::string_view format, Args&& ...args) MANAPIHTTP_NOEXPECT
     {
-        const std::size_t n = sizeof...(Args);
-        std::string str;
-        if (n)
-            str = std::vformat(format, std::make_format_args(args...));
-        else
-            str = format;
+        try {
+            const std::size_t n = sizeof...(Args);
+            std::string str;
+            if (n)
+                str = std::vformat(format, std::make_format_args(args...));
+            else
+                str = format;
 
-        debug::do_log_(file_name, func, line, errnum, str);
+            debug::do_log_(file_name, func, line, errnum, str);
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s failed due to %s", "log()", e.what());
+        }
     }
 
     template <class... Args>
-    manapi::exception error_ (size_t line, std::string_view file_name, std::string_view func, err_num errnum, std::string_view format, Args&& ...args)
+    manapi::exception error_ (size_t line, std::string_view file_name, std::string_view func, err_num errnum, std::string_view format, Args&& ...args) MANAPIHTTP_NOEXPECT
     {
-        const std::size_t n = sizeof...(Args);
-        //auto msg = std::format ("[{:%H:%M:%S}][{}]: {}() ({}:{}): ", time::current_time(true), static_cast<size_t>(errnum), func, file_name, line);
-        std::string information;
-        if (n)
-            information = std::vformat(format, std::make_format_args(args...));
-        else
-            information = format;
+        try {
+            const std::size_t n = sizeof...(Args);
+            //auto msg = std::format ("[{:%H:%M:%S}][{}]: {}() ({}:{}): ", time::current_time(true), static_cast<size_t>(errnum), func, file_name, line);
+            std::string information;
+            if (n)
+                information = std::vformat(format, std::make_format_args(args...));
+            else
+                information = format;
 
-        //msg += information;
+            //msg += information;
 
-        //logger->error(manapi::logger::default_service, static_cast<int>(errnum), std::move(msg));
+            //logger->error(manapi::logger::default_service, static_cast<int>(errnum), std::move(msg));
 
-        return std::move(manapi::exception (errnum, std::move(information)));
+            return std::move(manapi::exception (errnum, std::move(information)));
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s failed due to %s", "error()", e.what());
+        }
+
+        return manapi::exception(ERR_RESOURCE_EXHAUSTED, {});
     }
 }

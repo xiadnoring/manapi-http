@@ -202,11 +202,14 @@ std::string manapi::net::http::response::compress() {
                 /* lite check */
 
                 if (compress.empty()) {
-                    auto data = http::parse_header_value(it->second);
-                    for (auto &a: data) {
-                        if (this->config_->contains_compressor(a.value)) {
-                            compress = std::move(a.value);
-                            break;
+                    auto rhs = http::parse_header_value(it->second);
+                    if (rhs.ok()) {
+                        auto data = rhs.unwrap();
+                        for (auto &a: data) {
+                            if (this->config_->contains_compressor(a.value)) {
+                                compress = std::move(a.value);
+                                break;
+                            }
                         }
                     }
                 }
@@ -227,10 +230,14 @@ void manapi::net::http::response::detect_ranges () {
         return;
     }
 
+    auto rhs = http::parse_header_value(it->second);
+    if (!rhs.ok())
+        return;
+
     this->ranges_ = std::make_unique<decltype(this->ranges_)::element_type>();
 
-    const auto values = http::parse_header_value(it->second);
 
+    const auto values = rhs.unwrap();
     for (const auto& value: values) {
         if (value.params.contains("bytes")) {
             const std::string &range_str = value.params.at("bytes");

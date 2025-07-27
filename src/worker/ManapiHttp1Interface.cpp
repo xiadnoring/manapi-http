@@ -26,35 +26,35 @@ enum http_v1_flags {
     HTTP1_BODY_CHUNKED = 1
 };
 
-int default_wrk_http_all_accept (const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+int default_wrk_http_all_accept (const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     HTTP_ALL_SWITCH (accept_cb, conn, flags, buffer, nsize, p, httpctx, w);
 }
 
-int default_wrk_http_all_init (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+int default_wrk_http_all_init (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     HTTP_ALL_SWITCH (init_cb, conn, httpctx, w);
 }
 
-int default_wrk_http_all_cleanup (manapi::net::worker::connection * conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+int default_wrk_http_all_cleanup (manapi::net::worker::connection * conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     HTTP_ALL_SWITCH (cleanup_cb, conn, httpctx, w);
 }
 
-void default_wrk_http_all_custom_read(const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+void default_wrk_http_all_custom_read(const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     HTTP_ALL_SWITCH (custom_read_cb, conn, flags, buffer, nsize, p, httpctx, w);
 }
 
-void default_wrk_http_all_flush_custom_read(const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+void default_wrk_http_all_flush_custom_read(const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     HTTP_ALL_SWITCH (flush_custom_read_cb, conn, httpctx, w);
 }
 
-void default_wrk_http_all_update_limit_rate(const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+void default_wrk_http_all_update_limit_rate(const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     HTTP_ALL_SWITCH (update_limit_rate, conn, httpctx, w);
 }
 
-manapi::future<int> default_wrk_http_all_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {
+manapi::future<int> default_wrk_http_all_send_response (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) MANAPIHTTP_NOEXPECT {
     HTTP_ALL_SWITCH(send_response, conn, global, w, res, finish);
 }
 
-int default_wrk_http_all_cleanup_global_cb (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) {
+int default_wrk_http_all_cleanup_global_cb (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     auto wrk_global = static_cast<manapi::net::worker::wrk_http_ctx_global_t *>(data->data);
 
     int rhs1=0,rhs2=0,rhs3=0;
@@ -75,11 +75,54 @@ int default_wrk_http_all_cleanup_global_cb (manapi::net::worker::wrk_interface_g
         std::max(abs(rhs2), abs(rhs3)));
 }
 
-manapi::error::status manapi::net::worker::default_wrk_http_all_global_init(wrk_interface_global_t *global, worker::base *w) {
+uint64_t default_wrk_http_all_global_flags (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
+    auto const data = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data);
+    switch (conn->version) {
+        case manapi::net::http::versions::HTTP_v0_9:
+        case manapi::net::http::versions::HTTP_v1_0:
+        case manapi::net::http::versions::HTTP_v1_1:
+            return data->http1->flags;
+        case manapi::net::http::versions::HTTP_v2:
+            return data->http2->flags;
+        case manapi::net::http::versions::HTTP_v3:
+            return data->http3->flags;
+        default:
+            return -1;
+    }
+}
+
+int default_wrk_http_all_global_alpn (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, char *alpn, std::size_t alpn_size, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
+    std::string_view s {alpn, alpn_size};
+    if (s.starts_with("http/")) {
+        s = s.substr(sizeof ("http/") - 1);
+        if (s == "0.9")
+            return manapi::net::http::versions::HTTP_v0_9;
+        if (s == "1.0")
+            return manapi::net::http::versions::HTTP_v1_0;
+        if (s == "1.1")
+            return manapi::net::http::versions::HTTP_v1_1;
+    }
+    else {
+        if (s == "h2")
+            return manapi::net::http::versions::HTTP_v2;
+
+        if (s == "h3")
+            return manapi::net::http::versions::HTTP_v3;
+    }
+
+    return manapi::net::http::versions::HTTP_v1_1;
+}
+
+manapi::error::status manapi::net::worker::default_wrk_http_all_global_init(wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT {
     if (global->data)
         return manapi::error::status_invalid_argument("global->data already exists");
 
-    global->data = new manapi::net::worker::wrk_http_ctx_global_t{};
+    global->data = new (std::nothrow) manapi::net::worker::wrk_http_ctx_global_t{};
+    if (!global->data)
+        return error::status_resource_exhausted();
+
+    global->alpn_cb = default_wrk_http_all_global_alpn;
+    global->flags_cb = default_wrk_http_all_global_flags;
     global->accept_cb = default_wrk_http_all_accept;
     global->init_cb = default_wrk_http_all_init;
     global->cleanup_cb = default_wrk_http_all_cleanup;
@@ -92,7 +135,7 @@ manapi::error::status manapi::net::worker::default_wrk_http_all_global_init(wrk_
     return manapi::error::status_ok();
 }
 
-manapi::error::status manapi::net::worker::default_wrk_http_all_global_add_version(wrk_interface_global_t *global, int version, std::unique_ptr<wrk_interface_global_t> http_t) {
+manapi::error::status manapi::net::worker::default_wrk_http_all_global_add_version(wrk_interface_global_t *global, int version, std::unique_ptr<wrk_interface_global_t> http_t) MANAPIHTTP_NOEXPECT {
     if (!global)
         return manapi::error::status_invalid_argument("global is null");
 
@@ -121,7 +164,7 @@ manapi::error::status manapi::net::worker::default_wrk_http_all_global_add_versi
     return error::status_ok();
 }
 
-void default_wrk_http1_custom_read (const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+void default_wrk_http1_custom_read (const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     auto wrk_ctx = static_cast<manapi::net::worker::wrk_http1_ctx_t *> (conn->wrk.data);
 
     if (wrk_ctx->flgs & HTTP1_BODY_CHUNKED) {
@@ -147,7 +190,7 @@ void default_wrk_http1_custom_read (const manapi::net::worker::shared_conn &conn
     }
 }
 
-int default_wrk_http1_init (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+int default_wrk_http1_init (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     try {
         assert(!conn->wrk.data);
 
@@ -161,14 +204,15 @@ int default_wrk_http1_init (const manapi::net::worker::shared_conn &conn, manapi
     catch (std::bad_alloc const &e) {
         return manapi::ERR_RESOURCE_EXHAUSTED;
     }
-    catch (...) {
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "default_wrk_http1_init", e.what());
         return manapi::ERR_UNKNOWN;
     }
 
     return manapi::ERR_OK;
 }
 
-int default_wrk_http1_cleanup (manapi::net::worker::connection* conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+int default_wrk_http1_cleanup (manapi::net::worker::connection* conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     auto wrk_data = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
     delete wrk_data;
     conn->wrk.data = nullptr;
@@ -176,14 +220,14 @@ int default_wrk_http1_cleanup (manapi::net::worker::connection* conn, manapi::ne
     return manapi::ERR_OK;
 }
 
-int default_wrk_http1_global_cleanup (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) {
+int default_wrk_http1_global_cleanup (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     auto wrk_global = static_cast<manapi::net::worker::wrk_http1_ctx_global_t *>(data->data);
     delete wrk_global;
     data->data = nullptr;
     return manapi::ERR_OK;
 }
 
-int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     auto wrk_data = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
     int status = manapi::net::http::BAD_REQUEST_400;
 
@@ -288,7 +332,11 @@ exec:
 
             it_header = req_ptr->headers.find(manapi::net::http::HEADER.TRANSFER_ENCODING);
             if (it_header != req_ptr->headers.end()) {
-                auto const values = manapi::net::http::parse_header_value(it_header->second);
+                auto rhs = manapi::net::http::parse_header_value(it_header->second);;
+                if (!rhs.ok())
+                    goto send_error;
+
+                auto const values = rhs.unwrap();
                 for (const auto &v : values) {
                     if (manapi::string::equals(v.value, "chunked", 0b10)) {
                         wrk_data->flgs |= HTTP1_BODY_CHUNKED;
@@ -304,7 +352,10 @@ exec:
 
             it_header = req_ptr->headers.find(manapi::net::http::HEADER.CONNECTION);
             if (it_header !=  req_ptr->headers.end()) {
-                auto const values = manapi::net::http::parse_header_value(it_header->second);
+                auto rhs = manapi::net::http::parse_header_value(it_header->second);
+                if (!rhs.ok())
+                    goto send_error;
+                auto const values = rhs.unwrap();
 
                 bool keep_alive_ = false;
                 bool close_ = false;
@@ -355,30 +406,42 @@ exec:
 
         return manapi::ERR_OK;
     }
-    catch (...) {
-        /* fatal error */
+    catch (std::bad_alloc const &) {
 
+    }
+    catch (std::exception const &e) {
+        /* fatal error */
+        manapi_log_error("%s failed due to %s", "default_wrk_http1", e.what());
     }
 
 
     send_error: {
-        auto msg = manapi::net::http::status_to_string(status);
-        if (msg.ok()) {
-            auto status_message = msg.unwrap();
-            auto const s = manapi::net::http::internal::generate_default_page (status, status_message);
-            auto const h = std::format("HTTP/{} {} {}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-                manapi::net::http::config::stringify_http_version(conn->version), status, status_message, s.size());
-            if (h.size() != w->sync_write_ex(conn, h.data(), h.size(), false, 1e5))
-                goto err;
-            if (s.size() != w->sync_write_ex(conn, s.data(), s.size(), true, 1e5))
-                goto err;
-            w->close_connection (conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
+        try {
+            auto msg = manapi::net::http::status_to_string(status);
+            if (msg.ok()) {
+                auto status_message = msg.unwrap();
+                auto const s = manapi::net::http::internal::generate_default_page (status, status_message);
+                auto const h = std::format("HTTP/{} {} {}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    manapi::net::http::config::stringify_http_version(conn->version), status, status_message, s.size());
+                if (h.size() != w->sync_write_ex(conn, h.data(), h.size(), false, 1e5))
+                    goto err;
+                if (s.size() != w->sync_write_ex(conn, s.data(), s.size(), true, 1e5))
+                    goto err;
+                w->close_connection (conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
+            }
+        }
+        catch (std::bad_alloc const &) {
+            return manapi::ERR_RESOURCE_EXHAUSTED;
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s failed due to %s", "default_wrk_http1", e.what());
+            return manapi::ERR_INTERNAL;
         }
     }
     err: return manapi::ERR_ABORTED;
 }
 
-void default_wrk_http1_flush_read (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+void default_wrk_http1_flush_read (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     auto wrk_ctx = static_cast<manapi::net::worker::wrk_http1_ctx_t *>(conn->wrk.data);
     if (wrk_ctx->flgs & HTTP1_BODY_CHUNKED) {
         switch (manapi::net::http::http_v1_1_chunked_flush(wrk_ctx->chunked_ctx.get(), w, conn)) {
@@ -438,12 +501,14 @@ manapi::future<int> default_wrk_http1_send_response (const manapi::net::worker::
     co_return manapi::ERR_OK;
 }
 
-
 manapi::error::status manapi::net::worker::default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
     if (global->data)
         return manapi::error::status_invalid_argument("global->data already exists");
 
-    global->data = new manapi::net::worker::wrk_http1_ctx_global_t{};
+    global->data = new (std::nothrow) manapi::net::worker::wrk_http1_ctx_global_t{};
+    if (!global->data)
+        return manapi::error::status_resource_exhausted();
+
     global->accept_cb = default_wrk_http1;
     global->cleanup_cb = default_wrk_http1_cleanup;
     global->cleanup_global_cb = default_wrk_http1_global_cleanup;

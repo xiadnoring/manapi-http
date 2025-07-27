@@ -116,11 +116,11 @@ void manapi::timer::call_() {
     }
 }
 
-void manapi::timer::clear() {
+void manapi::timer::clear() MANAPIHTTP_NOEXPECT {
     this->clear_();
 }
 
-void manapi::timer::clear_() {
+void manapi::timer::clear_() MANAPIHTTP_NOEXPECT {
     if (!(this->data->flags & TIMER_TASK_ENABLED)) {
         this->data->async_cb = {};
         this->data->sync_cb = {};
@@ -162,17 +162,16 @@ void manapi::timer::callback_sync(sync_cb_t cb) {
     this->data->async_cb.reset();
 }
 
-void manapi::timer::again(std::size_t ms) {
+manapi::error::status manapi::timer::again(std::size_t ms) MANAPIHTTP_NOEXPECT {
     this->data->flags |= TIMER_TASK_ENABLED;
 
-    if (this->data->flags & TIMER_TASK_ACTIVE) {
+    if (this->data->flags & TIMER_TASK_ACTIVE)
         manapi::async::current()->timerpool()->remove_timer(this->data);
-    }
 
     this->data->delay = std::chrono::milliseconds{ms};
     this->data->point = std::chrono::steady_clock::now() + this->data->delay;
 
-    manapi::async::current()->timerpool()->again_timer(this->data);
+    return manapi::async::current()->timerpool()->again_timer(this->data);
 }
 
 bool manapi::timer::is_async() const {

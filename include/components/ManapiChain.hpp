@@ -137,29 +137,29 @@ namespace manapi {
 
         void push_back (value_type &&n) {
             auto _n = std::make_unique<chain_item<value_type>>( std::move(n), nullptr, nullptr);
-            this->push_back(std::move(_n));
+            this->push_back_chain(std::move(_n));
             ++this->s_;
         }
 
         void push_front (value_type &&n) {
             auto _n = std::make_unique<chain_item<value_type>>( std::move(n), nullptr, nullptr);
-            this->push_front(std::move(_n));
+            this->push_front_chain(std::move(_n));
             ++this->s_;
         }
 
         void push_back (const value_type &n) {
             auto _n = std::make_unique<chain_item<value_type>>( n, nullptr, nullptr);
-            this->push_back(std::move(_n));
+            this->push_back_chain(std::move(_n));
             ++this->s_;
         }
 
         void push_front (const value_type &n) {
             auto _n = std::make_unique<chain_item<value_type>>( n, nullptr, nullptr);
-            this->push_front(std::move(_n));
+            this->push_front_chain(std::move(_n));
             ++this->s_;
         }
 
-        void push_back (chain_item_un n) {
+        void push_back_chain (chain_item_un n) {
             if (this->last_ == nullptr) {
                 this->src_ = std::move(n);
                 this->last_ = this->src_.get();
@@ -171,7 +171,7 @@ namespace manapi {
             this->last_ = this->last_->next.get();
         }
 
-        void push_front (chain_item_un n) {
+        void push_front_chain (chain_item_un n) {
             if (this->src_ == nullptr) {
                 this->last_ = n.get();
                 this->src_ = std::move(n);

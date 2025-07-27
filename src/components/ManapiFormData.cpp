@@ -94,7 +94,8 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
                 THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_INVALID_ARGUMENT, "Content-Type header is missing");
             }
 
-            auto hparams = http::parse_header_value(hit->second);
+            auto rhs = http::parse_header_value(hit->second);
+            auto hparams = rhs.unwrap();
             if (hparams.size() != 1) {
                 THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_INVALID_ARGUMENT, "Content-Type header is invalid");
             }
@@ -284,7 +285,8 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
                                     co_return -1;
                                 }
 
-                                auto hparams = http::parse_header_value(hit->second);
+                                auto rhs = http::parse_header_value(hit->second);
+                                auto hparams = rhs.unwrap();
 
                                 if (hparams.size() != 1
                                     || hparams[0].value != "form-data")

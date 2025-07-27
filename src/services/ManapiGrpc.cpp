@@ -485,9 +485,11 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
     grpc_event_engine::experimental::MemoryAllocator memory_allocator, Duration timeout) {
     auto &ctx = manapi::async::current();
     assert(ctx && "bug: I think grpc creates new connection only in the event loop");
-    auto data = std::make_unique<wgrpc_connection_data_t>();
 
-    auto timer = std::make_unique<manapi::timer>();
+    std::unique_ptr<wgrpc_connection_data_t> data (new (std::nothrow) wgrpc_connection_data_t{});
+    std::unique_ptr<manapi::timer> timer (new (std::nothrow) manapi::timer{});
+
+    assert(data && timer);
 
     auto [connect, conn] = manapi::async::current()->eventloop()->connect_tcp (addr.address(),
         [timer = timer.get(), on_connect = std::move(on_connect), memory_allocator = std::move(memory_allocator)]
@@ -533,12 +535,16 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
         },
         nullptr, nullptr);
 
-    *timer = manapi::async::current()->timerpool()->append_timer_sync(
+    auto res = manapi::async::current()->timerpool()->append_timer_sync(
         std::max(1UL, static_cast<std::size_t>(timeout.count() / 1000000)), [connect] (manapi::timer t)
         -> void {
         if (connect->is_active())
             connect->unbind();
     });
+
+    assert(res.ok());
+
+    *timer = res.unwrap();
 
     ConnectionHandle handle{};
 
@@ -652,14 +658,16 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
     auto const ms = std::max(static_cast<std::size_t>(1),
         static_cast<std::size_t>(when.count() / 1000000));
     auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
-    *timer = ctx->timerpool()->append_timer_sync(ms,
+    auto rhs = ctx->timerpool()->append_timer_sync(ms,
         [closure, ptr = timer.get(), time] (manapi::timer timer) -> void {
             try { closure->Run(); }
             catch (std::exception const &e) { MANAPIHTTP_LOG("gRPC send a error: {}", e.what()); }
             task_handle_cancel(ptr, time);
         });
 
+    assert(rhs.ok());
 
+    *timer = rhs.unwrap();
 
     assert(wgrpc_storage.wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(timer.get()), time}).second);
 
@@ -679,12 +687,16 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
     auto const ms = std::max(static_cast<std::size_t>(1),
         static_cast<std::size_t>(when.count() / 1000000));
     auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
-    *timer = ctx->timerpool()->append_timer_sync(ms,
+    auto rhs = ctx->timerpool()->append_timer_sync(ms,
         [closure = std::move(closure), ptr = timer.get(), time] (manapi::timer timer) mutable -> void {
             try { closure (); }
             catch (std::exception const &e) { MANAPIHTTP_LOG("gRPC send a error: {}", e.what()); }
             task_handle_cancel(ptr, time);
         });
+
+    assert(rhs.ok());
+
+    *timer = rhs.unwrap();
 
     assert(wgrpc_storage.wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(timer.get()), time}).second);
 

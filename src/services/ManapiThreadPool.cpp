@@ -75,7 +75,7 @@ namespace manapi {
     }
 
     template<class T>
-    void mthreadpool<T>::join() {
+    void mthreadpool<T>::join() MANAPIHTTP_NOEXPECT {
         for (auto &thread: this->threads) {
             thread.join();
         }
@@ -107,32 +107,32 @@ namespace manapi {
     }
 
     template<class T>
-    void mthreadpool<T>::append_task(std::unique_ptr<T> task) {
+    void mthreadpool<T>::append_task(std::unique_ptr<T> task) MANAPIHTTP_NOEXPECT {
         {
             // obtain a mutex
             std::lock_guard<std::mutex> lk (this->queue_mutex);
 
-            try {
-                // add into the queue
-                this->tasks.push_back (std::move(task));
-            }
-            catch (...) {
-                std::cout << std::stacktrace::current() << "\n";
-            }
-            // wake up the thread waiting for the task
+            MANAPIHTTP_MUST_ALLOC_START
+            this->tasks.push_back (nullptr);
+            MANAPIHTTP_MUST_ALLOC_END
+            *this->tasks.rbegin() = std::move(task);
         }
 
         this->cv.notify_one();
     }
 
     template<class T>
-    void mthreadpool<T>::append_task(T task) {
+    void mthreadpool<T>::append_task(T task) MANAPIHTTP_NOEXPECT {
+        MANAPIHTTP_MUST_ALLOC_START
         this->append_task(std::make_unique<T>(std::move(task)));
+        MANAPIHTTP_MUST_ALLOC_END
     }
 
     template<class T>
-    void mthreadpool<T>::append_task(std::move_only_function<void()> cb) {
+    void mthreadpool<T>::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXPECT {
+        MANAPIHTTP_MUST_ALLOC_START
         this->append_task(std::make_unique<function_task>(std::move(cb)));
+        MANAPIHTTP_MUST_ALLOC_END
     }
 
     template<class T>
@@ -206,12 +206,12 @@ namespace manapi {
     }
 
     template<class T>
-    void ethreadpool<T>::set_notify() {
+    void ethreadpool<T>::set_notify() MANAPIHTTP_NOEXPECT {
         this->flags_ |= 0b10;
     }
 
     template<class T>
-    void ethreadpool<T>::set_notify_cb(std::move_only_function<void()> ontask) {
+    void ethreadpool<T>::set_notify_cb(std::move_only_function<void()> ontask) MANAPIHTTP_NOEXPECT {
         this->ontask_ = std::move(ontask);
     }
 
@@ -234,27 +234,39 @@ namespace manapi {
     }
 
     template<class T>
-    void ethreadpool<T>::append_task(std::unique_ptr<T> task) {
-        this->tasks.push_back(std::move(task));
+    void ethreadpool<T>::append_task(std::unique_ptr<T> task) MANAPIHTTP_NOEXPECT {
+        MANAPIHTTP_MUST_ALLOC_START
+        this->tasks.push_back(nullptr);
+        MANAPIHTTP_MUST_ALLOC_END
+        (*this->tasks.rbegin()) = std::move(task);
 
         if ((this->flags_ & 0b10) && this->ontask_) {
-            this->flags_ ^= 0b10;
-            this->ontask_();
+            try {
+                this->flags_ ^= 0b10;
+                this->ontask_();
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("%s failed due to %s", "event thread pool: ontask()", e.what());
+            }
         }
     }
 
     template<class T>
-    void ethreadpool<T>::append_task(T task) {
+    void ethreadpool<T>::append_task(T task) MANAPIHTTP_NOEXPECT {
+        MANAPIHTTP_MUST_ALLOC_START
         this->append_task(std::make_unique<T>(std::move(task)));
+        MANAPIHTTP_MUST_ALLOC_END
     }
 
     template<class T>
-    void ethreadpool<T>::append_task(std::move_only_function<void()> cb) {
+    void ethreadpool<T>::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXPECT {
+        MANAPIHTTP_MUST_ALLOC_START
         this->append_task(std::make_unique<function_task>(std::move(cb)));
+        MANAPIHTTP_MUST_ALLOC_END
     }
 
     template<class T>
-    void ethreadpool<T>::join() {
+    void ethreadpool<T>::join() MANAPIHTTP_NOEXPECT {
 
     }
 

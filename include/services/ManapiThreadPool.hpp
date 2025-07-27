@@ -26,19 +26,19 @@ namespace manapi {
 
         virtual ~threadpool() = default;
 
-        virtual void append_task (std::unique_ptr<T> task) = 0;
+        virtual void append_task (std::unique_ptr<T> task) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual void append_task (T task) = 0;
+        virtual void append_task (T task) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual void append_task (std::move_only_function<void()> cb) = 0;
+        virtual void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXPECT = 0;
 
         virtual void start() = 0;
 
         virtual void stop() = 0;
 
-        virtual void join () = 0;
+        virtual void join () MANAPIHTTP_NOEXPECT = 0;
 
-        const std::shared_ptr<manapi::logger> &logger () {
+        const std::shared_ptr<manapi::logger> &logger () MANAPIHTTP_NOEXPECT {
             return this->logger_;
         }
     protected:
@@ -60,7 +60,7 @@ namespace manapi {
 
         void clear();
 
-        void join() override;
+        void join() MANAPIHTTP_NOEXPECT override;
 
         void for_all_threads (std::move_only_function<void(tasks_by_thread_t *)> cb);
 
@@ -68,11 +68,11 @@ namespace manapi {
 
         void start () override;
 
-        void append_task (std::unique_ptr<T> task) override;
+        void append_task (std::unique_ptr<T> task) MANAPIHTTP_NOEXPECT override;
 
-        void append_task (T task) override;
+        void append_task (T task) MANAPIHTTP_NOEXPECT override;
 
-        void append_task (std::move_only_function<void()> cb) override;
+        void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXPECT override;
 
     private:
         // this vector contains all threads for this thread pool
@@ -109,21 +109,21 @@ namespace manapi {
 
         bool try_task ();
 
-        void set_notify ();
+        void set_notify () MANAPIHTTP_NOEXPECT;
 
-        void set_notify_cb (std::move_only_function<void()> ontask);
+        void set_notify_cb (std::move_only_function<void()> ontask) MANAPIHTTP_NOEXPECT;
 
         void stop () override;
 
         void start () override;
 
-        void append_task (std::unique_ptr<T> task) override;
+        void append_task (std::unique_ptr<T> task) MANAPIHTTP_NOEXPECT override;
 
-        void append_task (T task) override;
+        void append_task (T task) MANAPIHTTP_NOEXPECT override;
 
-        void append_task (std::move_only_function<void()> cb) override;
+        void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXPECT override;
 
-        void join () override;
+        void join () MANAPIHTTP_NOEXPECT override;
     private:
         int flags_;
 

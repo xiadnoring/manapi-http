@@ -20,9 +20,9 @@ namespace manapi::net::worker {
         std::unique_ptr<wrk_interface_global_t> http3;
     };
 
-    manapi::error::status default_wrk_http_all_global_init (wrk_interface_global_t *global, worker::base *w);
+    manapi::error::status default_wrk_http_all_global_init (wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
 
-    manapi::error::status default_wrk_http_all_global_add_version (wrk_interface_global_t *global, int version, std::unique_ptr<wrk_interface_global_t> http_t);
+    manapi::error::status default_wrk_http_all_global_add_version (wrk_interface_global_t *global, int version, std::unique_ptr<wrk_interface_global_t> http_t) MANAPIHTTP_NOEXPECT;
 
-    manapi::error::status default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w);
+    manapi::error::status default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT;
 }

@@ -53,342 +53,349 @@ void manapi::net::http::request_data_clear(request_data_t &data) {
     data.divided = -1;
 }
 
-std::vector <manapi::net::http::header_value_t> manapi::net::http::parse_header_value (std::string_view header_value) {
-    enum header_value_parse_states {
-        HTTP_HV_FIELD_START = 0,
-        HTTP_HV_FIELD,
-        HTTP_HV_FIELD_QUOTES,
-        HTTP_HV_KEY_START,
-        HTTP_HV_KEY,
-        HTTP_HV_KEY_QUOTES,
-        HTTP_HV_VALUE_START,
-        HTTP_HV_VALUE,
-        HTTP_HV_VALUE_QUOTES,
-        HTTP_HV_SKIP,
-        HTTP_HV_SKIP2,
-        HTTP_HV_ERR
-    };
+manapi::error::status_or<std::vector <manapi::net::http::header_value_t>> manapi::net::http::parse_header_value (std::string_view header_value) MANAPIHTTP_NOEXPECT {
+    try {
+        enum header_value_parse_states {
+            HTTP_HV_FIELD_START = 0,
+            HTTP_HV_FIELD,
+            HTTP_HV_FIELD_QUOTES,
+            HTTP_HV_KEY_START,
+            HTTP_HV_KEY,
+            HTTP_HV_KEY_QUOTES,
+            HTTP_HV_VALUE_START,
+            HTTP_HV_VALUE,
+            HTTP_HV_VALUE_QUOTES,
+            HTTP_HV_SKIP,
+            HTTP_HV_SKIP2,
+            HTTP_HV_ERR
+        };
 
-    enum header_value_parse_flags {
-        HTTP_HV_FLAGS_ESCAPED = 1
-    };
+        enum header_value_parse_flags {
+            HTTP_HV_FLAGS_ESCAPED = 1
+        };
 
-    std::vector <header_value_t> data;
-
-
-    int flags = 0;
-    std::size_t rhs = 0;
-    std::string key{};
-    std::string value{};
-    header_value_parse_states state{HTTP_HV_FIELD_START}, next{HTTP_HV_ERR};
+        std::vector <header_value_t> data;
 
 
-    finish: while (rhs != header_value.size()) {
+        int flags = 0;
+        std::size_t rhs = 0;
+        std::string key{};
+        std::string value{};
+        header_value_parse_states state{HTTP_HV_FIELD_START}, next{HTTP_HV_ERR};
+
+
+        finish: while (rhs != header_value.size()) {
+            switch (state) {
+                case HTTP_HV_FIELD_START: {
+                    if (header_value[rhs] == '"') {
+                        rhs++;
+                        state = HTTP_HV_FIELD_QUOTES;
+                    }
+                    else
+                        state = HTTP_HV_FIELD;
+                    break;
+                }
+                case HTTP_HV_FIELD: {
+                    size_t i = 0;
+
+                    for (i = rhs; i < header_value.size(); i++) {
+                        auto &c = header_value[i];
+                        if (c == ';') {
+                            key.append(header_value.data() + rhs, i - rhs);
+                            i++;
+                            rhs = i;
+                            data.push_back({std::move(key), {}});
+                            state = HTTP_HV_SKIP2;
+                            next = HTTP_HV_KEY_START;
+                            goto finish;
+                        }
+                        if (c == ',') {
+                            key.append(header_value.data() + rhs, i - rhs);
+                            i++;
+                            rhs = i;
+                            data.push_back({std::move(key), {}});
+                            state = HTTP_HV_SKIP2;
+                            next = HTTP_HV_FIELD_START;
+                            goto finish;
+                        }
+                        if (c == '=') {
+                            /* it's a key 😲 */
+                            data.push_back({{}, {}});
+                            key.append(header_value.data() + rhs, i - rhs);
+                            i++;
+                            rhs = i;
+                            state = HTTP_HV_SKIP2;
+                            next = HTTP_HV_VALUE_START;
+                            goto finish;
+                        }
+                    }
+
+                    if (rhs != i) {
+                        key.append(header_value.data() + rhs, i - rhs);
+                        rhs = i;
+                    }
+                    break;
+                }
+                case HTTP_HV_FIELD_QUOTES: {
+                    size_t i = 0;
+
+                    if (flags & HTTP_HV_FLAGS_ESCAPED) {
+                        flags ^= HTTP_HV_FLAGS_ESCAPED;
+                        key.push_back(header_value[rhs++]);
+                    }
+
+                    for (i = rhs; i < header_value.size(); i++) {
+                        auto &c = header_value[i];
+                        if (c == '"') {
+                            key.append(header_value.data() + rhs, i - rhs);
+                            rhs = (++i);
+                            data.push_back({std::move(key), {}});
+                            state = HTTP_HV_SKIP;
+                            next = HTTP_HV_FIELD_START;
+                            goto finish;
+                        }
+                        if (c == '\\') {
+                            key.append(header_value.data() + rhs, i - rhs);
+                            i++;
+                            rhs = i;
+                            flags |= HTTP_HV_FLAGS_ESCAPED;
+                            break;
+                        }
+                    }
+
+                    if (rhs != i) {
+                        key.append(header_value.data() + rhs, i - rhs);
+                        rhs = i;
+                    }
+                    break;
+                }
+                case HTTP_HV_KEY_START: {
+                    if (header_value[rhs] == '"') {
+                        state = HTTP_HV_KEY_QUOTES;
+                        rhs++;
+                    }
+                    else {
+                        state = HTTP_HV_KEY;
+                    }
+                    break;
+                }
+                case HTTP_HV_KEY: {
+                    size_t i = 0;
+
+                    for (i = rhs; i < header_value.size(); i++) {
+                        auto &c = header_value[i];
+                        if (c == '=') {
+                            key.append(header_value.data() + rhs, i - rhs);
+                            i++;
+                            rhs = i;
+                            state = HTTP_HV_SKIP2;
+                            next = HTTP_HV_VALUE_START;
+                            goto finish;
+                        }
+                    }
+
+                    if (rhs != i) {
+                        key.append(header_value.data() + rhs, i - rhs);
+                        rhs = i;
+                    }
+                    break;
+                }
+                case HTTP_HV_KEY_QUOTES: {
+                    size_t i = 0;
+
+                    if (flags & HTTP_HV_FLAGS_ESCAPED) {
+                        flags ^= HTTP_HV_FLAGS_ESCAPED;
+                        key.push_back(header_value[rhs++]);
+                    }
+
+                    for (i = rhs; i < header_value.size(); i++) {
+                        auto &c = header_value[i];
+                        if (c == '"') {
+                            key.append(header_value.data() + rhs, i - rhs);
+                            rhs = (++i);
+                            state = HTTP_HV_SKIP;
+                            next = HTTP_HV_KEY_START;
+                            goto finish;
+                        }
+                        if (c == '\\') {
+                            key.append(header_value.data() + rhs, i - rhs);
+                            i++;
+                            rhs = i;
+                            flags |= HTTP_HV_FLAGS_ESCAPED;
+                            break;
+                        }
+                    }
+
+                    if (rhs != i) {
+                        key.append(header_value.data() + rhs, i - rhs);
+                        rhs = i;
+                    }
+                    break;
+                }
+                case HTTP_HV_VALUE_START: {
+                    if (header_value[rhs] == '"') {
+                        state = HTTP_HV_VALUE_QUOTES;
+                        rhs++;
+                    }
+                    else {
+                        state = HTTP_HV_VALUE;
+                    }
+                    break;
+                }
+                case HTTP_HV_VALUE: {
+                    size_t i = 0;
+
+                    for (i = rhs; i < header_value.size(); i++) {
+                        auto &c = header_value[i];
+                        if (c == ';') {
+                            value.append(header_value.data() + rhs, i - rhs);
+                            i++;
+                            rhs = i;
+                            state = HTTP_HV_SKIP2;
+                            next = HTTP_HV_KEY_START;
+                            data.rbegin()->params.insert({std::move(key), std::move(value)});
+                            goto finish;
+                        }
+                        if (c == ',') {
+                            value.append(header_value.data() + rhs, i - rhs);
+                            i++;
+                            rhs = i;
+                            state = HTTP_HV_SKIP2;
+                            next = HTTP_HV_FIELD_START;
+                            data.rbegin()->params.insert({std::move(key), std::move(value)});
+                            goto finish;
+                        }
+                    }
+
+                    if (rhs != i) {
+                        value.append(header_value.data() + rhs, i - rhs);
+                        rhs = i;
+                    }
+                    break;
+                }
+                case HTTP_HV_VALUE_QUOTES: {
+                    size_t i = 0;
+
+                    if (flags & HTTP_HV_FLAGS_ESCAPED) {
+                        flags ^= HTTP_HV_FLAGS_ESCAPED;
+                        value.push_back(header_value[rhs++]);
+                    }
+
+                    for (i = rhs; i < header_value.size(); i++) {
+                        auto &c = header_value[i];
+                        if (c == '"') {
+                            value.append(header_value.data() + rhs, i - rhs);
+                            rhs = (++i);
+                            state = HTTP_HV_SKIP;
+                            next = HTTP_HV_VALUE_START;
+                            data.rbegin()->params.insert({std::move(key), std::move(value)});
+                            goto finish;
+                        }
+                        if (c == '\\') {
+                            value.append(header_value.data() + rhs, i - rhs);
+                            i++;
+                            rhs = i;
+                            flags |= HTTP_HV_FLAGS_ESCAPED;
+                            break;
+                        }
+                    }
+
+                    if (rhs != i) {
+                        value.append(header_value.data() + rhs, i - rhs);
+                        rhs = i;
+                    }
+                    break;
+                }
+                case HTTP_HV_SKIP: {
+                    while (rhs != header_value.size()) {
+                        switch (header_value[rhs]) {
+                            case ' ': rhs++; break;
+                            case ',': {
+                                if (next != HTTP_HV_FIELD_START
+                                    && next != HTTP_HV_VALUE_START)
+                                    return error::status_invalid_argument("parse_header_value: unexpected symbol");
+                                rhs++;
+                                state = HTTP_HV_FIELD_START;
+                                next = HTTP_HV_ERR;
+                                goto finish;
+                            }
+                            case ';': {
+                                if (next != HTTP_HV_VALUE_START
+                                    && next != HTTP_HV_FIELD_START)
+                                    return error::status_invalid_argument("parse_header_value: unexpected symbol");
+                                rhs++;
+                                state = HTTP_HV_KEY_START;
+                                next = HTTP_HV_ERR;
+                                goto finish;
+                            }
+                            case '=': {
+                                if (next == HTTP_HV_KEY_START) {
+                                    rhs++;
+                                    state = HTTP_HV_VALUE_START;
+                                    next = HTTP_HV_ERR;
+                                    goto finish;
+                                }
+                                if (next == HTTP_HV_FIELD_START) {
+                                    rhs++;
+                                    key = std::move(data.rbegin()->value);
+                                    state = HTTP_HV_VALUE_START;
+                                    next = HTTP_HV_ERR;
+                                    goto finish;
+                                }
+
+                                return error::status_invalid_argument("parse_header_value: unexpected symbol");
+                            }
+                            default: {
+                                return error::status_invalid_argument("unreachable");
+                            }
+                        }
+                    }
+                    break;
+                }
+                case HTTP_HV_SKIP2: {
+                    while (rhs != header_value.size()) {
+                        switch (header_value[rhs]) {
+                            case ' ': rhs++; break;
+                            default: {
+                                state = next;
+                                next = HTTP_HV_ERR;
+                                goto finish;
+                            }
+                        }
+                    }
+                    break;
+                }
+                default:
+                    return error::status_invalid_argument("unreachable");
+            }
+        }
+
         switch (state) {
-            case HTTP_HV_FIELD_START: {
-                if (header_value[rhs] == '"') {
-                    rhs++;
-                    state = HTTP_HV_FIELD_QUOTES;
-                }
-                else
-                    state = HTTP_HV_FIELD;
-                break;
-            }
             case HTTP_HV_FIELD: {
-                size_t i = 0;
-
-                for (i = rhs; i < header_value.size(); i++) {
-                    auto &c = header_value[i];
-                    if (c == ';') {
-                        key.append(header_value.data() + rhs, i - rhs);
-                        i++;
-                        rhs = i;
-                        data.push_back({std::move(key), {}});
-                        state = HTTP_HV_SKIP2;
-                        next = HTTP_HV_KEY_START;
-                        goto finish;
-                    }
-                    if (c == ',') {
-                        key.append(header_value.data() + rhs, i - rhs);
-                        i++;
-                        rhs = i;
-                        data.push_back({std::move(key), {}});
-                        state = HTTP_HV_SKIP2;
-                        next = HTTP_HV_FIELD_START;
-                        goto finish;
-                    }
-                    if (c == '=') {
-                        /* it's a key 😲 */
-                        data.push_back({{}, {}});
-                        key.append(header_value.data() + rhs, i - rhs);
-                        i++;
-                        rhs = i;
-                        state = HTTP_HV_SKIP2;
-                        next = HTTP_HV_VALUE_START;
-                        goto finish;
-                    }
-                }
-
-                if (rhs != i) {
-                    key.append(header_value.data() + rhs, i - rhs);
-                    rhs = i;
-                }
-                break;
-            }
-            case HTTP_HV_FIELD_QUOTES: {
-                size_t i = 0;
-
-                if (flags & HTTP_HV_FLAGS_ESCAPED) {
-                    flags ^= HTTP_HV_FLAGS_ESCAPED;
-                    key.push_back(header_value[rhs++]);
-                }
-
-                for (i = rhs; i < header_value.size(); i++) {
-                    auto &c = header_value[i];
-                    if (c == '"') {
-                        key.append(header_value.data() + rhs, i - rhs);
-                        rhs = (++i);
-                        data.push_back({std::move(key), {}});
-                        state = HTTP_HV_SKIP;
-                        next = HTTP_HV_FIELD_START;
-                        goto finish;
-                    }
-                    if (c == '\\') {
-                        key.append(header_value.data() + rhs, i - rhs);
-                        i++;
-                        rhs = i;
-                        flags |= HTTP_HV_FLAGS_ESCAPED;
-                        break;
-                    }
-                }
-
-                if (rhs != i) {
-                    key.append(header_value.data() + rhs, i - rhs);
-                    rhs = i;
-                }
-                break;
-            }
-            case HTTP_HV_KEY_START: {
-                if (header_value[rhs] == '"') {
-                    state = HTTP_HV_KEY_QUOTES;
-                    rhs++;
-                }
-                else {
-                    state = HTTP_HV_KEY;
-                }
-                break;
-            }
-            case HTTP_HV_KEY: {
-                size_t i = 0;
-
-                for (i = rhs; i < header_value.size(); i++) {
-                    auto &c = header_value[i];
-                    if (c == '=') {
-                        key.append(header_value.data() + rhs, i - rhs);
-                        i++;
-                        rhs = i;
-                        state = HTTP_HV_SKIP2;
-                        next = HTTP_HV_VALUE_START;
-                        goto finish;
-                    }
-                }
-
-                if (rhs != i) {
-                    key.append(header_value.data() + rhs, i - rhs);
-                    rhs = i;
-                }
-                break;
-            }
-            case HTTP_HV_KEY_QUOTES: {
-                size_t i = 0;
-
-                if (flags & HTTP_HV_FLAGS_ESCAPED) {
-                    flags ^= HTTP_HV_FLAGS_ESCAPED;
-                    key.push_back(header_value[rhs++]);
-                }
-
-                for (i = rhs; i < header_value.size(); i++) {
-                    auto &c = header_value[i];
-                    if (c == '"') {
-                        key.append(header_value.data() + rhs, i - rhs);
-                        rhs = (++i);
-                        state = HTTP_HV_SKIP;
-                        next = HTTP_HV_KEY_START;
-                        goto finish;
-                    }
-                    if (c == '\\') {
-                        key.append(header_value.data() + rhs, i - rhs);
-                        i++;
-                        rhs = i;
-                        flags |= HTTP_HV_FLAGS_ESCAPED;
-                        break;
-                    }
-                }
-
-                if (rhs != i) {
-                    key.append(header_value.data() + rhs, i - rhs);
-                    rhs = i;
-                }
-                break;
-            }
-            case HTTP_HV_VALUE_START: {
-                if (header_value[rhs] == '"') {
-                    state = HTTP_HV_VALUE_QUOTES;
-                    rhs++;
-                }
-                else {
-                    state = HTTP_HV_VALUE;
-                }
+                data.push_back({std::move(key), {}});
                 break;
             }
             case HTTP_HV_VALUE: {
-                size_t i = 0;
-
-                for (i = rhs; i < header_value.size(); i++) {
-                    auto &c = header_value[i];
-                    if (c == ';') {
-                        value.append(header_value.data() + rhs, i - rhs);
-                        i++;
-                        rhs = i;
-                        state = HTTP_HV_SKIP2;
-                        next = HTTP_HV_KEY_START;
-                        data.rbegin()->params.insert({std::move(key), std::move(value)});
-                        goto finish;
-                    }
-                    if (c == ',') {
-                        value.append(header_value.data() + rhs, i - rhs);
-                        i++;
-                        rhs = i;
-                        state = HTTP_HV_SKIP2;
-                        next = HTTP_HV_FIELD_START;
-                        data.rbegin()->params.insert({std::move(key), std::move(value)});
-                        goto finish;
-                    }
-                }
-
-                if (rhs != i) {
-                    value.append(header_value.data() + rhs, i - rhs);
-                    rhs = i;
-                }
-                break;
-            }
-            case HTTP_HV_VALUE_QUOTES: {
-                size_t i = 0;
-
-                if (flags & HTTP_HV_FLAGS_ESCAPED) {
-                    flags ^= HTTP_HV_FLAGS_ESCAPED;
-                    value.push_back(header_value[rhs++]);
-                }
-
-                for (i = rhs; i < header_value.size(); i++) {
-                    auto &c = header_value[i];
-                    if (c == '"') {
-                        value.append(header_value.data() + rhs, i - rhs);
-                        rhs = (++i);
-                        state = HTTP_HV_SKIP;
-                        next = HTTP_HV_VALUE_START;
-                        data.rbegin()->params.insert({std::move(key), std::move(value)});
-                        goto finish;
-                    }
-                    if (c == '\\') {
-                        value.append(header_value.data() + rhs, i - rhs);
-                        i++;
-                        rhs = i;
-                        flags |= HTTP_HV_FLAGS_ESCAPED;
-                        break;
-                    }
-                }
-
-                if (rhs != i) {
-                    value.append(header_value.data() + rhs, i - rhs);
-                    rhs = i;
-                }
+                data.rbegin()->params.insert({std::move(key), std::move(value)});
                 break;
             }
             case HTTP_HV_SKIP: {
-                while (rhs != header_value.size()) {
-                    switch (header_value[rhs]) {
-                        case ' ': rhs++; break;
-                        case ',': {
-                            if (next != HTTP_HV_FIELD_START
-                                && next != HTTP_HV_VALUE_START)
-                                goto err;
-                            rhs++;
-                            state = HTTP_HV_FIELD_START;
-                            next = HTTP_HV_ERR;
-                            goto finish;
-                        }
-                        case ';': {
-                            if (next != HTTP_HV_VALUE_START
-                                && next != HTTP_HV_FIELD_START)
-                                goto err;
-                            rhs++;
-                            state = HTTP_HV_KEY_START;
-                            next = HTTP_HV_ERR;
-                            goto finish;
-                        }
-                        case '=': {
-                            if (next == HTTP_HV_KEY_START) {
-                                rhs++;
-                                state = HTTP_HV_VALUE_START;
-                                next = HTTP_HV_ERR;
-                                goto finish;
-                            }
-                            if (next == HTTP_HV_FIELD_START) {
-                                rhs++;
-                                key = std::move(data.rbegin()->value);
-                                state = HTTP_HV_VALUE_START;
-                                next = HTTP_HV_ERR;
-                                goto finish;
-                            }
-
-                            goto err;
-                        }
-                        default: {
-                            goto err;
-                        }
-                    }
-                }
                 break;
             }
-            case HTTP_HV_SKIP2: {
-                while (rhs != header_value.size()) {
-                    switch (header_value[rhs]) {
-                        case ' ': rhs++; break;
-                        default: {
-                            state = next;
-                            next = HTTP_HV_ERR;
-                            goto finish;
-                        }
-                    }
-                }
-                break;
+            default: {
+                return error::status_invalid_argument("parse_header_value: unexpected end");
             }
-            default:
-                goto err;
         }
+
+        return std::move(data);
     }
-
-    switch (state) {
-        case HTTP_HV_FIELD: {
-            data.push_back({std::move(key), {}});
-            break;
-        }
-        case HTTP_HV_VALUE: {
-            data.rbegin()->params.insert({std::move(key), std::move(value)});
-            break;
-        }
-        case HTTP_HV_SKIP: {
-            break;
-        }
-        default: {
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "header value: unexpected end");
-        }
+    catch (std::bad_alloc const &) {
+        return error::status_resource_exhausted();
     }
-
-    return std::move(data);
-
-err: THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "error was occurred");
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "parse_header_value", e.what());
+        return error::status_internal("parse_header_value");
+    }
 }
 
 std::string manapi::net::http::stringify_header_value (const std::vector <header_value_view_t> &header_value) {

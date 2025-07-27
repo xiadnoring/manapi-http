@@ -61,9 +61,9 @@ namespace manapi {
 
         void call_ ();
 
-        void clear ();
+        void clear () MANAPIHTTP_NOEXPECT;
 
-        void clear_ ();
+        void clear_ () MANAPIHTTP_NOEXPECT;
 
         void stop () MANAPIHTTP_NOEXPECT;
 
@@ -71,7 +71,7 @@ namespace manapi {
 
         void callback_sync (sync_cb_t cb);
 
-        void again (std::size_t ms);
+        manapi::error::status again (std::size_t ms) MANAPIHTTP_NOEXPECT;
 
         [[nodiscard]] bool is_async () const;
 

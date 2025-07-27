@@ -11,13 +11,13 @@ namespace manapi::net::worker {
 
         std::shared_ptr<worker::base> copy ();
 
-        void wrk_global (wrk_interface_global_t *data);
+        void wrk_global (wrk_interface_global_t *data) MANAPIHTTP_NOEXPECT;
 
-        wrk_interface_global_t *wrk_global ();
+        wrk_interface_global_t *wrk_global () MANAPIHTTP_NOEXPECT;
 
-        net::http::site &site () override;
+        net::http::site &site () MANAPIHTTP_NOEXPECT override;
 
-        net::http::config *config () override;
+        net::http::config *config () MANAPIHTTP_NOEXPECT override;
 
         void worker_pool_id (std::size_t worker_pool_id) MANAPIHTTP_NOEXPECT;
 
@@ -25,7 +25,7 @@ namespace manapi::net::worker {
 
         MANAPIHTTP_NODISCARD std::size_t deep_worker_id () const MANAPIHTTP_NOEXPECT;
 
-        const std::shared_ptr<multithread_storage::worker_t> &worker_data () override;
+        const std::shared_ptr<multithread_storage::worker_t> &worker_data () MANAPIHTTP_NOEXPECT override;
 
     protected:
         std::shared_ptr<multithread_storage::worker_t> worker_data_;

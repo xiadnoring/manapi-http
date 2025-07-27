@@ -258,7 +258,7 @@ manapi::future<manapi::error::status> manapi::net::worker::OpenSSL_TLS::init(std
                 10000, [ctx_data, mx = this->pool_data_->mx.get()](const manapi::timer& t)
                     ->void {
                 ssl_flush_sessions (mx, ctx_data);
-            });
+            }).unwrap();
         }
 
         if (!ctx_data->ctx) {
@@ -475,7 +475,7 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MAN
 // finish:
 // }
 
-bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(tls_connection_t *data) {
+bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(tls_connection_t *data, char *alpn_selected, std::size_t* alpn_size) {
     ERR_clear_error();
 
     data->wbio = BIO_new(BIO_s_mem());
@@ -489,6 +489,16 @@ bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(tls_connection_t *d
     SSL_set_accept_state(static_cast<SSL*>(data->ssl));
 
     SSL_set_bio(static_cast<SSL*>(data->ssl), static_cast<BIO*>(data->rbio), static_cast<BIO*>(data->wbio));
+
+    uint8_t const *p1;
+    uint32_t p1_len;
+    SSL_get0_alpn_selected(static_cast<SSL*>(data->ssl), &p1, &p1_len);
+
+    if (*alpn_size < p1_len)
+        return false;
+
+    memcpy (alpn_selected, p1, p1_len);
+    *alpn_size = p1_len;
 
     return true;
 err:

@@ -133,7 +133,7 @@ void manapi::async::cancellation_action::cancel_callback(cancellation_action can
     }
 }
 
-void manapi::async::cancellation_action::cancel() {
+void manapi::async::cancellation_action::cancel() MANAPIHTTP_NOEXPECT {
     if (this->data) {
         if ((this->data->status_ & (FLAG_CANCEL|FLAG_DISABLED))) {
             return;
@@ -145,31 +145,50 @@ void manapi::async::cancellation_action::cancel() {
     }
 }
 
-void manapi::async::cancellation_action::ask_cancel_callback() {
+void manapi::async::cancellation_action::ask_cancel_callback() MANAPIHTTP_NOEXPECT {
     if (this->data) {
         this->data->status_ |= FLAG_ASK_CANCEL;
     }
 }
 
-void manapi::async::cancellation_action::timeout(size_t timeout) {
+manapi::error::status manapi::async::cancellation_action::timeout(size_t timeout) MANAPIHTTP_NOEXPECT {
     if (this->data) {
         this->data->timeout_ = timeout;
-        this->data->status_ |= FLAG_ASK_CANCEL;
 
         if (this->data->timeout_ > 0) {
-            this->data->timeout_struct_ = manapi::async::current()->timerpool()
-                ->append_timer_sync(this->timeout(), [data = this->data] (manapi::timer t) mutable
-                -> void {
-                    if ((data->status_ & (FLAG_CANCEL|FLAG_DISABLED))) {
-                        return;
-                    }
+            try {
+                auto rhs = manapi::async::current()->timerpool()
+                    ->append_timer_sync(this->timeout(), [data = this->data] (const manapi::timer& t) mutable
+                    -> void {
+                        if ((data->status_ & (FLAG_CANCEL|FLAG_DISABLED))) {
+                            return;
+                        }
 
-                    data->status_ |= FLAG_CANCEL;
+                        data->status_ |= FLAG_CANCEL;
 
-                    cancellation_action::cancel_(std::move(data));
-            });
+                        cancellation_action::cancel_(std::move(data));
+                });
+
+                if (!rhs.ok()) {
+                    this->data->timeout_ = 0;
+                    return rhs.err();
+                }
+
+                this->data->status_ |= FLAG_ASK_CANCEL;
+                this->data->timeout_struct_ = rhs.unwrap();
+
+            }
+            catch (std::bad_alloc const &) {
+                return error::status_resource_exhausted();
+            }
+            catch (std::exception const &e) {
+                manapi_log_error(e.what());
+                return error::status_internal();
+            }
         }
     }
+
+    return error::status_ok();
 }
 
 bool manapi::async::cancellation_action::contains_cancel_callback() const {
@@ -191,7 +210,7 @@ void manapi::async::cancellation_action::disable() {
     }
 }
 
-void manapi::async::cancellation_action::send_async_() {
+void manapi::async::cancellation_action::send_async_() MANAPIHTTP_NOEXPECT {
     if (this->data) {
         if (this->data->status_ & FLAG_CANCEL) {
             cancellation_action::cancel_((this->data));
@@ -199,22 +218,24 @@ void manapi::async::cancellation_action::send_async_() {
     }
 }
 
-void manapi::async::cancellation_action::stop_timeout_(std::shared_ptr<data_t> data) {
+void manapi::async::cancellation_action::stop_timeout_(std::shared_ptr<data_t> data) MANAPIHTTP_NOEXPECT {
     if (data->timeout_struct_) {
         data->timeout_struct_.stop();
         data->timeout_struct_ = nullptr;
     }
 }
 
-void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) {
+void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) MANAPIHTTP_NOEXPECT {
     cancellation_action::stop_timeout_(data);
 
     if (data->cancel_sync_callback_) {
         auto cb = std::move(*data->cancel_sync_callback_);
         data->cancel_sync_callback_.reset();
         if (!(data->status_ & FLAG_DISABLED)) {
-            manapi::async::current()->etaskpool()->append_task(
-                [cb = std::move(cb)] () mutable -> void {
+            std::move_only_function<void()> callback;
+
+            MANAPIHTTP_MUST_ALLOC_START
+            callback = [cb = std::move(cb)] () mutable -> void {
                 try {
                     cb();
                 }
@@ -224,7 +245,10 @@ void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) {
                 catch (std::exception const &e) {
                     MANAPIHTTP_LOG("cancellation failed by error {}", e.what());
                 }
-            });
+            };
+            MANAPIHTTP_MUST_ALLOC_END
+
+            manapi::async::current()->etaskpool()->append_task(std::move(callback));
         }
     }
 
@@ -235,15 +259,7 @@ void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) {
 
             it.data->parent = nullptr;
 
-            try {
-                it.cancel();
-            }
-            catch (manapi::exception const &e) {
-                MANAPIHTTP_LOG("cancellation failed by error({}): {}", static_cast<int>(e.err_num()), e.what());
-            }
-            catch (std::exception const &e) {
-                MANAPIHTTP_LOG("cancellation failed by error {}", e.what());
-            }
+            it.cancel();
         }
     }
 }

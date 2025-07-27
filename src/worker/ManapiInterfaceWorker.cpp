@@ -12,20 +12,20 @@ manapi::net::worker::interface_worker::~interface_worker() {
     }
 }
 
-void manapi::net::worker::interface_worker::wrk_global(wrk_interface_global_t *data) {
+void manapi::net::worker::interface_worker::wrk_global(wrk_interface_global_t *data) MANAPIHTTP_NOEXPECT {
     this->global_ = *data;
 }
 
-manapi::net::worker::wrk_interface_global_t * manapi::net::worker::interface_worker::wrk_global() {
+manapi::net::worker::wrk_interface_global_t * manapi::net::worker::interface_worker::wrk_global() MANAPIHTTP_NOEXPECT {
     return &this->global_;
 }
 
 
-manapi::net::http::site & manapi::net::worker::interface_worker::site() {
+manapi::net::http::site & manapi::net::worker::interface_worker::site() MANAPIHTTP_NOEXPECT {
     return this->site_;
 }
 
-manapi::net::http::config *manapi::net::worker::interface_worker::config() {
+manapi::net::http::config *manapi::net::worker::interface_worker::config() MANAPIHTTP_NOEXPECT {
     return this->config_;
 }
 
@@ -41,7 +41,7 @@ std::size_t manapi::net::worker::interface_worker::deep_worker_id() const MANAPI
     return this->deep_worker_id_;
 }
 
-const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::interface_worker::worker_data() {
+const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::interface_worker::worker_data() MANAPIHTTP_NOEXPECT {
     return this->worker_data_;
 }
 

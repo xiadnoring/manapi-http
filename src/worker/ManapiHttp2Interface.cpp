@@ -8,7 +8,7 @@
 
 extern manapi::net::worker::http_v2_callbacks_t default_wrk_http2_callbacks;
 
-int default_wrk_http2_cleanup (manapi::net::worker::connection *conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+int default_wrk_http2_cleanup (manapi::net::worker::connection *conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     auto wrk_data = static_cast<manapi::net::worker::wrk_http2_ctx_t *>(conn->wrk.data);
     delete wrk_data;
     conn->wrk.flags = 0;
@@ -16,7 +16,7 @@ int default_wrk_http2_cleanup (manapi::net::worker::connection *conn, manapi::ne
     return 0;
 }
 
-int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     auto wrk_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
     auto http_v2_ctx = wrk_ctx->ctx.get();
 
@@ -26,112 +26,121 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
         goto err;
     }
 
-    if (flags & manapi::ev::WRITE) {
-        if (manapi::net::http::http_v2_on_write(http_v2_ctx)) {
-            goto err;
-        }
-    }
-
-    if (flags & manapi::ev::READ) {
-        auto const config = w->config();
-        while (true) {
-            rhs = manapi::net::http::http_v2_work(http_v2_ctx, config, &buffer, &nsize);
-            switch (rhs) {
-                case manapi::net::http::EHTTP_V2_PROTOCOL_OK: {
-                    manapi::net::http::http_v2_on_close (http_v2_ctx);
-                    if (http_v2_ctx->streams->empty()) {
-                        w->waiting(conn, true);
-                        http_v2_ctx->conn = nullptr;
-                        w->close_connection(conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
-                    }
-                    break;
-                }
-                case manapi::net::http::EHTTP_V2_PROTOCOL_WANT_READ: {
-                    break;
-                }
-                case manapi::net::http::EHTTP_V2_PROTOCOL_ERROR: {
-                    goto err;
-                }
-                case manapi::net::http::EHTTP_V2_IO_ERROR: {
-                    goto err;
-                }
-                case manapi::net::http::EHTTP_V2_NEW_STREAM: {
-                    /**
-                     * stream id always must be at the end
-                     * of the map (ctx->streams).
-                     **/
-                    auto const s = http_v2_ctx->streams->rbegin();
-                    if (s == http_v2_ctx->streams->rend())
-                        continue;
-
-                    w->waiting(conn, false);
-                    s->second->version = manapi::net::http::versions::HTTP_v2;
-                    auto const globalctx = static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (global->data);
-
-                    manapi::async::current()->etaskpool()->append_task(
-                        [conn, status = http_v2_ctx->status,  id = s->first, w, w2 = globalctx->worker] () -> void {
-                            auto wrk_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
-                            if (!wrk_ctx)
-                                return;
-                            auto http_v2_ctx = wrk_ctx->ctx.get();
-                            auto s = http_v2_ctx->streams->find(id);
-                            if (s == http_v2_ctx->streams->end())
-                                return;
-
-                            auto const sdata = s->second->as<manapi::net::http::http_v2_stream_t>();
-                            auto const req_ptr = sdata->req.get();
-                            assert(req_ptr);
-
-                            manapi_log_trace("http2: %d stream on %.*s", s->first, req_ptr->uri.size(), req_ptr->uri.data());
-
-                            auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(s->second, w2,
-                                req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
-                                [w, sconn = s->second, conn, req = std::move(sdata->req)] (bool ok) mutable
-                                -> void {
-                                    manapi::async::current()->etaskpool()->append_task(
-                                        [w = std::move(w), ok, conn = std::move(conn), sconn = std::move(sconn)] () -> void {
-                                            auto const sdata = sconn->as<manapi::net::http::http_v2_stream_t>();
-                                            auto ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *>(conn->wrk.data);
-
-                                            ctx->gctx->worker->close_connection(sconn, ok ? manapi::net::worker::CLOSE_CONN_SHUTDOWN : manapi::net::worker::CLOSE_CONN_ERR);
-
-                                            manapi::net::http::http_v2_on_close_stream(ctx->ctx.get(), sdata->id);
-
-                                            if (ctx->ctx->streams->empty()) {
-                                                w->waiting(conn, true);
-                                                if (ctx->ctx->current == -1 ||
-                                                    (ctx->ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_WANT_CLOSE)) {
-                                                    if (manapi::net::http::http_v2_on_close (ctx->ctx.get())) {
-                                                        /* error */
-                                                    }
-                                                    ctx->ctx->conn = nullptr;
-                                                    w->close_connection(conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
-                                                }
-                                            }
-                                    });
-                            }));
-
-                            // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
-                            // this->event_flags(conn, 0);
-
-                            cdata->router = w->site().handler(req_ptr);
-                            manapi::net::http::internal::handle_income_request(std::move(cdata), status);
-                    });
-
-
-                    continue;
-                }
-                default: {
-                    goto err;
-                }
+    try {
+        if (flags & manapi::ev::WRITE) {
+            if (manapi::net::http::http_v2_on_write(http_v2_ctx)) {
+                goto err;
             }
-
-            break;
         }
+
+        if (flags & manapi::ev::READ) {
+            auto const config = w->config();
+            while (true) {
+                rhs = manapi::net::http::http_v2_work(http_v2_ctx, config, &buffer, &nsize);
+                switch (rhs) {
+                    case manapi::net::http::EHTTP_V2_PROTOCOL_OK: {
+                        manapi::net::http::http_v2_on_close (http_v2_ctx);
+                        if (http_v2_ctx->streams->empty()) {
+                            w->waiting(conn, true);
+                            http_v2_ctx->conn = nullptr;
+                            w->close_connection(conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
+                        }
+                        break;
+                    }
+                    case manapi::net::http::EHTTP_V2_PROTOCOL_WANT_READ: {
+                        break;
+                    }
+                    case manapi::net::http::EHTTP_V2_PROTOCOL_ERROR: {
+                        goto err;
+                    }
+                    case manapi::net::http::EHTTP_V2_IO_ERROR: {
+                        goto err;
+                    }
+                    case manapi::net::http::EHTTP_V2_NEW_STREAM: {
+                        /**
+                         * stream id always must be at the end
+                         * of the map (ctx->streams).
+                         **/
+                        auto const s = http_v2_ctx->streams->rbegin();
+                        if (s == http_v2_ctx->streams->rend())
+                            continue;
+
+                        w->waiting(conn, false);
+                        s->second->version = manapi::net::http::versions::HTTP_v2;
+                        auto const globalctx = static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (global->data);
+
+                        manapi::async::current()->etaskpool()->append_task(
+                            [conn, status = http_v2_ctx->status,  id = s->first, w, w2 = globalctx->worker] () -> void {
+                                auto wrk_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
+                                if (!wrk_ctx)
+                                    return;
+                                auto http_v2_ctx = wrk_ctx->ctx.get();
+                                auto s = http_v2_ctx->streams->find(id);
+                                if (s == http_v2_ctx->streams->end())
+                                    return;
+
+                                auto const sdata = s->second->as<manapi::net::http::http_v2_stream_t>();
+                                auto const req_ptr = sdata->req.get();
+                                assert(req_ptr);
+
+                                manapi_log_trace("http2: %d stream on %.*s", s->first, req_ptr->uri.size(), req_ptr->uri.data());
+
+                                auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(s->second, w2,
+                                    req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
+                                    [w, sconn = s->second, conn, req = std::move(sdata->req)] (bool ok) mutable
+                                    -> void {
+                                        manapi::async::current()->etaskpool()->append_task(
+                                            [w = std::move(w), ok, conn = std::move(conn), sconn = std::move(sconn)] () -> void {
+                                                auto const sdata = sconn->as<manapi::net::http::http_v2_stream_t>();
+                                                auto ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *>(conn->wrk.data);
+
+                                                ctx->gctx->worker->close_connection(sconn, ok ? manapi::net::worker::CLOSE_CONN_SHUTDOWN : manapi::net::worker::CLOSE_CONN_ERR);
+
+                                                manapi::net::http::http_v2_on_close_stream(ctx->ctx.get(), sdata->id);
+
+                                                if (ctx->ctx->streams->empty()) {
+                                                    w->waiting(conn, true);
+                                                    if (ctx->ctx->current == -1 ||
+                                                        (ctx->ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_WANT_CLOSE)) {
+                                                        if (manapi::net::http::http_v2_on_close (ctx->ctx.get())) {
+                                                            /* error */
+                                                        }
+                                                        ctx->ctx->conn = nullptr;
+                                                        w->close_connection(conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
+                                                    }
+                                                }
+                                        });
+                                }));
+
+                                // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
+                                // this->event_flags(conn, 0);
+
+                                cdata->router = w->site().handler(req_ptr);
+                                manapi::net::http::internal::handle_income_request(std::move(cdata), status);
+                        });
+
+
+                        continue;
+                    }
+                    default: {
+                        goto err;
+                    }
+                }
+
+                break;
+            }
+        }
+
+        return 0;
+    }
+    catch (std::bad_alloc const &) {
+        return manapi::ERR_RESOURCE_EXHAUSTED;
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "default_wrk_http2", e.what());
     }
 
-    return 0;
-    err: {
+    err: try {
         if (manapi::net::http::http_v2_on_close (http_v2_ctx)) {
             /* error */
         }
@@ -141,10 +150,17 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
             w->close_connection(conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
         }
     }
+    catch (std::bad_alloc const &) {
+        return manapi::ERR_RESOURCE_EXHAUSTED;
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "default_wrk_http2", e.what());
+    }
+
     return 0;
 }
 
-int default_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+int default_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     try {
         assert(!conn->wrk.data);
 
@@ -174,22 +190,28 @@ int default_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi
         return 0;
     }
     catch (std::exception const &e) {
-        MANAPIHTTP_LOG("default http2 init failed due to {}", e.what());
+        manapi_log_error("%s failed due to %s", "default_wrk_http2_init", e.what());
     }
+
     return manapi::ERR_UNKNOWN;
 }
 
-void default_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+void default_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     auto const http_v2_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
-    if (http_v2_ctx->ctx->streams) {
-        for (const auto &s : *http_v2_ctx->ctx->streams) {
-            static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (global->data)
-                ->worker->update_limit_rate_stream(s.second);
+    try {
+        if (http_v2_ctx->ctx->streams) {
+            for (const auto &s : *http_v2_ctx->ctx->streams) {
+                static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (global->data)
+                    ->worker->update_limit_rate_stream(s.second);
+            }
         }
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "default_wrk_http2_update_limit_rate", e.what());
     }
 }
 
-int default_wrk_http2_global_cleanup (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) {
+int default_wrk_http2_global_cleanup (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     auto ctx = static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (data->data);
     delete ctx;
     data->data = nullptr;
@@ -223,7 +245,7 @@ manapi::error::status manapi::net::worker::default_wrk_http2_global_init (manapi
     return error::status_ok();
 }
 
-bool default_wrk_http2_is_writable (const manapi::net::worker::shared_conn &conn) {
+bool default_wrk_http2_is_writable (const manapi::net::worker::shared_conn &conn) MANAPIHTTP_NOEXPECT {
     auto s = conn->as<manapi::net::http::http_v2_stream_t>();
     if (s->flags & manapi::net::http::HTTP2_STREAM_PRIORITY_LOCKED)
         return false;
@@ -233,13 +255,13 @@ bool default_wrk_http2_is_writable (const manapi::net::worker::shared_conn &conn
     return true;
 }
 
-int default_wrk_http2_want_write (const manapi::net::worker::shared_conn &conn) {
+int default_wrk_http2_want_write (const manapi::net::worker::shared_conn &conn) MANAPIHTTP_NOEXPECT {
     auto s = conn->as<manapi::net::http::http_v2_stream_t>();
     s->ctx->worker->event_toggle(s->ctx->conn, manapi::ev::WRITE, true);
     return 0;
 }
 
-manapi::net::worker::connection::ipdata_t * default_wrk_http2_ipdata (manapi::net::worker::connection *conn) {
+manapi::net::worker::connection::ipdata_t * default_wrk_http2_ipdata (manapi::net::worker::connection *conn) MANAPIHTTP_NOEXPECT {
     auto s = conn->as<manapi::net::http::http_v2_stream_t>();
     return s->ctx->worker->ipdata(s->ctx->conn.get());
 }

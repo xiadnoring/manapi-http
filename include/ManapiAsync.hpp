@@ -23,16 +23,16 @@ namespace manapi {
 
             static thread_local std::shared_ptr<cthread> current_cthread_ = nullptr;
 
-            const std::shared_ptr<threadpool<task>> &ethreadpool_(const std::shared_ptr<cthread> &ctx);
+            const std::shared_ptr<threadpool<task>> &ethreadpool_(const std::shared_ptr<cthread> &ctx) MANAPIHTTP_NOEXPECT;
 
-            const std::shared_ptr<cthread> &current_ ();
+            const std::shared_ptr<cthread> &current_ () MANAPIHTTP_NOEXPECT;
 
-            std::size_t current_stack_cnt_crt ();
+            std::size_t current_stack_cnt_crt () MANAPIHTTP_NOEXPECT;
 
-            void current_stack_cnt_set (std::size_t cnt);
+            void current_stack_cnt_set (std::size_t cnt) MANAPIHTTP_NOEXPECT;
         }
 
-        const std::shared_ptr<cthread> &current ();
+        const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXPECT;
     }
 
     class promise_base {

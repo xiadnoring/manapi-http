@@ -124,7 +124,7 @@ namespace manapi::async {
          * set as the default context in the thread
          * @param thr the context
          */
-        static void current (std::shared_ptr<cthread> thr);
+        static void current (std::shared_ptr<cthread> thr) MANAPIHTTP_NOEXPECT;
 
         /**
          * deconstructor
@@ -135,7 +135,7 @@ namespace manapi::async {
          * get the event loop
          * @return the event loop
          */
-        [[nodiscard]] const shared_eventloop& eventloop();
+        [[nodiscard]] const shared_eventloop& eventloop() MANAPIHTTP_NOEXPECT;
 
         //[[nodiscard]] const shared_taskpool &taskpool();
 
@@ -143,25 +143,25 @@ namespace manapi::async {
          * get the timer pool
          * @return the timer pool
          */
-        [[nodiscard]] const shared_timerpool &timerpool();
+        [[nodiscard]] const shared_timerpool &timerpool() MANAPIHTTP_NOEXPECT;
 
         /**
          * get the event task pool
          * @return the event task pool
          */
-        [[nodiscard]] const shared_taskpool &etaskpool ();
+        [[nodiscard]] const shared_taskpool &etaskpool () MANAPIHTTP_NOEXPECT;
 
         /**
          * get the logger
          * @return the logger
          */
-        [[nodiscard]] const shared_logger &logger();
+        [[nodiscard]] const shared_logger &logger() MANAPIHTTP_NOEXPECT;
 
         /**
          * get the memory fabric
          * @return the memory fabric
          */
-        [[nodiscard]] object_pool &memory_fabric ();
+        [[nodiscard]] object_pool &memory_fabric () MANAPIHTTP_NOEXPECT;
 
         //manapi::future<void> start ();
 
@@ -173,7 +173,7 @@ namespace manapi::async {
         /**
          * join all threads
          */
-        void join ();
+        void join () MANAPIHTTP_NOEXPECT;
 
         /**
          * stop working asynchronously
@@ -240,19 +240,19 @@ namespace manapi::async {
          * set the thread pool size for filesystem operations
          * @param cnt
          */
-        static void threadpoolfs (std::size_t cnt = 4);
+        static void threadpoolfs (std::size_t cnt = 4) MANAPIHTTP_NOEXPECT;
 
         /**
          * create a blocked signals context
          * @return the blocked signals context
          */
-        static std::unique_ptr<manapi::sigset_t> blockedsignals ();
+        static std::unique_ptr<manapi::sigset_t> blockedsignals () MANAPIHTTP_NOEXPECT;
 
         /**
          * get all copies of the context
          * @return the copies
          */
-        const std::vector<shared_cthread> &loops ();
+        const std::vector<shared_cthread> &loops () MANAPIHTTP_NOEXPECT;
 
         /**
          * global context storage

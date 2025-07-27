@@ -21,15 +21,15 @@ namespace manapi::net::worker {
 
         manapi::future<error::status> init (std::size_t deep) override;
 
-        shared_conn accept (const ev::shared_tcp &w) override;
+        shared_conn accept (const ev::shared_tcp &w) MANAPIHTTP_NOEXPECT override;
 
-        void close_connection(shared_conn conn, int flags) override;
+        void close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXPECT override;
 
-        ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) override;
+        ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXPECT override;
 
-        ssize_t sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) override;
+        ssize_t sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXPECT override;
 
-        int event_flags(const shared_conn & conn, int flags) noexcept(true) override;
+        int event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXPECT override;
 
 
     protected:
@@ -80,15 +80,15 @@ namespace manapi::net::worker {
 
         virtual int ssl_bio_should_retry_ (void *bio) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual bool recv_setup_connection(tls_connection_t *storage) = 0;
+        virtual bool recv_setup_connection(tls_connection_t *storage, char *alpn_selected, std::size_t *alpn_size) = 0;
 
-        void update_limit_rate_connection(const shared_conn &sconn) override;
+        void update_limit_rate_connection(const shared_conn &sconn) MANAPIHTTP_NOEXPECT override;
 
-        static void connection_interface_eraser(worker::connection *data);
+        static void connection_interface_eraser(worker::connection *data) MANAPIHTTP_NOEXPECT;
 
         void shutdown_async_ (shared_conn conn);
 
-        void onrecv(const std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) override;
+        void onrecv(const std::shared_ptr<ev::tcp> &watcher, const shared_conn &conn, ibuffpool_t buffer) MANAPIHTTP_NOEXPECT override;
 
         void *ctx = nullptr;
 

@@ -200,7 +200,7 @@ int main () {
             manapi::async::current()->timerpool()->append_timer_sync(1500,
                 [resp] (manapi::timer t) -> void {
                     resp->finish();
-            });
+            }).unwrap();
         });
 
         router.GET ("/free", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)

@@ -278,7 +278,7 @@ namespace manapi {
              *
              * @return true if there's no error, otherwise it returns false
              */
-            [[nodiscard]] bool ok () const {
+            [[nodiscard]] bool ok () const MANAPIHTTP_NOEXPECT {
                 return this->err_.code() == manapi::ERR_OK;
             }
 
@@ -287,7 +287,7 @@ namespace manapi {
              *
              * @return the error status
              */
-            E err () {
+            E err () MANAPIHTTP_NOEXPECT {
                 return std::move(this->err_);
             }
         protected:
