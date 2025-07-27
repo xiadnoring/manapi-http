@@ -475,7 +475,7 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MAN
 // finish:
 // }
 
-bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(tls_connection_t *data, char *alpn_selected, std::size_t* alpn_size) {
+int manapi::net::worker::OpenSSL_TLS::recv_setup_connection(const shared_conn &conn, tls_connection_t *data) {
     ERR_clear_error();
 
     data->wbio = BIO_new(BIO_s_mem());
@@ -490,19 +490,11 @@ bool manapi::net::worker::OpenSSL_TLS::recv_setup_connection(tls_connection_t *d
 
     SSL_set_bio(static_cast<SSL*>(data->ssl), static_cast<BIO*>(data->rbio), static_cast<BIO*>(data->wbio));
 
-    uint8_t const *p1;
-    uint32_t p1_len;
-    SSL_get0_alpn_selected(static_cast<SSL*>(data->ssl), &p1, &p1_len);
+    SSL_set_app_data (static_cast<SSL*>(data->ssl), conn.get());
 
-    if (*alpn_size < p1_len)
-        return false;
-
-    memcpy (alpn_selected, p1, p1_len);
-    *alpn_size = p1_len;
-
-    return true;
+    return ERR_OK;
 err:
-    return false;
+    return ERR_INTERNAL;
 }
 
 
@@ -640,6 +632,15 @@ manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_co
             i += plen;
             continue;
             choise: {
+                if (worker->global_.alpn_cb) {
+                    auto rhs = worker->global_.alpn_cb(&worker->global_, buff.data(), buff.size(), worker);
+                    if (rhs < 0)
+                        return SSL_TLSEXT_ERR_ALERT_FATAL;
+
+                    auto conn = static_cast<worker::connection *>(SSL_get_app_data(ssl));
+                    conn->version = rhs;
+                }
+
                 *out = reinterpret_cast<const unsigned char *> (buff.data());
                 *outlen = buff.size();
                 return SSL_TLSEXT_ERR_OK;

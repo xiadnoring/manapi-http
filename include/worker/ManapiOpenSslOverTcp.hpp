@@ -39,7 +39,7 @@ namespace manapi::net::worker {
         int ssl_read_early_data_(void *ssl, void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT override;
         int ssl_write_early_data_(void *ssl, const void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT override;
         bool ssl_early_data_is_enabled_(void *ctx) MANAPIHTTP_NOEXPECT override;
-        bool recv_setup_connection(tls_connection_t *storage, char *alpn_selected, std::size_t* alpn_size) override;
+        int recv_setup_connection(const shared_conn &conn, tls_connection_t *storage) override;
         manapi::error::status_or<void*> ssl_create_context (size_t version);
         manapi::error::status ssl_configure_context (void* ctx);
     private:

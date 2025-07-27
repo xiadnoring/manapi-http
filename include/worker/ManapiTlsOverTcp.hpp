@@ -80,7 +80,7 @@ namespace manapi::net::worker {
 
         virtual int ssl_bio_should_retry_ (void *bio) MANAPIHTTP_NOEXPECT = 0;
 
-        virtual bool recv_setup_connection(tls_connection_t *storage, char *alpn_selected, std::size_t *alpn_size) = 0;
+        virtual int recv_setup_connection(const shared_conn &conn, tls_connection_t *storage) = 0;
 
         void update_limit_rate_connection(const shared_conn &sconn) MANAPIHTTP_NOEXPECT override;
 
@@ -93,7 +93,10 @@ namespace manapi::net::worker {
         void *ctx = nullptr;
 
         int ssl_session_ctx_id{1};
+    protected:
+        int onaccept_event_(const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT override;
     private:
+
         int check_read_stack_full_ (tls_connection_t *data);
 
         int manapi_do_process (const shared_conn &conn, tls_connection_t *data);

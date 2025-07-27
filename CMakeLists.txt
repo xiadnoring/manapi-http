@@ -433,9 +433,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/components/ManapiSlice.cpp
         src/compress/ManapiHPack.cpp
         src/include/worker/ManapiNgHttp2Interface.hpp
-        src/include/worker/ManapiQuicNgTcp2.hpp
         src/worker/ManapiNgHttp2Interface.cpp
-        src/worker/ManapiQuicNgTcp2.cpp
         src/include/ManapiJsonMaskUtils.hpp
         src/include/ManapiDebug.hpp
         include/ManapiUtils.hpp

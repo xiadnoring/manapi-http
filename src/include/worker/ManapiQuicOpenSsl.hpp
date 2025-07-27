@@ -55,7 +55,9 @@ namespace manapi::net::worker {
 
         void alpn_ossltest (std::string test) MANAPIHTTP_NOEXPECT;
 
-        error::status close_stream(shared_conn conn, shared_conn s) MANAPIHTTP_NOEXPECT override;
+        void close_stream(shared_conn s, int flags) MANAPIHTTP_NOEXPECT;
+
+        connection::ipdata_t *ipdata(worker::connection *conn) MANAPIHTTP_NOEXPECT override;
 
         error::status_or<shared_conn> new_stream(shared_conn conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT override;
 
@@ -79,7 +81,7 @@ namespace manapi::net::worker {
 
         static void io_unbind_cb (ev::handle *s) MANAPIHTTP_NOEXPECT;
 
-        manapi::error::status_or<shared_conn> stream_accept (quic_conn_t *data, SSL *stream) MANAPIHTTP_NOEXPECT;
+        manapi::error::status_or<shared_conn> stream_accept (const shared_conn &conn, SSL *stream) MANAPIHTTP_NOEXPECT;
 
         void stream_processing (const shared_conn &s) MANAPIHTTP_NOEXPECT;
 

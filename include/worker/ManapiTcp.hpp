@@ -80,6 +80,8 @@ namespace manapi::net::worker {
 
         virtual int onaccept_event_ (const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT;
 
+        int onaccept_bind_ (const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT;
+
         ev::shared_tcp watcher_accept_;
     protected:
         std::size_t count;

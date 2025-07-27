@@ -107,7 +107,7 @@ struct http_v2_goaway_t {
     std::string_view err_msg;
 };
 
-static constexpr char smlabel[] = "\r\n\r\nSM\r\n";
+static constexpr char smlabel[] = "PRI * HTTP/2.0\r\n\r\nSM\r\n";
 static constexpr int maxcnt = 1e9;
 
 static std::map <int, manapi::json_mask> const allow_settings {
@@ -872,14 +872,15 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             break;
                         }
 
-                        if (++pos == sizeof (smlabel) - 1) {
+                        pos ++;
+                        if (++ctx->pos1 == sizeof (smlabel) - 1) {
                             ctx->next = HTTP2_CALLBACK_PARSE_NEW_FRAME;
                             ctx->current = HTTP2_CALLBACK_NEXT_LINE;
                             ctx->pos1 = 0;
 
                             break;
                         }
-                        ctx->pos1++;
+
                     }
 
                     break;

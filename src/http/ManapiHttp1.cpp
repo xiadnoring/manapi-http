@@ -281,12 +281,6 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                 }
                 case HTTP_V1_1_CALLBACK_PARSE_HTTP_2: {
                     while (pos != size) {
-                        if (buffer[pos] != version_label_2[ctx->next]) {
-                            if (!(pos == 6 && buffer[pos] == '\r')) {
-                                return EHTTP_V1_1_PROTOCOL_ERROR;
-                            }
-                        }
-
                         pos++;
                         ctx->next++;
 

@@ -47,7 +47,7 @@ struct manapi::net::worker::openssl_quic::quic_conn_t : connection_base_t {
 
 struct manapi::net::worker::openssl_quic::quic_stream_t : connection_prepared_t {
     SSL *stream;
-    quic_conn_t *parent;
+    worker::connection *parent;
 };
 
 manapi::net::worker::openssl_quic::openssl_quic(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config)
@@ -306,6 +306,11 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
     if (!conn)
         return;
 
+    if (conn->wrk.flags & WRK_INTERFACE_IS_STREAM) {
+        this->close_stream(conn, flags);
+        return;
+    }
+
     auto s = conn->as<quic_conn_t>();
 
     if (s->flags & CONN_REMOVED)
@@ -345,7 +350,7 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
 
     for (auto it = s->streams.begin(); it != s->streams.end(); ) {
         auto next = std::next(it);
-        this->close_stream(conn, it->second);
+        this->close_stream(it->second, CLOSE_CONN_EOF);
         it = next;
     }
 
@@ -471,29 +476,31 @@ void manapi::net::worker::openssl_quic::alpn_ossltest(std::string test) MANAPIHT
     this->alpn_ossltest_ = std::move(test);
 }
 
-manapi::error::status manapi::net::worker::openssl_quic::close_stream(shared_conn conn, shared_conn s) MANAPIHTTP_NOEXPECT {
-    if (conn && s) {
-        auto const conn_data = conn->as<quic_conn_t>();
+void manapi::net::worker::openssl_quic::close_stream(shared_conn s, int flags) MANAPIHTTP_NOEXPECT {
+    if (s) {
         auto const data = s->as<quic_stream_t>();
 
         if (!data)
-            goto args;
+            return;
+
+
+        auto const conn_data = data->parent->as<quic_conn_t>();
 
         auto const stream_id = SSL_get_stream_id(data->stream);;
 
+        auto it = conn_data->streams.find(stream_id);
+
+        if (it != conn_data->streams.end())
+            conn_data->streams.erase(it);
+
         prepared::event_callback_clear(s, data);
         prepared::top_buffer_clear(data);
-
-        auto it = conn_data->streams.find(stream_id);
-        assert(it != conn_data->streams.end());
-
-        conn_data->streams.erase(it);
-
-        SSL_free(std::exchange(data->stream, nullptr));
-
-        return error::status_ok();
     }
-    args: return error::status_invalid_argument("close_stream");
+}
+
+manapi::net::worker::connection::ipdata_t * manapi::net::worker::openssl_quic::ipdata(worker::connection *conn) MANAPIHTTP_NOEXPECT {
+    auto const s = conn->as<quic_stream_t>();
+    return base::ipdata(s->parent);
 }
 
 manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::openssl_quic::new_stream(shared_conn conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT {
@@ -516,7 +523,7 @@ manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manap
         if (!stream)
             return error::status_resource_exhausted();
 
-        auto res = this->stream_accept(data, stream);
+        auto res = this->stream_accept(conn, stream);
         if (!res.ok())
             return res.err();
 
@@ -526,7 +533,7 @@ manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manap
         return error::status_resource_exhausted();
     }
     catch (std::exception const &e) {
-        manapi_log_error('%s due to %s', "openssl_quic:new_stream", e.what());
+        manapi_log_error("%s due to %s", "openssl_quic:new_stream", e.what());
         return error::status_internal("openssl_quic:new_stream");
     }
     args: return error::status_invalid_argument("new_stream");
@@ -615,13 +622,23 @@ void manapi::net::worker::openssl_quic::stream_interface_eraser(worker::connecti
     auto uptr = std::unique_ptr<worker::connection> (n);
     auto connection = std::unique_ptr<quic_stream_t> (uptr->as<quic_stream_t>());
 
-    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s:Free QUIC %p stream", "openssl_quic", connection.get());
+    auto conn_data = connection->parent->as<quic_conn_t>();
+
+    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s:Free QUIC %p stream using %p conn",
+        "openssl_quic", connection.get(), conn_data->conn);
 
     SSL_free(connection->stream);
 
     /**
      * Decrease count of streams
      */
+    auto const wrk =  (conn_data->worker);
+    if (wrk) {
+        if (auto rhs = wrk->global_.cleanup_cb(n, &wrk->global_, wrk))
+            manapi_log_error("%s: %s failed due to %d", "openssl_quic", "this->global_.cleanup_cb failed", rhs);
+
+        openssl_quic::io_event_cb(wrk->w_->custom(), 0, 0);
+    }
 }
 
 void manapi::net::worker::openssl_quic::connection_interface_eraser(worker::connection *n) MANAPIHTTP_NOEXPECT {
@@ -635,7 +652,7 @@ void manapi::net::worker::openssl_quic::connection_interface_eraser(worker::conn
 
     SSL_free(connection->conn);
 
-    auto const wrk = dynamic_cast<openssl_quic*> (connection->worker);
+    auto const wrk =  (connection->worker);
     if (wrk) {
         if (auto rhs = wrk->global_.cleanup_cb(n, &wrk->global_, wrk))
             manapi_log_error("%s: %s failed due to %d", "openssl_quic", "this->global_.cleanup_cb failed", rhs);
@@ -740,7 +757,7 @@ void manapi::net::worker::openssl_quic::io_unbind_cb(ev::handle *s) MANAPIHTTP_N
     }
 }
 
-manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::stream_accept(quic_conn_t *data, SSL *stream) MANAPIHTTP_NOEXPECT {
+manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::stream_accept(const shared_conn &conn, SSL *stream) MANAPIHTTP_NOEXPECT {
     try {
         auto p = std::make_unique<quic_stream_t>();
         auto top = std::make_unique<connection_io>();
@@ -748,17 +765,38 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         auto stream_conn = std::shared_ptr<worker::connection> (
                 new worker::connection{p.get()}, stream_interface_eraser);
 
+        stream_conn->wrk.flags |= WRK_INTERFACE_IS_STREAM;
+
         p.release();
 
+        auto data = conn->as<quic_conn_t>();
         auto stream_data = stream_conn->as<quic_stream_t>();
 
         stream_data->top = std::move(top);
         stream_data->stream = stream;
+        stream_data->parent = conn.get();
 
         auto rhs = data->streams.insert({SSL_get_stream_id(stream), stream_conn});
         if (!rhs.second) {
             SSL_free(stream);
             return error::status_internal("already exists - bug");
+        }
+
+        if (this->global_.init_cb(stream_conn, &this->global_, this)) {
+            this->close_connection(stream_conn, CLOSE_CONN_ERR);
+        }
+        else {
+            this->event_on(stream_conn,
+                std::make_unique<worker_watcher_cb>([this]
+                (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
+                -> void {
+                    auto const wrk = this;
+                    if (wrk->global_.accept_cb (conn, flags, buffer, nsize, p, &this->global_, this))
+                        wrk->close_connection(conn, CLOSE_CONN_ERR);
+            }));
+
+            this->event_flags(stream_conn, ev::READ);
+            return error::status_ok();
         }
     }
     catch (std::bad_alloc const &) {
@@ -853,9 +891,20 @@ void manapi::net::worker::openssl_quic::conn_processing(SSL *client) MANAPIHTTP_
             return;
         }
 
+        uint8_t const *alpnbuf;
+        uint32_t alpnlen = sizeof (alpnbuf);
+
+        SSL_get0_alpn_selected(client, &alpnbuf, &alpnlen);
+
+        if (this->global_.alpn_cb) {
+            auto const version = this->global_.alpn_cb( &this->global_, reinterpret_cast<char const *>(alpnbuf), alpnlen, this);
+            if (version >= 0)
+                conn->version = version;
+        }
+
         auto flags = this->global_.flags_cb(conn, &this->global_, this);
 
-        if (!(flags & WRK_GLOBAL_FLAG_MULTISTREAM)) {
+        if (flags & WRK_GLOBAL_FLAG_MULTISTREAM) {
             try {
                 if (this->global_.init_cb(conn, &this->global_, this))
                     goto err;
@@ -877,6 +926,10 @@ void manapi::net::worker::openssl_quic::conn_processing(SSL *client) MANAPIHTTP_
         }
 
         sn = (conn)->as<quic_conn_t>();
+
+        if (!SSL_set_incoming_stream_policy(client, SSL_INCOMING_STREAM_POLICY_ACCEPT, 0)) {
+            manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: %s failed using %p conn", "openssl_quic", "SSL_set_incoming_stream_policy", client);
+        }
     }
     else {
         conn = *static_cast<shared_conn *> (app_data);
@@ -901,7 +954,8 @@ void manapi::net::worker::openssl_quic::conn_processing(SSL *client) MANAPIHTTP_
             if (SSL_is_init_finished(sn->conn)) {
                 auto stream = SSL_accept_stream(sn->conn, 0);
                 if (stream) {
-                    auto res = this->stream_accept(sn, stream);
+                    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: new stream %p was created using %p conn", "openssl_quic", stream, sn->conn);
+                    auto res = this->stream_accept(conn, stream);
 
                     if (!res.ok())
                         res.err().log();

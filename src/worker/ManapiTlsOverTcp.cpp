@@ -46,22 +46,11 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(const ev::shar
 
             connection->ssl = this->ssl_new_(this->ctx);
 
-            char alpn_selected[128];
-            std::size_t alpn_size = sizeof (alpn_selected);
-
             if (!connection->ssl)
                 return nullptr;
 
-            if (!recv_setup_connection (connection, alpn_selected, &alpn_size))
+            if (recv_setup_connection (ms, connection))
                 return nullptr;
-
-            if (this->global_.alpn_cb) {
-                auto rhs = this->global_.alpn_cb(ms, &this->global_, alpn_selected, alpn_size, this);
-                if (rhs < 0)
-                    return nullptr;
-
-                ms->version = rhs;
-            }
 
             auto rhs = manapi::async::current()->timerpool()->append_timer_sync(8000,
                 [ms] (const manapi::timer &t) mutable
@@ -483,8 +472,8 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
             else {
                 if (data->flags & CONN_TLS_EARLY_DATA
                     && !(data->flags & CONN_TLS_EARLY_FINISHED)) {
-                    {
 
+                    {
                         std::size_t readbytes;
                         auto const early_res = this->ssl_read_early_data_ (data->ssl,
                             nullptr, 0, &readbytes);
@@ -502,15 +491,37 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
                             if (err == this->ssl_error_ssl_)
                                 goto err;
 
-                            if (err == this->ssl_error_want_read_ ||
+                            if (err == this->ssl_error_zero_return_) {
+                                data->flags |= CONN_TLS_EARLY_FINISHED;
+                                this->close_connection(conn, CLOSE_CONN_SHUTDOWN);
+                                continue;
+                            }
+
+                            if (err == this->ssl_error_none_ ||
+                                err == this->ssl_error_want_read_ ||
                                 err == this->ssl_error_want_write_) {
+
                                 if (this->ssl_bio_flush_write_(conn, data, 1e5))
                                     goto err;
                                 if (this->flush_write_(conn, true))
                                     goto err;
 
+                                if (!conn->wrk.data) {
+                                    if (this->global_.init_cb (conn, &this->global_, this))
+                                        goto err;
+                                }
+
                                 break;
                             }
+
+                            if (err == this->ssl_error_syscall_
+                                && !this->ssl_is_init_fininshed_(data->ssl))
+                                continue;
+                        }
+
+                        if (!conn->wrk.data) {
+                            if (this->global_.init_cb (conn, &this->global_, this))
+                                goto err;
                         }
                     }
 
@@ -556,6 +567,10 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
 
         return;
     }
+}
+
+int manapi::net::worker::TLS::onaccept_event_(const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT {
+    return TCP::onaccept_bind_(conn);
 }
 
 int manapi::net::worker::TLS::check_read_stack_full_(tls_connection_t *data) {
@@ -669,7 +684,13 @@ int manapi::net::worker::TLS::manapi_do_handshake_(const shared_conn &conn, tls_
     int rhs = this->ssl_accept_(data->ssl);
     manapi_log_trace(debug::LOG_TRACE_LOW, "TLS:Handshake() %p = %d", data, rhs);
 
-    if (rhs <= 0) {
+    if (rhs == 1) {
+        if (!conn->wrk.data) {
+            if (this->global_.init_cb (conn, &this->global_, this))
+                return CONN_IO_ERROR;
+        }
+    }
+    else {
         auto const status = this->ssl_get_error_(data->ssl, rhs);
 
         if (status == this->ssl_error_want_read_ || status == this->ssl_error_want_write_) {

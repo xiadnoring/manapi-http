@@ -892,17 +892,21 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
 }
 
 int manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT {
-    this->waiting(conn, true);
-
     if (this->global_.init_cb(conn, &this->global_, this))
         return -1;
 
+    return this->onaccept_bind_(conn);
+}
+
+int manapi::net::worker::TCP::onaccept_bind_(const worker::shared_conn &conn) noexcept(true) {
+    this->waiting(conn, true);
+
     try {
         this->event_on(conn,
-            std::make_unique<worker_watcher_cb>([]
+            std::make_unique<worker_watcher_cb>([this]
             (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
             -> void {
-                auto const w = dynamic_cast<TCP *>(conn->as<tcp_connection_t>()->worker);
+                auto const w = this;
                 if (w->global_.accept_cb (conn, flags, buffer, nsize, p,
                     &w->global_, w)) {
                     w->close_connection(conn, CLOSE_CONN_ERR);

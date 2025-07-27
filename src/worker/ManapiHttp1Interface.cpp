@@ -91,7 +91,7 @@ uint64_t default_wrk_http_all_global_flags (const manapi::net::worker::shared_co
     }
 }
 
-int default_wrk_http_all_global_alpn (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, char *alpn, std::size_t alpn_size, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
+int default_wrk_http_all_global_alpn (manapi::net::worker::wrk_interface_global_t *global, char const *alpn, std::size_t alpn_size, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     std::string_view s {alpn, alpn_size};
     if (s.starts_with("http/")) {
         s = s.substr(sizeof ("http/") - 1);
@@ -280,7 +280,7 @@ int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, c
                                 global->cleanup_cb(conn.get(), global, w);
                                 conn->version = manapi::net::http::versions::HTTP_v2;
                                 httpallctx->http2->init_cb(conn, httpallctx->http2.get(), w);
-
+                                w->feed_event(conn, manapi::net::worker::base::CONN_READ|manapi::net::worker::base::CONN_TOP_READ, "PRI * HTTP/2.0", sizeof ("PRI * HTTP/2.0") - 1, nullptr);
                                 break;
                             }
                             goto send_error;
@@ -501,7 +501,7 @@ manapi::future<int> default_wrk_http1_send_response (const manapi::net::worker::
     co_return manapi::ERR_OK;
 }
 
-manapi::error::status manapi::net::worker::default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+manapi::error::status manapi::net::worker::default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     if (global->data)
         return manapi::error::status_invalid_argument("global->data already exists");
 

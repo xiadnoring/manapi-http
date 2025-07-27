@@ -251,11 +251,6 @@ manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manap
     return error::status_unimplemented("worker:Streams not supported");
 }
 
-manapi::error::status manapi::net::worker::base::close_stream(shared_conn conn, shared_conn s) MANAPIHTTP_NOEXPECT {
-    return error::status_unimplemented("worker:Streams not supported");
-}
-
-
 void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt) MANAPIHTTP_NOEXPECT {
     while ((*dest_cnt) < max_cnt) {
         if (!src->deque) {
