@@ -1,7 +1,7 @@
-#include "worker/ManapiHttp2Interface.hpp"
+#include "../include/http/ManapiHttp2Interface.hpp"
 #include "worker/ManapiHttp2Worker.hpp"
-#include "http/ManapiHttp2.hpp"
-#include "worker/ManapiHttp1Interface.hpp"
+#include "../include/http/ManapiHttp2.hpp"
+#include "../include/http/ManapiHttp1Interface.hpp"
 #include "ManapiHttpResponse.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "../include/ManapiSiteInternal.hpp"
@@ -61,6 +61,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                          * stream id always must be at the end
                          * of the map (ctx->streams).
                          **/
+                        auto status = http_v2_ctx->status;
                         auto const s = http_v2_ctx->streams->rbegin();
                         if (s == http_v2_ctx->streams->rend())
                             continue;
@@ -70,7 +71,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                         auto const globalctx = static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (global->data);
 
                         manapi::async::current()->etaskpool()->append_task(
-                            [conn, status = http_v2_ctx->status,  id = s->first, w, w2 = globalctx->worker] () -> void {
+                            [conn, status,  id = s->first, w, w2 = globalctx->worker] () -> void {
                                 auto wrk_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
                                 if (!wrk_ctx)
                                     return;

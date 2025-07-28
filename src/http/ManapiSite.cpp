@@ -15,9 +15,9 @@
 #include "ManapiHttpResponse.hpp"
 #include "ManapiHttpRequest.hpp"
 #include "async/ManapiEasyCancellation.hpp"
-#include "../include/worker/ManapiNgHttp2Interface.hpp"
-#include "worker/ManapiHttp1Interface.hpp"
-#include "worker/ManapiHttp2Interface.hpp"
+#include "../include/http/ManapiNgHttp2Interface.hpp"
+#include "../include/http/ManapiHttp1Interface.hpp"
+#include "../include/http/ManapiHttp2Interface.hpp"
 #include "../include/worker/ManapiQuicOpenSsl.hpp"
 
 namespace manapi::net::worker {

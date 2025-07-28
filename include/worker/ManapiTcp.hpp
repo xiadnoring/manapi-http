@@ -9,8 +9,6 @@
 #include "./ManapiBaseWorker.hpp"
 #include "./ManapiInterfaceWorker.hpp"
 #include "./ManapiAsync.hpp"
-#include "../http/ManapiHttp2.hpp"
-#include "../http/ManapiHttp1.hpp"
 #include "../async/ManapiCancellation.hpp"
 
 namespace manapi::net::worker {

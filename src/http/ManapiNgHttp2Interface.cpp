@@ -1,4 +1,4 @@
-#include "../include/worker/ManapiNgHttp2Interface.hpp"
+#include "../include/http/ManapiNgHttp2Interface.hpp"
 #include "../include/ManapiUtils.hpp"
 
 #if MANAPIHTTP_NGHTTP2_DEPENDENCY

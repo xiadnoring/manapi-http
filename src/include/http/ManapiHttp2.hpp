@@ -3,10 +3,10 @@
 
 #include <thread>
 
-#include "../ManapiUtils.hpp"
-#include "./ManapiBaseHttp.hpp"
-#include "../compress/ManapiHPack.hpp"
-#include "../worker/ManapiHttp2Worker.hpp"
+#include "ManapiUtils.hpp"
+#include "http/ManapiBaseHttp.hpp"
+#include "compress/ManapiHPack.hpp"
+#include "worker/ManapiHttp2Worker.hpp"
 
 namespace manapi::net::http {
     struct http_v2_settings_t {

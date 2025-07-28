@@ -57,12 +57,16 @@ namespace manapi::net::worker {
 
         void close_stream(shared_conn s, int flags) MANAPIHTTP_NOEXPECT;
 
+        void rst_stream (shared_conn s) MANAPIHTTP_NOEXPECT;
+
         connection::ipdata_t *ipdata(worker::connection *conn) MANAPIHTTP_NOEXPECT override;
 
         error::status_or<shared_conn> new_stream(shared_conn conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT override;
 
         std::size_t stream_id(shared_conn s) MANAPIHTTP_NOEXPECT override;
     protected:
+        void remove_poll_id (std::size_t poll_id) MANAPIHTTP_NOEXPECT;
+
         void flush_read_ (const shared_conn &conn, quic_stream_t *data) MANAPIHTTP_NOEXPECT;
 
         void flush_write_ (const shared_conn &conn, quic_stream_t *data) MANAPIHTTP_NOEXPECT;
@@ -87,12 +91,19 @@ namespace manapi::net::worker {
 
         void conn_processing (SSL *client) MANAPIHTTP_NOEXPECT;
 
+        int try_init_conn_ (const shared_conn &conn) MANAPIHTTP_NOEXPECT;
+
         std::function<void()> finish;
         std::map<uintptr_t, shared_conn> conns_;
         int sock;
         std::size_t count;
         int flags;
     private:
+        static manapi::error::status load_params (manapi::net::worker::openssl_quic *w, SSL_CTX *ctx, manapi::json sslconfig);
+
+        static int select_alpn (SSL *ssl, const unsigned char **out, unsigned char *out_len, const unsigned char *in, unsigned int in_len, void *arg);
+
+        std::vector<SSL_POLL_ITEM> polls_;
         std::unique_ptr<ev::io> w_;
         std::unique_ptr<ev::timer> t_;
         std::string alpn_ossltest_;

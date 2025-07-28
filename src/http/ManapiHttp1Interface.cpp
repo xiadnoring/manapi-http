@@ -1,7 +1,7 @@
 #include <cstring>
 
-#include "worker/ManapiHttp1Interface.hpp"
-#include "http/ManapiHttp1.hpp"
+#include "../include/http/ManapiHttp1Interface.hpp"
+#include "../include/http/ManapiHttp1.hpp"
 #include "ManapiHttpResponse.hpp"
 #include "ManapiString.hpp"
 #include "../include/ManapiSiteInternal.hpp"

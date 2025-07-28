@@ -10,7 +10,7 @@
 #include "ManapiHttpTypes.hpp"
 #include "ManapiString.hpp"
 #include "http/ManapiBaseHttp.hpp"
-#include "http/ManapiHttp1.hpp"
+#include "../include/http/ManapiHttp1.hpp"
 
 const std::string SPECIAL_SYMBOLS_BOUNDARY = "\r\n--";
 

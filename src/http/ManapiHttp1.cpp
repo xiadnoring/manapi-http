@@ -2,7 +2,7 @@
 #include <cctype>
 #include <memory>
 
-#include "http/ManapiHttp1.hpp"
+#include "../include/http/ManapiHttp1.hpp"
 
 #include "../../include/crypto/ManapiBase64.hpp"
 #include "ManapiFilesystem.hpp"

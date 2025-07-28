@@ -29,7 +29,7 @@
 #include <set>
 #include <future>
 
-#include "http/ManapiHttp2.hpp"
+#include "../include/http/ManapiHttp2.hpp"
 
 #include "../include/ManapiUtils.hpp"
 #include "async/ManapiAsyncSocket.hpp"

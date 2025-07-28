@@ -990,7 +990,7 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
             }
         }
 
-        if (data->flags & ((CONN_READ|CONN_CLOSED|CONN_REMOVED)) == CONN_READ) {
+        if ((data->flags & ((CONN_READ|CONN_CLOSED|CONN_REMOVED))) == CONN_READ) {
             this->read_start_(data);
         }
 

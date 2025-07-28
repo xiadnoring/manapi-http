@@ -293,11 +293,11 @@ set(MANAPIHTTP_HTTP_FILES
         include/worker/ManapiBaseWorker.hpp
         include/http/ManapiBaseHttp.hpp
         include/worker/ManapiOpenSslOverTcp.hpp
-        include/http/ManapiHttp1.hpp
-        include/http/ManapiHttp2.hpp
+        src/include/http/ManapiHttp1.hpp
+        src/include/http/ManapiHttp2.hpp
         include/compress/ManapiHPack.hpp
-        include/worker/ManapiHttp2Interface.hpp
-        include/worker/ManapiHttp1Interface.hpp
+        src/include/http/ManapiHttp2Interface.hpp
+        src/include/http/ManapiHttp1Interface.hpp
         include/ManapiHttpMime.hpp
         include/components/ManapiAtomic.hpp
         include/worker/ManapiTcp.hpp
@@ -330,7 +330,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/ManapiOpenSslOverTcp.cpp
         src/http/ManapiHttp1.cpp
         src/http/ManapiHttp2.cpp
-        src/worker/ManapiHttp2Interface.cpp
+        src/http/ManapiHttp2Interface.cpp
         src/ManapiHttpMime.cpp
         src/worker/ManapiTcp.cpp
         src/components/ManapiFormData.cpp
@@ -426,14 +426,14 @@ set(MANAPIHTTP_HTTP_FILES
         src/components/ManapiObjectPool.cpp
         include/worker/ManapiHttp2Worker.hpp
         src/worker/ManapiHttp2Worker.cpp
-        src/worker/ManapiHttp1Interface.cpp
+        src/http/ManapiHttp1Interface.cpp
         include/worker/ManapiInterfaceWorker.hpp
         src/worker/ManapiInterfaceWorker.cpp
         include/components/ManapiSlice.hpp
         src/components/ManapiSlice.cpp
         src/compress/ManapiHPack.cpp
-        src/include/worker/ManapiNgHttp2Interface.hpp
-        src/worker/ManapiNgHttp2Interface.cpp
+        src/include/http/ManapiNgHttp2Interface.hpp
+        src/http/ManapiNgHttp2Interface.cpp
         src/include/ManapiJsonMaskUtils.hpp
         src/include/ManapiDebug.hpp
         include/ManapiUtils.hpp
@@ -460,6 +460,8 @@ set(MANAPIHTTP_HTTP_FILES
         src/include/worker/ManapiQuicOpenSsl.hpp
         src/worker/ManapiQuicOpenSsl.cpp
         src/include/worker/ManapiBaseUtils.hpp
+        src/http/ManapiNgHttp3Interface.cpp
+        src/include/http/ManapiNgHttp3Interface.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

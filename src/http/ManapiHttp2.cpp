@@ -1,11 +1,11 @@
-#include "http/ManapiHttp2.hpp"
+#include "../include/http/ManapiHttp2.hpp"
 
 #include "encoding/ManapiUnicode.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "encoding/ManapiURL.hpp"
 #include "components/ManapiURLDecodeStream.hpp"
 
-#include "worker/ManapiHttp2Interface.hpp"
+#include "../include/http/ManapiHttp2Interface.hpp"
 #include "worker/ManapiTcp.hpp"
 
 #include "../include/ManapiUtils.hpp"
@@ -1154,6 +1154,9 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 }
                                 else {
                                     auto const data = s->second->as<http_v2_stream_t>();
+                                    if (!(data->flags & HTTP2_STREAM_SEND_END))
+                                        ctx->concurrent_streams_size--;
+
                                     data->flags |= HTTP2_STREAM_RECV_END|HTTP2_STREAM_SEND_END;
                                     ctx->http_v2_worker->close_connection(s->second, worker::CLOSE_CONN_SHUTDOWN);
                                 }
@@ -1541,8 +1544,9 @@ header_skip:
                                         }
                                     }
                                 }
-                                catch (...) {
+                                catch (std::exception const &e) {
                                     /* ignore */
+                                    manapi_log_trace(debug::LOG_TRACE_HIGH, "%s: %s failed due to %s", "http2", "priority header", e.what());
                                 }
                             }
                             else {

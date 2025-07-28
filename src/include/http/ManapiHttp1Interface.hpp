@@ -1,6 +1,6 @@
-#include "../http/ManapiHttp1.hpp"
-#include "../worker/ManapiBaseWorker.hpp"
-#include "../worker/ManapiInterfaceWorker.hpp"
+#include "ManapiHttp1.hpp"
+#include "worker/ManapiBaseWorker.hpp"
+#include "worker/ManapiInterfaceWorker.hpp"
 
 namespace manapi::net::worker {
     struct wrk_http1_ctx_global_t {
