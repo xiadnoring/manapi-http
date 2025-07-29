@@ -188,11 +188,6 @@ static int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const 
             if (!conn)
                 return 0;
 
-            auto s = (*conn)->as<http_v2_stream_t>();
-
-            if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
-                s->flags |= HTTP2_STREAM_RECV_END;
-
             break;
         }
         case NGHTTP2_HEADERS: {
@@ -248,7 +243,9 @@ static int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const 
                     try {
                         s->req->body_size = std::stoll(hit->second);
                     }
-                    catch (...) {
+                    catch (std::exception const &e) {
+                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s: %s",
+                            "nghttp2", e.what());
                         s->req->body_size = -1;
                     }
 
@@ -370,12 +367,15 @@ static int ng_wrk_http2_data_chunk_recv_callback (nghttp2_session *session, uint
 
     auto const config = sess->gctx->base_worker->config();
 
+    if (flags & NGHTTP2_FLAG_END_STREAM)
+        s->flags |= HTTP2_STREAM_RECV_END;
+
     auto rhs = manapi::net::worker::base::connection_io_send(&s->top->recv, reinterpret_cast<const char*>(data), len, &sess->gctx->base_worker->bufferpool(),
         config->buffer_size, &s->top->recv_size, 1e5);
 
     s->transfered_k += rhs;
 
-    if (manapi::net::worker::http_v2_flush_recv(*conn, s))
+    if (manapi::net::worker::http_v2_flush_recv(config, *conn, s))
         return NGHTTP2_ERR_CALLBACK_FAILURE;
 
     if (s->top->recv_size > config->max_buffer_stack
@@ -730,7 +730,8 @@ static int ng_wrk_http2_on_read_stream (const manapi::net::worker::shared_conn &
     auto const s = conn->as<http_v2_stream_t>();
     if (!s)
         return manapi::ERR_OK;
-    if (auto const rhs = manapi::net::worker::http_v2_flush_recv (conn, s))
+    auto const config = http_v2_ctx->gctx->base_worker->config();
+    if (auto const rhs = manapi::net::worker::http_v2_flush_recv (config, conn, s))
         return rhs;
 
     if (!s->top->recv_size && s->flags & HTTP2_STREAM_IS_READING) {

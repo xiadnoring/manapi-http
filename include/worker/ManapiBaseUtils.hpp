@@ -68,7 +68,7 @@ namespace manapi::net::worker {
 
         void flush_read_ (worker::base *w, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXPECT;
 
-        int flush_read2_ (const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXPECT;
+        int flush_read2_ (http::config *config, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXPECT;
 
         bool is_writable (http::config *config, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXPECT;
 

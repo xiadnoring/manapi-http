@@ -818,10 +818,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
 
                         stream->flags |= HTTP_V3_STREAM_RECV_END;
 
-                        if ((stream->flags & ev::READ) &&  stream->ev_callback) {
-                            if (this->call_user_callback(stream->ev_callback.get(), stream_connection, CONN_RECV_END, nullptr, 0, nullptr))
-                                this->close_connection(stream_connection, CLOSE_CONN_ERR);
-                        }
+                        this->flush_read_buffers_(stream_connection, stream);
 
                         break;
                     }
@@ -1062,13 +1059,19 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_buffers_(const sh
         auto const data = conn->as<connection_stream_t>();
         while ((data->flags & ev::READ)
             && (data->transfered < this->config_->speed_limit_rate)
-            && top->last_deque) {
+            && top->last_deque
+            && (data->top->recv_size >= this->config_->max_merge_buffer_stack || (data->flags & CONN_RECV_END))) {
             auto object = this->recv_first_buffer(conn);
 
             auto const size = object.size();
             if (size) {
                 data->transfered += static_cast<ssize_t>(size);
-                if(this->call_user_callback(s->ev_callback.get(), conn, ev::READ, object.data(), static_cast<ssize_t>(size), &object))
+                int flags = CONN_READ;
+
+                if (data->flags & CONN_RECV_END && !data->top->recv_size)
+                    flags |= CONN_RECV_END;
+
+                if(this->call_user_callback(s->ev_callback.get(), conn, flags, object.data(), static_cast<ssize_t>(size), &object))
                     return CONN_IO_ERROR;
             }
         }
@@ -1088,7 +1091,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
     buffer_deque *parent = nullptr;
     ssize_t rhs;
     int flags=0;
-    int const maxcnt = this->config_->max_buffer_stack;
+    auto const &maxcnt = this->config_->max_buffer_stack;
 
     do {
         if (!top->last_deque || top->last_deque->buffer.size() == top->deque_cursor) {
@@ -1124,12 +1127,11 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
         rhs = quiche_h3_recv_body(s->conn->http3_conn, s->conn->conn, s->id, reinterpret_cast<uint8_t *>(top->last_deque->buffer.data() + top->deque_cursor),
             static_cast<int>(top->last_deque->buffer.size() - top->deque_cursor));
 
-        if (rhs >= 0) {
+        if (rhs > 0)
             top->deque_cursor += static_cast<int>(rhs);
-            if (!rhs && (flags /* an empty buffer was created */ )) {
-                /* remove an empty buffer at the end */
-                connection_io_trim(top, parent, &s->top->recv_size);
-            }
+        else if (rhs <= 0 && (flags /* an empty buffer was created */ )) {
+            /* remove an empty buffer at the end */
+            connection_io_trim(top, parent, &s->top->recv_size);
         }
 
     }

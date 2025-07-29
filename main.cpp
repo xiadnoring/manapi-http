@@ -316,7 +316,7 @@ int main () {
                             auto a = std::format("{}\n", (double)result / 1024 / 1024);
                             result = 0;
                             c = std::chrono::steady_clock::now();
-                            std::cout << a << "\n";
+                            std::cout << a << " " << buffs.size() << "\n";
                         }
                         co_return buffs.size();
                     });

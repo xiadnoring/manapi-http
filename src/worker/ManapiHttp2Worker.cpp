@@ -3,8 +3,8 @@
 #include "ManapiHttpResponse.hpp"
 #include "../include/ManapiUtils.hpp"
 
-int manapi::net::worker::http_v2_flush_recv(const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) MANAPIHTTP_NOEXPECT {
-    return prepared::flush_read2_(conn, s);
+int manapi::net::worker::http_v2_flush_recv(http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) MANAPIHTTP_NOEXPECT {
+    return prepared::flush_read2_(config, conn, s);
 }
 
 manapi::net::worker::http_v2::http_v2(worker::base *w, http_v2_callbacks_t *callbacks) : w(w), callbacks(callbacks) {}

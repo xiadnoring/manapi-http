@@ -531,7 +531,7 @@ manapi::future<> send_http_v1_1_chunked_data (manapi::net::http::internal::handl
 
     if (finish) {
         if (co_await cdata->worker->fwrite(cdata->conn, msg.data(),
-                static_cast<ssize_t>(msg.size()), rhs == 0) <= 0)
+                static_cast<ssize_t>(msg.size()), true) <= 0)
             goto err;
     }
     co_return;

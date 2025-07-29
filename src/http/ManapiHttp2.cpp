@@ -752,10 +752,11 @@ int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi
 int manapi::net::http::http_v2_on_read_stream(const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT {
     auto const s = conn->as<http_v2_stream_t>();
 
-    auto const bs = s->ctx->worker->config()->max_buffer_stack;
+    auto const config = s->ctx->worker->config();
+    auto const bs = config->max_buffer_stack;
     bool const read_blocked = s->top->recv_size >= bs;
 
-    if (auto const rhs = worker::http_v2_flush_recv (conn, s))
+    if (auto const rhs = worker::http_v2_flush_recv (config, conn, s))
         return rhs;
 
     if (read_blocked && s->top->recv_size < read_blocked)
@@ -1715,7 +1716,7 @@ header_skip:
                             /**
                              * recv data
                              */
-                            if (worker::http_v2_flush_recv (s->second, sdata)) {
+                            if (worker::http_v2_flush_recv (config, s->second, sdata)) {
                                 return EHTTP_V2_PROTOCOL_ERROR;
                             }
 
@@ -1731,9 +1732,8 @@ header_skip:
 
                             if (datasize) {
                                 if ((sdata->flags & ev::READ)
-                                    && sdata->ev_callback
-                                    && !sdata->top->recv_size) {
-
+                                    && sdata->ev_callback && !sdata->top->recv_size && !config->max_merge_buffer_stack) {
+                                    /* CHECK IF CALLBACK IS ASYNC/SYNC */
                                     int flags = ev::READ;
                                     if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
                                         sdata->flags |= HTTP2_STREAM_RECV_END;
@@ -1752,6 +1752,11 @@ header_skip:
                                         &sdata->top->recv_size, maxcnt))
                                         return EHTTP_V2_PROTOCOL_ERROR;
 
+                                    if (sdata->flags & ev::READ) {
+                                        if (worker::http_v2_flush_recv (config, s->second, sdata)) {
+                                            return EHTTP_V2_PROTOCOL_ERROR;
+                                        }
+                                    }
 
                                     if (sdata->top->recv_size >= config->max_buffer_stack)
                                         ctx->worker->event_toggle(ctx->conn, false, ev::READ);

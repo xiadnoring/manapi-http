@@ -51,9 +51,14 @@ void manapi::net::worker::prepared::flush_read_(worker::base *w, const shared_co
         while (data->top->recv.last_deque
             && (data->flags & ev::READ)
             && data->ev_callback) {
-            auto object = prepared::recv_first_buffer(conn);
+            auto object = prepared::recv_first_buffer(conn, data);
             if (!object.empty()) {
-                if (worker::base::call_user_callback(data->ev_callback.get(), conn, ev::READ, object.data(),
+                int flags = ev::READ;
+
+                if (data->flags & base::CONN_RECV_END && !data->top->recv_size)
+                    flags |= base::CONN_RECV_END;
+
+                if (worker::base::call_user_callback(data->ev_callback.get(), conn, flags, object.data(),
                     static_cast<int>(object.size()), &object))
                     w->close_connection(conn, CLOSE_CONN_ERR);
             }
@@ -61,9 +66,10 @@ void manapi::net::worker::prepared::flush_read_(worker::base *w, const shared_co
     }
 }
 
-int manapi::net::worker::prepared::flush_read2_(const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::prepared::flush_read2_(http::config *config, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXPECT {
     auto s = data->top.get();
-    while (s->recv.last_deque && (data->flags & manapi::ev::READ)) {
+    while (s->recv.last_deque && (data->flags & manapi::ev::READ)
+        && (data->top->recv_size >= config->max_merge_buffer_stack || (data->flags & base::CONN_RECV_END))) {
 
         auto b = std::move(s->recv.deque->buffer);
         ssize_t sz;
