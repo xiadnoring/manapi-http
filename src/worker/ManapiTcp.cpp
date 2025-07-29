@@ -40,7 +40,7 @@
 #include "ManapiString.hpp"
 #include "services/ManapiDns.hpp"
 
-#include "../include/worker/ManapiBaseUtils.hpp"
+#include "worker/ManapiBaseUtils.hpp"
 
 // TLS: 454978.10 in sec | 348111.84 in sec (STUPID METHOD)
 // TCP: 661876.15 in sec | 560063.69 in sec (STUPID METHOD)
@@ -48,7 +48,7 @@
 manapi::net::worker::TCP::TCP(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : interface_worker (std::move(site), std::move(wdata), config) {
     this->local = nullptr;
     this->finish = nullptr;
-    this->flags = 0;
+    this->flags_ = 0;
     this->count = 0;
 }
 
@@ -394,10 +394,18 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
         || !this->config_->keep_alive
         || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)) {
 
+        connection->flags |= CONN_CLOSED;
+
+        if (flags & CLOSE_CONN_SHUTDOWN && connection->top->send_size) {
+            if (!this->flush_write_(conn, true)) {
+                return;
+            }
+        }
+
         if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
             conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
 
-        connection->flags |= CONN_REMOVED|CONN_CLOSED;
+        connection->flags |= CONN_REMOVED;
 
         prepared::timer_clear(std::move(connection->t));
 
@@ -443,11 +451,12 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
 
                             auto const w = this;
 
-                            if (w->onaccept_event_(conn)) {
+                            if (w->onreaccept_event_(conn)) {
                                 this->close_connection(conn, CLOSE_CONN_ERR);
                                 return;
                             }
 
+                            assert(conn->wrk.data);
                             w->feed_event(conn, flags, buffer, nsize, p);
                         }
                 }));
@@ -490,7 +499,7 @@ void manapi::net::worker::TCP::stop(std::function<void()> cb) {
         try {
             manapi::async::current()->eventloop()
                 ->stop_callback(this->watcher_accept_, [this, cb = std::move(cb)] (const ev::shared_tcp &w) -> void {
-                    this->flags |= NET_WORKER_CLOSED;
+                    this->flags_ |= WORKER_BASE_FLAG_CLOSED;
                     this->finish = std::move(cb);
 
                     if (!this->count) {
@@ -588,25 +597,25 @@ std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::TCP
 
 int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXPECT {
     auto const data = conn->as<tcp_connection_t>();
-    auto &status = data->flags;
 
-    data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
+    MANAPIHTTP_WORKER_EVENT_LOOP(data) {
+        if ((status & (ev::READ|ev::DISCONNECT)) == ev::READ && data->ev_callback) {
+            if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
+                this->global_.flush_custom_read_cb(conn, &this->global_, this);
 
-    auto const prev = std::exchange(status, ((status >> 2) << 2) | (flags & CONN_MASK_UPDATE));
+            this->flush_read_ (conn, data);
 
-    if ((status & (ev::READ|ev::DISCONNECT)) == ev::READ && data->ev_callback) {
-        if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
-            this->global_.flush_custom_read_cb(conn, &this->global_, this);
+            if (status & CONN_RECV_END) {
+                if (manapi::net::worker::TCP::call_user_callback(data->ev_callback.get(), conn, CONN_RECV_END, nullptr, 0, nullptr))
+                    this->close_connection(conn, CLOSE_CONN_ERR);
+            }
 
-        this->flush_read_ (conn, data);
-
-        if (status & CONN_RECV_END) {
-            if (manapi::net::worker::TCP::call_user_callback(data->ev_callback.get(), conn, CONN_RECV_END, nullptr, 0, nullptr))
-                this->close_connection(conn, CLOSE_CONN_ERR);
         }
+
+        MANAPIHTTP_WORKER_EVENT_BREAK(data)
     }
 
-    if (status & ev::READ)
+    if (data->flags & ev::READ)
         this->read_start_(data);
     else
         this->read_stop_(data);
@@ -747,29 +756,25 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
 
                                     if (status) {
                                         /* error */
-                                        conn->flags |= ev::DISCONNECT;
-                                        connection->cancellation.cancel();
-
-                                        if (conn->ev_callback) {
-                                            if (conn->worker->call_user_callback(conn->ev_callback.get(), connection, ev::DISCONNECT, nullptr, 0, nullptr))
-                                                conn->worker->close_connection(connection, CLOSE_CONN_ERR);
-                                        }
+                                        conn->worker->close_connection(connection, CLOSE_CONN_EOF);
                                     }
                                     else {
-                                        if (conn->flags & ev::WRITE && conn->ev_callback) {
-                                            if (conn->worker->call_user_callback(conn->ev_callback.get(), connection, ev::WRITE, nullptr, 0, nullptr))
+                                        if ((conn->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE && conn->ev_callback) {
+                                            if (base::call_user_callback(conn->ev_callback.get(), connection, ev::WRITE, nullptr, 0, nullptr))
                                                 conn->worker->close_connection(connection, CLOSE_CONN_ERR);
                                         }
+
+                                        if (conn->flags & ev::DISCONNECT)
+                                            conn->worker->close_connection(connection, CLOSE_CONN_SHUTDOWN);
                                     }
 
-                                    manapi::async::current()->eventloop()->stop_watcher(w);
                                 }, buffptr, conn->top->cur_send_size /* nbuf */);
 
                             conn->top->cur_send_size = 0;
                         }
 
                         continue;
-                        }
+                    }
 
                     if (rhs && sent) {
                         sent->buffer.shift_add(rhs);
@@ -884,7 +889,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
             // TODO: start accepting
         }
 
-        if (wrk->flags & NET_WORKER_CLOSED
+        if (wrk->flags_ & WORKER_BASE_FLAG_CLOSED
             && !wrk->count
             && wrk->finish)
             wrk->finish();
@@ -892,8 +897,12 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
 }
 
 int manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT {
+    return onreaccept_event_(conn);
+}
+
+int manapi::net::worker::TCP::onreaccept_event_(const worker::shared_conn &conn) noexcept(true) {
     if (this->global_.init_cb(conn, &this->global_, this))
-        return -1;
+            return -1;
 
     return this->onaccept_bind_(conn);
 }

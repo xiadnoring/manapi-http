@@ -24,6 +24,13 @@ namespace manapi::net::worker {
         WRK_INTERFACE_IS_STREAM = 16
     };
 
+    enum worker_base_flags {
+        WORKER_BASE_FLAG_MULTISTREAM = 1,
+        WORKER_BASE_FLAG_CLOSED = 2,
+        WORKER_BASE_FLAG_RESERVED1 = 4,
+        WORKER_BASE_FLAG_RESERVED2 = 8
+    };
+
     enum close_flags_t {
         CLOSE_CONN_EOF = 1,
         CLOSE_CONN_ERR = 2,
@@ -74,6 +81,7 @@ namespace manapi::net::worker {
         uint64_t (*flags_cb)(const shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPI_EV_NOEXPECT;
         int (*alpn_cb)(wrk_interface_global_t *global, char const *alpn, std::size_t alpn_size, worker::base *w) MANAPIHTTP_NOEXPECT;
         int (*init_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
+        int (*init_stream_cb)(const worker::shared_conn &conn, const worker::shared_conn &stream, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
         int (*cleanup_cb)(worker::connection *conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
         int (*cleanup_global_cb)(wrk_interface_global_t *data, worker::base *w) MANAPIHTTP_NOEXPECT;
         void (*flush_custom_read_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
@@ -81,10 +89,6 @@ namespace manapi::net::worker {
         void (*custom_read_cb)(const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
         void (*update_limit_rate)(const manapi::net::worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT;
         manapi::future<int> (*send_response)(const manapi::net::worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w, http::response* res, bool finish);
-    };
-
-    enum net_worker_flags {
-        NET_WORKER_CLOSED = 1
     };
 
     struct buffer_deque {
@@ -127,6 +131,10 @@ namespace manapi::net::worker {
             CONN_SEND_END       = 32,
             CONN_IO_WAITING     = 64,
             CONN_TOP_READ       = 128,
+            CONN_EVENT_LOCKED   = 256,
+            CONN_ST_RESERVED1   = 512,
+            CONN_ST_RESERVED2   = 1024,
+            CONN_MAX_CODE       = 1024,
 
             CONN_MASK_UPDATE    = CONN_READ | CONN_WRITE | CONN_RECV_END | CONN_SEND_END,
             CONN_MASK_GETTING   = CONN_READ | CONN_WRITE | CONN_CLOSED | CONN_RECV_END | CONN_SEND_END
@@ -226,7 +234,14 @@ namespace manapi::net::worker {
          * @param s stream
          * @return always 0 if streams not supported, otherwise it returns a stream id
          */
-        virtual std::size_t stream_id (shared_conn s) MANAPIHTTP_NOEXPECT;
+        virtual std::size_t stream_id (const shared_conn & s) MANAPIHTTP_NOEXPECT;
+
+        /**
+         * It returns a connection object by the stream identifier
+         * @param id stream identifier
+         * @return always nullptr if streams not supported or not found, otherwise it returns a connection object
+         */
+        virtual shared_conn stream_id (const shared_conn &conn, std::size_t id) MANAPIHTTP_NOEXPECT;
 
         /**
          * Create a new stream in |conn|
@@ -234,7 +249,7 @@ namespace manapi::net::worker {
          * @param flags stream flags
          * @return a stream connection on success, otherwise it returns Unimplemeneted, InternalError, ResourceExhausted
          */
-        virtual error::status_or<shared_conn> new_stream (shared_conn conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT;
+        virtual error::status_or<shared_conn> new_stream (const shared_conn & conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT;
 
         static void connection_io_merge (struct connection_io_part *dest, struct connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt) MANAPIHTTP_NOEXPECT;
 

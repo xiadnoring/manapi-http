@@ -224,7 +224,7 @@ manapi::future<int> default_wrk_http2_send_response (const manapi::net::worker::
     co_return co_await manapi::net::http::http_v2_response(w, conn, res->status_code(), std::move(res->headers()), finish);
 }
 
-manapi::error::status manapi::net::worker::default_wrk_http2_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) {
+manapi::error::status manapi::net::worker::default_wrk_http2_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) {
     assert(!global->data);
 
     auto tp = std::make_unique<wrk_http2_ctx_global_t>();

@@ -16,6 +16,7 @@
 #include "ManapiHttpRequest.hpp"
 #include "async/ManapiEasyCancellation.hpp"
 #include "../include/http/ManapiNgHttp2Interface.hpp"
+#include "../include/http/ManapiNgHttp3Interface.hpp"
 #include "../include/http/ManapiHttp1Interface.hpp"
 #include "../include/http/ManapiHttp2Interface.hpp"
 #include "../include/worker/ManapiQuicOpenSsl.hpp"
@@ -201,9 +202,9 @@ void manapi::net::http::site::on_config_update(std::shared_ptr<data_t> data, con
     assert(*data->config_ == n);
 }
 
-manapi::error::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_http_protocol_worker (manapi::net::worker::base *w, manapi::error::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w)) {
+manapi::error::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_http_protocol_worker (manapi::net::worker::interface_worker *w, manapi::error::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w)) {
     auto p = std::make_unique<manapi::net::worker::wrk_interface_global_t>();
-    auto res = init_global_cb (p.get(), w);
+    auto res = init_global_cb (p.get(), (w));
     if (!res.ok())
         return std::move(res);
     return std::move(p);
@@ -222,14 +223,14 @@ void manapi::net::http::site::setup() {
         -> error::status_or<std::string> { return compress::gzip_compress_string(data); });
 #endif
 
-#ifdef MANAPIHTTP_BROTLI_DEPENDENCY
+#if MANAPIHTTP_BROTLI_DEPENDENCY
     this->compressor_for_file("br", +[] (std::string src, std::string dest)
         -> future<error::status> { return manapi::compress::brotli_compress_file(std::move(src), std::move(dest), 11, 22, 0); });
     this->compressor_for_string("br", +[] (std::string_view data)
         -> error::status_or<std::string> { return compress::brotli_compress_string(data, 11, 22, 0); });
 #endif
 
-#ifdef MANAPIHTTP_ZSTD_DEPENDENCY
+#if MANAPIHTTP_ZSTD_DEPENDENCY
     this->compressor_for_file("zstd", +[] (std::string src, std::string dest)
         -> future<error::status> { return manapi::compress::zstd_compress_file(std::move(src), std::move(dest), 1); });
     this->compressor_for_string("zstd", +[] (std::string_view data)
@@ -239,9 +240,6 @@ void manapi::net::http::site::setup() {
     this->transport_protocol_worker("tcp", "default", worker::TCP::create);
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
     this->transport_protocol_worker("tls", "openssl", worker::OpenSSL_TLS::create);
-# ifdef MANAPI_OPENSSL_QUIC_REALIZATION
-    this->transport_protocol_worker("quic", "openssl", worker::openssl_quic::create);
-# endif
 #endif
 
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
@@ -256,18 +254,19 @@ void manapi::net::http::site::setup() {
     this->transport_protocol_worker("quic", "openssl", worker::openssl_quic::create);
 #endif
 
-#ifdef MANAPIHTTP_DEFAULT_QUIC
-    this->transport_protocol_worker("quic", "default", worker::quic::create);
-#endif
-
-    this->http_protocol_worker(http::versions::HTTP_v1_1, "default", [] (worker::base *w)
+    this->http_protocol_worker(http::versions::HTTP_v1_1, "default", [] (worker::interface_worker *w)
         { return create_http_protocol_worker (w, worker::default_wrk_http1_global_init); });
-    this->http_protocol_worker(http::versions::HTTP_v2, "default", [] (worker::base *w)
+    this->http_protocol_worker(http::versions::HTTP_v2, "default", [] (worker::interface_worker *w)
         { return create_http_protocol_worker (w, worker::default_wrk_http2_global_init); });
 
-#ifdef MANAPIHTTP_NGHTTP2_DEPENDENCY
-    this->http_protocol_worker(http::versions::HTTP_v2, "nghttp", [] (worker::base *w)
+#if MANAPIHTTP_NGHTTP2_DEPENDENCY
+    this->http_protocol_worker(http::versions::HTTP_v2, "nghttp", [] (worker::interface_worker *w)
         { return create_http_protocol_worker (w, worker::ng_wrk_http2_global_init); });
+#endif
+
+#if MANAPIHTTP_NGHTTP2_DEPENDENCY
+    this->http_protocol_worker(http::versions::HTTP_v3, "nghttp", [] (worker::interface_worker *w)
+        { return create_http_protocol_worker (w, worker::ng_wrk_http3_global_init); });
 #endif
 
 }

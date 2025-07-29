@@ -2,6 +2,7 @@
 
 #include "./ManapiBaseWorker.hpp"
 #include "../components/ManapiBuffer.hpp"
+#include "./ManapiBaseUtils.hpp"
 
 namespace manapi::net::worker {
     enum http2_error_type {
@@ -21,13 +22,8 @@ namespace manapi::net::worker {
         HTTP2_ERROR_HTTP_1_1_REQUIRED = 0x0d      // Use HTTP/1.1 for the request
     };
 
-    struct http_v2_stream_base_t {
-        int flags;
-        int recv_size;
-        ssize_t transfered_k;
-        int speed_min_delay;
-        std::unique_ptr<worker::worker_watcher_cb> ev_callback;
-        std::unique_ptr<worker::connection_io_part> recv;
+    struct http_v2_stream_base_t : connection_prepared_t {
+
     };
 
     struct http_v2_callbacks_t {
@@ -45,7 +41,7 @@ namespace manapi::net::worker {
     public:
         http_v2 (worker::base *w, http_v2_callbacks_t *callbacks);
 
-        ~http_v2 ();
+        ~http_v2 () override;
 
         const std::shared_ptr<multithread_storage::worker_t> &worker_data() MANAPIHTTP_NOEXPECT override;
 

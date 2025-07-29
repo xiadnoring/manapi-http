@@ -243,11 +243,15 @@ manapi::object_pool & manapi::net::worker::base::bufferpool() MANAPIHTTP_NOEXPEC
     return manapi::async::current()->memory_fabric();
 }
 
-std::size_t manapi::net::worker::base::stream_id(shared_conn s) MANAPIHTTP_NOEXPECT {
+std::size_t manapi::net::worker::base::stream_id(const shared_conn & s) MANAPIHTTP_NOEXPECT {
     return 0;
 }
 
-manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::new_stream(shared_conn conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT {
+manapi::net::worker::shared_conn manapi::net::worker::base::stream_id(const shared_conn &conn, std::size_t id) noexcept(true) {
+    return nullptr;
+}
+
+manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::base::new_stream(const shared_conn & conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT {
     return error::status_unimplemented("worker:Streams not supported");
 }
 
@@ -436,7 +440,8 @@ ssize_t manapi::net::worker::base::buffs_cut_by_size(ev::buff_t *buff, uint32_t 
 
 int manapi::net::worker::base::call_user_callback(worker_watcher_cb *cb, const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) MANAPIHTTP_NOEXPECT {
     try {
-        cb->operator()(conn, flags, buffer, nsize, p);
+        if (cb)
+            cb->operator()(conn, flags, buffer, nsize, p);
         return manapi::ERR_OK;
     }
     catch (std::exception const &e) {

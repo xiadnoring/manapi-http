@@ -19,6 +19,8 @@ namespace manapi::net::worker {
 
         net::http::config *config () MANAPIHTTP_NOEXPECT override;
 
+        MANAPIHTTP_NODISCARD int worker_flags () MANAPIHTTP_NOEXPECT;
+
         void worker_pool_id (std::size_t worker_pool_id) MANAPIHTTP_NOEXPECT;
 
         MANAPIHTTP_NODISCARD std::size_t worker_pool_id () const MANAPIHTTP_NOEXPECT;
@@ -28,6 +30,8 @@ namespace manapi::net::worker {
         const std::shared_ptr<multithread_storage::worker_t> &worker_data () MANAPIHTTP_NOEXPECT override;
 
     protected:
+        int flags_;
+
         std::shared_ptr<multithread_storage::worker_t> worker_data_;
 
         wrk_interface_global_t global_;
@@ -39,6 +43,7 @@ namespace manapi::net::worker {
         manapi::net::http::config *config_;
 
         std::size_t worker_pool_id_;
+
         std::size_t deep_worker_id_;
     };
 }

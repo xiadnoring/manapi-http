@@ -12,7 +12,7 @@
 #include "ManapiString.hpp"
 #include "ManapiVersions.hpp"
 #include "../include/ManapiSiteInternal.hpp"
-#include "../include/worker/ManapiBaseUtils.hpp"
+#include "worker/ManapiBaseUtils.hpp"
 
 #define MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE 1350
 #define MANAPIHTTP_QUICHE_CONN_ID_SIZE 16
@@ -240,7 +240,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::stop(std::function<void()> 
     std::function<void()> cb_next;
     MANAPIHTTP_MUST_ALLOC_START
     cb_next = [this, cb = std::move(cb)] () -> void {
-        this->flags |= NET_WORKER_CLOSED;
+        this->flags |= WORKER_BASE_FLAG_CLOSED;
         this->finish = cb;
 
         if (!this->count)
@@ -255,11 +255,14 @@ void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_con
         return;
 
     auto s = conn->as<connection_stream_t>();
+
     if (s->flags & HTTP_V3_STREAM_REMOVED) {
         return;
     }
 
-    s->flags |= HTTP_V3_STREAM_CLOSED|HTTP_V3_STREAM_REMOVED;
+    s->flags |= HTTP_V3_STREAM_CLOSED;
+
+    s->flags |= HTTP_V3_STREAM_REMOVED;
 
     prepared::event_callback_clear(conn, s);
     prepared::top_buffer_clear(s);
@@ -942,25 +945,25 @@ int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_con
 
 int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_conn &conn, int flags) MANAPIHTTP_NOEXPECT {
     auto const data = conn->as<connection_stream_t>();
-    auto &flags_ = data->flags;
 
-    data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
+    MANAPIHTTP_WORKER_EVENT_LOOP(data) {
+        if ((status & (ev::READ|ev::DISCONNECT)) == ev::READ && data->ev_callback) {
 
-    auto const prev = std::exchange(flags_, ((flags_ >> 2) << 2) | (flags & CONN_MASK_UPDATE));
+            if (this->flush_read_(conn)) {
+                /* error */
+            }
 
-    if ((flags_ & (ev::READ|ev::DISCONNECT)) == ev::READ && data->ev_callback) {
-        if (flags_ & CONN_RECV_END) {
-            if (http_v3_cloudflare_quiche::call_user_callback(data->ev_callback.get(),conn, CONN_RECV_END, nullptr, 0, nullptr))
-                this->close_connection(conn, CLOSE_CONN_ERR);
+            if (this->quiche_flush_egress_(data->conn)) {
+                /* error */
+            }
+
+            if (status & CONN_RECV_END) {
+                if (http_v3_cloudflare_quiche::call_user_callback(data->ev_callback.get(),conn, CONN_RECV_END, nullptr, 0, nullptr))
+                    this->close_connection(conn, CLOSE_CONN_ERR);
+            }
         }
 
-        if (this->flush_read_(conn)) {
-            /* error */
-        }
-
-        if (this->quiche_flush_egress_(data->conn)) {
-            /* error */
-        }
+        MANAPIHTTP_WORKER_EVENT_BREAK(data);
     }
 
     return prev;
@@ -1176,7 +1179,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::force_close_(shared_conn co
 
         wrk->count--;
 
-        if (wrk->flags & NET_WORKER_CLOSED
+        if (wrk->flags & WORKER_BASE_FLAG_CLOSED
             && !wrk->count
             && wrk->finish) {
             try {

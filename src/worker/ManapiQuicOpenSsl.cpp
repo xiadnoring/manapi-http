@@ -5,7 +5,7 @@
 #include "ManapiString.hpp"
 #include "async/ManapiEasyCancellation.hpp"
 #include "services/ManapiDns.hpp"
-#include "../include/worker/ManapiBaseUtils.hpp"
+#include "worker/ManapiBaseUtils.hpp"
 
 #ifdef MANAPIHTTP_OPENSSL_QUIC_SUPPORT
 
@@ -61,7 +61,7 @@ manapi::net::worker::openssl_quic::openssl_quic(net::http::site site, std::share
     this->listener = nullptr;
     this->ctx = nullptr;
     this->count = 0;
-    this->flags = 0;
+    this->flags_ = WORKER_BASE_FLAG_MULTISTREAM;
 }
 
 manapi::net::worker::openssl_quic::~openssl_quic() {
@@ -403,22 +403,21 @@ int manapi::net::worker::openssl_quic::event_flags(const shared_conn &conn) MANA
 
 int manapi::net::worker::openssl_quic::event_flags(const shared_conn &conn, int flags) MANAPIHTTP_NOEXPECT {
     auto const data = conn->as<quic_stream_t>();
-    auto &status = data->flags;
 
-    data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
+    MANAPIHTTP_WORKER_EVENT_LOOP(data) {
+        if ((status & (ev::READ|ev::DISCONNECT)) == ev::READ && data->ev_callback) {
+            if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
+                this->global_.flush_custom_read_cb(conn, &this->global_, this);
 
-    auto const prev = std::exchange(status, ((status >> 2) << 2) | (flags & CONN_MASK_UPDATE));
+            this->flush_read_ (conn, data);
 
-    if ((status & (ev::READ|ev::DISCONNECT)) == ev::READ && data->ev_callback) {
-        if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
-            this->global_.flush_custom_read_cb(conn, &this->global_, this);
-
-        this->flush_read_ (conn, data);
-
-        if (status & CONN_RECV_END) {
-            if (manapi::net::worker::openssl_quic::call_user_callback(data->ev_callback.get(), conn, CONN_RECV_END, nullptr, 0, nullptr))
-                this->close_connection(conn, CLOSE_CONN_ERR);
+            if (status & CONN_RECV_END) {
+                if (manapi::net::worker::openssl_quic::call_user_callback(data->ev_callback.get(), conn, CONN_RECV_END, nullptr, 0, nullptr))
+                    this->close_connection(conn, CLOSE_CONN_ERR);
+            }
         }
+
+        MANAPIHTTP_WORKER_EVENT_BREAK(data)
     }
 
     return prev;
@@ -426,6 +425,7 @@ int manapi::net::worker::openssl_quic::event_flags(const shared_conn &conn, int 
 
 std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::openssl_quic::event_on(
     const shared_conn &conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXPECT {
+    assert(conn->wrk.flags & WRK_INTERFACE_IS_STREAM);
     return prepared::event_on(conn, std::move(callback));
 }
 
@@ -566,7 +566,7 @@ manapi::net::worker::connection::ipdata_t * manapi::net::worker::openssl_quic::i
     return base::ipdata(s->parent);
 }
 
-manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::openssl_quic::new_stream(shared_conn conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT {
+manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manapi::net::worker::openssl_quic::new_stream(const shared_conn &conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT {
     try {
         if (!conn)
             goto args;
@@ -602,8 +602,17 @@ manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manap
     args: return error::status_invalid_argument("new_stream");
 }
 
-std::size_t manapi::net::worker::openssl_quic::stream_id(shared_conn s) MANAPIHTTP_NOEXPECT {
+std::size_t manapi::net::worker::openssl_quic::stream_id(const shared_conn &s) MANAPIHTTP_NOEXPECT {
     return SSL_get_stream_id(s->as<quic_stream_t>()->stream);
+}
+
+manapi::net::worker::shared_conn manapi::net::worker::openssl_quic::stream_id(const shared_conn &conn, std::size_t id) MANAPIHTTP_NOEXPECT {
+    assert(!(conn->wrk.flags & WRK_INTERFACE_IS_STREAM));
+    auto const data = conn->as<quic_conn_t>();
+    auto it = data->streams.find(id);
+    if (it == data->streams.end())
+        return nullptr;
+    return it->second;
 }
 
 void manapi::net::worker::openssl_quic::remove_poll_id(std::size_t poll_id) MANAPIHTTP_NOEXPECT {
@@ -764,7 +773,7 @@ void manapi::net::worker::openssl_quic::connection_interface_eraser(worker::conn
 
         openssl_quic::io_event_cb(wrk->w_->custom(), 0, 0);
 
-        if (wrk->flags & NET_WORKER_CLOSED
+        if (wrk->flags_ & WORKER_BASE_FLAG_CLOSED
             && !wrk->count && wrk->finish)
             wrk->finish();
     }
@@ -820,7 +829,6 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                     /* new incoming stream */
                     if (it->revents & SSL_POLL_EVENT_ISB ||
                         it->revents & SSL_POLL_EVENT_ISU) {
-
                         auto stream = SSL_accept_stream(it->desc.value.ssl, 0);
                         if (stream) {
                             manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: new stream %p was created using %p conn",
@@ -1028,6 +1036,12 @@ void manapi::net::worker::openssl_quic::io_unbind_cb(ev::handle *s) MANAPIHTTP_N
 
 manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::stream_accept(const shared_conn &conn, SSL *stream) MANAPIHTTP_NOEXPECT {
     try {
+        if (!conn->wrk.data) {
+            /* it hasn't be initialized yet */
+            if (this->try_init_conn_(conn) || !conn->wrk.data)
+                return error::status_internal("openssl_quic: conn hasn't be init-ed yet");
+        }
+
         auto p = std::make_unique<quic_stream_t>();
         auto top = std::make_unique<connection_io>();
 
@@ -1061,7 +1075,7 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
 
         SSL_set_app_data(stream, &rhs.first->second);
 
-        if (this->global_.init_cb(stream_conn, &this->global_, this)) {
+        if (this->global_.init_stream_cb(conn, stream_conn, &this->global_, this)) {
             this->close_connection(stream_conn, CLOSE_CONN_ERR);
         }
         else {
@@ -1257,16 +1271,6 @@ int manapi::net::worker::openssl_quic::try_init_conn_(const shared_conn &conn) M
         try {
             if (this->global_.init_cb(conn, &this->global_, this))
                 return ERR_INTERNAL;
-
-            this->event_on(conn,
-                std::make_unique<worker_watcher_cb>([this]
-                (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
-                -> void {
-                    if (this->global_.accept_cb (conn, flags, buffer, nsize, p, &this->global_, this))
-                        this->close_connection(conn, CLOSE_CONN_ERR);
-            }));
-
-            this->event_flags(conn, ev::READ);
         }
         catch (std::exception const &e) {
             manapi_log_error("%s: %s failed due to %s", "openssl_quic", "setup connection", e.what());

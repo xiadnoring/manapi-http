@@ -16,15 +16,15 @@
 #include "async/ManapiAsyncSocket.hpp"
 #include "ManapiInitTools.hpp"
 #include "../include/ManapiUtils.hpp"
-#include "../include/worker/ManapiBaseUtils.hpp"
+#include "worker/ManapiBaseUtils.hpp"
 
 
 struct ssl_bio_deleter_t;
 
 enum conn_tls_flags  {
-    CONN_TLS_SHUTDOWN = 512,
-    CONN_TLS_EARLY_DATA = 1024,
-    CONN_TLS_EARLY_FINISHED = 2048
+    CONN_TLS_SHUTDOWN = manapi::net::worker::base::CONN_MAX_CODE * 2,
+    CONN_TLS_EARLY_DATA = CONN_TLS_SHUTDOWN * 2,
+    CONN_TLS_EARLY_FINISHED = CONN_TLS_EARLY_DATA * 2
 };
 
 manapi::net::worker::TLS::TLS(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) : TCP(std::move(site), std::move(wdata), config) {}
@@ -278,28 +278,28 @@ ssize_t manapi::net::worker::TLS::sync_write(const shared_conn &conn, ev::buff_t
 
 int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXPECT {
     auto const data = conn->as<tls_connection_t>();
-    auto &status = data->flags;
-    data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
-    auto const prev = std::exchange(status, ((status >> 2) << 2) | (flags & CONN_MASK_UPDATE));
+    MANAPIHTTP_WORKER_EVENT_LOOP(data) {
+        if (status & ev::READ) {
+            if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
+                this->global_.flush_custom_read_cb(conn, &this->global_, this);
 
-    if (status & ev::READ) {
-        if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
-            this->global_.flush_custom_read_cb(conn, &this->global_, this);
+            this->flush_read_ (conn, data);
 
-        flush_read_ (conn, data);
-
-        if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == CONN_READ) {
-            this->read_start_(data);
+            if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == CONN_READ) {
+                this->read_start_(data);
+            }
         }
-    }
 
-    if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == 0) {
-        this->read_stop_(data);
-    }
+        if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == 0) {
+            this->read_stop_(data);
+        }
 
-    if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
-        if(this->call_user_callback(data->ev_callback.get(),conn, CONN_RECV_END, nullptr, 0, nullptr))
-            this->close_connection(conn, CLOSE_CONN_ERR);
+        if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
+            if(this->call_user_callback(data->ev_callback.get(),conn, CONN_RECV_END, nullptr, 0, nullptr))
+                this->close_connection(conn, CLOSE_CONN_ERR);
+        }
+
+        MANAPIHTTP_WORKER_EVENT_BREAK(data)
     }
 
     return prev;
@@ -337,7 +337,7 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
         wrk->count--;
         wrk->worker_data()->as<http::server_ctx::worker_data_t>()->count.fetch_sub(1);
 
-        if (wrk->flags & NET_WORKER_CLOSED
+        if (wrk->flags_ & WORKER_BASE_FLAG_CLOSED
             && !wrk->count
             && wrk->finish)
             wrk->finish();

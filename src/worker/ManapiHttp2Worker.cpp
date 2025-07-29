@@ -4,38 +4,9 @@
 #include "../include/ManapiUtils.hpp"
 
 int manapi::net::worker::http_v2_flush_recv(const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) MANAPIHTTP_NOEXPECT {
-    while (s->recv->last_deque && (s->flags & manapi::ev::READ)) {
-
-        auto b = std::move(s->recv->deque->buffer);
-        ssize_t sz;
-
-        s->recv->deque = std::move(s->recv->deque->next);
-        s->recv_size--;
-
-        if (!s->recv->deque) {
-            s->recv->last_deque = nullptr;
-            b.resize(s->recv->deque_cursor);
-
-            s->recv->deque_cursor = 0;
-        }
-
-        if (s->recv->deque_current) {
-            b.shift_add(s->recv->deque_current);
-            s->recv->deque_current = 0;
-        }
-
-        sz = static_cast<ssize_t>(b.size());
-        if (sz) {
-            int flags = manapi::ev::READ;
-            if ((s->flags & manapi::net::worker::base::CONN_RECV_END) && !s->recv_size)
-                flags |= manapi::net::worker::base::CONN_RECV_END;
-            if (worker::base::call_user_callback(s->ev_callback.get(), conn, flags, b.data(), sz, &b))
-                return ERR_ABORTED;
-        }
-    }
-
-    return ERR_OK;
+    return prepared::flush_read2_(conn, s);
 }
+
 manapi::net::worker::http_v2::http_v2(worker::base *w, http_v2_callbacks_t *callbacks) : w(w), callbacks(callbacks) {}
 
 manapi::net::worker::http_v2::~http_v2() = default;
@@ -61,29 +32,11 @@ manapi::net::http::site & manapi::net::worker::http_v2::site() MANAPIHTTP_NOEXPE
 }
 
 void manapi::net::worker::http_v2::waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXPECT {
-    auto const d = conn->as<http_v2_stream_base_t>();
-    if (state)
-        d->flags |= worker::base::CONN_IO_WAITING;
-    else if (d->flags & worker::base::CONN_IO_WAITING)
-        d->flags ^= worker::base::CONN_IO_WAITING;
+    prepared::waiting(conn, state);
 }
 
 void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXPECT {
-    auto const data = conn->as<http_v2_stream_base_t>();
-    if (flags & ev::READ) {
-        if (flags & CONN_TOP_READ) {
-            this->feed_event_read_ (conn, data->ev_callback.get(), data->recv.get(), &data->recv_size, data->flags, flags, buff, size, p);
-            this->callbacks->http_v2_on_read_stream (conn);
-        }
-        else {
-            this->callbacks->http_v2_on_read_stream (conn);
-            this->feed_event_read_ (conn, data->ev_callback.get(), data->recv.get(), &data->recv_size, data->flags, flags, buff, size,  p);
-        }
-    }
-    else if ((data->flags & flags) && data->ev_callback) {
-        if (this->call_user_callback(data->ev_callback.get(), conn, flags, buff, size, p))
-            this->close_connection(conn, CLOSE_CONN_ERR);
-    }
+    prepared::feed_event(this, conn, flags, buff, size, p);
 }
 
 void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXPECT {
@@ -94,14 +47,14 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags)
 
     manapi_log_trace(debug::LOG_TRACE_MEDIUM, "http2:close_connection() %p flags=%d", data, flags);
 
-    data->flags |= CONN_CLOSED|CONN_REMOVED;
+    data->flags |= CONN_CLOSED;
 
-    if (data->ev_callback) {
-        auto cb = std::move(data->ev_callback);
-        if (this->call_user_callback(cb.get(), conn, CONN_CLOSED, nullptr, 0, nullptr)) {
-            /* skip */
-        }
-    }
+    if ((flags & CLOSE_CONN_SHUTDOWN) && data->top->send_size)
+         return;
+
+    data->flags |= CONN_REMOVED;
+
+    prepared::event_callback_clear(conn, data);
 
     conn->cancellation.cancel();
 
@@ -114,35 +67,36 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags)
 }
 
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) MANAPIHTTP_NOEXPECT {
-    auto const data = conn->as<http_v2_stream_base_t>();
-    data->speed_min_delay = static_cast<int>(this->w->config()->speed_check_delay);
-    return data->flags & CONN_MASK_GETTING;
+    return prepared::event_flags(conn);
 }
 
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXPECT {
     auto const data = conn->as<http_v2_stream_base_t>();
-    auto const prev = std::exchange(data->flags, ((data->flags >> 2) << 2) | (flags & CONN_MASK_UPDATE));
 
-    if (data->ev_callback) {
-        if (data->flags & CONN_CLOSED) {
-            if (http_v2::call_user_callback(data->ev_callback.get(), conn, CONN_CLOSED, nullptr, 0, nullptr))
-                this->close_connection(conn, CLOSE_CONN_ERR);
-        }
-        else {
-            if (flags & ev::WRITE) {
-                this->callbacks->http_v2_want_write(conn);
+    MANAPIHTTP_WORKER_EVENT_LOOP(data) {
+        if (data->ev_callback) {
+            if (data->flags & CONN_CLOSED) {
+                if (http_v2::call_user_callback(data->ev_callback.get(), conn, CONN_CLOSED, nullptr, 0, nullptr))
+                    this->close_connection(conn, CLOSE_CONN_ERR);
             }
+            else {
+                if (flags & ev::WRITE) {
+                    this->callbacks->http_v2_want_write(conn);
+                }
 
-            if (flags & ev::READ) {
-                this->callbacks->http_v2_on_read_stream (conn);
+                if (flags & ev::READ) {
+                    this->callbacks->http_v2_on_read_stream (conn);
 
-                if (data->flags & CONN_RECV_END) {
-                    if (this->call_user_callback(data->ev_callback.get(), conn,
-                        CONN_RECV_END, nullptr, 0, nullptr))
-                        this->close_connection(conn, CLOSE_CONN_ERR);
+                    if (data->flags & CONN_RECV_END) {
+                        if (this->call_user_callback(data->ev_callback.get(), conn,
+                            CONN_RECV_END, nullptr, 0, nullptr))
+                            this->close_connection(conn, CLOSE_CONN_ERR);
+                    }
                 }
             }
         }
+
+        MANAPIHTTP_WORKER_EVENT_BREAK(data)
     }
 
     return prev;
@@ -163,7 +117,7 @@ manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v2::ipdata
 
 bool manapi::net::worker::http_v2::is_writable(const shared_conn &conn) MANAPIHTTP_NOEXPECT {
     auto const s = conn->as<http_v2_stream_base_t>();
-    return this->callbacks->http_v2_is_writable(conn);
+    return this->callbacks->http_v2_is_writable(conn) && prepared::is_writable(this->config(), conn, s);
 }
 
 void manapi::net::worker::http_v2::stop(std::function<void()> cb) {
@@ -179,42 +133,13 @@ ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, ev:
 }
 
 void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &conn) MANAPIHTTP_NOEXPECT {
-    auto const conn_data = conn->as<http_v2_stream_base_t>();
-
-    if (--conn_data->speed_min_delay == 0) {
-        if (conn_data->flags & CONN_IO_WAITING
-            && conn_data->transfered_k < this->w->config()->speed_check_bytes) {
-            this->close_connection(conn, CLOSE_CONN_EOF);
-            return;
-        }
-        conn_data->transfered_k = 0;
-        conn_data->speed_min_delay = static_cast<int>(this->w->config()->speed_check_delay);
-    }
+    return prepared::update_limit_rate_connection(conn, this, this->config(), this->wrk_global());
 }
 
 std::size_t manapi::net::worker::http_v2::recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXPECT {
-    auto const s = conn->as<http_v2_stream_base_t>();
-    return s->recv_size;
+    return prepared::recv_count(conn);
 }
 
 manapi::bytebuffer manapi::net::worker::http_v2::recv_first_buffer(const shared_conn &conn) MANAPIHTTP_NOEXPECT {
-    auto const s = conn->as<http_v2_stream_base_t>();
-    auto b = std::move(s->recv->deque->buffer);
-
-    s->recv->deque = std::move(s->recv->deque->next);
-    s->recv_size--;
-
-    if (!s->recv->deque) {
-        s->recv->last_deque = nullptr;
-        b.resize(s->recv->deque_cursor);
-
-        s->recv->deque_cursor = 0;
-    }
-
-    if (s->recv->deque_current) {
-        b.shift_add(s->recv->deque_current);
-        s->recv->deque_current = 0;
-    }
-
-    return std::move(b);
+    return prepared::recv_first_buffer(conn);
 }

@@ -12,6 +12,7 @@ std::size_t summary_size_buffs (std::unique_ptr<manapi::slice_part_t, manapi::sl
     *last = current;
 
     while (current) {
+        assert(current->buff.len);
         res += current->buff.len;
         *last = current;
         current = current->next;
@@ -27,6 +28,7 @@ std::size_t summary_size_buffs (manapi::slice_part_t *first, manapi::slice_part_
         return 0;
 
     for (; first != last->next; first = first->next) {
+        assert(first->buff.len);
         res += first->buff.len;
     }
 
@@ -660,6 +662,11 @@ manapi::slice::~slice() {
 }
 
 manapi::error::status manapi::slice::push_back(bytebuffer buffer) {
+    if (buffer.empty())
+        return error::status_ok();
+
+    assert(!buffer.shift());
+
     auto t = std::make_unique<slice_part_t>();
     t->buff.len = buffer.size();
     this->size_ += buffer.size();
@@ -679,6 +686,9 @@ manapi::error::status manapi::slice::push_back(bytebuffer buffer) {
 }
 
 manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size) {
+    if (!size)
+        return error::status_ok();
+
     if (this->rshift_) {
         auto const copy = std::min<ssize_t>(size, this->rshift_);
         memcpy (this->last->buff.base + this->last->buff.len - this->rshift_, buffer, copy);

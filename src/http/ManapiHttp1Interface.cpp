@@ -30,6 +30,10 @@ int default_wrk_http_all_accept (const manapi::net::worker::shared_conn & conn, 
     HTTP_ALL_SWITCH (accept_cb, conn, flags, buffer, nsize, p, httpctx, w);
 }
 
+int default_wrk_http_all_init_stream (const manapi::net::worker::shared_conn & conn, const manapi::net::worker::shared_conn & stream, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
+    HTTP_ALL_SWITCH(init_stream_cb, conn, stream, httpctx, w);
+}
+
 int default_wrk_http_all_init (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
     HTTP_ALL_SWITCH (init_cb, conn, httpctx, w);
 }
@@ -113,7 +117,7 @@ int default_wrk_http_all_global_alpn (manapi::net::worker::wrk_interface_global_
     return manapi::net::http::versions::HTTP_v1_1;
 }
 
-manapi::error::status manapi::net::worker::default_wrk_http_all_global_init(wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXPECT {
+manapi::error::status manapi::net::worker::default_wrk_http_all_global_init(wrk_interface_global_t *global, worker::interface_worker *w) MANAPIHTTP_NOEXPECT {
     if (global->data)
         return manapi::error::status_invalid_argument("global->data already exists");
 
@@ -124,6 +128,7 @@ manapi::error::status manapi::net::worker::default_wrk_http_all_global_init(wrk_
     global->alpn_cb = default_wrk_http_all_global_alpn;
     global->flags_cb = default_wrk_http_all_global_flags;
     global->accept_cb = default_wrk_http_all_accept;
+    global->init_stream_cb = default_wrk_http_all_init_stream;
     global->init_cb = default_wrk_http_all_init;
     global->cleanup_cb = default_wrk_http_all_cleanup;
     global->custom_read_cb = default_wrk_http_all_custom_read;
@@ -501,7 +506,7 @@ manapi::future<int> default_wrk_http1_send_response (const manapi::net::worker::
     co_return manapi::ERR_OK;
 }
 
-manapi::error::status manapi::net::worker::default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
+manapi::error::status manapi::net::worker::default_wrk_http1_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w) MANAPIHTTP_NOEXPECT {
     if (global->data)
         return manapi::error::status_invalid_argument("global->data already exists");
 

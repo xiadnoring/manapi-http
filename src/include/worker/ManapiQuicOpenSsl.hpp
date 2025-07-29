@@ -61,9 +61,11 @@ namespace manapi::net::worker {
 
         connection::ipdata_t *ipdata(worker::connection *conn) MANAPIHTTP_NOEXPECT override;
 
-        error::status_or<shared_conn> new_stream(shared_conn conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT override;
+        error::status_or<shared_conn> new_stream(const shared_conn &conn, base::stream_flags flags) MANAPIHTTP_NOEXPECT override;
 
-        std::size_t stream_id(shared_conn s) MANAPIHTTP_NOEXPECT override;
+        std::size_t stream_id(const shared_conn &s) MANAPIHTTP_NOEXPECT override;
+
+        shared_conn stream_id(const shared_conn &conn, std::size_t id) noexcept(true) override;
     protected:
         void remove_poll_id (std::size_t poll_id) MANAPIHTTP_NOEXPECT;
 
@@ -97,7 +99,6 @@ namespace manapi::net::worker {
         std::map<uintptr_t, shared_conn> conns_;
         int sock;
         std::size_t count;
-        int flags;
     private:
         static manapi::error::status load_params (manapi::net::worker::openssl_quic *w, SSL_CTX *ctx, manapi::json sslconfig);
 

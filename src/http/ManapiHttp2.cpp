@@ -688,34 +688,46 @@ bool http_v2_stream_on_write (const manapi::net::worker::shared_conn &conn, mana
 int manapi::net::http::http_v2_on_write(http_v2_t *ctx) MANAPIHTTP_NOEXPECT {
     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: write event received");
 
-    if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE)
-        ctx->flags ^= HTTP2_CTX_FLAG_BLOCK_WRITE;
-
-    bool no_one = true;
-    for (const auto &priority : *ctx->priorities) {
-        //auto &conn = (*priority.second);
-        auto const data = priority.second->as<http_v2_stream_t>();
+    if (ctx->current) {
         if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE)
-            break;
+            ctx->flags ^= HTTP2_CTX_FLAG_BLOCK_WRITE;
 
-        if (http_v2_stream_on_write(priority.second, data))
-            no_one = false;
+        bool no_one = true;
+        for (const auto &priority : *ctx->priorities) {
+            //auto &conn = (*priority.second);
+            auto const data = priority.second->as<http_v2_stream_t>();
+            if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE)
+                break;
+
+            if (http_v2_stream_on_write(priority.second, data))
+                no_one = false;
+        }
+
+        if (no_one)
+            ctx->worker->event_toggle(ctx->conn, false, ev::WRITE);
     }
-
-    if (no_one)
-        ctx->worker->event_toggle(ctx->conn, false, ev::WRITE);
-
 
     return 0;
 }
 
 int http_v2_process_window (const manapi::net::worker::shared_conn &conn, manapi::net::http::http_v2_stream_t *s) MANAPIHTTP_NOEXPECT {
-    auto ssw = (s->recv_size + 1) * s->ctx->worker->config()->buffer_size;
+    auto ssw = (s->top->recv_size + 1) * s->ctx->worker->config()->buffer_size;
     auto config = s->ctx->worker->config();
-    ssw = std::max(static_cast<ssize_t>(0),
-        static_cast<ssize_t>(config->window_stream_size - ssw));
+
+    ssw = std::max<ssize_t>(static_cast<ssize_t>(0),
+        std::min<ssize_t>(config->window_stream_size - ssw, s->write_window));
 
     if (s->read_window < ssw) {
+        /**
+         * a server window size can't be more than a client window size
+         * because the trasfering can be self-blocked
+         *
+         * For example - Echo Server
+         * It accepts 16 * 4096 bytes using 200k window size, and stops
+         * reading because server can't send it because the client window size is 0
+         * and we can't accept window frames to update the value
+         */
+
         const auto allow = static_cast<int>(ssw - s->read_window);
         if (!(s->flags & (manapi::net::http::HTTP2_STREAM_CLOSED|manapi::net::http::HTTP2_STREAM_RECV_END))) {
             if (http_v2_send_window_frame(s->ctx, s->id, allow))
@@ -741,12 +753,12 @@ int manapi::net::http::http_v2_on_read_stream(const worker::shared_conn &conn) M
     auto const s = conn->as<http_v2_stream_t>();
 
     auto const bs = s->ctx->worker->config()->max_buffer_stack;
-    bool const read_blocked = s->recv_size >= bs;
+    bool const read_blocked = s->top->recv_size >= bs;
 
     if (auto const rhs = worker::http_v2_flush_recv (conn, s))
         return rhs;
 
-    if (read_blocked && s->recv_size < read_blocked)
+    if (read_blocked && s->top->recv_size < read_blocked)
         s->ctx->worker->event_toggle(s->ctx->conn, true, ev::READ);
 
     return http_v2_process_window (conn, s);
@@ -1092,6 +1104,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     ctx->http_v2_worker->close_connection(s->second, worker::CLOSE_CONN_ERR);
                                 }
                                 else {
+                                    manapi_log_trace(debug::LOG_TRACE_LOW, "http2: window frame received: id=%u v=%d prev=%u",
+                                        sdata->id, sdata->write_window, ctx->n1);
                                     sdata->write_window += ctx->n1;
 
                                     if (sdata->write_window > 0) {
@@ -1110,6 +1124,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                         "overflow");
                                     goto repeat;
                                 }
+                                manapi_log_trace(debug::LOG_TRACE_LOW, "http2: window frame received: id=%u v=%d prev=%u",
+                                    0, ctx->write_window, ctx->n1);
 
                                 ctx->write_window += static_cast<int>(ctx->n1);
                                 if (ctx->write_window <= ctx->n1) {
@@ -1313,7 +1329,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             ctx->concurrent_streams_size++;
                             sdata = s->second->as<http_v2_stream_t>();
                             sdata->req = std::make_unique<request_data_t>();
-                            sdata->recv = std::make_unique<worker::connection_io_part>();
+                            sdata->top = std::make_unique<worker::connection_io>();
                             sdata->speed_min_delay = static_cast<int>(config->speed_check_delay);
                         }
                         else {
@@ -1716,7 +1732,7 @@ header_skip:
                             if (datasize) {
                                 if ((sdata->flags & ev::READ)
                                     && sdata->ev_callback
-                                    && !sdata->recv_size) {
+                                    && !sdata->top->recv_size) {
 
                                     int flags = ev::READ;
                                     if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
@@ -1731,20 +1747,20 @@ header_skip:
                                         sdata->flags |= HTTP2_STREAM_RECV_END;
 
 
-                                    if (datasize != worker::base::connection_io_send(sdata->recv.get(), buffer + datapos,
+                                    if (datasize != worker::base::connection_io_send(&sdata->top->recv, buffer + datapos,
                                         datasize, &sdata->ctx->worker->bufferpool(), static_cast<int>(config->buffer_size),
-                                        &sdata->recv_size, maxcnt))
+                                        &sdata->top->recv_size, maxcnt))
                                         return EHTTP_V2_PROTOCOL_ERROR;
 
 
-                                    if (sdata->recv_size >= config->max_buffer_stack)
+                                    if (sdata->top->recv_size >= config->max_buffer_stack)
                                         ctx->worker->event_toggle(ctx->conn, false, ev::READ);
                                 }
                             }
                             else {
                                 if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
                                     sdata->flags |= HTTP2_STREAM_RECV_END;
-                                    if (!sdata->recv_size && (sdata->flags & ev::READ) && sdata->ev_callback)
+                                    if (!sdata->top->recv_size && (sdata->flags & ev::READ) && sdata->ev_callback)
                                         sdata->ev_callback->operator()(s->second, HTTP2_STREAM_RECV_END, buffer + datapos, datasize, nullptr);
                                 }
                                 else {

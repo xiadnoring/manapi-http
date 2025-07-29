@@ -102,7 +102,7 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
 
 
                 worker::wrk_interface_global_t wrk{};
-                auto res = worker::default_wrk_http_all_global_init(&wrk, this->worker.get());
+                auto res = worker::default_wrk_http_all_global_init(&wrk, workerptr);
 
                 if (!res.ok()) {
                     res.log();

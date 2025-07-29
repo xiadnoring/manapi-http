@@ -13,5 +13,5 @@ namespace manapi::net::worker {
         std::unique_ptr<manapi::net::http::http_v2_t> ctx;
     };
 
-    manapi::error::status default_wrk_http2_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w);
+    manapi::error::status default_wrk_http2_global_init (manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w);
 }
