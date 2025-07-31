@@ -79,7 +79,7 @@ class QuciheConan(ConanFile):
         boringssl = os.path.join('src', 'quiche', 'deps', 'boringssl')
 
         if len(os.listdir(boringssl)) == 0:
-            # boringssl not exists! Lets fix that!
+            # boringssl doesn't exist! Let's fix that!
             get(self, 'https://github.com/google/boringssl/archive/refs/tags/0.20241209.0.zip', destination=boringssl, strip_root=True)
 
     def generate(self):

@@ -1,4 +1,7 @@
 sources:
+  "0.24.4":
+    url: "https://github.com/cloudflare/quiche/archive/refs/tags/0.24.4.zip"
+    sha256: "eb17dd48d8c433ba4bace77a0fa356a1f749611653044fe7124e9e3cc547f46b"
   "0.24.0":
     url: "https://github.com/cloudflare/quiche/archive/refs/tags/0.24.0.zip"
     sha256: "2a0088ab7664ed13d0591e5f6c6e32970967a181e380a054871c3573fe192376"
