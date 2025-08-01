@@ -110,6 +110,7 @@ namespace manapi::net::worker {
 
         std::vector<SSL_POLL_ITEM> polls_;
         std::unique_ptr<ev::io> w_;
+        manapi::timer update_limit_timer;
         std::unique_ptr<ev::timer> t_;
         std::string alpn_ossltest_;
         void *ctx;

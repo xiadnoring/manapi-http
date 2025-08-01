@@ -192,7 +192,7 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
         if (--data->speed_min_delay <= 0) {
             if (data->flags & (base::CONN_IO_WAITING)
                 && (data->transfered_k < config->speed_check_bytes)) {
-                w->close_connection(sconn, CLOSE_CONN_EOF);
+                w->close_connection(sconn, CLOSE_CONN_ERR);
                 return;
             }
             data->transfered_k = 0;

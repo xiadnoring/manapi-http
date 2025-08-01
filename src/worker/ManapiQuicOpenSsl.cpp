@@ -22,10 +22,10 @@
 #   define MANAPI_POLL_MAXQUIC_IDS 64
 
 enum conn_tls_flags  {
-    CONN_QUIC_SHUTDOWN = 512,
-    CONN_QUIC_EARLY_DATA = 1024,
-    CONN_QUIC_EARLY_FINISHED = 2048,
-    CONN_QUIC_SHUTDOWN_FINISHED = 4096
+    CONN_QUIC_SHUTDOWN = manapi::net::worker::base::CONN_MAX_CODE << 1,
+    CONN_QUIC_EARLY_DATA = CONN_QUIC_SHUTDOWN << 2,
+    CONN_QUIC_EARLY_FINISHED = CONN_QUIC_SHUTDOWN << 3,
+    CONN_QUIC_SHUTDOWN_FINISHED = CONN_QUIC_SHUTDOWN << 4
 };
 
 struct ssl_bio_deleter_t {
@@ -291,6 +291,16 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
 
         this->polls_.push_back(poll_item);
 
+        auto timer = manapi::async::current()->timerpool()->append_interval_sync(
+            1000, [this] (const manapi::timer &t) -> void {
+                this->update_limit_rate();
+            });
+
+        if (!timer.ok())
+            co_return timer.err();
+
+        this->update_limit_timer = timer.unwrap();
+
         co_return error::status_ok();
     }
     catch (std::exception const &e) {
@@ -301,6 +311,20 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
 
 void manapi::net::worker::openssl_quic::stop(std::function<void()> cb) {
     try {
+        if (this->t_ && this->t_->is_active()) {
+            if (auto err = this->t_->stop()) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,"%s due to %s",
+                    "openssl_quic:timer stop failed", ev::strerror(err));
+            }
+
+            this->t_.reset();
+        }
+
+        if (this->update_limit_timer) {
+            this->update_limit_timer.stop();
+            this->update_limit_timer = nullptr;
+        }
+
         SSL_free(MANAPI_AS_SSL(this->listener));
         SSL_CTX_free(MANAPI_AS_CTX(this->ctx));
 
@@ -582,10 +606,14 @@ void manapi::net::worker::openssl_quic::close_stream(shared_conn s, int flags) M
 
         SSL_free(std::exchange(data->stream, nullptr));
 
-        if (conn_data->streams.empty() && (conn_data->flags & CONN_WANT_CLOSE)) {
-            auto conn = static_cast<shared_conn *>(SSL_get_app_data(conn_data->conn));
-            assert(conn);
-            this->close_connection(*conn, CLOSE_CONN_SHUTDOWN);
+        if (conn_data->streams.empty()) {
+            auto const app_data = SSL_get_app_data(conn_data->conn);
+            assert(app_data);
+            auto conn = *static_cast<shared_conn *>(app_data);
+            this->waiting(conn, true);
+            if ((conn_data->flags & CONN_WANT_CLOSE)) {
+                this->close_connection(conn, CLOSE_CONN_SHUTDOWN);
+            }
         }
     }
 }
@@ -782,6 +810,10 @@ void manapi::net::worker::openssl_quic::stream_interface_eraser(worker::connecti
     auto connection = std::unique_ptr<quic_stream_t> (uptr->as<quic_stream_t>());
 
     auto conn_data = connection->parent->as<quic_conn_t>();
+    auto const conn_ptr = static_cast<shared_conn *>(SSL_get_app_data(conn_data->conn));
+    shared_conn conn{nullptr};
+    if (conn_ptr)
+        conn = *conn_ptr;
 
     manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s:Free QUIC %p stream using %p conn",
         "openssl_quic", connection.get(), conn_data->conn);
@@ -796,6 +828,12 @@ void manapi::net::worker::openssl_quic::stream_interface_eraser(worker::connecti
     if (wrk) {
         if (auto rhs = wrk->global_.cleanup_cb(n, &wrk->global_, wrk))
             manapi_log_error("%s: %s failed due to %d", "openssl_quic", "this->global_.cleanup_cb failed", rhs);
+
+        if (conn_data->streams.empty() && conn) {
+            if (conn_data->flags & CONN_WANT_CLOSE) {
+                wrk->close_connection(conn, CLOSE_CONN_SHUTDOWN);
+            }
+        }
 
         openssl_quic::io_event_cb(wrk->w_->custom(), 0, 0);
     }
@@ -1126,6 +1164,8 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
             return error::status_internal("already exists - bug");
         }
 
+        this->waiting(conn, false);
+
         SSL_POLL_ITEM poll_item;
         poll_item.desc = SSL_as_poll_descriptor(stream);
         poll_item.events = SSL_POLL_EVENT_R|SSL_POLL_EVENT_W|SSL_POLL_EVENT_ER|SSL_POLL_EVENT_EW|SSL_POLL_EVENT_F;
@@ -1135,7 +1175,6 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
 
         if (!SSL_set_app_data(stream, &rhs.first->second))
             return error::status_resource_exhausted();
-
 
         int init_res = 0;
         if (conn->wrk.data) {
