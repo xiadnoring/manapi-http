@@ -17,10 +17,13 @@ namespace manapi::net::worker {
         ssize_t transfered_k;
     };
 
-    struct connection_prepared_base_t : connection_base_t {
-        std::unique_ptr<worker_watcher_cb> ev_callback;
+    struct connection_base2_t : connection_base_t {
         int flags;
         int speed_min_delay;
+    };
+
+    struct connection_prepared_base_t : connection_base2_t {
+        std::unique_ptr<worker_watcher_cb> ev_callback;
     };
 
     struct connection_prepared_t : connection_prepared_base_t {
@@ -62,7 +65,7 @@ namespace manapi::net::worker {
             return w->sync_write_ex(conn, buff, nbuff, size, finish, config->max_buffer_stack);
         }
 
-        void waiting(const shared_conn &conn, connection_prepared_base_t *data, bool state) MANAPIHTTP_NOEXCEPT;
+        void waiting(const shared_conn &conn, connection_base2_t *data, bool state) MANAPIHTTP_NOEXCEPT;
 
         void waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT;
 

@@ -40,9 +40,8 @@ struct addrinfofree_deleter {
     }
 };
 
-struct manapi::net::worker::openssl_quic::quic_conn_t : connection_base_t {
+struct manapi::net::worker::openssl_quic::quic_conn_t : connection_base2_t {
     SSL *conn;
-    int flags;
     manapi::timer timeout;
     openssl_quic *worker;
     std::map<uint64_t, shared_conn> streams;
@@ -799,7 +798,73 @@ void manapi::net::worker::openssl_quic::update_limit_rate() MANAPIHTTP_NOEXCEPT 
 }
 
 void manapi::net::worker::openssl_quic::update_limit_rate_connection(const shared_conn &sconn) MANAPIHTTP_NOEXCEPT {
-    prepared::update_limit_rate_connection (sconn, this, this->config_, &this->global_);
+    auto conn_data = sconn->as<quic_conn_t>();
+    auto &config = this->config_;
+
+    for (auto it = conn_data->streams.begin(); it != conn_data->streams.end(); ++it) {
+        try {
+            auto data = it->second->as<quic_stream_t>();
+
+            if (data->transfered >= config->speed_limit_rate
+                && data->ev_callback) {
+                data->transfered = 0;
+
+                if (!(data->flags & ev::DISCONNECT) && data->flags & ev::WRITE && data->ev_callback) {
+                    manapi::async::current()->etaskpool()->append_task([conn = it->second] () -> void {
+                        auto data = conn->as<quic_stream_t>();
+                        if (!(data->flags & ev::DISCONNECT)) {
+                            assert(data->parent);
+                            auto conn_data = data->parent->as<quic_conn_t>();
+                            assert(conn_data);
+                            auto const w = conn_data->worker;
+                            assert(w);
+                            if (manapi::net::worker::base::call_user_callback(data->ev_callback.get(), conn, ev::WRITE, nullptr, 0, nullptr)) {
+                                w->close_connection(conn, CLOSE_CONN_ERR);
+                                return;
+                            }
+                        }
+                    });
+                }
+            }
+            else {
+                conn_data->transfered += data->transfered;
+                data->transfered_k += data->transfered;
+
+                if (--data->speed_min_delay <= 0) {
+                    if (data->flags & (base::CONN_IO_WAITING) && (data->transfered_k < config->speed_check_bytes)) {
+                        manapi::async::current()->etaskpool()->append_task([conn = it->second] () -> void {
+                            auto data = conn->as<quic_stream_t>();
+                            assert(data && data->parent);
+                            auto conn_data = data->parent->as<quic_conn_t>();
+                            assert(conn_data && conn_data->worker);
+                            conn_data->worker->close_connection(conn, CLOSE_CONN_ERR);
+                        });
+
+                        continue;
+                    }
+                    data->transfered_k = 0;
+                    data->speed_min_delay = static_cast<int>(config->speed_check_delay);
+                }
+                data->transfered = 0;
+            }
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s: %s failed due to %s", "openssl_quic",
+                "update_limit_rate_connection", e.what());
+        }
+    }
+
+    conn_data->transfered_k += conn_data->transfered;
+
+    if (--conn_data->speed_min_delay <= 0) {
+        if (conn_data->flags & (base::CONN_IO_WAITING) && (conn_data->transfered_k < config->speed_check_bytes)) {
+            this->close_connection(sconn, CLOSE_CONN_ERR);
+            return;
+        }
+        conn_data->transfered_k = 0;
+        conn_data->speed_min_delay = static_cast<int>(config->speed_check_delay);
+    }
+    conn_data->transfered = 0;
 }
 
 void manapi::net::worker::openssl_quic::stream_interface_eraser(worker::connection *n) MANAPIHTTP_NOEXCEPT {
@@ -929,16 +994,17 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                     it->revents & SSL_POLL_EVENT_ISU) {
                     auto stream = SSL_accept_stream(it->desc.value.ssl, 0);
                     if (stream) {
-                        manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: new stream %p was created using %p conn",
-                            "openssl_quic", stream, it->desc.value.ssl);
                         auto conn = *static_cast<shared_conn *>(SSL_get_app_data(it->desc.value.ssl));
                         auto res = w->stream_accept(conn, stream);
 
-                        if (!res.ok())
-                            res.err().log();
-                        else {
+                        if (res.ok()) {
                             auto sconn = res.unwrap();
+                            manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: new stream %p was created using %p conn id=%zu",
+                                "openssl_quic", stream, it->desc.value.ssl, w->stream_id(sconn));
                             w->stream_processing(sconn);
+                        }
+                        else {
+                            w->close_connection(conn, CLOSE_CONN_ERR);
                         }
                     }
 
@@ -1164,8 +1230,6 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
             return error::status_internal("already exists - bug");
         }
 
-        this->waiting(conn, false);
-
         SSL_POLL_ITEM poll_item;
         poll_item.desc = SSL_as_poll_descriptor(stream);
         poll_item.events = SSL_POLL_EVENT_R|SSL_POLL_EVENT_W|SSL_POLL_EVENT_ER|SSL_POLL_EVENT_EW|SSL_POLL_EVENT_F;
@@ -1182,10 +1246,13 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         }
         else {
             init_res = this->global_.init_cb(stream_conn, &this->global_, this);
+            this->waiting(conn, false);
         }
+
         if (init_res) {
             this->close_connection(stream_conn, CLOSE_CONN_ERR);
         }
+
         else {
             this->event_on(stream_conn,
                 std::make_unique<worker_watcher_cb>([this]
@@ -1272,6 +1339,7 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
 
         p->conn = client;
         p->worker = this;
+        p->speed_min_delay = this->config_->speed_check_delay;
         p->flags = 0;
 
         auto shared = std::shared_ptr<worker::connection> (
@@ -1298,6 +1366,8 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         this->count++;
 
         conn = res.first->second;
+
+        this->waiting(conn, true);
 
         SSL_POLL_ITEM poll_item;
         poll_item.desc = SSL_as_poll_descriptor(client);

@@ -69,7 +69,7 @@ static int ng_wrk_http3_flush_write (manapi::net::worker::ng_wrk_http3_ctx_t *ct
     int64_t v_stream_id;
     nghttp3_vec vec[8];
 
-    while (true) {
+    while (ctx && ctx->conn) {
         int pfin = 0;
         bool fin;
 
@@ -86,12 +86,19 @@ static int ng_wrk_http3_flush_write (manapi::net::worker::ng_wrk_http3_ctx_t *ct
 
 
         auto v_conn = ctx->gctx->worker->stream_id(ctx->conn, v_stream_id);
+        if (v_conn) {
+            if (auto rhs = nghttp3_conn_close_stream(ctx->ctx.get(), v_stream_id, HTTP3_STREAM_CLOSED))
+                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s: %s failed due to %s",
+                    "nghttp3", "nghttp3_conn_close_stream", nghttp3_strerror(rhs));
+            break;
+        }
 
-        assert (v_conn && v_conn->wrk.data);
+        assert (v_conn->wrk.data);
 
         fin = pfin & NGHTTP3_DATA_FLAG_EOF;
 
         auto v_s = MANAPI_AS_STREAM(v_conn->wrk.data);
+        std::size_t res = 0;
 
         if (vec_len) {
             for (nghttp3_ssize i = 0; i < vec_len; i++) {
@@ -100,11 +107,17 @@ static int ng_wrk_http3_flush_write (manapi::net::worker::ng_wrk_http3_ctx_t *ct
                     b.len, fin && i + 1 == vec_len, 1e5);
                 if (rhs != b.len)
                     goto err;
+                res += static_cast<std::size_t>(rhs);
             }
         }
         else if (fin) {
             if (ctx->gctx->worker->sync_write(v_conn, static_cast<char*>(nullptr), 0, true))
                 goto err;
+        }
+
+        if (auto err = nghttp3_conn_add_write_offset(ctx->ctx.get(), v_stream_id, res)) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed due to %s",
+                "nghttp3", "nghttp3_conn_add_write_offset", nghttp3_strerror(err));
         }
 
         continue;
@@ -260,12 +273,17 @@ static int ng_wrk_http3_stream_init (const manapi::net::worker::shared_conn &con
     assert (!(conn->wrk.flags & manapi::net::worker::WRK_INTERFACE_IS_STREAM));
     assert (stream->wrk.flags & manapi::net::worker::WRK_INTERFACE_IS_STREAM);
 
+    auto conn_data = static_cast<manapi::net::worker::ng_wrk_http3_ctx_t *> (conn->wrk.data);
+
+    if (!conn_data || !conn_data->conn || !conn_data->ctx)
+        return manapi::ERR_ABORTED;
+
     std::unique_ptr<ng_wrk_http3_stream_t> tp (new (std::nothrow) ng_wrk_http3_stream_t{});
 
     if (!tp)
         return manapi::ERR_RESOURCE_EXHAUSTED;
 
-    tp->ctx = static_cast<manapi::net::worker::ng_wrk_http3_ctx_t *> (conn->wrk.data);
+    tp->ctx = conn_data;
     tp->top.reset(new (std::nothrow) manapi::net::worker::connection_io{});
     tp->s = stream;
 
@@ -499,6 +517,12 @@ static int ng_wrk_http3_recv_header (nghttp3_conn *conn, int64_t stream_id, int3
 }
 
 static int ng_wrk_http3_recv_settings (nghttp3_conn *conn, const nghttp3_settings *settings, void *conn_user_data) {
+    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "nghttp3: %s settings on %p: "
+        "enable_connect_procotol=%d, h3_datagram=%d max_field_section_size=%zu qpack_blocked_streams=%zu "
+        "qpack_encoder_max_dtable_capacity=%zu qpack_max_dtable_capacity=%zu", "recv", conn, settings->enable_connect_protocol, settings->h3_datagram,
+        settings->max_field_section_size, settings->qpack_blocked_streams, settings->qpack_encoder_max_dtable_capacity,
+        settings->qpack_max_dtable_capacity);
+
     return 0;
 }
 
@@ -693,9 +717,12 @@ static int ng_wrk_http3_init (const manapi::net::worker::shared_conn &conn, mana
 
         nghttp3_settings_default(&tp->h3_settings);
 
-        tp->h3_settings.max_field_section_size = config->max_headers_size;
-        tp->h3_settings.qpack_max_dtable_capacity = config->max_hpack_table_size;
-        tp->h3_settings.qpack_encoder_max_dtable_capacity = config->max_hpack_table_size;
+        if (config->max_headers_size)
+            tp->h3_settings.max_field_section_size = config->max_headers_size;
+        if (config->max_hpack_table_size >= 0)
+            tp->h3_settings.qpack_max_dtable_capacity = config->max_hpack_table_size;
+        if (config->max_hpack_table_size >= 0)
+            tp->h3_settings.qpack_encoder_max_dtable_capacity = config->max_hpack_table_size;
 
 
         nghttp3_conn *p;
@@ -705,6 +732,12 @@ static int ng_wrk_http3_init (const manapi::net::worker::shared_conn &conn, mana
                 "nghttp3_conn_server_new failed %s", nghttp3_strerror(rhs));
             return manapi::ERR_INTERNAL;
         }
+
+        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "nghttp3: %s settings on %p: "
+            "enable_connect_procotol=%d, h3_datagram=%d max_field_section_size=%zu qpack_blocked_streams=%zu "
+            "qpack_encoder_max_dtable_capacity=%zu qpack_max_dtable_capacity=%zu", "send", p, tp->h3_settings.enable_connect_protocol, tp->h3_settings.h3_datagram,
+            tp->h3_settings.max_field_section_size, tp->h3_settings.qpack_blocked_streams, tp->h3_settings.qpack_encoder_max_dtable_capacity,
+            tp->h3_settings.qpack_max_dtable_capacity);
 
         tp->ctx.reset(p);
 
@@ -938,7 +971,7 @@ static int ng_wrk_http3_rst (const manapi::net::worker::shared_conn &conn, int c
 
         s->ctx->gctx->worker->close_connection(s->ctx->conn, manapi::net::worker::CLOSE_CONN_ERR);
 
-        return manapi::ERR_INTERNAL;
+        return manapi::ERR_OK;
     }
 
     return manapi::ERR_OK;

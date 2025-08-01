@@ -32,7 +32,7 @@ manapi::bytebuffer manapi::net::worker::prepared::recv_first_buffer(const shared
     return std::move(object);
 }
 
-void manapi::net::worker::prepared::waiting(const shared_conn &conn, connection_prepared_base_t *data, bool state) MANAPIHTTP_NOEXCEPT {
+void manapi::net::worker::prepared::waiting(const shared_conn &conn, connection_base2_t *data, bool state) MANAPIHTTP_NOEXCEPT {
 
     if (state)
         data->flags |= base::CONN_IO_WAITING;
@@ -42,7 +42,7 @@ void manapi::net::worker::prepared::waiting(const shared_conn &conn, connection_
 }
 
 void manapi::net::worker::prepared::waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT {
-    auto const data = conn->as<connection_prepared_base_t>();
+    auto const data = conn->as<connection_base2_t>();
     return waiting(conn, data, state);
 }
 
@@ -179,13 +179,13 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
         && data->ev_callback) {
         data->transfered = 0;
 
-        if (data->flags & ev::WRITE && data->ev_callback) {
+        if (!(data->flags & ev::DISCONNECT) && data->flags & ev::WRITE && data->ev_callback) {
             if (manapi::net::worker::base::call_user_callback(data->ev_callback.get(), sconn, ev::WRITE, nullptr, 0, nullptr)) {
                 w->close_connection(sconn, CLOSE_CONN_ERR);
                 return;
             }
         }
-        }
+    }
     else {
         data->transfered_k += data->transfered;
 
@@ -195,9 +195,11 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
                 w->close_connection(sconn, CLOSE_CONN_ERR);
                 return;
             }
+
             data->transfered_k = 0;
             data->speed_min_delay = static_cast<int>(config->speed_check_delay);
         }
+
         data->transfered = 0;
     }
 
