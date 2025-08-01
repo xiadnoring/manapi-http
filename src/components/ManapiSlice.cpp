@@ -127,7 +127,7 @@ manapi::slice_base::slice_base(const slice_base &n) = default;
 
 manapi::slice_base & manapi::slice_base::operator=(const slice_base &n) = default;
 
-manapi::error::status manapi::slice_base::shift_add(std::size_t shift) {
+manapi::error::status manapi::slice_base::shift_add(std::size_t shift) MANAPIHTTP_NOEXCEPT {
     if (this->size() < shift)
         return error::status_out_of_range("slice: shift is too large");
 
@@ -153,7 +153,7 @@ manapi::error::status manapi::slice_base::shift_add(std::size_t shift) {
     return error::status_ok();
 }
 
-manapi::error::status manapi::slice_base::copy_from(const void *buffer, std::size_t shift, std::size_t size) {
+manapi::error::status manapi::slice_base::copy_from(const void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT {
     if (!size)
         return manapi::error::status_ok();
 
@@ -191,7 +191,7 @@ manapi::error::status manapi::slice_base::copy_from(const void *buffer, std::siz
     return manapi::error::status_ok();
 }
 
-manapi::error::status manapi::slice_base::copy_to(void *buffer, std::size_t shift, std::size_t size) {
+manapi::error::status manapi::slice_base::copy_to(void *buffer, std::size_t shift, std::size_t size) MANAPIHTTP_NOEXCEPT {
     auto buffer_casted = static_cast<char *>(buffer);
 
     if (size) {
@@ -226,7 +226,7 @@ manapi::error::status manapi::slice_base::copy_to(void *buffer, std::size_t shif
     return error::status_ok();
 }
 
-manapi::error::status manapi::slice_base::copy_from(slice_base &n, std::size_t shift, std::size_t shift_n, std::size_t size) {
+manapi::error::status manapi::slice_base::copy_from(slice_base &n, std::size_t shift, std::size_t shift_n, std::size_t size) MANAPIHTTP_NOEXCEPT {
     if (!size)
         return error::status_ok();
 
@@ -291,7 +291,7 @@ manapi::error::status manapi::slice_base::copy_from(slice_base &n, std::size_t s
     return manapi::error::status_ok();
 }
 
-manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t pos, std::size_t size) const {
+manapi::error::status_or<manapi::slice_base> manapi::slice_base::subslice(std::size_t pos, std::size_t size) const MANAPIHTTP_NOEXCEPT {
     pos += this->shift_;
     auto const size_ = this->size_ - this->rshift_;
     if (!size)
@@ -352,20 +352,6 @@ std::size_t manapi::slice_base::shift() const {
 
 std::size_t manapi::slice_base::rshift() const {
     return this->rshift_;
-}
-
-void manapi::slice_base::resize(std::size_t size) {
-    size += this->shift_;
-
-    if (size == this->size_)
-        return;
-
-    if (size > this->size_) {
-
-    }
-    else {
-
-    }
 }
 
 bool manapi::slice_base::empty() const {
@@ -498,6 +484,59 @@ std::size_t manapi::slice_base::size() const {
     return this->size_ - this->shift_ - this->rshift_;
 }
 
+manapi::error::status manapi::slice_base::rshift_add_(std::size_t s) noexcept(true) {
+    if (s > this->size())
+        return error::status_out_of_range("s is too large");
+
+    this->rshift_ += s;
+
+    auto &mem = manapi::async::current()->memory_fabric();
+
+    slice_part_t *parts[this->count];
+
+    auto current = this->first;
+    for (uint32_t i = 0; i < this->count; i++) {
+        parts[i] = current;
+        current = current->next;
+    }
+
+    while (this->count && this->rshift_ >= this->last->buff.len) {
+        mem.free(this->last->buff.base, this->last->buff.len);
+        delete this->last;
+
+        this->rshift_ -= this->last->buff.len;
+        this->size_ -= this->last->buff.len;
+        this->count --;
+
+        if (this->count) {
+            this->last = parts[this->count - 1];
+        }
+        else {
+            assert(this->shift_ == 0);
+
+            this->last = nullptr;
+            this->first = nullptr;
+
+            assert(this->size_ == 0);
+        }
+    }
+
+    if (this->count == 1 && this->shift_ + this->rshift_ == this->last->buff.len) {
+        mem.free(this->last->buff.base, this->last->buff.len);
+        delete this->last;
+
+        this->first = nullptr;
+        this->last = nullptr;
+        this->size_ = 0;
+        this->rshift_ = 0;
+        this->shift_ = 0;
+        this->count--;
+    }
+
+    return error::status_ok();
+
+}
+
 manapi::slice_view::slice_view(const slice_base &n) : slice_base(n) {
 
 }
@@ -604,7 +643,8 @@ void manapi::slice_ref::clear() noexcept(true) {
 manapi::slice::slice() : slice_base(nullptr, nullptr, 0, 0, 0, 0) {
 }
 
-manapi::slice::slice(std::size_t n) : slice (manapi::async::current()->memory_fabric().slice(n)) {
+manapi::error::status_or<manapi::slice> manapi::slice::create(std::size_t n) noexcept(true) {
+    return manapi::async::current()->memory_fabric().slice(n);
 }
 
 manapi::slice::slice(std::unique_ptr<slice_part_t, slice_part_deleter> buffs, uint32_t nbuff)
@@ -661,73 +701,198 @@ manapi::slice::~slice() {
     this->clear();
 }
 
-manapi::error::status manapi::slice::push_back(bytebuffer buffer) {
-    if (buffer.empty())
+manapi::error::status manapi::slice::resize(std::size_t size) MANAPIHTTP_NOEXCEPT {
+    auto const cur = this->size();
+
+    if (size == cur)
         return error::status_ok();
 
-    assert(!buffer.shift());
-
-    auto t = std::make_unique<slice_part_t>();
-    t->buff.len = buffer.size();
-    this->size_ += buffer.size();
-    t->buff.base = static_cast<char*>(buffer.release());
-
-    if (this->last) {
-        this->last->next = t.release();
-        this->last = this->last->next;
+    if (size < cur) {
+        assert(this->rshift_add_(size).ok());
     }
     else {
-        assert(!this->first);
-        this->first = t.release();
-        this->last = this->first;
+        size -= cur;
+
+        auto rhs = std::min<size_t>(this->rshift_, size);
+        this->rshift_ -= rhs;
+        size -= rhs;
+
+        if (size) {
+            auto slice = manapi::async::current()->memory_fabric().slice(size);
+            if (!slice.ok())
+                return slice.err();
+            this->push_back(slice.unwrap());
+        }
     }
-    this->count++;
+
     return error::status_ok();
 }
 
-manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size) {
-    if (!size)
+manapi::error::status manapi::slice::push_back(bytebuffer buffer) MANAPIHTTP_NOEXCEPT {
+    if (buffer.empty())
         return error::status_ok();
 
-    if (this->rshift_) {
-        auto const copy = std::min<ssize_t>(size, this->rshift_);
-        memcpy (this->last->buff.base + this->last->buff.len - this->rshift_, buffer, copy);
+    if (buffer.flags() & bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL) {
+        std::unique_ptr<slice_part_t> t (new (std::nothrow) slice_part_t{});
+        if (!t)
+            return error::status_resource_exhausted();
 
-        this->rshift_ -= copy;
-        size -= copy;
+        auto const shift = buffer.shift();
 
-        buffer = static_cast<const char *>(buffer) + copy;
+        t->buff.len = buffer.realsize();
+        this->size_ += buffer.realsize();
+        t->buff.base = static_cast<char*>(buffer.release());
 
-        if (!size)
-            return error::status_ok();
+        if (shift)
+            memmove(t->buff.base, t->buff.base + shift, t->buff.len - shift);
+
+        if (this->last) {
+            this->last->next = t.release();
+            this->last = this->last->next;
+        }
+        else {
+            assert(!this->first);
+            this->first = t.release();
+            this->last = this->first;
+        }
+
+        this->count++;
+
+
+        return error::status_ok();
     }
 
-    auto slice = manapi::async::current()->memory_fabric().slice(size);
-    auto res = slice.copy_from(buffer, 0, size);
-    if (!res.ok())
-        return res;
+    return this->push_back(buffer.data(), buffer.size());
+}
 
-    assert(!this->rshift_ && !slice.shift_);
+manapi::error::status manapi::slice::push_back(slice s) MANAPIHTTP_NOEXCEPT {
+    if (!s.empty()) {
+        if (this->count) {
+            assert(this->first && this->last);
 
-    if (this->last) {
-        this->rshift_ = slice.rshift_;
-        this->last->next = slice.first;
-        this->last = slice.last;
+            if (!this->rshift_ && !s.shift_) {
+                this->rshift_ = s.rshift_;
+                this->last->next = s.first;
+                this->last = s.last;
+                this->count += s.count;
+                this->size_ += s.size_;
 
-        this->count += slice.count;
-        this->size_ += slice.size_;
+                s.first = nullptr;
+                s.last = nullptr;
+                s.count = 0;
+                s.size_ = 0;
+                s.rshift_ = 0;
+                s.shift_ = 0;
+            }
+            else {
+                auto const datasize = s.size();
+                char data[datasize];
+                std::size_t i = 0;
+                auto res = s.copy_to(data, 0, datasize);
+                if (!res)
+                    return std::move(res);
 
-        slice.first = nullptr;
-        slice.last = nullptr;
-        slice.count = 0;
-        slice.size_ = 0;
-        slice.clear();
-    }
-    else {
-        *this = std::move(slice);
+                if (i != datasize && this->rshift_) {
+                    assert(this->last->buff.len >= this->rshift_);
+                    auto rhs = std::min<std::size_t>(this->rshift_, datasize - i);
+                    memcpy (this->last->buff.base + this->last->buff.len - this->rshift_,
+                        data + i, rhs);
+
+                    this->rshift_ -= rhs;
+                    i += rhs;
+                }
+
+                std::size_t s_shift_used = 0;
+
+                if (i != datasize) {
+                    assert(s.first->buff.len >= s.shift_);
+                    s_shift_used = std::min<std::size_t>(s.shift_, datasize - i);
+                    memcpy (s.first->buff.base + s.first->buff.len - s_shift_used,
+                        data + i, s_shift_used);
+
+                    auto err = s.rshift_add_(s_shift_used);
+                    if (!err)
+                        return std::move(err);
+
+                    i += s_shift_used;
+                }
+
+                if (i != datasize) {
+                    assert(!s.shift_ && !this->rshift_);
+                    auto rhs = s.copy_from(data + i, 0, datasize - i);
+                    assert(rhs.ok());
+                }
+
+                s.shift_ -= s_shift_used;
+
+                return this->push_back(std::move(s));
+            }
+        }
+        else {
+            *this = std::move(s);
+        }
     }
 
     return error::status_ok();
+}
+
+manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT {
+    try {
+        if (!size)
+            return error::status_ok();
+
+        if (this->rshift_) {
+            auto const copy = std::min<ssize_t>(size, this->rshift_);
+            memcpy (this->last->buff.base + this->last->buff.len - this->rshift_, buffer, copy);
+
+            this->rshift_ -= copy;
+            size -= copy;
+
+            buffer = static_cast<const char *>(buffer) + copy;
+
+            if (!size)
+                return error::status_ok();
+        }
+
+        auto slice_res = manapi::async::current()->memory_fabric().slice(size);
+        if (!slice_res.ok())
+            return slice_res.err();
+
+        auto slice = slice_res.unwrap();
+
+        auto res = slice.copy_from(buffer, 0, size);
+        if (!res.ok())
+            return res;
+
+        assert(!this->rshift_ && !slice.shift_);
+
+        if (this->last) {
+            this->rshift_ = slice.rshift_;
+            this->last->next = slice.first;
+            this->last = slice.last;
+            this->count += slice.count;
+            this->size_ += slice.size_;
+
+            slice.first = nullptr;
+            slice.last = nullptr;
+            slice.count = 0;
+            slice.size_ = 0;
+            slice.rshift_ = 0;
+            slice.shift_ = 0;
+        }
+        else {
+            *this = std::move(slice);
+        }
+
+        return error::status_ok();
+    }
+    catch (std::bad_alloc const &) {
+
+    }
+    catch (std::exception const &e) {
+        manapi_log_error(e.what());
+    }
+    return error::status_resource_exhausted();
 }
 
 

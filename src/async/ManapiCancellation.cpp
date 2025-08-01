@@ -133,7 +133,7 @@ void manapi::async::cancellation_action::cancel_callback(cancellation_action can
     }
 }
 
-void manapi::async::cancellation_action::cancel() MANAPIHTTP_NOEXPECT {
+void manapi::async::cancellation_action::cancel() MANAPIHTTP_NOEXCEPT {
     if (this->data) {
         if ((this->data->status_ & (FLAG_CANCEL|FLAG_DISABLED))) {
             return;
@@ -145,13 +145,13 @@ void manapi::async::cancellation_action::cancel() MANAPIHTTP_NOEXPECT {
     }
 }
 
-void manapi::async::cancellation_action::ask_cancel_callback() MANAPIHTTP_NOEXPECT {
+void manapi::async::cancellation_action::ask_cancel_callback() MANAPIHTTP_NOEXCEPT {
     if (this->data) {
         this->data->status_ |= FLAG_ASK_CANCEL;
     }
 }
 
-manapi::error::status manapi::async::cancellation_action::timeout(size_t timeout) MANAPIHTTP_NOEXPECT {
+manapi::error::status manapi::async::cancellation_action::timeout(size_t timeout) MANAPIHTTP_NOEXCEPT {
     if (this->data) {
         this->data->timeout_ = timeout;
 
@@ -210,7 +210,7 @@ void manapi::async::cancellation_action::disable() {
     }
 }
 
-void manapi::async::cancellation_action::send_async_() MANAPIHTTP_NOEXPECT {
+void manapi::async::cancellation_action::send_async_() MANAPIHTTP_NOEXCEPT {
     if (this->data) {
         if (this->data->status_ & FLAG_CANCEL) {
             cancellation_action::cancel_((this->data));
@@ -218,14 +218,14 @@ void manapi::async::cancellation_action::send_async_() MANAPIHTTP_NOEXPECT {
     }
 }
 
-void manapi::async::cancellation_action::stop_timeout_(std::shared_ptr<data_t> data) MANAPIHTTP_NOEXPECT {
+void manapi::async::cancellation_action::stop_timeout_(std::shared_ptr<data_t> data) MANAPIHTTP_NOEXCEPT {
     if (data->timeout_struct_) {
         data->timeout_struct_.stop();
         data->timeout_struct_ = nullptr;
     }
 }
 
-void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) MANAPIHTTP_NOEXPECT {
+void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) MANAPIHTTP_NOEXCEPT {
     cancellation_action::stop_timeout_(data);
 
     if (data->cancel_sync_callback_) {

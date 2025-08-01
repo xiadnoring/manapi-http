@@ -402,8 +402,16 @@ manapi::future<manapi::sys_error::status_or<ssize_t>> manapi::filesystem::async_
     while (nbuff) {
         auto rhs = ev::fs::try_write(file, buff->base + shift, buff->len - shift, offset);
 
-        if (rhs > 0)
-            co_return rhs;
+        if (rhs < 0) {
+            if (rhs == ev::ERR_AGAIN)
+                rhs = 0;
+            else {
+                if (res)
+                    rhs = 0;
+                else
+                    co_return rhs;
+            }
+        }
 
         if (!rhs)
             break;
@@ -516,6 +524,17 @@ manapi::future<manapi::sys_error::status_or<ssize_t>> manapi::filesystem::async_
 
     while (nbuff) {
         ssize_t rhs = ev::fs::try_read(file, buff->base + shift, buff->len - shift, offset);
+
+        if (rhs < 0) {
+            if (rhs == ev::ERR_AGAIN)
+                rhs = 0;
+            else {
+                if (res)
+                    rhs = 0;
+                else
+                    co_return rhs;
+            }
+        }
 
         if (!rhs)
             break;

@@ -284,79 +284,79 @@ manapi::future<manapi::error::status> manapi::net::worker::OpenSSL_TLS::init(std
     co_return error::status_internal("openssl_tls:Failed");
 }
 
-manapi::net::http::server_ctx::pool_t * manapi::net::worker::OpenSSL_TLS::openssl_pool_data_() MANAPIHTTP_NOEXPECT {
+manapi::net::http::server_ctx::pool_t * manapi::net::worker::OpenSSL_TLS::openssl_pool_data_() MANAPIHTTP_NOEXCEPT {
     return this->pool_data_;
 }
 
-bool manapi::net::worker::OpenSSL_TLS::ssl_is_init_fininshed_(void *ssl) MANAPIHTTP_NOEXPECT {
+bool manapi::net::worker::OpenSSL_TLS::ssl_is_init_fininshed_(void *ssl) MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     return SSL_is_init_finished(static_cast<SSL*>(ssl));
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_get_error_(void *ssl, int rhs) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::OpenSSL_TLS::ssl_get_error_(void *ssl, int rhs) MANAPIHTTP_NOEXCEPT {
     return SSL_get_error(static_cast<SSL*>(ssl), rhs);
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_accept_(void *ssl) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::OpenSSL_TLS::ssl_accept_(void *ssl) MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     return SSL_accept(static_cast<SSL*>(ssl));
 }
 
-void * manapi::net::worker::OpenSSL_TLS::ssl_new_(void *ctx) MANAPIHTTP_NOEXPECT {
+void * manapi::net::worker::OpenSSL_TLS::ssl_new_(void *ctx) MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     return SSL_new(static_cast<SSL_CTX*>(ctx));
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_write_(void *ssl, const void *buff, int size) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::OpenSSL_TLS::ssl_write_(void *ssl, const void *buff, int size) MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     return SSL_write(static_cast<SSL*>(ssl), buff, size);
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_read_(void *ssl, void *buff, int size) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::OpenSSL_TLS::ssl_read_(void *ssl, void *buff, int size) MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     return SSL_read(static_cast<SSL*>(ssl), buff, size);
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_shutdown_(void *ssl) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::OpenSSL_TLS::ssl_shutdown_(void *ssl) MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     return SSL_shutdown(static_cast<SSL*>(ssl));
 }
 
-void manapi::net::worker::OpenSSL_TLS::ssl_set_shutdown_(void *ssl, int flags) MANAPIHTTP_NOEXPECT {
+void manapi::net::worker::OpenSSL_TLS::ssl_set_shutdown_(void *ssl, int flags) MANAPIHTTP_NOEXCEPT {
     SSL_set_shutdown(static_cast<SSL*>(ssl), flags);
 }
 
-void manapi::net::worker::OpenSSL_TLS::ssl_free_(void *ssl) MANAPIHTTP_NOEXPECT {
+void manapi::net::worker::OpenSSL_TLS::ssl_free_(void *ssl) MANAPIHTTP_NOEXCEPT {
     SSL_free(static_cast<SSL*>(ssl));
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_bio_read_(void *wbio, void *buff, int size) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::OpenSSL_TLS::ssl_bio_read_(void *wbio, void *buff, int size) MANAPIHTTP_NOEXCEPT {
     return BIO_read(static_cast<BIO*>(wbio), buff, static_cast<int>(size));
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_bio_write_(void *rbio, const void *buff, int size) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::OpenSSL_TLS::ssl_bio_write_(void *rbio, const void *buff, int size) MANAPIHTTP_NOEXCEPT {
     return BIO_write(static_cast<BIO*>(rbio), buff, static_cast<int>(size));
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_bio_should_retry_(void *bio) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::OpenSSL_TLS::ssl_bio_should_retry_(void *bio) MANAPIHTTP_NOEXCEPT {
     return BIO_should_retry(static_cast<BIO*>(bio));
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_read_early_data_(void *ssl, void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::OpenSSL_TLS::ssl_read_early_data_(void *ssl, void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     return SSL_read_early_data(static_cast<SSL*>(ssl), buf, num, readbytes);
 }
 
-int manapi::net::worker::OpenSSL_TLS::ssl_write_early_data_(void *ssl, const void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::OpenSSL_TLS::ssl_write_early_data_(void *ssl, const void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXCEPT {
     ERR_clear_error();
     return SSL_write_early_data(static_cast<SSL*>(ssl), buf, num, readbytes);
 }
 
-bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MANAPIHTTP_NOEXPECT {
+bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MANAPIHTTP_NOEXCEPT {
     return SSL_CTX_get_max_early_data(static_cast<SSL_CTX*>(ctx)) > 0;
 }
 
-// SSL_SESSION *ssl_get_session(SSL *ssl, const unsigned char *data, int len, int *copy) MANAPIHTTP_NOEXPECT {
+// SSL_SESSION *ssl_get_session(SSL *ssl, const unsigned char *data, int len, int *copy) MANAPIHTTP_NOEXCEPT {
 //     auto const ctx = SSL_get_SSL_CTX(ssl);
 //     auto const w = static_cast<manapi::net::worker::OpenSSL_TLS*>(SSL_CTX_get_app_data(ctx));
 //     if (!w)
@@ -389,7 +389,7 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MAN
 //     return res;
 // }
 //
-// int ssl_new_session(SSL *ssl, SSL_SESSION *sess) MANAPIHTTP_NOEXPECT {
+// int ssl_new_session(SSL *ssl, SSL_SESSION *sess) MANAPIHTTP_NOEXCEPT {
 //     try {
 //         auto const ctx = SSL_get_SSL_CTX(ssl);
 //         auto const w = static_cast<manapi::net::worker::OpenSSL_TLS*>(SSL_CTX_get_app_data(ctx));
@@ -438,7 +438,7 @@ bool manapi::net::worker::OpenSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MAN
 //     return 0;
 // }
 //
-// void ssl_remove_session (SSL_CTX *ctx, SSL_SESSION *sess) MANAPIHTTP_NOEXPECT {
+// void ssl_remove_session (SSL_CTX *ctx, SSL_SESSION *sess) MANAPIHTTP_NOEXCEPT {
 //     std::size_t deep;
 //     manapi::net::http::server_ctx::pool_t *pool_data;
 //     std::string_view id;

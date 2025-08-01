@@ -388,11 +388,11 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                         goto finish;
                     }
                     if (flags & ev::READ) {
-                        slice buffs = ctx_cb.worker->bufferpool().slice(nsize);
+                        slice buffs = ctx_cb.worker->bufferpool().slice(nsize).unwrap();
                         buffs.copy_from(buffer, 0, nsize).unwrap();
 
-                        while (ctx_cb.worker->recv_count(ctx_cb.conn))
-                            buffs.push_back(ctx_cb.worker->recv_first_buffer(ctx_cb.conn)).unwrap();
+                        // while (ctx_cb.worker->recv_count(ctx_cb.conn))
+                        //     buffs.push_back(ctx_cb.worker->recv_first_buffer(ctx_cb.conn)).unwrap();
 
                         if (ctx_cb.worker->event_flags(conn) & worker::base::CONN_RECV_END)
                             flags |= worker::base::CONN_RECV_END;
@@ -444,8 +444,7 @@ manapi::future<> manapi::net::http::request::read_async_body_(worker::base *work
                                         goto finish;
                                     }
 
-                                    if (!ctx_cb->req->body_size
-                                        || (flags & worker::base::CONN_RECV_END)) {
+                                    if (ctx_cb->req->body_size <= 0) {
                                         auto const copy = static_cast<int>(size - rhs);
                                         if (copy) {
                                             for (auto it = buffsview.begin(); it != buffsview.end(); ++it) {

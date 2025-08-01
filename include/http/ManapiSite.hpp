@@ -65,9 +65,9 @@ namespace manapi::net::http {
 
         handler_template_t (const nullptr_t &n);
 
-        handler_template_t (handler_template_t &&n) MANAPIHTTP_NOEXPECT;
+        handler_template_t (handler_template_t &&n) MANAPIHTTP_NOEXCEPT;
 
-        handler_template_t&operator=(handler_template_t &&n) MANAPIHTTP_NOEXPECT;
+        handler_template_t&operator=(handler_template_t &&n) MANAPIHTTP_NOEXCEPT;
 
         template<typename func>
         requires(!std::is_function_v<func> && std::is_convertible_v<func, async_handler_t>)
@@ -83,15 +83,15 @@ namespace manapi::net::http {
 
         ~handler_template_t();
 
-        MANAPIHTTP_NODISCARD bool is_async_cb () const MANAPIHTTP_NOEXPECT;
+        MANAPIHTTP_NODISCARD bool is_async_cb () const MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD bool is_sync_cb () const MANAPIHTTP_NOEXPECT;
+        MANAPIHTTP_NODISCARD bool is_sync_cb () const MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<http::async_handler_t*> async_cb () MANAPIHTTP_NOEXPECT;
+        manapi::error::status_or<http::async_handler_t*> async_cb () MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<http::sync_handler_t*> sync_cb () MANAPIHTTP_NOEXPECT;
+        manapi::error::status_or<http::sync_handler_t*> sync_cb () MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXPECT;
+        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT;
     private:
         int type;
         void *data;

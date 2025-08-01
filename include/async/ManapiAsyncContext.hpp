@@ -124,7 +124,7 @@ namespace manapi::async {
          * set as the default context in the thread
          * @param thr the context
          */
-        static void current (std::shared_ptr<cthread> thr) MANAPIHTTP_NOEXPECT;
+        static void current (std::shared_ptr<cthread> thr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * deconstructor
@@ -135,7 +135,7 @@ namespace manapi::async {
          * get the event loop
          * @return the event loop
          */
-        [[nodiscard]] const shared_eventloop& eventloop() MANAPIHTTP_NOEXPECT;
+        [[nodiscard]] const shared_eventloop& eventloop() MANAPIHTTP_NOEXCEPT;
 
         //[[nodiscard]] const shared_taskpool &taskpool();
 
@@ -143,25 +143,25 @@ namespace manapi::async {
          * get the timer pool
          * @return the timer pool
          */
-        [[nodiscard]] const shared_timerpool &timerpool() MANAPIHTTP_NOEXPECT;
+        [[nodiscard]] const shared_timerpool &timerpool() MANAPIHTTP_NOEXCEPT;
 
         /**
          * get the event task pool
          * @return the event task pool
          */
-        [[nodiscard]] const shared_taskpool &etaskpool () MANAPIHTTP_NOEXPECT;
+        [[nodiscard]] const shared_taskpool &etaskpool () MANAPIHTTP_NOEXCEPT;
 
         /**
          * get the logger
          * @return the logger
          */
-        [[nodiscard]] const shared_logger &logger() MANAPIHTTP_NOEXPECT;
+        [[nodiscard]] const shared_logger &logger() MANAPIHTTP_NOEXCEPT;
 
         /**
          * get the memory fabric
          * @return the memory fabric
          */
-        [[nodiscard]] object_pool &memory_fabric () MANAPIHTTP_NOEXPECT;
+        [[nodiscard]] object_pool &memory_fabric () MANAPIHTTP_NOEXCEPT;
 
         //manapi::future<void> start ();
 
@@ -173,7 +173,7 @@ namespace manapi::async {
         /**
          * join all threads
          */
-        void join () MANAPIHTTP_NOEXPECT;
+        void join () MANAPIHTTP_NOEXCEPT;
 
         /**
          * stop working asynchronously
@@ -240,19 +240,19 @@ namespace manapi::async {
          * set the thread pool size for filesystem operations
          * @param cnt
          */
-        static void threadpoolfs (std::size_t cnt = 4) MANAPIHTTP_NOEXPECT;
+        static void threadpoolfs (std::size_t cnt = 4) MANAPIHTTP_NOEXCEPT;
 
         /**
          * create a blocked signals context
          * @return the blocked signals context
          */
-        static std::unique_ptr<manapi::sigset_t> blockedsignals () MANAPIHTTP_NOEXPECT;
+        static std::unique_ptr<manapi::sigset_t> blockedsignals () MANAPIHTTP_NOEXCEPT;
 
         /**
          * get all copies of the context
          * @return the copies
          */
-        const std::vector<shared_cthread> &loops () MANAPIHTTP_NOEXPECT;
+        const std::vector<shared_cthread> &loops () MANAPIHTTP_NOEXCEPT;
 
         /**
          * global context storage
@@ -298,11 +298,11 @@ namespace manapi::async::internal {
     enum async_task_flags {
         ASYNC_TASK_FLAG_EXECUTED = 1
     };
-    void run_prepare_error_ (std::exception_ptr err) MANAPIHTTP_NOEXPECT;
+    void run_prepare_error_ (std::exception_ptr err) MANAPIHTTP_NOEXCEPT;
 
-    void run_prepare_std_exception_ (std::exception const &e) MANAPIHTTP_NOEXPECT;
+    void run_prepare_std_exception_ (std::exception const &e) MANAPIHTTP_NOEXCEPT;
 
-    void run_prepare_manapi_exception_ (manapi::exception &e) MANAPIHTTP_NOEXPECT;
+    void run_prepare_manapi_exception_ (manapi::exception &e) MANAPIHTTP_NOEXCEPT;
 
     /**
      * FOR INTERNAL USE ONLY
@@ -312,7 +312,7 @@ namespace manapi::async::internal {
      */
     template<typename T = void>
     requires(std::is_same_v<T, void>)
-    void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> task_data, run_cb onfinish) MANAPIHTTP_NOEXPECT {
+    void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> task_data, run_cb onfinish) MANAPIHTTP_NOEXCEPT {
         if (onfinish) {
             std::move_only_function<void(std::exception_ptr)> lambda;
             std::unique_ptr<decltype(lambda)> st;
@@ -366,7 +366,7 @@ namespace manapi::async::internal {
      */
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> task_data, run_cb_with_value<T> onfinish) MANAPIHTTP_NOEXPECT {
+    void run_prepare_(std::unique_ptr<manapi::async::async_task_t<T>> task_data, run_cb_with_value<T> onfinish) MANAPIHTTP_NOEXCEPT {
         if (onfinish) {
             std::move_only_function<void(std::exception_ptr, T *)> lambda;
             std::unique_ptr<decltype(lambda)> st;

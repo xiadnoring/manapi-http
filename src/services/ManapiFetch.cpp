@@ -620,7 +620,7 @@ manapi::future<manapi::json> manapi::net::fetch::json() {
 
 void manapi::net::fetch::handle_async_body(std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool fin)> handler) {
     if (this->data->data_->async_buffer.empty())
-        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().slice(65536);
+        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().slice(65536).unwrap();
 
     this->data->data_->sync_user_body_cb.reset();
     this->data->data_->async_buffer_size = 0;
@@ -818,7 +818,7 @@ void manapi::net::fetch::async_body(std::move_only_function<manapi::future<ssize
     this->data->body_ = BODY_CALLBACK;
 
     if (this->data->data_->async_buffer.empty())
-        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().slice(65536);
+        this->data->data_->async_buffer = manapi::async::current()->memory_fabric().slice(65536).unwrap();
 
     this->data->data_->async_buffer_size = 0;
 

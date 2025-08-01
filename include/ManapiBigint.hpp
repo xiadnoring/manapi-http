@@ -28,7 +28,7 @@ namespace manapi {
     class bigint {
         struct data_t;
         struct data_t_deleter {
-            void operator()(data_t *n) MANAPIHTTP_NOEXPECT;
+            void operator()(data_t *n) MANAPIHTTP_NOEXCEPT;
         };
     public:
         bigint();

@@ -13,41 +13,41 @@ manapi::net::worker::interface_worker::~interface_worker() {
     }
 }
 
-void manapi::net::worker::interface_worker::wrk_global(wrk_interface_global_t *data) MANAPIHTTP_NOEXPECT {
+void manapi::net::worker::interface_worker::wrk_global(wrk_interface_global_t *data) MANAPIHTTP_NOEXCEPT {
     this->global_ = *data;
 }
 
-manapi::net::worker::wrk_interface_global_t * manapi::net::worker::interface_worker::wrk_global() MANAPIHTTP_NOEXPECT {
+manapi::net::worker::wrk_interface_global_t * manapi::net::worker::interface_worker::wrk_global() MANAPIHTTP_NOEXCEPT {
     return &this->global_;
 }
 
 
-manapi::net::http::site & manapi::net::worker::interface_worker::site() MANAPIHTTP_NOEXPECT {
+manapi::net::http::site & manapi::net::worker::interface_worker::site() MANAPIHTTP_NOEXCEPT {
     return this->site_;
 }
 
-manapi::net::http::config *manapi::net::worker::interface_worker::config() MANAPIHTTP_NOEXPECT {
+manapi::net::http::config *manapi::net::worker::interface_worker::config() MANAPIHTTP_NOEXCEPT {
     return this->config_;
 }
 
-int manapi::net::worker::interface_worker::worker_flags() MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::interface_worker::worker_flags() MANAPIHTTP_NOEXCEPT {
     return this->flags_;
 }
 
 
-void manapi::net::worker::interface_worker::worker_pool_id(std::size_t worker_pool_id) MANAPIHTTP_NOEXPECT {
+void manapi::net::worker::interface_worker::worker_pool_id(std::size_t worker_pool_id) MANAPIHTTP_NOEXCEPT {
     this->worker_pool_id_ = worker_pool_id;
 }
 
-std::size_t manapi::net::worker::interface_worker::worker_pool_id() const MANAPIHTTP_NOEXPECT {
+std::size_t manapi::net::worker::interface_worker::worker_pool_id() const MANAPIHTTP_NOEXCEPT {
     return this->worker_pool_id_;
 }
 
-std::size_t manapi::net::worker::interface_worker::deep_worker_id() const MANAPIHTTP_NOEXPECT {
+std::size_t manapi::net::worker::interface_worker::deep_worker_id() const MANAPIHTTP_NOEXCEPT {
     return this->deep_worker_id_;
 }
 
-const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::interface_worker::worker_data() MANAPIHTTP_NOEXPECT {
+const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::interface_worker::worker_data() MANAPIHTTP_NOEXCEPT {
     return this->worker_data_;
 }
 

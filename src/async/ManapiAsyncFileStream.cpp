@@ -33,7 +33,7 @@ manapi::filesystem::fstream & manapi::filesystem::fstream::operator=(const fstre
     return *this;
 }
 
-manapi::future<manapi::error::status> manapi::filesystem::fstream::open(int flags, int mode) {
+manapi::future<manapi::sys_error::status> manapi::filesystem::fstream::open(int flags, int mode) {
     if ((mode & ev::FS_O_WRONLY) && !(mode & (ev::FS_O_RDONLY|ev::FS_O_RDWR))) {
         this->data->off_ = -1;
     }
@@ -51,20 +51,20 @@ manapi::future<manapi::error::status> manapi::filesystem::fstream::open(int flag
     }
     catch (std::bad_alloc const  &) {
         this->data->file = -1;
-        co_return manapi::error::status_resource_exhausted();
+        co_return manapi::sys_error::status_resource_exhausted();
     }
     catch (manapi::exception const &e) {
         manapi_log_error("%s due to %s", "file open failed", e.what());
         this->data->file = -1;
-        co_return manapi::error::status_internal("file open failed");
+        co_return manapi::sys_error::status_internal("file open failed", ev::ERR_UNKNOWN);
     }
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "file open failed", e.what());
         this->data->file = -1;
-        co_return manapi::error::status_internal("file open failed");
+        co_return manapi::sys_error::status_internal("file open failed", ev::ERR_UNKNOWN);
     }
 
-    co_return manapi::error::status_ok();
+    co_return manapi::sys_error::status_ok();
 }
 
 bool manapi::filesystem::fstream::is_open() const {
@@ -231,7 +231,9 @@ manapi::future<ssize_t> manapi::filesystem::fstream::fwrite(manapi::slice_view s
         if (rhs <= 0)
             co_return -1;
 
-        slice.shift_add(rhs);
+        if (!slice.shift_add(rhs).ok())
+            co_return -1;
+
         res += rhs;
     }
     co_return res;

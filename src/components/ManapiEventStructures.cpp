@@ -5,7 +5,7 @@
 #include "ManapiAsync.hpp"
 #include "../include/ManapiDebug.hpp"
 
-#define MANAPI_EV_NOEXPECT MANAPIHTTP_NOEXPECT
+#define MANAPI_EV_NOEXPECT MANAPIHTTP_NOEXCEPT
 #define MANAPI_EV_CAST_STREAM(x) reinterpret_cast<uv_stream_t *> (x)
 #define MANAPI_EV_CAST_HANDLE(x) reinterpret_cast <uv_handle_t *> (x)
 #define MANAPI_EV_DEFAULT(name_class, name_struct) \
@@ -880,11 +880,11 @@ int manapi::ev::work::bind(loop_ref loop) MANAPI_EV_NOEXPECT {
     return this->bind(loop, callback_watcher_work, callback_watcher_after_work);
 }
 
-const char * manapi::ev::strerror(int errnum) MANAPIHTTP_NOEXPECT {
+const char * manapi::ev::strerror(int errnum) MANAPIHTTP_NOEXCEPT {
     return uv_strerror(errnum);
 }
 
-const char * manapi::ev::namerror(int errnum) MANAPIHTTP_NOEXPECT {
+const char * manapi::ev::namerror(int errnum) MANAPIHTTP_NOEXCEPT {
     return uv_err_name(errnum);
 }
 
@@ -898,9 +898,22 @@ manapi::sys_error::status::status(manapi::err_num code, std::string_view msg, in
     this->syserr_ = syserr;
 }
 
-manapi::sys_error::status::status(status &&n) MANAPIHTTP_NOEXPECT = default;
+manapi::sys_error::status::status(status &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::sys_error::status & manapi::sys_error::status::operator=(status &&n) MANAPIHTTP_NOEXPECT = default;
+manapi::sys_error::status & manapi::sys_error::status::operator=(status &&n) MANAPIHTTP_NOEXCEPT = default;
+
+manapi::sys_error::status::status(error::status &&n) MANAPIHTTP_NOEXCEPT {
+    this->syserr_ = ev::ERR_UNKNOWN;
+    this->code_ = n.code();
+    this->msg_ = n.msg();
+}
+
+manapi::sys_error::status & manapi::sys_error::status::operator=(error::status &&n) MANAPIHTTP_NOEXCEPT {
+    this->syserr_ = ev::ERR_UNKNOWN;
+    this->code_ = n.code();
+    this->msg_ = n.msg();
+    return *this;
+}
 
 void manapi::sys_error::status::log() const {
     if (this->syserr_)

@@ -41,23 +41,20 @@ namespace manapi::sockets {
 
 namespace manapi::memory {
     namespace internal {
-        void *alloc (std::size_t size);
-        void *realloc (void *n, std::size_t size);
-    }
-    template<typename T>
-    T *alloc (std::size_t size) {
-        auto p = static_cast<T *> (internal::alloc(size));
-        if (!p) { throw std::bad_alloc(); }
-        return p;
+        void *alloc (std::size_t size) MANAPIHTTP_NOEXCEPT;
+        void *realloc (void *n, std::size_t size) MANAPIHTTP_NOEXCEPT;
     }
 
-    void free (void *p);
+    template<typename T>
+    T *alloc (std::size_t size) MANAPIHTTP_NOEXCEPT {
+        return (T*)internal::alloc(size);
+    }
+
+    void free (void *p) MANAPIHTTP_NOEXCEPT;
 
     template<typename T>
-    T *realloc (T *n, std::size_t size) {
-        auto p = static_cast<T *> (internal::realloc(n, size));
-        if (!p) { throw std::bad_alloc(); }
-        return p;
+    T *realloc (T *n, std::size_t size) MANAPIHTTP_NOEXCEPT {
+        return (T*)internal::realloc(n, size);
     }
 }
 

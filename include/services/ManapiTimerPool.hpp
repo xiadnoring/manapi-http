@@ -20,7 +20,7 @@ namespace manapi {
     public:
         typedef std::pair <std::chrono::steady_clock::time_point, std::shared_ptr<timer::timer_data_t>> sorted_storage_key;
         struct sorted_tasks_compare_t {
-            bool operator()(const sorted_storage_key &a, const sorted_storage_key &b) const MANAPIHTTP_NOEXPECT;
+            bool operator()(const sorted_storage_key &a, const sorted_storage_key &b) const MANAPIHTTP_NOEXCEPT;
         };
 
         typedef std::set <sorted_storage_key, sorted_tasks_compare_t> sorted_storage;
@@ -54,7 +54,7 @@ namespace manapi {
          * @param task synchronous callback
          * @return timer object on success, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status_or<manapi::timer> append_timer_sync (size_t ms, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXPECT;
+        manapi::error::status_or<manapi::timer> append_timer_sync (size_t ms, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Create a timeout event using asynchronous callback
@@ -62,7 +62,7 @@ namespace manapi {
          * @param task asynchronous callback
          * @return timer object on success, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status_or<manapi::timer> append_timer_async (size_t ms, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXPECT;
+        manapi::error::status_or<manapi::timer> append_timer_async (size_t ms, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT;
 
         /**
          * FOR INTERNAL USE ONLY
@@ -70,7 +70,7 @@ namespace manapi {
          * Remove a timer object from the pool using timer data
          * @param data timer data
          */
-        void remove_timer (std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXPECT;
+        void remove_timer (std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Create an interval event using an asynchronous callback
@@ -78,7 +78,7 @@ namespace manapi {
          * @param task asychronous callback
          * @return timer object on success, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status_or<manapi::timer> append_interval_async (size_t ms, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXPECT;
+        manapi::error::status_or<manapi::timer> append_interval_async (size_t ms, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Create an interval event using a synchronous callback
@@ -86,7 +86,7 @@ namespace manapi {
          * @param task sychronous callback
          * @return timer object on succes, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status_or<manapi::timer> append_interval_sync (size_t ms, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXPECT;
+        manapi::error::status_or<manapi::timer> append_interval_sync (size_t ms, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT;
 
         /**
          * FOR INTERNAL USE ONLY
@@ -94,7 +94,7 @@ namespace manapi {
          * @param data
          * @return
          */
-        manapi::error::status update_interval_state (std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXPECT;
+        manapi::error::status update_interval_state (std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the timer again
@@ -119,7 +119,7 @@ namespace manapi {
         //
         // std::optional<manapi::timer> _cb_event (void *data);
 
-        static void erase_task_ (const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task) MANAPIHTTP_NOEXPECT;
+        static void erase_task_ (const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task) MANAPIHTTP_NOEXCEPT;
 
         static void start_ (const std::shared_ptr<data_t> &data);
 
@@ -127,11 +127,11 @@ namespace manapi {
 
         static int64_t calculate_repeat_ (const std::shared_ptr<data_t> &data_);
 
-        static bool reinit_timer_ (const std::shared_ptr<data_t> &data_) MANAPIHTTP_NOEXPECT;
+        static bool reinit_timer_ (const std::shared_ptr<data_t> &data_) MANAPIHTTP_NOEXCEPT;
 
-        static manapi::error::status update_interval_state_ (const std::shared_ptr<data_t> &data_, std::shared_ptr<manapi::timer::timer_data_t> data) MANAPIHTTP_NOEXPECT;
+        static manapi::error::status update_interval_state_ (const std::shared_ptr<data_t> &data_, std::shared_ptr<manapi::timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<manapi::timer> append_ (std::chrono::milliseconds duration, manapi::timer::async_cb_t async_task, manapi::timer::sync_cb_t task,  bool interval) MANAPIHTTP_NOEXPECT;
+        manapi::error::status_or<manapi::timer> append_ (std::chrono::milliseconds duration, manapi::timer::async_cb_t async_task, manapi::timer::sync_cb_t task,  bool interval) MANAPIHTTP_NOEXCEPT;
 
         std::shared_ptr<data_t> data_;
     private:

@@ -30,12 +30,12 @@ namespace manapi::net::worker {
     };
 
     struct http_v3_callbacks_t {
-        ssize_t (*http_v3_write) (const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXPECT;
-        int (*http_v3_on_read_stream) (const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT;
-        int (*http_v3_want_write)(const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT;
-        int (*http_v3_rst_stream) (const worker::shared_conn &conn, int code) MANAPIHTTP_NOEXPECT;
-        bool (*http_v3_is_writable) (const worker::shared_conn &conn) MANAPIHTTP_NOEXPECT;
-        manapi::net::worker::connection::ipdata_t *(*http_v3_ip_data) (manapi::net::worker::connection *conn) MANAPIHTTP_NOEXPECT;
+        ssize_t (*http_v3_write) (const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT;
+        int (*http_v3_on_read_stream) (const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT;
+        int (*http_v3_want_write)(const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT;
+        int (*http_v3_rst_stream) (const worker::shared_conn &conn, int code) MANAPIHTTP_NOEXCEPT;
+        bool (*http_v3_is_writable) (const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT;
+        manapi::net::worker::connection::ipdata_t *(*http_v3_ip_data) (manapi::net::worker::connection *conn) MANAPIHTTP_NOEXCEPT;
     };
 
     /**
@@ -45,7 +45,7 @@ namespace manapi::net::worker {
      * @param s
      * @return ERR_OK on success, otherwise it returns ERR_ABORTED
      */
-    int http_v3_flush_recv (http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v3_stream_base_t *s) MANAPIHTTP_NOEXPECT;
+    int http_v3_flush_recv (http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v3_stream_base_t *s) MANAPIHTTP_NOEXCEPT;
 
     /**
      * HTTP/3 for workers, which supports a multistream
@@ -58,46 +58,46 @@ namespace manapi::net::worker {
 
         ~http_v3 () override;
 
-        const std::shared_ptr<multithread_storage::worker_t> &worker_data() MANAPIHTTP_NOEXPECT override;
+        const std::shared_ptr<multithread_storage::worker_t> &worker_data() MANAPIHTTP_NOEXCEPT override;
 
-        wrk_interface_global_t *wrk_global() MANAPIHTTP_NOEXPECT override;
+        wrk_interface_global_t *wrk_global() MANAPIHTTP_NOEXCEPT override;
 
-        void wrk_global(wrk_interface_global_t *data) MANAPIHTTP_NOEXPECT override;
+        void wrk_global(wrk_interface_global_t *data) MANAPIHTTP_NOEXCEPT override;
 
-        http::config *config() MANAPIHTTP_NOEXPECT override;
+        http::config *config() MANAPIHTTP_NOEXCEPT override;
 
-        http::site &site() MANAPIHTTP_NOEXPECT override;
+        http::site &site() MANAPIHTTP_NOEXCEPT override;
 
-        void waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXPECT override;
+        void waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT override;
 
-        void feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXPECT override;
+        void feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT override;
 
-        void close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXPECT override;
+        void close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT override;
 
-        int event_flags(const shared_conn & conn) MANAPIHTTP_NOEXPECT override;
+        int event_flags(const shared_conn & conn) MANAPIHTTP_NOEXCEPT override;
 
-        int event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXPECT override;
+        int event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT override;
 
-        std::unique_ptr<worker_watcher_cb> event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXPECT override;
+        std::unique_ptr<worker_watcher_cb> event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT override;
 
         manapi::future<manapi::error::status> init(std::size_t deep) override;
 
-        connection::ipdata_t *ipdata(worker::connection *conn) MANAPIHTTP_NOEXPECT override;
+        connection::ipdata_t *ipdata(worker::connection *conn) MANAPIHTTP_NOEXCEPT override;
 
-        bool is_writable(const shared_conn &conn) MANAPIHTTP_NOEXPECT override;
+        bool is_writable(const shared_conn &conn) MANAPIHTTP_NOEXCEPT override;
 
         void stop(std::function<void()> cb) override;
 
-        ssize_t sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXPECT override;
+        ssize_t sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT override;
 
         /* size must always be -1 */
-        ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXPECT override;
+        ssize_t sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXCEPT override;
 
-        void update_limit_rate_stream (const shared_conn &conn) MANAPIHTTP_NOEXPECT;
+        void update_limit_rate_stream (const shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD std::size_t recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXPECT override;
+        MANAPIHTTP_NODISCARD std::size_t recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT override;
 
-        bytebuffer recv_first_buffer(const shared_conn &conn) MANAPIHTTP_NOEXPECT override;
+        bytebuffer recv_first_buffer(const shared_conn &conn) MANAPIHTTP_NOEXCEPT override;
     private:
         http_v3_callbacks_t *callbacks;
         worker::base *w;

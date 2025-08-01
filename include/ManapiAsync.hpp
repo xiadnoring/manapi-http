@@ -23,16 +23,16 @@ namespace manapi {
 
             static thread_local std::shared_ptr<cthread> current_cthread_ = nullptr;
 
-            const std::shared_ptr<threadpool<task>> &ethreadpool_(const std::shared_ptr<cthread> &ctx) MANAPIHTTP_NOEXPECT;
+            const std::shared_ptr<threadpool<task>> &ethreadpool_(const std::shared_ptr<cthread> &ctx) MANAPIHTTP_NOEXCEPT;
 
-            const std::shared_ptr<cthread> &current_ () MANAPIHTTP_NOEXPECT;
+            const std::shared_ptr<cthread> &current_ () MANAPIHTTP_NOEXCEPT;
 
-            std::size_t current_stack_cnt_crt () MANAPIHTTP_NOEXPECT;
+            std::size_t current_stack_cnt_crt () MANAPIHTTP_NOEXCEPT;
 
-            void current_stack_cnt_set (std::size_t cnt) MANAPIHTTP_NOEXPECT;
+            void current_stack_cnt_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
         }
 
-        const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXPECT;
+        const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXCEPT;
     }
 
     class promise_base {
@@ -162,11 +162,11 @@ namespace manapi {
             }
         }
 
-        std::coroutine_handle<promise> release () MANAPIHTTP_NOEXPECT {
+        std::coroutine_handle<promise> release () MANAPIHTTP_NOEXCEPT {
             return std::exchange(this->handle_, nullptr);
         }
 
-        void operator()() MANAPIHTTP_NOEXPECT {
+        void operator()() MANAPIHTTP_NOEXCEPT {
             this->resume_promise(this->handle_);
         }
 
@@ -231,7 +231,7 @@ namespace manapi {
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        static void resume_promise (const std::coroutine_handle<T1> &handle) MANAPIHTTP_NOEXPECT {
+        static void resume_promise (const std::coroutine_handle<T1> &handle) MANAPIHTTP_NOEXCEPT {
             handle.resume();
         }
 
@@ -249,7 +249,7 @@ namespace manapi {
 
         template <typename T1 = T>
         requires(std::is_same_v<T, void>)
-        void onfinish (std::unique_ptr<std::move_only_function<void(std::exception_ptr err)>> cb) MANAPIHTTP_NOEXPECT {
+        void onfinish (std::unique_ptr<std::move_only_function<void(std::exception_ptr err)>> cb) MANAPIHTTP_NOEXCEPT {
             if (this->handle_) {
                 auto &promise = this->handle_.promise();
                 promise.finish_cb = std::move(cb);
@@ -258,7 +258,7 @@ namespace manapi {
 
         template <typename T1 = T>
         requires(!std::is_same_v<T, void>)
-        void onfinish (std::unique_ptr<std::move_only_function<void(std::exception_ptr err, T *v)>> cb) MANAPIHTTP_NOEXPECT {
+        void onfinish (std::unique_ptr<std::move_only_function<void(std::exception_ptr err, T *v)>> cb) MANAPIHTTP_NOEXCEPT {
             if (this->handle_) {
                 auto &promise = this->handle_.promise();
                 promise.finish_cb = std::move(cb);

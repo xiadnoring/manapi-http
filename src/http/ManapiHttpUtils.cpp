@@ -53,7 +53,7 @@ void manapi::net::http::request_data_clear(request_data_t &data) {
     data.divided = -1;
 }
 
-manapi::error::status_or<std::vector <manapi::net::http::header_value_t>> manapi::net::http::parse_header_value (std::string_view header_value) MANAPIHTTP_NOEXPECT {
+manapi::error::status_or<std::vector <manapi::net::http::header_value_t>> manapi::net::http::parse_header_value (std::string_view header_value) MANAPIHTTP_NOEXCEPT {
     try {
         enum header_value_parse_states {
             HTTP_HV_FIELD_START = 0,

@@ -320,7 +320,7 @@ void manapi::net::http::response::finish(std::unique_ptr<std::move_only_function
     this->finish_cb = std::move(cb);
 }
 
-void manapi::net::http::response::finish() MANAPIHTTP_NOEXPECT {
+void manapi::net::http::response::finish() MANAPIHTTP_NOEXCEPT {
     if (!this->finish_cb)
         return;
 

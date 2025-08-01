@@ -212,7 +212,7 @@ namespace manapi {
              */
             virtual void unwrap () const;
 
-            MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXPECT;
+            MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT;
         protected:
             std::string_view msg_;
             err_num code_;
@@ -230,9 +230,9 @@ namespace manapi {
                 this->err_ = std::move(st);
             }
 
-            status_or(status_or &&n) MANAPIHTTP_NOEXPECT = default;
+            status_or(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 
-            status_or&operator=(status_or &&n) MANAPIHTTP_NOEXPECT = default;
+            status_or&operator=(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 
             /**
              * get the error code from the status
@@ -278,7 +278,7 @@ namespace manapi {
              *
              * @return true if there's no error, otherwise it returns false
              */
-            [[nodiscard]] bool ok () const MANAPIHTTP_NOEXPECT {
+            [[nodiscard]] bool ok () const MANAPIHTTP_NOEXCEPT {
                 return this->err_.code() == manapi::ERR_OK;
             }
 
@@ -287,7 +287,7 @@ namespace manapi {
              *
              * @return the error status
              */
-            E err () MANAPIHTTP_NOEXPECT {
+            E err () MANAPIHTTP_NOEXCEPT {
                 return std::move(this->err_);
             }
         protected:

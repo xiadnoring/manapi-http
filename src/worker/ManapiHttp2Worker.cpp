@@ -3,7 +3,7 @@
 #include "ManapiHttpResponse.hpp"
 #include "../include/ManapiUtils.hpp"
 
-int manapi::net::worker::http_v2_flush_recv(http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::http_v2_flush_recv(http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) MANAPIHTTP_NOEXCEPT {
     return prepared::flush_read2_(config, conn, s);
 }
 
@@ -11,35 +11,35 @@ manapi::net::worker::http_v2::http_v2(worker::base *w, http_v2_callbacks_t *call
 
 manapi::net::worker::http_v2::~http_v2() = default;
 
-const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::http_v2::worker_data() MANAPIHTTP_NOEXPECT {
+const std::shared_ptr<manapi::multithread_storage::worker_t> & manapi::net::worker::http_v2::worker_data() MANAPIHTTP_NOEXCEPT {
     return this->w->worker_data();
 }
 
-manapi::net::worker::wrk_interface_global_t * manapi::net::worker::http_v2::wrk_global() MANAPIHTTP_NOEXPECT {
+manapi::net::worker::wrk_interface_global_t * manapi::net::worker::http_v2::wrk_global() MANAPIHTTP_NOEXCEPT {
     return this->w->wrk_global();
 }
 
-void manapi::net::worker::http_v2::wrk_global(wrk_interface_global_t *data) MANAPIHTTP_NOEXPECT {
+void manapi::net::worker::http_v2::wrk_global(wrk_interface_global_t *data) MANAPIHTTP_NOEXCEPT {
     this->w->wrk_global(data);
 }
 
-manapi::net::http::config * manapi::net::worker::http_v2::config() MANAPIHTTP_NOEXPECT {
+manapi::net::http::config * manapi::net::worker::http_v2::config() MANAPIHTTP_NOEXCEPT {
     return this->w->config();
 }
 
-manapi::net::http::site & manapi::net::worker::http_v2::site() MANAPIHTTP_NOEXPECT {
+manapi::net::http::site & manapi::net::worker::http_v2::site() MANAPIHTTP_NOEXCEPT {
     return this->w->site();
 }
 
-void manapi::net::worker::http_v2::waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXPECT {
+void manapi::net::worker::http_v2::waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT {
     prepared::waiting(conn, state);
 }
 
-void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXPECT {
+void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
     prepared::feed_event(this, conn, flags, buff, size, p);
 }
 
-void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXPECT {
+void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT {
     auto data = conn->as<http_v2_stream_base_t>();
     if (data->flags & CONN_REMOVED) {
         return;
@@ -66,11 +66,11 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags)
     this->callbacks->http_v2_rst_stream(conn, HTTP2_ERROR_REFUSED_STREAM);
 }
 
-int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) MANAPIHTTP_NOEXCEPT {
     return prepared::event_flags(conn);
 }
 
-int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT {
     auto const data = conn->as<http_v2_stream_base_t>();
 
     MANAPIHTTP_WORKER_EVENT_LOOP(data) {
@@ -102,7 +102,7 @@ int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flag
     return prev;
 }
 
-std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::http_v2::event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXPECT {
+std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::http_v2::event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT {
     auto const conn_data = conn->as<http_v2_stream_base_t>();
     return std::exchange(conn_data->ev_callback, std::move(callback));
 }
@@ -111,11 +111,11 @@ manapi::future<manapi::error::status> manapi::net::worker::http_v2::init(std::si
     co_return error::status_ok();
 }
 
-manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v2::ipdata(worker::connection *conn) MANAPIHTTP_NOEXPECT {
+manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v2::ipdata(worker::connection *conn) MANAPIHTTP_NOEXCEPT {
     return this->callbacks->http_v2_ip_data(conn);
 }
 
-bool manapi::net::worker::http_v2::is_writable(const shared_conn &conn) MANAPIHTTP_NOEXPECT {
+bool manapi::net::worker::http_v2::is_writable(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     auto const s = conn->as<http_v2_stream_base_t>();
     return this->callbacks->http_v2_is_writable(conn) && prepared::is_writable(this->config(), conn, s);
 }
@@ -124,22 +124,22 @@ void manapi::net::worker::http_v2::stop(std::function<void()> cb) {
     cb();
 }
 
-ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXPECT {
+ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT {
     return sync_write_ex (conn, buff, nbuff, -1 /* no need */, finish, static_cast<int>(this->w->config()->max_buffer_stack));
 }
 
-ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXPECT {
+ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXCEPT {
     return this->callbacks->http_v2_write(conn, buff, nbuff, finish);
 }
 
-void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &conn) MANAPIHTTP_NOEXPECT {
+void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     return prepared::update_limit_rate_connection(conn, this, this->config(), this->wrk_global());
 }
 
-std::size_t manapi::net::worker::http_v2::recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXPECT {
+std::size_t manapi::net::worker::http_v2::recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT {
     return prepared::recv_count(conn);
 }
 
-manapi::bytebuffer manapi::net::worker::http_v2::recv_first_buffer(const shared_conn &conn) MANAPIHTTP_NOEXPECT {
+manapi::bytebuffer manapi::net::worker::http_v2::recv_first_buffer(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     return prepared::recv_first_buffer(conn);
 }

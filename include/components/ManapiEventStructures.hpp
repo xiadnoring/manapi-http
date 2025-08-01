@@ -10,7 +10,7 @@
 #include "../ManapiDebug.hpp"
 
 #define MANAPI_EV_NODISCARD [[nodiscard]]
-#define MANAPI_EV_NOEXPECT MANAPIHTTP_NOEXPECT
+#define MANAPI_EV_NOEXPECT MANAPIHTTP_NOEXCEPT
 #define MANAPI_EV_CAST_STREAM(x) reinterpret_cast<uv_stream_t *> (x)
 #define MANAPI_EV_CAST_HANDLE(x) reinterpret_cast <uv_handle_t *> (x)
 #define MANAPI_EV_DEFAULT_PRIVATE_VAR(name_class, name_struct)
@@ -972,9 +972,9 @@ namespace manapi::ev {
     using shared_getnameinfo = std::shared_ptr<getnameinfo>;
     using shared_work = std::shared_ptr<work>;
 
-    const char *strerror (int errnum) MANAPIHTTP_NOEXPECT;
+    const char *strerror (int errnum) MANAPIHTTP_NOEXCEPT;
 
-    const char *namerror (int errnum) MANAPIHTTP_NOEXPECT;
+    const char *namerror (int errnum) MANAPIHTTP_NOEXCEPT;
 }
 
 #undef MANAPI_EV_CAST_HANDLE
@@ -1006,9 +1006,13 @@ namespace manapi::sys_error {
          */
         status (manapi::err_num code, std::string_view msg, int syserr);
 
-        status (status &&n) MANAPIHTTP_NOEXPECT;
+        status (status &&n) MANAPIHTTP_NOEXCEPT;
 
-        status &operator=(status &&n) MANAPIHTTP_NOEXPECT;
+        status &operator=(status &&n) MANAPIHTTP_NOEXCEPT;
+
+        status (error::status &&n) MANAPIHTTP_NOEXCEPT;
+
+        status &operator=(error::status &&n) MANAPIHTTP_NOEXCEPT;
 
         /**
          * print log to the logger() if it exists,
@@ -1056,9 +1060,9 @@ namespace manapi::sys_error {
 
         status_or (const T &n) : error::status_or<T, E>(n) {}
 
-        status_or(status_or &&n) MANAPIHTTP_NOEXPECT = default;
+        status_or(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 
-        status_or&operator=(status_or &&n) MANAPIHTTP_NOEXPECT = default;
+        status_or&operator=(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 
         /**
          * Get the system code error

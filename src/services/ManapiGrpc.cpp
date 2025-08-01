@@ -335,7 +335,7 @@ manapi::net::wgrpc::net_endpoint::net_endpoint(manapi::ev::shared_tcp conn,
             });
 
         manapi::async::current()->eventloop()->alloc_callback(this->conn,
-            [this] (const std::shared_ptr<manapi::ev::tcp> &, size_t suggested_size, manapi::ev::buff_t *buf)
+            [this] (const std::shared_ptr<manapi::ev::tcp> &, size_t suggested_size, manapi::ev::buff_t *buf) MANAPIHTTP_NOEXCEPT
             -> void {
                 ssize_t size = suggested_size;
                 if (!(this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ)) {
@@ -344,9 +344,12 @@ manapi::net::wgrpc::net_endpoint::net_endpoint(manapi::ev::shared_tcp conn,
                         return;
                 }
 
-                auto buffer = manapi::async::current()->memory_fabric().buffer(size);
-                buf->len = buffer.realsize();
-                buf->base = static_cast<char *>(buffer.release());
+                auto bufres = manapi::async::current()->memory_fabric().buffer(size);
+                if (bufres.ok()) {
+                    auto buffer = bufres.unwrap();
+                    buf->len = buffer.realsize();
+                    buf->base = static_cast<char *>(buffer.release());
+                }
         });
     }
 

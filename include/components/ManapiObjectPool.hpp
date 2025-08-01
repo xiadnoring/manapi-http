@@ -2,6 +2,7 @@
 
 #include <mutex>
 
+#include "ManapiErrors.hpp"
 #include "ManapiSlice.hpp"
 #include "ManapiBuffer.hpp"
 #include "ManapiChain.hpp"
@@ -78,11 +79,11 @@ namespace manapi {
 
         //manapi::slice slice (std::size_t min, std::size_t max);
 
-        manapi::slice slice (std::size_t suggested);
+        manapi::error::status_or<manapi::slice> slice (std::size_t suggested);
 
-        manapi::bytebuffer buffer (std::size_t min, std::size_t max);
+        manapi::error::status_or<manapi::bytebuffer> buffer (std::size_t min, std::size_t max);
 
-        manapi::bytebuffer buffer (std::size_t suggested);
+        manapi::error::status_or<manapi::bytebuffer> buffer (std::size_t suggested);
 
         manapi::bytebuffer buffer (void *pointer, std::size_t suggested);
 

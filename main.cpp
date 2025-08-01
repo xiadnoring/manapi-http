@@ -276,7 +276,7 @@ int main () {
                 }
                 auto bb = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - c);
                 std::string err = std::format("{}\n", ((double)result / 1024 / 1024) / ((double)bb.count()/1000));
-                manapi::slice b (err.size());
+                auto b = manapi::slice::create(err.size()).unwrap();
                 b.copy_from(err.data(), 0, err.size());
                 co_await cb(b, true);
             });
@@ -292,14 +292,30 @@ int main () {
             -> manapi::future<> {
             if (req.contains_header(std::string{manapi::net::http::HEADER.CONTENT_LENGTH}))
                 resp.header(manapi::net::http::HEADER.CONTENT_LENGTH, req.header(std::string{manapi::net::http::HEADER.CONTENT_LENGTH}));
-            co_return resp.callback_stream([&resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
 
-                co_await req.callback_async([cb = std::move(cb)] (manapi::slice_view buffs, bool fin) mutable
+            std::size_t sss = 0;
+            co_return resp.callback_stream([&sss, &resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
+                manapi::filesystem::fstream fs ("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+                auto rhs = co_await fs.open(manapi::ev::FS_O_RDONLY);
+                rhs.unwrap();
+                co_await req.callback_async([&sss, cb = std::move(cb), fs] (manapi::slice_view buffs, bool fin) mutable
                     -> manapi::future<ssize_t> {
+                    auto buffs2 = manapi::async::current()->memory_fabric().slice(buffs.size()).unwrap();
+                    buffs2.resize(buffs.size());
+                    assert(buffs.size() == buffs2.size());
+                    auto res = co_await fs.fread(buffs2);
+                    assert(res == buffs.size());
+                    auto cmp = buffs.cmp(buffs2);
+                    assert(!cmp);
+
                     //sum += size;
                     //std::cout << sum << " " << size << " " << fin << "\n";
-                    co_return co_await cb (buffs, fin);
+                    auto result = co_await cb (buffs, fin);
+                    sss+=result;
+                    fs.seekg(fs.tellg() - buffs2.size() + result);
+                    co_return result;
                 });
+                std::cout << sss << "\n";
             });
         });
 
@@ -326,7 +342,7 @@ int main () {
                 }
                 auto bb = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - c);
                 std::string err = std::format("{}\n", ((double)result / 1024 / 1024) / ((double)bb.count()/1000));
-                manapi::slice b (err.size());
+                auto b =manapi::slice::create(err.size()).unwrap();
                 b.copy_from(err.data(), 0, err.size());
                 co_await cb(b, true);
             });

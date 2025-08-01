@@ -37,9 +37,9 @@ namespace manapi::debug {
 
     extern int log_trace_enabled;
 
-    void log_log(log_level type, const char* file, int line, const char* fmt, ...) MANAPIHTTP_NOEXPECT;
+    void log_log(log_level type, const char* file, int line, const char* fmt, ...) MANAPIHTTP_NOEXCEPT;
 
-    void log_log(log_level type, const char* file, int line, int level, const char* fmt, ...) MANAPIHTTP_NOEXPECT;
+    void log_log(log_level type, const char* file, int line, int level, const char* fmt, ...) MANAPIHTTP_NOEXCEPT;
 
     // Convenience macros
 #define manapi_log_trace(...) manapi::debug::log_log(manapi::debug::LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)

@@ -221,7 +221,7 @@ void log_log_ (manapi::debug::log_level type, int level, const char *file, int l
     fflush(stderr);
 }
 
-void manapi::debug::log_log(log_level type, const char *file, int line, const char *fmt, ...) MANAPIHTTP_NOEXPECT {
+void manapi::debug::log_log(log_level type, const char *file, int line, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
     va_list args;
     va_start(args, fmt);
     log_log_(type, LOG_TRACE_HIGH, file, line, fmt, args);

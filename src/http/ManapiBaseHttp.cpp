@@ -571,8 +571,9 @@ void manapi::net::http::internal::send_response_sync_cb(std::unique_ptr<response
                         auto const cdata = res->connection_data();
 
                         if (http_v1_1_is_chunked_data(res.get())) {
-                            auto buffer = manapi::async::current()->memory_fabric().buffer (
+                            auto bufres = manapi::async::current()->memory_fabric().buffer (
                                 std::max(res->config()->buffer_size, 64L));
+                            auto buffer = bufres.unwrap();
                             while (!finish) {
                                 auto rhs = cb_sync->operator()(buffer.data(), buffer.size(), finish);
                                 slice_ref buffs;
@@ -582,7 +583,7 @@ void manapi::net::http::internal::send_response_sync_cb(std::unique_ptr<response
                             }
                         }
                         else {
-                            auto slices = cdata->worker->bufferpool().slice(4096 * 16);
+                            auto slices = cdata->worker->bufferpool().slice(4096 * 16).unwrap();
                             while (!finish) {
                                 ssize_t total = 0;
                                 for (auto it = slices.begin(); it != slices.end() && !finish; ) {
@@ -691,7 +692,7 @@ void manapi::net::http::internal::send_response_async_cb(std::unique_ptr<respons
                 auto cb_async = std::make_unique<http::response::resp_callback_async>(std::move(res->callback_async()));
                 manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
                     -> manapi::future<> {
-                        auto buffer = manapi::async::current()->memory_fabric().slice(65536);
+                        auto buffer = manapi::async::current()->memory_fabric().slice(65536).unwrap();
 
                         bool finish = false;
 
@@ -973,8 +974,8 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
     ssize_t const block_size = 4096 * 16;
     auto const cdata = res->connection_data();
 
-    auto write_block = cdata->worker->bufferpool().slice(block_size);
-    auto read_block = cdata->worker->bufferpool().slice(block_size);
+    auto write_block = cdata->worker->bufferpool().slice(block_size).unwrap();
+    auto read_block = cdata->worker->bufferpool().slice(block_size).unwrap();
 
     ssize_t current = f.tellg();
 

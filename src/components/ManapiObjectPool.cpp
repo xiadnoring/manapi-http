@@ -134,20 +134,21 @@ manapi::object_pool::object_pool() {
 
 manapi::object_pool::~object_pool() = default;
 
-void object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr, std::size_t *ptr_size, std::size_t suggested) {
+int object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr, std::size_t *ptr_size, std::size_t suggested) {
     auto const lvl = bufflen2level(static_cast<int>(suggested));
     auto size = level2bufflen(lvl);
     data->cnt ++;
 
     if (size < suggested) {
         size = static_cast<int>(suggested);
-        auto m = manapi::memory::alloc<char>(size);
-        assert(m && "buffer is null");
+        auto m = new (std::nothrow) char[size];
+        if (!m)
+            return manapi::ERR_RESOURCE_EXHAUSTED;
         *ptr = m;
         *ptr_size = size;
         data->used += size;
         assert((*ptr_size >= suggested));
-        return;
+        return manapi::ERR_OK;
     }
 
     auto &bufferpool = data->buffers[lvl];
@@ -159,11 +160,13 @@ void object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr,
         *ptr_size = it.second;
         data->used += it.second;
         assert((*ptr_size >= suggested));
-        return;
+        return manapi::ERR_OK;
     }
 
-    auto m = manapi::memory::alloc<char>(size);
-    assert(m && "buffer is null");
+    auto m = new (std::nothrow) char[size];
+    if (!m)
+        return manapi::ERR_RESOURCE_EXHAUSTED;
+
     //pointers.insert(m);
 
     *ptr = m;
@@ -172,9 +175,10 @@ void object_pool_malloc (manapi::internal::object_pool_data_t *data, void **ptr,
     data->locked += size;
 
     assert((*ptr_size >= suggested));
+    return manapi::ERR_OK;
 }
 
-manapi::slice manapi::object_pool::slice(std::size_t suggested) {
+manapi::error::status_or<manapi::slice> manapi::object_pool::slice(std::size_t suggested) {
     std::size_t cnt = suggested / area_size;
     std::size_t const left = suggested - cnt * area_size;
 
@@ -184,19 +188,27 @@ manapi::slice manapi::object_pool::slice(std::size_t suggested) {
 
     for (std::size_t i =0 ; i < cnt; i++) {
         if (cur) {
-            cur->next = new slice_part_t ({}, nullptr);
+            cur->next = new (std::nothrow) slice_part_t ({}, nullptr);
+            if (!cur->next)
+                return error::status_resource_exhausted();
             cur = cur->next;
         }
         else {
-            buffs.reset(new slice_part_t ({}, nullptr));
+            buffs.reset(new (std::nothrow) slice_part_t ({}, nullptr));
+            if (!buffs)
+                return error::status_resource_exhausted();
+
             buffs->buff.len = 0;
             cur = buffs.get();
         }
 
-        void *buffptr;
+        void *buffptr{nullptr};
         std::size_t buffsize;
 
-        object_pool_malloc(this->data.get(), &buffptr, &buffsize, area_size);
+        if (object_pool_malloc(this->data.get(), &buffptr, &buffsize, area_size)) {
+            delete []static_cast<char*>(buffptr);
+            return error::status_resource_exhausted();
+        }
 
         assert((buffsize >= area_size));
         cur->buff.base = static_cast<char *>(buffptr);
@@ -216,10 +228,13 @@ manapi::slice manapi::object_pool::slice(std::size_t suggested) {
             cur = buffs.get();
         }
 
-        void *buffptr;
+        void *buffptr{nullptr};
         std::size_t buffsize;
 
-        object_pool_malloc(this->data.get(), &buffptr, &buffsize, left);
+        if (object_pool_malloc(this->data.get(), &buffptr, &buffsize, left)) {
+            delete []static_cast<char*>(buffptr);
+            return error::status_resource_exhausted();
+        }
 
         cur->buff.base = static_cast<char *>(buffptr);
         cur->buff.len = buffsize;
@@ -234,14 +249,17 @@ manapi::slice manapi::object_pool::slice(std::size_t suggested) {
     return std::move(b);
 }
 
-manapi::bytebuffer manapi::object_pool::buffer(std::size_t min, std::size_t max) {
+manapi::error::status_or<manapi::bytebuffer> manapi::object_pool::buffer(std::size_t min, std::size_t max) {
     return this->buffer(max);
 }
 
-manapi::bytebuffer manapi::object_pool::buffer(std::size_t suggested) {
-    void *buffer;
+manapi::error::status_or<manapi::bytebuffer> manapi::object_pool::buffer(std::size_t suggested) {
+    void *buffer{nullptr};
     std::size_t size;
-    object_pool_malloc (this->data.get(), &buffer, &size, suggested);
+    if (object_pool_malloc (this->data.get(), &buffer, &size, suggested)) {
+        delete []static_cast<char*>(buffer);
+        return error::status_resource_exhausted();
+    }
     return this->buffer(buffer, size);
 }
 
@@ -253,7 +271,10 @@ void * manapi::object_pool::alloc(std::size_t size) noexcept(true) {
     void *buffer;
     std::size_t rhs;
     //assert(size <= 65536);
-    object_pool_malloc (this->data.get(), &buffer, &rhs, size + 1);
+    if (object_pool_malloc (this->data.get(), &buffer, &rhs, size + 1)) {
+        delete []static_cast<char*>(buffer);
+        return nullptr;
+    }
     auto const lvl = bufflen2level(rhs);
     *static_cast<char*>(buffer) = lvl;
     return static_cast<char*>(buffer) + 1;
@@ -271,14 +292,18 @@ void * manapi::object_pool::realloc(void *ptr, std::size_t size) noexcept(true) 
         if (size < len)
             return ptr;
         auto n = this->alloc(size);
+        if (!n)
+            return nullptr;
         memcpy (n, ptr, len - 1);
         this->free(p, len);
         return n;
     }
     else {
         auto n = this->alloc(size);
+        if (!n)
+            return nullptr;
         memcpy (n, ptr, size);
-        ::free(p);
+        delete []static_cast<char*>(p);
         return n;
     }
 }
@@ -290,7 +315,7 @@ void manapi::object_pool::free(void *ptr) noexcept(true) {
     auto const p = (static_cast<char *> (ptr) - 1);
     auto const lvl = static_cast<int>(static_cast<uint8_t>(*p));
     if (!lvl || lvl == BUFF_LEVEL_MAX) {
-        ::free(p);
+        delete []static_cast<char*>(p);
         return;
     }
     auto const len = level2bufflen(lvl);

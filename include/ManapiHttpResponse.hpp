@@ -144,7 +144,7 @@ namespace manapi::net::http {
 
         void finish (std::unique_ptr<std::move_only_function<void(std::exception_ptr)>> cb);
 
-        void finish () MANAPIHTTP_NOEXPECT;
+        void finish () MANAPIHTTP_NOEXCEPT;
     private:
         void check_type_ (int type);
 

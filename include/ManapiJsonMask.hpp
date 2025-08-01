@@ -42,9 +42,9 @@ namespace manapi {
 
             status_or (T &&n) : error::status_or<T, E>(std::forward<decltype(n)>(n)) {}
 
-            status_or(status_or &&n) MANAPIHTTP_NOEXPECT = default;
+            status_or(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 
-            status_or&operator=(status_or &&n) MANAPIHTTP_NOEXPECT = default;
+            status_or&operator=(status_or &&n) MANAPIHTTP_NOEXCEPT = default;
 
             std::string path () {
                 return this->err_.path();

@@ -8,7 +8,7 @@
 
 extern manapi::net::worker::http_v2_callbacks_t default_wrk_http2_callbacks;
 
-int default_wrk_http2_cleanup (manapi::net::worker::connection *conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
+int default_wrk_http2_cleanup (manapi::net::worker::connection *conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     auto wrk_data = static_cast<manapi::net::worker::wrk_http2_ctx_t *>(conn->wrk.data);
     delete wrk_data;
     conn->wrk.flags = 0;
@@ -16,7 +16,7 @@ int default_wrk_http2_cleanup (manapi::net::worker::connection *conn, manapi::ne
     return 0;
 }
 
-int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
+int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     auto wrk_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
     auto http_v2_ctx = wrk_ctx->ctx.get();
 
@@ -40,7 +40,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                 switch (rhs) {
                     case manapi::net::http::EHTTP_V2_PROTOCOL_OK: {
                         manapi::net::http::http_v2_on_close (http_v2_ctx);
-                        if (http_v2_ctx->streams->empty()) {
+                        if (!http_v2_ctx->streams || http_v2_ctx->streams->empty()) {
                             w->waiting(conn, true);
                             http_v2_ctx->conn = nullptr;
                             w->close_connection(conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
@@ -145,7 +145,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
         if (manapi::net::http::http_v2_on_close (http_v2_ctx)) {
             /* error */
         }
-        if (http_v2_ctx->streams->empty()) {
+        if (!http_v2_ctx->streams || http_v2_ctx->streams->empty()) {
             w->waiting(conn, true);
             http_v2_ctx->conn = nullptr;
             w->close_connection(conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
@@ -161,7 +161,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
     return 0;
 }
 
-int default_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
+int default_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     try {
         assert(!conn->wrk.data);
 
@@ -197,7 +197,7 @@ int default_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi
     return manapi::ERR_UNKNOWN;
 }
 
-void default_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
+void default_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     auto const http_v2_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
     try {
         if (http_v2_ctx->ctx->streams) {
@@ -212,7 +212,7 @@ void default_wrk_http2_update_limit_rate (const manapi::net::worker::shared_conn
     }
 }
 
-int default_wrk_http2_global_cleanup (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) MANAPIHTTP_NOEXPECT {
+int default_wrk_http2_global_cleanup (manapi::net::worker::wrk_interface_global_t *data, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     auto ctx = static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (data->data);
     delete ctx;
     data->data = nullptr;
@@ -246,7 +246,7 @@ manapi::error::status manapi::net::worker::default_wrk_http2_global_init (manapi
     return error::status_ok();
 }
 
-bool default_wrk_http2_is_writable (const manapi::net::worker::shared_conn &conn) MANAPIHTTP_NOEXPECT {
+bool default_wrk_http2_is_writable (const manapi::net::worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     auto s = conn->as<manapi::net::http::http_v2_stream_t>();
     if (s->flags & manapi::net::http::HTTP2_STREAM_PRIORITY_LOCKED)
         return false;
@@ -256,13 +256,13 @@ bool default_wrk_http2_is_writable (const manapi::net::worker::shared_conn &conn
     return true;
 }
 
-int default_wrk_http2_want_write (const manapi::net::worker::shared_conn &conn) MANAPIHTTP_NOEXPECT {
+int default_wrk_http2_want_write (const manapi::net::worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     auto s = conn->as<manapi::net::http::http_v2_stream_t>();
     s->ctx->worker->event_toggle(s->ctx->conn, manapi::ev::WRITE, true);
     return 0;
 }
 
-manapi::net::worker::connection::ipdata_t * default_wrk_http2_ipdata (manapi::net::worker::connection *conn) MANAPIHTTP_NOEXPECT {
+manapi::net::worker::connection::ipdata_t * default_wrk_http2_ipdata (manapi::net::worker::connection *conn) MANAPIHTTP_NOEXCEPT {
     auto s = conn->as<manapi::net::http::http_v2_stream_t>();
     return s->ctx->worker->ipdata(s->ctx->conn.get());
 }

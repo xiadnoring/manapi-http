@@ -146,15 +146,15 @@ int manapi::net::worker::WolfSSL_TLS::ssl_bio_write_(void *rbio, const void *buf
     return wolfSSL_BIO_write(static_cast<WOLFSSL_BIO*>(rbio), buff, static_cast<int>(size));
 }
 
-int manapi::net::worker::WolfSSL_TLS::ssl_read_early_data_(void *ssl, void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::WolfSSL_TLS::ssl_read_early_data_(void *ssl, void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXCEPT {
     return wolfSSL_read_early_data(static_cast<SSL*>(ssl), buf, num, readbytes);
 }
 
-int manapi::net::worker::WolfSSL_TLS::ssl_write_early_data_(void *ssl, const void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXPECT {
+int manapi::net::worker::WolfSSL_TLS::ssl_write_early_data_(void *ssl, const void *buf, std::size_t num, std::size_t *readbytes) MANAPIHTTP_NOEXCEPT {
     return wolfSSL_write_early_data(static_cast<SSL*>(ssl), buf, num, readbytes);
 }
 
-bool manapi::net::worker::WolfSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MANAPIHTTP_NOEXPECT {
+bool manapi::net::worker::WolfSSL_TLS::ssl_early_data_is_enabled_(void *ctx) MANAPIHTTP_NOEXCEPT {
     return true;
 }
 

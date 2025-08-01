@@ -56,7 +56,7 @@ manapi::net::http::handler_template_t::handler_template_t(const nullptr_t &n) {
     this->data = nullptr;
 }
 
-manapi::net::http::handler_template_t::handler_template_t(handler_template_t &&n) MANAPIHTTP_NOEXPECT {
+manapi::net::http::handler_template_t::handler_template_t(handler_template_t &&n) MANAPIHTTP_NOEXCEPT {
     this->type = n.type;
     this->data = n.data;
 
@@ -64,7 +64,7 @@ manapi::net::http::handler_template_t::handler_template_t(handler_template_t &&n
     n.type = HANDLER_TEMPLATE_NONE_TYPE;
 }
 
-manapi::net::http::handler_template_t & manapi::net::http::handler_template_t::operator=( handler_template_t &&n) MANAPIHTTP_NOEXPECT {
+manapi::net::http::handler_template_t & manapi::net::http::handler_template_t::operator=( handler_template_t &&n) MANAPIHTTP_NOEXCEPT {
     this->type = n.type;
     this->data = n.data;
 
@@ -99,27 +99,27 @@ manapi::net::http::handler_template_t::~handler_template_t() {
     }
 }
 
-bool manapi::net::http::handler_template_t::is_async_cb() const MANAPIHTTP_NOEXPECT {
+bool manapi::net::http::handler_template_t::is_async_cb() const MANAPIHTTP_NOEXCEPT {
     return this->type == HANDLER_TEMPLATE_ASYNC_CB_TYPE;
 }
 
-bool manapi::net::http::handler_template_t::is_sync_cb() const MANAPIHTTP_NOEXPECT {
+bool manapi::net::http::handler_template_t::is_sync_cb() const MANAPIHTTP_NOEXCEPT {
     return this->type == HANDLER_TEMPLATE_SYNC_CB_TYPE;
 }
 
-manapi::error::status_or<manapi::net::http::async_handler_t *> manapi::net::http::handler_template_t::async_cb() MANAPIHTTP_NOEXPECT {
+manapi::error::status_or<manapi::net::http::async_handler_t *> manapi::net::http::handler_template_t::async_cb() MANAPIHTTP_NOEXCEPT {
     if (this->type == HANDLER_TEMPLATE_ASYNC_CB_TYPE)
         return static_cast<async_handler_t *>(this->data);
     return error::status_not_found("async cb not found");
 }
 
-manapi::error::status_or<manapi::net::http::sync_handler_t *> manapi::net::http::handler_template_t::sync_cb() MANAPIHTTP_NOEXPECT {
+manapi::error::status_or<manapi::net::http::sync_handler_t *> manapi::net::http::handler_template_t::sync_cb() MANAPIHTTP_NOEXCEPT {
     if (this->type == HANDLER_TEMPLATE_SYNC_CB_TYPE)
         return static_cast<sync_handler_t *>(this->data);
     return error::status_not_found("sync cb not found");
 }
 
-manapi::net::http::handler_template_t::operator bool() const MANAPIHTTP_NOEXPECT {
+manapi::net::http::handler_template_t::operator bool() const MANAPIHTTP_NOEXCEPT {
     return this->type != HANDLER_TEMPLATE_NONE_TYPE && this->data;
 }
 

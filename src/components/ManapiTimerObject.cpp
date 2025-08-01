@@ -116,18 +116,18 @@ void manapi::timer::call_() {
     }
 }
 
-void manapi::timer::clear() MANAPIHTTP_NOEXPECT {
+void manapi::timer::clear() MANAPIHTTP_NOEXCEPT {
     this->clear_();
 }
 
-void manapi::timer::clear_() MANAPIHTTP_NOEXPECT {
+void manapi::timer::clear_() MANAPIHTTP_NOEXCEPT {
     if (!(this->data->flags & TIMER_TASK_ENABLED)) {
         this->data->async_cb = {};
         this->data->sync_cb = {};
     }
 }
 
-void manapi::timer::stop() MANAPIHTTP_NOEXPECT {
+void manapi::timer::stop() MANAPIHTTP_NOEXCEPT {
     if (!this->data)
         return;
 
@@ -162,7 +162,7 @@ void manapi::timer::callback_sync(sync_cb_t cb) {
     this->data->async_cb.reset();
 }
 
-manapi::error::status manapi::timer::again(std::size_t ms) MANAPIHTTP_NOEXPECT {
+manapi::error::status manapi::timer::again(std::size_t ms) MANAPIHTTP_NOEXCEPT {
     this->data->flags |= TIMER_TASK_ENABLED;
 
     if (this->data->flags & TIMER_TASK_ACTIVE)

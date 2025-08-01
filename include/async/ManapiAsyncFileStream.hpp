@@ -36,7 +36,7 @@ namespace manapi::filesystem {
 
         fstream &operator=(const fstream &n);
 
-        future<manapi::error::status> open (int flags, int mode = 0644);
+        future<manapi::sys_error::status> open (int flags, int mode = 0644);
 
         [[nodiscard]] bool is_open () const;
 

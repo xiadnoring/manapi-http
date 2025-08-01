@@ -5,6 +5,8 @@
 
 #include <uv.h>
 
+#include "ManapiErrors.hpp"
+
 namespace manapi {
     class bytebuffer {
         struct slices_data {
@@ -29,7 +31,7 @@ namespace manapi {
 
         bytebuffer (void *src, std::size_t size, char flags);
 
-        bytebuffer (std::size_t size);
+        static manapi::error::status_or<bytebuffer> create (std::size_t size);
 
         ~bytebuffer ();
 
@@ -58,13 +60,13 @@ namespace manapi {
 
         [[nodiscard]] std::size_t realsize () const;
 
-        void realresize (std::size_t s);
+        manapi::error::status realresize (std::size_t s) MANAPIHTTP_NOEXCEPT;
 
-        void resize (std::size_t s);
+        manapi::error::status resize (std::size_t s) MANAPIHTTP_NOEXCEPT;
 
-        void resize_max (std::size_t s);
+        manapi::error::status resize_max (std::size_t s) MANAPIHTTP_NOEXCEPT;
 
-        void clear ();
+        void clear () MANAPIHTTP_NOEXCEPT;
 
         void reinit ();
 
@@ -80,6 +82,7 @@ namespace manapi {
 
         [[nodiscard]] bool empty () const;
     private:
+
         uint8_t flags_;
         uint32_t shift_;
 

@@ -144,7 +144,7 @@ std::string_view manapi::net::http::config::stringify_http_version(int version) 
     }
 }
 
-manapi::error::status_or<manapi::net::http::versions::http> manapi::net::http::config::parse_http_version(std::string_view version) MANAPIHTTP_NOEXPECT {
+manapi::error::status_or<manapi::net::http::versions::http> manapi::net::http::config::parse_http_version(std::string_view version) MANAPIHTTP_NOEXCEPT {
     auto it = http_version_to_parse.find(version);
     if (it != http_version_to_parse.end())
         return it->second;

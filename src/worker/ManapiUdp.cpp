@@ -120,7 +120,10 @@ void manapi::net::worker::udp::recv_buffer_dealloc_(const ev::buff_t *buf) {
 }
 
 void manapi::net::worker::udp::recv_buffer_alloc_(ssize_t nread, ev::buff_t *buff) {
-    auto buffer = this->bufferpool().buffer(1, nread);
-    buff->len = buffer.realsize();
-    buff->base = static_cast<char *>(buffer.release());
+    auto bufres = this->bufferpool().buffer(1, nread);
+    if (bufres.ok()) {
+        auto buffer = bufres.unwrap();
+        buff->len = buffer.realsize();
+        buff->base = static_cast<char *>(buffer.release());
+    }
 }

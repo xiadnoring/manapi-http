@@ -75,7 +75,7 @@ namespace manapi {
     }
 
     template<class T>
-    void mthreadpool<T>::join() MANAPIHTTP_NOEXPECT {
+    void mthreadpool<T>::join() MANAPIHTTP_NOEXCEPT {
         for (auto &thread: this->threads) {
             thread.join();
         }
@@ -107,7 +107,7 @@ namespace manapi {
     }
 
     template<class T>
-    void mthreadpool<T>::append_task(std::unique_ptr<T> task) MANAPIHTTP_NOEXPECT {
+    void mthreadpool<T>::append_task(std::unique_ptr<T> task) MANAPIHTTP_NOEXCEPT {
         {
             // obtain a mutex
             std::lock_guard<std::mutex> lk (this->queue_mutex);
@@ -122,14 +122,14 @@ namespace manapi {
     }
 
     template<class T>
-    void mthreadpool<T>::append_task(T task) MANAPIHTTP_NOEXPECT {
+    void mthreadpool<T>::append_task(T task) MANAPIHTTP_NOEXCEPT {
         MANAPIHTTP_MUST_ALLOC_START
         this->append_task(std::make_unique<T>(std::move(task)));
         MANAPIHTTP_MUST_ALLOC_END
     }
 
     template<class T>
-    void mthreadpool<T>::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXPECT {
+    void mthreadpool<T>::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
         MANAPIHTTP_MUST_ALLOC_START
         this->append_task(std::make_unique<function_task>(std::move(cb)));
         MANAPIHTTP_MUST_ALLOC_END
@@ -206,12 +206,12 @@ namespace manapi {
     }
 
     template<class T>
-    void ethreadpool<T>::set_notify() MANAPIHTTP_NOEXPECT {
+    void ethreadpool<T>::set_notify() MANAPIHTTP_NOEXCEPT {
         this->flags_ |= 0b10;
     }
 
     template<class T>
-    void ethreadpool<T>::set_notify_cb(std::move_only_function<void()> ontask) MANAPIHTTP_NOEXPECT {
+    void ethreadpool<T>::set_notify_cb(std::move_only_function<void()> ontask) MANAPIHTTP_NOEXCEPT {
         this->ontask_ = std::move(ontask);
     }
 
@@ -234,7 +234,7 @@ namespace manapi {
     }
 
     template<class T>
-    void ethreadpool<T>::append_task(std::unique_ptr<T> task) MANAPIHTTP_NOEXPECT {
+    void ethreadpool<T>::append_task(std::unique_ptr<T> task) MANAPIHTTP_NOEXCEPT {
         MANAPIHTTP_MUST_ALLOC_START
         this->tasks.push_back(nullptr);
         MANAPIHTTP_MUST_ALLOC_END
@@ -252,21 +252,21 @@ namespace manapi {
     }
 
     template<class T>
-    void ethreadpool<T>::append_task(T task) MANAPIHTTP_NOEXPECT {
+    void ethreadpool<T>::append_task(T task) MANAPIHTTP_NOEXCEPT {
         MANAPIHTTP_MUST_ALLOC_START
         this->append_task(std::make_unique<T>(std::move(task)));
         MANAPIHTTP_MUST_ALLOC_END
     }
 
     template<class T>
-    void ethreadpool<T>::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXPECT {
+    void ethreadpool<T>::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
         MANAPIHTTP_MUST_ALLOC_START
         this->append_task(std::make_unique<function_task>(std::move(cb)));
         MANAPIHTTP_MUST_ALLOC_END
     }
 
     template<class T>
-    void ethreadpool<T>::join() MANAPIHTTP_NOEXPECT {
+    void ethreadpool<T>::join() MANAPIHTTP_NOEXCEPT {
 
     }
 

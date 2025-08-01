@@ -108,13 +108,13 @@ void manapi::init_tools::log_trace_init(manapi::debug::trace_level lvl) {
     debug::log_trace_enabled = lvl;
 }
 
-void manapi::clear_tools::ssl_library_thread_clear() MANAPIHTTP_NOEXPECT {
+void manapi::clear_tools::ssl_library_thread_clear() MANAPIHTTP_NOEXCEPT {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
     OPENSSL_thread_stop();
 #endif
 }
 
-void manapi::clear_tools::ssl_library_clear() MANAPIHTTP_NOEXPECT {
+void manapi::clear_tools::ssl_library_clear() MANAPIHTTP_NOEXCEPT {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
     OPENSSL_thread_stop();
     OPENSSL_cleanup();
@@ -128,11 +128,11 @@ void manapi::clear_tools::ssl_library_clear() MANAPIHTTP_NOEXPECT {
 #endif
 }
 
-void manapi::clear_tools::ev_library_clear() MANAPIHTTP_NOEXPECT {
+void manapi::clear_tools::ev_library_clear() MANAPIHTTP_NOEXCEPT {
 
 }
 
-void manapi::clear_tools::curl_library_clear() MANAPIHTTP_NOEXPECT {
+void manapi::clear_tools::curl_library_clear() MANAPIHTTP_NOEXCEPT {
 #if MANAPIHTTP_CURL_DEPENDENCY
     curl_global_cleanup();
 #endif

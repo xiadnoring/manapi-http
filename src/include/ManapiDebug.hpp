@@ -28,10 +28,10 @@
 #define THROW_MANAPIHTTP_EXCEPTION2(errnum, ...) throw RETHROW_MANAPIHTTP_EXCEPTION2 (errnum, __VA_ARGS__)
 
 namespace manapi::debug {
-    void do_log_ (std::string_view file_name, std::string_view func, std::size_t line, err_num errnum, std::string_view data) MANAPIHTTP_NOEXPECT;
+    void do_log_ (std::string_view file_name, std::string_view func, std::size_t line, err_num errnum, std::string_view data) MANAPIHTTP_NOEXCEPT;
 
     template <class... Args>
-    void log_ (size_t line, std::string_view file_name, std::string_view func, err_num errnum, std::string_view format, Args&& ...args) MANAPIHTTP_NOEXPECT
+    void log_ (size_t line, std::string_view file_name, std::string_view func, err_num errnum, std::string_view format, Args&& ...args) MANAPIHTTP_NOEXCEPT
     {
         try {
             const std::size_t n = sizeof...(Args);
@@ -49,7 +49,7 @@ namespace manapi::debug {
     }
 
     template <class... Args>
-    manapi::exception error_ (size_t line, std::string_view file_name, std::string_view func, err_num errnum, std::string_view format, Args&& ...args) MANAPIHTTP_NOEXPECT
+    manapi::exception error_ (size_t line, std::string_view file_name, std::string_view func, err_num errnum, std::string_view format, Args&& ...args) MANAPIHTTP_NOEXCEPT
     {
         try {
             const std::size_t n = sizeof...(Args);

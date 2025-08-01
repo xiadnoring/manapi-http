@@ -65,12 +65,12 @@ namespace manapi::async {
          *
          * @throw manapi::exception with error code @code ERR_CANCELLATION_FAILED@endcode in case of failure while sending a signal
          */
-        void cancel () MANAPIHTTP_NOEXPECT;
+        void cancel () MANAPIHTTP_NOEXCEPT;
 
         /**
          * Request a callback to cancel your action
          */
-        void ask_cancel_callback () MANAPIHTTP_NOEXPECT;
+        void ask_cancel_callback () MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set a timeout in milliseconds
@@ -78,7 +78,7 @@ namespace manapi::async {
          * @param timeout Timeout in milliseconds
          * @return Ok on succes, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status timeout (size_t timeout) MANAPIHTTP_NOEXPECT;
+        manapi::error::status timeout (size_t timeout) MANAPIHTTP_NOEXCEPT;
 
         /**
          * It will return a message stating that it asks
@@ -101,9 +101,9 @@ namespace manapi::async {
          */
         void disable ();
     private:
-        void send_async_() MANAPIHTTP_NOEXPECT;
-        static void stop_timeout_ (std::shared_ptr<data_t> data) MANAPIHTTP_NOEXPECT;
-        static void cancel_ (std::shared_ptr<data_t> data) MANAPIHTTP_NOEXPECT;
+        void send_async_() MANAPIHTTP_NOEXCEPT;
+        static void stop_timeout_ (std::shared_ptr<data_t> data) MANAPIHTTP_NOEXCEPT;
+        static void cancel_ (std::shared_ptr<data_t> data) MANAPIHTTP_NOEXCEPT;
         std::shared_ptr<data_t> data;
     };
 }

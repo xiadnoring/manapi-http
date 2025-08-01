@@ -39,11 +39,11 @@ namespace manapi::init_tools {
 }
 
 namespace manapi::clear_tools {
-    void ssl_library_thread_clear () MANAPIHTTP_NOEXPECT;
+    void ssl_library_thread_clear () MANAPIHTTP_NOEXCEPT;
 
-    void ssl_library_clear () MANAPIHTTP_NOEXPECT;
+    void ssl_library_clear () MANAPIHTTP_NOEXCEPT;
 
-    void ev_library_clear () MANAPIHTTP_NOEXPECT;
+    void ev_library_clear () MANAPIHTTP_NOEXCEPT;
 
-    void curl_library_clear () MANAPIHTTP_NOEXPECT;
+    void curl_library_clear () MANAPIHTTP_NOEXCEPT;
 }

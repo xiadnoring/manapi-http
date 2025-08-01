@@ -30,7 +30,7 @@ namespace manapi::net::http {
          * it provides all existing TLS versions
          */
         enum tls {
-            TLS_v1 = 0,
+            TLS_v1 = 1,
             TLS_v1_1,
             TLS_v1_2,
             TLS_v1_3,
@@ -43,7 +43,7 @@ namespace manapi::net::http {
          * it provides all existing QUIC algorithms
          */
         enum quic_cc {
-            QUIC_CC_NONE = 0,
+            QUIC_CC_NONE = 1,
             QUIC_CC_RENO,
             QUIC_CC_CUBIC,
             QUIC_CC_BBR,
@@ -54,7 +54,7 @@ namespace manapi::net::http {
          * it provides all existing HTTP versions
          */
         enum http {
-            HTTP_v0_9 = 0,
+            HTTP_v0_9 = 1,
             HTTP_v1_0,
             HTTP_v1_1,
             HTTP_v2,
@@ -107,7 +107,7 @@ namespace manapi::net::http {
          * @param version
          * @return NotFound if http version invalid otherwise http version as an integer
          */
-        static manapi::error::status_or<http::versions::http> parse_http_version (std::string_view version) MANAPIHTTP_NOEXPECT;
+        static manapi::error::status_or<http::versions::http> parse_http_version (std::string_view version) MANAPIHTTP_NOEXCEPT;
 
         // settings
         int max_working_streams;
