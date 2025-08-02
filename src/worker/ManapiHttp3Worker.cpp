@@ -115,7 +115,7 @@ manapi::future<manapi::error::status> manapi::net::worker::http_v3::init(std::si
 }
 
 manapi::net::worker::connection::ipdata_t * manapi::net::worker::http_v3::ipdata(worker::connection *conn) MANAPIHTTP_NOEXCEPT {
-    return base::ipdata(conn);
+    return this->w->ipdata(conn);
 }
 
 bool manapi::net::worker::http_v3::is_writable(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {

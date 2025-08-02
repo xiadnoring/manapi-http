@@ -112,31 +112,41 @@ manapi::future<manapi::error::status> manapi::net::worker::http_v3_cloudflare_qu
     auto status = co_await udp::init(deep + 1);
     if (!status)
         co_return std::move(status);
+    typedef manapi::internal::config_interface cv;
+    
+#define as_cv_bool cv::get_config_param<bool>
+#define as_cv_string cv::get_config_param<std::string>
+#define as_cv_uint64_t cv::get_config_param<uint64_t>
 
-    auto const verify_peer = this->config_->get_config_param<bool>(this->config_->ssl, "verify_peer", true);
-    auto const cert = this->config_->get_config_param<std::string>(this->config_->ssl, "cert", {});
-    auto const key = this->config_->get_config_param<std::string>(this->config_->ssl, "key", {});
+    auto const verify_peer = as_cv_bool (this->config_->ssl, "verify_peer", true);
+    auto const cert = as_cv_string(this->config_->ssl, "cert", {});
+    auto const key = as_cv_string(this->config_->ssl, "key", {});
 
-    auto const quic_debug = this->config_->get_config_param<bool>(this->config_->quic, "debug", false);
-    auto const active_migration = this->config_->get_config_param<bool>(this->config_->quic, "active_migration", false);
-    auto const dcid_reuse = this->config_->get_config_param<bool>(this->config_->quic, "dcid_reuse", true);
-    auto const hystart = this->config_->get_config_param<bool>(this->config_->quic, "hystart", true);
-    auto const pacing = this->config_->get_config_param<bool>(this->config_->quic, "pacing", true);
-    auto const early_data = this->config_->get_config_param<bool>(this->config_->quic, "early_data", true);
-    auto const grease = this->config_->get_config_param<bool>(this->config_->quic, "grease", true);
-    auto const pmtu = this->config_->get_config_param<bool>(this->config_->quic, "discover_pmtu", false);
+    auto const quic_debug = as_cv_bool(this->config_->quic, "debug", false);
+    auto const active_migration = as_cv_bool(this->config_->quic, "active_migration", false);
+    auto const dcid_reuse = as_cv_bool(this->config_->quic, "dcid_reuse", true);
+    auto const hystart = as_cv_bool(this->config_->quic, "hystart", true);
+    auto const pacing = as_cv_bool(this->config_->quic, "pacing", true);
+    auto const early_data = as_cv_bool(this->config_->quic, "early_data", true);
+    auto const grease = as_cv_bool(this->config_->quic, "grease", true);
+    auto const pmtu = as_cv_bool(this->config_->quic, "discover_pmtu", false);
 
-    auto const initial_max_data =  this->config_->get_config_param<uint64_t>(this->config_->quic, "initial_max_data", 10000000);
-    auto const initial_max_stream_data_bidi_local =  this->config_->get_config_param<uint64_t>(this->config_->quic, "initial_max_stream_data_bidi_local", 1000000);
-    auto const initial_max_stream_data_bidi_remote =  this->config_->get_config_param<uint64_t>(this->config_->quic, "initial_max_stream_data_bidi_remote", 1000000);
-    auto const initial_max_stream_data_uni =  this->config_->get_config_param<uint64_t>(this->config_->quic, "initial_max_stream_data_uni", 1000000);
-    auto const max_amplification_factor = this->config_->get_config_param<uint64_t>(this->config_->quic, "max_amplification_factor", 3);
-    auto const active_connection_id_limit = this->config_->get_config_param<uint64_t>(this->config_->quic, "active_connection_id_limit", 2);
-    auto const max_ack_delay = this->config_->get_config_param<uint64_t>(this->config_->quic, "max_ack_delay", 25);
-    auto const max_idle_timeout = this->config_->get_config_param<uint64_t>(this->config_->quic, "max_idle_timeout", 0);
-    auto const max_concurrent_streams = this->config_->max_concurrent_streams > 0 ? this->config_->max_concurrent_streams : 100;
+    auto const initial_max_data =  as_cv_uint64_t(this->config_->quic, "initial_max_data", 10000000);
+    auto const initial_max_stream_data_bidi_local =  as_cv_uint64_t(this->config_->quic, "initial_max_stream_data_bidi_local", 1000000);
+    auto const initial_max_stream_data_bidi_remote =  as_cv_uint64_t(this->config_->quic, "initial_max_stream_data_bidi_remote", 1000000);
+    auto const initial_max_stream_data_uni =  as_cv_uint64_t(this->config_->quic, "initial_max_stream_data_uni", 1000000);
+    auto const max_amplification_factor = as_cv_uint64_t(this->config_->quic, "max_amplification_factor", 3);
+    auto const active_connection_id_limit = as_cv_uint64_t(this->config_->quic, "active_connection_id_limit", 2);
+    auto const max_ack_delay = as_cv_uint64_t(this->config_->quic, "max_ack_delay", 25);
+    auto const max_idle_timeout = as_cv_uint64_t(this->config_->quic, "max_idle_timeout", 0);
+
+    auto const max_concurrent_streams = this->config_->max_concurrent_streams > 0 ? this->config_->max_concurrent_streams : 6;
     auto const window_connection_size = this->config_->window_connection_size > 0 ? this->config_->window_connection_size : 2000000;
     auto const window_stream_size = this->config_->window_stream_size > 0 ? this->config_->window_stream_size : 400000;
+
+#undef as_cv_bool
+#undef as_cv_string
+#undef as_cv_uint64_t
 
     do {
         if (auto rhs = this->udp_accept_->recv_start()) {

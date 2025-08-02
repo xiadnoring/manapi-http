@@ -243,11 +243,11 @@ manapi::object_pool & manapi::net::worker::base::bufferpool() MANAPIHTTP_NOEXCEP
     return manapi::async::current()->memory_fabric();
 }
 
-std::size_t manapi::net::worker::base::stream_id(const shared_conn & s) MANAPIHTTP_NOEXCEPT {
+int64_t manapi::net::worker::base::stream_id(const shared_conn & s) MANAPIHTTP_NOEXCEPT {
     return 0;
 }
 
-manapi::net::worker::shared_conn manapi::net::worker::base::stream_id(const shared_conn &conn, std::size_t id) noexcept(true) {
+manapi::net::worker::shared_conn manapi::net::worker::base::stream_id(const shared_conn &conn, int64_t id) noexcept(true) {
     return nullptr;
 }
 

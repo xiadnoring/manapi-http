@@ -44,7 +44,7 @@ struct manapi::net::worker::openssl_quic::quic_conn_t : connection_base2_t {
     SSL *conn;
     manapi::timer timeout;
     openssl_quic *worker;
-    std::map<uint64_t, shared_conn> streams;
+    std::map<int64_t, shared_conn> streams;
     std::size_t poll_id;
 };
 
@@ -366,7 +366,6 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
     if (s->flags & CONN_REMOVED)
         return;
 
-
     if (flags == CLOSE_CONN_EOF)
         s->flags |= CONN_QUIC_SHUTDOWN_FINISHED;
     else {
@@ -382,19 +381,31 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
 
     s->flags |= CONN_REMOVED;
 
-    for (auto it = s->streams.begin(); it != s->streams.end(); ) {
-        auto next = std::next(it);
-        this->rst_stream(it->second);
-        it = next;
+    if (flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOF)) {
+        for (auto it = s->streams.begin(); it != s->streams.end(); ) {
+            auto next = std::next(it);
+            this->rst_stream(it->second);
+            it = next;
+        }
     }
 
     if (custom_shutdown) {
+        manapi_log_trace(debug::LOG_TRACE_LOW, "openssl_quic: custom shutdown on %p", s->conn);
         auto rhs = this->global_.shutdown_cb(conn, &this->global_, this, false);
         if (!rhs) {
             s->flags ^= CONN_REMOVED;
             return;
         }
     }
+
+    manapi_log_trace(debug::LOG_TRACE_LOW, "openssl_quic: rst all streams on %p (%zu)", s->conn, s->streams.size());
+
+    for (auto it = s->streams.begin(); it != s->streams.end(); ) {
+        auto next = std::next(it);
+        this->rst_stream(it->second);
+        it = next;
+    }
+
 
     s->flags ^= CONN_REMOVED;
 
@@ -427,21 +438,29 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
     if (!s->streams.empty())
         return;
 
-    if (s->poll_id)
-        this->remove_poll_id(std::exchange(s->poll_id, 0));
-
     s->flags |= CONN_REMOVED|CONN_CLOSED;
 
-    // prepared::event_callback_clear(conn, s);
-    // prepared::top_buffer_clear(s);
+    MANAPIHTTP_MUST_ALLOC_START
+    manapi::async::current()->etaskpool()->append_task([conn] () -> void {
+        auto s = conn->as<quic_conn_t>();
+        auto const w = s->worker;
 
-    auto it = this->conns_.find(reinterpret_cast<uintptr_t>(s->conn));
-    assert(it != this->conns_.end());
-    this->conns_.erase(it);
+        if (s->poll_id)
+            w->remove_poll_id(std::exchange(s->poll_id, 0));
 
-    if (!SSL_set_app_data(s->conn, nullptr)) {
-        /* who cares */
-    }
+
+        // prepared::event_callback_clear(conn, s);
+        // prepared::top_buffer_clear(s);
+
+        auto it = w->conns_.find(reinterpret_cast<uintptr_t>(s->conn));
+        assert(it != w->conns_.end());
+        w->conns_.erase(it);
+
+        if (!SSL_set_app_data(s->conn, nullptr)) {
+            /* who cares */
+        }
+    });
+    MANAPIHTTP_MUST_ALLOC_END
 }
 
 int manapi::net::worker::openssl_quic::event_flags(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
@@ -573,48 +592,58 @@ void manapi::net::worker::openssl_quic::alpn_ossltest(std::string test) MANAPIHT
 }
 
 void manapi::net::worker::openssl_quic::close_stream(shared_conn s, int flags) MANAPIHTTP_NOEXCEPT {
-    if (s) {
-        auto const data = s->as<quic_stream_t>();
+    auto const data = s->as<quic_stream_t>();
 
-        if (!data)
-            return;
+    if (!data)
+        return;
 
-        if (data->flags & CONN_REMOVED)
-            return;
+    if (data->flags & CONN_REMOVED)
+        return;
 
-        auto const conn_data = data->parent->as<quic_conn_t>();
+    data->flags |= CONN_CLOSED|CONN_REMOVED;
 
-        if (data->poll_id)
-            this->remove_poll_id(std::exchange(data->poll_id, 0));
+    MANAPIHTTP_MUST_ALLOC_START
+    manapi::async::current()->etaskpool()->append_task([s, flags] () mutable -> void {
+        if (s) {
+            auto const data = s->as<quic_stream_t>();
 
-        auto const stream_id = SSL_get_stream_id(data->stream);;
+            if (!data)
+                return;
 
-        data->flags |= CONN_CLOSED|CONN_REMOVED;
+            auto const conn_data = data->parent->as<quic_conn_t>();
+            auto w = conn_data->worker;
 
-        prepared::event_callback_clear(s, data);
-        prepared::top_buffer_clear(data);
+            if (data->poll_id)
+                w->remove_poll_id(std::exchange(data->poll_id, 0));
 
-        auto it = conn_data->streams.find(stream_id);
+            auto const stream_id = SSL_get_stream_id(data->stream);;
 
-        if (it != conn_data->streams.end())
-            conn_data->streams.erase(it);
+            prepared::event_callback_clear(s, data);
+            prepared::top_buffer_clear(data);
 
-        if (!SSL_set_app_data(data->stream, nullptr)) {
-            /* who cares */
-        }
+            auto it = conn_data->streams.find(stream_id);
 
-        SSL_free(std::exchange(data->stream, nullptr));
+            if (it != conn_data->streams.end())
+                conn_data->streams.erase(it);
 
-        if (conn_data->streams.empty()) {
-            auto const app_data = SSL_get_app_data(conn_data->conn);
-            assert(app_data);
-            auto conn = *static_cast<shared_conn *>(app_data);
-            this->waiting(conn, true);
-            if ((conn_data->flags & CONN_WANT_CLOSE)) {
-                this->close_connection(conn, CLOSE_CONN_SHUTDOWN);
+            if (!SSL_set_app_data(data->stream, nullptr)) {
+                /* who cares */
+            }
+
+            SSL_free(std::exchange(data->stream, nullptr));
+
+            if (conn_data->streams.empty()) {
+                auto const app_data = SSL_get_app_data(conn_data->conn);
+                assert(app_data);
+                auto conn = *static_cast<shared_conn *>(app_data);
+                w->waiting(conn, true);
+                if ((conn_data->flags & CONN_WANT_CLOSE)) {
+                    w->close_connection(conn, CLOSE_CONN_SHUTDOWN);
+                }
             }
         }
-    }
+    });
+    MANAPIHTTP_MUST_ALLOC_END
 }
 
 void manapi::net::worker::openssl_quic::rst_stream(shared_conn s) MANAPIHTTP_NOEXCEPT {
@@ -676,11 +705,11 @@ manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manap
     args: return error::status_invalid_argument("new_stream");
 }
 
-std::size_t manapi::net::worker::openssl_quic::stream_id(const shared_conn &s) MANAPIHTTP_NOEXCEPT {
-    return SSL_get_stream_id(s->as<quic_stream_t>()->stream);
+int64_t manapi::net::worker::openssl_quic::stream_id(const shared_conn &s) MANAPIHTTP_NOEXCEPT {
+    return static_cast<int64_t>(SSL_get_stream_id(s->as<quic_stream_t>()->stream));
 }
 
-manapi::net::worker::shared_conn manapi::net::worker::openssl_quic::stream_id(const shared_conn &conn, std::size_t id) MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::shared_conn manapi::net::worker::openssl_quic::stream_id(const shared_conn &conn, int64_t id) MANAPIHTTP_NOEXCEPT {
     assert(!(conn->wrk.flags & WRK_INTERFACE_IS_STREAM));
     auto const data = conn->as<quic_conn_t>();
     auto it = data->streams.find(id);
@@ -713,8 +742,7 @@ void manapi::net::worker::openssl_quic::remove_poll_id(std::size_t poll_id) MANA
 
         auto data = static_cast<shared_conn*>(SSL_get_app_data(ssl));
 
-        if (!data)
-            return;
+        assert(data);
 
         auto &conn = *data;
 
@@ -976,36 +1004,46 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
 
                 /* new connection */
                 if (it->revents & SSL_POLL_EVENT_IC) {
+                    while (true) {
+                        auto client = SSL_accept_connection(MANAPI_AS_SSL(w->listener), 0);
 
-                    auto client = SSL_accept_connection(MANAPI_AS_SSL(w->listener), 0);
+                        if (client) {
+                            auto res = w->conn_accept(client);
+                            if (!res.ok()) {
+                                /* who cares */
+                            }
 
-                    if (client) {
-                        auto res = w->conn_accept(client);
-                        if (!res.ok()) {
-                            /* who cares */
+                            continue;
                         }
-                    }
 
+                        break;
+                    }
                     processed_event |= SSL_POLL_EVENT_IC;
                 }
 
                 /* new incoming stream */
                 if (it->revents & SSL_POLL_EVENT_ISB ||
                     it->revents & SSL_POLL_EVENT_ISU) {
-                    auto stream = SSL_accept_stream(it->desc.value.ssl, 0);
-                    if (stream) {
+                    while (true) {
                         auto conn = *static_cast<shared_conn *>(SSL_get_app_data(it->desc.value.ssl));
-                        auto res = w->stream_accept(conn, stream);
+                        auto stream = SSL_accept_stream(it->desc.value.ssl, 0);
+                        if (stream) {
+                            auto res = w->stream_accept(conn, stream);
 
-                        if (res.ok()) {
-                            auto sconn = res.unwrap();
-                            manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: new stream %p was created using %p conn id=%zu",
-                                "openssl_quic", stream, it->desc.value.ssl, w->stream_id(sconn));
-                            w->stream_processing(sconn);
+                            if (res.ok()) {
+                                auto sconn = res.unwrap();
+                                manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: new stream %p was created using %p conn id=%zu",
+                                    "openssl_quic", stream, it->desc.value.ssl, w->stream_id(sconn));
+                                w->stream_processing(sconn);
+                            }
+                            else {
+                                w->close_connection(conn, CLOSE_CONN_ERR);
+                            }
+
+                            continue;
                         }
-                        else {
-                            w->close_connection(conn, CLOSE_CONN_ERR);
-                        }
+
+                        break;
                     }
 
                     processed_event |= it->revents & (SSL_POLL_EVENT_ISU|SSL_POLL_EVENT_ISB);
@@ -1020,38 +1058,6 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                     it->revents & SSL_POLL_EVENT_OSU) {
 
                     processed_event |= it->revents & (SSL_POLL_EVENT_OSB|SSL_POLL_EVENT_OSU);
-                }
-
-                /* the connection begins terminating */
-                if (it->revents & SSL_POLL_EVENT_EC) {
-                    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: revents & SSL_POLL_EVENT_EC in %p conn",
-                        "openssl_quic", it->desc.value.ssl);
-
-                    auto cit = w->conns_.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
-                    if (cit != w->conns_.end()) {
-                        w->close_connection(cit->second, CLOSE_CONN_SHUTDOWN);
-                    }
-
-                    processed_event |= SSL_POLL_EVENT_EC;
-
-                    if (current != it->desc.value.ssl
-                        || it >= w->polls_.end())
-                        continue;
-                }
-
-                /* the connection is terminated */
-                if (it->revents & SSL_POLL_EVENT_ECD) {
-                    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "revents & SSL_POLL_EVENT_ECD in %p conn", it->desc.value.ssl);
-
-                    auto cit = w->conns_.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
-                    if (cit != w->conns_.end()) {
-                        w->close_connection(cit->second, CLOSE_CONN_EOF);
-                    }
-
-                    processed_event |= SSL_POLL_EVENT_ECD;
-                    if (current != it->desc.value.ssl
-                        || it >= w->polls_.end())
-                        continue;
                 }
 
                 /* read stream error */
@@ -1101,7 +1107,7 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
 
                         auto sn = sdata->as<quic_stream_t>();
                         if (!(sn->flags & ev::DISCONNECT))
-                            w->flush_write_(sdata, sn);
+                            w->stream_processing(sdata);
                     }
 
                     processed_event |= SSL_POLL_EVENT_R;
@@ -1124,6 +1130,39 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                     }
 
                     processed_event |= SSL_POLL_EVENT_W;
+                    if (current != it->desc.value.ssl
+                        || it >= w->polls_.end())
+                        continue;
+                }
+
+
+                /* the connection begins terminating */
+                if (it->revents & SSL_POLL_EVENT_EC) {
+                    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: revents & SSL_POLL_EVENT_EC in %p conn",
+                        "openssl_quic", it->desc.value.ssl);
+
+                    auto cit = w->conns_.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
+                    if (cit != w->conns_.end()) {
+                        w->close_connection(cit->second, CLOSE_CONN_SHUTDOWN);
+                    }
+
+                    processed_event |= SSL_POLL_EVENT_EC;
+
+                    if (current != it->desc.value.ssl
+                        || it >= w->polls_.end())
+                        continue;
+                }
+
+                /* the connection is terminated */
+                if (it->revents & SSL_POLL_EVENT_ECD) {
+                    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "revents & SSL_POLL_EVENT_ECD in %p conn", it->desc.value.ssl);
+
+                    auto cit = w->conns_.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
+                    if (cit != w->conns_.end()) {
+                        w->close_connection(cit->second, CLOSE_CONN_EOF);
+                    }
+
+                    processed_event |= SSL_POLL_EVENT_ECD;
                     if (current != it->desc.value.ssl
                         || it >= w->polls_.end())
                         continue;

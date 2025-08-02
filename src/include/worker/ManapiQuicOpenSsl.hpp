@@ -63,9 +63,9 @@ namespace manapi::net::worker {
 
         error::status_or<shared_conn> new_stream(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT override;
 
-        std::size_t stream_id(const shared_conn &s) MANAPIHTTP_NOEXCEPT override;
+        int64_t stream_id(const shared_conn &s) MANAPIHTTP_NOEXCEPT override;
 
-        shared_conn stream_id(const shared_conn &conn, std::size_t id) MANAPIHTTP_NOEXCEPT override;
+        shared_conn stream_id(const shared_conn &conn, int64_t id) MANAPIHTTP_NOEXCEPT override;
 
         MANAPIHTTP_NODISCARD std::size_t streams_size(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT override;
     protected:

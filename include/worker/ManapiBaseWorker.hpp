@@ -288,14 +288,14 @@ namespace manapi::net::worker {
          * @param s stream
          * @return always 0 if streams not supported, otherwise it returns a stream id
          */
-        virtual std::size_t stream_id (const shared_conn & s) MANAPIHTTP_NOEXCEPT;
+        virtual int64_t stream_id (const shared_conn & s) MANAPIHTTP_NOEXCEPT;
 
         /**
          * It returns a connection object by the stream identifier
          * @param id stream identifier
          * @return always nullptr if streams not supported or not found, otherwise it returns a connection object
          */
-        virtual shared_conn stream_id (const shared_conn &conn, std::size_t id) MANAPIHTTP_NOEXCEPT;
+        virtual shared_conn stream_id (const shared_conn &conn, int64_t id) MANAPIHTTP_NOEXCEPT;
 
         /**
          * get the size of the streams in the connection
