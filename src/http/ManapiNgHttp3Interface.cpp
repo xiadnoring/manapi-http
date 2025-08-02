@@ -182,12 +182,12 @@ static ssize_t ng_wrk_http3_write (const manapi::net::worker::shared_conn &conn,
     err: {
         s->buffs = nullptr;
 
-        if (!s->ctx->active_connections) {
-            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
+        if (s->flags & HTTP3_STREAM_IS_DATA_STREAM) {
+            s->ctx->gctx->http3->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
         }
         else {
             if (s->s)
-                s->ctx->gctx->http3->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
+                s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
         }
 
         return -manapi::ERR_INTERNAL;
@@ -289,8 +289,10 @@ static int ng_wrk_http3(const manapi::net::worker::shared_conn &stream, int flag
         if (s) {
             if((s->flags & HTTP3_STREAM_IS_DATA_STREAM))
                 s->ctx->gctx->http3->close_connection(stream, manapi::net::worker::CLOSE_CONN_ERR);
-            else
-                s->ctx->gctx->worker->close_connection(stream, manapi::net::worker::CLOSE_CONN_ERR);
+            else {
+                if (s->s)
+                    s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
+            }
         }
 
         return manapi::ERR_INTERNAL;
@@ -684,69 +686,81 @@ static void ng_wrk_http3_shutdown_conn_next (manapi::net::worker::shared_conn co
 }
 
 static int ng_wrk_http3_shutdown_conn (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, bool force) MANAPIHTTP_NOEXCEPT {
-    auto data = MANAPI_AS_CONN(conn->wrk.data);
+    if (conn->wrk.flags & manapi::net::worker::WRK_INTERFACE_IS_STREAM) {
+        auto data = MANAPI_AS_STREAM(conn->wrk.data);
 
-    if (!data || !data->conn)
-        return 1;
+        if (!data || !data->s)
+            return 1;
 
-    auto const streams_size = data->gctx->worker->streams_size(data->conn);
-
-    if (!data->ctx)
-        goto err;
-
-    if ((!streams_size && !data->active_connections)) {
-        if (data->rtt_shutdown) {
-            data->rtt_shutdown.stop();
-            data->rtt_shutdown = nullptr;
-        }
-
-        data->conn = nullptr;
+        data->s = nullptr;
 
         return 1;
     }
+    else {
+        auto data = MANAPI_AS_CONN(conn->wrk.data);
 
-    if (!data->rtt_shutdown) {
-        if (auto rhs = nghttp3_conn_submit_shutdown_notice(data->ctx.get())) {
-            manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s: %s failed due to %s",
-                "nghttp3", "nghttp3_conn_submit_shutdown_notice", nghttp3_strerror(rhs));
+        if (!data || !data->conn)
+            return 1;
+
+        auto const streams_size = data->gctx->worker->streams_size(data->conn);
+
+        if (!data->ctx)
             goto err;
-        }
 
-        if (ng_wrk_http3_flush_write (data)) {
-            /* wow */
-        }
-
-        try {
-            auto rhs = manapi::async::current()->timerpool()->append_timer_sync(1000,
-                [conn] (const manapi::timer &t) mutable -> void {
-                ng_wrk_http3_shutdown_conn_next(std::move(conn));
-            });
-
-            data->rtt_shutdown = rhs.unwrap();
-        }
-        catch (std::bad_alloc const &) {
-            goto err;
-        }
-        catch (std::exception const &e) {
-            manapi_log_error(e.what());
-            goto err;
-        }
-    }
-
-    return 0;
-
-    err: {
-        if (!streams_size && !data->active_connections) {
+        if ((!streams_size && !data->active_connections)) {
             if (data->rtt_shutdown) {
                 data->rtt_shutdown.stop();
                 data->rtt_shutdown = nullptr;
             }
 
             data->conn = nullptr;
+
             return 1;
         }
 
+        if (!data->rtt_shutdown) {
+            if (auto rhs = nghttp3_conn_submit_shutdown_notice(data->ctx.get())) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s: %s failed due to %s",
+                    "nghttp3", "nghttp3_conn_submit_shutdown_notice", nghttp3_strerror(rhs));
+                goto err;
+            }
+
+            if (ng_wrk_http3_flush_write (data)) {
+                /* wow */
+            }
+
+            try {
+                auto rhs = manapi::async::current()->timerpool()->append_timer_sync(1000,
+                    [conn] (const manapi::timer &t) mutable -> void {
+                    ng_wrk_http3_shutdown_conn_next(std::move(conn));
+                });
+
+                data->rtt_shutdown = rhs.unwrap();
+            }
+            catch (std::bad_alloc const &) {
+                goto err;
+            }
+            catch (std::exception const &e) {
+                manapi_log_error(e.what());
+                goto err;
+            }
+        }
+
         return 0;
+
+        err: {
+            if (!streams_size && !data->active_connections) {
+                if (data->rtt_shutdown) {
+                    data->rtt_shutdown.stop();
+                    data->rtt_shutdown = nullptr;
+                }
+
+                data->conn = nullptr;
+                return 1;
+            }
+
+            return 0;
+        }
     }
 }
 
@@ -1070,7 +1084,7 @@ manapi::error::status manapi::net::worker::ng_wrk_http3_global_init(manapi::net:
 static int ng_wrk_http3_on_read_stream (const manapi::net::worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     auto const s = MANAPI_AS_STREAM (conn->wrk.data);
 
-    if (!s)
+    if (!s || !s->s)
         return manapi::ERR_OK;
 
     auto const config = s->ctx->gctx->worker->config();
@@ -1086,6 +1100,9 @@ static int ng_wrk_http3_on_read_stream (const manapi::net::worker::shared_conn &
         if (auto rhs = nghttp3_conn_unblock_stream(s->ctx->ctx.get(), stream_id)) {
             return manapi::ERR_RESOURCE_EXHAUSTED;
         }
+
+        if (s->flags & manapi::ev::READ)
+            s->ctx->gctx->worker->event_toggle(s->s, true, manapi::ev::READ);
     }
 
     return manapi::ERR_OK;
@@ -1117,7 +1134,9 @@ static int ng_wrk_http3_rst (const manapi::net::worker::shared_conn &conn, int c
         }
     }
     else {
-        s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
+        if (s->s)
+            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
+
         if (!s->ctx->active_connections)
             s->ctx->gctx->worker->close_connection(s->ctx->conn, manapi::net::worker::CLOSE_CONN_ERR);
     }

@@ -18,7 +18,7 @@ namespace manapi::net::http::internal {
     };
 
     enum request_flags {
-        REQUEST_FLAG_IS_PROPAGATION = 1
+        REQUEST_FLAG_IS_NO_PROPAGATION = 1
     };
 
     enum request_data_flags {

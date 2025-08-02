@@ -766,7 +766,10 @@ manapi::error::status execute_user_callback (manapi::net::http::handler_template
         if (!err.ok())
             return err.err();
 
-        auto after_work_uq = std::make_unique<decltype(after_work)>(std::move(after_work));
+        std::unique_ptr<decltype(after_work)> after_work_uq( new (std::nothrow) decltype(after_work)(std::move(after_work)));
+        if (!after_work_uq)
+            return manapi::error::status_resource_exhausted();
+
         resp->finish(std::move(after_work_uq));
 
         err.unwrap()->operator()(*req, resp);

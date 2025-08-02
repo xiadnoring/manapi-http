@@ -5,8 +5,8 @@
 #   define FOLDER ".\\data\\"
 #   define FOLDER2 ".\\data\\"
 #else
-#define FOLDER2 "/home/Timur/Downloads/anime-main/"
-#define FOLDER "/home/Timur/Documents/http2priorities/"
+#define FOLDER "/home/Timur/Downloads/anime-main/"
+#define FOLDER2 "/home/Timur/Documents/http2priorities/"
 #endif
 #include <cstring>
 
@@ -95,8 +95,12 @@ private:
 
 
 int main () {
-    manapi::init_tools::log_trace_init((manapi::debug::trace_level)std::stoi(manapi::process::get_env("MANAPIHTTP_LOGTRACE").unwrap()));
-
+    try {
+        manapi::init_tools::log_trace_init((manapi::debug::trace_level)std::stoi(manapi::process::get_env("MANAPIHTTP_LOGTRACE").unwrap()));
+    }
+    catch (...) {
+        manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_LOW);
+    }
     int threads = 2;
     try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }
     catch (...) {  }
@@ -170,6 +174,11 @@ int main () {
 
         std::string const folder = FOLDER;
         manapi::net::http::server router (server_ctx);
+
+        router.GET("/+layer", [] (http::req &req, manapi::net::http::response *resp) -> void {
+            resp->header(std::string_view{"alt-svc"}, R"(h3=":443"; ma=86400)");
+            resp->finish();
+        });
 
         router.GET("/", folder, [] (http::req &req, http::resp &resp)
             -> manapi::future<> {

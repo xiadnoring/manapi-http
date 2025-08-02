@@ -229,16 +229,16 @@ void manapi::net::http::request::stop_propagation() {
 }
 
 void manapi::net::http::request::propagation(bool state) {
-    if (state) {
-        this->flags |= internal::REQUEST_FLAG_IS_PROPAGATION;
+    if (!state) {
+        this->flags |= internal::REQUEST_FLAG_IS_NO_PROPAGATION;
     }
-    else if (this->flags & internal::REQUEST_FLAG_IS_PROPAGATION) {
-        this->flags ^= internal::REQUEST_FLAG_IS_PROPAGATION;
+    else if (this->flags & internal::REQUEST_FLAG_IS_NO_PROPAGATION) {
+        this->flags ^= internal::REQUEST_FLAG_IS_NO_PROPAGATION;
     }
 }
 
 bool manapi::net::http::request::propagation() const {
-    return this->flags & internal::REQUEST_FLAG_IS_PROPAGATION;
+    return !(this->flags & internal::REQUEST_FLAG_IS_NO_PROPAGATION);
 }
 
 manapi::future<void> manapi::net::http::request::read_body_(worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler) {

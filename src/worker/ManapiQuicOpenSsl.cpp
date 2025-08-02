@@ -600,13 +600,30 @@ void manapi::net::worker::openssl_quic::close_stream(shared_conn s, int flags) M
     if (data->flags & CONN_REMOVED)
         return;
 
+    bool custom_shutdown = (this->global_.flags_cb(s, &this->global_, this) & WRK_GLOBAL_FLAG_SHUTDOWN_SUPPORTED);
+
+    data->flags |= CONN_REMOVED;
+
+
+    if (custom_shutdown) {
+        auto res = this->global_.shutdown_cb(s, &this->global_, this, false);
+        if (!res) {
+            data->flags ^= CONN_REMOVED;
+            return;
+        }
+    }
+
     data->flags |= CONN_CLOSED|CONN_REMOVED;
+
+    prepared::event_callback_clear(s, data);
+
+    prepared::top_buffer_clear(data);
+
 
     MANAPIHTTP_MUST_ALLOC_START
     manapi::async::current()->etaskpool()->append_task([s, flags] () mutable -> void {
         if (s) {
             auto const data = s->as<quic_stream_t>();
-
             if (!data)
                 return;
 
@@ -617,9 +634,6 @@ void manapi::net::worker::openssl_quic::close_stream(shared_conn s, int flags) M
                 w->remove_poll_id(std::exchange(data->poll_id, 0));
 
             auto const stream_id = SSL_get_stream_id(data->stream);;
-
-            prepared::event_callback_clear(s, data);
-            prepared::top_buffer_clear(data);
 
             auto it = conn_data->streams.find(stream_id);
 

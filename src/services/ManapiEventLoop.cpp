@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <cstring>
+#include <stacktrace>
 
 #include "../include/ManapiUtils.hpp"
 #include "async/ManapiAsyncSocket.hpp"
@@ -399,7 +400,15 @@ void evloop_stack_trace () {
 #if MANAPIHTTP_CPPTRACE_DEPENDENCY
         cpptrace::generate_trace().print();
 #else
-        manapi_log_error("stack trace is disabled");
+        auto stack = std::stacktrace::current();
+        for (std::size_t i = 0; i < stack.size(); i++) {
+            auto &it = stack[i];
+            manapi_log_info("#%zu %p in %.*s at %.*s:%zu", i, it.native_handle(),
+                it.description().size(), it.description().data(),
+                it.source_file().size(), it.source_file().data(),
+                it.source_line());
+        }
+        //manapi_log_error("stack trace is disabled");
 #endif
     }
     catch (std::exception const &e) {
@@ -1222,6 +1231,7 @@ void manapi::event_loop::interrupt(int sig) {
     switch (sig) {
         case SIGABRT:
         case SIGTERM:
+        case SIGINT:
             break;
         default:
             evloop_stack_trace ();
