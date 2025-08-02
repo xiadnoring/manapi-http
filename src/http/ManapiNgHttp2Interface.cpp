@@ -401,6 +401,9 @@ static int ng_wrk_http2_data_chunk_recv_callback (nghttp2_session *session, uint
     auto rhs = manapi::net::worker::base::connection_io_send(&s->top->recv, reinterpret_cast<const char*>(data), len, &sess->gctx->worker->bufferpool(),
         config->buffer_size, &s->top->recv_size, 1e5);
 
+    if (rhs != len)
+        return NGHTTP2_ERR_NOMEM;
+
     s->transfered_k += rhs;
 
     if (manapi::net::worker::http_v2_flush_recv(config, *conn, s))

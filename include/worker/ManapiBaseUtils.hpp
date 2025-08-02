@@ -93,6 +93,8 @@ namespace manapi::net::worker {
 
         void update_limit_rate_connection (const shared_conn &sconn, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT;
 
+        std::unique_ptr<manapi::net::worker::worker_watcher_cb> event_on (const shared_conn & conn, connection_prepared_base_t *data, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT;
+
         std::unique_ptr<manapi::net::worker::worker_watcher_cb> event_on (const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT;
     }
 }

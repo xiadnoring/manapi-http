@@ -31,7 +31,7 @@ manapi::net::http::site & manapi::net::worker::http_v3::site() MANAPIHTTP_NOEXCE
 }
 
 void manapi::net::worker::http_v3::waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT {
-    return prepared::waiting(conn, MANAPI_AS_STREAM(conn->wrk.data), state);
+    return this->w->waiting(conn, state);
 }
 
 void manapi::net::worker::http_v3::feed_event(const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
@@ -75,7 +75,7 @@ int manapi::net::worker::http_v3::event_flags(const shared_conn &conn) MANAPIHTT
 }
 
 int manapi::net::worker::http_v3::event_flags(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT {
-    auto const data = conn->as<http_v3_stream_base_t>();
+    auto const data = MANAPI_AS_STREAM(conn->wrk.data);
 
     MANAPIHTTP_WORKER_EVENT_LOOP(data) {
         if (data->ev_callback) {
@@ -107,7 +107,7 @@ int manapi::net::worker::http_v3::event_flags(const shared_conn &conn, int flags
 }
 
 std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::http_v3::event_on(const shared_conn &conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT {
-    return prepared::event_on(conn, std::move(callback));
+    return prepared::event_on(conn, MANAPI_AS_STREAM(conn->wrk.data), std::move(callback));
 }
 
 manapi::future<manapi::error::status> manapi::net::worker::http_v3::init(std::size_t deep) {

@@ -5,7 +5,7 @@ int manapi::net::worker::prepared::event_flags(const shared_conn &conn) MANAPIHT
 }
 
 int manapi::net::worker::prepared::event_flags(const shared_conn &conn, connection_prepared_base_t *data) MANAPIHTTP_NOEXCEPT {
-    return (conn->as<connection_prepared_base_t>()->flags) & base::CONN_MASK_GETTING;
+    return (data->flags) & base::CONN_MASK_GETTING;
 }
 
 manapi::bytebuffer manapi::net::worker::prepared::recv_first_buffer(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
@@ -209,6 +209,11 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
 
 void manapi::net::worker::prepared::update_limit_rate_connection(const shared_conn &sconn, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT {
     update_limit_rate_connection(sconn, sconn->as<connection_prepared_base_t>(), w, config, global);
+}
+
+std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::prepared::event_on(const shared_conn &conn,connection_prepared_base_t *data,std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT {
+    auto n = std::exchange(data->ev_callback, std::move(callback));
+    return std::move(n);
 }
 
 std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::prepared::event_on(const shared_conn &conn,std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT {

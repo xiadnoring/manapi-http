@@ -271,12 +271,11 @@ static int ng_wrk_http3(const manapi::net::worker::shared_conn &stream, int flag
             }
         }
         else if (flags & (manapi::net::worker::base::CONN_RECV_END)) {
-            auto rhs = nghttp3_conn_read_stream (s->ctx->ctx.get(), stream_id, reinterpret_cast<const uint8_t *>(buffer),
-                    0, flags & manapi::net::worker::base::CONN_RECV_END);
+            auto rhs = nghttp3_conn_shutdown_stream_read(s->ctx->ctx.get(), stream_id);
 
             if (rhs) {
                 manapi_log_trace(manapi::debug::LOG_TRACE_LOW,
-                    "%s: %s failed due to %s", "nghttp3", "nghttp3_conn_read_stream", nghttp3_strerror(rhs));
+                    "%s: %s failed due to %s", "nghttp3", "nghttp3_conn_shutdown_stream_read", nghttp3_strerror(rhs));
                 goto err;
             }
         }
@@ -369,6 +368,8 @@ static int ng_wrk_http3_begin_headers (nghttp3_conn *conn, int64_t stream_id, vo
 
     if (!s)
         return NGHTTP3_ERR_FATAL;
+
+    conn_data->gctx->worker->waiting(stream, true);
 
     s->flags |= HTTP3_STREAM_IS_DATA_STREAM;
 
@@ -540,6 +541,29 @@ static int ng_wrk_http3_end_headers (nghttp3_conn *conn, int64_t stream_id, int 
 }
 
 static int ng_wrk_http3_end_stream (nghttp3_conn *conn, int64_t stream_id, void *conn_user_data, void *stream_user_data) MANAPIHTTP_NOEXCEPT {
+    auto s = MANAPI_AS_STREAM(stream_user_data);
+    if (!s)
+        return 0;
+
+    auto const config = s->ctx->gctx->worker->config();
+
+    s->flags |= manapi::net::worker::base::CONN_RECV_END;
+
+    if (s->top->recv_size) {
+        if (auto err = manapi::net::worker::http_v3_flush_recv(config, s->s, s)) {
+            switch (err) {
+                case manapi::ERR_RESOURCE_EXHAUSTED:
+                    return NGHTTP3_ERR_NOMEM;
+                default:
+                    return NGHTTP3_ERR_FATAL;
+            }
+        }
+    }
+    else {
+        s->ctx->gctx->http3->feed_event(s->s, manapi::net::worker::base::CONN_RECV_END,
+            nullptr, 0, nullptr);
+    }
+
     return 0;
 }
 
@@ -548,6 +572,30 @@ static int ng_wrk_http3_end_trailers (nghttp3_conn *conn, int64_t stream_id, int
 }
 
 static int ng_wrk_http3_recv_data (nghttp3_conn *conn, int64_t stream_id, const uint8_t *data, size_t datalen, void *conn_user_data, void *stream_user_data) MANAPIHTTP_NOEXCEPT {
+    auto s = MANAPI_AS_STREAM(stream_user_data);
+    if (!s)
+        return 0;
+
+    auto const config = s->ctx->gctx->worker->config();
+
+    auto rhs = manapi::net::worker::base::connection_io_send(&s->top->recv, reinterpret_cast<const char*>(data), datalen, &s->ctx->gctx->worker->bufferpool(),
+        config->buffer_size, &s->top->recv_size, 1e5);
+
+    if (rhs != datalen)
+        return NGHTTP3_ERR_NOMEM;
+
+    if (auto err = manapi::net::worker::http_v3_flush_recv(config, s->s, s)) {
+        switch (err) {
+            case manapi::ERR_RESOURCE_EXHAUSTED:
+                return NGHTTP3_ERR_NOMEM;
+            default:
+                return NGHTTP3_ERR_FATAL;
+        }
+    }
+
+    if (s->top->recv_size > config->max_buffer_stack)
+        nghttp3_conn_block_stream(s->ctx->ctx.get(), stream_id);
+
     return 0;
 }
 
@@ -862,7 +910,6 @@ static nghttp3_ssize ng_wrk_http3_read_data (nghttp3_conn *conn, int64_t stream_
     *pflags = 0;
 
     /* send data */
-    ssize_t res = 0;
     ssize_t cnt = 0;
 
     auto buffs = s->buffs;
@@ -878,12 +925,14 @@ static nghttp3_ssize ng_wrk_http3_read_data (nghttp3_conn *conn, int64_t stream_
         return NGHTTP3_ERR_WOULDBLOCK;
     }
 
+    std::size_t res = 0;
+
     if (buffs) {
         while (veccnt && s->size) {
             vec->base = reinterpret_cast<uint8_t *>(buffs->base);
             vec->len = buffs->len;
 
-            s->size += res;
+            res += buffs->len;
 
             vec++;
             veccnt--;
@@ -1028,6 +1077,16 @@ static int ng_wrk_http3_on_read_stream (const manapi::net::worker::shared_conn &
 
     if (auto const rhs = manapi::net::worker::http_v3_flush_recv (config, conn, s))
         return rhs;
+
+    if (s->top->recv_size < config->max_buffer_stack) {
+        auto const stream_id = s->ctx->gctx->worker->stream_id(s->s);
+        if (stream_id < 0)
+            return manapi::ERR_INTERNAL;
+
+        if (auto rhs = nghttp3_conn_unblock_stream(s->ctx->ctx.get(), stream_id)) {
+            return manapi::ERR_RESOURCE_EXHAUSTED;
+        }
+    }
 
     return manapi::ERR_OK;
 }

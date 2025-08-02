@@ -992,9 +992,11 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
     rhs = SSL_poll(w->polls_.data(), w->polls_.size(), sizeof (SSL_POLL_ITEM), &poll_tv, SSL_POLL_FLAG_NO_HANDLE_EVENTS, &result);
     if (rhs) {
         if (result) {
-            for (auto it = w->polls_.begin(); it < w->polls_.end(); ) {
+            for (std::size_t i = 0; i < w->polls_.size(); ) {
+                auto it = &w->polls_[i];
+
                 if (it->revents == SSL_POLL_EVENT_NONE) {
-                    it++;
+                    i++;
                     continue;
                 }
 
@@ -1009,6 +1011,7 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
 
                         if (client) {
                             auto res = w->conn_accept(client);
+                            it = &w->polls_[i];
                             if (!res.ok()) {
                                 /* who cares */
                             }
@@ -1029,6 +1032,7 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                         auto stream = SSL_accept_stream(it->desc.value.ssl, 0);
                         if (stream) {
                             auto res = w->stream_accept(conn, stream);
+                            it = &w->polls_[i];
 
                             if (res.ok()) {
                                 auto sconn = res.unwrap();
@@ -1039,7 +1043,7 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                             else {
                                 w->close_connection(conn, CLOSE_CONN_ERR);
                             }
-
+                            it = &w->polls_[i];
                             continue;
                         }
 
@@ -1047,11 +1051,7 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                     }
 
                     processed_event |= it->revents & (SSL_POLL_EVENT_ISU|SSL_POLL_EVENT_ISB);
-
-                    if (current != it->desc.value.ssl
-                        || it >= w->polls_.end())
-                        continue;
-                    }
+                }
 
                 /* new outcoming stream */
                 if (it->revents & (SSL_POLL_EVENT_OSB) ||
@@ -1071,11 +1071,8 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                         assert(sdata->wrk.flags & WRK_INTERFACE_IS_STREAM);
                         w->close_stream(sdata, CLOSE_CONN_ERR);
                     }
-
+                    it = &w->polls_[i];
                     processed_event |= SSL_POLL_EVENT_ER;
-                    if (current != it->desc.value.ssl
-                        || it >= w->polls_.end())
-                        continue;
                 }
 
                 /* write stream error */
@@ -1089,11 +1086,8 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                         assert(sdata->wrk.flags & WRK_INTERFACE_IS_STREAM);
                         w->close_stream(sdata, CLOSE_CONN_ERR);
                     }
-
+                    it = &w->polls_[i];
                     processed_event |= SSL_POLL_EVENT_EW;
-                    if (current != it->desc.value.ssl
-                        || it >= w->polls_.end())
-                        continue;
                 }
 
                 /* read stream */
@@ -1109,11 +1103,8 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                         if (!(sn->flags & ev::DISCONNECT))
                             w->stream_processing(sdata);
                     }
-
+                    it = &w->polls_[i];
                     processed_event |= SSL_POLL_EVENT_R;
-                    if (current != it->desc.value.ssl
-                        || it >= w->polls_.end())
-                        continue;
                 }
 
                 /* write stream */
@@ -1128,11 +1119,8 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                         if (!(sn->flags & ev::DISCONNECT))
                             w->flush_write_(sdata, sn);
                     }
-
+                    it = &w->polls_[i];
                     processed_event |= SSL_POLL_EVENT_W;
-                    if (current != it->desc.value.ssl
-                        || it >= w->polls_.end())
-                        continue;
                 }
 
 
@@ -1145,12 +1133,8 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                     if (cit != w->conns_.end()) {
                         w->close_connection(cit->second, CLOSE_CONN_SHUTDOWN);
                     }
-
+                    it = &w->polls_[i];
                     processed_event |= SSL_POLL_EVENT_EC;
-
-                    if (current != it->desc.value.ssl
-                        || it >= w->polls_.end())
-                        continue;
                 }
 
                 /* the connection is terminated */
@@ -1161,11 +1145,8 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                     if (cit != w->conns_.end()) {
                         w->close_connection(cit->second, CLOSE_CONN_EOF);
                     }
-
+                    it = &w->polls_[i];
                     processed_event |= SSL_POLL_EVENT_ECD;
-                    if (current != it->desc.value.ssl
-                        || it >= w->polls_.end())
-                        continue;
                 }
 
                 /* failure */
@@ -1182,7 +1163,7 @@ void manapi::net::worker::openssl_quic::io_event_cb(uv_poll_t *s, int status, in
                     processed_event |= SSL_POLL_EVENT_EL;
                 }
 
-                it++;
+                i++;
             }
         }
     }
