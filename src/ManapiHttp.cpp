@@ -14,7 +14,6 @@
 #include <unordered_map>
 #include <fcntl.h>
 
-#include "services/ManapiTaskFunction.hpp"
 #include "ManapiHttp.hpp"
 #include "include/ManapiSiteInternal.hpp"
 #include "include/ManapiUtils.hpp"

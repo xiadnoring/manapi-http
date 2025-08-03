@@ -18,7 +18,7 @@ namespace manapi::async {
     /* provides an async context */
     typedef std::shared_ptr<context> shared_ctx;
     /* provides a task pool */
-    typedef std::shared_ptr<threadpool<task>> shared_taskpool;
+    typedef std::shared_ptr<threadpool> shared_taskpool;
     /* provides a logger */
     typedef std::shared_ptr<logger> shared_logger;
     /* provides a context by thread */
@@ -205,7 +205,7 @@ namespace manapi::async {
          * @param timerpool the timer pool
          * @param logger the logger
          */
-        context (shared_eventloop eventloop, std::shared_ptr<mthreadpool<task>> taskpool, shared_timerpool timerpool, shared_logger logger);
+        context (shared_eventloop eventloop, std::shared_ptr<mthreadpool> taskpool, shared_timerpool timerpool, shared_logger logger);
 
         /**
          * deconstructor

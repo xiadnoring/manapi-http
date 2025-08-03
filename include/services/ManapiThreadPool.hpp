@@ -19,16 +19,11 @@
 #include "../async/ManapiAsyncLogger.hpp"
 
 namespace manapi {
-    template <class T>
     class threadpool {
     public:
         threadpool(std::shared_ptr<manapi::logger> logger) : logger_(std::move(logger)) {}
 
         virtual ~threadpool() = default;
-
-        virtual void append_task (std::unique_ptr<T> task) MANAPIHTTP_NOEXCEPT = 0;
-
-        virtual void append_task (T task) MANAPIHTTP_NOEXCEPT = 0;
 
         virtual void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
 
@@ -45,10 +40,9 @@ namespace manapi {
         std::shared_ptr<manapi::logger> logger_;
     };
 
-    template<class T>
-    class mthreadpool : public threadpool<T> {
+    class mthreadpool : public threadpool {
     public:
-        typedef std::vector<chain<std::unique_ptr<T>>> tasks_by_thread_t;
+        typedef std::vector<chain<std::move_only_function<void()>>> tasks_by_thread_t;
 
         mthreadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num);
 
@@ -68,10 +62,6 @@ namespace manapi {
 
         void start () override;
 
-        void append_task (std::unique_ptr<T> task) MANAPIHTTP_NOEXCEPT override;
-
-        void append_task (T task) MANAPIHTTP_NOEXCEPT override;
-
         void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
     private:
@@ -85,23 +75,24 @@ namespace manapi {
         tasks_by_thread_t tasks_by_thread;
 
         // this vector of queue which contains tasks
-        chain <std::unique_ptr<T> > tasks;
+        std::deque <std::move_only_function<void()>> tasks;
+
         // queue mutex
         std::mutex queue_mutex;
+
         // the function that the thread runs. Execute run() function
         static void *worker(void *arg, ssize_t index);
 
         void run(ssize_t index);
 
-        std::unique_ptr<T> get_task(ssize_t index);
+        std::move_only_function<void()> get_task(ssize_t index);
 
         std::atomic<int> flags;
 
         ssize_t threadnum;
     };
 
-    template<class T>
-    class ethreadpool : public threadpool<T> {
+    class ethreadpool : public threadpool {
     public:
         ethreadpool (std::shared_ptr<manapi::logger> logger, std::move_only_function<void()> ontask);
 
@@ -117,17 +108,13 @@ namespace manapi {
 
         void start () override;
 
-        void append_task (std::unique_ptr<T> task) MANAPIHTTP_NOEXCEPT override;
-
-        void append_task (T task) MANAPIHTTP_NOEXCEPT override;
-
         void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
         void join () MANAPIHTTP_NOEXCEPT override;
     private:
         int flags_;
 
-        chain <std::unique_ptr<T> > tasks;
+        chain <std::move_only_function<void()>> tasks;
 
         std::move_only_function<void()> ontask_;
     };

@@ -14,7 +14,6 @@
 #include <fcntl.h>
 #include "../include/ManapiUtils.hpp"
 #include "../../include/http/ManapiHttpPool.hpp"
-#include "services/ManapiTaskFunction.hpp"
 #include "../include/http/ManapiHttp1.hpp"
 
 #include "../include/http/ManapiHttp1Interface.hpp"

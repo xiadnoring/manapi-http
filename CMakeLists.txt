@@ -268,7 +268,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(MANAPIHTTP_HTTP_FILES
         include/ManapiHttp.hpp
         include/services/ManapiThreadPool.hpp
-        include/services/ManapiTask.hpp
         include/ManapiUtils.hpp
         include/ManapiHttpResponse.hpp
         include/ManapiHttpRequest.hpp
@@ -277,7 +276,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiFilesystem.hpp
         include/crypto/ManapiBase64.hpp
         include/compress/ManapiCompress.hpp
-        include/services/ManapiTaskFunction.hpp
         include/ManapiHash.hpp
         include/services/ManapiFetch.hpp
         include/services/ManapiTimerPool.hpp
@@ -306,7 +304,6 @@ set(MANAPIHTTP_HTTP_FILES
 
         src/ManapiHttp.cpp
         src/services/ManapiThreadPool.cpp
-        src/services/ManapiTask.cpp
         src/ManapiUtils.cpp
         src/ManapiHttpResponse.cpp
         src/ManapiHttpRequest.cpp
@@ -315,7 +312,6 @@ set(MANAPIHTTP_HTTP_FILES
         src/compress/ManapiCompress.cpp
         src/ManapiFilesystem.cpp
         src/ManapiHash.cpp
-        src/services/ManapiTaskFunction.cpp
         src/services/ManapiFetch.cpp
         src/ManapiJsonMask.cpp
         src/http/ManapiHttpPool.cpp
@@ -337,8 +333,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/components/ManapiFormData.hpp
         src/ManapiAsync.cpp
         include/ManapiAsync.hpp
-        src/services/ManapiFutureTask.cpp
-        include/services/ManapiFutureTask.hpp
         include/async/ManapiAsyncMutex.hpp
         include/async/ManapiAsyncConditionVariable.hpp
         include/components/ManapiChain.hpp

@@ -176,7 +176,7 @@ int main () {
         manapi::net::http::server router (server_ctx);
 
         router.GET("/+layer", [] (http::req &req, manapi::net::http::response *resp) -> void {
-            resp->header(std::string_view{"alt-svc"}, R"(h3=":443"; ma=86400)");
+            resp->header(std::string_view{"alt-svc"}, R"(h3=":8888"; ma=86400)");
             resp->finish();
         });
 
@@ -185,6 +185,25 @@ int main () {
             resp.compress_enabled(true);
             resp.compress("zstd");
             co_return;
+        });
+
+        router.GET("/http", [&folder] (http::req &req, manapi::net::http::response *resp) -> void {
+            std::string http = "";
+            auto version = req.http_version();
+            switch (version) {
+                case manapi::net::http::versions::HTTP_v0_9: http = "0.9"; break;
+                case manapi::net::http::versions::HTTP_v1_0: http = "1.0"; break;
+                case manapi::net::http::versions::HTTP_v1_1: http = "1.1"; break;
+                case manapi::net::http::versions::HTTP_v2: http = "2"; break;
+                case manapi::net::http::versions::HTTP_v3: http = "3"; break;
+                default: http = "uknown";
+            }
+            resp->replacers({
+                {"version", std::move(http)},
+            });
+
+            resp->file("/home/Timur/Desktop/WorkSpace/ManapiHTTP/examples/http.html");
+            resp->finish();
         });
 
         router.GET("/", [&folder] (http::req &req, http::resp &resp) -> manapi::future<> {

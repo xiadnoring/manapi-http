@@ -7,7 +7,6 @@
 #include "worker/ManapiOpenSslOverTcp.hpp"
 #include "../include/ManapiUtils.hpp"
 
-#include "services/ManapiTaskFunction.hpp"
 #include "services/ManapiThreadPool.hpp"
 #include "worker/ManapiHttp3Cloudflare.hpp"
 #include "worker/ManapiWolfSslOverTcp.hpp"

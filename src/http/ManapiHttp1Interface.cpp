@@ -31,10 +31,12 @@ int default_wrk_http_all_accept (const manapi::net::worker::shared_conn & conn, 
 }
 
 int default_wrk_http_all_init_stream (const manapi::net::worker::shared_conn & conn, const manapi::net::worker::shared_conn & stream, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    if (!conn->version) { conn->version = manapi::net::http::versions::HTTP_v1_1; }
     HTTP_ALL_SWITCH(init_stream_cb, conn, stream, httpctx, w);
 }
 
 int default_wrk_http_all_init (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    if (!conn->version) { conn->version = manapi::net::http::versions::HTTP_v1_1; }
     HTTP_ALL_SWITCH (init_cb, conn, httpctx, w);
 }
 

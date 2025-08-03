@@ -671,7 +671,7 @@ ssize_t double_store_in_ssize (double a) { ssize_t b = 0; memcpy (&b, &a, sizeof
 double ssize_store_in_double (ssize_t a) { double b = 0; memcpy (&b, &a, sizeof (a)); return b; };
 
 
-manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool_, std::shared_ptr<manapi::logger> logger) {
+manapi::event_loop::event_loop(std::shared_ptr<threadpool> taskpool_, std::shared_ptr<manapi::logger> logger) {
     this->loop_ = std::make_unique<uv_loop_t>();
     assert(!(uv_loop_init(this->loop_.get())));
 
@@ -686,12 +686,12 @@ manapi::event_loop::event_loop(std::shared_ptr<threadpool<task>> taskpool_, std:
         this->try_tasks_(w);
     });
 
-    this->etaskpool_ = std::make_shared<manapi::ethreadpool<task>>(logger, [this] ()
+    this->etaskpool_ = std::make_shared<manapi::ethreadpool>(logger, [this] ()
         -> void {
         this->idle_tasks_->start();
     });
 
-    dynamic_cast<ethreadpool<task> *>(this->etaskpool_.get())->set_notify();
+    dynamic_cast<ethreadpool *>(this->etaskpool_.get())->set_notify();
 
     this->mx = std::make_shared<async::mutex>();
     this->logger_ = std::move(logger);
@@ -804,7 +804,7 @@ void manapi::event_loop::wait() {
     std::shared_ptr<ev::idle> idle_tasks;
 
     while (uv_loop_alive(this->loop())) {
-        auto etaskpool = dynamic_cast<ethreadpool<task> *>(this->etaskpool_.get());
+        auto etaskpool = dynamic_cast<ethreadpool *>(this->etaskpool_.get());
         etaskpool->set_notify_cb([&] () -> void {
             idle_tasks = this->create_watcher_idle([&idle_tasks, etaskpool, this] (const ev::shared_idle &w) -> void {
                 while (etaskpool->try_task()) {}
@@ -978,7 +978,7 @@ void manapi::event_loop::async_break_loop_() {
 }
 
 void manapi::event_loop::try_tasks_(const ev::shared_idle &w) {
-    auto etaskpool = dynamic_cast<ethreadpool<task> *>(this->etaskpool_.get());
+    auto etaskpool = dynamic_cast<ethreadpool *>(this->etaskpool_.get());
     while (!etaskpool->try_task()) {
         etaskpool->set_notify();
         w->stop();
@@ -1143,7 +1143,7 @@ void manapi::event_loop::stop_watcher(std::shared_ptr<ev::tcp> s) {
     }
 }
 
-const std::shared_ptr<manapi::threadpool<manapi::task>> &manapi::event_loop::taskpool() const {
+const std::shared_ptr<manapi::threadpool> &manapi::event_loop::taskpool() const {
     return this->etaskpool_;
 }
 

@@ -10,7 +10,6 @@
 
 #include "../include/ManapiUtils.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
-#include "services/ManapiTaskFunction.hpp"
 
 manapi::async::shared_ctx manapi::async::context::gctx = nullptr;
 std::unique_ptr<manapi::sigset_t> manapi::async::context::gbs = nullptr;
@@ -75,7 +74,7 @@ manapi::object_pool & manapi::async::cthread::memory_fabric() MANAPIHTTP_NOEXCEP
     return this->memory_fabric_;
 }
 
-manapi::async::context::context(shared_eventloop eventloop, std::shared_ptr<mthreadpool<task>> taskpool, shared_timerpool timerpool, shared_logger logger)
+manapi::async::context::context(shared_eventloop eventloop, std::shared_ptr<mthreadpool> taskpool, shared_timerpool timerpool, shared_logger logger)
     : cthread(std::move(eventloop), std::move(taskpool), std::move(timerpool), std::move(logger))  {
 
 }
@@ -96,7 +95,7 @@ manapi::async::context::context(shared_eventloop eventloop, std::shared_ptr<mthr
 
 manapi::async::shared_ctx manapi::async::context::create(unsigned int threadnum) {
     auto logger_ = std::make_shared<manapi::logger>();
-    auto taskpool_ = std::make_shared<manapi::mthreadpool<task>>(logger_, threadnum);
+    auto taskpool_ = std::make_shared<manapi::mthreadpool>(logger_, threadnum);
 
     /* Main Event Loop */
     auto watcher_ = std::make_shared<manapi::event_loop>(taskpool_, logger_);
@@ -110,7 +109,7 @@ manapi::async::shared_ctx manapi::async::context::create(unsigned int threadnum)
 }
 
 void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<void(std::function<void()> bind)> callback) {
-    auto const mtaskpool = dynamic_cast<mthreadpool<task> *> (ctx->taskpool_.get());
+    auto const mtaskpool = dynamic_cast<mthreadpool *> (ctx->taskpool_.get());
 
     if (loops > mtaskpool->size()) {
         loops = mtaskpool->size();
@@ -137,13 +136,13 @@ void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<v
     manapi::init_tools::curl_library_init();
 
     for (int i = 0; i < loops; ++i) {
-        mtaskpool->for_all_threads([&] (mthreadpool<task>::tasks_by_thread_t *v)
+        mtaskpool->for_all_threads([&] (mthreadpool::tasks_by_thread_t *v)
             -> void {
             manapi::init_tools::ssl_library_init();
             manapi::init_tools::ev_library_init();
             manapi::init_tools::curl_library_init();
 
-            (*v)[i].push_back(std::make_unique<manapi::function_task> ([callback, thr = ctx->loops_[i]] ()
+            (*v)[i].push_back([callback, thr = ctx->loops_[i]] ()
                 -> void {
                 async::cthread::current(thr);
                 thr->timerpool()->start();
@@ -159,7 +158,7 @@ void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<v
 
                     manapi::clear_tools::ssl_library_thread_clear();
                 });
-            }));
+            });
         });
     }
 
@@ -254,6 +253,6 @@ void manapi::async::internal::run_prepare_manapi_exception_(manapi::exception &e
     }
 }
 
-const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::internal::ethreadpool_(const shared_cthread &ctx) MANAPIHTTP_NOEXCEPT {
+const std::shared_ptr<manapi::threadpool> & manapi::async::internal::ethreadpool_(const shared_cthread &ctx) MANAPIHTTP_NOEXCEPT {
     return ctx->eventloop()->taskpool();
 }

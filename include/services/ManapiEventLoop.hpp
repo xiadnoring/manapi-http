@@ -10,7 +10,6 @@
 
 #include "../ManapiInt.hpp"
 #include "../ManapiAsync.hpp"
-#include "./ManapiTask.hpp"
 #include "./ManapiThreadPool.hpp"
 #include "../async/ManapiAsyncMutex.hpp"
 #include "../async/ManapiAsyncPromise.hpp"
@@ -80,7 +79,7 @@ namespace manapi::ev::internal {
 namespace manapi {
     class event_loop {
     public:
-        explicit event_loop(std::shared_ptr<threadpool<task>> taskpool, std::shared_ptr<manapi::logger> logger);
+        explicit event_loop(std::shared_ptr<threadpool> taskpool, std::shared_ptr<manapi::logger> logger);
 
         ~event_loop();
 
@@ -275,7 +274,7 @@ namespace manapi {
 
         void stop_watcher (std::shared_ptr<ev::tcp> s);
 
-        [[nodiscard]] const std::shared_ptr<threadpool<task>> &taskpool () const;
+        [[nodiscard]] const std::shared_ptr<threadpool> &taskpool () const;
 #if MANAPIHTTP_CURL_DEPENDENCY
         void watch_curl (std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb);
 
@@ -334,13 +333,13 @@ namespace manapi {
 
         bool status;
 
-        std::shared_ptr<threadpool<task>> etaskpool_;
+        std::shared_ptr<threadpool> etaskpool_;
 
         std::shared_ptr<async::mutex> mx;
 
         std::unique_ptr<uv_loop_t> loop_;
 
-        std::shared_ptr<threadpool<task>> taskpool_;
+        std::shared_ptr<threadpool> taskpool_;
 
         std::map <size_t, std::move_only_function<manapi::future<void>()>> map_finish_cb;
 

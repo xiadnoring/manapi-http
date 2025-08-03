@@ -11,7 +11,6 @@
 #include <functional>
 
 #include "../ManapiUtils.hpp"
-#include "ManapiTask.hpp"
 #include "../ManapiJson.hpp"
 #include "../ManapiHttpRequest.hpp"
 #include "../async/ManapiAsyncParallelRun.hpp"
@@ -111,7 +110,7 @@ namespace manapi::net {
     /**
      * Fetch API for C++. Based on cURL
      */
-    class fetch : public task {
+    class fetch {
         struct shared_data;
     public:
         struct data_t;
@@ -128,7 +127,7 @@ namespace manapi::net {
 
         fetch &operator=(const fetch &n);
 
-        ~fetch() override;
+        ~fetch();
 
         /**
          * Set the sync callback to recv body from the request

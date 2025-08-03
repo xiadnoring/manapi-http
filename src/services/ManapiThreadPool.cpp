@@ -8,15 +8,13 @@
 
 #include "ManapiAsync.hpp"
 #include "ManapiDebug.hpp"
-#include "services/ManapiTask.hpp"
-#include "services/ManapiTaskFunction.hpp"
 #include "../include/ManapiUtils.hpp"
 
-template<class T>
-void task_doit(std::unique_ptr<T> task, manapi::logger *logger) {
-    assert((task.get()));
+
+void task_doit(std::move_only_function<void()> task, manapi::logger *logger) {
+    assert((task));
     try {
-        task->doit();
+        task();
     }
     catch (const manapi::exception &e) {
         logger->warning(manapi::logger::default_service,
@@ -29,19 +27,18 @@ void task_doit(std::unique_ptr<T> task, manapi::logger *logger) {
 }
 
 namespace manapi {
-    template<class T>
-    mthreadpool<T>::mthreadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num): threadpool<T>(std::move(logger)), flags(0) {
+    mthreadpool::mthreadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num): threadpool(std::move(logger)), flags(0) {
         this->threadnum = thread_num;
         this->tasks_by_thread.resize(this->threadnum);
     }
 
-    template<class T>
-    mthreadpool<T>::~mthreadpool() {
+    
+    mthreadpool::~mthreadpool() {
 
     }
 
-    template<class T>
-    void mthreadpool<T>::resize(ssize_t thread_num) {
+    
+    void mthreadpool::resize(ssize_t thread_num) {
         if (!(this->flags & 0b1)) {
             this->threadnum = thread_num;
             this->tasks_by_thread.resize(thread_num);
@@ -53,8 +50,8 @@ namespace manapi {
         }
     }
 
-    template<class T>
-    void mthreadpool<T>::stop() {
+    
+    void mthreadpool::stop() {
         if (!(this->flags & 0b1)) {
             return;
         }
@@ -62,20 +59,20 @@ namespace manapi {
         this->cv.notify_all();
     }
 
-    template<class T>
-    std::size_t mthreadpool<T>::size() const {
+    
+    std::size_t mthreadpool::size() const {
         return this->threadnum;
     }
 
-    template<class T>
-    void mthreadpool<T>::clear() {
+    
+    void mthreadpool::clear() {
         if (!(this->flags & 0b1)) {
             this->tasks.clear();
         }
     }
 
-    template<class T>
-    void mthreadpool<T>::join() MANAPIHTTP_NOEXCEPT {
+    
+    void mthreadpool::join() MANAPIHTTP_NOEXCEPT {
         for (auto &thread: this->threads) {
             thread.join();
         }
@@ -83,8 +80,8 @@ namespace manapi {
         this->threads.clear();
     }
 
-    template<class T>
-    void mthreadpool<T>::for_all_threads(std::move_only_function<void(tasks_by_thread_t *)> cb) {
+    
+    void mthreadpool::for_all_threads(std::move_only_function<void(tasks_by_thread_t *)> cb) {
         {
             std::lock_guard<std::mutex> lk (this->queue_mutex);
             cb (&this->tasks_by_thread);
@@ -93,8 +90,8 @@ namespace manapi {
         this->cv.notify_all();
     }
 
-    template<class T>
-    void mthreadpool<T>::start() {
+    
+    void mthreadpool::start() {
         if (this->flags & 0b1) {
             return;
         }
@@ -102,42 +99,28 @@ namespace manapi {
         this->flags |= 0b1;
 
         for (ssize_t i = 0; i < this->threadnum; ++i) {
-            this->threads.push_back(std::thread(mthreadpool::worker, this, i));
+            this->threads.emplace_back(mthreadpool::worker, this, i);
         }
     }
 
-    template<class T>
-    void mthreadpool<T>::append_task(std::unique_ptr<T> task) MANAPIHTTP_NOEXCEPT {
+    
+    void mthreadpool::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
         {
             // obtain a mutex
             std::lock_guard<std::mutex> lk (this->queue_mutex);
 
             MANAPIHTTP_MUST_ALLOC_START
-            this->tasks.push_back (nullptr);
+            this->tasks.emplace_back(nullptr);
             MANAPIHTTP_MUST_ALLOC_END
-            *this->tasks.rbegin() = std::move(task);
+            *this->tasks.rbegin() = std::move(cb);
         }
 
         this->cv.notify_one();
     }
 
-    template<class T>
-    void mthreadpool<T>::append_task(T task) MANAPIHTTP_NOEXCEPT {
-        MANAPIHTTP_MUST_ALLOC_START
-        this->append_task(std::make_unique<T>(std::move(task)));
-        MANAPIHTTP_MUST_ALLOC_END
-    }
-
-    template<class T>
-    void mthreadpool<T>::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
-        MANAPIHTTP_MUST_ALLOC_START
-        this->append_task(std::make_unique<function_task>(std::move(cb)));
-        MANAPIHTTP_MUST_ALLOC_END
-    }
-
-    template<class T>
-    std::unique_ptr<T> mthreadpool<T>::get_task(ssize_t index) {
-        std::unique_ptr<T> task = nullptr;
+    
+    std::move_only_function<void()> mthreadpool::get_task(ssize_t index) {
+        std::move_only_function<void()> task = nullptr;
         std::lock_guard<std::mutex> lk (this->queue_mutex);
 
         if (index == -1 || this->tasks_by_thread[index].empty()) {
@@ -158,15 +141,15 @@ namespace manapi {
     }
 
 
-    template<class T>
-    void *mthreadpool<T>::worker(void *arg, ssize_t index) {
+    
+    void *mthreadpool::worker(void *arg, ssize_t index) {
         auto *pool = static_cast<mthreadpool *> (arg);
         pool->run(index);
         return pool;
     }
 
-    template<class T>
-    void mthreadpool<T>::run(ssize_t index) {
+    
+    void mthreadpool::run(ssize_t index) {
         while ((this->flags & 0b1)) {
             auto task = get_task(index);
             if (task == nullptr)
@@ -182,17 +165,17 @@ namespace manapi {
         }
     }
 
-    template<class T>
-    ethreadpool<T>::ethreadpool(std::shared_ptr<manapi::logger> logger, std::move_only_function<void()> ontask) : threadpool<T>(std::move(logger)) {
+    
+    ethreadpool::ethreadpool(std::shared_ptr<manapi::logger> logger, std::move_only_function<void()> ontask) : threadpool(std::move(logger)) {
         this->flags_ = 0;
         this->ontask_ = std::move(ontask);
     }
 
-    template<class T>
-    ethreadpool<T>::~ethreadpool() = default;
+    
+    ethreadpool::~ethreadpool() = default;
 
-    template<class T>
-    bool ethreadpool<T>::try_task() {
+    
+    bool ethreadpool::try_task() {
         if (this->tasks.empty()) {
             return false;
         }
@@ -205,18 +188,18 @@ namespace manapi {
         return true;
     }
 
-    template<class T>
-    void ethreadpool<T>::set_notify() MANAPIHTTP_NOEXCEPT {
+    
+    void ethreadpool::set_notify() MANAPIHTTP_NOEXCEPT {
         this->flags_ |= 0b10;
     }
 
-    template<class T>
-    void ethreadpool<T>::set_notify_cb(std::move_only_function<void()> ontask) MANAPIHTTP_NOEXCEPT {
+    
+    void ethreadpool::set_notify_cb(std::move_only_function<void()> ontask) MANAPIHTTP_NOEXCEPT {
         this->ontask_ = std::move(ontask);
     }
 
-    template<class T>
-    void ethreadpool<T>::stop() {
+    
+    void ethreadpool::stop() {
         if (!(this->flags_ & 0b1)) {
             return;
         }
@@ -224,8 +207,8 @@ namespace manapi {
         this->flags_ ^= 0b1;
     }
 
-    template<class T>
-    void ethreadpool<T>::start() {
+    
+    void ethreadpool::start() {
         if (this->flags_ & 0b1) {
             return;
         }
@@ -233,12 +216,12 @@ namespace manapi {
         this->flags_ |= 0b1;
     }
 
-    template<class T>
-    void ethreadpool<T>::append_task(std::unique_ptr<T> task) MANAPIHTTP_NOEXCEPT {
+
+    void ethreadpool::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
         MANAPIHTTP_MUST_ALLOC_START
         this->tasks.push_back(nullptr);
         MANAPIHTTP_MUST_ALLOC_END
-        (*this->tasks.rbegin()) = std::move(task);
+        (*this->tasks.rbegin()) = std::move(cb);
 
         if ((this->flags_ & 0b10) && this->ontask_) {
             try {
@@ -251,26 +234,8 @@ namespace manapi {
         }
     }
 
-    template<class T>
-    void ethreadpool<T>::append_task(T task) MANAPIHTTP_NOEXCEPT {
-        MANAPIHTTP_MUST_ALLOC_START
-        this->append_task(std::make_unique<T>(std::move(task)));
-        MANAPIHTTP_MUST_ALLOC_END
-    }
-
-    template<class T>
-    void ethreadpool<T>::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
-        MANAPIHTTP_MUST_ALLOC_START
-        this->append_task(std::make_unique<function_task>(std::move(cb)));
-        MANAPIHTTP_MUST_ALLOC_END
-    }
-
-    template<class T>
-    void ethreadpool<T>::join() MANAPIHTTP_NOEXCEPT {
+    
+    void ethreadpool::join() MANAPIHTTP_NOEXCEPT {
 
     }
-
-
-    template class mthreadpool<task>;
-    template class ethreadpool<task>;
 }

@@ -3,7 +3,6 @@
 
 #include "services/ManapiTimerPool.hpp"
 #include "../include/ManapiUtils.hpp"
-#include "services/ManapiTaskFunction.hpp"
 
 enum timerpool_flags {
     TIMERPOOL_FLAG_ACTIVE = 1,
@@ -129,10 +128,6 @@ void manapi::timerpool::stop_(std::shared_ptr<data_t> data, bool evloop) {
     data->events->stop_watcher(std::move(data->timer));
 }
 
-void manapi::timerpool::doit() {
-
-}
-
 void manapi::timerpool::run_once() {
     timerpool::start_(this->data_);
 }
@@ -240,7 +235,7 @@ void manapi::timerpool::clear() {
     }
 }
 
-std::shared_ptr<manapi::threadpool<manapi::task>> manapi::timerpool::taskpool() const {
+std::shared_ptr<manapi::threadpool> manapi::timerpool::taskpool() const {
     return this->data_->events->taskpool();
 }
 

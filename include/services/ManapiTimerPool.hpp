@@ -10,13 +10,12 @@
 #include "../ManapiAsync.hpp"
 #include "./ManapiEventLoop.hpp"
 #include "./ManapiThreadPool.hpp"
-#include "./ManapiTask.hpp"
 #include "../async/ManapiAsyncMutex.hpp"
 #include "../async/ManapiAsyncConditionVariable.hpp"
 #include "../components/ManapiTimerObject.hpp"
 
 namespace manapi {
-    class timerpool : public task {
+    class timerpool {
     public:
         typedef std::pair <std::chrono::steady_clock::time_point, std::shared_ptr<timer::timer_data_t>> sorted_storage_key;
         struct sorted_tasks_compare_t {
@@ -107,13 +106,11 @@ namespace manapi {
 
         void stop ();
 
-        void doit ();
-
         void run_once ();
 
         void clear();
 
-        [[nodiscard]] std::shared_ptr<threadpool<task>> taskpool () const;
+        [[nodiscard]] std::shared_ptr<threadpool> taskpool () const;
     protected:
         static void stop_ (std::shared_ptr<data_t> data, bool evloop);
         //
