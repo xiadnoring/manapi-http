@@ -15,6 +15,7 @@
 #include "../ManapiErrors.hpp"
 #include "../ManapiJson.hpp"
 #include "../ManapiTime.hpp"
+#include "../components/ManapiFunction.hpp"
 #include "../components/ManapiChain.hpp"
 #include "../async/ManapiAsyncLogger.hpp"
 
@@ -26,6 +27,8 @@ namespace manapi {
         virtual ~threadpool() = default;
 
         virtual void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
+
+        virtual void append_super_task (manapi::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
 
         virtual void start() = 0;
 
@@ -64,6 +67,8 @@ namespace manapi {
 
         void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
+        void append_super_task(manapi::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
+
     private:
         // this vector contains all threads for this thread pool
         std::vector <std::thread> threads;
@@ -77,6 +82,8 @@ namespace manapi {
         // this vector of queue which contains tasks
         std::deque <std::move_only_function<void()>> tasks;
 
+        std::deque <manapi::move_only_function<void()>> tasks2;
+
         // queue mutex
         std::mutex queue_mutex;
 
@@ -85,7 +92,7 @@ namespace manapi {
 
         void run(ssize_t index);
 
-        std::move_only_function<void()> get_task(ssize_t index);
+        int get_task(ssize_t index, std::move_only_function<void()> *cb1, manapi::move_only_function<void()> *cb2);
 
         std::atomic<int> flags;
 
@@ -110,11 +117,15 @@ namespace manapi {
 
         void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
+        void append_super_task(manapi::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
+
         void join () MANAPIHTTP_NOEXCEPT override;
     private:
         int flags_;
 
-        chain <std::move_only_function<void()>> tasks;
+        std::deque <std::move_only_function<void()>> tasks;
+
+        std::deque <manapi::move_only_function<void()>> tasks2;
 
         std::move_only_function<void()> ontask_;
     };

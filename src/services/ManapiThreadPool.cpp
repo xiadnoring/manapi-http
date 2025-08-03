@@ -26,6 +26,22 @@ void task_doit(std::move_only_function<void()> task, manapi::logger *logger) {
     }
 }
 
+void task_doit(manapi::move_only_function<void()> task, manapi::logger *logger) {
+    assert((task));
+
+    try {
+        task();
+    }
+    catch (const manapi::exception &e) {
+        logger->warning(manapi::logger::default_service,
+            std::format("unexpected exception in the task with error code {}: {}", static_cast<int>(e.err_num()), e.what()));
+    }
+    catch (const std::exception &e) {
+        logger->warning(manapi::logger::default_service,
+            std::format("unexpected exception in the task: {}", e.what()));
+    }
+}
+
 namespace manapi {
     mthreadpool::mthreadpool(std::shared_ptr<manapi::logger> logger, ssize_t thread_num): threadpool(std::move(logger)), flags(0) {
         this->threadnum = thread_num;
@@ -33,9 +49,7 @@ namespace manapi {
     }
 
     
-    mthreadpool::~mthreadpool() {
-
-    }
+    mthreadpool::~mthreadpool() = default;
 
     
     void mthreadpool::resize(ssize_t thread_num) {
@@ -118,9 +132,22 @@ namespace manapi {
         this->cv.notify_one();
     }
 
-    
-    std::move_only_function<void()> mthreadpool::get_task(ssize_t index) {
-        std::move_only_function<void()> task = nullptr;
+    void mthreadpool::append_super_task(manapi::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
+        {
+            // obtain a mutex
+            std::lock_guard<std::mutex> lk (this->queue_mutex);
+
+            MANAPIHTTP_MUST_ALLOC_START
+            this->tasks2.emplace_back(nullptr);
+            MANAPIHTTP_MUST_ALLOC_END
+            *this->tasks2.rbegin() = std::move(cb);
+        }
+
+        this->cv.notify_one();
+    }
+
+
+    int mthreadpool::get_task(ssize_t index, std::move_only_function<void()> *cb1, manapi::move_only_function<void()> *cb2) {
         std::lock_guard<std::mutex> lk (this->queue_mutex);
 
         if (index == -1 || this->tasks_by_thread[index].empty()) {
@@ -128,16 +155,24 @@ namespace manapi {
 
             if (!this->tasks.empty())
             {
-                task = std::move(*this->tasks.rbegin());
+                *cb1 = std::move(*this->tasks.rbegin());
                 this->tasks.pop_back ();
+                return 1;
             }
         }
         else {
-            task = std::move(this->tasks_by_thread[index].back());
+            *cb1 = std::move(this->tasks_by_thread[index].back());
             this->tasks_by_thread[index].pop_back();
+            return 1;
         }
 
-        return std::move(task);
+        if (!this->tasks2.empty()) {
+            *cb2 = std::move(*this->tasks2.rbegin());
+            this->tasks2.pop_back ();
+            return 2;
+        }
+
+        return 0;
     }
 
 
@@ -150,17 +185,24 @@ namespace manapi {
 
     
     void mthreadpool::run(ssize_t index) {
+        std::move_only_function<void()> cb1;
+        manapi::move_only_function<void()> cb2;
+
         while ((this->flags & 0b1)) {
-            auto task = get_task(index);
-            if (task == nullptr)
-            {
-                std::unique_lock<std::mutex> lk (this->m);
-                this->cv.wait(lk);
-            }
-            else
-            {
-                manapi::async::internal::current_stack_cnt_set(0);
-                task_doit(std::move(task), this->logger_.get());
+            switch (get_task(index, &cb1, &cb2)) {
+                case 0: {
+                    std::unique_lock<std::mutex> lk (this->m);
+                    this->cv.wait(lk);
+                    break;
+                }
+                case 1:
+                    manapi::async::internal::current_stack_cnt_set(0);
+                    task_doit(std::move(cb1), this->logger_.get());
+                break;
+                case 2:
+                    manapi::async::internal::current_stack_cnt_set(0);
+                    task_doit(std::move(cb2), this->logger_.get());
+                break;
             }
         }
     }
@@ -176,16 +218,27 @@ namespace manapi {
 
     
     bool ethreadpool::try_task() {
-        if (this->tasks.empty()) {
-            return false;
+        if (!this->tasks.empty()) {
+            auto task = std::move(this->tasks.front());
+            this->tasks.pop_front();
+
+            manapi::async::internal::current_stack_cnt_set(0);
+            task_doit(std::move(task), this->logger_.get());
+
+            return true;
         }
 
-        auto task = std::move(this->tasks.front());
-        this->tasks.pop_front();
+        if(!this->tasks2.empty()) {
+            auto task = std::move(this->tasks2.front());
+            this->tasks2.pop_front();
 
-        manapi::async::internal::current_stack_cnt_set(0);
-        task_doit(std::move(task), this->logger_.get());
-        return true;
+            manapi::async::internal::current_stack_cnt_set(0);
+            task_doit(std::move(task), this->logger_.get());
+
+            return true;
+        }
+
+        return false;
     }
 
     
@@ -219,7 +272,7 @@ namespace manapi {
 
     void ethreadpool::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
         MANAPIHTTP_MUST_ALLOC_START
-        this->tasks.push_back(nullptr);
+        this->tasks.emplace_back(nullptr);
         MANAPIHTTP_MUST_ALLOC_END
         (*this->tasks.rbegin()) = std::move(cb);
 
@@ -234,7 +287,24 @@ namespace manapi {
         }
     }
 
-    
+    void ethreadpool::append_super_task(manapi::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
+        MANAPIHTTP_MUST_ALLOC_START
+        this->tasks2.emplace_back(nullptr);
+        MANAPIHTTP_MUST_ALLOC_END
+        (*this->tasks2.rbegin()) = std::move(cb);
+
+        if ((this->flags_ & 0b10) && this->ontask_) {
+            try {
+                this->flags_ ^= 0b10;
+                this->ontask_();
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("%s failed due to %s", "event thread pool: ontask()", e.what());
+            }
+        }
+    }
+
+
     void ethreadpool::join() MANAPIHTTP_NOEXCEPT {
 
     }

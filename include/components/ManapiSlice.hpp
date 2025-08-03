@@ -7,11 +7,11 @@
 
 #pragma once
 
-#include "ManapiBuffer.hpp"
-#include "ManapiChain.hpp"
+#include "./ManapiBuffer.hpp"
+#include "./ManapiChain.hpp"
 #include "../components/ManapiEventStructures.hpp"
 #include "../ManapiUtils.hpp"
-#include "ManapiErrors.hpp"
+#include "../ManapiErrors.hpp"
 
 namespace manapi {
     class slice_base;
@@ -101,7 +101,7 @@ namespace manapi {
 
         MANAPIHTTP_NODISCARD std::size_t shift () const;
 
-        [[deprecated, nodiscard]] std::size_t rshift () const;
+        MANAPIHTTP_NODISCARD std::size_t rshift () const;
 
         MANAPIHTTP_NODISCARD bool empty () const;
 

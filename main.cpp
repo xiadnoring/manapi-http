@@ -23,6 +23,8 @@
 #include "protobuf/helloworld.grpc.pb.h"
 #include "services/ManapiGrpc.hpp"
 
+#include "components/ManapiFunction.hpp"
+
 //#include "extensions/pq/AsyncPostgreClient.hpp"
 
 
@@ -95,6 +97,12 @@ private:
 
 
 int main () {
+    char aaa[56];
+    memset(aaa, '1', 56);
+    manapi::move_only_function<void()> test = [aaa] () -> void {
+        printf("%.*s\n", 56, aaa);
+    };
+
     try {
         manapi::init_tools::log_trace_init((manapi::debug::trace_level)std::stoi(manapi::process::get_env("MANAPIHTTP_LOGTRACE").unwrap()));
     }
@@ -123,6 +131,8 @@ int main () {
 
     manapi::net::http::server_ctx server_ctx;
     manapi::net::wgrpc::server_ctx grpc_server_ctx;
+
+    manapi::async::current()->etaskpool()->append_super_task(std::move(test));
 
     manapi::async::context::run(ctx, loops, [&thrcnt, &a, server_ctx, grpc_server_ctx] (const std::function<void()> &bind) -> void {
         using http = manapi::net::http::server;

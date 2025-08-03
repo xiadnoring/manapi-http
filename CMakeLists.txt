@@ -459,6 +459,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/worker/ManapiHttp3Worker.hpp
         src/worker/ManapiHttp3Worker.cpp
         src/worker/ManapiBaseUtils.cpp
+        include/components/ManapiFunction.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")
