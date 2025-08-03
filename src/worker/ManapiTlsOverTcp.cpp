@@ -36,45 +36,7 @@ manapi::future<manapi::error::status> manapi::net::worker::TLS::init(std::size_t
 }
 
 manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(const ev::shared_tcp &w) MANAPIHTTP_NOEXCEPT {
-    auto connection = TCP::accept(w, [this] () -> shared_conn {
-        try {
-            auto p = std::make_unique<tls_connection_t>();
-            auto ms = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
-            p.release();
-
-            auto connection = ms->as<tls_connection_t>();
-
-            connection->ssl = this->ssl_new_(this->ctx);
-
-            if (!connection->ssl)
-                return nullptr;
-
-            if (recv_setup_connection (ms, connection))
-                return nullptr;
-
-            auto rhs = manapi::async::current()->timerpool()->append_timer_sync(8000,
-                [ms] (const manapi::timer &t) mutable
-                -> void {
-                    auto w = ms->as<tcp_connection_t>();
-                    auto conn = std::move(ms);
-                    w->worker->close_connection(std::move(conn), CLOSE_CONN_ERR);
-            });
-
-            if (!rhs.ok())
-                return nullptr;
-
-            connection->accept_timer = rhs.unwrap();
-
-            return std::move(ms);
-        }
-        catch (std::bad_alloc const &) {
-            /* skip */
-        }
-        catch (std::exception const &e) {
-            manapi_log_error("%s failed due to %s", "accept", e.what());
-        }
-        return nullptr;
-    });
+    auto connection = TCP::accept(w, connection_init_cb, this);
 
     if (!connection)
         return nullptr;
@@ -571,6 +533,47 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
 
 int manapi::net::worker::TLS::onaccept_event_(const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     return ERR_OK;
+}
+
+manapi::net::worker::shared_conn manapi::net::worker::TLS::connection_init_cb(void *user_data) noexcept(true) {
+    auto const w = static_cast<TLS *> (user_data);
+    try {
+        auto p = std::make_unique<tls_connection_t>();
+        auto ms = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
+        p.release();
+
+        auto connection = ms->as<tls_connection_t>();
+
+        connection->ssl = w->ssl_new_(w->ctx);
+
+        if (!connection->ssl)
+            return nullptr;
+
+        if (w->recv_setup_connection (ms, connection))
+            return nullptr;
+
+        auto rhs = manapi::async::current()->timerpool()->append_timer_sync(8000,
+            [ms] (const manapi::timer &t) mutable
+            -> void {
+                auto w = ms->as<tcp_connection_t>();
+                auto conn = std::move(ms);
+                w->worker->close_connection(std::move(conn), CLOSE_CONN_ERR);
+        });
+
+        if (!rhs.ok())
+            return nullptr;
+
+        connection->accept_timer = rhs.unwrap();
+
+        return std::move(ms);
+    }
+    catch (std::bad_alloc const &) {
+        /* skip */
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "accept", e.what());
+    }
+    return nullptr;
 }
 
 int manapi::net::worker::TLS::check_read_stack_full_(tls_connection_t *data) {

@@ -220,7 +220,7 @@ void on_client_close_ (uv_handle_t *handle) {
     delete static_cast<manapi::ev::tcp *> (handle->data);
 }
 
-manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::shared_tcp &w, std::move_only_function<shared_conn()> init) MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::shared_tcp &w, shared_conn (*init_cb) (void *user_data), void *user_data) MANAPIHTTP_NOEXCEPT {
     /**
      * Receving using 65k buffers,
      * but if we copy that buffer we
@@ -251,7 +251,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
     std::array<char, 17> arr{};
 
     try {
-        connection = init();
+        connection = init_cb(user_data);
 
         if (!connection)
             return connection;
@@ -365,19 +365,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
 }
 
 manapi::net::worker::shared_conn manapi::net::worker::TCP::accept(const ev::shared_tcp &w) MANAPIHTTP_NOEXCEPT {
-    try {
-        return std::move(this->accept(w,
-            [this] () -> shared_conn {
-                std::unique_ptr<tcp_connection_t> p (new (std::nothrow) tcp_connection_t{});
-                auto conn = std::shared_ptr<worker::connection> (new (std::nothrow) worker::connection{p.get()}, connection_interface_eraser);
-                p.release();
-                return std::move(conn);
-        }));
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s failed due to %s", "accept", e.what());
-    }
-    return nullptr;
+    return this->accept(w, connection_init_cb, this);
 }
 
 void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT {
@@ -861,6 +849,18 @@ void manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &s
 bool manapi::net::worker::TCP::is_writable(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     auto const data = conn->as<tcp_connection_t>();
     return prepared::is_writable(this->config_, conn, data);
+}
+
+manapi::net::worker::shared_conn manapi::net::worker::TCP::connection_init_cb(void *user_data) noexcept(true) {
+    std::unique_ptr<tcp_connection_t> p (new (std::nothrow) tcp_connection_t{});
+
+    if (!p)
+        return nullptr;
+
+    auto conn = std::shared_ptr<worker::connection> (new (std::nothrow) worker::connection{p.get()}, connection_interface_eraser);
+    p.release();
+
+    return std::move(conn);
 }
 
 void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *ptr) MANAPIHTTP_NOEXCEPT {

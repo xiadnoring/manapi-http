@@ -31,16 +31,20 @@ int default_wrk_http_all_accept (const manapi::net::worker::shared_conn & conn, 
 }
 
 int default_wrk_http_all_init_stream (const manapi::net::worker::shared_conn & conn, const manapi::net::worker::shared_conn & stream, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
-    if (!conn->version) { conn->version = manapi::net::http::versions::HTTP_v1_1; }
+    if (!conn->version)
+        conn->version = manapi::net::http::versions::HTTP_v1_1;
     HTTP_ALL_SWITCH(init_stream_cb, conn, stream, httpctx, w);
 }
 
 int default_wrk_http_all_init (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
-    if (!conn->version) { conn->version = manapi::net::http::versions::HTTP_v1_1; }
+    if (!conn->version)
+        conn->version = manapi::net::http::versions::HTTP_v1_1;
     HTTP_ALL_SWITCH (init_cb, conn, httpctx, w);
 }
 
 int default_wrk_http_all_cleanup (manapi::net::worker::connection * conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    if (!conn->version)
+        return 0;
     HTTP_ALL_SWITCH (cleanup_cb, conn, httpctx, w);
 }
 
@@ -53,6 +57,8 @@ void default_wrk_http_all_flush_custom_read(const manapi::net::worker::shared_co
 }
 
 void default_wrk_http_all_update_limit_rate(const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    if (!conn->version)
+        return;
     HTTP_ALL_SWITCH (update_limit_rate, conn, httpctx, w);
 }
 
@@ -61,6 +67,8 @@ manapi::future<int> default_wrk_http_all_send_response (const manapi::net::worke
 }
 
 int default_wrk_http_all_shutdown_conn(const manapi::net::worker::shared_conn &conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, bool force) MANAPIHTTP_NOEXCEPT {
+    if (!conn->version)
+        return 1;
     HTTP_ALL_SWITCH (shutdown_cb, conn, global, w, force);
 }
 

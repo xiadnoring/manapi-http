@@ -666,11 +666,7 @@ void manapi::net::worker::openssl_quic::rst_stream(shared_conn s) MANAPIHTTP_NOE
 
     data->flags |= CONN_CLOSED;
 
-    if (data->ev_callback) {
-        if (base::call_user_callback(data->ev_callback.get(), s, ev::DISCONNECT, nullptr, 0, nullptr)) {
-            /* error */
-        }
-    }
+    this->close_stream(s, CLOSE_CONN_ERR);
 }
 
 manapi::net::worker::connection::ipdata_t * manapi::net::worker::openssl_quic::ipdata(worker::connection *conn) MANAPIHTTP_NOEXCEPT {

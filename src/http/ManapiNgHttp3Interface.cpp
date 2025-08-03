@@ -247,33 +247,22 @@ static int ng_wrk_http3(const manapi::net::worker::shared_conn &stream, int flag
         }
 
         if (flags & manapi::net::worker::base::CONN_READ) {
-            ssize_t res = 0;
+            auto rhs = nghttp3_conn_read_stream (s->ctx->ctx.get(), stream_id, reinterpret_cast<const uint8_t *>(buffer),
+                nsize, flags & manapi::net::worker::base::CONN_RECV_END);
 
-            while (res != nsize) {
-                auto rhs = nghttp3_conn_read_stream (s->ctx->ctx.get(), stream_id, reinterpret_cast<const uint8_t *>(buffer) + res,
-                    nsize - res, flags & manapi::net::worker::base::CONN_RECV_END);
-
-                if (rhs < 0) {
-                    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s: %s failed due to %s",
-                        "nghttp3", "nghttp3_conn_read_stream", nghttp3_strerror(rhs));
-                    goto err;
-                }
-
-                ng_wrk_http3_flush_write (s->ctx);
-
-                if (!rhs) {
-                    s->ctx->gctx->worker->event_toggle(stream, false, manapi::ev::READ);
-                    s->ctx->gctx->worker->feed_event(stream, manapi::net::worker::base::CONN_TOP_READ, buffer + res, nsize - res, p);
-                    break;
-                }
-
-                res += rhs;
+            if (rhs < 0) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s: %s failed due to %s",
+                    "nghttp3", "nghttp3_conn_read_stream", nghttp3_strerror(rhs));
+                goto err;
             }
+
+            ng_wrk_http3_flush_write (s->ctx);
         }
         else if (flags & (manapi::net::worker::base::CONN_RECV_END)) {
-            auto rhs = nghttp3_conn_shutdown_stream_read(s->ctx->ctx.get(), stream_id);
+            auto rhs = nghttp3_conn_read_stream (s->ctx->ctx.get(), stream_id, nullptr,
+                0, true);
 
-            if (rhs) {
+            if (rhs < 0 && rhs != NGHTTP3_ERR_MALFORMED_HTTP_MESSAGING) {
                 manapi_log_trace(manapi::debug::LOG_TRACE_LOW,
                     "%s: %s failed due to %s", "nghttp3", "nghttp3_conn_shutdown_stream_read", nghttp3_strerror(rhs));
                 goto err;
@@ -595,8 +584,9 @@ static int ng_wrk_http3_recv_data (nghttp3_conn *conn, int64_t stream_id, const 
         }
     }
 
-    if (s->top->recv_size > config->max_buffer_stack)
-        nghttp3_conn_block_stream(s->ctx->ctx.get(), stream_id);
+    if (s->top->recv_size > config->max_buffer_stack) {
+        s->ctx->gctx->worker->event_toggle(s->s, false, manapi::ev::READ);
+    }
 
     return 0;
 }
@@ -1096,13 +1086,13 @@ static int ng_wrk_http3_on_read_stream (const manapi::net::worker::shared_conn &
         auto const stream_id = s->ctx->gctx->worker->stream_id(s->s);
         if (stream_id < 0)
             return manapi::ERR_INTERNAL;
+if (s->ctx->gctx->flags & WRKHTTP3_GCTX_FLAG_QLOG)
+                manapi_log_debug("%s: %zu read start in %p", "nghttp3", stream_id, s->ctx->conn.get());
 
-        if (auto rhs = nghttp3_conn_unblock_stream(s->ctx->ctx.get(), stream_id)) {
-            return manapi::ERR_RESOURCE_EXHAUSTED;
-        }
-
-        if (s->flags & manapi::ev::READ)
             s->ctx->gctx->worker->event_toggle(s->s, true, manapi::ev::READ);
+        if ((s->flags & manapi::ev::READ)) {
+
+        }
     }
 
     return manapi::ERR_OK;

@@ -96,6 +96,7 @@ namespace manapi::net::worker {
     protected:
         int onaccept_event_(const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT override;
     private:
+        static shared_conn connection_init_cb (void *user_data) MANAPIHTTP_NOEXCEPT;
 
         int check_read_stack_full_ (tls_connection_t *data);
 

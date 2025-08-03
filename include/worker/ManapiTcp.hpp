@@ -36,7 +36,7 @@ namespace manapi::net::worker {
 
         static std::shared_ptr<worker::TCP> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
 
-        virtual shared_conn accept (const ev::shared_tcp &w, std::move_only_function<shared_conn()> init) MANAPIHTTP_NOEXCEPT;
+        virtual shared_conn accept (const ev::shared_tcp &w, shared_conn (*init_cb) (void *user_data), void *user_data) MANAPIHTTP_NOEXCEPT;
 
         virtual shared_conn accept (const ev::shared_tcp &w) MANAPIHTTP_NOEXCEPT;
 
@@ -90,6 +90,7 @@ namespace manapi::net::worker {
 
         std::function<void()> finish;
     private:
+        static shared_conn connection_init_cb (void *user_data) MANAPIHTTP_NOEXCEPT;
 
         static void connection_interface_eraser (worker::connection *ptr) MANAPIHTTP_NOEXCEPT;
 
