@@ -79,6 +79,10 @@ namespace manapi::net::http {
 
     std::string stringify_header (const std::pair<std::string_view, std::string_view> &header);
 
+    std::size_t stringify_header (char *buff, const std::pair<std::string_view, std::string_view> &header);
+
+    std::size_t stringify_header_size (const std::pair<std::string_view, std::string_view> &header);
+
     std::string stringify_header_value (const std::vector <header_value_view_t> &header_value);
 
     int version_ip_by_addr (const sockaddr *addr);

@@ -1067,11 +1067,13 @@ curl_socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, curlsocktyp
     try {
         fd = manapi::async::create_socket(addr->family, addr->protocol, addr->socktype, &addr->addr, addr->addrlen);
     }
-    catch (...) {
+    catch (std::exception const &e) {
+        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "curl open sock failed: %s", e.what());
         return -1;
     }
 
-    data->logger_->debug(manapi::logger::default_service, std::format("curl open {}",(int)fd));
+    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl open sock: %d", fd);
+
     return fd;
 }
 
@@ -1114,7 +1116,7 @@ int manapi::event_loop::handle_curl_close_socket(void *cbp, curl_socket_t socket
     if (!watcher_data.empty() && watcher_data.mapped()) {
         data->stop_watcher(watcher_data.mapped());
     }
-    data->logger_->debug(manapi::logger::default_service, std::format("curl close {}",(int)socket));
+    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl close sock: %d", socket);
     async::close_descriptor(static_cast<socket_t>(socket));
     return 0;
 }

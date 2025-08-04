@@ -255,9 +255,11 @@ manapi::json_error::status manapi::net::http::request::prepare_get_params_() MAN
 
             // verify params
             auto &mask = this->get_mask();
-            auto res = mask->valid(*this->get_params_);
-            if (!res.ok())
-                return std::move(res);
+            if (mask) {
+                auto res = mask->valid(*this->get_params_);
+                if (!res.ok())
+                    return std::move(res);
+            }
         }
         return json_error::status_ok();
     }

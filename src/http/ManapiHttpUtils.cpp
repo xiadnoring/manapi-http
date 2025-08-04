@@ -8,6 +8,8 @@
 #include "async/ManapiAsyncFileStream.hpp"
 #include "../include/ManapiUtils.hpp"
 
+static constexpr char header_delimiter[] = ": ";
+
 manapi::error::status_or<std::pair<std::string_view, std::string_view>> manapi::net::http::parse_header(std::string_view header) {
     std::pair <std::string_view, std::string_view> parsed;
     auto const pos = header.find(':');
@@ -34,11 +36,26 @@ manapi::error::status_or<std::pair<std::string_view, std::string_view>> manapi::
 
 std::string manapi::net::http::stringify_header (const std::pair<std::string_view, std::string_view> &header) {
     std::string res;
-    res.resize(header.first.size() + header.second.size() + (sizeof (": ") - 1));
-    res += header.first;
-    res += ": ";
-    res += header.second;
+    res.resize(stringify_header_size(header));
+    auto size = stringify_header(res.data(), header);
+    assert(size <= res.size());
+    res.resize(size);
     return std::move(res);
+}
+
+std::size_t manapi::net::http::stringify_header(char *buff, const std::pair<std::string_view, std::string_view> &header) {
+    std::size_t i = 0;
+    memcpy (buff + i, header.first.data(), header.first.size());
+    i += header.first.size();
+    memcpy (buff + i, header_delimiter, sizeof (header_delimiter) - 1);
+    i += sizeof (header_delimiter) - 1;
+    memcpy (buff + i, header.second.data(), header.second.size());
+    i += header.second.size();
+    return i;
+}
+
+std::size_t manapi::net::http::stringify_header_size(const std::pair<std::string_view, std::string_view> &header) {
+    return header.first.size() + header.second.size() + (sizeof (header_delimiter) - 1);
 }
 
 void manapi::net::http::request_data_clear(request_data_t &data) {

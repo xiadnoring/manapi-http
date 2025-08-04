@@ -388,7 +388,6 @@ set(MANAPIHTTP_HTTP_FILES
         include/services/ManapiObjectPool.hpp
         src/ManapiInitTools.cpp
         include/components/ManapiFileTransferInfo.hpp
-        include/components/ManapiMemoryPool.hpp
         src/async/ManapiAsyncSocket.cpp
         include/async/ManapiCancellation.hpp
         src/async/ManapiCancellation.cpp
@@ -578,7 +577,7 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
 
     add_compile_definitions(MANAPIHTTP_HTTP_AS_EXECUTABLE)
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
-        add_executable(${PROJECT_NAME} main.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+        add_executable(${PROJECT_NAME} main.cpp handlers.hpp handlers.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
     else ()
         add_executable(${PROJECT_NAME}
                 test_package/test_json.hpp

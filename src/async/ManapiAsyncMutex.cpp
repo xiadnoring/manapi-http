@@ -1,7 +1,7 @@
 #include "async/ManapiAsyncMutex.hpp"
 
 struct mutex_promise {
-    std::vector <std::coroutine_handle<manapi::future<>::promise>> stack;
+    std::vector <std::coroutine_handle<manapi::future<>::promise>> &stack;
     bool &own;
 
     bool await_ready () noexcept;
