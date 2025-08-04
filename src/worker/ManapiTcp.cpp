@@ -205,7 +205,7 @@ void manapi::net::worker::TCP::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
     if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
         this->global_.custom_read_cb(conn, ev::READ, buffer.data(), size, &buffer, &this->global_, this);
     else {
-        if (call_user_callback(connection->ev_callback.get(), conn, ev::READ, buffer.data(), size, &buffer))
+        if (call_user_callback(&connection->ev_callback, conn, ev::READ, buffer.data(), size, &buffer))
             this->close_connection(conn, CLOSE_CONN_ERR);
     }
 }
@@ -426,8 +426,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
                 connection->flags ^= CONN_SEND_END;
 
             this->event_on(conn,
-                std::make_unique<manapi::net::worker::worker_watcher_cb>(
-                    [this]
+                [this]
                 (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
                     -> void {
                         if (flags & ev::DISCONNECT) {
@@ -450,7 +449,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
                             assert(conn->wrk.data);
                             w->feed_event(conn, flags, buffer, nsize, p);
                         }
-                }));
+                });
 
             conn->cancellation.reset();
 
@@ -582,7 +581,7 @@ ssize_t manapi::net::worker::TCP::sync_write(const worker::shared_conn &conn, ev
     return prepared::sync_write(this, conn, buff, nbuff, finish);
 }
 
-std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::TCP::event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::worker_watcher_cb manapi::net::worker::TCP::event_on(const shared_conn & conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT {
     return prepared::event_on(conn, std::move(callback));
 }
 
@@ -597,7 +596,7 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) M
             this->flush_read_ (conn, data);
 
             if (status & CONN_RECV_END) {
-                if (manapi::net::worker::TCP::call_user_callback(data->ev_callback.get(), conn, CONN_RECV_END, nullptr, 0, nullptr))
+                if (manapi::net::worker::TCP::call_user_callback(&data->ev_callback, conn, CONN_RECV_END, nullptr, 0, nullptr))
                     this->close_connection(conn, CLOSE_CONN_ERR);
             }
 
@@ -751,7 +750,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                     }
                                     else {
                                         if ((conn->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE && conn->ev_callback) {
-                                            if (base::call_user_callback(conn->ev_callback.get(), connection, ev::WRITE, nullptr, 0, nullptr))
+                                            if (base::call_user_callback(&conn->ev_callback, connection, ev::WRITE, nullptr, 0, nullptr))
                                                 conn->worker->close_connection(connection, CLOSE_CONN_ERR);
                                         }
 
@@ -915,7 +914,7 @@ int manapi::net::worker::TCP::onaccept_bind_(const worker::shared_conn &conn) no
 
     try {
         this->event_on(conn,
-            std::make_unique<worker_watcher_cb>([this]
+            [this]
             (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
             -> void {
                 auto const w = this;
@@ -923,7 +922,7 @@ int manapi::net::worker::TCP::onaccept_bind_(const worker::shared_conn &conn) no
                     &w->global_, w)) {
                     w->close_connection(conn, CLOSE_CONN_ERR);
                 }
-        }));
+        });
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "onaccept_event_", e.what());

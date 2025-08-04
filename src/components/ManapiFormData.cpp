@@ -50,29 +50,15 @@ enum form_data_urlencoded_states {
     FORMDATA_URLEN_ERR
 };
 
-struct formdata_recv_headers_t {
+struct manapi::net::formdata_recv::formdata_recv_headers_t {
     std::string s1, s2;
 };
 
-struct manapi::net::formdata_recv::formdata_recv_ctx_t {
-    int current;
-    int next;
-
-    int n1;
-    int n2;
-
-    std::string boundary;
-
-    std::unique_ptr<formdata_recv_headers_t> hctx;
-    std::unique_ptr<std::map<std::string, std::string, std::less<>>> headers;
-};
-
-manapi::net::formdata_recv::formdata_recv(onrecv_cb_t onrecv_cb, manapi::net::worker::base *worker, worker::shared_conn *conn, http::request_data_t *req) {
+manapi::net::formdata_recv::formdata_recv(onrecv_cb_t onrecv_cb, manapi::net::worker::base *worker, worker::shared_conn *conn, http::request_data_t *req) : ctx_() {
     this->worker_ = worker;
     this->onrecv_cb_ = onrecv_cb;
     this->conn_ = conn;
     this->req_ = req;
-    this->ctx_ = std::make_unique<formdata_recv_ctx_t>(formdata_recv_ctx_t{});
 }
 
 manapi::net::formdata_recv::~formdata_recv() = default;
@@ -81,8 +67,10 @@ manapi::net::formdata_recv::formdata_recv(formdata_recv &&n) noexcept = default;
 
 manapi::net::formdata_recv & manapi::net::formdata_recv::operator=(formdata_recv &&n) noexcept = default;
 
-manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
+manapi::future<manapi::error::status> manapi::net::formdata_recv::get(onparam_cb_t cb) {
     assert(this->onparam_cb_ == nullptr);
+    manapi::error::status status;
+
     try {
         this->onparam_cb_ = std::move(cb);
         int type = CONTENT_TYPE_NONE;
@@ -90,23 +78,24 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
         {
             auto const hit = this->req_->headers.find(http::HEADER.CONTENT_TYPE);
 
-            if (hit == this->req_->headers.end()) {
-                THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_INVALID_ARGUMENT, "Content-Type header is missing");
-            }
+            if (hit == this->req_->headers.end())
+                co_return error::status_invalid_argument("formdata:Content-Type header is missing");
 
             auto rhs = http::parse_header_value(hit->second);
             auto hparams = rhs.unwrap();
             if (hparams.size() != 1) {
-                THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_INVALID_ARGUMENT, "Content-Type header is invalid");
+                status = error::status_invalid_argument("formdata:Content-Type header is invalid");
+                goto finish;
             }
 
             if (manapi::string::equals(hparams[0].value, mime::types.MULTIPART_FORM_DATA, 0b10)) {
                 auto pit = hparams[0].params.find("boundary");
                 if (pit == hparams[0].params.end()) {
-                    THROW_MANAPIHTTP_EXCEPTION2 (manapi::ERR_INVALID_ARGUMENT, "boundary is missing");
+                    status =  error::status_invalid_argument("formdata:boundary is missing");
+                    goto finish;
                 }
 
-                this->ctx_->boundary = "\r\n--" + pit->second;
+                this->ctx_.boundary = "\r\n--" + pit->second;
 
                 type = CONTENT_TYPE_MULTIPART_FORM_DATA;
             }
@@ -114,45 +103,53 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
                 type = CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED;
             }
             else {
-                THROW_MANAPIHTTP_EXCEPTION (manapi::ERR_INVALID_ARGUMENT, "FormData is not supported for the following Content-Type: {}", hparams[0].value);
+                status = error::status_invalid_argument("formdata:FormData is not supported for the current Content-Type");
+                goto finish;
             }
         }
 
         switch (type) {
             case CONTENT_TYPE_MULTIPART_FORM_DATA: {
-                co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
+                status = co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
                     [this] (slice_view buffs, bool fin) -> manapi::future<ssize_t> {
                         co_return co_await this->onrecv_multipart_(buffs);
                 });
+
+                if (!status)
+                    goto finish;
+
                 break;
             }
             case CONTENT_TYPE_APPLICATION_X_WWW_FORM_URLENCODED: {
-                co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
+                status = co_await this->onrecv_cb_ (this->worker_, this->conn_, this->req_,
                     [this] (slice_view buffs, bool fin) -> manapi::future<ssize_t> {
                         return this->onrecv_urlencoded_(buffs);
                 });
 
-                if (this->ctx_->current != FORMDATA_URLEN_VALUE
-                    && this->ctx_->current != FORMDATA_URLEN_INIT) {
-                    THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
-                        "x-www-form-urlencoded data is not complete");
+                if (!status)
+                    goto finish;
+
+                if (this->ctx_.current != FORMDATA_URLEN_VALUE
+                    && this->ctx_.current != FORMDATA_URLEN_INIT) {
+                    status = error::status_invalid_argument("formdata:x-www-form-urlencoded data is not complete");
+                    goto finish;
                 }
 
-                if (this->ctx_->current == FORMDATA_URLEN_VALUE) {
-                    auto ucb = this->onparam_cb_ (std::move(this->ctx_->hctx->s1));
+                if (this->ctx_.current == FORMDATA_URLEN_VALUE) {
+                    auto ucb = this->onparam_cb_ (std::move(this->ctx_.hctx->s1));
                     if (ucb) {
-                        auto const size = static_cast<ssize_t> (this->ctx_->hctx->s2.size());
+                        auto const size = static_cast<ssize_t> (this->ctx_.hctx->s2.size());
 
                         slice b;
 
-                        b.push_back(this->ctx_->hctx->s2.data(), size);
+                        b.push_back(this->ctx_.hctx->s2.data(), size);
 
                         if (size != co_await ucb (slice_view(b), true)) {
-                            THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
-                                "user callback returned an invalid result");
+                            status = error::status_invalid_argument("formdata:user callback returned an invalid result");
+                            goto finish;
                         }
 
-                        this->ctx_->hctx->s2.resize(0);
+                        this->ctx_.hctx->s2.resize(0);
                     }
                 }
 
@@ -160,14 +157,17 @@ manapi::future<void> manapi::net::formdata_recv::get(onparam_cb_t cb) {
             }
         }
 
-        this->onparam_cb_ = nullptr;
-        this->ondata_cb_ = nullptr;
+        status = manapi::error::status_ok();
     }
-    catch (...) {
-        this->onparam_cb_ = nullptr;
-        this->ondata_cb_ = nullptr;
-        std::rethrow_exception(std::current_exception());
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "formdata:Failed", e.what());
+        status = manapi::error::status_internal("formdata:Failed");
     }
+
+finish:
+    this->onparam_cb_ = nullptr;
+    this->ondata_cb_ = nullptr;
+    co_return std::move(status);
 }
 
 manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_file(std::string file, int mode, ssize_t maxlen, manapi::async::cancellation_action cancellation) {
@@ -222,471 +222,486 @@ manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::skip(ssize_t
 }
 
 manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view buffs) {
-    ssize_t total = 0;
-    slice_ref slice_transfer;
+    try {
+        ssize_t total = 0;
+        slice_ref slice_transfer;
 
-    for (auto buff_it = buffs.begin(); buff_it != buffs.end(); ++buff_it) {
-        ssize_t pos = 0;
-        ssize_t const size = buff_it.size();
-        auto buffer = static_cast<const char *>(buff_it.buffer());
+        for (auto buff_it = buffs.begin(); buff_it != buffs.end(); ++buff_it) {
+            ssize_t pos = 0;
+            ssize_t const size = buff_it.size();
+            auto buffer = static_cast<const char *>(buff_it.buffer());
 
-        while (pos != size) {
-            repeat: switch (this->ctx_->current) {
-                case FORMDATA_MULTI_INIT: {
-                    this->ctx_->current = FORMDATA_MULTI_BOUNDARY;
+            while (pos != size) {
+                repeat: switch (this->ctx_.current) {
+                    case FORMDATA_MULTI_INIT: {
+                        this->ctx_.current = FORMDATA_MULTI_BOUNDARY;
 
-                    this->ctx_->n1 = 2;
-                    this->ctx_->n2 = 0;
+                        this->ctx_.n1 = 2;
+                        this->ctx_.n2 = 0;
 
 
-                    break;
-                }
-                case FORMDATA_MULTI_BOUNDARY: {
-                    auto const copy = std::min(static_cast<ssize_t>(this->ctx_->boundary.size() - this->ctx_->n1),
-                        size - pos);
+                        break;
+                    }
+                    case FORMDATA_MULTI_BOUNDARY: {
+                        auto const copy = std::min(static_cast<ssize_t>(this->ctx_.boundary.size() - this->ctx_.n1),
+                            size - pos);
 
-                    if (copy) {
-                        if (0 != strncmp (this->ctx_->boundary.data() + this->ctx_->n1, buffer + pos, copy)) {
-                            co_return -1;
+                        if (copy) {
+                            if (0 != strncmp (this->ctx_.boundary.data() + this->ctx_.n1, buffer + pos, copy)) {
+                                co_return -1;
+                            }
                         }
+
+                        this->ctx_.n1 += static_cast<int>(copy);
+                        pos += copy;
+
+                        if (this->ctx_.n1 == this->ctx_.boundary.size()) {
+                            this->ctx_.n1 = 0;
+                            this->ctx_.current = FORMDATA_MULTI_R_OR_FIN;
+                        }
+
+                        break;
                     }
+                    case FORMDATA_MULTI_HEADER_KEY: {
+                        while (pos < size) {
+                            if (!this->ctx_.hctx->s1.empty() && this->ctx_.hctx->s1.back() == '\r') {
+                                /**
+                                 * RFC7230 (3.2.4) Field Parsing
+                                 * Historically, HTTP header field values could be extended over multiple
+                                 * lines by preceding each extra line with at least one space or horizontal tab (obs-fold).
+                                 */
+                                if (buffer[pos] == '\n') {
+                                    if (this->ctx_.hctx->s1.size() != 1) {
+                                        co_return -1;
+                                    }
 
-                    this->ctx_->n1 += static_cast<int>(copy);
-                    pos += copy;
+                                    this->ctx_.hctx->s1.pop_back();
 
-                    if (this->ctx_->n1 == this->ctx_->boundary.size()) {
-                        this->ctx_->n1 = 0;
-                        this->ctx_->current = FORMDATA_MULTI_R_OR_FIN;
-                    }
+                                    pos ++;
 
-                    break;
-                }
-                case FORMDATA_MULTI_HEADER_KEY: {
-                    while (pos < size) {
-                        if (!this->ctx_->hctx->s1.empty() && this->ctx_->hctx->s1.back() == '\r') {
-                            /**
-                             * RFC7230 (3.2.4) Field Parsing
-                             * Historically, HTTP header field values could be extended over multiple
-                             * lines by preceding each extra line with at least one space or horizontal tab (obs-fold).
-                             */
-                            if (buffer[pos] == '\n') {
-                                if (this->ctx_->hctx->s1.size() != 1) {
-                                    co_return -1;
+                                    this->ctx_.n2 = static_cast<int>(pos);
+
+                                    auto hit = this->ctx_.headers->find(http::HEADER.CONTENT_DISPOSITION);
+                                    if (hit == this->ctx_.headers->end()) {
+                                        co_return -1;
+                                    }
+
+                                    auto rhs = http::parse_header_value(hit->second);
+                                    auto hparams = rhs.unwrap();
+
+                                    if (hparams.size() != 1
+                                        || hparams[0].value != "form-data")
+                                        co_return -1;
+
+                                    auto nit = hparams[0].params.find("name");
+                                    if (nit == hparams[0].params.end())
+                                        co_return -1;
+
+                                    this->ondata_cb_ = this->onparam_cb_ (std::move(nit->second));
+
+                                    this->ctx_.current = FORMDATA_MULTI_DATA;
+                                    this->ctx_.next = FORMDATA_MULTI_ERR;
+
+                                    goto repeat;
                                 }
 
-                                this->ctx_->hctx->s1.pop_back();
-
-                                pos ++;
-
-                                this->ctx_->n2 = static_cast<int>(pos);
-
-                                auto hit = this->ctx_->headers->find(http::HEADER.CONTENT_DISPOSITION);
-                                if (hit == this->ctx_->headers->end()) {
-                                    co_return -1;
-                                }
-
-                                auto rhs = http::parse_header_value(hit->second);
-                                auto hparams = rhs.unwrap();
-
-                                if (hparams.size() != 1
-                                    || hparams[0].value != "form-data")
-                                    co_return -1;
-
-                                auto nit = hparams[0].params.find("name");
-                                if (nit == hparams[0].params.end())
-                                    co_return -1;
-
-                                this->ondata_cb_ = this->onparam_cb_ (std::move(nit->second));
-
-                                this->ctx_->current = FORMDATA_MULTI_DATA;
-                                this->ctx_->next = FORMDATA_MULTI_ERR;
-
-                                goto repeat;
+                                co_return -1;
                             }
 
-                            co_return -1;
-                        }
-
-                        if (buffer[pos] == '\r') {
-                            this->ctx_->hctx->s1.push_back(buffer[pos]);
-                            pos++;
-                            continue;
-                        }
-
-                        if (buffer[pos] == ':') {
-                            /**
-                             * RFC7230 (3.2) Header Fields
-                             * Each header field consists of a case-insensitive field name followed by a colon (":"),
-                             * optional leading whitespace, the field value, and optional trailing whitespace.
-                             */
-
-                            if (this->ctx_->hctx->s1 != http::HEADER.CONTENT_DISPOSITION
-                                && this->ctx_->hctx->s1 != http::HEADER.CONTENT_TYPE)
-                                co_return -1;
-
-                            pos++;
-                            this->ctx_->current = FORMDATA_MULTI_HEADER_VALUE;
-
-                            break;
-                        }
-
-                        if (!http::http_v1_1_is_token_char(buffer[pos])) {
-                            /**
-                             * RFC7230 (3.2.4) Field Parsing
-                             * No whitespace is allowed between the header field-name and colon.
-                             *
-                             * RFC7230 (3.2.6) Field Value Components
-                             * Most HTTP header field values are defined using
-                             * common syntax components (token, quoted-string, and comment)
-                             * separated by whitespace or specific delimiting characters.
-                             * Delimiters are chosen from the set of US-ASCII visual characters
-                             * not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}").
-                             */
-                            co_return -1;
-                        }
-
-                        if (this->ctx_->hctx->s1.size() > 24)
-                            co_return -1;
-
-                        this->ctx_->hctx->s1.push_back(static_cast<char>(std::tolower(buffer[pos])));
-                        pos++;
-                    }
-                    break;
-                }
-                case FORMDATA_MULTI_HEADER_VALUE: {
-                    if (buffer[pos] == ' ' && this->ctx_->hctx->s2.empty()) {
-                        /**
-                         * RFC7230 (3.2) Header Fields
-                         * Optitional leading whitespace
-                         */
-                        pos++;
-                    }
-
-                    while (pos < size) {
-                        if (!this->ctx_->hctx->s2.empty() && this->ctx_->hctx->s2.back() == '\r') {
-                            if (buffer[pos] == '\n') {
-                                this->ctx_->hctx->s2.pop_back();
+                            if (buffer[pos] == '\r') {
+                                this->ctx_.hctx->s1.push_back(buffer[pos]);
                                 pos++;
+                                continue;
+                            }
 
-                                if (!this->ctx_->hctx->s2.empty() && this->ctx_->hctx->s2.back() == ' ') {
-                                    /**
-                                     * RFC7230 (3.2) Header Fields
-                                     * Optitional trailing whitespace
-                                     */
-                                    this->ctx_->hctx->s2.pop_back();
-                                }
+                            if (buffer[pos] == ':') {
+                                /**
+                                 * RFC7230 (3.2) Header Fields
+                                 * Each header field consists of a case-insensitive field name followed by a colon (":"),
+                                 * optional leading whitespace, the field value, and optional trailing whitespace.
+                                 */
 
-                                /* insert */
-                                auto it = this->ctx_->headers->find(this->ctx_->hctx->s1);
-                                if (it == this->ctx_->headers->end()) {
-                                    this->ctx_->headers->insert({this->ctx_->hctx->s1, this->ctx_->hctx->s2});
-                                }
-                                else {
-                                    /**
-                                     * RFC7230 (3.2.2) Field Order
-                                     * A recipient MAY combine multiple header fields with
-                                     * the same field name into one "field-name: field-value" pair,
-                                     * without changing the semantics of the message,
-                                     * by appending each subsequent field value to the combined field value in order,
-                                     * separated by a comma. The order in which header fields with the same
-                                     * field name are received is therefore significant to
-                                     * the interpretation of the combined field value;
-                                     * a proxy MUST NOT change the order of these field values when forwarding a message.
-                                     */
-
-                                    // it->second.push_back(',');
-                                    // it->second.append(this->ctx_->hctx->s2);
-
-                                    /* but there it isn't allowed */
+                                if (this->ctx_.hctx->s1 != http::HEADER.CONTENT_DISPOSITION
+                                    && this->ctx_.hctx->s1 != http::HEADER.CONTENT_TYPE)
                                     co_return -1;
-                                }
 
-                                this->ctx_->hctx->s1.resize(0);
-                                this->ctx_->hctx->s2.resize(0);
-
-                                this->ctx_->current = FORMDATA_MULTI_HEADER_KEY;
+                                pos++;
+                                this->ctx_.current = FORMDATA_MULTI_HEADER_VALUE;
 
                                 break;
                             }
 
-                            co_return -1;
-                        }
+                            if (!http::http_v1_1_is_token_char(buffer[pos])) {
+                                /**
+                                 * RFC7230 (3.2.4) Field Parsing
+                                 * No whitespace is allowed between the header field-name and colon.
+                                 *
+                                 * RFC7230 (3.2.6) Field Value Components
+                                 * Most HTTP header field values are defined using
+                                 * common syntax components (token, quoted-string, and comment)
+                                 * separated by whitespace or specific delimiting characters.
+                                 * Delimiters are chosen from the set of US-ASCII visual characters
+                                 * not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}").
+                                 */
+                                co_return -1;
+                            }
 
-                        if (buffer[pos] == '\r') {
-                            this->ctx_->hctx->s2.push_back(buffer[pos]);
+                            if (this->ctx_.hctx->s1.size() > 24)
+                                co_return -1;
+
+                            this->ctx_.hctx->s1.push_back(static_cast<char>(std::tolower(buffer[pos])));
                             pos++;
-                            continue;
                         }
-
-                        if (!isprint(buffer[pos])) {
+                        break;
+                    }
+                    case FORMDATA_MULTI_HEADER_VALUE: {
+                        if (buffer[pos] == ' ' && this->ctx_.hctx->s2.empty()) {
                             /**
                              * RFC7230 (3.2) Header Fields
-                             *
-                             * header-field   = field-name ":" OWS field-value OWS
-                             *
-                             * field-name     = token
-                             * field-value    = *( field-content / obs-fold )
-                             * field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
-                             * field-vchar    = VCHAR / obs-text
-                             *
-                             * obs-fold       = CRLF 1*( SP / HTAB )
-                             *                ; obsolete line folding
-                             *                ; see Section 3.2.4
-                             *
-                             * V[isible]CHAR
+                             * Optitional leading whitespace
                              */
-                            co_return -1;
+                            pos++;
                         }
 
-                        if (this->ctx_->hctx->s2.size() > 128)
-                            co_return -1;
+                        while (pos < size) {
+                            if (!this->ctx_.hctx->s2.empty() && this->ctx_.hctx->s2.back() == '\r') {
+                                if (buffer[pos] == '\n') {
+                                    this->ctx_.hctx->s2.pop_back();
+                                    pos++;
 
-                        this->ctx_->hctx->s2.push_back(buffer[pos]);
-                        pos++;
-                    }
-                    break;
-                }
-                case FORMDATA_MULTI_R: {
-                    if (buffer[pos] != '\r') {
-                        co_return -1;
-                    }
-                    pos++;
-                    this->ctx_->current = FORMDATA_MULTI_N;
-                    break;
-                }
-                case FORMDATA_MULTI_N: {
-                    if (buffer[pos] != '\n') {
-                        co_return -1;
-                    }
-                    pos++;
-                    this->ctx_->current = this->ctx_->next;
-                    this->ctx_->next = FORMDATA_MULTI_ERR;
-                    break;
-                }
-                case FORMDATA_MULTI_R_OR_FIN: {
-                    this->ctx_->n1 = 0;
+                                    if (!this->ctx_.hctx->s2.empty() && this->ctx_.hctx->s2.back() == ' ') {
+                                        /**
+                                         * RFC7230 (3.2) Header Fields
+                                         * Optitional trailing whitespace
+                                         */
+                                        this->ctx_.hctx->s2.pop_back();
+                                    }
 
-                    if (!slice_transfer.empty()) {
-                        if (slice_transfer.size() != co_await this->ondata_cb_ (slice_view(slice_transfer), false))
-                            THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
-                                "user callback returned an invalid result");
-                        slice_transfer.clear();
-                    }
+                                    /* insert */
+                                    auto it = this->ctx_.headers->find(this->ctx_.hctx->s1);
+                                    if (it == this->ctx_.headers->end()) {
+                                        this->ctx_.headers->insert({this->ctx_.hctx->s1, this->ctx_.hctx->s2});
+                                    }
+                                    else {
+                                        /**
+                                         * RFC7230 (3.2.2) Field Order
+                                         * A recipient MAY combine multiple header fields with
+                                         * the same field name into one "field-name: field-value" pair,
+                                         * without changing the semantics of the message,
+                                         * by appending each subsequent field value to the combined field value in order,
+                                         * separated by a comma. The order in which header fields with the same
+                                         * field name are received is therefore significant to
+                                         * the interpretation of the combined field value;
+                                         * a proxy MUST NOT change the order of these field values when forwarding a message.
+                                         */
 
-                    if (buffer[pos] == '\r') {
-                        pos++;
-                        this->ctx_->current = FORMDATA_MULTI_N;
-                        this->ctx_->next = FORMDATA_MULTI_HEADER_KEY;
+                                        // it->second.push_back(',');
+                                        // it->second.append(this->ctx_.hctx->s2);
 
-                        this->ctx_->headers = std::make_unique<decltype(this->ctx_->headers)::element_type>();
-                        this->ctx_->hctx = std::make_unique<decltype(this->ctx_->hctx)::element_type>(
-                            decltype(this->ctx_->hctx)::element_type{});
+                                        /* but there it isn't allowed */
+                                        co_return -1;
+                                    }
 
-                        break;
-                    }
-                    if (buffer[pos] == '-') {
-                        pos++;
-                        this->ctx_->current = FORMDATA_MULTI_FINISH;
-                        break;
-                    }
-                    co_return -1;
-                }
-                case FORMDATA_MULTI_DATA: {
-                    /**
-                     * n1 - boundary size
-                     * n2 - payload start position
-                     */
+                                    this->ctx_.hctx->s1.resize(0);
+                                    this->ctx_.hctx->s2.resize(0);
 
-                    auto &n1 = this->ctx_->n1;
-                    auto &boundary = this->ctx_->boundary;
+                                    this->ctx_.current = FORMDATA_MULTI_HEADER_KEY;
 
-                    while (pos != size) {
-                        if (n1) {
-                            if (buffer[pos] == boundary[n1]) {
-                                // if (!n1) {
-                                //     auto const beyond = (pos - n1);
-                                //     auto const copy = beyond - this->ctx_->n2;
-                                //     assert((copy >= 0));
-                                //     slice_transfer.push_back(buffer + this->ctx_->n2, copy);
-                                //
-                                //     this->ctx_->n2 = static_cast<int>(pos);
-                                // }
-
-                                n1++;
-                                pos++;
-
-                                if (n1 == boundary.size()) {
-                                    this->ctx_->current = FORMDATA_MULTI_R_OR_FIN;
                                     break;
                                 }
 
+                                co_return -1;
+                            }
+
+                            if (buffer[pos] == '\r') {
+                                this->ctx_.hctx->s2.push_back(buffer[pos]);
+                                pos++;
                                 continue;
                             }
 
+                            if (!isprint(buffer[pos])) {
+                                /**
+                                 * RFC7230 (3.2) Header Fields
+                                 *
+                                 * header-field   = field-name ":" OWS field-value OWS
+                                 *
+                                 * field-name     = token
+                                 * field-value    = *( field-content / obs-fold )
+                                 * field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
+                                 * field-vchar    = VCHAR / obs-text
+                                 *
+                                 * obs-fold       = CRLF 1*( SP / HTAB )
+                                 *                ; obsolete line folding
+                                 *                ; see Section 3.2.4
+                                 *
+                                 * V[isible]CHAR
+                                 */
+                                co_return -1;
+                            }
+
+                            if (this->ctx_.hctx->s2.size() > 128)
+                                co_return -1;
+
+                            this->ctx_.hctx->s2.push_back(buffer[pos]);
+                            pos++;
+                        }
+                        break;
+                    }
+                    case FORMDATA_MULTI_R: {
+                        if (buffer[pos] != '\r') {
+                            co_return -1;
+                        }
+                        pos++;
+                        this->ctx_.current = FORMDATA_MULTI_N;
+                        break;
+                    }
+                    case FORMDATA_MULTI_N: {
+                        if (buffer[pos] != '\n') {
+                            co_return -1;
+                        }
+                        pos++;
+                        this->ctx_.current = this->ctx_.next;
+                        this->ctx_.next = FORMDATA_MULTI_ERR;
+                        break;
+                    }
+                    case FORMDATA_MULTI_R_OR_FIN: {
+                        this->ctx_.n1 = 0;
+
+                        if (!slice_transfer.empty()) {
+                            if (slice_transfer.size() != co_await this->ondata_cb_ (slice_view(slice_transfer), false)) {
+                                manapi_log_trace(debug::LOG_TRACE_HIGH, "formdata:user callback returned an invalid result (size=%zu)", slice_transfer.size());
+                                co_return -1;
+                            }
+                            slice_transfer.clear();
+                        }
+
+                        if (buffer[pos] == '\r') {
+                            pos++;
+                            this->ctx_.current = FORMDATA_MULTI_N;
+                            this->ctx_.next = FORMDATA_MULTI_HEADER_KEY;
+
+                            this->ctx_.headers = std::make_unique<decltype(this->ctx_.headers)::element_type>();
+                            this->ctx_.hctx = std::make_unique<decltype(this->ctx_.hctx)::element_type>(
+                                decltype(this->ctx_.hctx)::element_type{});
+
+                            break;
+                        }
+                        if (buffer[pos] == '-') {
+                            pos++;
+                            this->ctx_.current = FORMDATA_MULTI_FINISH;
+                            break;
+                        }
+                        co_return -1;
+                    }
+                    case FORMDATA_MULTI_DATA: {
+                        /**
+                         * n1 - boundary size
+                         * n2 - payload start position
+                         */
+
+                        auto &n1 = this->ctx_.n1;
+                        auto &boundary = this->ctx_.boundary;
+
+                        while (pos != size) {
                             if (n1) {
-                                if (pos < n1) {
-                                    auto const copy = static_cast<ssize_t> (n1);
-                                    slice_transfer.push_back(this->ctx_->boundary.data(), copy);
-                                    this->ctx_->n2 = static_cast<int> (pos);
+                                if (buffer[pos] == boundary[n1]) {
+                                    // if (!n1) {
+                                    //     auto const beyond = (pos - n1);
+                                    //     auto const copy = beyond - this->ctx_.n2;
+                                    //     assert((copy >= 0));
+                                    //     slice_transfer.push_back(buffer + this->ctx_.n2, copy);
+                                    //
+                                    //     this->ctx_.n2 = static_cast<int>(pos);
+                                    // }
+
+                                    n1++;
+                                    pos++;
+
+                                    if (n1 == boundary.size()) {
+                                        this->ctx_.current = FORMDATA_MULTI_R_OR_FIN;
+                                        break;
+                                    }
+
+                                    continue;
                                 }
 
-                                n1 = 0;
+                                if (n1) {
+                                    if (pos < n1) {
+                                        auto const copy = static_cast<ssize_t> (n1);
+                                        slice_transfer.push_back(this->ctx_.boundary.data(), copy);
+                                        this->ctx_.n2 = static_cast<int> (pos);
+                                    }
+
+                                    n1 = 0;
+                                }
+                            }
+
+                            std::string_view sv (buffer + pos, size - pos);
+                            auto const res = sv.find(boundary[0]);
+                            if (res == std::string_view::npos)
+                                pos = size;
+                            else {
+                                pos += static_cast<ssize_t>(res) + 1;
+                                n1 = 1;
                             }
                         }
 
-                        std::string_view sv (buffer + pos, size - pos);
-                        auto const res = sv.find(boundary[0]);
-                        if (res == std::string_view::npos)
-                            pos = size;
-                        else {
-                            pos += static_cast<ssize_t>(res) + 1;
-                            n1 = 1;
-                        }
+                        auto const beyond = (pos - n1);
+                        auto const copy = beyond - this->ctx_.n2;
+
+                        slice_transfer.push_back(buffer + this->ctx_.n2, copy);
+
+                        this->ctx_.n2 = 0;
+
+                        break;
                     }
+                    case FORMDATA_MULTI_FINISH: {
+                        if (buffer[pos] != '-')
+                            co_return -1;
 
-                    auto const beyond = (pos - n1);
-                    auto const copy = beyond - this->ctx_->n2;
+                        pos++;
 
-                    slice_transfer.push_back(buffer + this->ctx_->n2, copy);
+                        this->ctx_.headers.reset();
+                        this->ctx_.hctx.reset();
 
-                    this->ctx_->n2 = 0;
+                        this->ctx_.current = FORMDATA_MULTI_R;
+                        this->ctx_.next = FORMDATA_MULTI_ERR;
 
-                    break;
-                }
-                case FORMDATA_MULTI_FINISH: {
-                    if (buffer[pos] != '-')
+                        break;
+                    }
+                    default: {
                         co_return -1;
-
-                    pos++;
-
-                    this->ctx_->headers.reset();
-                    this->ctx_->hctx.reset();
-
-                    this->ctx_->current = FORMDATA_MULTI_R;
-                    this->ctx_->next = FORMDATA_MULTI_ERR;
-
-                    break;
-                }
-                default: {
-                    co_return -1;
+                    }
                 }
             }
+
+            total += pos;
         }
 
-        total += pos;
-    }
+        if (!slice_transfer.empty()) {
+            if (slice_transfer.size() != co_await this->ondata_cb_ (slice_view(slice_transfer), false)) {
+                manapi_log_trace(debug::LOG_TRACE_HIGH, "formdata:user callback returned an invalid result (size=%zu)", slice_transfer.size());
+                co_return -1;
+            }
+            slice_transfer.clear();
+        }
 
-    if (!slice_transfer.empty()) {
-        if (slice_transfer.size() != co_await this->ondata_cb_ (slice_view(slice_transfer), false))
-            THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
-                "user callback returned an invalid result");
-        slice_transfer.clear();
+        co_return total;
     }
-
-    co_return total;
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "formdata multipart", e.what());
+    }
+    co_return -1;
 }
 
 manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_urlencoded_(slice_view buffs) {
-    ssize_t total = 0;
-    manapi::slice buffs_transfered;
-    for (auto buff_it = buffs.begin(); buff_it != buffs.end(); ++buff_it) {
-        ssize_t pos = 0;
+    try {
+        ssize_t total = 0;
+        manapi::slice buffs_transfered;
+        for (auto buff_it = buffs.begin(); buff_it != buffs.end(); ++buff_it) {
+            ssize_t pos = 0;
 
-        ssize_t const size = buff_it.size();
-        auto buffer = static_cast<const char *>(buff_it.buffer());
+            ssize_t const size = buff_it.size();
+            auto buffer = static_cast<const char *>(buff_it.buffer());
 
-        while (pos != size) {
-            repeat: switch (this->ctx_->current) {
-                case FORMDATA_URLEN_INIT: {
-                    this->ctx_->hctx = std::make_unique<decltype(this->ctx_->hctx)::element_type>(
-                        decltype(this->ctx_->hctx)::element_type{});
+            while (pos != size) {
+                repeat: switch (this->ctx_.current) {
+                    case FORMDATA_URLEN_INIT: {
+                        this->ctx_.hctx = std::make_unique<decltype(this->ctx_.hctx)::element_type>(
+                            decltype(this->ctx_.hctx)::element_type{});
 
-                    this->ctx_->n1 = 0;
-                    this->ctx_->n2 = 0;
+                        this->ctx_.n1 = 0;
+                        this->ctx_.n2 = 0;
 
-                    this->ctx_->current = FORMDATA_URLEN_KEY;
+                        this->ctx_.current = FORMDATA_URLEN_KEY;
 
-                    break;
-                }
-                case FORMDATA_URLEN_KEY: {
-                    while (pos != size) {
-                        if (buffer[pos] == '=') {
-                            encoding::decode_url(this->ctx_->hctx->s1,
-                                std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
-
-                            pos++;
-
-                            this->ctx_->n1 = static_cast<int>(pos);
-                            this->ctx_->current = FORMDATA_URLEN_VALUE;
-
-                            goto repeat;
-                        }
-
-                        pos++;
+                        break;
                     }
+                    case FORMDATA_URLEN_KEY: {
+                        while (pos != size) {
+                            if (buffer[pos] == '=') {
+                                encoding::decode_url(this->ctx_.hctx->s1,
+                                    std::string_view (buffer + this->ctx_.n1, pos - this->ctx_.n1));
 
-                    if (pos == size) {
-                        if (pos != this->ctx_->n1)
-                            encoding::decode_url(this->ctx_->hctx->s1,
-                                std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
+                                pos++;
 
-                        this->ctx_->n1 = 0;
-                    }
+                                this->ctx_.n1 = static_cast<int>(pos);
+                                this->ctx_.current = FORMDATA_URLEN_VALUE;
 
-                    break;
-                }
-                case FORMDATA_URLEN_VALUE: {
-                    while (pos != size) {
-                        if (buffer[pos] == '&') {
-                            encoding::decode_url(this->ctx_->hctx->s2,
-                                std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
-
-                            pos++;
-
-                            this->ctx_->n1 = static_cast<int>(pos);
-                            this->ctx_->current = FORMDATA_URLEN_KEY;
-
-                            auto cb = this->onparam_cb_ (std::move(this->ctx_->hctx->s1));
-
-                            if (cb) {
-                                auto const ssize = static_cast<ssize_t> (this->ctx_->hctx->s2.size());
-                                buffs_transfered.push_back(this->ctx_->hctx->s2.data(), ssize);
+                                goto repeat;
                             }
 
-                            this->ctx_->hctx->s2.resize(0);
-
-                            if (!buffs_transfered.empty()) {
-                                if (buffs_transfered.size() != co_await this->ondata_cb_ (slice_view(buffs_transfered), false))
-                                    THROW_MANAPIHTTP_EXCEPTION2 (ERR_INVALID_ARGUMENT,
-                                        "user callback returned an invalid result");
-                            }
-
-                            goto repeat;
+                            pos++;
                         }
 
-                        pos++;
+                        if (pos == size) {
+                            if (pos != this->ctx_.n1)
+                                encoding::decode_url(this->ctx_.hctx->s1,
+                                    std::string_view (buffer + this->ctx_.n1, pos - this->ctx_.n1));
+
+                            this->ctx_.n1 = 0;
+                        }
+
+                        break;
                     }
+                    case FORMDATA_URLEN_VALUE: {
+                        while (pos != size) {
+                            if (buffer[pos] == '&') {
+                                encoding::decode_url(this->ctx_.hctx->s2,
+                                    std::string_view (buffer + this->ctx_.n1, pos - this->ctx_.n1));
 
-                    if (pos == size) {
-                        if (pos != this->ctx_->n1)
-                            encoding::decode_url(this->ctx_->hctx->s2,
-                                std::string_view (buffer + this->ctx_->n1, pos - this->ctx_->n1));
+                                pos++;
 
-                        this->ctx_->n1 = 0;
+                                this->ctx_.n1 = static_cast<int>(pos);
+                                this->ctx_.current = FORMDATA_URLEN_KEY;
+
+                                auto cb = this->onparam_cb_ (std::move(this->ctx_.hctx->s1));
+
+                                if (cb) {
+                                    auto const ssize = static_cast<ssize_t> (this->ctx_.hctx->s2.size());
+                                    buffs_transfered.push_back(this->ctx_.hctx->s2.data(), ssize);
+                                }
+
+                                this->ctx_.hctx->s2.resize(0);
+
+                                if (!buffs_transfered.empty()) {
+                                    if (buffs_transfered.size() != co_await this->ondata_cb_ (slice_view(buffs_transfered), false)) {
+                                        manapi_log_trace(debug::LOG_TRACE_HIGH, "formdata:user callback returned an invalid result (size=%zu)", buffs_transfered.size());
+                                        co_return -1;
+                                    }
+                                }
+
+                                goto repeat;
+                            }
+
+                            pos++;
+                        }
+
+                        if (pos == size) {
+                            if (pos != this->ctx_.n1)
+                                encoding::decode_url(this->ctx_.hctx->s2,
+                                    std::string_view (buffer + this->ctx_.n1, pos - this->ctx_.n1));
+
+                            this->ctx_.n1 = 0;
+                        }
+
+                        break;
                     }
-
-                    break;
-                }
-                default: {
-                    co_return -1;
+                    default: {
+                        co_return -1;
+                    }
                 }
             }
+
+            total += pos;
         }
 
-        total += pos;
+        co_return total;
     }
-
-    co_return total;
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "formdata urlencoded", e.what());
+    }
+    co_return -1;
 }
 
 manapi::net::formdata_send::formdata_send(async::shared_ctx ctx) : ctx(std::move(ctx)) {}
@@ -784,25 +799,60 @@ std::string manapi::net::formdata_send::generate_boundary() const {
     return "--boundary" + manapi::string::random(boundary_payload_size, "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789");
 }
 
-manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary, ssize_t buffer_size,  std::function<manapi::future<void>(const void *buffer, ssize_t size)> write) {
+manapi::future<manapi::error::status> manapi::net::formdata_send::data2multipart(std::string boundary, ssize_t buffer_size,  std::move_only_function<manapi::future<manapi::error::status>(manapi::slice_view slice, bool fin)> write) {
+    manapi::error::status status;
+
+    slice_part_t part{};
+
     for (auto &param : this->data) {
-        co_await write (boundary.data(), static_cast<ssize_t>(boundary.size()));
-        co_await write (nline, sizeof (nline) - 1);
+        part.buff.base = boundary.data();
+        part.buff.len = boundary.size();
+
+        status = co_await write (slice_view(&part), false);
+        if (!status)
+            goto err;
+
+        part.buff.base = (char*)nline;
+        part.buff.len = sizeof (nline) - 1;
+        status = co_await write (slice_view(&part), false);
+        if (!status)
+            goto err;
 
         if (param.second.type == DATA_PLAIN) {
             std::string const name = json{param.first}.dump();
             std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION,
                 http::stringify_header_value({{"form-data", {{"name", name}}}})});
 
-            co_await write (header.data(), static_cast<ssize_t>(header.size()));
-            co_await write (nline, sizeof (nline) - 1);
+            part.buff.base = header.data();
+            part.buff.len = header.size();
+            status = co_await write (slice_view(&part), false);
+            if (!status)
+                goto err;
+            part.buff.base = (char*)nline;
+            part.buff.len = sizeof (nline) - 1;
+            status = co_await write (slice_view(&part), false);
+            if (!status)
+                goto err;
 
-            co_await write (nline, sizeof (nline) - 1);
+            part.buff.base = (char*)nline;
+            part.buff.len = sizeof (nline) - 1;
+            status = co_await write (slice_view(&part), false);
+            if (!status)
+                goto err;
 
-            co_await write (param.second.data.data(), static_cast<ssize_t> (param.second.data.size()));
+
+            part.buff.base = param.second.data.data();
+            part.buff.len = param.second.data.size();
+            status = co_await write (slice_view(&part), false);
+            if (!status)
+                goto err;
             param.second.data = {};
 
-            co_await write (nline, sizeof (nline) - 1);
+            part.buff.base = (char*)nline;
+            part.buff.len = sizeof (nline) - 1;
+            status = co_await write (slice_view(&part), false);
+            if (!status)
+                goto err;
         }
 
         if (param.second.type == DATA_FILE) {
@@ -810,63 +860,107 @@ manapi::future<> manapi::net::formdata_send::data2multipart(std::string boundary
             std::string const filename = json{std::move(param.second.file.value().filename)}.dump();
             std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
             std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION, val});
-            co_await write (header.data(), static_cast<ssize_t>(header.size()));
-            co_await write (nline, sizeof (nline) - 1);
+            part.buff.base = header.data();
+            part.buff.len = header.size();
+            status = co_await write (slice_view(&part), false);
+            if (!status)
+                goto err;
+            part.buff.base = (char*)nline;
+            part.buff.len = sizeof (nline) - 1;
+            status = co_await write (slice_view(&part), false);
+            if (!status)
+                goto err;
 
             val = http::stringify_header_value({{std::move(param.second.file.value().filemime)}});
             header = http::stringify_header({http::HEADER.CONTENT_TYPE, val});
-            co_await write (header.data(), static_cast<ssize_t>(header.size()));
-            co_await write (nline, sizeof (nline) - 1);
+            part.buff.base = header.data();
+            part.buff.len = header.size();
+            status = co_await write (slice_view(&part), false);
+            if (!status)
+                goto err;
+            part.buff.base = (char*)nline;
+            part.buff.len = sizeof (nline) - 1;
+            status = co_await write (slice_view(&part), false);
+            if (!status)
+                goto err;
 
-            co_await write (nline, sizeof (nline) - 1);
+            part.buff.base = (char*)nline;
+            part.buff.len = sizeof (nline) - 1;
+            status = co_await write (slice_view(&part), false);
+            if (!status)
+                goto err;
 
             manapi::filesystem::fstream f (param.second.data);
-            auto res = co_await f.open(ev::FS_O_RDONLY);
+            status = co_await f.open(ev::FS_O_RDONLY);
 
+            if (!status)
+                goto err;
+
+            auto res = manapi::async::current()->memory_fabric().slice(65536);
             if (!res.ok())
-                res.unwrap();
+                co_return res.err();
 
-            std::exception_ptr err{nullptr};
-
-            std::string buffer;
-            buffer.reserve(buffer_size);
+            slice slices = res.unwrap();
 
             try {
                 auto fsize = co_await f.size();
 
                 while (fsize) {
-                    auto rhs = co_await f.read(buffer.data(), buffer_size);
-                    if (rhs < 0) {
-                        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "Failed to read file ({}) to send it as formdata parameter", param.second.data);
-                    }
+                    auto rhs = co_await f.read(slices);
+
+                    if (rhs < 0)
+                        co_return error::status_internal("formdata:Read data failed");
+
                     if (rhs == 0) {
                         continue;
                     }
 
                     fsize -= rhs;
 
-                    co_await write (buffer.data(), rhs);
+                    auto slice = slices.subslice(0, rhs);
+                    if (!slice)
+                        co_return slice.err();
+
+                    status = co_await write (slice.unwrap(), false);
+                    if (!status)
+                        goto err;
                 }
             }
-            catch (...) {
-                err = std::current_exception();
+            catch (std::exception const &e) {
+                manapi_log_error("%s due to %s", "data2multipart:Failed", e.what());
+                status = manapi::error::status_internal("data2multipart:Failed");
             }
 
             co_await f.close();
 
-            if (err) {
-                std::rethrow_exception(std::move(err));
-            }
-
             param.second.data = {};
 
-            co_await write (nline, sizeof (nline) - 1);
+            part.buff.base = (char*)nline;
+            part.buff.len = sizeof (nline) - 1;
+            status = co_await write (slice_view(&part), true);
+            if (!status)
+                goto err;
         }
     }
 
-    co_await write (boundary.data(), static_cast<ssize_t>(boundary.size()));
-    co_await write (boundary_end_symbols, sizeof (boundary_end_symbols) - 1);
-    co_await write (nline, sizeof (nline) - 1);
+    part.buff.base = boundary.data();
+    part.buff.len = boundary.size();
+    status = co_await write (slice_view(&part), false);
+    if (!status)
+        goto err;
+    part.buff.base = (char*)boundary_end_symbols;
+    part.buff.len = sizeof (boundary_end_symbols) - 1;
+    status = co_await write (slice_view(&part), false);
+    if (!status)
+        goto err;
+    part.buff.base = (char*)nline;
+    part.buff.len = sizeof (nline) - 1;
+    status = co_await write (slice_view(&part), true);
+    if (!status)
+        goto err;
+
+err:
+    co_return std::move(status);
 }
 
 

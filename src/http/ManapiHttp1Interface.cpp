@@ -26,19 +26,27 @@ enum http_v1_flags {
     HTTP1_BODY_CHUNKED = 1
 };
 
+int default_wrk_http_all_version (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
+    auto httpctx = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data);
+    if (httpctx->http1) return manapi::net::http::versions::HTTP_v1_1;
+    if (httpctx->http2) return manapi::net::http::versions::HTTP_v2;
+    if (httpctx->http3) return manapi::net::http::versions::HTTP_v3;
+    return 0;
+}
+
 int default_wrk_http_all_accept (const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     HTTP_ALL_SWITCH (accept_cb, conn, flags, buffer, nsize, p, httpctx, w);
 }
 
 int default_wrk_http_all_init_stream (const manapi::net::worker::shared_conn & conn, const manapi::net::worker::shared_conn & stream, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     if (!conn->version)
-        conn->version = manapi::net::http::versions::HTTP_v1_1;
+        conn->version = default_wrk_http_all_version(conn, global, w);
     HTTP_ALL_SWITCH(init_stream_cb, conn, stream, httpctx, w);
 }
 
 int default_wrk_http_all_init (const manapi::net::worker::shared_conn & conn, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w) MANAPIHTTP_NOEXCEPT {
     if (!conn->version)
-        conn->version = manapi::net::http::versions::HTTP_v1_1;
+        conn->version = default_wrk_http_all_version(conn, global, w);
     HTTP_ALL_SWITCH (init_cb, conn, httpctx, w);
 }
 
@@ -278,7 +286,7 @@ int default_wrk_http1(const manapi::net::worker::shared_conn &conn, int flags, c
                     goto exec;
 
                 case manapi::net::http::EHTTP_V1_1_PROTOCOL_UPGRADE: {
-                    w->event_on(conn, std::unique_ptr<manapi::net::worker::worker_watcher_cb>(nullptr));
+                    w->event_on(conn, nullptr);
                     w->event_flags(conn, 0);
 
                     auto gctx = static_cast<manapi::net::worker::wrk_http1_ctx_global_t *> (global->data);
@@ -405,7 +413,7 @@ exec:
                     w->close_connection (conn, ok ? 0 : manapi::net::worker::CLOSE_CONN_ERR);
             }));
 
-            w->event_on(conn, std::unique_ptr<manapi::net::worker::worker_watcher_cb>(nullptr));
+            w->event_on(conn, nullptr);
             w->event_flags(conn, 0);
 
             if (nsize) {

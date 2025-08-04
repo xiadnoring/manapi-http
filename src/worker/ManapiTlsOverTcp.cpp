@@ -83,7 +83,7 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
 
         if (connection->ev_callback) {
             auto cb = std::move(connection->ev_callback);
-            if (this->call_user_callback(cb.get(), conn, ev::DISCONNECT, nullptr, 0, nullptr)) {
+            if (this->call_user_callback(&cb, conn, ev::DISCONNECT, nullptr, 0, nullptr)) {
                 /* skip */
             }
         }
@@ -257,7 +257,7 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) M
         }
 
         if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
-            if(this->call_user_callback(data->ev_callback.get(),conn, CONN_RECV_END, nullptr, 0, nullptr))
+            if(this->call_user_callback(&data->ev_callback,conn, CONN_RECV_END, nullptr, 0, nullptr))
                 this->close_connection(conn, CLOSE_CONN_ERR);
         }
 
@@ -367,7 +367,7 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
                     continue;
                 return;
             }
-            this->event_on(conn, std::make_unique<worker_watcher_cb>(
+            this->event_on(conn,
                 [this, conn2 = conn] (const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p)
                     -> void {
                     if (flags & ev::DISCONNECT) {
@@ -385,7 +385,7 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
                     err:
                     this->event_on(conn, nullptr);
                     TCP::close_connection(conn, CLOSE_CONN_ERR);
-            }));
+            });
             this->event_flags(conn, ev::WRITE);
             return;
         }
@@ -476,9 +476,9 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
                                 break;
                             }
 
-                            if (err == this->ssl_error_syscall_
-                                && !this->ssl_is_init_fininshed_(data->ssl))
-                                continue;
+                            // if (err == this->ssl_error_syscall_
+                            //     && !this->ssl_is_init_fininshed_(data->ssl))
+                            //     break;
                         }
 
                         if (!conn->wrk.data) {
@@ -946,7 +946,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_read_(const shared_conn &conn, tls_c
 
             ssize_t alr = 0;
             if (!m->top->recv_size && (m->flags & CONN_READ) && m->ev_callback) {
-                if (this->call_user_callback(m->ev_callback.get(), conn, ev::READ, fastfast, rhs, nullptr))
+                if (this->call_user_callback(&m->ev_callback, conn, ev::READ, fastfast, rhs, nullptr))
                     this->close_connection(conn, CLOSE_CONN_ERR);
             }
             else {
@@ -991,7 +991,7 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
                 (*cnt)--;
 
             if (!object.empty()) {
-                if (this->call_user_callback(data->ev_callback.get(), conn, ev::READ, object.data(),
+                if (this->call_user_callback(&data->ev_callback, conn, ev::READ, object.data(),
                     static_cast<int>(object.size()), &object))
                     this->close_connection(conn, CLOSE_CONN_ERR);
             }

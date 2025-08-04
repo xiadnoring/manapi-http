@@ -181,13 +181,13 @@ namespace manapi::net::http {
          */
         void compressor_for_string (const std::string &name, compress_str_cb_t handler);
 
-        compress_file_cb_t &compressor_for_file (const std::string &name);
+        compress_file_cb_t *compressor_for_file (std::string_view name);
 
-        compress_str_cb_t &compressor_for_string (const std::string &name);
+        compress_str_cb_t *compressor_for_string (std::string_view name);
 
-        [[nodiscard]] bool contains_compressor_for_file (const std::string &name) const;
+        [[nodiscard]] bool contains_compressor_for_file (std::string_view name) const;
 
-        [[nodiscard]] bool contains_compressor_for_string (const std::string &name) const;
+        [[nodiscard]] bool contains_compressor_for_string (std::string_view name) const;
 
         /**
          * Add a transport protocol worker

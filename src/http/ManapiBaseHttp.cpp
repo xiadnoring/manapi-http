@@ -33,140 +33,158 @@ std::string manapi::net::http::internal::generate_default_page(int status, std::
 }
 
 void manapi::net::http::internal::send_response(std::unique_ptr<response> res) {
-    std::string response;
-    std::string compressed;
+    try {
+        std::string response;
+        std::string compressed;
+        manapi::error::status err;
 
-    response_features_t features = {
-        .compress = res->compress(),
-        .compressor_for_file = nullptr,
-        .compressor_for_string = nullptr,
-        .replacers = std::move(res->replacers())
-    };
+        response_features_t features = {
+            .compress = res->compress(),
+            .compressor_for_file = nullptr,
+            .compressor_for_string = nullptr,
+            .replacers = std::move(res->replacers())
+        };
 
-    auto const cdata = res->connection_data();
+        auto const cdata = res->connection_data();
 
-    if (!features.compress.empty() && !res->partial_enabled()) {
-        if (res->is_text()) {
-            features.compressor_for_string = &cdata->worker->site().compressor_for_string(features.compress);
+        if (!features.compress.empty() && !res->partial_enabled()) {
+            if (res->is_text()) {
+                features.compressor_for_string = cdata->worker->site().compressor_for_string(features.compress);
+            }
+            else if (res->is_file()) {
+                features.compressor_for_file = cdata->worker->site().compressor_for_file(features.compress);
+            }
+
+            if (features.compressor_for_file || features.compressor_for_string) {
+                err = res->header(std::string{HEADER.CONTENT_ENCODING}, features.compress);
+                if (!err)
+                    goto finish;
+            }
         }
-        else if (res->is_file()) {
-            features.compressor_for_file = &cdata->worker->site().compressor_for_file(features.compress);
+
+
+        // set time
+        res->header(std::string{HEADER.DATE}, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
+        if (res->request_data()->http < versions::HTTP_v2) {
+            auto const keepalive = cdata->worker->config()->keep_alive;
+            if (keepalive) {
+                err = res->header(std::string{HEADER.CONNECTION}, std::string{HEADER.KEEP_ALIVE});
+            }
+            else {
+                err = res->header(std::string{HEADER.CONNECTION}, "close");
+            }
+            if (!err)
+                goto finish;
         }
 
-        if (features.compressor_for_file || features.compressor_for_string) {
-            res->header(HEADER.CONTENT_ENCODING, features.compress);
+        switch (res->data_type()) {
+            case internal::RESPONSE_FILE:
+                manapi::async::run(send_response_file(std::move(res), std::move(features)));
+            break;
+            case internal::RESPONSE_TEXT:
+                manapi::async::run(send_response_text(std::move(res), std::move(features)));
+            break;
+            case internal::RESPONSE_PROXY:
+                manapi::async::run(send_response_proxy(std::move(res), std::move(features)));
+            break;
+            case internal::RESPONSE_FORMDATA:
+                manapi::async::run(send_response_formdata(std::move(res), std::move(features)));
+            break;
+            case internal::RESPONSE_ASYNC_CALLBACK:
+                send_response_async_cb(std::move(res), std::move(features));
+            break;
+            case internal::RESPONSE_SYNC_CALLBACK:
+                send_response_sync_cb(std::move(res), std::move(features));
+            break;
+            case internal::RESPONSE_STREAM:
+                send_response_stream_cb(std::move(res), std::move(features));
+            break;
+            default: {
+                auto const resptr = res.get();
+                manapi::async::run<int>(mask_response(resptr, true),
+                    [res = std::move(res)] (std::exception_ptr err, int *result)
+                    -> void {
+                        if (err) {
+                            /* failed */
+                            return;
+                        }
+                        res->connection_data()->cb->call(result && *result == ERR_OK);
+                });
+            }
         }
+
+        finish:
     }
-
-
-    // set time
-    res->header(HEADER.DATE, std::format("{:%a, %d %b %Y %H:%M:%S} GMT", std::chrono::time_point_cast<std::chrono::seconds>(manapi::time::current_time(false).get_sys_time())));
-    if (res->request_data()->http < versions::HTTP_v2) {
-        auto const keepalive = cdata->worker->config()->keep_alive;
-        if (keepalive) {
-            res->header(HEADER.CONNECTION, std::string{HEADER.KEEP_ALIVE});
-        }
-        else {
-            res->header(HEADER.CONNECTION, "close");
-        }
-    }
-
-    switch (res->data_type()) {
-        case internal::RESPONSE_FILE:
-            manapi::async::run(send_response_file(std::move(res), std::move(features)));
-        break;
-        case internal::RESPONSE_TEXT:
-            manapi::async::run(send_response_text(std::move(res), std::move(features)));
-        break;
-        case internal::RESPONSE_PROXY:
-            manapi::async::run(send_response_proxy(std::move(res), std::move(features)));
-        break;
-        case internal::RESPONSE_FORMDATA:
-            manapi::async::run(send_response_formdata(std::move(res), std::move(features)));
-        break;
-        case internal::RESPONSE_ASYNC_CALLBACK:
-            send_response_async_cb(std::move(res), std::move(features));
-        break;
-        case internal::RESPONSE_SYNC_CALLBACK:
-            send_response_sync_cb(std::move(res), std::move(features));
-        break;
-        case internal::RESPONSE_STREAM:
-            send_response_stream_cb(std::move(res), std::move(features));
-        break;
-        default: {
-            auto const resptr = res.get();
-            manapi::async::run<int>(mask_response(resptr, true),
-                [res = std::move(res)] (std::exception_ptr err, int *result)
-                -> void {
-                    if (err) {
-                        /* failed */
-                        return;
-                    }
-                    res->connection_data()->cb->call(result && *result == ERR_OK);
-            });
-        }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "send_response()", e.what());
     }
 }
 
 manapi::future<void> manapi::net::http::internal::send_response_file(std::unique_ptr<response> res, response_features_t features) {
     std::string filepath;
-    auto resfile = std::move(res->file());
+    auto reserr = res->file();
+    manapi::error::status err;
+    if (!reserr)
+        co_return;
+
+    auto resfile = std::move(*reserr.unwrap());
     auto const cdata = res->connection_data();
 
     bool force_compress = false;
 
     while (true) {
-        if (features.compressor_for_file) {
-            if (features.replacers) {
-                THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "replacers can not be using during compress");
-            }
+        try {
+            if (features.compressor_for_file) {
+                if (features.replacers) {
+                    manapi_log_error("send_response_file():replacers can not be using during compress");
+                    co_return;
+                }
 
-            bool rst_compress = false;
+                bool rst_compress = false;
 
-            try {
-                auto rhs = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site().config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
-                if (!rhs.ok())
+                try {
+                    auto rhs = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site().config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
+                    if (!rhs.ok())
+                        rst_compress = true;
+                    filepath = rhs.unwrap();
+                }
+                catch (std::exception const &e) {
+                    manapi_log_error("compress:Compress file failed due to %s", e.what());
+
                     rst_compress = true;
-                filepath = rhs.unwrap();
-            }
-            catch (std::exception const &e) {
-                manapi_log_error("compress:Compress file failed due to %s", e.what());
-
-                rst_compress = true;
-            }
+                }
 
 
-            if (rst_compress) {
-                /* badness */
-                res->remove_header(http::HEADER.CONTENT_ENCODING);
-                features.compressor_for_string = nullptr;
-                features.compressor_for_file = nullptr;
-                filepath = std::move(resfile);
-            }
-        }
-        else {
-            filepath = std::move(resfile);
-        }
-
-        filesystem::fstream f (filepath);
-        auto fres = co_await f.open(ev::FS_O_RDONLY);
-
-        if (!fres.ok()) {
-            if (force_compress) {
-                /** no way */
-                cdata->router = std::move(cdata->router->error);
-                uq_handle_data_t uq_cdata (res->connection_data_release());
-                send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
-                co_return;
+                if (rst_compress) {
+                    /* badness */
+                    res->remove_header(http::HEADER.CONTENT_ENCODING);
+                    features.compressor_for_string = nullptr;
+                    features.compressor_for_file = nullptr;
+                    filepath = std::move(resfile);
+                }
             }
             else {
-                force_compress = true;
-                MANAPIHTTP_LOG("Failed to open the file: {}", filepath);
+                filepath = std::move(resfile);
             }
-            continue;
-        }
 
-        try {
+            filesystem::fstream f (filepath);
+            auto fres = co_await f.open(ev::FS_O_RDONLY);
+
+            if (!fres.ok()) {
+                if (force_compress) {
+                    /** no way */
+                    cdata->router = std::move(cdata->router->error);
+                    uq_handle_data_t uq_cdata (res->connection_data_release());
+                    send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
+                    co_return;
+                }
+                else {
+                    force_compress = true;
+                    MANAPIHTTP_LOG("Failed to open the file: {}", filepath);
+                }
+                continue;
+            }
+
             // set headers
 
             std::string_view mimetype = mime::mime_by_file_path(
@@ -175,10 +193,13 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 
             if (mimetype.starts_with("text/")) {
                 auto mimegen = stringify_header_value({{mimetype, {{"charset", "UTF-8"}}}});
-                res->header(HEADER.CONTENT_TYPE, std::move(mimegen));
+                err = res->header(std::string{HEADER.CONTENT_TYPE}, std::move(mimegen));
             }
             else {
-                res->header(HEADER.CONTENT_TYPE, std::string{mimetype});
+                err = res->header(std::string{HEADER.CONTENT_TYPE}, std::string{mimetype});
+            }
+            if (!err) {
+                co_return;
             }
 
             // get file size
@@ -205,13 +226,13 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
             // partial enabled
             if (res->partial_enabled() && res->config()->partial_data_min_size <= fileSize) {
                 if (features.compressor_for_file) {
-                    THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION,
-                                           "the compress '{}' with the partial content is not supported.",
-                                           features.compress);
+                    manapi_log_error("%s failed due to %s", "send_response_file()",
+                        "compress with the partial content is not supported");
+                    break;
                 }
 
                 res->status(http::PARTIAL_CONTENT_206);
-                res->header(HEADER.ACCEPT_RANGES, "bytes");
+                res->header(std::string{HEADER.ACCEPT_RANGES}, "bytes");
 
                 ssize_t start = 0,
                         back = fileSize - 1,
@@ -238,18 +259,19 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                     case 0:
                         break;
 
-                    default:
-                        THROW_MANAPIHTTP_EXCEPTION2(ERR_FAILED_PRECONDITION, "multi bytes not supported");
+                    default: {
+                        manapi_log_error("%s: %s", "send_response_file()", "multi bytes not supported");
+                    }
                 }
 
                 size = back - start + 1;
 
-                res->header(HEADER.CONTENT_LENGTH, std::to_string(size));
-                res->header(HEADER.CONTENT_RANGE, std::format("bytes {}-{}/{}", start, back, fileSize));
+                res->header(std::string{HEADER.CONTENT_LENGTH}, std::to_string(size));
+                res->header(std::string{HEADER.CONTENT_RANGE}, std::format("bytes {}-{}/{}", start, back, fileSize));
 
                 auto task = mask_response(res.get(), size == 0);
                 manapi::async::run<int>(std::move(task),
-                    [size, start, f, cdata = std::move(cdata), res = std::move(res)] (std::exception_ptr err, int *value) mutable
+                    [size, start, f, res = std::move(res)] (std::exception_ptr err, int *value) mutable
                     -> void {
                         if (err) {
                             return;
@@ -266,7 +288,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 });
             }
             else {
-                res->header(HEADER.CONTENT_LENGTH, std::to_string(dynamicFileSize));
+                res->header(std::string{HEADER.CONTENT_LENGTH}, std::to_string(dynamicFileSize));
 
                 if (fileSize) {
                     auto task = mask_response(res.get(), false);
@@ -296,7 +318,7 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
             }
         }
         catch (std::exception const &e) {
-            MANAPIHTTP_LOG("send response failed due to {}", e.what());
+            manapi_log_error("%s failed due to %s", "send_response", e.what());
         }
 
         break;
@@ -304,190 +326,238 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 }
 
 manapi::future<void> manapi::net::http::internal::send_response_text(std::unique_ptr<response> res, response_features_t features) {
-    // may contains decoded / encoded body
-    std::string plaintext = std::move(res->text());
-
-    if (features.replacers) {
-        manapi::kainjow::mustache::data data;
-        for (auto &v : *features.replacers) {
-            data.set(v.first, v.second);
+    try {
+        // may contains decoded / encoded body
+        auto errtext = res->text();
+        if (!errtext) {
+            co_return;
         }
+        std::string plaintext = std::move(*errtext.unwrap());
 
-        std::string input = std::move(plaintext);
-        manapi::kainjow::mustache::mustache tmpl (input);
-        plaintext = tmpl.render(data);
-    }
-
-    if (features.compressor_for_string) {
-        // encode content !
-        auto r = (*features.compressor_for_string)(plaintext);
-        if (r.ok())
-            plaintext = r.unwrap();
-        else {
-            features.compressor_for_string = nullptr;
-            res->remove_header(HEADER.CONTENT_ENCODING);
-        }
-    }
-
-    res->header(HEADER.CONTENT_LENGTH, std::to_string(plaintext.size()));
-
-    if (!res->headers().contains(HEADER.CONTENT_TYPE)) {
-        res->header(HEADER.CONTENT_TYPE, "text/html; charset=UTF-8");
-    }
-
-    auto task = mask_response(res.get(), plaintext.empty());
-    manapi::async::run<int>(std::move(task),
-        [plaintext = std::move(plaintext), res = std::move(res)] (std::exception_ptr err, int *value) mutable
-        -> void {
-            if (err) {
-                /* failed */
-                return;
+        if (features.replacers) {
+            manapi::kainjow::mustache::data data;
+            for (auto &v : *features.replacers) {
+                data.set(v.first, v.second);
             }
 
-            if (value && *value == ERR_OK) {
-                /* ok */
-                if (plaintext.empty())
-                    res->connection_data()->cb->call(true);
-                else
-                    manapi::async::run (send_text(std::move(res), std::move(plaintext)));
-            }
-    });
+            std::string input = std::move(plaintext);
+            manapi::kainjow::mustache::mustache tmpl (input);
+            plaintext = tmpl.render(data);
+        }
 
-    co_return;
+        if (features.compressor_for_string) {
+            // encode content !
+            auto r = (*features.compressor_for_string)(plaintext);
+            if (r.ok())
+                plaintext = r.unwrap();
+            else {
+                features.compressor_for_string = nullptr;
+                res->remove_header(HEADER.CONTENT_ENCODING);
+            }
+        }
+
+        auto err = res->header(std::string{HEADER.CONTENT_LENGTH}, std::to_string(plaintext.size()));
+        if (!err)
+            co_return;
+
+        if (!res->headers().contains(HEADER.CONTENT_TYPE)) {
+            err = res->header(std::string{HEADER.CONTENT_TYPE}, "text/html; charset=UTF-8");
+            if (!err)
+                co_return;
+        }
+
+        auto task = mask_response(res.get(), plaintext.empty());
+        manapi::async::run<int>(std::move(task),
+            [plaintext = std::move(plaintext), res = std::move(res)] (std::exception_ptr err, int *value) mutable
+            -> void {
+                if (err) {
+                    /* failed */
+                    return;
+                }
+
+                if (value && *value == ERR_OK) {
+                    /* ok */
+                    if (plaintext.empty())
+                        res->connection_data()->cb->call(true);
+                    else
+                        manapi::async::run (send_text(std::move(res), std::move(plaintext)));
+                }
+        });
+
+        co_return;
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "send_response_text()", e.what());
+    }
 }
 
 manapi::future<void> manapi::net::http::internal::send_response_proxy(std::unique_ptr<response> res, response_features_t features) {
 #ifdef MANAPIHTTP_FETCH_SUPPORT
-    auto proxy = std::make_unique<fetch>(std::move(res->url()));
-    auto proxy_setup = std::move(res->proxy_setup_cb());
+    try {
+        auto proxy_err = res->url();
+        if (!proxy_err) {
+            co_return;
+        }
+        auto proxy = std::make_unique<fetch>(std::move(*proxy_err.unwrap()));
+        auto proxy_setup = std::move(res->proxy_setup_cb());
 
-    if (proxy_setup) {
-        proxy_setup->operator()(*proxy);
-    }
-
-    proxy->headers({{"ranges", "0-"}});
-
-    auto content_length = std::make_unique<ssize_t>(0);
-
-    proxy->handle_async_headers (
-        [&content_length = *content_length.get(), proxy = proxy.get(), res = res.get()](std::map<std::string, std::string, std::less<>> headers) mutable
-        -> manapi::future<bool> {
-        res->status_code(proxy->status_code());
-
-        auto it = headers.find(HEADER.CONTENT_LENGTH);
-        if (it != headers.end()) {
-            content_length = std::stoll(it->second);
-            res->header(HEADER.CONTENT_LENGTH, it->second);
+        if (proxy_setup) {
+            proxy_setup->operator()(*proxy);
         }
 
-        const auto rhs1 = co_await mask_response(res, content_length == 0);
-        if (rhs1 != ERR_OK) {
-            co_return false;
-        }
+        proxy->headers({{"ranges", "0-"}});
 
-        co_return true;
-    });
+        auto content_length = std::make_unique<ssize_t>(0);
 
-    proxy->handle_async_body(
-        [res = res.get(), &content_length = *content_length.get()](slice_view buffs, bool fin) mutable
-            -> manapi::future<ssize_t> {
-        if (content_length > 0 && content_length <= buffs.size())
-            fin = true;
+        proxy->handle_async_headers (
+            [&content_length = *content_length.get(), proxy = proxy.get(), res = res.get()](std::map<std::string, std::string, std::less<>> headers) mutable
+            -> manapi::future<bool> {
+                try {
+                    res->status_code(proxy->status_code());
 
-        auto const cdata = res->connection_data();
-        auto rhs = co_await cdata->worker->fwrite (cdata->conn, buffs, fin);
+                    auto it = headers.find(HEADER.CONTENT_LENGTH);
+                    if (it != headers.end()) {
+                        char *strend = it->second.end().base();
+                        content_length = std::strtoll(it->second.data(), &strend, 10);
+                        res->header(std::string{HEADER.CONTENT_LENGTH}, it->second);
+                    }
 
-        if (rhs < 0)
-            co_return -1;
+                    const auto rhs1 = co_await mask_response(res, content_length == 0);
+                    if (rhs1 != ERR_OK) {
+                        co_return false;
+                    }
 
-        content_length -= rhs;
-
-        co_return rhs;
-    });
-
-    auto task = proxy->async_doit();
-    manapi::async::run<error::status> (std::move(task), [proxy = std::move(proxy),
-        content_length = std::move(content_length), res = std::move(res)]
-            (std::exception_ptr err, manapi::error::status *status) mutable -> void {
-            if (!status->ok()) {
-                status->log();
-                return;
-            }
-            if (err) {
-                /* failed */
-                std::string msg;
-                manapi::extract_exception_ptr(std::move(err), nullptr, &msg);
-                std::cerr << msg << "\n";
-                return;
-            }
-
-
-            res->connection_data()->cb->call(true);
+                    co_return true;
+                }
+                catch (std::exception const &e) {
+                    manapi_log_error("%s failed due to %s", "send_response_proxy()", e.what());
+                }
+                co_return false;
         });
 
-    co_return;
+        proxy->handle_async_body(
+            [res = res.get(), &content_length = *content_length.get()](slice_view buffs, bool fin) mutable
+                -> manapi::future<ssize_t> {
+            if (content_length > 0 && content_length <= buffs.size())
+                fin = true;
+
+            auto const cdata = res->connection_data();
+            auto rhs = co_await cdata->worker->fwrite (cdata->conn, buffs, fin);
+
+            if (rhs < 0)
+                co_return -1;
+
+            content_length -= rhs;
+
+            co_return rhs;
+        });
+
+        auto task = proxy->async_doit();
+        manapi::async::run<error::status> (std::move(task), [proxy = std::move(proxy),
+            content_length = std::move(content_length), res = std::move(res)]
+                (std::exception_ptr err, manapi::error::status *status) mutable -> void {
+                if (!status->ok()) {
+                    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %.*s", "send_response_proxy()",
+                        status->msg().size(), status->msg().data());
+                    return;
+                }
+                if (err) {
+                    /* failed */
+                    char msg[256];
+                    std::size_t msg_size = sizeof (msg);
+                    manapi::extract_exception_ptr(std::move(err), nullptr, msg, &msg_size);
+                    manapi_log_trace("%s failed due to %.*s", "send_response_proxy()", msg_size, msg);
+                    return;
+                }
+
+
+                res->connection_data()->cb->call(true);
+            });
+
+        co_return;
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "send_response_proxy()", e.what());
+    }
 #else
-    THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "Fetch is required");
+    manapi_log_error("%s failed due to %s", "send_response_proxy()", "unimplemented");
 #endif
 }
 
 manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique_ptr<response> res, response_features_t features) {
-    auto formdata = std::make_unique<formdata_send>(std::move(res->formdata()));
+    try {
+        auto formdata_err = res->formdata();
+        if (!formdata_err) {
+            co_return;
+        }
+        auto formdata = std::make_unique<formdata_send>(std::move(*formdata_err.unwrap()));
 
-    if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "formdata: Compression isn't supported");
-    }
+        if (features.compressor_for_file || features.compressor_for_string) {
+            manapi_log_error("formdata: Compression isn't supported");
+            co_return;
+        }
 
-    if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "formdata: Replacers isn't supported");
-    }
+        if (features.replacers) {
+            manapi_log_error("formdata: Replacers isn't supported");
+            co_return;
+        }
 
-    auto size = co_await formdata->payload_size();
+        auto size = co_await formdata->payload_size();
 
-    auto task = mask_response(res.get(), false);
-    manapi::async::run<int> (std::move(task),
-        [size, formdata = std::move(formdata), res = std::move(res)] (std::exception_ptr err, int *result) mutable
-        -> void {
-            if (err) {
-                /* failed */
-                return;
-            }
+        auto task = mask_response(res.get(), false);
+        manapi::async::run<int> (std::move(task),
+            [size, formdata = std::move(formdata), res = std::move(res)] (std::exception_ptr err, int *result) mutable
+            -> void {
+                if (err) {
+                    /* failed */
+                    return;
+                }
 
 
-            if (result && *result == ERR_OK) {
-                auto boundary = formdata->generate_boundary();
-                size += formdata->multipart_size(static_cast<ssize_t>(boundary.size()));
+                if (result && *result == ERR_OK) {
+                    auto boundary = formdata->generate_boundary();
+                    size += formdata->multipart_size(static_cast<ssize_t>(boundary.size()));
 
-                res->header(HEADER.CONTENT_LENGTH, std::to_string(size));
-                res->header(HEADER.CONTENT_TYPE, stringify_header_value({{"multipart/form-data", {{"boundary", boundary.substr(2)}}}}));
+                    res->header(std::string{HEADER.CONTENT_LENGTH}, std::to_string(size));
+                    res->header(std::string{HEADER.CONTENT_TYPE}, stringify_header_value({{"multipart/form-data", {{"boundary", boundary.substr(2)}}}}));
 
-                auto task = formdata->data2multipart(std::move(boundary),
-                    res->config()->buffer_size,
-                    [res = res.get()] (const void *buffer, ssize_t size)
-                    -> future<> {
-                        auto const cdata = res->connection_data();
-                        /**
-                         * Invalid param: finish. IT MUST NOT be always false
-                         * FINISH !!
-                         */
-                        if (co_await cdata->worker->fwrite(cdata->conn, buffer, size, false) < 0) {
-                            THROW_MANAPIHTTP_EXCEPTION2(ERR_ABORTED, "failed to write");
-                        }
+                    auto task = formdata->data2multipart(std::move(boundary),
+                        res->config()->buffer_size,
+                        [res = res.get()] (manapi::slice_view slice, bool fin)
+                        -> future<manapi::error::status> {
+                            auto const cdata = res->connection_data();
+
+                            if (co_await cdata->worker->fwrite(cdata->conn, slice, fin) < 0) {
+                                co_return error::status_aborted("worker:Failed to write");
+                            }
+
+                            co_return error::status_ok();
+                        });
+
+                    manapi::async::run<manapi::error::status>(std::move(task),
+                        [res = std::move(res)] (std::exception_ptr err, manapi::error::status *status) mutable
+                        -> void {
+                            if (err) {
+                                return;
+                            }
+
+                            if (!status->ok()) {
+                                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,
+                                    "%s failed due to %.*s", "send_response_formdata",
+                                    status->msg().size(), status->msg().data());
+                                return;
+                            }
+
+                            res->connection_data()->cb->call(true);
                     });
+                }
+            });
 
-                manapi::async::run(std::move(task),
-                    [res = std::move(res)] (std::exception_ptr err) mutable
-                    -> void {
-                        if (err) {
-                            return;
-                        }
-
-                        res->connection_data()->cb->call(true);
-                });
-            }
-        });
-
-    co_return;
+        co_return;
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "send_response_formdata()", e.what());
+    }
 }
 
 bool http_v1_1_is_chunked_data (manapi::net::http::response *resp) {
@@ -498,235 +568,323 @@ bool http_v1_1_is_chunked_data (manapi::net::http::response *resp) {
     return false;
 }
 
-manapi::future<> send_http_v1_1_chunked_data (manapi::net::http::internal::handle_data_t *cdata, manapi::slice_view buffs, bool &finish) {
-    auto const rhs = buffs.size();
-    std::string_view const msg = {"0\r\n\r\n"};
+manapi::future<manapi::error::status> send_http_v1_1_chunked_data (manapi::net::http::internal::handle_data_t *cdata, manapi::slice_view buffs, bool &finish) {
+    try {
+        auto const rhs = buffs.size();
+        std::string_view const msg = {"0\r\n\r\n"};
 
-    if (rhs) {
-        char header[20];
+        if (rhs) {
+            char header[20];
 
-        auto res = std::to_chars(header, header + sizeof (header), rhs, 16);
+            auto res = std::to_chars(header, header + sizeof (header), rhs, 16);
 
-        if (res.ec != std::errc())
-            THROW_MANAPIHTTP_EXCEPTION(manapi::ERR_INTERNAL, "to_chars failed: {}", std::make_error_code(res.ec).message());
+            if (res.ec != std::errc()) {
+                auto errmsg = std::make_error_code(res.ec).message();
+                manapi_log_trace("%s due to %.*s", "send_http_v1_1_chunked_data:to_chars failed", errmsg.size(), errmsg.data());
+                co_return manapi::error::status_internal("send_http_v1_1_chunked_data:to_chars failed");
+            }
 
-        auto len = static_cast<ssize_t>(res.ptr - header);
+            auto len = static_cast<ssize_t>(res.ptr - header);
 
-        if (len + 2 > sizeof (header) - 1)
-            /* TODO: think */
-            goto err;
+            if (len + 2 > sizeof (header) - 1)
+                /* TODO: think */
+                    goto err;
 
-        memcpy (header + len, static_cast<const char *>("\r\n"), 2);
-        len += 2;
+            memcpy (header + len, static_cast<const char *>("\r\n"), 2);
+            len += 2;
 
-        if (co_await cdata->worker->fwrite(cdata->conn, header, len, false) <= 0)
-            goto err;
+            if (co_await cdata->worker->fwrite(cdata->conn, header, len, false) <= 0)
+                goto err;
 
-        if (co_await cdata->worker->fwrite(cdata->conn, buffs, false) <= 0)
-            goto err;
+            if (co_await cdata->worker->fwrite(cdata->conn, buffs, false) <= 0)
+                goto err;
 
-        if (co_await cdata->worker->fwrite(cdata->conn, msg.data() + 1, 2, false) <= 0)
-            goto err;
-    }
+            if (co_await cdata->worker->fwrite(cdata->conn, msg.data() + 1, 2, false) <= 0)
+                goto err;
+        }
 
-    if (finish) {
-        if (co_await cdata->worker->fwrite(cdata->conn, msg.data(),
-                static_cast<ssize_t>(msg.size()), true) <= 0)
-            goto err;
-    }
-    co_return;
+        if (finish) {
+            if (co_await cdata->worker->fwrite(cdata->conn, msg.data(),
+                    static_cast<ssize_t>(msg.size()), true) <= 0)
+                goto err;
+        }
+        co_return manapi::error::status_ok();
 err:
-    THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_ABORTED, "write(...) failed");
+        co_return manapi::error::status_internal("send_http_v1_1_chunked_data:Write failed");
+    }
+    catch (std::bad_alloc const &) {
+        co_return manapi::error::status_resource_exhausted();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "send_http_v1_1_chunked_data:Failed", e.what());
+        co_return manapi::error::status_internal("send_http_v1_1_chunked_data:Failed");
+    }
 }
 
 void manapi::net::http::internal::send_response_sync_cb(std::unique_ptr<response> res, response_features_t features) {
     if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Compression isn't supported");
+        manapi_log_error("%s: %s", "send_response_sync_cb()", "Compression isn't supported");
+        return;
     }
 
     if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
+        manapi_log_error("%s: %s", "send_response_sync_cb()", "Replacers isn't supported");
+        return;
     }
 
 
-    if (http_v1_1_is_chunked_data(res.get()))
-        res->header(http::HEADER.TRANSFER_ENCODING, "chunked");
-
+    if (http_v1_1_is_chunked_data(res.get())) {
+        auto err = res->header(std::string{http::HEADER.TRANSFER_ENCODING}, "chunked");
+        if (!err)
+            return;
+    }
     auto task = mask_response(res.get(), false);
     manapi::async::run<int> ( std::move(task),
         [res = std::move(res)] (std::exception_ptr err, int *result) mutable
         -> void {
-            if (err) {
+            try {
+                if (err) {
 
-                return;
-            }
+                    return;
+                }
 
-            if (result && *result == ERR_OK) {
-                auto cb_sync = std::make_unique<http::response::resp_callback_sync>(std::move(res->callback_sync()));
-                manapi::async::run ([res = std::move(res), cb_sync = std::move(cb_sync)] () mutable
-                    -> manapi::future<> {
+                if (result && *result == ERR_OK) {
+                    auto cb_sync_err = res->callback_sync();
+                    if (!cb_sync_err)
+                        return;
 
-                        bool finish = false;
-                        std::size_t cursor = 0;
-                        auto const cdata = res->connection_data();
+                    auto cb_sync = (std::move(*cb_sync_err.unwrap()));
+                    manapi::async::run ([res = std::move(res), cb_sync = std::move(cb_sync)] () mutable
+                        -> manapi::future<> {
+                        try {
+                            bool finish = false;
+                            std::size_t cursor = 0;
+                            auto const cdata = res->connection_data();
 
-                        if (http_v1_1_is_chunked_data(res.get())) {
-                            auto bufres = manapi::async::current()->memory_fabric().buffer (
-                                std::max(res->config()->buffer_size, 64L));
-                            auto buffer = bufres.unwrap();
-                            while (!finish) {
-                                auto rhs = cb_sync->operator()(buffer.data(), buffer.size(), finish);
-                                slice_ref buffs;
-                                if (rhs)
-                                    buffs.push_back(buffer.data(), rhs);
-                                co_await send_http_v1_1_chunked_data(cdata, buffs, finish);
-                            }
-                        }
-                        else {
-                            auto slices = cdata->worker->bufferpool().slice(4096 * 16).unwrap();
-                            while (!finish) {
-                                ssize_t total = 0;
-                                for (auto it = slices.begin(); it != slices.end() && !finish; ) {
-                                    auto rhs = cb_sync->operator()(static_cast<char *>(it.buffer()) + cursor,
-                                        it.size() - cursor, finish);
-
-                                    if (rhs < 0)
-                                        THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
-
-                                    cursor += rhs;
-
-                                    if (cursor == it.size()) {
-                                        total += cursor;
-                                        cursor = 0;
-                                        it++;
+                            if (http_v1_1_is_chunked_data(res.get())) {
+                                auto bufres = manapi::async::current()->memory_fabric().buffer (
+                                    std::max(res->config()->buffer_size, 64L));
+                                auto buffer = bufres.unwrap();
+                                while (!finish) {
+                                    auto rhs = cb_sync(buffer.data(), buffer.size(), finish);
+                                    slice_ref buffs;
+                                    if (rhs)
+                                        buffs.push_back(buffer.data(), rhs);
+                                    auto chunk_err = co_await send_http_v1_1_chunked_data(cdata, buffs, finish);
+                                    if (!chunk_err) {
+                                        manapi_log_trace("%s failed due to %.*s", "send_response_sync_cb()",
+                                            chunk_err.msg().size(), chunk_err.msg().data());
+                                        co_return;
                                     }
                                 }
-                                if (cursor) {
-                                    total += cursor;
-                                    cursor = 0;
+                            }
+                            else {
+                                auto slices = cdata->worker->bufferpool().slice(4096 * 16).unwrap();
+                                while (!finish) {
+                                    ssize_t total = 0;
+                                    for (auto it = slices.begin(); it != slices.end() && !finish; ) {
+                                        auto rhs = cb_sync(static_cast<char *>(it.buffer()) + cursor,
+                                            it.size() - cursor, finish);
+
+                                        if (rhs < 0) {
+                                            manapi_log_trace("send_response_sync_cb():The callback returned an invalid length");
+                                            co_return;
+                                        }
+
+                                        cursor += rhs;
+
+                                        if (cursor == it.size()) {
+                                            total += cursor;
+                                            cursor = 0;
+                                            it++;
+                                        }
+                                    }
+                                    if (cursor) {
+                                        total += cursor;
+                                        cursor = 0;
+                                    }
+
+                                    auto const rhs = co_await cdata->worker->fwrite(
+                                        cdata->conn, slices.subslice(0, total).unwrap(), finish);
+
+                                    if (rhs <= 0)
+                                        co_return;
                                 }
-
-                                auto const rhs = co_await cdata->worker->fwrite(
-                                    cdata->conn, slices.subslice(0, total).unwrap(), finish);
-
-                                if (rhs <= 0)
-                                    co_return;
                             }
                         }
+                        catch (std::exception const &e) {
+                            manapi_log_error("%s failed due to %s", "send_response_sync_cb()", e.what());
+                        }
                     });
+                }
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("%s failed due to %s", "send_response_sync_cb()", e.what());
             }
         });
 }
 
 void manapi::net::http::internal::send_response_stream_cb(std::unique_ptr<response> res, response_features_t features) {
-    if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Compression isn't supported");
-    }
+    try {
+        if (features.compressor_for_file || features.compressor_for_string) {
+            manapi_log_error("%s failed due to %s", "send_response_stream_cb()", "Compression isn't supported");
+            return;
+        }
 
-    if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
-    }
+        if (features.replacers) {
+            manapi_log_error("%s failed due to %s", "send_response_stream_cb()", "Replacers isn't supported");
+            return;
+        }
 
-    if (http_v1_1_is_chunked_data(res.get()))
-        res->header(http::HEADER.TRANSFER_ENCODING, "chunked");
-
-    auto task = mask_response(res.get(), false);
-    manapi::async::run<int> (std::move(task),
-        [res = std::move(res)] (std::exception_ptr err, int *result) mutable
-        -> void {
-            if (err) {
-
+        if (http_v1_1_is_chunked_data(res.get())) {
+            auto err = res->header(std::string{http::HEADER.TRANSFER_ENCODING}, "chunked");
+            if (!err)
                 return;
-            }
+        }
 
-            if (result && *result == ERR_OK) {
-                auto cb_async = std::make_unique<http::response::resp_stream>(std::move(res->callback_stream()));
-                manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async)] () mutable
-                    -> manapi::future<> {
-                        if (http_v1_1_is_chunked_data(res.get())) {
-                            co_await cb_async->operator()([cdata = res->connection_data()]
-                                (slice_view buffs, bool fin)
-                                -> manapi::future<ssize_t> {
-                                co_await send_http_v1_1_chunked_data(cdata, buffs, fin);
-                                co_return buffs.size();
-                            });
+        auto task = mask_response(res.get(), false);
+        manapi::async::run<int> (std::move(task),
+            [res = std::move(res)] (std::exception_ptr err, int *result) mutable
+            -> void {
+                try {
+                    if (err) {
+
+                        return;
+                    }
+
+                    if (result && *result == ERR_OK) {
+                        auto cb_async_err = res->callback_stream();
+                        if (!cb_async_err) {
+                            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %.*s",
+                                "send_response_stream_cb()", cb_async_err.message().size(), cb_async_err.message().data());
+                            return;
                         }
-                        else {
-                            co_await cb_async->operator()([cdata = res->connection_data()]
-                                (slice_view buffs, bool fin)
-                                -> manapi::future<ssize_t> {
-                                co_return co_await cdata->worker->fwrite(cdata->conn, buffs, fin);
-                            });
-                        }
-                        res->connection_data()->cb->call(true);
-                    });
-            }
-        });
+                        auto cb_async = (std::move(*cb_async_err.unwrap()));
+                        manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async)] () mutable
+                            -> manapi::future<> {
+                            if (http_v1_1_is_chunked_data(res.get())) {
+                                co_await cb_async([cdata = res->connection_data()]
+                                    (slice_view buffs, bool fin)
+                                    -> manapi::future<ssize_t> {
+                                    auto chunk_err = co_await send_http_v1_1_chunked_data(cdata, buffs, fin);
+                                    if (!chunk_err) {
+                                        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %.*s", "send_response_stream_cb()",
+                                            chunk_err.msg().size(), chunk_err.msg().data());
+                                        co_return -1;
+                                    }
+                                    co_return buffs.size();
+                                });
+                            }
+                            else {
+                                co_await cb_async([cdata = res->connection_data()]
+                                    (slice_view buffs, bool fin)
+                                    -> manapi::future<ssize_t> {
+                                    co_return co_await cdata->worker->fwrite(cdata->conn, buffs, fin);
+                                });
+                            }
+                            res->connection_data()->cb->call(true);
+                        });
+                    }
+                }
+                catch (std::exception const &e) {
+                    manapi_log_error("%s failed due to %s", "send_response_stream_cb()", e.what());
+                }
+            });
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "send_response_stream_cb()", e.what());
+    }
 }
 
 
 void manapi::net::http::internal::send_response_async_cb(std::unique_ptr<response> res, response_features_t features) {
     if (features.compressor_for_file || features.compressor_for_string) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Compression isn't supported");
+        manapi_log_error("%s failed due to %s", "send_response_async_cb()", "Compression isn't supported");
+        return;
     }
 
     if (features.replacers) {
-        THROW_MANAPIHTTP_EXCEPTION2 (ERR_FAILED_PRECONDITION, "Replacers isn't supported");
+        manapi_log_error("%s failed due to %s", "send_response_async_cb()", "Replacers isn't supported");
+        return;
     }
 
     auto const cdata = res->connection_data();
 
     if (http_v1_1_is_chunked_data(res.get()))
-        res->header(http::HEADER.TRANSFER_ENCODING, "chunked");
+        res->header(std::string{http::HEADER.TRANSFER_ENCODING}, "chunked");
 
     auto task = mask_response(res.get(), false);
     manapi::async::run<int> (std::move(task),
-        [res = std::move(res), cdata = std::move(cdata)] (std::exception_ptr err, int *result) mutable
+        [res = std::move(res)] (std::exception_ptr err, int *result) mutable
         -> void {
-            if (err) {
+            try {
+                if (err) {
 
-                return;
-            }
+                    return;
+                }
 
-            if (result && *result == ERR_OK) {
-                auto cb_async = std::make_unique<http::response::resp_callback_async>(std::move(res->callback_async()));
-                manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async), cdata = std::move(cdata)] () mutable
-                    -> manapi::future<> {
-                        auto buffer = manapi::async::current()->memory_fabric().slice(65536).unwrap();
+                if (result && *result == ERR_OK) {
+                    auto cb_async_err = res->callback_async();
+                    if (!cb_async_err) {
+                        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %.*s", "send_response_async_cb()",
+                            cb_async_err.message().size(), cb_async_err.message().data());
+                        return;
+                    }
+                    auto cb_async = (std::move(*cb_async_err.unwrap()));
+                    manapi::async::run ([res = std::move(res), cb_async = std::move(cb_async)] () mutable
+                        -> manapi::future<> {
+                        try {
+                            auto cdata = res->connection_data();
+                            auto buffer = manapi::async::current()->memory_fabric().slice(65536).unwrap();
 
-                        bool finish = false;
+                            bool finish = false;
 
-                        if (http_v1_1_is_chunked_data(res.get())) {
-                            while (!finish) {
-                                auto const rhs = co_await cb_async->operator()(buffer, finish);
-                                auto res = buffer.subslice(0, rhs);
-                                res.unwrap();
-                                co_await send_http_v1_1_chunked_data(cdata, res.unwrap(), finish);
+                            if (http_v1_1_is_chunked_data(res.get())) {
+                                while (!finish) {
+                                    auto const rhs = co_await cb_async(buffer, finish);
+                                    auto res = buffer.subslice(0, rhs);
+                                    res.unwrap();
+                                    auto chunk_err = co_await send_http_v1_1_chunked_data(cdata, res.unwrap(), finish);
+                                    if (!chunk_err) {
+                                        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %.*s", "send_response_async_cb()",
+                                            chunk_err.msg().size(), chunk_err.msg().data());
+                                        co_return;
+                                    }
+                                }
+                            }
+                            else {
+                                std::size_t cursor = 0;
+                                while (!finish) {
+                                    auto rhs = co_await cb_async(buffer, finish);
+                                    if (rhs < 0) {
+                                        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s", "send_response_async_cb()", "cb returned an invalid length");
+                                        co_return;
+                                    }
+
+                                    auto res = buffer.subslice(0, rhs);
+                                    res.unwrap();
+
+                                    rhs = co_await cdata->worker->fwrite(cdata->conn,
+                                        res.unwrap(), finish);
+
+                                    if (rhs <= 0)
+                                        co_return;
+
+                                    cursor += rhs;
+
+                                    if (cursor == buffer.size())
+                                        cursor = 0;
+                                }
                             }
                         }
-                        else {
-                            std::size_t cursor = 0;
-                            while (!finish) {
-                                auto rhs = co_await cb_async->operator()(buffer, finish);
-                                if (rhs < 0)
-                                    THROW_MANAPIHTTP_EXCEPTION2(ERR_INVALID_ARGUMENT, "The callback returned an invalid length");
-
-                                auto res = buffer.subslice(0, rhs);
-                                res.unwrap();
-
-                                rhs = co_await cdata->worker->fwrite(cdata->conn,
-                                    res.unwrap(), finish);
-
-                                if (rhs <= 0)
-                                    co_return;
-
-                                cursor += rhs;
-
-                                if (cursor == buffer.size())
-                                    cursor = 0;
-                            }
+                        catch (std::exception const &e) {
+                            manapi_log_error("%s failed due to %s", "send_response_async_cb()", e.what());
                         }
                     });
+                }
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("%s failed due to %s", "send_response_async_cb()", e.what());
             }
         });
 }
@@ -1053,13 +1211,15 @@ manapi::future<void> manapi::net::http::internal::send_text(std::unique_ptr<resp
         const ssize_t result = co_await cdata->worker->write(cdata->conn, current, sent, true);
 
         if (result <= 0) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "Could not send the text: mask_write(...) = {}. Size: {}",
-                                   result, sent);
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s", "send_text()",
+                "write failed");
+            co_return;
         }
 
         if (result > sent) {
-            THROW_MANAPIHTTP_EXCEPTION(ERR_INVALID_ARGUMENT, "Total sent size > prepared sent size. {} > {}", result,
-                                   sent);
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s", "send_text()",
+                "write incorrect");
+            co_return;
         }
 
         sent -= result;

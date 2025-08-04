@@ -674,7 +674,7 @@ bool http_v2_stream_on_write (const manapi::net::worker::shared_conn &conn, mana
     if ((data->flags & manapi::ev::WRITE)) {
         if (data->ev_callback) {
             try {
-                data->ev_callback->operator()(conn, manapi::ev::WRITE, nullptr, 0, nullptr);
+                data->ev_callback (conn, manapi::ev::WRITE, nullptr, 0, nullptr);
             }
             catch (std::exception const &e) {
                 manapi_log_error("%s: %s failed due to %s", "http2", "event callback", e.what());
@@ -1115,7 +1115,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                             http_v2_update_priority(ctx, s->second, sdata);
                                         if ((sdata->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE
                                         && (sdata->ev_callback)) {
-                                            sdata->ev_callback->operator()(s->second, ev::WRITE, nullptr, 0, nullptr);
+                                            sdata->ev_callback(s->second, ev::WRITE, nullptr, 0, nullptr);
                                         }
                                     }
                                 }
@@ -1741,7 +1741,7 @@ header_skip:
                                         flags |= HTTP2_STREAM_RECV_END;
                                     }
 
-                                    sdata->ev_callback->operator()(s->second, flags, buffer + datapos, datasize, nullptr);
+                                    sdata->ev_callback(s->second, flags, buffer + datapos, datasize, nullptr);
                                 }
                                 else {
                                     if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM)
@@ -1767,7 +1767,7 @@ header_skip:
                                 if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
                                     sdata->flags |= HTTP2_STREAM_RECV_END;
                                     if (!sdata->top->recv_size && (sdata->flags & ev::READ) && sdata->ev_callback)
-                                        sdata->ev_callback->operator()(s->second, HTTP2_STREAM_RECV_END, buffer + datapos, datasize, nullptr);
+                                        sdata->ev_callback(s->second, HTTP2_STREAM_RECV_END, buffer + datapos, datasize, nullptr);
                                 }
                                 else {
                                     http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,

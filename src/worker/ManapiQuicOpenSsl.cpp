@@ -478,7 +478,7 @@ int manapi::net::worker::openssl_quic::event_flags(const shared_conn &conn, int 
             this->flush_read_ (conn, data);
 
             if (status & CONN_RECV_END) {
-                if (manapi::net::worker::openssl_quic::call_user_callback(data->ev_callback.get(), conn, CONN_RECV_END, nullptr, 0, nullptr))
+                if (manapi::net::worker::openssl_quic::call_user_callback(&data->ev_callback, conn, CONN_RECV_END, nullptr, 0, nullptr))
                     this->close_connection(conn, CLOSE_CONN_ERR);
             }
         }
@@ -489,8 +489,8 @@ int manapi::net::worker::openssl_quic::event_flags(const shared_conn &conn, int 
     return prev;
 }
 
-std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::openssl_quic::event_on(
-    const shared_conn &conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::worker_watcher_cb manapi::net::worker::openssl_quic::event_on(
+    const shared_conn &conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT {
     assert(conn->wrk.flags & WRK_INTERFACE_IS_STREAM);
     return prepared::event_on(conn, std::move(callback));
 }
@@ -856,7 +856,7 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
                             assert(conn_data);
                             auto const w = conn_data->worker;
                             assert(w);
-                            if (manapi::net::worker::base::call_user_callback(data->ev_callback.get(), conn, ev::WRITE, nullptr, 0, nullptr)) {
+                            if (manapi::net::worker::base::call_user_callback(&data->ev_callback, conn, ev::WRITE, nullptr, 0, nullptr)) {
                                 w->close_connection(conn, CLOSE_CONN_ERR);
                                 return;
                             }
@@ -1285,13 +1285,13 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
 
         else {
             this->event_on(stream_conn,
-                std::make_unique<worker_watcher_cb>([this]
+                [this]
                 (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
                 -> void {
                     auto const wrk = this;
                     if (wrk->global_.accept_cb (conn, flags, buffer, nsize, p, &this->global_, this))
                         return;
-            }));
+            });
 
             this->event_flags(stream_conn, ev::READ);
             return stream_conn;

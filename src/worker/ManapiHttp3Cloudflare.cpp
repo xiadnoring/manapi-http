@@ -972,7 +972,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_con
 
             if ((status & CONN_READ) && (status & CONN_RECV_END)) {
                 assert(!data->top->recv_size);
-                if (http_v3_cloudflare_quiche::call_user_callback(data->ev_callback.get(),conn, CONN_RECV_END, nullptr, 0, nullptr))
+                if (http_v3_cloudflare_quiche::call_user_callback(&data->ev_callback,conn, CONN_RECV_END, nullptr, 0, nullptr))
                     this->close_connection(conn, CLOSE_CONN_ERR);
             }
         }
@@ -983,7 +983,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::event_flags(const shared_con
     return prev;
 }
 
-std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::http_v3_cloudflare_quiche::event_on( const shared_conn &conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::worker_watcher_cb manapi::net::worker::http_v3_cloudflare_quiche::event_on( const shared_conn &conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT {
     return prepared::event_on(conn, std::move(callback));
 }
 
@@ -1046,7 +1046,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
             this->flush_read_(conn);
 
         if (conn_data->flags & ev::WRITE)
-            if(manapi::net::worker::http_v3_cloudflare_quiche::call_user_callback(conn_data->ev_callback.get(), conn, ev::WRITE, nullptr, 0, nullptr)) {
+            if(manapi::net::worker::http_v3_cloudflare_quiche::call_user_callback(&conn_data->ev_callback, conn, ev::WRITE, nullptr, 0, nullptr)) {
                 this->close_connection(conn, CLOSE_CONN_EOF);
             }
     }
@@ -1065,7 +1065,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
         conn_data->transfered = 0;
     }
     if (conn_data->flags & ev::WRITE) {
-        if (manapi::net::worker::http_v3_cloudflare_quiche::call_user_callback(conn_data->ev_callback.get(),conn, ev::WRITE, nullptr, 0, nullptr))
+        if (manapi::net::worker::http_v3_cloudflare_quiche::call_user_callback(&conn_data->ev_callback,conn, ev::WRITE, nullptr, 0, nullptr))
             this->close_connection(conn, CLOSE_CONN_EOF);
     }
 }
@@ -1273,7 +1273,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::flush_write_(const shared_c
         if (stream_it != conn_data->streams->end()) {
             auto const s = stream_it->second->as<connection_stream_t>();
             if ((s->flags & ev::WRITE) && s->ev_callback) {
-                if (manapi::net::worker::http_v3_cloudflare_quiche::call_user_callback(s->ev_callback.get(), stream_it->second, ev::WRITE, nullptr, 0, nullptr))
+                if (manapi::net::worker::http_v3_cloudflare_quiche::call_user_callback(&s->ev_callback, stream_it->second, ev::WRITE, nullptr, 0, nullptr))
                     conn_data->worker->close_connection(stream_it->second, CLOSE_CONN_ERR);
             }
         }
@@ -1333,13 +1333,12 @@ manapi::future<int> manapi::net::worker::http_v3_cloudflare_quiche::cloudflare_w
 
         using promise = manapi::async::promise<ssize_t, std::false_type>;
 
-        std::unique_ptr<worker_watcher_cb> prev_cb{nullptr};
+        worker_watcher_cb prev_cb{nullptr};
         int prev_events{0};
 
         const auto rhs = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
             prev_events = w->event_flags(conn, ev::WRITE);
-            prev_cb = w->event_on(conn, std::make_unique<worker_watcher_cb>(
-                [&, resolve = std::move(resolve)] (const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) -> void {
+            prev_cb = w->event_on(conn,  [&, resolve = std::move(resolve)] (const shared_conn & conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) -> void {
                     if (flags & ev::DISCONNECT) {
                         resolve(-1);
                         goto finish;
@@ -1399,7 +1398,7 @@ manapi::future<int> manapi::net::worker::http_v3_cloudflare_quiche::cloudflare_w
                     finish: {
                         w->event_flags(conn, 0);
                     }
-            }));
+            });
 
             w->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
         });

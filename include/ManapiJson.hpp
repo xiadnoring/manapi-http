@@ -215,8 +215,8 @@ namespace manapi {
          * @tparam T type of value in the mapped object
          * @param n source mapped object
          */
-        template<typename T>
-        json (std::map<std::string, T> n) {
+        template<typename T, typename S>
+        json (std::map<std::string, T, S> n) {
             while (!n.empty()) {
                 auto e = n.extract(n.begin());
                 this->insert({std::move(e.key()), std::move(e.mapped())});

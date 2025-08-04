@@ -122,14 +122,16 @@ std::vector<std::string_view> manapi::net::http::config::alpns() {
     return std::move(tests);
 }
 
-bool manapi::net::http::config::contains_compressor(const std::string &name) {
+bool manapi::net::http::config::contains_compressor(std::string_view name) {
     if (!this->function_contains_compressor_) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "function_contains_compressor = {}. We need to set function before call", "nullptr");
+        manapi_log_trace("http config: function_contains_compressor_ wasn't set");
+        return false;
     }
+
     return this->function_contains_compressor_ (name);
 }
 
-void manapi::net::http::config::function_contains_compressor(std::move_only_function<bool(const std::string &name)> func) {
+void manapi::net::http::config::function_contains_compressor(std::move_only_function<bool(std::string_view name)> func) {
     this->function_contains_compressor_ = std::move(func);
 }
 

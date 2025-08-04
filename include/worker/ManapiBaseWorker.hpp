@@ -260,7 +260,7 @@ namespace manapi::net::worker {
 
         virtual void stop (std::function<void()> cb) = 0;
 
-        virtual std::unique_ptr<worker_watcher_cb> event_on (const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT = 0;
+        virtual worker_watcher_cb event_on (const shared_conn & conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT = 0;
 
         virtual int event_flags (const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT = 0;
 

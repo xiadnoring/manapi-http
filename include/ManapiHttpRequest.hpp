@@ -27,60 +27,65 @@ namespace manapi::net::http {
 
         manapi::async::cancellation_action cancellation ();
 
-        [[nodiscard]] const http::manapi_socket_information &ip_data () const;
+        MANAPIHTTP_NODISCARD const http::manapi_socket_information &ip_data () const;
 
-        [[nodiscard]] const std::string &method () const;
+        MANAPIHTTP_NODISCARD const std::string &method () const;
 
-        [[nodiscard]] int http_version() const;
+        MANAPIHTTP_NODISCARD int http() const;
 
-        [[nodiscard]] const std::map<std::string, std::string, std::less<>> &ref_headers () const;
+        MANAPIHTTP_NODISCARD const std::map<std::string, std::string, std::less<>> &ref_headers () const;
 
-        [[nodiscard]] std::map<std::string, std::string, std::less<>> headers () const;
+        MANAPIHTTP_NODISCARD std::map<std::string, std::string, std::less<>> headers () const;
 
-        [[nodiscard]] const std::string &param (const std::string &param) const;
+        MANAPIHTTP_NODISCARD manapi::error::status_or<std::string_view> param (std::string_view param) const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] std::string dump() const;
+        manapi::error::status_or<std::pair<std::string, std::string>> param_extract (std::string_view param) MANAPIHTTP_NOEXCEPT;
 
-        future<std::string> text ();
+        future<manapi::error::status_or<std::string>> text ();
 
-        future<manapi::json> json ();
+        future<manapi::json_error::status_or<manapi::json>> json ();
 
-        future<> form (formdata_recv::onparam_cb_t cb);
+        future<manapi::error::status> form (formdata_recv::onparam_cb_t cb);
 
-        future<void> callback_sync (onrecv_sync_cb callback);
+        future<manapi::error::status> callback_sync (onrecv_sync_cb callback);
 
-        future<void> callback_async (onrecv_async_cb callback);
+        future<manapi::error::status> callback_async (onrecv_async_cb callback);
 
-        future<void> file (std::string filepath);
+        future<manapi::error::status> file (std::string filepath);
 
         ssize_t left ();
 
-        const std::string &get (const std::string &key);
+        manapi::json_error::status_or<std::string_view> get (std::string_view key);
 
-        bool contains_get_param (const std::string &key);
+        manapi::json_error::status_or<std::pair<std::string, std::string>> get_extract (std::string_view key);
+
+        manapi::json_error::status contains_get_param (std::string_view key);
 
         void max_plain_body_size (size_t size);
 
-        bool contains_header (const std::string &name);
+        bool contains_header (std::string_view name);
 
-        const std::string& header (const std::string &name);
+        error::status_or<std::string_view> header (std::string_view name);
 
-        [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &post_mask () const;
+        error::status_or<std::pair<std::string, std::string>> header_extract (std::string_view name);
 
-        [[nodiscard]] const std::unique_ptr<const manapi::json_mask> &get_mask () const;
+        MANAPIHTTP_NODISCARD const std::unique_ptr<const manapi::json_mask> &post_mask () const;
+
+        MANAPIHTTP_NODISCARD const std::unique_ptr<const manapi::json_mask> &get_mask () const;
 
         void stop_propagation ();
 
         void propagation (bool state);
 
-        [[nodiscard]] bool propagation () const;
+        MANAPIHTTP_NODISCARD bool propagation () const;
     private:
-        static future<void> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler);
-        static future<void> read_async_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_async_cb handler);
+        static future<manapi::error::status> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler);
 
-        std::unique_ptr<std::map<std::string, std::string>> get_params_;
+        static future<manapi::error::status> read_async_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_async_cb handler);
 
-        void prepare_get_params_();
+        std::unique_ptr<std::map<std::string, std::string, std::less<>>> get_params_;
+
+        manapi::json_error::status prepare_get_params_() MANAPIHTTP_NOEXCEPT;
 
         // peer ip
         std::unique_ptr<http::manapi_socket_information> ip_data_;

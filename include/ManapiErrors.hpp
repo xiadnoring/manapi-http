@@ -133,11 +133,20 @@ namespace manapi {
     /**
      * Extract data from the std::exception_ptr
      *
-     * @param err the exception pointer
-     * @param errnum the output error code
-     * @param msg the output error message
+     * @param err exception pointer
+     * @param errnum output error code
+     * @param msg output error message
      */
     void extract_exception_ptr (std::exception_ptr err, int *errnum, std::string *msg);
+    /**
+     * Extract data from the std::exception_ptr
+     *
+     * @param err exception pointer
+     * @param errnum output error code
+     * @param msg output error message
+     * @param msg_size output error message size
+     */
+    void extract_exception_ptr (std::exception_ptr err, int *errnum, char *msg, std::size_t *msg_size);
 
     /**
      * manapi exception
@@ -146,14 +155,14 @@ namespace manapi {
     public:
         exception (manapi::err_num errnum, std::string message);
 
-        [[nodiscard]] const char * what() const noexcept override;
+        MANAPIHTTP_NODISCARD const char * what() const noexcept override;
 
         /**
          * Get the error code
          *
          * @return the error code
          */
-        [[nodiscard]] int err_num () const;
+        MANAPIHTTP_NODISCARD int err_num () const;
     private:
         manapi::err_num errnum_;
         std::string message;
@@ -177,21 +186,21 @@ namespace manapi {
              *
              * @return the error message
              */
-            [[nodiscard]] std::string_view msg () const;
+            MANAPIHTTP_NODISCARD std::string_view msg () const;
 
             /**
              * Get the error code from the status
              *
              * @return the error code
              */
-            [[nodiscard]] err_num code () const;
+            MANAPIHTTP_NODISCARD err_num code () const;
 
             /**
              * Is there no error
              *
              * @return true if there's no error
              */
-            [[nodiscard]] bool ok () const;
+            MANAPIHTTP_NODISCARD bool ok () const;
 
             /**
              * do log using the status
@@ -203,7 +212,7 @@ namespace manapi {
              *
              * @return the error code as a string
              */
-            [[nodiscard]] std::string_view status_msg () const;
+            MANAPIHTTP_NODISCARD std::string_view status_msg () const;
 
             /**
              * If there is error it throws an exception
@@ -239,7 +248,7 @@ namespace manapi {
              *
              * @return the error code from the status
              */
-            [[nodiscard]] manapi::err_num code () const {
+            MANAPIHTTP_NODISCARD manapi::err_num code () const {
                 return this->err_.code();
             }
 
@@ -248,7 +257,7 @@ namespace manapi {
              *
              * @return the error code as a string
              */
-            [[nodiscard]] std::string_view status_msg () const {
+            MANAPIHTTP_NODISCARD std::string_view status_msg () const {
                 return this->err_.status_msg();
             }
 
@@ -257,7 +266,7 @@ namespace manapi {
              *
              * @return the error message
              */
-            [[nodiscard]] std::string_view message () const {
+            MANAPIHTTP_NODISCARD std::string_view message () const {
                 return this->err_.msg();
             }
 
@@ -278,7 +287,7 @@ namespace manapi {
              *
              * @return true if there's no error, otherwise it returns false
              */
-            [[nodiscard]] bool ok () const MANAPIHTTP_NOEXCEPT {
+            MANAPIHTTP_NODISCARD bool ok () const MANAPIHTTP_NOEXCEPT {
                 return this->err_.code() == manapi::ERR_OK;
             }
 
@@ -289,6 +298,10 @@ namespace manapi {
              */
             E err () MANAPIHTTP_NOEXCEPT {
                 return std::move(this->err_);
+            }
+
+            MANAPIHTTP_NODISCARD operator bool () MANAPIHTTP_NOEXCEPT {
+                return this->err_.ok();
             }
         protected:
             std::optional<T> value_;

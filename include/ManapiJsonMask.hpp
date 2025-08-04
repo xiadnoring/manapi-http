@@ -12,6 +12,8 @@ namespace manapi {
 
             ~status () override;
 
+            status (const error::status &err);
+
             status (err_num code, std::string_view msg, std::size_t pos, std::string path);
 
             status (err_num code, std::string_view msg, std::string data, std::size_t pos, std::string path);
@@ -87,6 +89,8 @@ namespace manapi {
         [[nodiscard]] manapi::json_error::status valid (const json &obj) const;
 
         [[nodiscard]] manapi::json_error::status valid (const std::map <std::string, std::string> &obj) const;
+
+        [[nodiscard]] manapi::json_error::status valid (const std::map <std::string, std::string, std::less<>> &obj) const;
 
         [[nodiscard]] const json &get_api_tree () const;
 

@@ -40,7 +40,7 @@ enum handler_template_types {
 manapi::net::http::http_handler_function manapi::net::http::site::default_error_handler
     = {
     .handler = [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-        co_return resp.text(http::internal::generate_default_page(resp.status_code(), resp.status_message()));
+        co_return resp.text(http::internal::generate_default_page(resp.status_code(), resp.status_message())).unwrap();
     },
     .post_mask = nullptr,
     .get_mask = nullptr,
@@ -126,36 +126,35 @@ manapi::net::http::handler_template_t::operator bool() const MANAPIHTTP_NOEXCEPT
 // ======================[ configs funcs]==========================
 
 void manapi::net::http::site::compressor_for_file(const std::string &name, compress_file_cb_t handler) {
-    (*this->data->compressors_for_file)[name] = std::move(handler);
+    this->data->compressors_for_file->insert_or_assign(name, std::move(handler));
 }
 
 void manapi::net::http::site::compressor_for_string(const std::string &name, compress_str_cb_t handler) {
-    (*this->data->compressors_for_string)[name] = std::move(handler);
+    this->data->compressors_for_string->insert_or_assign(name, std::move(handler));
 }
 
-manapi::net::http::site::compress_file_cb_t & manapi::net::http::site::compressor_for_file(const std::string &name) {
+manapi::net::http::site::compress_file_cb_t * manapi::net::http::site::compressor_for_file(std::string_view name) {
     auto it = this->data->compressors_for_file->find(name);
-    if (it == this->data->compressors_for_file->end()) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_DATA_LOSS, "The compressor {} doesn't exists", name);
-    }
+    if (it == this->data->compressors_for_file->end())
+        return nullptr;
 
-    return it->second;
+    return &it->second;
 }
 
-bool manapi::net::http::site::contains_compressor_for_file(const std::string &name) const {
-    return this->data->compressors_for_file->contains(name);
+bool manapi::net::http::site::contains_compressor_for_file(std::string_view name) const {
+    return this->data->compressors_for_file->find(name) != this->data->compressors_for_file->end();
 }
 
-manapi::net::http::site::compress_str_cb_t & manapi::net::http::site::compressor_for_string(const std::string &name) {
+manapi::net::http::site::compress_str_cb_t * manapi::net::http::site::compressor_for_string(std::string_view name) {
     auto it = this->data->compressors_for_string->find(name);
-    if (it == this->data->compressors_for_string->end()) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_DATA_LOSS, "The compress {} doesn't exists", name);
-    }
-    return it->second;
+    if (it == this->data->compressors_for_string->end())
+        return nullptr;
+
+    return &it->second;
 }
 
-bool manapi::net::http::site::contains_compressor_for_string(const std::string &name) const {
-    return this->data->compressors_for_string->contains(name);
+bool manapi::net::http::site::contains_compressor_for_string(std::string_view name) const {
+    return this->data->compressors_for_string->find(name) != this->data->compressors_for_string->end();
 }
 
 void manapi::net::http::site::transport_protocol_worker(const std::string &type, const std::string &name, implement_create_cb worker) {

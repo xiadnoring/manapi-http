@@ -38,120 +38,118 @@ namespace manapi::net::http {
 
         ~response ();
 
-        void compress (std::string name);
+        manapi::error::status compress (std::string name) MANAPIHTTP_NOEXCEPT;
 
-        void compress_enabled (bool state);
+        void compress_enabled (bool state) MANAPIHTTP_NOEXCEPT;
 
-        void text (std::string plain_text);
+        manapi::error::status text (std::string plain_text) MANAPIHTTP_NOEXCEPT;
 
-        void json (manapi::json data, size_t spaces = 0);
+        manapi::error::status json (manapi::json data, size_t spaces = 0) MANAPIHTTP_NOEXCEPT;
 
-        void form (formdata_send formdata);
+        manapi::error::status form (formdata_send formdata) MANAPIHTTP_NOEXCEPT;
 
-        void status (size_t status_code);
+        void status (size_t status_code) MANAPIHTTP_NOEXCEPT;
 
-        void status_code (size_t status_code);
+        void status_code (size_t status_code) MANAPIHTTP_NOEXCEPT;
 
-        void replacers (std::vector<std::pair<std::string, std::string>> replacers);
+        manapi::error::status replacers (std::vector<std::pair<std::string, std::string>> replacers) MANAPIHTTP_NOEXCEPT;
 
-        void partial_enabled (bool state);
+        void partial_enabled (bool state) MANAPIHTTP_NOEXCEPT;
 
-        void file (std::string path);
+        manapi::error::status file (std::string path) MANAPIHTTP_NOEXCEPT;
 
 #ifdef MANAPIHTTP_FETCH_SUPPORT
-        void proxy (std::string url);
+        manapi::error::status proxy (std::string url) MANAPIHTTP_NOEXCEPT;
 
-        void proxy (std::string url, resp_proxy_setup_cb cb);
+        manapi::error::status proxy (std::string url, resp_proxy_setup_cb cb) MANAPIHTTP_NOEXCEPT;
 #endif
 
-        void callback_sync (resp_callback_sync cb);
+        manapi::error::status callback_sync (resp_callback_sync cb) MANAPIHTTP_NOEXCEPT;
 
-        void callback_async (resp_callback_async cb);
+        manapi::error::status callback_async (resp_callback_async cb) MANAPIHTTP_NOEXCEPT;
 
-        void callback_stream (resp_stream cb);
+        manapi::error::status callback_stream (resp_stream cb) MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] int status_code () const;
+        [[nodiscard]] int status_code () const MANAPIHTTP_NOEXCEPT;
 
-        std::string_view status_message ();
+        std::string_view status_message () MANAPIHTTP_NOEXCEPT;
 
-        std::map<std::string, std::string, std::less<>> &headers ();
+        std::map<std::string, std::string, std::less<>> &headers () MANAPIHTTP_NOEXCEPT;
 
-        void header (const std::string &key, std::string value);
+        manapi::error::status header (const std::string &key, std::string value) MANAPIHTTP_NOEXCEPT;
 
-        void header (std::string_view key, std::string value);
+        void remove_header (std::string_view key) MANAPIHTTP_NOEXCEPT;
 
-        void remove_header (std::string_view key);
+        MANAPIHTTP_NODISCARD bool contains_header (std::string_view key) const MANAPIHTTP_NOEXCEPT;
 
-        bool has_header (std::string_view key);
+        error::status_or<std::string_view> header (std::string_view key) MANAPIHTTP_NOEXCEPT;
 
-        const std::string &header (const std::string &key);
+        [[nodiscard]] bool is_file () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_file () const;
+        [[nodiscard]] bool is_text () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_text () const;
+        [[nodiscard]] bool is_proxy () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_proxy () const;
+        [[nodiscard]] bool is_no_data () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_no_data () const;
+        [[nodiscard]] bool is_formdata () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_formdata () const;
+        [[nodiscard]] bool is_async_cb() const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_async_cb() const;
+        [[nodiscard]] bool is_sync_cb() const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_sync_cb() const;
+        [[nodiscard]] bool has_ranges () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool has_ranges () const;
+        [[nodiscard]] bool partial_enabled () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool partial_enabled () const;
+        [[nodiscard]] int data_type() const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] int data_type() const;
+        manapi::error::status_or<std::string *> file () MANAPIHTTP_NOEXCEPT;
 
-        std::string &file ();
+        manapi::error::status_or<std::string *> text () MANAPIHTTP_NOEXCEPT;
 
-        std::string &text ();
+        manapi::error::status_or<std::string *> url () MANAPIHTTP_NOEXCEPT;
 
-        std::string &url ();
+        std::unique_ptr<std::vector<std::pair<ssize_t, ssize_t>>> ranges () MANAPIHTTP_NOEXCEPT;
 
-        std::unique_ptr<std::vector<std::pair<ssize_t, ssize_t>>> ranges ();
-
-        formdata_send &formdata ();
+        manapi::error::status_or<formdata_send *> formdata () MANAPIHTTP_NOEXCEPT;
 #ifdef MANAPIHTTP_FETCH_SUPPORT
-        std::unique_ptr<resp_proxy_setup_cb> &proxy_setup_cb ();
+        std::unique_ptr<resp_proxy_setup_cb> &proxy_setup_cb () MANAPIHTTP_NOEXCEPT;
 #endif
-        std::string compress ();
+        std::string compress () MANAPIHTTP_NOEXCEPT;
 
-        std::unique_ptr<std::vector <std::pair<std::string, std::string>>> &replacers ();
+        std::unique_ptr<std::vector <std::pair<std::string, std::string>>> &replacers () MANAPIHTTP_NOEXCEPT;
 
-        void custom_data (custom_data_t data);
+        manapi::error::status custom_data (custom_data_t data) MANAPIHTTP_NOEXCEPT;
 
-        http::config *config ();
+        http::config *config () MANAPIHTTP_NOEXCEPT;
 
-        struct custom_data_t *custom_data ();
+        struct custom_data_t *custom_data () MANAPIHTTP_NOEXCEPT;
 
-        resp_callback_async &callback_async();
+        manapi::error::status_or<resp_callback_async*> callback_async() MANAPIHTTP_NOEXCEPT;
 
-        resp_callback_sync &callback_sync();
+        manapi::error::status_or<resp_callback_sync*> callback_sync() MANAPIHTTP_NOEXCEPT;
 
-        resp_stream &callback_stream();
+        manapi::error::status_or<resp_stream *> callback_stream() MANAPIHTTP_NOEXCEPT;
 
-        request_data_t *request_data ();
+        request_data_t *request_data () MANAPIHTTP_NOEXCEPT;
 
-        http::request *req ();
+        http::request *req () MANAPIHTTP_NOEXCEPT;
 
         internal::handle_data_t *connection_data () MANAPI_EV_NOEXPECT;
 
         internal::handle_data_t *connection_data_release () MANAPI_EV_NOEXPECT;
 
-        void finish (std::unique_ptr<std::move_only_function<void(std::exception_ptr)>> cb);
+        manapi::error::status finish (std::unique_ptr<std::move_only_function<void(std::exception_ptr)>> cb) MANAPIHTTP_NOEXCEPT;
 
         void finish () MANAPIHTTP_NOEXCEPT;
     private:
-        void check_type_ (int type);
+        manapi::error::status check_type_ (int type) MANAPIHTTP_NOEXCEPT;
 
-        std::string &body ();
+        std::string &body () MANAPIHTTP_NOEXCEPT;
 
         // detect the range header
-        void detect_ranges ();
+        void detect_ranges () MANAPIHTTP_NOEXCEPT;
 
         http::config *config_;
 

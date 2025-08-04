@@ -2,10 +2,10 @@
 
 #include <mutex>
 
-#include "ManapiErrors.hpp"
-#include "ManapiSlice.hpp"
-#include "ManapiBuffer.hpp"
-#include "ManapiChain.hpp"
+#include "../ManapiErrors.hpp"
+#include "../components/ManapiSlice.hpp"
+#include "../components/ManapiBuffer.hpp"
+#include "../components/ManapiChain.hpp"
 
 namespace manapi {
     namespace internal {

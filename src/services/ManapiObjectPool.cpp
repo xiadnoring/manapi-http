@@ -1,4 +1,4 @@
-#include "components/ManapiObjectPool.hpp"
+#include "services/ManapiObjectPool.hpp"
 
 #include <cassert>
 #include <cstring>
@@ -118,8 +118,8 @@ struct object_pool_deleter {
             while (!buffs.empty()) {
                 auto pn = std::move(buffs.back());
                 buffs.pop_back();
-
-                std::cout << (std::size_t)pn.first << " " << pn.second << "\n";
+                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "memory fabric:%p (%zu) was freed",
+                    pn.first, pn.second);
                 delete[] static_cast<char *>(pn.first);
             }
         }

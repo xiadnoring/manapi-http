@@ -20,15 +20,15 @@ namespace manapi::async {
 
         manapi::future<void> lock ();
 
-        bool try_to_lock ();
+        bool try_to_lock () MANAPIHTTP_NOEXCEPT;
 
-        void unlock ();
+        void unlock () MANAPIHTTP_NOEXCEPT;
 
         future<sbefore_delete> lock_guard ();
 
         ~mutex ();
     private:
         bool own;
-        manapi::chain <std::coroutine_handle<future<>::promise> > stack;
+        std::vector <std::coroutine_handle<future<>::promise> > stack;
     };
 }

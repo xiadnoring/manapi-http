@@ -39,6 +39,12 @@ manapi::json_error::status::status(err_num code, std::string_view msg, std::size
 
 manapi::json_error::status::~status() = default;
 
+manapi::json_error::status::status(const error::status &err) {
+    this->code_ = err.code();
+    this->msg_ = err.msg();
+    this->pos_ = 0;
+}
+
 manapi::json_error::status::status(json_error::status &&n) noexcept = default;
 
 manapi::json_error::status & manapi::json_error::status::operator=(json_error::status &&n) noexcept = default;
@@ -144,6 +150,20 @@ manapi::json_error::status manapi::json_mask::valid(const manapi::json &obj) con
 
 manapi::json_error::status manapi::json_mask::valid(const std::map<std::string, std::string> &obj) const
 {
+    if (!this->enabled)
+        return json_error::status_invalid_argument("json_mask: it's disabled", 0, {});
+
+    std::vector<std::string_view> p;
+    try {
+        return recursive_valid (json{obj}, this->information, true, &p);
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "json_mask: unexpected exception", e.what());
+        return json_error::status_invalid_argument("json_mask: unexpected exception", 0, json_format_path(&p));
+    }
+}
+
+manapi::json_error::status manapi::json_mask::valid(const std::map<std::string, std::string, std::less<>> &obj) const {
     if (!this->enabled)
         return json_error::status_invalid_argument("json_mask: it's disabled", 0, {});
 

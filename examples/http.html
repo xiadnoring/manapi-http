@@ -1,15 +1,320 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>HTTP Version</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTTP Version Magic</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Arial Rounded MT Bold', 'Segoe UI', sans-serif;
+            perspective: 1000px;
+            cursor: none;
+        }
+
+        .version-container {
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.05s;
+        }
+
+        .version-display {
+            font-size: 6rem;
+            font-weight: 900;
+            color: #fff;
+            text-shadow:
+                    0 0 15px #00fffc,
+                    0 0 30px #0084ff,
+                    0 0 45px #0011ff;
+            position: relative;
+            z-index: 10;
+            transform: translateZ(50px);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 15px #00fffc, 0 0 30px #0084ff; }
+            100% { text-shadow: 0 0 25px #00fffc, 0 0 50px #0084ff, 0 0 75px #0011ff; }
+        }
+
+        .particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .square {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            opacity: 0;
+            pointer-events: none;
+            animation: squareAnim 4s linear infinite;
+            border: 2px solid rgba(255, 255, 255, 0.7);
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        @keyframes squareAnim {
+            0% {
+                transform: translate(0, 0) rotate(0deg) scale(0.5);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) rotate(360deg) scale(0);
+                opacity: 0;
+            }
+        }
+
+        .cursor {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #00eeff;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 100;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 15px #00eeff, 0 0 30px #0088ff;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.7; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.7; }
+        }
+
+        .sound-control {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 10px rgba(0, 136, 255, 0.5);
+        }
+    </style>
 </head>
 <body>
-<div style="width:100%;display: flex;justify-content: center;flex-direction: column;align-items:center;justify-items: center;">
-    <p>HTTP: {{version}}</p>
+<div class="version-container">
+    <div class="version-display">HTTP/{{version}}</div>
 </div>
+<div class="cursor"></div>
+
+<audio id="backgroundMusic" src="/mem/sound.wav"></audio>
+
+<script>
+    // Replace template variable
+    const version = "{{version}}"; // Replace with {{version}} in your template
+    document.querySelector('.version-display').textContent = `HTTP/${version}`;
+
+    // Mouse tracking for 3D effect
+    const container = document.querySelector('.version-container');
+    document.addEventListener('mousemove', (e) => {
+        const xAxis = (window.innerWidth / 2 - e.clientX) / 25;
+        const yAxis = (window.innerHeight / 2 - e.clientY) / 25;
+        container.style.transform = `rotateY(${-xAxis}deg) rotateX(${yAxis}deg)`;
+
+        // Update custom cursor position
+        document.querySelector('.cursor').style.left = `${e.clientX}px`;
+        document.querySelector('.cursor').style.top = `${e.clientY}px`;
+    });
+
+    // Create fireworks
+    function createFirework(x, y) {
+        const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ff7700'];
+
+        for (let i = 0; i < 80; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = `${x}px`;
+            particle.style.top = `${y}px`;
+            particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 3 + Math.random() * 4;
+            const size = 3 + Math.random() * 5;
+            const lifetime = 800 + Math.random() * 700;
+
+            particle.style.width = `${size}px`;
+            particle.style.height = `${size}px`;
+
+            document.body.appendChild(particle);
+
+            let startTime = Date.now();
+
+            function update() {
+                const elapsed = Date.now() - startTime;
+                const progress = elapsed / lifetime;
+
+                if (progress >= 1) {
+                    particle.remove();
+                    return;
+                }
+
+                const distance = speed * elapsed / 15;
+                const currentX = x + Math.cos(angle) * distance;
+                const currentY = y + Math.sin(angle) * distance;
+
+                particle.style.left = `${currentX}px`;
+                particle.style.top = `${currentY}px`;
+                particle.style.opacity = 1 - progress;
+                particle.style.transform = `scale(${1.5 - progress})`;
+
+                requestAnimationFrame(update);
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        // Play firework sound
+        playFireworkSound();
+    }
+
+    // Create floating squares
+    function createFloatingSquare() {
+        const square = document.createElement('div');
+        square.className = 'square';
+
+        const size = 15 + Math.random() * 35;
+        const x = Math.random() * window.innerWidth;
+        const y = Math.random() * window.innerHeight;
+        const hue = Math.floor(Math.random() * 360);
+
+        square.style.width = `${size}px`;
+        square.style.height = `${size}px`;
+        square.style.left = `${x}px`;
+        square.style.top = `${y}px`;
+        square.style.color = `hsl(${hue}, 100%, 70%)`;
+        square.style.borderColor = `hsl(${hue}, 100%, 60%)`;
+
+        // Random movement direction and distance
+        const tx = (Math.random() - 0.5) * 300;
+        const ty = (Math.random() - 0.5) * 300;
+        square.style.setProperty('--tx', `${tx}px`);
+        square.style.setProperty('--ty', `${ty}px`);
+
+        // Random rotation direction
+        square.style.animationDirection = Math.random() > 0.5 ? 'normal' : 'reverse';
+
+        document.body.appendChild(square);
+
+        // Remove after animation completes
+        setTimeout(() => {
+            if (square.parentNode) {
+                square.remove();
+            }
+        }, 4000);
+    }
+
+    // Audio context for sound effects
+    let audioContext;
+    let soundEnabled = true;
+    const backgroundMusic = document.getElementById('backgroundMusic');
+    let musicEnabled = true;
+
+    // Initialize music
+    function initMusic() {
+        try {
+            // Try to play music (many browsers require this to be in a user interaction)
+            backgroundMusic.volume = 0.3;
+            const playPromise = backgroundMusic.play();
+
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.log("Autoplay prevented:", error);
+                    musicEnabled = false;
+                });
+            }
+        } catch (e) {
+            console.log("Music error:", e);
+        }
+    }
+
+    // Start music after user interaction
+
+    document.addEventListener('click', initMusic, { once: true });
+
+    function playFireworkSound() {
+        if (!soundEnabled) return;
+
+        try {
+            // Initialize audio context on first interaction
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            // Create sound
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            // Configure sound
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(100 + Math.random() * 200, audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
+
+            gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
+
+            // Play and clean up
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 0.5);
+        } catch (e) {
+            console.log("Audio error:", e);
+        }
+    }
+
+    // Click handler for fireworks
+    document.addEventListener('click', (e) => {
+        createFirework(e.clientX, e.clientY);
+    });
+
+    // Periodic fireworks
+    setInterval(() => {
+        const x = 150 + Math.random() * (window.innerWidth - 300);
+        const y = 150 + Math.random() * (window.innerHeight - 300);
+        createFirework(x, y);
+    }, 2500);
+
+    // Create floating squares periodically
+    setInterval(() => {
+        createFloatingSquare();
+    }, 200);
+
+    // Initial effects
+    for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+            const x = 150 + Math.random() * (window.innerWidth - 300);
+            const y = 150 + Math.random() * (window.innerHeight - 300);
+            createFirework(x, y);
+        }, i * 400);
+    }
+
+    // Create initial squares
+    for (let i = 0; i < 20; i++) {
+        setTimeout(() => {
+            createFloatingSquare();
+        }, i * 100);
+    }
+</script>
 </body>
 </html>

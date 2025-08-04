@@ -24,8 +24,8 @@ struct manapi::net::http::site::data_t {
     std::shared_ptr<manapi::json> config_;
     server_ctx sctx;
     http_uri_part handlers;
-    std::unique_ptr<std::map <std::string, compress_file_cb_t>> compressors_for_file{};
-    std::unique_ptr<std::map <std::string, compress_str_cb_t>> compressors_for_string{};
+    std::unique_ptr<std::map <std::string, compress_file_cb_t, std::less<>>> compressors_for_file{};
+    std::unique_ptr<std::map <std::string, compress_str_cb_t, std::less<>>> compressors_for_string{};
     std::unique_ptr<std::map <std::string, std::map <std::string, implement_create_cb>>> transport_protocol_workers{};
     std::unique_ptr<std::map <http::versions::http, std::map <std::string, implemenet_http_cb>>> http_protocol_workers{};
     std::mutex loopmx{};

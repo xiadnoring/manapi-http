@@ -197,6 +197,10 @@ namespace manapi {
     public:
         slice_view ();
 
+        slice_view (slice_part_t *part);
+
+        slice_view (slice_part_t *first, slice_part_t *last, uint32_t count, std::size_t shift, std::size_t rshift, std::size_t size);
+
         slice_view (const slice_base &n);
 
         slice_view (const slice &n);

@@ -194,13 +194,12 @@ manapi::net::worker::OpenSSL_TLS::~OpenSSL_TLS() {
             if (!(--wdata.ref)) {
                 auto ctx_data = static_cast<ssl_worker_ctx_t *> (wdata.data);
                 ctx_data->sessions_flush_timer.stop();
+                SSL_CTX_free(ctx_data->ctx);
                 delete ctx_data;
                 wdata.data = nullptr;
             }
         }
     }
-
-    SSL_CTX_free(static_cast<SSL_CTX*>(this->ctx));
 }
 
 std::shared_ptr<manapi::net::worker::OpenSSL_TLS> manapi::net::worker::OpenSSL_TLS::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config) {

@@ -180,12 +180,12 @@ int default_wrk_http2_init (const manapi::net::worker::shared_conn &conn, manapi
         wrk_ctx->ctx->http_v2_worker = global_ctx->worker.get();
         wrk_ctx->gctx = global_ctx;
 
-        w->event_on(conn, std::make_unique<manapi::net::worker::worker_watcher_cb>(
+        w->event_on(conn,
             [w, global]
             (const manapi::net::worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, manapi::net::worker::ibuffpool_t *p)
             -> void {
             default_wrk_http2(conn, flags, buffer, nsize, p, global, w);
-        }));
+        });
 
         w->event_flags(conn, manapi::ev::READ|manapi::ev::WRITE);
         return 0;

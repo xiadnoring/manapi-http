@@ -964,17 +964,14 @@ void manapi::event_loop::async_break_loop_() {
 
     uv_stop(this->loop_.get());
 
-    printf("1\n");
+    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "eventloop:uv_stop() has been finished");
 
     if (this->resolve_stop) {
-    printf("2\n");
-        /* if resolve caballback exists, break the loop_ otherwise */
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "eventloop:stop_pool() has been started");
+        /* if resolve caballback exists; otherwise, break the loop */
         this->stop_pool(std::exchange(this->resolve_stop, nullptr));
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "eventloop:stop_pool() has been finished");
     }
-
-    printf("3\n");
-
-    printf("4\n");
 }
 
 void manapi::event_loop::try_tasks_(const ev::shared_idle &w) {

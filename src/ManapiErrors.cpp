@@ -10,6 +10,7 @@
 #include <cstring>
 
 int manapi::debug::log_trace_enabled = -1;
+static std::mutex log_mx;
 
 std::string_view manapi::get_msg_by_err_num (manapi::err_num err) {
     switch (err) {
@@ -52,6 +53,29 @@ void manapi::extract_exception_ptr(std::exception_ptr err, int *errnum, std::str
 
         if (msg)
             *msg = e.what();
+    }
+}
+
+void manapi::extract_exception_ptr(std::exception_ptr err, int *errnum, char *msg, std::size_t *msg_size) {
+    try {
+        std::rethrow_exception(std::move(err));
+    }
+    catch (manapi::exception &e) {
+        if (errnum)
+            *errnum = e.err_num();
+
+        if (msg) {
+
+        }
+    }
+    catch (std::exception const &e) {
+        if (errnum)
+            *errnum = ERR_UNKNOWN;
+
+        if (msg && msg_size) {
+            *msg_size = std::min<std::size_t>(*msg_size, strlen(e.what()));
+            memcpy (msg, e.what(), *msg_size);
+        }
     }
 }
 
@@ -197,11 +221,13 @@ void log_log_ (manapi::debug::log_level type, int level, const char *file, int l
     if (type == manapi::debug::LOG_TRACE && level > manapi::debug::log_trace_enabled)
         return;
 
+
     // Remove path from filename
     const char* base = strrchr(file, '/');
     if (!base) base = strrchr(file, '\\');
     base = base ? base + 1 : file;
 
+    std::lock_guard<std::mutex> lk (log_mx);
     // Print timestamp, log level, and file info
     fprintf(
         stderr,

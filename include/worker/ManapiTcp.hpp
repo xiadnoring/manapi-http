@@ -50,7 +50,7 @@ namespace manapi::net::worker {
 
         ssize_t sync_write(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT override;
 
-        std::unique_ptr<worker_watcher_cb> event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT override;
+        worker_watcher_cb event_on(const shared_conn & conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT override;
 
         int event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT override;
 

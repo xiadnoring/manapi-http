@@ -58,7 +58,7 @@ void manapi::net::worker::prepared::flush_read_(worker::base *w, const shared_co
                 if (data->flags & base::CONN_RECV_END && !data->top->recv_size)
                     flags |= base::CONN_RECV_END;
 
-                if (worker::base::call_user_callback(data->ev_callback.get(), conn, flags, object.data(),
+                if (worker::base::call_user_callback(&data->ev_callback, conn, flags, object.data(),
                     static_cast<int>(object.size()), &object))
                     w->close_connection(conn, CLOSE_CONN_ERR);
             }
@@ -94,7 +94,7 @@ int manapi::net::worker::prepared::flush_read2_(http::config *config, const shar
             int flags = manapi::ev::READ;
             if ((data->flags & manapi::net::worker::base::CONN_RECV_END) && !s->recv_size)
                 flags |= manapi::net::worker::base::CONN_RECV_END;
-            if (worker::base::call_user_callback(data->ev_callback.get(), conn, flags, b.data(), sz, &b))
+            if (worker::base::call_user_callback(&data->ev_callback, conn, flags, b.data(), sz, &b))
                 return ERR_ABORTED;
         }
     }
@@ -139,7 +139,7 @@ void manapi::net::worker::prepared::top_buffer_clear(connection_prepared_t *s) M
 void manapi::net::worker::prepared::event_callback_clear(const shared_conn &conn,connection_prepared_base_t *s) MANAPIHTTP_NOEXCEPT {
     if (s->ev_callback) {
         auto cb = std::move(s->ev_callback);
-        if (manapi::net::worker::base::call_user_callback(cb.get(), conn, ev::DISCONNECT, nullptr, 0, nullptr)) {
+        if (manapi::net::worker::base::call_user_callback(&cb, conn, ev::DISCONNECT, nullptr, 0, nullptr)) {
             /* pass */
         }
     }
@@ -155,16 +155,16 @@ void manapi::net::worker::prepared::timer_clear(manapi::timer t) MANAPIHTTP_NOEX
 void manapi::net::worker::prepared::feed_event(worker::base *w, const shared_conn &conn, connection_prepared_t *data, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT {
     if (flags & ev::READ) {
         if (flags & base::CONN_TOP_READ) {
-            w->feed_event_read_ (conn, data->ev_callback.get(), &data->top->recv, &data->top->recv_size, data->flags, flags, buff, size, p);
+            w->feed_event_read_ (conn, &data->ev_callback, &data->top->recv, &data->top->recv_size, data->flags, flags, buff, size, p);
             prepared::flush_read_(w, conn, data);
         }
         else {
             prepared::flush_read_(w, conn, data);
-            w->feed_event_read_ (conn, data->ev_callback.get(), &data->top->recv, &data->top->recv_size, data->flags, flags, buff, size, p);
+            w->feed_event_read_ (conn, &data->ev_callback, &data->top->recv, &data->top->recv_size, data->flags, flags, buff, size, p);
         }
     }
     else if (data->ev_callback && (flags & data->flags)) {
-        if (manapi::net::worker::base::call_user_callback(data->ev_callback.get(), conn, flags, buff, size, p))
+        if (manapi::net::worker::base::call_user_callback(&data->ev_callback, conn, flags, buff, size, p))
             w->close_connection(conn, CLOSE_CONN_ERR);
     }
 }
@@ -180,7 +180,7 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
         data->transfered = 0;
 
         if (!(data->flags & ev::DISCONNECT) && data->flags & ev::WRITE && data->ev_callback) {
-            if (manapi::net::worker::base::call_user_callback(data->ev_callback.get(), sconn, ev::WRITE, nullptr, 0, nullptr)) {
+            if (manapi::net::worker::base::call_user_callback(&data->ev_callback, sconn, ev::WRITE, nullptr, 0, nullptr)) {
                 w->close_connection(sconn, CLOSE_CONN_ERR);
                 return;
             }
@@ -211,12 +211,12 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
     update_limit_rate_connection(sconn, sconn->as<connection_prepared_base_t>(), w, config, global);
 }
 
-std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::prepared::event_on(const shared_conn &conn,connection_prepared_base_t *data,std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::worker_watcher_cb manapi::net::worker::prepared::event_on(const shared_conn &conn,connection_prepared_base_t *data,worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT {
     auto n = std::exchange(data->ev_callback, std::move(callback));
     return std::move(n);
 }
 
-std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::prepared::event_on(const shared_conn &conn,std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::worker_watcher_cb manapi::net::worker::prepared::event_on(const shared_conn &conn,worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT {
     auto const conn_data = conn->as<connection_prepared_base_t>();
     auto n = std::exchange(conn_data->ev_callback, std::move(callback));
     return std::move(n);

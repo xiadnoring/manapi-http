@@ -254,10 +254,10 @@ manapi::future<> manapi::net::http::server::stop_pool(std::shared_ptr<data2_t> d
     // stop all pools
     for (const auto &pool: pools)
     {
-        MANAPIHTTP_LOG ("pool #{} is stopping...", pool.first);
+        manapi_log_trace (manapi::debug::LOG_TRACE_HIGH, "pool #%zu is stopping...", pool.first);
         auto res= co_await pool.second->stop();
         if (!res.ok())
             res.log();
-        MANAPIHTTP_LOG ("pool #{} stopped successfully", pool.first);
+        manapi_log_trace (manapi::debug::LOG_TRACE_HIGH, "pool #%zu stopped successfully", pool.first);
     }
 }

@@ -80,7 +80,7 @@ int manapi::net::worker::http_v3::event_flags(const shared_conn &conn, int flags
     MANAPIHTTP_WORKER_EVENT_LOOP(data) {
         if (data->ev_callback) {
             if (data->flags & CONN_CLOSED) {
-                if (http_v3::call_user_callback(data->ev_callback.get(), conn, CONN_CLOSED, nullptr, 0, nullptr))
+                if (http_v3::call_user_callback(&data->ev_callback, conn, CONN_CLOSED, nullptr, 0, nullptr))
                     this->close_connection(conn, CLOSE_CONN_ERR);
             }
             else {
@@ -92,7 +92,7 @@ int manapi::net::worker::http_v3::event_flags(const shared_conn &conn, int flags
                     this->callbacks->http_v3_on_read_stream (conn);
 
                     if (data->flags & CONN_RECV_END) {
-                        if (manapi::net::worker::http_v3::call_user_callback(data->ev_callback.get(), conn,
+                        if (manapi::net::worker::http_v3::call_user_callback(&data->ev_callback, conn,
                             CONN_RECV_END, nullptr, 0, nullptr))
                             this->close_connection(conn, CLOSE_CONN_ERR);
                     }
@@ -106,7 +106,7 @@ int manapi::net::worker::http_v3::event_flags(const shared_conn &conn, int flags
     return prev;
 }
 
-std::unique_ptr<manapi::net::worker::worker_watcher_cb> manapi::net::worker::http_v3::event_on(const shared_conn &conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT {
+manapi::net::worker::worker_watcher_cb manapi::net::worker::http_v3::event_on(const shared_conn &conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT {
     return prepared::event_on(conn, MANAPI_AS_STREAM(conn->wrk.data), std::move(callback));
 }
 

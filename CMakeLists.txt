@@ -385,7 +385,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/ext/jemallocator.hpp
         include/components/ManapiBuffer.hpp
         src/components/ManapiBuffer.cpp
-        include/components/ManapiObjectPool.hpp
+        include/services/ManapiObjectPool.hpp
         src/ManapiInitTools.cpp
         include/components/ManapiFileTransferInfo.hpp
         include/components/ManapiMemoryPool.hpp
@@ -417,7 +417,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/async/ManapiAsyncThreadsMutex.cpp
         include/async/ManapiEasyCancellation.hpp
         src/async/ManapiEasyCancellation.cpp
-        src/components/ManapiObjectPool.cpp
+        src/services/ManapiObjectPool.cpp
         include/worker/ManapiHttp2Worker.hpp
         src/worker/ManapiHttp2Worker.cpp
         src/http/ManapiHttp1Interface.cpp

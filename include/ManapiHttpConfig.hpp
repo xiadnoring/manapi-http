@@ -88,9 +88,9 @@ namespace manapi::net::http {
          * @return true if the compressor exists
          */
 
-        [[nodiscard]] bool contains_compressor (const std::string &name);
+        [[nodiscard]] bool contains_compressor (std::string_view name);
 
-        void function_contains_compressor (std::move_only_function<bool(const std::string &name)> func);
+        void function_contains_compressor (std::move_only_function<bool(std::string_view name)> func);
 
         /**
          * Returns Http version as a string
@@ -306,6 +306,6 @@ namespace manapi::net::http {
 
         bool force_conn_shutdown;
 
-        std::move_only_function<bool(const std::string &name)> function_contains_compressor_ = nullptr;
+        std::move_only_function<bool(std::string_view name)> function_contains_compressor_ = nullptr;
     };
 }

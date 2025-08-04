@@ -15,7 +15,20 @@ namespace manapi::net {
 
 
     class formdata_recv {
-        struct formdata_recv_ctx_t;
+        struct formdata_recv_headers_t;
+
+        struct formdata_recv_ctx_t {
+            int current;
+            int next;
+
+            int n1;
+            int n2;
+
+            std::string boundary;
+
+            std::unique_ptr<formdata_recv_headers_t> hctx;
+            std::unique_ptr<std::map<std::string, std::string, std::less<>>> headers;
+        };
     public:
         typedef std::move_only_function<manapi::future<ssize_t> (slice_view buffs, bool fin)> ondata_cb_t;
 
@@ -23,7 +36,7 @@ namespace manapi::net {
 
         typedef std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)> req_data_cb_t;
 
-        typedef manapi::future<> (*onrecv_cb_t)(worker::base *worker, worker::shared_conn *conn, http::request_data_t *req, req_data_cb_t handler);
+        typedef manapi::future<manapi::error::status> (*onrecv_cb_t)(worker::base *worker, worker::shared_conn *conn, http::request_data_t *req, req_data_cb_t handler);
 
         formdata_recv (onrecv_cb_t onrecv_cb, manapi::net::worker::base *worker, worker::shared_conn *conn, http::request_data_t *req);
 
@@ -33,7 +46,7 @@ namespace manapi::net {
 
         formdata_recv &operator=(formdata_recv &&n) noexcept;
 
-        manapi::future<void> get (onparam_cb_t cb);
+        manapi::future<manapi::error::status> get (onparam_cb_t cb);
 
         static ondata_cb_t save_file (std::string file, int mode = ev::IRUSR|ev::IWUSR|ev::IRGRP|ev::IROTH, ssize_t maxlen = -1, manapi::async::cancellation_action cancellation = nullptr);
 
@@ -47,7 +60,7 @@ namespace manapi::net {
         onparam_cb_t onparam_cb_;
         ondata_cb_t ondata_cb_;
         onrecv_cb_t onrecv_cb_;
-        std::unique_ptr<formdata_recv_ctx_t> ctx_;
+        formdata_recv_ctx_t ctx_;
         worker::base *worker_;
         worker::shared_conn *conn_;
         http::request_data_t *req_;
@@ -73,7 +86,7 @@ namespace manapi::net {
 
         [[nodiscard]] std::string generate_boundary () const;
 
-        manapi::future<> data2multipart (std::string boundary, ssize_t buffer_size,  std::function<manapi::future<void>(const void *buffer, ssize_t size)> write);
+        manapi::future<manapi::error::status> data2multipart (std::string boundary, ssize_t buffer_size, std::move_only_function<manapi::future<manapi::error::status>(manapi::slice_view, bool fin)> write);
     private:
         struct data_file_storage {
             std::string filename;

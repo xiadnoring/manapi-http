@@ -4,7 +4,7 @@
 
 #include "ManapiAsync.hpp"
 #include "async/ManapiAsyncContext.hpp"
-#include "components/ManapiObjectPool.hpp"
+#include "services/ManapiObjectPool.hpp"
 
 std::size_t summary_size_buffs (std::unique_ptr<manapi::slice_part_t, manapi::slice_base::slice_part_deleter> &buffs, manapi::slice_part_t **last) {
     std::size_t res = 0;
@@ -911,5 +911,13 @@ void manapi::slice::clear() noexcept(true) {
 }
 
 manapi::slice_view::slice_view() : slice_base(nullptr, nullptr, 0, 0, 0, 0) {
+
+}
+
+manapi::slice_view::slice_view(slice_part_t *part) : slice_base(part, part, 1, 0, 0, part->buff.len) {
+
+}
+
+manapi::slice_view::slice_view(slice_part_t *first, slice_part_t *last, uint32_t count, std::size_t shift, std::size_t rshift, std::size_t size) : slice_base(first, last, count, shift, rshift, size) {
 
 }

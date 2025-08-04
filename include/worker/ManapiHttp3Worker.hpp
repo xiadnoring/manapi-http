@@ -78,7 +78,7 @@ namespace manapi::net::worker {
 
         int event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT override;
 
-        std::unique_ptr<worker_watcher_cb> event_on(const shared_conn & conn, std::unique_ptr<worker_watcher_cb> callback) MANAPIHTTP_NOEXCEPT override;
+        worker_watcher_cb event_on(const shared_conn & conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT override;
 
         manapi::future<manapi::error::status> init(std::size_t deep) override;
 
