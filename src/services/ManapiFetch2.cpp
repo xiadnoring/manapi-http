@@ -10,14 +10,23 @@ enum fetch2_data_flags {
 
 struct manapi::net::fetch2::fetch_data {
     manapi::net::fetch data;
-    manapi::async::parallel_run<std::exception_ptr> async_run{};
+    manapi::async::parallel_run<std::string_view> async_run;
     async::mutex mx{};
     int flags {0};
 };
 
 template<typename T>
-manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch_(std::string url, manapi::json params, T body, async::cancellation_action cancellation) {
-    fetch2 response (std::move(url), std::move(cancellation));
+manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch_(std::string url, manapi::json params, T body, async::cancellation_action cancellation) {
+    fetch2 response;
+    auto status = manapi::async::parallel_run<std::string_view>::create();
+    if (!status)
+        co_return status.err();
+
+    response.fetchdata->async_run = status.unwrap();
+    auto err = response.fetchdata->data.init(std::move(url), std::move(cancellation));
+    if (!err)
+        co_return std::move(err);
+
     if (body.has_value())
         response.fetchdata->data.body(std::move(body.value()));
     response.setup_fetch(std::move(params));
@@ -30,47 +39,63 @@ manapi::net::fetch2::~fetch2() {
         && this->fetchdata.use_count() == 1
         && !(this->fetchdata->flags & FETCH2_DATA_FLAG_RESULT)) {
         /* was skipped, need to be cancelled */
-        manapi_log_trace("active fetch (%p) was destroyed, so it will be cancelled", this->fetchdata.get());
-        manapi::async::run(
-            fetch2::continue_receiving(std::move(this->fetchdata)),
-            +[] (std::exception_ptr err) -> void {
-                std::string msg;
-                if (err) {
-                    manapi::extract_exception_ptr(std::move(err), nullptr, &msg);
-                    manapi::async::current()->logger()->error(
-                        manapi::logger::default_service, ERR_INTERNAL,
-                        "fetch2: failed to close stalled or cancelled connection due to {}", msg);
-                }
-            });
-        }
+        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "fetch2:active fetch (%p) was destroyed, so it will be cancelled", this->fetchdata.get());
+
+        MANAPIHTTP_MUST_ALLOC_START
+        manapi::async::run<manapi::error::status>(
+        fetch2::continue_receiving((this->fetchdata)),
+        +[] (std::exception_ptr err, manapi::error::status *res) -> void {
+            if (err) {
+                char msg[256];
+                std::size_t size = sizeof (msg);
+                manapi::extract_exception_ptr(std::move(err), nullptr, msg, &size);
+                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed due to %.*s", "fetch2", "continue_receiving", size, msg);
+            }
+
+            if (!res) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed due to %.*s", "fetch2", "continue_receiving",
+                    res->msg().size(), res->msg().data());
+            }
+        });
+        MANAPIHTTP_MUST_ALLOC_END
+    }
 }
 
-manapi::net::fetch2::fetch2(std::string url, async::cancellation_action cancellation) {
-    this->fetchdata = std::make_shared<fetch_data>(manapi::net::fetch{std::move(url), std::move(cancellation)});
+manapi::net::fetch2::fetch2() {
+    this->fetchdata = std::make_shared<fetch_data>(manapi::net::fetch{});
 }
 
 manapi::net::fetch2::fetch2(const fetch2 &n) = default;
 
 manapi::net::fetch2 & manapi::net::fetch2::operator=(const fetch2 &n) = default;
 
-manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, manapi::json params, async::cancellation_action cancellation) {
+manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, async::cancellation_action cancellation) {
     return fetch_(std::move(url), std::move(params), std::optional<std::string> {}, std::move(cancellation));
 }
 
-manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<fetch_formdata> body, async::cancellation_action cancellation) {
+manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<fetch_formdata> body, async::cancellation_action cancellation) {
     return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
 }
 
-manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<std::string> body, async::cancellation_action cancellation) {
+manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<std::string> body, async::cancellation_action cancellation) {
     return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
 }
 
-manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, manapi::json params,std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body, async::cancellation_action cancellation) {
+manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params,std::optional<std::move_only_function<ssize_t(char *, ssize_t)>> body, async::cancellation_action cancellation) {
     return fetch_(std::move(url), std::move(params), std::move(body), std::move(cancellation));
 }
 
-manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)>> body, async::cancellation_action cancellation) {
-    fetch2 response (std::move(url), std::move(cancellation));
+manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params, std::optional<std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)>> body, async::cancellation_action cancellation) {
+    fetch2 response;
+    auto status = manapi::async::parallel_run<std::string_view>::create();
+    if (!status)
+        co_return status.err();
+
+    response.fetchdata->async_run = status.unwrap();
+    auto err = response.fetchdata->data.init(std::move(url), std::move(cancellation));
+    if (!err)
+        co_return std::move(err);
+
     if (body)
         response.fetchdata->data.async_body(std::move(body.value()));
 
@@ -79,8 +104,18 @@ manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, 
     co_return std::move(response);
 }
 
-manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, manapi::json params,std::optional<file_transfer_info> body, async::cancellation_action cancellation) {
-    fetch2 response (std::move(url), std::move(cancellation));
+manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch2::fetch(std::string url, manapi::json params,std::optional<file_transfer_info> body, async::cancellation_action cancellation) {
+    fetch2 response;
+
+    auto status = manapi::async::parallel_run<std::string_view>::create();
+    if (!status)
+        co_return status.err();
+
+    response.fetchdata->async_run = status.unwrap();
+    auto err = response.fetchdata->data.init(std::move(url), std::move(cancellation));
+    if (!err)
+        co_return std::move(err);
+
     if (body.has_value()) {
         co_await response.fetchdata->data.body(std::move(body.value()));
     }
@@ -89,175 +124,256 @@ manapi::future<manapi::net::fetch2> manapi::net::fetch2::fetch(std::string url, 
     co_return std::move(response);
 }
 
-bool manapi::net::fetch2::ok() const {
+bool manapi::net::fetch2::ok() const MANAPIHTTP_NOEXCEPT {
     auto s = this->status();
     return s >= 200 && s <= 299;
 }
 
-size_t manapi::net::fetch2::status() const {
+size_t manapi::net::fetch2::status() const MANAPIHTTP_NOEXCEPT {
     return this->fetchdata->data.status_code();
 }
 
-std::map<std::string, std::string, std::less<>> manapi::net::fetch2::headers() {
+std::map<std::string, std::string, std::less<>> manapi::net::fetch2::headers() MANAPIHTTP_NOEXCEPT {
     return this->fetchdata->data.headers();
 }
 
-manapi::future<> manapi::net::fetch2::callback_async(std::function<manapi::future<ssize_t>(slice_view buffs, bool fin)> cb) {
-    if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { throw manapi::exception(ERR_INTERNAL, "fetch2 must be initialized fetch2::fetch(...) only"); }
-    this->fetchdata->data.handle_async_body(std::move(cb));
+manapi::future<manapi::error::status> manapi::net::fetch2::callback_async(std::function<manapi::future<ssize_t>(slice_view buffs, bool fin)> cb) {
+    if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP))
+        co_return error::status_resource_exhausted("null");
+
+    auto res = this->fetchdata->data.handle_async_body(std::move(cb));
+    if (!res)
+        co_return std::move(res);
     this->fetchdata->flags |= FETCH2_DATA_FLAG_RESULT;
-    co_await continue_receiving(this->fetchdata);
+    co_return co_await continue_receiving(this->fetchdata);
 }
 
-manapi::future<> manapi::net::fetch2::callback_sync(std::function<ssize_t(char *buffer, ssize_t size)> cb) {
-    if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP)) { throw manapi::exception(ERR_INTERNAL, "fetch2 must be initialized fetch2::fetch(...) only"); }
-    this->fetchdata->data.handle_body(std::move(cb));
+manapi::future<manapi::error::status> manapi::net::fetch2::callback_sync(std::function<ssize_t(char *buffer, ssize_t size)> cb) {
+    if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP))
+        co_return error::status_resource_exhausted("null");
+    auto res = this->fetchdata->data.handle_body(std::move(cb));
+    if (!res)
+        co_return std::move(res);
     this->fetchdata->flags |= FETCH2_DATA_FLAG_RESULT;
-    co_await continue_receiving(this->fetchdata);
+    co_return co_await continue_receiving(this->fetchdata);
 }
 
-manapi::future<std::string> manapi::net::fetch2::text() {
-    std::string data;
+manapi::future<manapi::error::status_or<std::string>> manapi::net::fetch2::text() {
+    try {
+        std::string data;
 
-    co_await this->callback_sync ([&data] (char *buffer, ssize_t size) -> ssize_t {
-        data.append(buffer, size);
-        return size;
-    });
+        auto res = co_await this->callback_sync ([&data] (char *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT -> ssize_t {
+            try {
+                data.append(buffer, size);
+                return size;
+            }
+            catch (std::exception const &) {
+                return -1;
+            }
+        });
 
-    co_return std::move(data);
+        if (!res)
+            co_return std::move(res);
+
+        co_return std::move(data);
+    }
+    catch (std::exception const &) {
+        co_return manapi::error::status_resource_exhausted();
+    }
 }
 
-manapi::future<manapi::json> manapi::net::fetch2::json() {
-    manapi::json_builder builder;
-    co_await this->callback_sync([&builder] (char *buffer, ssize_t size) -> ssize_t {
-        try {
-            builder << std::string_view(buffer, size);
+manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::fetch2::json() {
+    try {
+        manapi::json_builder builder;
+
+        auto res =co_await this->callback_sync([&builder] (char *buffer, ssize_t size) -> ssize_t {
+            auto res = builder.parse(std::string_view(buffer, size));
+            if (!res)
+                return -1;
             return size;
-        }
-        catch (...) {}
-        return -1;
-    });
-    co_return builder.get().unwrap();
+        });
+
+        if (!res)
+            co_return json_error::status{std::move(res)};
+
+        co_return builder.get();
+    }
+    catch (std::exception const &e) {
+        manapi_log_trace("%s due to %s", "fetch2:json failed", e.what());
+        co_return json_error::status{error::status_internal("fetch2:json failed")};
+    }
 }
 
-void manapi::net::fetch2::setup_send_body(std::string &&data) {
-    this->fetchdata->data.body(std::forward<decltype(data)>(data));
+manapi::error::status manapi::net::fetch2::setup_send_body(std::string &&data) MANAPIHTTP_NOEXCEPT {
+    return this->fetchdata->data.body(std::forward<decltype(data)>(data));
 }
 
-manapi::future<> manapi::net::fetch2::continue_receiving(std::shared_ptr<fetch2::fetch_data> fetchdata) {
+manapi::future<manapi::error::status> manapi::net::fetch2::continue_receiving(std::shared_ptr<fetch2::fetch_data> fetchdata) {
     fetchdata->mx.unlock();
-    auto exception = co_await fetchdata->async_run.get_or(std::exception_ptr{nullptr});
-    if (exception) { std::rethrow_exception(exception); }
+    auto res = co_await fetchdata->async_run.get_or({});
+    if (res.empty())
+        co_return error::status_ok();
+
+    co_return manapi::error::status_internal(res);
 }
 
-void manapi::net::fetch2::setup_fetch(manapi::json params) {
+manapi::error::status manapi::net::fetch2::setup_fetch(manapi::json params) MANAPIHTTP_NOEXCEPT {
+    manapi::error::status res;
     try {
         auto it = params.as_object().find("method");
         if (it != params.as_object().end()) {
-            this->fetchdata->data.method(std::move(it->second.as_string()));
+            res = this->fetchdata->data.method(std::move(it->second.as_string()));
+            if (!res)
+                goto err;
         }
 
         it = params.as_object().find("verify_peer");
         if (it != params.as_object().end()) {
-            this->fetchdata->data.enable_verify_peer(it->second.as_bool_cast());
+            res = this->fetchdata->data.enable_verify_peer(it->second.as_bool_cast());
+            if (!res)
+                goto err;
         }
 
         it = params.as_object().find("verify_host");
         if (it != params.as_object().end()) {
-            this->fetchdata->data.enable_verify_host(it->second.as_bool_cast());
+            res = this->fetchdata->data.enable_verify_host(it->second.as_bool_cast());
+            if (!res)
+                goto err;
         }
 
         it = params.as_object().find("verbose");
         if (it != params.as_object().end()) {
-            this->fetchdata->data.verbose(it->second.as_bool_cast());
+            res = this->fetchdata->data.verbose(it->second.as_bool_cast());
+            if (!res)
+                goto err;
         }
         it = params.as_object().find("alpn");
         if (it != params.as_object().end()) {
-            this->fetchdata->data.enable_alpn(params["alpn"].as_bool());
+            res = this->fetchdata->data.enable_alpn(params["alpn"].as_bool());
+            if (!res)
+                goto err;
         }
 
         it = params.as_object().find("timeout");
-        if (it != params.as_object().end())
-            this->fetchdata->data.timeout(it->second.as_integer_cast());
-
+        if (it != params.as_object().end()) {
+            res = this->fetchdata->data.timeout(it->second.as_integer_cast());
+            if (!res)
+                goto err;
+        }
         it = params.as_object().find("http");
         if (it != params.as_object().end()) {
-            auto const version = std::stold(it->second.as_string_cast());
-            if (version >= 0.9 && version <= 1.1) {
-                this->fetchdata->data.enable_http1_1();
+            std::string_view version;
+            std::string storage;
+            if (it->second.is_string())
+                version = it->second.as_string();
+            else {
+                storage = it->second.as_string_cast();
+                version = storage;
             }
-            else if (version == 2.0) {
-                this->fetchdata->data.enable_http2();
+            if (version == "0.9" || version == "1.0" || version == "1" || version == "1.1") {
+                res = this->fetchdata->data.enable_http1_1();
             }
-            else if (version == 3.0) {
-                this->fetchdata->data.enable_http3();
+            else if (version == "2.0" || version == "2") {
+                res = this->fetchdata->data.enable_http2();
             }
+            else if (version == "3.0" || version == "3") {
+                res = this->fetchdata->data.enable_http3();
+            }
+            if (!res)
+                goto err;
+
         }
 
         it = params.as_object().find("headers");
         if (it != params.as_object().end()
             && it->second.is_object()) {
-            this->fetchdata->data.json_headers(std::move(it->second));
+            res = this->fetchdata->data.json_headers(std::move(it->second));
+            if (!res)
+                goto err;
         }
+
+
+        res = this->fetchdata->data.handle_body(+[] (char *buffer, ssize_t size)
+            -> ssize_t { return size; });
+
+        if (!res)
+            goto err;
+
+
+        this->fetchdata->flags |= FETCH2_DATA_FLAG_SETUP;
+
+        return manapi::error::status_ok();
     }
     catch (std::exception const &e) {
-        throw manapi::exception(manapi::ERR_FAILED_PRECONDITION,
-            std::format("param is invalid: {}", e.what()));
+        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %s",
+            "setup_fetch:Failed", e.what());
+        return manapi::error::status_internal("setup_fetch:Failed");
     }
 
-    this->fetchdata->flags |= FETCH2_DATA_FLAG_SETUP;
-
-    this->fetchdata->data.handle_body([fetchdata = this->fetchdata.get()] (char *buffer, ssize_t size)
-        -> ssize_t { return size; });
+    err: return std::move(res);
 }
 
 manapi::future<> manapi::net::fetch2::response() {
+    MANAPIHTTP_MUST_ALLOC_START
     co_await this->fetchdata->mx.lock();
-    std::exception_ptr err{nullptr};
+    MANAPIHTTP_MUST_ALLOC_END
+
+    manapi::error::status status;
+
     try {
-        using promise = async::promise<void, std::false_type>;
-        co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
+        using promise = async::promise_sync<manapi::error::status>;
+        status = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
             try {
                 this->fetchdata->data.handle_async_headers([fetchdata = this->fetchdata.get(), resolve = std::move(resolve)] (std::map<std::string, std::string, std::less<>> headers) mutable
                     -> manapi::future<bool> {
                     auto resolve_ = std::move(resolve);
 
                     fetchdata->flags |= FETCH2_DATA_FLAG_RECEIVED;
-                    resolve_ ();
+                    resolve_ (manapi::error::status_ok());
+                    MANAPIHTTP_MUST_ALLOC_START
                     auto lk = co_await fetchdata->mx.lock_guard();
+                    MANAPIHTTP_MUST_ALLOC_END
                     co_return fetchdata->flags & FETCH2_DATA_FLAG_RESULT;
                 });
 
-                        assert((fetchdata.use_count() <= 100&&fetchdata.use_count()>=0));
 
-                auto p = manapi::async::invoke([reject, fetchdata = this->fetchdata.get()] ()
-                    -> manapi::future<std::exception_ptr> {
-
+                auto p = manapi::async::invoke([fetchdata = this->fetchdata.get()] ()
+                    -> manapi::future<std::string_view> {
                     try {
-                        (co_await fetchdata->data.async_doit()).unwrap();
+                        auto err = (co_await fetchdata->data.async_doit());
+                        co_return err.msg();
                     }
-                    catch (...) {
-                        reject(std::current_exception());
-                        co_return std::current_exception();
+                    catch (std::exception const &e) {
+                        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %s", "fetch2:response failed", e.what());
+                        co_return {"fetch2:response failed"};
                     }
-                    co_return nullptr;
                 });
 
                 this->fetchdata->async_run.run(
                     std::move(p));
             }
-            catch (...) {
-                reject(std::current_exception());
+            catch (std::exception const &e) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %s", "fetch2:response failed", e.what());
+                resolve(manapi::error::status_internal("fetch2:response failed"));
             }
         });
     }
-    catch (...) {
-        err = std::current_exception();
+    catch (std::exception const &) {
+        status = manapi::error::status_internal("fetch2:response failed");
     }
 
-    if (err) {
-        co_await this->fetchdata->async_run.get();
-        std::rethrow_exception(std::move(err));
+    if (!status) {
+        MANAPIHTTP_MUST_ALLOC_START
+        std::string_view msg;
+        auto res = co_await this->fetchdata->async_run.get();
+        if (!res.ok()) {
+            msg = res.message();
+        }
+        else {
+            msg = res.unwrap();
+        }
+        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %.*s", "fetch2:response failed ", msg.size(), msg.data());
+        MANAPIHTTP_MUST_ALLOC_END
     }
 }
 

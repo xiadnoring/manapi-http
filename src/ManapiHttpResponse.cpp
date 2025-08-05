@@ -371,11 +371,11 @@ manapi::net::http::request * manapi::net::http::response::req() MANAPIHTTP_NOEXC
     return this->req_.get();
 }
 
-manapi::net::http::internal::handle_data_t * manapi::net::http::response::connection_data() MANAPI_EV_NOEXPECT {
+manapi::net::http::internal::handle_data_t * manapi::net::http::response::connection_data() MANAPIHTTP_NOEXCEPT {
     return this->cdata_;
 }
 
-manapi::net::http::internal::handle_data_t * manapi::net::http::response::connection_data_release() MANAPI_EV_NOEXPECT {
+manapi::net::http::internal::handle_data_t * manapi::net::http::response::connection_data_release() MANAPIHTTP_NOEXCEPT {
     return std::exchange(this->cdata_, nullptr);
 }
 

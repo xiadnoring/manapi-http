@@ -151,9 +151,40 @@ namespace manapi {
     /**
      * manapi exception
      */
-    class exception : public std::exception {
+    class exception final : public std::exception {
+        union messages {
+            std::string_view view{};
+            std::string storage;
+
+            ~messages();
+        };
     public:
-        exception (manapi::err_num errnum, std::string message);
+        /**
+         * initialize exception
+         * @param errnum error code
+         * @param message error message
+         */
+        explicit exception (manapi::err_num errnum, std::string message);
+
+        /**
+         * initialize exception
+         * @param errnum error code
+         * @param message error message. must contains a zero end
+         */
+        explicit exception (manapi::err_num errnum, std::string_view message);
+
+        /**
+         * initialize exception
+         * @param errnum error code
+         * @param message error message
+         */
+        explicit exception (manapi::err_num errnum, const char *message);
+
+        exception (const exception &n);
+
+        exception &operator=(const exception &n);
+
+        ~exception() override;
 
         MANAPIHTTP_NODISCARD const char * what() const noexcept override;
 
@@ -164,8 +195,9 @@ namespace manapi {
          */
         MANAPIHTTP_NODISCARD int err_num () const;
     private:
+        uint8_t flags;
         manapi::err_num errnum_;
-        std::string message;
+        messages data_;
     };
 
     namespace error {

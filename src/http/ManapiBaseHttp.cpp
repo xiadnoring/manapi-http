@@ -23,6 +23,12 @@
 
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 
+struct response_proxy_data_t {
+    ssize_t content_length;
+    manapi::net::fetch fetch;
+    std::unique_ptr<manapi::net::http::response> resp;
+};
+
 std::string manapi::net::http::internal::generate_default_page(int status, std::string_view msg) {
     return std::format("<html>\n\t<head>\n\t\t"
                             "<title>{0} {1}</title>\n\t</head>\n\t<body>\n\t\t<center>\n\t\t\t"
@@ -167,7 +173,15 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 filepath = std::move(resfile);
             }
 
-            filesystem::fstream f (filepath);
+            auto status = filesystem::fstream::create (filepath);
+            if (!status) {
+                cdata->router = std::move(cdata->router->error);
+                uq_handle_data_t uq_cdata (res->connection_data_release());
+                send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
+                co_return;
+            }
+
+            auto f = status.unwrap();
             auto fres = co_await f.open(ev::FS_O_RDONLY);
 
             if (!fres.ok()) {
@@ -398,31 +412,43 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
         if (!proxy_err) {
             co_return;
         }
-        auto proxy = std::make_unique<fetch>(std::move(*proxy_err.unwrap()));
-        auto proxy_setup = std::move(res->proxy_setup_cb());
+
+        std::unique_ptr<response_proxy_data_t> proxy_data (new (std::nothrow) response_proxy_data_t{});
+        if (!proxy_data)
+            goto send_error;
+
+        auto proxy_res = manapi::net::fetch::create(std::move(*proxy_err.unwrap()), res->req()->cancellation().sub());
+        if (!proxy_res)
+            goto send_error;
+
+        proxy_data->fetch = proxy_res.unwrap();
+        proxy_data->content_length = 0;
+        proxy_data->resp = std::move(res);
+
+        auto proxy_setup = std::move(proxy_data->resp->proxy_setup_cb());
 
         if (proxy_setup) {
-            proxy_setup->operator()(*proxy);
+            proxy_setup->operator()(proxy_data->fetch);
         }
 
-        proxy->headers({{"ranges", "0-"}});
+        proxy_data->fetch.headers({{"ranges", "0-"}});
 
-        auto content_length = std::make_unique<ssize_t>(0);
-
-        proxy->handle_async_headers (
-            [&content_length = *content_length.get(), proxy = proxy.get(), res = res.get()](std::map<std::string, std::string, std::less<>> headers) mutable
+        proxy_data->fetch.handle_async_headers (
+            [p = proxy_data.get()](std::map<std::string, std::string, std::less<>> headers) mutable
             -> manapi::future<bool> {
                 try {
-                    res->status_code(proxy->status_code());
+                    p->resp->status_code(p->fetch.status_code());
 
                     auto it = headers.find(HEADER.CONTENT_LENGTH);
                     if (it != headers.end()) {
                         char *strend = it->second.end().base();
-                        content_length = std::strtoll(it->second.data(), &strend, 10);
-                        res->header(std::string{HEADER.CONTENT_LENGTH}, it->second);
+                        p->content_length = std::strtoll(it->second.data(), &strend, 10);
+                        if (!p->resp->header(std::string{HEADER.CONTENT_LENGTH}, it->second))
+                            co_return false;
                     }
 
-                    const auto rhs1 = co_await mask_response(res, content_length == 0);
+                    const auto rhs1 = co_await mask_response(p->resp.get(), p->content_length == 0);
+
                     if (rhs1 != ERR_OK) {
                         co_return false;
                     }
@@ -435,32 +461,32 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
                 co_return false;
         });
 
-        proxy->handle_async_body(
-            [res = res.get(), &content_length = *content_length.get()](slice_view buffs, bool fin) mutable
+        proxy_data->fetch.handle_async_body(
+            [p = proxy_data.get()](slice_view buffs, bool fin) mutable
                 -> manapi::future<ssize_t> {
-            if (content_length > 0 && content_length <= buffs.size())
+            if (p->content_length > 0 && p->content_length <= buffs.size())
                 fin = true;
 
-            auto const cdata = res->connection_data();
+            auto const cdata = p->resp->connection_data();
             auto rhs = co_await cdata->worker->fwrite (cdata->conn, buffs, fin);
 
             if (rhs < 0)
                 co_return -1;
 
-            content_length -= rhs;
+            p->content_length -= rhs;
 
             co_return rhs;
         });
 
-        auto task = proxy->async_doit();
-        manapi::async::run<error::status> (std::move(task), [proxy = std::move(proxy),
-            content_length = std::move(content_length), res = std::move(res)]
+        auto task = proxy_data->fetch.async_doit();
+        manapi::async::run<error::status> (std::move(task), [proxy_data = std::move(proxy_data)]
                 (std::exception_ptr err, manapi::error::status *status) mutable -> void {
                 if (!status->ok()) {
                     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %.*s", "send_response_proxy()",
                         status->msg().size(), status->msg().data());
                     return;
                 }
+
                 if (err) {
                     /* failed */
                     char msg[256];
@@ -471,7 +497,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
                 }
 
 
-                res->connection_data()->cb->call(true);
+                proxy_data->resp->connection_data()->cb->call(true);
             });
 
         co_return;
@@ -479,9 +505,16 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "send_response_proxy()", e.what());
     }
+    co_return;
 #else
     manapi_log_error("%s failed due to %s", "send_response_proxy()", "unimplemented");
 #endif
+send_error:
+    auto cdata = res->connection_data();
+    cdata->router = std::move(cdata->router->error);
+    uq_handle_data_t uq_cdata (res->connection_data_release());
+    send_error_response(std::move(uq_cdata), http::INTERNAL_SERVER_ERROR_500);
+    co_return;
 }
 
 manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique_ptr<response> res, response_features_t features) {

@@ -19,13 +19,16 @@ namespace manapi::filesystem {
             std::atomic<int> status{0};
             off_t off_;
         };
+
     public:
         enum seek_flag_t {
             FILE_SEEK_START = 0,
             FILE_SEEK_CURRENT
         };
 
-        fstream (std::string path, async::cancellation_action cancellation = nullptr);
+        fstream ();
+
+        static manapi::error::status_or<fstream> create (std::string path, async::cancellation_action cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
 
         fstream (fstream &&n) noexcept;
 

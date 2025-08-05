@@ -166,14 +166,19 @@ manapi::future<manapi::error::status> manapi::net::http::request::callback_async
 }
 
 manapi::future<manapi::error::status> manapi::net::http::request::file(std::string filepath) {
-    manapi::filesystem::fstream f (std::move(filepath));
+    auto status = manapi::filesystem::fstream::create (std::move(filepath), this->cancellation().sub());
+    if (!status)
+        co_return status.err();
+
+    auto f = status.unwrap();
 
     auto res = co_await f.open(ev::FS_O_WRONLY|ev::FS_O_CREAT|ev::FS_O_TRUNC);
 
     if (!res.ok())
         co_return error::status_invalid_argument("formdata:Failed to open file");
 
-    res = co_await this->read_async_body_(this->worker_.get(), this->conn_, this->request_data, [f] (slice_view buffs, bool fin) mutable
+    res = co_await manapi::net::http::request::read_async_body_(this->worker_.get(), this->conn_, this->request_data,
+        [f] (slice_view buffs, bool fin) mutable
             -> manapi::future<ssize_t> { return f.write(buffs); });
 
     co_await f.close();

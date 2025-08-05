@@ -27,18 +27,18 @@
 #define MANAPI_EV_TRY_CALLBACK try {
 #define MANAPI_EV_CATCH_CALLBACK(s__) } catch (std::exception const &e) { manapi_log_error("ev:Callback '%s' failed due to %s", s__, e.what()); }
 
-#define MANAPI_EV_UNWATCHER(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) { \
+#define MANAPI_EV_UNWATCHER(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) MANAPIHTTP_NOEXCEPT { \
     if (w && w->data()) { \
         w->unbind(+[](uv_handle_t *handle) -> void { std::unique_ptr<ev::internal::ctxname>  data (static_cast<ev::internal::ctxname *>(handle->data)); \
         handle->data = nullptr; if (data) { data->s_.reset(); } }); \
     } }
 
-#define MANAPI_EV_CANCEL(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) { \
+#define MANAPI_EV_CANCEL(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) MANAPIHTTP_NOEXCEPT { \
     if (w && w->data()) { w->cancel(); std::unique_ptr<ev::internal::ctxname> data (static_cast<ev::internal::ctxname *>(w->data())); w->data(nullptr); \
         if (data) { data->token.disable(); data->s_.reset(); } \
     } }
 
-#define MANAPI_EV_UNWATCHER2(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) { \
+#define MANAPI_EV_UNWATCHER2(classname, ctxname) void manapi::event_loop::event_loop::stop_watcher_ptr(ev::classname *w) MANAPIHTTP_NOEXCEPT { \
     if (w && w->data()) { \
         w->unbind(+[](uv_handle_t *handle) -> void { std::unique_ptr<ev::internal::ctxname> data (static_cast<ev::internal::ctxname *>(handle->data)); \
         handle->data = nullptr; if (data->close_cb) { MANAPI_EV_TRY_CALLBACK data->close_cb->operator()(data->s_); MANAPI_EV_CATCH_CALLBACK("close") } if (data) { data->s_.reset(); } }); \
@@ -1122,7 +1122,7 @@ int manapi::event_loop::handle_curl_close_socket(void *cbp, curl_socket_t socket
 }
 #endif
 
-void manapi::event_loop::stop_watcher(std::shared_ptr<ev::tcp> s) {
+void manapi::event_loop::stop_watcher(std::shared_ptr<ev::tcp> s) MANAPIHTTP_NOEXCEPT {
     auto data = static_cast<ev::internal::tcp_ctx *>(s->data());
     if (data->type == 0) {
         s->unbind(+[] (uv_handle_t *s) -> void {
@@ -1142,84 +1142,120 @@ void manapi::event_loop::stop_watcher(std::shared_ptr<ev::tcp> s) {
     }
 }
 
-const std::shared_ptr<manapi::threadpool> &manapi::event_loop::taskpool() const {
+const std::shared_ptr<manapi::threadpool> &manapi::event_loop::taskpool() const MANAPIHTTP_NOEXCEPT {
     return this->etaskpool_;
 }
 
 #if MANAPIHTTP_CURL_DEPENDENCY
-void manapi::event_loop::watch_curl(std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb) {
+manapi::error::status manapi::event_loop::watch_curl(std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb) MANAPIHTTP_NOEXCEPT {
     /* add */
-    curl_easy_setopt (curl.get(), CURLOPT_OPENSOCKETFUNCTION, handle_curl_open_socket);
-    curl_easy_setopt (curl.get(), CURLOPT_OPENSOCKETDATA, this);
-    //
-    curl_easy_setopt (curl.get(), CURLOPT_CLOSESOCKETFUNCTION, handle_curl_close_socket);
-    curl_easy_setopt (curl.get(), CURLOPT_CLOSESOCKETDATA, this);
+    if (CURLM_OK != curl_easy_setopt (curl.get(), CURLOPT_OPENSOCKETFUNCTION, handle_curl_open_socket))
+        return error::status_invalid_argument ("watch_curl:curl_easy_setopt failed");
+    if (CURLM_OK != curl_easy_setopt (curl.get(), CURLOPT_OPENSOCKETDATA, this))
+        return error::status_invalid_argument ("watch_curl:curl_easy_setopt failed");
 
-    CURLMcode const mcode = curl_multi_add_handle(this->curl_watcher->curl_multi.get(), curl.get());
+    if (CURLM_OK != curl_easy_setopt (curl.get(), CURLOPT_CLOSESOCKETFUNCTION, handle_curl_close_socket))
+        return error::status_invalid_argument ("watch_curl:curl_easy_setopt failed");
+    if (CURLM_OK != curl_easy_setopt (curl.get(), CURLOPT_CLOSESOCKETDATA, this))
+        return error::status_invalid_argument ("watch_curl:curl_easy_setopt failed");
 
-    if (mcode != CURLM_OK) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL,
-            "Failed to add the curl handle. curl_multi_add_handle(...) = {}", static_cast<int>(mcode));
+    try {
+        if (!this->curl_watcher->curl_res.insert({curl.get(), {curl, std::move(cb), nullptr}}).second)
+            return error::status_already_exists("duplicate");
 
+        CURLMcode const mcode = curl_multi_add_handle(this->curl_watcher->curl_multi.get(), curl.get());
+
+        if (mcode != CURLM_OK) {
+            this->curl_watcher->curl_res.erase(curl.get());
+            manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_multi_add_handle() using %p returned %zu", curl.get(), mcode);
+            return error::status_invalid_argument("curl_multi_add_handle failed");
+        }
     }
-    auto curlptr = curl.get();
-    this->curl_watcher->curl_res.insert({curlptr, {std::move(curl), std::move(cb), nullptr}});
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "watch_curl:Failed", e.what());
+        return manapi::error::status_internal("watch_curl:Failed");
+    }
 
+    MANAPIHTTP_MUST_ALLOC_START
     this->etaskpool_->append_task([this] () -> void {
         this->handle_curl_exec_connections();
         this->handle_curl_check_connections();
     });
+    MANAPIHTTP_MUST_ALLOC_END
+
+    return manapi::error::status_ok();
 }
 
-void manapi::event_loop::unwatch_curl(std::shared_ptr<CURL> curl) {
+manapi::error::status manapi::event_loop::unwatch_curl(std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT {
     /* remove */
     auto curl_data = this->curl_watcher->curl_res.extract(curl.get());
     if (curl_data.empty()) {
         /** already was removed */
-        return;
+        return manapi::error::status_ok();
     }
 
     CURLMcode const mcode = curl_multi_remove_handle(this->curl_watcher->curl_multi.get(), curl.get());
 
     if (mcode != CURLM_OK) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL,
-            "Failed to remove the curl handle. curl_multi_remove_handle(...) = {}", static_cast<int>(mcode));
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_multi_remove_handle() using %p returned %zu", curl.get(), mcode);
+        return error::status_invalid_argument("curl_multi_remove_handle failed");
     }
+
     auto &mapped = curl_data.mapped();
     if (mapped.watcher) {
         this->stop_watcher(curl_data.mapped().watcher);
     }
-    mapped.finish(CURLE_ABORTED_BY_CALLBACK);
 
+    try {
+        mapped.finish(CURLE_ABORTED_BY_CALLBACK);
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s: %s failed due to %s", "curl", "mapped.finish", e.what());
+    }
+
+    MANAPIHTTP_MUST_ALLOC_START
     this->etaskpool_->append_task([this] () -> void {
         this->handle_curl_exec_connections();
         this->handle_curl_check_connections();
     });
+    MANAPIHTTP_MUST_ALLOC_END
+
+    return manapi::error::status_ok();
 }
 
-void manapi::event_loop::pause_watch_curl(std::shared_ptr<CURL> curl) {
+manapi::error::status manapi::event_loop::pause_watch_curl(std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT {
     /* pause */
     const auto rhs = curl_easy_pause(curl.get(), CURLPAUSE_ALL);
     if (CURLE_OK != rhs) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "curl_easy_pause(...) with CURLPAUSE_ALL failed -> {}", static_cast<int>(rhs));
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %zu", curl.get(), rhs);
+        return error::status_invalid_argument("curl_easy_pause failed");
     }
+    MANAPIHTTP_MUST_ALLOC_START
     this->etaskpool_->append_task([this] () -> void {
         this->handle_curl_exec_connections();
         this->handle_curl_check_connections();
     });
+    MANAPIHTTP_MUST_ALLOC_END
+    return error::status_ok();
 }
 
-void manapi::event_loop::unpause_watch_curl(std::shared_ptr<CURL> curl) {
+manapi::error::status manapi::event_loop::unpause_watch_curl(std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT {
     /* unpause */
     const auto rhs = curl_easy_pause(curl.get(), CURLPAUSE_CONT);
+
     if (CURLE_OK != rhs) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL,
-            "curl_easy_pause(...) with CURLPAUSE_CONT failed -> {}", static_cast<int>(rhs));
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %zu", curl.get(), rhs);
+        return error::status_invalid_argument("curl_easy_pause failed");
     }
+
+    MANAPIHTTP_MUST_ALLOC_START
     this->etaskpool_->append_task([this] () -> void {
         this->handle_curl_exec_connections();
         this->handle_curl_check_connections();
     });
+    MANAPIHTTP_MUST_ALLOC_END
+
+    return manapi::error::status_ok();
 }
 #endif
 
@@ -1445,7 +1481,7 @@ void manapi::event_loop::event_loop::stop_watcher_ptr(ev::write *w) {
     }
 }
 
-void manapi::event_loop::event_loop::stop_watcher_ptr(ev::udp_send *w) {
+void manapi::event_loop::event_loop::stop_watcher_ptr(ev::udp_send *w) MANAPIHTTP_NOEXCEPT {
     if (w && w->data()) {
         auto data = static_cast<ev::internal::udp_send_ctx *>(w->data());
         w->data( nullptr);

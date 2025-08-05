@@ -86,7 +86,7 @@ namespace manapi::net::worker {
         /**
          * no needed
          */
-        uint64_t (*flags_cb)(const shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPI_EV_NOEXPECT;
+        uint64_t (*flags_cb)(const shared_conn &conn, wrk_interface_global_t *global, worker::base *w) MANAPIHTTP_NOEXCEPT;
 
         /**
          * required, if the worker interface asks for an alpn support
@@ -301,7 +301,7 @@ namespace manapi::net::worker {
          * get the size of the streams in the connection
          * @return the size of the streams if a multistream is supported; otherwise, it always returns 0
          */
-        MANAPI_EV_NODISCARD virtual std::size_t streams_size (const shared_conn &conn) const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD virtual std::size_t streams_size (const shared_conn &conn) const MANAPIHTTP_NOEXCEPT;
 
         /**
          * Create a new stream in |conn|

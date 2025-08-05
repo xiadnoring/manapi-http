@@ -37,7 +37,7 @@ namespace manapi::async {
      */
     template<typename T = void>
     requires(std::is_same_v<T, void>)
-    void run(manapi::future<> task, run_cb onfinish = nullptr) MANAPI_EV_NOEXPECT;
+    void run(manapi::future<> task, run_cb onfinish = nullptr) MANAPIHTTP_NOEXCEPT;
 
     /**
      * Run an async task
@@ -48,7 +48,7 @@ namespace manapi::async {
      */
     template<typename T = void>
     requires(std::is_same_v<T, void>)
-    void run (auto && executor, run_cb onfinish = nullptr) MANAPI_EV_NOEXPECT;
+    void run (auto && executor, run_cb onfinish = nullptr) MANAPIHTTP_NOEXCEPT;
 
     /**
      * Run an async task
@@ -59,7 +59,7 @@ namespace manapi::async {
      */
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run(manapi::future<T> task, run_cb_with_value<T> onfinish = nullptr) MANAPI_EV_NOEXPECT;
+    void run(manapi::future<T> task, run_cb_with_value<T> onfinish = nullptr) MANAPIHTTP_NOEXCEPT;
 
     /**
      * Run an async task
@@ -70,7 +70,7 @@ namespace manapi::async {
      */
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run (auto && executor, run_cb_with_value<T> onfinish = nullptr) MANAPI_EV_NOEXPECT;
+    void run (auto && executor, run_cb_with_value<T> onfinish = nullptr) MANAPIHTTP_NOEXCEPT;
 }
 
 namespace manapi {
@@ -438,19 +438,19 @@ namespace manapi::async {
 
     template<typename T>
     requires(std::is_same_v<T, void>)
-    void run (auto && executor,  std::move_only_function<void(std::exception_ptr err)> onfinish ) MANAPI_EV_NOEXPECT {
+    void run (auto && executor,  std::move_only_function<void(std::exception_ptr err)> onfinish ) MANAPIHTTP_NOEXCEPT {
         async::run<T> (manapi::async::invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
     }
 
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run (auto &&executor, run_cb_with_value<T> onfinish) MANAPI_EV_NOEXPECT {
+    void run (auto &&executor, run_cb_with_value<T> onfinish) MANAPIHTTP_NOEXCEPT {
         async::run<T> (manapi::async::invoke(std::forward<decltype(executor)>(executor)), std::move(onfinish));
     }
 
     template<typename T>
     requires(!std::is_same_v<T, void>)
-    void run(manapi::future<T> task, run_cb_with_value<T> onfinish) MANAPI_EV_NOEXPECT {
+    void run(manapi::future<T> task, run_cb_with_value<T> onfinish) MANAPIHTTP_NOEXCEPT {
         async_task_t<T>*  ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr});
         while (!ptr) { ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr}); usleep(10000); }
         std::unique_ptr<async_task_t<T>> task_data(ptr);
@@ -460,7 +460,7 @@ namespace manapi::async {
 
     template<typename T>
     requires(std::is_same_v<T, void>)
-    void manapi::async::run(manapi::future<> task, std::move_only_function<void(std::exception_ptr err)> onfinish) MANAPI_EV_NOEXPECT {
+    void manapi::async::run(manapi::future<> task, std::move_only_function<void(std::exception_ptr err)> onfinish) MANAPIHTTP_NOEXCEPT {
         async_task_t<T>* ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr});
         while (!ptr) { ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr}); usleep(10000); }
         std::unique_ptr<async_task_t<T>> task_data(ptr);

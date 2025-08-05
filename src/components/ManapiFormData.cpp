@@ -171,8 +171,12 @@ finish:
 }
 
 manapi::net::formdata_recv::ondata_cb_t manapi::net::formdata_recv::save_file(std::string file, int mode, ssize_t maxlen, manapi::async::cancellation_action cancellation) {
-    manapi::filesystem::fstream stream (std::move(file), std::move(cancellation));
-    return [maxlen, mode, stream = std::move(stream)] (slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
+    auto status = manapi::filesystem::fstream::create (std::move(file), std::move(cancellation));
+
+    if (!status)
+        return nullptr;
+
+    return [maxlen, mode, stream = status.unwrap()] (slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
         if (maxlen >= 0) {
             maxlen -= buffs.size();
 
@@ -890,7 +894,10 @@ manapi::future<manapi::error::status> manapi::net::formdata_send::data2multipart
             if (!status)
                 goto err;
 
-            manapi::filesystem::fstream f (param.second.data);
+            auto fstatus = manapi::filesystem::fstream::create (param.second.data);
+            if (!fstatus)
+                co_return fstatus.err();
+            auto f = fstatus.unwrap();
             status = co_await f.open(ev::FS_O_RDONLY);
 
             if (!status)

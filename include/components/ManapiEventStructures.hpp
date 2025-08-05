@@ -9,24 +9,22 @@
 #include "../ManapiErrors.hpp"
 #include "../ManapiDebug.hpp"
 
-#define MANAPI_EV_NODISCARD [[nodiscard]]
-#define MANAPI_EV_NOEXPECT MANAPIHTTP_NOEXCEPT
 #define MANAPI_EV_CAST_STREAM(x) reinterpret_cast<uv_stream_t *> (x)
 #define MANAPI_EV_CAST_HANDLE(x) reinterpret_cast <uv_handle_t *> (x)
 #define MANAPI_EV_DEFAULT_PRIVATE_VAR(name_class, name_struct)
 #define MANAPI_EV_DEFAULT(name_class, name_struct) \
-        void unbind (uv_close_cb cb) MANAPI_EV_NOEXPECT;\
-        void unbind () MANAPI_EV_NOEXPECT;\
-        void data (void *data) MANAPI_EV_NOEXPECT;\
-        void *data () MANAPI_EV_NOEXPECT; \
-        loop_ref loop () MANAPI_EV_NOEXPECT; \
-        name_struct* custom () MANAPI_EV_NOEXPECT; \
-        bool is_active () MANAPI_EV_NOEXPECT; \
+        void unbind (uv_close_cb cb) MANAPIHTTP_NOEXCEPT;\
+        void unbind () MANAPIHTTP_NOEXCEPT;\
+        void data (void *data) MANAPIHTTP_NOEXCEPT;\
+        void *data () MANAPIHTTP_NOEXCEPT; \
+        loop_ref loop () MANAPIHTTP_NOEXCEPT; \
+        name_struct* custom () MANAPIHTTP_NOEXCEPT; \
+        bool is_active () MANAPIHTTP_NOEXCEPT; \
         ~name_class ();
 #define MANAPI_EV_STREAM(name_class, name_struct) \
-        int listen (int tcp_backlog, uv_connection_cb cb) MANAPI_EV_NOEXPECT; \
-        static int ip4_addr (const char *ip, int port, sockaddr_in *addr) MANAPI_EV_NOEXPECT; \
-        static int ip6_addr (const char *ip, int port, sockaddr_in6 *addr) MANAPI_EV_NOEXPECT;
+        int listen (int tcp_backlog, uv_connection_cb cb) MANAPIHTTP_NOEXCEPT; \
+        static int ip4_addr (const char *ip, int port, sockaddr_in *addr) MANAPIHTTP_NOEXCEPT; \
+        static int ip6_addr (const char *ip, int port, sockaddr_in6 *addr) MANAPIHTTP_NOEXCEPT;
 #define MANAPI_EV_CHECK(expr) if (expr) { THROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_INTERNAL, #expr); }
 
 namespace manapi {
@@ -431,7 +429,7 @@ namespace manapi::ev {
          * @param loop the loop reference
          * @return the status code
          */
-        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop) MANAPIHTTP_NOEXCEPT;
 
         /**
          * bind the watcher
@@ -439,26 +437,26 @@ namespace manapi::ev {
          * @param cb the callback
          * @return the status code
          */
-        int bind (loop_ref loop, uv_async_cb cb) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, uv_async_cb cb) MANAPIHTTP_NOEXCEPT;
 
         /**
          * send a request
          * @return the status code
          */
-        int send () MANAPI_EV_NOEXPECT;
+        int send () MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the event loop callback
          * @return the status code
          */
-        int set () MANAPI_EV_NOEXPECT;
+        int set () MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the custom callback
          * @param cb the custom callback
          * @return the status code
          */
-        int set (uv_async_cb cb) MANAPI_EV_NOEXPECT;
+        int set (uv_async_cb cb) MANAPIHTTP_NOEXCEPT;
     private:
 
         uv_async_t s_;
@@ -479,26 +477,26 @@ namespace manapi::ev {
          * @param loop the loop reference
          * @return the status code
          */
-        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop) MANAPIHTTP_NOEXCEPT;
 
         /**
          * start listening to the watcher with the event loop callback
          * @return the status code
          */
-        int start () MANAPI_EV_NOEXPECT;
+        int start () MANAPIHTTP_NOEXCEPT;
 
         /**
          * start listening to the watcher with the custom callback
          * @param cb the custom callback
          * @return the status code
          */
-        int start (uv_idle_cb cb) MANAPI_EV_NOEXPECT;
+        int start (uv_idle_cb cb) MANAPIHTTP_NOEXCEPT;
 
         /**
          * stop listening to the watcher
          * @return the status code
          */
-        int stop () MANAPI_EV_NOEXPECT;
+        int stop () MANAPIHTTP_NOEXCEPT;
     private:
         uv_idle_t s_;
     };
@@ -518,26 +516,26 @@ namespace manapi::ev {
          * @param loop the loop reference
          * @return the status code
          */
-        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop) MANAPIHTTP_NOEXCEPT;
 
         /**
          * start listening to the watcher with the event loop callback
          * @return the status code
          */
-        int start () MANAPI_EV_NOEXPECT;
+        int start () MANAPIHTTP_NOEXCEPT;
 
         /**
          * start listening to the watcher with the custom callback
          * @param cb the custom callback
          * @return the status code
          */
-        int start (uv_check_cb cb) MANAPI_EV_NOEXPECT;
+        int start (uv_check_cb cb) MANAPIHTTP_NOEXCEPT;
 
         /**
          * stop listening to the watcher
          * @return the status code
          */
-        int stop () MANAPI_EV_NOEXPECT;
+        int stop () MANAPIHTTP_NOEXCEPT;
     private:
         uv_check_t s_;
     };
@@ -559,17 +557,17 @@ namespace manapi::ev {
             return uv_poll_init(loop, &this->s_, fd);
         }
 
-        int start (int revents, uv_poll_cb cb) MANAPI_EV_NOEXPECT;
+        int start (int revents, uv_poll_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int start (int revents) MANAPI_EV_NOEXPECT;
+        int start (int revents) MANAPIHTTP_NOEXCEPT;
 
-        int start () MANAPI_EV_NOEXPECT;
+        int start () MANAPIHTTP_NOEXCEPT;
 
-        int restart (int revents) MANAPI_EV_NOEXPECT;
+        int restart (int revents) MANAPIHTTP_NOEXCEPT;
 
-        int stop () MANAPI_EV_NOEXPECT;
+        int stop () MANAPIHTTP_NOEXCEPT;
 
-        int events () MANAPI_EV_NOEXPECT;
+        int events () MANAPIHTTP_NOEXCEPT;
     private:
         uv_poll_t s_;
     };
@@ -581,9 +579,9 @@ namespace manapi::ev {
 
         write ();
 
-        int bind (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_write_cb cb) MANAPI_EV_NOEXPECT;
+        int bind (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_write_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int bind (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs) MANAPI_EV_NOEXPECT;
+        int bind (uv_stream_t *stream, const uv_buf_t *buf, uint32_t nbufs) MANAPIHTTP_NOEXCEPT;
     private:
         uv_write_t s_{};
     };
@@ -595,7 +593,7 @@ namespace manapi::ev {
 
         connect ();
 
-        int bind (uv_tcp_t *p, const struct sockaddr *addr, uv_connect_cb cb) MANAPI_EV_NOEXPECT;
+        int bind (uv_tcp_t *p, const struct sockaddr *addr, uv_connect_cb cb) MANAPIHTTP_NOEXCEPT;
     private:
         uv_connect_t s_{};
     };
@@ -608,39 +606,39 @@ namespace manapi::ev {
 
         tcp ();
 
-        int listen (int tcp_backlog) MANAPI_EV_NOEXPECT;
+        int listen (int tcp_backlog) MANAPIHTTP_NOEXCEPT;
 
-        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop) MANAPIHTTP_NOEXCEPT;
 
-        int connect (uv_connect_t *connect, const struct sockaddr *addr, uv_connect_cb cb) MANAPI_EV_NOEXPECT;
+        int connect (uv_connect_t *connect, const struct sockaddr *addr, uv_connect_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int accept (tcp *parent) MANAPI_EV_NOEXPECT;
+        int accept (tcp *parent) MANAPIHTTP_NOEXCEPT;
 
-        int read_start () MANAPI_EV_NOEXPECT;
+        int read_start () MANAPIHTTP_NOEXCEPT;
 
-        int read_start (uv_alloc_cb alloc, uv_read_cb cb) MANAPI_EV_NOEXPECT;
+        int read_start (uv_alloc_cb alloc, uv_read_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int read_stop () MANAPI_EV_NOEXPECT;
+        int read_stop () MANAPIHTTP_NOEXCEPT;
 
-        ssize_t try_write (const void *buff, ssize_t len) MANAPI_EV_NOEXPECT;
+        ssize_t try_write (const void *buff, ssize_t len) MANAPIHTTP_NOEXCEPT;
 
-        ssize_t try_write (const ev::buff_t *buff, uint32_t nbuff) MANAPI_EV_NOEXPECT;
+        ssize_t try_write (const ev::buff_t *buff, uint32_t nbuff) MANAPIHTTP_NOEXCEPT;
 
-        int s_bind (const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
+        int s_bind (const sockaddr *addr, int flags) MANAPIHTTP_NOEXCEPT;
 
-        int getpeername (sockaddr *name, int *namelen) MANAPI_EV_NOEXPECT;
+        int getpeername (sockaddr *name, int *namelen) MANAPIHTTP_NOEXCEPT;
 
-        int getsockname (sockaddr *name, int *namelen) MANAPI_EV_NOEXPECT;
+        int getsockname (sockaddr *name, int *namelen) MANAPIHTTP_NOEXCEPT;
 
-        int close_reset (uv_close_cb close_cb) MANAPI_EV_NOEXPECT;
+        int close_reset (uv_close_cb close_cb) MANAPIHTTP_NOEXCEPT;
 
-        int close_reset () MANAPI_EV_NOEXPECT;
+        int close_reset () MANAPIHTTP_NOEXCEPT;
 
-        int keepalive (int enable, unsigned int delay) MANAPI_EV_NOEXPECT;
+        int keepalive (int enable, unsigned int delay) MANAPIHTTP_NOEXCEPT;
 
-        int nodelay (int enable) MANAPI_EV_NOEXPECT;
+        int nodelay (int enable) MANAPIHTTP_NOEXCEPT;
 
-        int simultaneous_accepts (int enable) MANAPI_EV_NOEXPECT;
+        int simultaneous_accepts (int enable) MANAPIHTTP_NOEXCEPT;
     private:
         uv_tcp_t s_;
     };
@@ -653,18 +651,18 @@ namespace manapi::ev {
 
         udp ();
 
-        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop) MANAPIHTTP_NOEXCEPT;
 
-        int s_bind (const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
+        int s_bind (const sockaddr *addr, int flags) MANAPIHTTP_NOEXCEPT;
 
-        int recv_start () MANAPI_EV_NOEXPECT;
-        int recv_start (uv_alloc_cb alloc, uv_udp_recv_cb cb) MANAPI_EV_NOEXPECT;
+        int recv_start () MANAPIHTTP_NOEXCEPT;
+        int recv_start (uv_alloc_cb alloc, uv_udp_recv_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int recv_stop () MANAPI_EV_NOEXPECT;
+        int recv_stop () MANAPIHTTP_NOEXCEPT;
 
-        int connect (const struct sockaddr *addr) MANAPI_EV_NOEXPECT;
+        int connect (const struct sockaddr *addr) MANAPIHTTP_NOEXCEPT;
 
-        int try_send (const uv_buf_t *buf, uint32_t nbuf, sockaddr *addr) MANAPI_EV_NOEXPECT;
+        int try_send (const uv_buf_t *buf, uint32_t nbuf, sockaddr *addr) MANAPIHTTP_NOEXCEPT;
     private:
         uv_udp_t s_;
     };
@@ -676,8 +674,8 @@ namespace manapi::ev {
 
         udp_send ();
 
-        int bind (uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_udp_send_cb cb, const sockaddr *addr) MANAPI_EV_NOEXPECT;
-        int bind (uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, const sockaddr *addr) MANAPI_EV_NOEXPECT;
+        int bind (uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, uv_udp_send_cb cb, const sockaddr *addr) MANAPIHTTP_NOEXCEPT;
+        int bind (uv_udp_t *stream, const uv_buf_t *buf, uint32_t nbufs, const sockaddr *addr) MANAPIHTTP_NOEXCEPT;
     private:
         uv_udp_send_t s_;
     };
@@ -689,12 +687,12 @@ namespace manapi::ev {
 
         prepare ();
 
-        int bind(loop_ref loop) MANAPI_EV_NOEXPECT;
+        int bind(loop_ref loop) MANAPIHTTP_NOEXCEPT;
 
-        int start () MANAPI_EV_NOEXPECT;
-        int start (uv_prepare_cb cb) MANAPI_EV_NOEXPECT;
+        int start () MANAPIHTTP_NOEXCEPT;
+        int start (uv_prepare_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int stop () MANAPI_EV_NOEXPECT;
+        int stop () MANAPIHTTP_NOEXCEPT;
     private:
         uv_prepare_t s_;
     };
@@ -706,21 +704,21 @@ namespace manapi::ev {
 
         timer ();
 
-        int bind(loop_ref loop) MANAPI_EV_NOEXPECT;
+        int bind(loop_ref loop) MANAPIHTTP_NOEXCEPT;
 
-        int start (uint64_t timeout, uint64_t repeat) MANAPI_EV_NOEXPECT;
+        int start (uint64_t timeout, uint64_t repeat) MANAPIHTTP_NOEXCEPT;
 
-        int start (uint64_t timeout, uint64_t repeat, uv_timer_cb cb) MANAPI_EV_NOEXPECT;
+        int start (uint64_t timeout, uint64_t repeat, uv_timer_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int stop () MANAPI_EV_NOEXPECT;
+        int stop () MANAPIHTTP_NOEXCEPT;
 
-        int again () MANAPI_EV_NOEXPECT;
+        int again () MANAPIHTTP_NOEXCEPT;
 
-        void repeat (uint64_t repeat)  MANAPI_EV_NOEXPECT;
+        void repeat (uint64_t repeat)  MANAPIHTTP_NOEXCEPT;
 
-        MANAPI_EV_NODISCARD uint64_t repeat () const MANAPI_EV_NOEXPECT;
+        MANAPIHTTP_NODISCARD uint64_t repeat () const MANAPIHTTP_NOEXCEPT;
 
-        MANAPI_EV_NODISCARD uint64_t due_in () const MANAPI_EV_NOEXPECT;
+        MANAPIHTTP_NODISCARD uint64_t due_in () const MANAPIHTTP_NOEXCEPT;
     private:
         uv_timer_t s_;
     };
@@ -732,159 +730,159 @@ namespace manapi::ev {
 
         fs (loop_ref loop);
 
-        int cancel () MANAPI_EV_NOEXPECT;
+        int cancel () MANAPIHTTP_NOEXCEPT;
 
-        int open (const char *path, int flags, int mode, uv_fs_cb open_cb) MANAPI_EV_NOEXPECT;
+        int open (const char *path, int flags, int mode, uv_fs_cb open_cb) MANAPIHTTP_NOEXCEPT;
 
-        int open (const char *path, int flags, int mode) MANAPI_EV_NOEXPECT;
+        int open (const char *path, int flags, int mode) MANAPIHTTP_NOEXCEPT;
 
-        int read (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb read_cb) MANAPI_EV_NOEXPECT;
+        int read (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb read_cb) MANAPIHTTP_NOEXCEPT;
 
-        int read (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
+        int read (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT;
 
-        int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb write_cb) MANAPI_EV_NOEXPECT;
+        int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset, uv_fs_cb write_cb) MANAPIHTTP_NOEXCEPT;
 
-        int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
+        int write (ev::file fileno, const uv_buf_t *buff, uint32_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT;
 
-        static ssize_t try_write (ev::file fileno, const void *buff, ssize_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
+        static ssize_t try_write (ev::file fileno, const void *buff, ssize_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT;
 
-        static ssize_t try_read (ev::file fileno, void *buff, ssize_t nbuff, int64_t offset) MANAPI_EV_NOEXPECT;
+        static ssize_t try_read (ev::file fileno, void *buff, ssize_t nbuff, int64_t offset) MANAPIHTTP_NOEXCEPT;
 
-        int close (ev::file fileno, uv_fs_cb close_cb) MANAPI_EV_NOEXPECT;
+        int close (ev::file fileno, uv_fs_cb close_cb) MANAPIHTTP_NOEXCEPT;
 
-        int close (ev::file fileno) MANAPI_EV_NOEXPECT;
+        int close (ev::file fileno) MANAPIHTTP_NOEXCEPT;
 
-        int unlink (const char *path, uv_fs_cb unlink_cb) MANAPI_EV_NOEXPECT;
+        int unlink (const char *path, uv_fs_cb unlink_cb) MANAPIHTTP_NOEXCEPT;
 
-        int unlink (const char *path) MANAPI_EV_NOEXPECT;
+        int unlink (const char *path) MANAPIHTTP_NOEXCEPT;
 
-        int mkdir (const char *path, int mode, uv_fs_cb mkdir_cb) MANAPI_EV_NOEXPECT;
+        int mkdir (const char *path, int mode, uv_fs_cb mkdir_cb) MANAPIHTTP_NOEXCEPT;
 
-        int mkdir (const char *path, int mode) MANAPI_EV_NOEXPECT;
+        int mkdir (const char *path, int mode) MANAPIHTTP_NOEXCEPT;
 
-        int mkdtemp (const char *path, uv_fs_cb mkdtemp_cb) MANAPI_EV_NOEXPECT;
+        int mkdtemp (const char *path, uv_fs_cb mkdtemp_cb) MANAPIHTTP_NOEXCEPT;
 
-        int mkdtemp (const char *path) MANAPI_EV_NOEXPECT;
+        int mkdtemp (const char *path) MANAPIHTTP_NOEXCEPT;
 
-        int mkstemp (const char *path, uv_fs_cb mkstemp_cb) MANAPI_EV_NOEXPECT;
+        int mkstemp (const char *path, uv_fs_cb mkstemp_cb) MANAPIHTTP_NOEXCEPT;
 
-        int mkstemp (const char *path) MANAPI_EV_NOEXPECT;
+        int mkstemp (const char *path) MANAPIHTTP_NOEXCEPT;
 
-        int rmdir (const char *path, uv_fs_cb rmdir_cb) MANAPI_EV_NOEXPECT;
+        int rmdir (const char *path, uv_fs_cb rmdir_cb) MANAPIHTTP_NOEXCEPT;
 
-        int rmdir (const char *path) MANAPI_EV_NOEXPECT;
+        int rmdir (const char *path) MANAPIHTTP_NOEXCEPT;
 
-        int opendir (const char *path, uv_fs_cb opendir) MANAPI_EV_NOEXPECT;
+        int opendir (const char *path, uv_fs_cb opendir) MANAPIHTTP_NOEXCEPT;
 
-        int opendir (const char *path) MANAPI_EV_NOEXPECT;
+        int opendir (const char *path) MANAPIHTTP_NOEXCEPT;
 
-        int closedir (ev::dir_t * dir, uv_fs_cb closedir_cb) MANAPI_EV_NOEXPECT;
+        int closedir (ev::dir_t * dir, uv_fs_cb closedir_cb) MANAPIHTTP_NOEXCEPT;
 
-        int closedir (ev::dir_t * dir) MANAPI_EV_NOEXPECT;
+        int closedir (ev::dir_t * dir) MANAPIHTTP_NOEXCEPT;
 
-        int readdir (ev::dir_t * dir, uv_fs_cb readdir_cb) MANAPI_EV_NOEXPECT;
+        int readdir (ev::dir_t * dir, uv_fs_cb readdir_cb) MANAPIHTTP_NOEXCEPT;
 
-        int readdir (ev::dir_t * dir) MANAPI_EV_NOEXPECT;
+        int readdir (ev::dir_t * dir) MANAPIHTTP_NOEXCEPT;
 
-        int scandir (const char *path, int flags, uv_fs_cb scandir_cb) MANAPI_EV_NOEXPECT;
+        int scandir (const char *path, int flags, uv_fs_cb scandir_cb) MANAPIHTTP_NOEXCEPT;
 
-        int scandir (const char *path, int flags) MANAPI_EV_NOEXPECT;
+        int scandir (const char *path, int flags) MANAPIHTTP_NOEXCEPT;
 
-        int scandir_next (ev::dirent_t *dir) MANAPI_EV_NOEXPECT;
+        int scandir_next (ev::dirent_t *dir) MANAPIHTTP_NOEXCEPT;
 
-        int stat (const char *path, uv_fs_cb stat_cb) MANAPI_EV_NOEXPECT;
+        int stat (const char *path, uv_fs_cb stat_cb) MANAPIHTTP_NOEXCEPT;
 
-        int stat (const char *path) MANAPI_EV_NOEXPECT;
+        int stat (const char *path) MANAPIHTTP_NOEXCEPT;
 
-        int fstat (ev::file file, uv_fs_cb fstat_cb) MANAPI_EV_NOEXPECT;
+        int fstat (ev::file file, uv_fs_cb fstat_cb) MANAPIHTTP_NOEXCEPT;
 
-        int fstat (ev::file file) MANAPI_EV_NOEXPECT;
+        int fstat (ev::file file) MANAPIHTTP_NOEXCEPT;
 
-        int lstat (const char *path, uv_fs_cb lstat_cb) MANAPI_EV_NOEXPECT;
+        int lstat (const char *path, uv_fs_cb lstat_cb) MANAPIHTTP_NOEXCEPT;
 
-        int lstat (const char *path) MANAPI_EV_NOEXPECT;
+        int lstat (const char *path) MANAPIHTTP_NOEXCEPT;
 
-        int statfs (const char *path, uv_fs_cb statfs_cb) MANAPI_EV_NOEXPECT;
+        int statfs (const char *path, uv_fs_cb statfs_cb) MANAPIHTTP_NOEXCEPT;
 
-        int statfs (const char *path) MANAPI_EV_NOEXPECT;
+        int statfs (const char *path) MANAPIHTTP_NOEXCEPT;
 
-        int rename (const char *path, const char *new_path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int rename (const char *path, const char *new_path, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int rename (const char *path, const char *new_path) MANAPI_EV_NOEXPECT;
+        int rename (const char *path, const char *new_path) MANAPIHTTP_NOEXCEPT;
 
-        int fsync (ev::file file, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int fsync (ev::file file, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int fsync (ev::file file) MANAPI_EV_NOEXPECT;
+        int fsync (ev::file file) MANAPIHTTP_NOEXCEPT;
 
-        int fdatasync (ev::file file, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int fdatasync (ev::file file, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int fdatasync (ev::file file) MANAPI_EV_NOEXPECT;
+        int fdatasync (ev::file file) MANAPIHTTP_NOEXCEPT;
 
-        int ftruncate (ev::file file, int64_t off, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int ftruncate (ev::file file, int64_t off, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int ftruncate (ev::file file, int64_t off) MANAPI_EV_NOEXPECT;
+        int ftruncate (ev::file file, int64_t off) MANAPIHTTP_NOEXCEPT;
 
-        int copyfile (const char *path1, const char *path2, int flags, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int copyfile (const char *path1, const char *path2, int flags, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int copyfile (const char *path1, const char *path2, int flags) MANAPI_EV_NOEXPECT;
+        int copyfile (const char *path1, const char *path2, int flags) MANAPIHTTP_NOEXCEPT;
 
-        int sendfile (ev::file outfd, ev::file infd, int64_t off, size_t length, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int sendfile (ev::file outfd, ev::file infd, int64_t off, size_t length, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int sendfile (ev::file outfd, ev::file infd, int64_t off, size_t length) MANAPI_EV_NOEXPECT;
+        int sendfile (ev::file outfd, ev::file infd, int64_t off, size_t length) MANAPIHTTP_NOEXCEPT;
 
-        int access (const char *path, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int access (const char *path, int mode, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int access (const char *path, int mode) MANAPI_EV_NOEXPECT;
+        int access (const char *path, int mode) MANAPIHTTP_NOEXCEPT;
 
-        int chmod (const char *path, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int chmod (const char *path, int mode, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int chmod (const char *path, int mode) MANAPI_EV_NOEXPECT;
+        int chmod (const char *path, int mode) MANAPIHTTP_NOEXCEPT;
 
-        int fchmod (ev::file file, int mode, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int fchmod (ev::file file, int mode, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int fchmod (ev::file file, int mode) MANAPI_EV_NOEXPECT;
+        int fchmod (ev::file file, int mode) MANAPIHTTP_NOEXCEPT;
 
-        int utime (const char *path, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int utime (const char *path, double atime, double mtime, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int utime (const char *path, double atime, double mtime) MANAPI_EV_NOEXPECT;
+        int utime (const char *path, double atime, double mtime) MANAPIHTTP_NOEXCEPT;
 
-        int futime (ev::file file, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int futime (ev::file file, double atime, double mtime, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int futime (ev::file file, double atime, double mtime) MANAPI_EV_NOEXPECT;
+        int futime (ev::file file, double atime, double mtime) MANAPIHTTP_NOEXCEPT;
 
-        int lutime (const char *path, double atime, double mtime, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int lutime (const char *path, double atime, double mtime, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int lutime (const char *path, double atime, double mtime) MANAPI_EV_NOEXPECT;
+        int lutime (const char *path, double atime, double mtime) MANAPIHTTP_NOEXCEPT;
 
-        int link (const char *path, const char *new_path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int link (const char *path, const char *new_path, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int link (const char *path, const char *new_path) MANAPI_EV_NOEXPECT;
+        int link (const char *path, const char *new_path) MANAPIHTTP_NOEXCEPT;
 
-        int symlink (const char *path, const char *new_path, int flags, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int symlink (const char *path, const char *new_path, int flags, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int symlink (const char *path, const char *new_path, int flags) MANAPI_EV_NOEXPECT;
+        int symlink (const char *path, const char *new_path, int flags) MANAPIHTTP_NOEXCEPT;
 
-        int readlink (const char *path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int readlink (const char *path, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int readlink (const char *path) MANAPI_EV_NOEXPECT;
+        int readlink (const char *path) MANAPIHTTP_NOEXCEPT;
 
-        int realpath (const char *path, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int realpath (const char *path, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int realpath (const char *path) MANAPI_EV_NOEXPECT;
+        int realpath (const char *path) MANAPIHTTP_NOEXCEPT;
 
-        int chown (const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int chown (const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int chown (const char *path, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT;
+        int chown (const char *path, uid_t uid, gid_t gid) MANAPIHTTP_NOEXCEPT;
 
-        int fchown (ev::file file, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int fchown (ev::file file, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int fchown (ev::file file, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT;
+        int fchown (ev::file file, uid_t uid, gid_t gid) MANAPIHTTP_NOEXCEPT;
 
-        int lchown (const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPI_EV_NOEXPECT;
+        int lchown (const char *path, uid_t uid, gid_t gid, uv_fs_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int lchown (const char *path, uid_t uid, gid_t gid) MANAPI_EV_NOEXPECT;
+        int lchown (const char *path, uid_t uid, gid_t gid) MANAPIHTTP_NOEXCEPT;
         
-        MANAPI_EV_NODISCARD ssize_t result () const MANAPI_EV_NOEXPECT;
+        MANAPIHTTP_NODISCARD ssize_t result () const MANAPIHTTP_NOEXCEPT;
     private:
         loop_ref loop_;
         uv_fs_t s_;
@@ -897,11 +895,11 @@ namespace manapi::ev {
 
         random ();
 
-        int cancel () MANAPI_EV_NOEXPECT;
+        int cancel () MANAPIHTTP_NOEXCEPT;
 
-        int bind (loop_ref loop, char *buff, std::size_t size, uv_random_cb cb) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, char *buff, std::size_t size, uv_random_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int bind (loop_ref loop, char *buff, std::size_t size) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, char *buff, std::size_t size) MANAPIHTTP_NOEXCEPT;
     private:
         uv_random_t s_;
     };
@@ -913,13 +911,13 @@ namespace manapi::ev {
 
         getaddrinfo ();
 
-        int cancel () MANAPI_EV_NOEXPECT;
+        int cancel () MANAPIHTTP_NOEXCEPT;
 
-        int bind (loop_ref loop, const char *node, const char *service, const struct addrinfo *hints, uv_getaddrinfo_cb getaddrinfo_cb) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, const char *node, const char *service, const struct addrinfo *hints, uv_getaddrinfo_cb getaddrinfo_cb) MANAPIHTTP_NOEXCEPT;
 
-        int bind (loop_ref loop, const char *node, const char *service, const struct addrinfo *hints) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, const char *node, const char *service, const struct addrinfo *hints) MANAPIHTTP_NOEXCEPT;
 
-        static void free (::addrinfo *n) MANAPI_EV_NOEXPECT;
+        static void free (::addrinfo *n) MANAPIHTTP_NOEXCEPT;
     private:
         uv_getaddrinfo_t s_;
     };
@@ -931,11 +929,11 @@ namespace manapi::ev {
 
         getnameinfo ();
 
-        int cancel () MANAPI_EV_NOEXPECT;
+        int cancel () MANAPIHTTP_NOEXCEPT;
 
-        int bind (loop_ref loop, const sockaddr *addr, int flags, uv_getnameinfo_cb cb) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, const sockaddr *addr, int flags, uv_getnameinfo_cb cb) MANAPIHTTP_NOEXCEPT;
 
-        int bind (loop_ref loop, const sockaddr *addr, int flags) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, const sockaddr *addr, int flags) MANAPIHTTP_NOEXCEPT;
     private:
         uv_getnameinfo_t s_;
     };
@@ -947,11 +945,11 @@ namespace manapi::ev {
 
         work();
 
-        int cancel () MANAPI_EV_NOEXPECT;
+        int cancel () MANAPIHTTP_NOEXCEPT;
 
-        int bind (loop_ref loop, uv_work_cb cb, uv_after_work_cb after_cb) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop, uv_work_cb cb, uv_after_work_cb after_cb) MANAPIHTTP_NOEXCEPT;
 
-        int bind (loop_ref loop) MANAPI_EV_NOEXPECT;
+        int bind (loop_ref loop) MANAPIHTTP_NOEXCEPT;
     private:
         uv_work_t s_;
     };

@@ -232,35 +232,34 @@ namespace manapi {
 
         ev::shared_work append_task (std::move_only_function<void(const ev::shared_work &w)> work, std::move_only_function<void(const ev::shared_work &w, int status)> after_work);
 
-        void stop_watcher_ptr (ev::io *w);
+        void stop_watcher_ptr (ev::io *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::async *w);
+        void stop_watcher_ptr (ev::async *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::idle *w);
+        void stop_watcher_ptr (ev::idle *w) MANAPIHTTP_NOEXCEPT ;
 
-        void stop_watcher_ptr (ev::udp *w);
+        void stop_watcher_ptr (ev::udp *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::check *w);
+        void stop_watcher_ptr (ev::check *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::timer *w);
+        void stop_watcher_ptr (ev::timer *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::prepare *w);
+        void stop_watcher_ptr (ev::prepare *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::write *w);
+        void stop_watcher_ptr (ev::write *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::random *w);
+        void stop_watcher_ptr (ev::random *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::udp_send *w);
+        void stop_watcher_ptr (ev::udp_send *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::fs *w);
+        void stop_watcher_ptr (ev::fs *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::getaddrinfo *w);
+        void stop_watcher_ptr (ev::getaddrinfo *w) MANAPIHTTP_NOEXCEPT;
 
-        void stop_watcher_ptr (ev::getnameinfo *w);
+        void stop_watcher_ptr (ev::getnameinfo *w) MANAPIHTTP_NOEXCEPT;
 
-        
         template<typename T>
-        void stop_watcher (std::shared_ptr<T> w) {
+        void stop_watcher (std::shared_ptr<T> w) MANAPIHTTP_NOEXCEPT {
             this->stop_watcher_ptr(w.get());
         }
 
@@ -272,17 +271,17 @@ namespace manapi {
 
         void alloc_callback (const std::shared_ptr<ev::tcp> &s, ev::tcp_alloc_cb cb);
 
-        void stop_watcher (std::shared_ptr<ev::tcp> s);
+        void stop_watcher (std::shared_ptr<ev::tcp> s) MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] const std::shared_ptr<threadpool> &taskpool () const;
+        [[nodiscard]] const std::shared_ptr<threadpool> &taskpool () const MANAPIHTTP_NOEXCEPT;
 #if MANAPIHTTP_CURL_DEPENDENCY
-        void watch_curl (std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb);
+        manapi::error::status watch_curl (std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb) MANAPIHTTP_NOEXCEPT;
 
-        void unwatch_curl (std::shared_ptr<CURL> curl);
+        manapi::error::status unwatch_curl (std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT;
 
-        void unpause_watch_curl (std::shared_ptr<CURL> curl);
+        manapi::error::status unpause_watch_curl (std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT;
 
-        void pause_watch_curl (std::shared_ptr<CURL> curl);
+        manapi::error::status pause_watch_curl (std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT;
 #endif
         void custom_callback (std::move_only_function<void(event_loop *ev)> cb);
 

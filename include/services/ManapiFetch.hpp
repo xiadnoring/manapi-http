@@ -52,9 +52,9 @@ namespace manapi::net {
          */
         ~fetch_formdata();
 
-        fetch_formdata(fetch_formdata &&fd) MANAPI_EV_NOEXPECT;
+        fetch_formdata(fetch_formdata &&fd) MANAPIHTTP_NOEXCEPT;
 
-        fetch_formdata &operator=(fetch_formdata &&fd) MANAPI_EV_NOEXPECT;
+        fetch_formdata &operator=(fetch_formdata &&fd) MANAPIHTTP_NOEXCEPT;
 
         /**
          * send the plain field
@@ -111,17 +111,10 @@ namespace manapi::net {
      * Fetch API for C++. Based on cURL
      */
     class fetch {
-        struct shared_data;
     public:
         struct data_t;
 
-        /**
-         * Initialize Fetch API
-         *
-         * @param url the site URL
-         * @param cancellation the cancellation token
-         */
-        explicit fetch(std::string url, manapi::async::cancellation_action cancellation = nullptr);
+        fetch();
 
         fetch (const fetch &n);
 
@@ -130,32 +123,48 @@ namespace manapi::net {
         ~fetch();
 
         /**
+         * Initialize Fetch API
+         *
+         * @param url the site URL
+         * @param cancellation the cancellation token
+         */
+        static manapi::error::status_or<fetch> create (std::string url, manapi::async::cancellation_action cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+
+        /**
+         * Initialize Fetch API
+         *
+         * @param url the site URL
+         * @param cancellation the cancellation token
+         */
+        manapi::error::status init (std::string url, manapi::async::cancellation_action cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
+
+        /**
          * Set the sync callback to recv body from the request
          *
          * @param handler the callback
          */
-        void handle_body(std::move_only_function<ssize_t(char *, ssize_t)> handler);
+        manapi::error::status handle_body(std::move_only_function<ssize_t(char *, ssize_t)> handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the async callback to recv body from the request
          *
          * @param handler the callback
          */
-        void handle_async_body(std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool fin)> handler);
+        manapi::error::status handle_async_body(std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool fin)> handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the sync callback to recv headers from the request
          *
          * @param handler the callback
          */
-        void handle_headers (std::move_only_function<bool(std::map <std::string, std::string, std::less<>>)> handler);
+        manapi::error::status handle_headers (std::move_only_function<bool(std::map <std::string, std::string, std::less<>>)> handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the async callback to recv headers from the request
          *
          * @param handler the callback
          */
-        void handle_async_headers (std::move_only_function<manapi::future<bool>(std::map<std::string, std::string, std::less<>>)> handler);
+        manapi::error::status handle_async_headers (std::move_only_function<manapi::future<bool>(std::map<std::string, std::string, std::less<>>)> handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the enabled status of ALPN
@@ -191,21 +200,21 @@ namespace manapi::net {
          *
          * @param params the form data
          */
-        void body (fetch_formdata params);
+        manapi::error::status body (fetch_formdata params) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the method for the response
          *
          * @param method the HTTP method
          */
-        void method (std::string_view method);
+        manapi::error::status method (std::string_view method) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the string data to send it with the response
          *
          * @param data the string data
          */
-        void body (std::string data);
+        manapi::error::status body (std::string data) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the file data to send it with the response
@@ -220,34 +229,34 @@ namespace manapi::net {
          *
          * @param handler the async callback
          */
-        void async_body (std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)> handler);
+        manapi::error::status async_body (std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool &fin)> handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the sync callback to send body with the response
          *
          * @param handler the sync callback
          */
-        void body (std::move_only_function<ssize_t(char *, ssize_t)> handler);
+        manapi::error::status body (std::move_only_function<ssize_t(char *, ssize_t)> handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the headers for the response
          *
          * @param headers the headers
          */
-        void headers (std::map <std::string, std::string, std::less<>> headers);
+        manapi::error::status headers (std::map <std::string, std::string, std::less<>> headers) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the headers in the JSON format for the response
          * @param headers the headers in the JSON format
          */
-        void json_headers (manapi::json headers);
+        manapi::error::status json_headers (manapi::json headers) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Get a custom cURL object for custom configuration
          *
          * @return
          */
-        const std::shared_ptr<CURL> &custom ();
+        std::shared_ptr<CURL> custom () MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the enabled status of the verify peer
@@ -255,46 +264,46 @@ namespace manapi::net {
          * @param status the enabled status
          * @return OK if there's no error, otherwise it returns InvalidArgument
          */
-        manapi::error::status enable_verify_peer (bool status);
+        manapi::error::status enable_verify_peer (bool status) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the enabled status of the verify host
          * @param status the enabled status
          * @return OK if there's no error, otherwise it returns InvalidArgument
          */
-        manapi::error::status enable_verify_host (bool status);
+        manapi::error::status enable_verify_host (bool status) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the enabled status of the verify host
          * @param status the enabled status
          * @return OK if there's no error, otherwise it returns InvalidArgument
          */
-        manapi::error::status verbose (bool status);
+        manapi::error::status verbose (bool status) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the status of the timeout
          * @param seconds duration in seconds
          * @return OK if there's no error, otherwise it returns InvalidArgument
          */
-        manapi::error::status timeout (std::size_t seconds);
+        manapi::error::status timeout (std::size_t seconds) MANAPIHTTP_NOEXCEPT;
 
         /**
          * pause the receiving the data from the response
          * @return OK if there's no error, otherwise it returns InvalidArgument
          */
-        manapi::error::status break_write_loop ();
+        manapi::error::status break_write_loop () MANAPIHTTP_NOEXCEPT;
 
         /**
          * continue the receiving the data from the response
          * @return OK if there's no error, otherwise it returns InvalidArgument
          */
-        manapi::error::status continue_write_loop ();
+        manapi::error::status continue_write_loop () MANAPIHTTP_NOEXCEPT;
 
         /**
          * Get the current HTTP status code
          * @return the HTTP status code
          */
-        [[nodiscard]] size_t status_code () const;
+        [[nodiscard]] size_t status_code () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * Send the request to the server
@@ -306,13 +315,13 @@ namespace manapi::net {
          * Calls async_doit() and returns the string result
          * @return the string result
          */
-        future<std::string> text();
+        future<manapi::error::status_or<std::string>> text();
 
         /**
          * Calls async_doit() and returns the JSON result
          * @return the JSON result
          */
-        future<manapi::json> json();
+        future<manapi::error::status_or<manapi::json>> json();
 
         /**
          * Get the headers from the response
@@ -330,21 +339,15 @@ namespace manapi::net {
          */
         void clear_ ();
 
-        static manapi::future<bool> handle_body_verify (std::shared_ptr<shared_data> data);
-
-        static manapi::future<void> handle_sync_body_finish(std::shared_ptr<shared_data> data, bool finish);
-
-        static manapi::future<void> handle_async_body_finish(std::shared_ptr<shared_data> data, bool finish);
-
         static std::size_t curl_header_handler (char *buffer, size_t size, size_t n_items, void *userdata);
 
         static std::size_t curl_write_handler (char *buffer, size_t size, size_t nitems, void *user_p);
 
         static std::size_t curl_read_handler (char *buffer, std::size_t size, std::size_t nitems, void *user_p);
 
-        void setup_parallel_task ();
+        manapi::error::status setup_parallel_task () MANAPIHTTP_NOEXCEPT;
 
-        void header_ (std::string key, std::string value);
+        manapi::error::status header_ (std::string_view key, std::string_view value) MANAPIHTTP_NOEXCEPT;
 
         void default_setup_curl_ ();
 

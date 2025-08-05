@@ -5,14 +5,25 @@
 #include "ManapiFilesystem.hpp"
 #include "../include/ManapiWindows.hpp"
 
-manapi::filesystem::fstream::fstream(std::string path, async::cancellation_action cancellation) {
-    this->data = std::make_shared<fstream_data_t_>(
-        std::move(path),
-        std::move(cancellation),
-        -1,
-        0,
-        0
-    );
+manapi::filesystem::fstream::fstream() : data() {
+
+}
+
+manapi::error::status_or<manapi::filesystem::fstream> manapi::filesystem::fstream::create(std::string path, async::cancellation_action cancellation) {
+    try {
+        fstream f;
+        f.data = std::make_shared<fstream_data_t_>(
+            std::move(path),
+            std::move(cancellation),
+            -1,
+            0,
+            0
+        );
+        return std::move(f);
+    }
+    catch (std::exception const &e) {
+        return manapi::error::status_resource_exhausted();
+    }
 }
 
 manapi::filesystem::fstream::fstream(fstream &&n) noexcept {

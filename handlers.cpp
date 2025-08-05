@@ -122,7 +122,7 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
 
         std::size_t sss = 0;
         co_return resp.callback_stream([&sss, &resp, &req] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
-            manapi::filesystem::fstream fs ("/home/Timur/Downloads/VideoDownloader/ufa.mp4");
+            auto fs = manapi::filesystem::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4").unwrap();
             auto rhs = co_await fs.open(manapi::ev::FS_O_RDONLY);
             rhs.unwrap();
             (co_await req.callback_async([&sss, cb = std::move(cb), fs] (manapi::slice_view buffs, bool fin) mutable
@@ -272,14 +272,14 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
             auto cancellation = manapi::async::cancellation_action::unit(req.cancellation());
             cancellation.timeout(5000);
             cancellation.ask_cancel_callback();
-            manapi::filesystem::fstream file ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
-                cancellation);
+            auto file = manapi::filesystem::fstream::create ("/home/Timur/Downloads/VideoDownloader/ufa.mp4",
+                cancellation).unwrap();
             co_await file.open (manapi::ev::FS_O_RDONLY|manapi::ev::FS_O_NONBLOCK);
             if (!file.is_open()) {
                 co_return resp.text("failed to open the file").unwrap();
             }
 
-            auto fetch = co_await manapi::net::fetch2::fetch("https://localhost:8885/upload", {
+            auto fetch = (co_await manapi::net::fetch2::fetch("https://localhost:8885/upload", {
                 {"http", "2"},
                 {"verify_peer", false},
                 {"verbose", false},
@@ -294,14 +294,14 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
                 auto const res = co_await file.fread(buffs);
                 fin = file.eof();
                 co_return res;
-            }, manapi::async::cancellation_action::unit(cancellation));
+            }, manapi::async::cancellation_action::unit(cancellation))).unwrap();
 
             co_await file.close();
 
             if (!fetch.ok()) {
                 co_return resp.text(std::format("status : {}", fetch.status())).unwrap();
             }
-            co_return resp.text(co_await fetch.text()).unwrap();
+            co_return resp.text((co_await fetch.text()).unwrap()).unwrap();
         }
         catch (std::exception const &e) {
             co_return resp.text(e.what()).unwrap();
@@ -318,17 +318,19 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
         }, req.cancellation().sub());
         if (!f.ok()) {
             std::string s = "error: ";
-            s += std::to_string(f.status());
+            s += f.message();
             co_return resp.text(s).unwrap();
         }
         manapi::net::hash::sha256 sha256{};
         ssize_t res = 0;
-        (co_await f.callback_async([&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+        auto response = f.unwrap();
+
+        (co_await response.callback_async([&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
             res += buffs.size();
             for (auto it = buffs.begin(); it != buffs.end(); it++)
                 sha256.update((uint8_t *)it.buffer(), it.size());
             co_return buffs.size();
-        }));
+        })).unwrap();
 
         std::string b;
         b.resize(36);
@@ -346,11 +348,12 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
             manapi::async::cancellation_action::unit(req.cancellation()));
         if (!f.ok()) {
             std::string s = "error: ";
-            s += std::to_string(f.status());
+            s += f.message();
             co_return resp.text(s).unwrap();
         }
+        auto response = f.unwrap();
         ssize_t res = 0;
-        co_await f.callback_async([&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
+        co_await response.callback_async([&] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
             res += buffs.size();
             co_return buffs.size();
         });
@@ -404,13 +407,13 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
             }).dump(), cancellation);
 
             if (!response.ok()) {
-                co_return resp.text(std::format("fetch failed. Http Status: {} {}", response.status(), co_await response.text())).unwrap();
+                co_return resp.text(std::format("fetch failed. Http:", response.message())).unwrap();
             }
 
-            resp.callback_stream([response = (response)] (manapi::net::http::response::resp_stream_cb cb) mutable -> manapi::future<> {
-                co_await response.callback_async([&] (manapi::slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
+            resp.callback_stream([response = response.unwrap()] (manapi::net::http::response::resp_stream_cb cb) mutable -> manapi::future<> {
+                (co_await response.callback_async([&] (manapi::slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
                     co_return co_await cb (buffs, fin);
-                });
+                })).unwrap();
             }).unwrap();
         });
 }

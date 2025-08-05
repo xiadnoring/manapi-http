@@ -36,21 +36,27 @@ class GreeterServiceImpl final : public helloworld::Greeter::CallbackService {
         grpc::ServerUnaryReactor* reactor = context->DefaultReactor();
         manapi::async::run ([reactor, reply, request] () -> manapi::future<> {
             try {
-                auto response = co_await manapi::net::fetch2::fetch ("https://localhost:8887/stat",{
+                auto status = co_await manapi::net::fetch2::fetch ("https://localhost:8887/stat",{
                     {"http", "1.1"},
                     {"verify_peer", false},
                     {"verify_host", false}
                 }, manapi::async::timeout_cancellation(2000));
-                if (response.ok()) {
-                    reply->set_message(std::format("Hello, {}! Fact: {}", request->name(), co_await response.text()));
+
+                if (status.ok()) {
+                    auto response = status.unwrap();
+                    if (response.ok()) {
+                        reply->set_message(std::format("Hello, {}! Fact: {}", request->name(), (co_await response.text()).unwrap()));
+                    }
+                    else {
+                        reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), response.status()));
+                    }
                 }
                 else {
-                    reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), response.status()));
+                    reply->set_message(std::format("Hello, {}! Something gets wrong. status: {}", request->name(), status.message()));
                 }
             }
             catch (std::exception const &e) {
-                    reply->set_message(std::format("Hello, {}! Something gets wrong: {}", request->name(), e.what()));
-
+                reply->set_message(std::format("Hello, {}! Something gets wrong: {}", request->name(), e.what()));
             }
             reactor->Finish(grpc::Status::OK);
         });

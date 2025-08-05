@@ -136,9 +136,9 @@ namespace manapi::net::http {
 
         http::request *req () MANAPIHTTP_NOEXCEPT;
 
-        internal::handle_data_t *connection_data () MANAPI_EV_NOEXPECT;
+        internal::handle_data_t *connection_data () MANAPIHTTP_NOEXCEPT;
 
-        internal::handle_data_t *connection_data_release () MANAPI_EV_NOEXPECT;
+        internal::handle_data_t *connection_data_release () MANAPIHTTP_NOEXCEPT;
 
         manapi::error::status finish (std::unique_ptr<std::move_only_function<void(std::exception_ptr)>> cb) MANAPIHTTP_NOEXCEPT;
 

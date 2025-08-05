@@ -79,13 +79,65 @@ void manapi::extract_exception_ptr(std::exception_ptr err, int *errnum, char *ms
     }
 }
 
-manapi::exception::exception(manapi::err_num errnum, std::string message): message(std::move(message)) {
+manapi::exception::messages::~messages() {}
+
+manapi::exception::exception(manapi::err_num errnum, std::string message) : data_() {
     this->errnum_ = errnum;
+    this->flags = 0;
+    new (&this->data_.storage) std::string(std::move(message));
+}
+
+manapi::exception::exception(manapi::err_num errnum, std::string_view message) {
+    this->flags = 1;
+    this->errnum_ = errnum;
+    new (&this->data_.view) std::string_view((message));
+}
+
+manapi::exception::exception(manapi::err_num errnum, const char *message) : data_() {
+    this->flags = 1;
+    this->errnum_ = errnum;
+    new (&this->data_.view) std::string_view((message));
+}
+
+manapi::exception::exception(const exception &n) : data_() {
+    this->operator=(n);
+}
+
+manapi::exception & manapi::exception::operator=(const exception &n) {
+    this->flags = n.flags;
+    this->errnum_ = n.errnum_;
+
+    if (n.flags)
+        new (&this->data_.view) std::string_view(n.data_.view);
+    else {
+        try {
+            auto s = n.data_.storage;
+            new (&this->data_.storage) std::string (std::move(s));
+        }
+        catch (std::exception const &e) {
+            this->flags = 0;
+            new (&this->data_.view) std::string_view ("exception: failed to copy message");
+            manapi_log_trace("%s due to %s", "exception: failed to copy message", e.what());
+        }
+    }
+
+    return *this;
+}
+
+manapi::exception::~exception() {
+    if (this->flags) {
+        this->data_.view.~basic_string_view();
+    }
+    else {
+        this->data_.storage.~basic_string();
+    }
 }
 
 
 const char *manapi::exception::what() const noexcept {
-    return this->message.data();
+    if (this->flags)
+        return this->data_.view.data();
+    return this->data_.storage.data();
 }
 
 int manapi::exception::err_num() const {
@@ -254,7 +306,7 @@ void manapi::debug::log_log(log_level type, const char *file, int line, const ch
     va_end(args);
 }
 
-void manapi::debug::log_log(log_level type, const char *file, int line, int level, const char *fmt, ...) MANAPI_EV_NOEXPECT {
+void manapi::debug::log_log(log_level type, const char *file, int line, int level, const char *fmt, ...) MANAPIHTTP_NOEXCEPT {
     va_list args;
     va_start(args, fmt);
     log_log_(type, level, file, line, fmt, args);
