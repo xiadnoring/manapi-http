@@ -182,6 +182,9 @@ manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::http::site site, std::shared_
     this->early_data_read_error_ = SSL_READ_EARLY_DATA_ERROR;
     this->early_data_read_finish_ = SSL_READ_EARLY_DATA_FINISH;
     this->early_data_read_success_ = SSL_READ_EARLY_DATA_SUCCESS;
+    this->ssl_shutdown_sucess = 1;
+    this->ssl_shutdown_fatal_error = 255;
+    this->ssl_shutdown_not_done = 0;
 
     this->pool_data_ = nullptr;
 }
@@ -585,7 +588,7 @@ manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_co
         SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
     }
 
-    SSL_CTX_set_read_ahead(ctx, 1);
+    //SSL_CTX_set_read_ahead(ctx, 1);
 
     //long cache_mode = SSL_SESS_CACHE_SERVER;
     SSL_CTX_sess_set_cache_size(ctx, sess_cache_size);

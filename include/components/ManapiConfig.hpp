@@ -38,7 +38,7 @@ namespace manapi::internal {
             return static_cast<T>(n.as_decimal());
         }
 
-        static manapi::json get_config_object_param (const manapi::json &config, const std::string &name, manapi::json value) {
+        static manapi::json get_config_object_param (const manapi::json &config, std::string_view name, manapi::json value) {
             if (config.is_object()) {
                 auto &obb = config.as_object();
                 auto it = obb.find(name);
@@ -51,7 +51,7 @@ namespace manapi::internal {
         }
 
         template<typename T>
-        static T get_config_param (const manapi::json &config, const std::string &name, T value) {
+        static T get_config_param (const manapi::json &config, std::string_view name, T value) {
             if (config.is_object()) {
                 auto &obb = config.as_object();
                 auto it = obb.find(name);

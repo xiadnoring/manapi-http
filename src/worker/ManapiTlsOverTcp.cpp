@@ -330,7 +330,7 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
             goto write;
         }
 
-        if (rhs==1) {
+        if (rhs==this->ssl_shutdown_sucess) {
             // if (rhs!=1)
             //     this->ssl_set_shutdown_(s->ssl, this->ssl_recv_shutdown_|this->ssl_send_shutdown_);
             TCP::close_connection(conn, CLOSE_CONN_EOF);
@@ -352,7 +352,7 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
             continue;
         }
 
-        if (err == this->ssl_error_want_read_) {
+        if (err == this->ssl_error_want_read_ || err == this->ssl_error_none_) {
             goto write;
         }
 
@@ -682,6 +682,7 @@ int manapi::net::worker::TLS::manapi_do_process(const shared_conn &conn, tls_con
 }
 
 int manapi::net::worker::TLS::manapi_do_handshake_(const shared_conn &conn, tls_connection_t *data) {
+
     if (!(data->flags & (CONN_TLS_EARLY_DATA|CONN_TLS_EARLY_FINISHED)) && this->ssl_early_data_is_enabled_(this->ctx)) {
         data->flags |= CONN_TLS_EARLY_DATA;
         manapi_log_trace(debug::LOG_TRACE_LOW, "TLS:Try early data %p", data);

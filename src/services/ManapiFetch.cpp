@@ -1318,9 +1318,9 @@ manapi::error::status manapi::net::fetch::enable_verify_peer(bool status) MANAPI
     res = curl_easy_setopt(this->data->curl.get(), CURLOPT_SSL_VERIFYPEER, lstatus);
     if (res != CURLE_OK)
         goto err;
-    res = curl_easy_setopt(this->data->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
-    if (res != CURLE_OK)
-        goto err;
+    // res = curl_easy_setopt(this->data->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
+    // if (res != CURLE_OK)
+    //     goto err;
     return error::status_ok();
     err:
     return error::status_invalid_argument(curl_easy_strerror(res));
@@ -1332,9 +1332,6 @@ manapi::error::status manapi::net::fetch::enable_verify_host(bool status) MANAPI
     auto lstatus = static_cast<long> (status);
     CURLcode res;
     res = curl_easy_setopt(this->data->curl.get(), CURLOPT_SSL_VERIFYHOST, lstatus);
-    if (res != CURLE_OK)
-        goto err;
-    res = curl_easy_setopt(this->data->curl.get(), CURLOPT_SSL_VERIFYSTATUS, lstatus);
     if (res != CURLE_OK)
         goto err;
     return error::status_ok();

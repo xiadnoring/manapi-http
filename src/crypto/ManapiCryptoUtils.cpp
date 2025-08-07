@@ -1,10 +1,16 @@
 #include "crypto/ManapiCryptoUtils.hpp"
+
 #include "../include/ManapiWindows.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 #   include <openssl/ssl.h>
 #   include <openssl/evp.h>
+#endif
+
+#if MANAPIHTTP_WOLFSSL_DEPENDENCY
+#   include <wolfssl/openssl/ssl.h>
+#   include <wolfssl/openssl/evp.h>
 #endif
 
 manapi::error::status random_string_ (char *rnd, std::size_t len) {

@@ -1170,7 +1170,13 @@ curl_socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, curlsocktyp
     manapi::socket_t fd;
 
     try {
-        fd = manapi::async::create_socket(addr->family, addr->protocol, addr->socktype);
+        auto res = manapi::async::create_socket(addr->family, addr->protocol, addr->socktype);
+        if (!res) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "curl open sock failed: %.*s",
+                res.message().size(), res.message().data());
+            return -1;
+        }
+        fd = res.unwrap();
     }
     catch (std::exception const &e) {
         manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "curl open sock failed: %s", e.what());

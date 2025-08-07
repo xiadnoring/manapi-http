@@ -33,7 +33,7 @@ manapi::async::cancellation_action manapi::async::cancellation_action::unit(canc
     if (cancellation) {
         cancellation_action n;
         n.ask_cancel_callback();
-        cancellation.cancel_callback(n);
+        n.cancel_callback(std::move(cancellation));
         return std::move(n);
     }
 
@@ -107,28 +107,28 @@ void manapi::async::cancellation_action::cancel_callback (std::move_only_functio
 
 void manapi::async::cancellation_action::cancel_callback(cancellation_action cancellation) {
     if (this->data && cancellation) {
-        if (cancellation.data->parent) {
-            assert(cancellation.data);
-            cancellation.data->parent->data->unites->erase(cancellation.data->it);
-            cancellation.data->parent = nullptr;
-            cancellation.data->it = nullptr;
+        if (this->data->parent) {
+            assert(this->data);
+            this->data->parent->data->unites->erase(this->data->it);
+            this->data->parent = nullptr;
+            this->data->it = nullptr;
         }
 
-        if (this->data->status_ & FLAG_CANCEL) {
+        if (cancellation.data->status_ & FLAG_CANCEL) {
             /* already! BOOM! */
-            cancellation.ask_cancel_callback();
-            cancellation.data->status_ |= FLAG_CANCEL;
+            this->ask_cancel_callback();
+            this->data->status_ |= FLAG_CANCEL;
         }
         else {
-            if (!this->data->unites) {
-                this->data->unites = std::make_unique<decltype(this->data->unites)::element_type>();
+            if (!cancellation.data->unites) {
+                cancellation.data->unites = std::make_unique<decltype(cancellation.data->unites)::element_type>();
             }
 
-            cancellation.ask_cancel_callback();
+            this->ask_cancel_callback();
 
-            cancellation.data->parent = this;
-            cancellation.data->it = this->data->unites->rbegin();
-            this->data->unites->push_back((cancellation));
+            cancellation.data->unites->push_back((*this));
+            this->data->parent = this;
+            this->data->it = cancellation.data->unites->rbegin();
         }
     }
 }
@@ -240,10 +240,12 @@ void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) M
                     cb();
                 }
                 catch (manapi::exception const &e) {
-                    MANAPIHTTP_LOG("cancellation failed by error({}): {}", static_cast<int>(e.err_num()), e.what());
+                    manapi_log_error("%s failed due to %d:%s",
+                        "cancellation", static_cast<int>(e.err_num()), e.what());
                 }
                 catch (std::exception const &e) {
-                    MANAPIHTTP_LOG("cancellation failed by error {}", e.what());
+                    manapi_log_error("%s failed due to %s",
+                        "cancellation", e.what());
                 }
             };
             MANAPIHTTP_MUST_ALLOC_END
@@ -258,6 +260,7 @@ void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) M
             data->unites->pop_back();
 
             it.data->parent = nullptr;
+            it.data->it = nullptr;
 
             it.cancel();
         }

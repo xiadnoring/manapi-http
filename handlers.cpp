@@ -308,9 +308,40 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
         }
     });
 
+    router.GET("/fetch_sync_sha256", [] (http::req &req, http::resp &resp)
+        -> manapi::future<> {
+        auto f = co_await manapi::net::fetch2::fetch("https://127.0.0.1:8885/mem/ufa.mp4", {
+            {"method", "GET"},
+            {"http", "2"},
+            {"verify_peer", false},
+            {"verify_host", false}
+        }, req.cancellation().sub());
+        if (!f.ok()) {
+            std::string s = "error: ";
+            s += f.message();
+            co_return resp.text(s).unwrap();
+        }
+        manapi::net::hash::sha256 sha256{};
+        ssize_t res = 0;
+        auto response = f.unwrap();
+
+        (co_await response.callback_sync([&] (char *buff, ssize_t size) -> ssize_t {
+            res += size;
+            sha256.update((uint8_t *)buff, size);
+            return size;
+        })).unwrap();
+
+        std::string b;
+        b.resize(36);
+        sha256.final(reinterpret_cast<uint8_t *>(b.data()));
+
+        b = manapi::crypto::strdec2strhex(b).unwrap();
+        co_return resp.text(std::format("{} {}", res, b)).unwrap();
+    });
+
     router.GET("/fetch_async_sha256", [] (http::req &req, http::resp &resp)
         -> manapi::future<> {
-        auto f = co_await manapi::net::fetch2::fetch("https://127.0.0.1:8885/video", {
+        auto f = co_await manapi::net::fetch2::fetch("https://127.0.0.1:8885/mem/ufa.mp4", {
             {"method", "GET"},
             {"http", "2"},
             {"verify_peer", false},

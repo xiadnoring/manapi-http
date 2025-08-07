@@ -978,10 +978,12 @@ manapi::error::status execute_user_callback (manapi::net::http::handler_template
 namespace manapi::net::http::internal {
     void handle_income_request_err_ (std::unique_ptr<response> res, std::exception_ptr err) {
         uq_handle_data_t cdata (res->connection_data_release());
-        std::string msg;
-        manapi::extract_exception_ptr(std::move(err), nullptr, &msg);
-        manapi::async::current()->logger()->error(manapi::logger::default_service,
-            manapi::ERR_INTERNAL, "an error occurred while processing the HTTP request due to {}", msg);
+        char msg[256];
+        std::size_t msg_size = sizeof (msg);
+        manapi::extract_exception_ptr(std::move(err), nullptr, msg, &msg_size);
+        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %.*s",
+            "an error occurred while processing the HTTP request",
+            msg_size, msg);
         cdata->router = std::move(cdata->router->error);
         send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
         return;

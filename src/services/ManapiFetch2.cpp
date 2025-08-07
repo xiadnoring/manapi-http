@@ -29,7 +29,10 @@ manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch
 
     if (body.has_value())
         response.fetchdata->data.body(std::move(body.value()));
-    response.setup_fetch(std::move(params));
+
+    auto res = response.setup_fetch(std::move(params));
+    if (!res)
+        co_return std::move(res);
     co_await response.response();
     co_return std::move(response);
 }
@@ -99,7 +102,9 @@ manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch
     if (body)
         response.fetchdata->data.async_body(std::move(body.value()));
 
-    response.setup_fetch(std::move(params));
+    auto res = response.setup_fetch(std::move(params));
+    if (!res)
+        co_return std::move(res);
     co_await response.response();
     co_return std::move(response);
 }
@@ -119,7 +124,9 @@ manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch
     if (body.has_value()) {
         co_await response.fetchdata->data.body(std::move(body.value()));
     }
-    response.setup_fetch(std::move(params));
+    auto res = response.setup_fetch(std::move(params));
+    if (!res)
+        co_return std::move(res);
     co_await response.response();
     co_return std::move(response);
 }
@@ -380,7 +387,7 @@ manapi::future<> manapi::net::fetch2::response() {
         else {
             msg = res.unwrap();
         }
-        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %.*s", "fetch2:response failed ", msg.size(), msg.data());
+        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %.*s", "fetch2:response failed", msg.size(), msg.data());
         MANAPIHTTP_MUST_ALLOC_END
     }
 }

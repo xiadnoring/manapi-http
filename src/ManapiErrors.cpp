@@ -64,8 +64,9 @@ void manapi::extract_exception_ptr(std::exception_ptr err, int *errnum, char *ms
         if (errnum)
             *errnum = e.err_num();
 
-        if (msg) {
-
+        if (msg && msg_size) {
+            *msg_size = std::min<std::size_t>(*msg_size, strlen(e.what()));
+            memcpy (msg, e.what(), *msg_size);
         }
     }
     catch (std::exception const &e) {

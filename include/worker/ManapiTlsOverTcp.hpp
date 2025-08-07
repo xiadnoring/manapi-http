@@ -38,6 +38,7 @@ namespace manapi::net::worker {
         ssl_error_ssl_, ssl_error_syscall_,
         ssl_send_shutdown_, ssl_recv_shutdown_;
         char early_data_read_finish_, early_data_read_error_, early_data_read_success_;
+        char ssl_shutdown_sucess, ssl_shutdown_fatal_error, ssl_shutdown_not_done;
 
         virtual bool ssl_is_init_fininshed_ (void *ssl) MANAPIHTTP_NOEXCEPT = 0;
 

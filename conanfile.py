@@ -36,8 +36,8 @@ class ManapiHttpConan(ConanFile):
         "shared": False,
         "fPIC": True,
         "json_debug": True,
-        "wolfssl_dependency": False,
-        "openssl_dependency": True,
+        "wolfssl_dependency": True,
+        "openssl_dependency": False,
         "quiche_dependency": True,
         "tquic_dependency": False,
         "lib": False,
@@ -49,7 +49,7 @@ class ManapiHttpConan(ConanFile):
         "grpc_dependency": False,
         "nghttp2_dependency": True,
         "nghttp3_dependency": True,
-        "cpptrace_dependency": True
+        "cpptrace_dependency": False
     }
 
     exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
