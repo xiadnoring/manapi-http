@@ -85,16 +85,22 @@ public:
         grpc::ClientContext context;
 
         co_return co_await promise ([&] (promise::resolve_t resolve, promise::reject_t) -> void {
-            this->stub_->async()->SayHello(&context, &request, &reply, [&, resolve = std::move(resolve)] (grpc::Status status) {
-                if (status.ok()) {
-                    resolve(reply.message());
-                    return;
-                }
+            try {
+                this->stub_->async()->SayHello(&context, &request, &reply, [&, resolve = std::move(resolve)] (grpc::Status status) {
+                    if (status.ok()) {
+                        resolve(reply.message());
+                        return;
+                    }
 
-                auto msg = status.error_message();
-                manapi_log_debug("grpc client failed due to %s", msg.data());
-                resolve(manapi::error::status_internal("grpc client: something gets wrong"));
-            });
+                    auto msg = status.error_message();
+                    manapi_log_debug("grpc client failed due to %s", msg.data());
+                    resolve(manapi::error::status_internal("grpc client: something gets wrong"));
+                });
+            }
+            catch (std::exception const &e) {
+                manapi_log_error(e.what());
+                resolve(manapi::error::status_internal("sayhello failed"));
+            }
         });
     }
 
@@ -151,39 +157,39 @@ int main () {
 
         auto service = std::make_shared<GreeterServiceImpl>();
 
-        // manapi::net::wgrpc::server grpc_server (grpc_server_ctx);
-        // manapi::async::run([grpc_server, service] () mutable -> manapi::future<> {
-        //     auto res = co_await grpc_server.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/grpc.json");
-        //
-        //     res.log();
-        //
-        //     res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::error::status {
-        //         builder.RegisterService(service.get());
-        //         return manapi::error::status_ok();
-        //     });
-        //
-        //     res.log();
-        //     if (res.ok()) {
-        //         manapi::async::run([] () -> manapi::future<> {
-        //             auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
-        //             if (!creds.ok()) {
-        //                 creds.err().log();
-        //                 co_return;
-        //             }
-        //             GreeterClient greeter(grpc::CreateChannel("localhost:8080", creds.unwrap()));
-        //             std::string user = "Xiadnoring Client";
-        //             auto res = co_await greeter.SayHello(user);
-        //             if (res.ok())
-        //                 std::cout << res.unwrap() << "\n";
-        //             else
-        //                 res.err().log();
-        //         });
-        //     }
-        //
-        // }, [] (std::exception_ptr err) -> void {
-        //     if (err)
-        //         std::rethrow_exception(err);
-        // });
+        manapi::net::wgrpc::server grpc_server (grpc_server_ctx);
+        manapi::async::run([grpc_server, service] () mutable -> manapi::future<> {
+            auto res = co_await grpc_server.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/grpc.json");
+
+            res.log();
+
+            res = co_await grpc_server.start([&] (grpc::ServerBuilder &builder) -> manapi::error::status {
+                builder.RegisterService(service.get());
+                return manapi::error::status_ok();
+            });
+
+            res.log();
+            if (res.ok()) {
+                manapi::async::run([] () -> manapi::future<> {
+                    auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
+                    if (!creds.ok()) {
+                        creds.err().log();
+                        co_return;
+                    }
+                    GreeterClient greeter(grpc::CreateChannel("localhost:8080", creds.unwrap()));
+                    std::string user = "Xiadnoring Client";
+                    auto res = co_await greeter.SayHello(user);
+                    if (res.ok())
+                        std::cout << res.unwrap() << "\n";
+                    else
+                        res.err().log();
+                });
+            }
+
+        }, [] (std::exception_ptr err) -> void {
+            if (err)
+                std::rethrow_exception(err);
+        });
 
         /**
          * http

@@ -981,7 +981,8 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
         this->data_->server = builder.BuildAndStart();
 
         try {
-            this->data_->finishid = manapi::async::current()->eventloop()->subscribe_finish([data = this->data_] () -> manapi::future<> {
+            this->data_->finishid = manapi::async::current()->eventloop()->subscribe_finish(
+                [data = this->data_] () -> manapi::future<> {
                 //wgrpc_shutdown();
                 co_await data->ctx.storage().unsubscribe(std::move(data->worker));
                 co_await server::stop_(data);

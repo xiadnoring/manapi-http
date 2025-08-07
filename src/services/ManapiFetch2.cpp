@@ -324,7 +324,7 @@ manapi::future<> manapi::net::fetch2::response() {
         using promise = async::promise_sync<manapi::error::status>;
         status = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {
             try {
-                this->fetchdata->data.handle_async_headers([fetchdata = this->fetchdata.get(), resolve = std::move(resolve)] (std::map<std::string, std::string, std::less<>> headers) mutable
+                this->fetchdata->data.handle_async_headers([fetchdata = this->fetchdata.get(), resolve] (std::map<std::string, std::string, std::less<>> headers) mutable
                     -> manapi::future<bool> {
                     auto resolve_ = std::move(resolve);
 
@@ -337,17 +337,25 @@ manapi::future<> manapi::net::fetch2::response() {
                 });
 
 
-                auto p = manapi::async::invoke([fetchdata = this->fetchdata.get()] ()
+                auto p = manapi::async::invoke(
+                    [] (std::shared_ptr<fetch_data> fetchdata, promise::resolve_t resolve)
                     -> manapi::future<std::string_view> {
                     try {
+                        std::string_view msg;
                         auto err = (co_await fetchdata->data.async_doit());
-                        co_return err.msg();
+                        if (!err) {
+                            msg = err.msg();
+                            if (!(fetchdata->flags & FETCH2_DATA_FLAG_RECEIVED)) {
+                                resolve (std::move(err));
+                            }
+                        }
+                        co_return msg;
                     }
                     catch (std::exception const &e) {
                         manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %s", "fetch2:response failed", e.what());
                         co_return {"fetch2:response failed"};
                     }
-                });
+                }, this->fetchdata, std::move(resolve));
 
                 this->fetchdata->async_run.run(
                     std::move(p));
