@@ -9,8 +9,12 @@
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
+#include <grpcpp/version_info.h>
 
 #include "async/ManapiAsyncContext.hpp"
+
+#define MANAPIHTTP_GRPC_ARGS_MOVEABLE GRPC_CPP_VERSION_MAJOR >= 1 && GRPC_CPP_VERSION_MINOR >= 73 && GRPC_CPP_VERSION_PATCH >= 0
+#define MANAPIHTTP_GRPC_TELEMETRY_INFO GRPC_CPP_VERSION_MAJOR >= 1 && GRPC_CPP_VERSION_MINOR >= 74 && GRPC_CPP_VERSION_PATCH >= 0
 
 namespace manapi::net::wgrpc {
     class config : public internal::config_interface {
@@ -56,7 +60,7 @@ namespace manapi::net::wgrpc {
         void LookupTXT(LookupTXTCallback on_resolve, absl::string_view name) override;
     };
 
-    class net_endpoint final : public grpc_event_engine::experimental::EventEngine::Endpoint {
+    class net_endpoint : public grpc_event_engine::experimental::EventEngine::Endpoint {
         int flags;
 
         std::unique_ptr<grpc_event_engine::experimental::EventEngine::ResolvedAddress> peer_addr;
@@ -71,6 +75,9 @@ namespace manapi::net::wgrpc {
         std::size_t on_read_hints_bytes;
 
         grpc_event_engine::experimental::SliceBuffer buffer;
+#if MANAPIHTTP_GRPC_TELEMETRY_INFO
+        std::shared_ptr<TelemetryInfo> metric;
+#endif
     public:
 
         net_endpoint (manapi::ev::shared_tcp conn,
@@ -78,15 +85,23 @@ namespace manapi::net::wgrpc {
             std::shared_ptr<grpc_event_engine::experimental::EventEngine::ResolvedAddress> local_addr,
             grpc_event_engine::experimental::MemoryAllocator memory_allocator);
 
-        ~net_endpoint();
+        ~net_endpoint() override;
+#if MANAPIHTTP_GRPC_ARGS_MOVEABLE
+        bool Read(absl::AnyInvocable<void(absl::Status)> on_read, grpc_event_engine::experimental::SliceBuffer *buffer, ReadArgs args) override;
 
+        bool Write(absl::AnyInvocable<void(absl::Status)> on_writable, grpc_event_engine::experimental::SliceBuffer *data, WriteArgs args) override;
+#else
         bool Read(absl::AnyInvocable<void(absl::Status)> on_read, grpc_event_engine::experimental::SliceBuffer *buffer, const ReadArgs *args) override;
 
         bool Write(absl::AnyInvocable<void(absl::Status)> on_writable, grpc_event_engine::experimental::SliceBuffer *data, const WriteArgs *args) override;
-
+#endif
         [[nodiscard]] const grpc_event_engine::experimental::EventEngine::ResolvedAddress &GetLocalAddress() const override;
 
         [[nodiscard]] const grpc_event_engine::experimental::EventEngine::ResolvedAddress &GetPeerAddress() const override;
+
+#if MANAPIHTTP_GRPC_TELEMETRY_INFO
+        std::shared_ptr<TelemetryInfo> GetTelemetryInfo() const override;
+#endif
     };
 
     class event_engine_wrapper final : public grpc_event_engine::experimental::EventEngine {

@@ -1,5 +1,8 @@
 #include "services/ManapiGrpc.hpp"
 
+#include <memory>
+#include <memory>
+
 #include "ManapiFilesystem.hpp"
 #include "services/ManapiDns.hpp"
 #include "../include/ManapiInternalGrpc.hpp"
@@ -112,6 +115,7 @@ bool task_handle_cancel (manapi::timer *t, long long time) {
     handle.keys[1] = reinterpret_cast<std::intptr_t>(t);
     return task_handle_cancel(handle);
 }
+
 
 bool manapi::net::wgrpc::event_engine_wrapper::Cancel(TaskHandle handle) {
     auto &ctx = manapi::async::internal::current_();
@@ -308,79 +312,89 @@ manapi::net::wgrpc::net_endpoint::net_endpoint(manapi::ev::shared_tcp conn,
     std::shared_ptr<grpc_event_engine::experimental::EventEngine::ResolvedAddress> local_addr,
     grpc_event_engine::experimental::MemoryAllocator memory_allocator) {
 
-        this->flags = 0;
-        this->ev = manapi::async::current()->eventloop();
-        this->local_addr = std::move(local_addr);
-        this->conn = std::move(conn);
-        this->peer_addr = std::move(peer_addr);
-        this->memory_allocator = std::move(memory_allocator);
+    this->flags = 0;
+    this->ev = manapi::async::current()->eventloop();
+    this->local_addr = std::move(local_addr);
+    this->conn = std::move(conn);
+    this->peer_addr = std::move(peer_addr);
+    this->memory_allocator = std::move(memory_allocator);
+#if MANAPIHTTP_GRPC_TELEMETRY_INFO
+    this->metric = nullptr;
+#endif
 
-        manapi::async::current()->eventloop()->read_callback(this->conn,
-            [this] (const std::shared_ptr<manapi::ev::tcp> &, ssize_t nread, const manapi::ev::buff_t *buf) -> void {
-                bytebuffer buffer;
+    manapi::async::current()->eventloop()->read_callback(this->conn,
+        [this] (const std::shared_ptr<manapi::ev::tcp> &, ssize_t nread, const manapi::ev::buff_t *buf) -> void {
+            bytebuffer buffer;
 
-                if (buf && buf->base)
-                    buffer = bytebuffer (buf->base, buf->len);
+            if (buf && buf->base)
+                buffer = bytebuffer (buf->base, buf->len);
 
-                if (nread < 0) {
-                    /* error */
-                    this->flags |= MANAPI_GRPC_ENDPOINT_FINISHED;
-                    if (this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ)
-                        this->on_read(absl::AbortedError("grpc:Tcp connection was closed"));
+            if (nread < 0) {
+                /* error */
+                this->flags |= MANAPI_GRPC_ENDPOINT_FINISHED;
+                if (this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ)
+                    this->on_read(absl::AbortedError("grpc:Tcp connection was closed"));
 
-                    return;
+                return;
+            }
+
+            if (!nread)
+                return;
+
+
+            std::size_t cursor = 0;
+            while (cursor != nread) {
+                auto const copy = std::min<std::size_t>(nread - cursor, 4096);
+                grpc_event_engine::experimental::Slice slice (this->memory_allocator.MakeSlice(copy));
+                memcpy ((char*)slice.data(), buf->base + cursor, copy);
+                this->buffer.Append(std::move(slice));
+                cursor += copy;
+            }
+
+            if (this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ) {
+                while (this->buffer.Count())
+                    this->on_read_buffer->Append(this->buffer.TakeFirst());
+
+                if (this->on_read_hints_bytes <= nread) {
+                    this->on_read_hints_bytes = 0;
+                    this->flags ^= MANAPI_GRPC_ENDPOINT_WANT_READ;
+                    this->on_read(absl::OkStatus());
                 }
+                else
+                    this->on_read_hints_bytes -= nread;
 
-                if (!nread)
-                    return;
-
-
-                std::size_t cursor = 0;
-                while (cursor != nread) {
-                    auto const copy = std::min<std::size_t>(nread - cursor, 4096);
-                    grpc_event_engine::experimental::Slice slice (this->memory_allocator.MakeSlice(copy));
-                    memcpy ((char*)slice.data(), buf->base + cursor, copy);
-                    this->buffer.Append(std::move(slice));
-                    cursor += copy;
-                }
-
-                if (this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ) {
-                    while (this->buffer.Count())
-                        this->on_read_buffer->Append(this->buffer.TakeFirst());
-
-                    if (this->on_read_hints_bytes <= nread) {
-                        this->on_read_hints_bytes = 0;
-                        this->flags ^= MANAPI_GRPC_ENDPOINT_WANT_READ;
-                        this->on_read(absl::OkStatus());
-                    }
-                    else
-                        this->on_read_hints_bytes -= nread;
-
-                }
-                else {
-                    if (this->buffer.Length() >= 65536 && this->conn->is_active())
-                        this->conn->read_stop();
-                }
-            });
-
-        manapi::async::current()->eventloop()->alloc_callback(this->conn,
-            [this] (const std::shared_ptr<manapi::ev::tcp> &, size_t suggested_size, manapi::ev::buff_t *buf) MANAPIHTTP_NOEXCEPT
-            -> void {
-                ssize_t size = suggested_size;
-                if (!(this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ)) {
-                    size = std::min<ssize_t>(65536 - this->buffer.Length(), 65536);
-                    if (size <= 0)
-                        return;
-                }
-
-                auto bufres = manapi::async::current()->memory_fabric().buffer(size);
-                if (bufres.ok()) {
-                    auto buffer = bufres.unwrap();
-                    buf->len = buffer.realsize();
-                    buf->base = static_cast<char *>(buffer.release());
-                }
+            }
+            else {
+                if (this->buffer.Length() >= 65536 && this->conn->is_active())
+                    this->conn->read_stop();
+            }
         });
-    }
+
+    manapi::async::current()->eventloop()->alloc_callback(this->conn,
+        [this] (const std::shared_ptr<manapi::ev::tcp> &, size_t suggested_size, manapi::ev::buff_t *buf) MANAPIHTTP_NOEXCEPT
+        -> void {
+            ssize_t size = suggested_size;
+            if (!(this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ)) {
+                size = std::min<ssize_t>(65536 - this->buffer.Length(), 65536);
+                if (size <= 0)
+                    return;
+            }
+
+            auto bufres = manapi::async::current()->memory_fabric().buffer(size);
+            if (bufres.ok()) {
+                auto buffer = bufres.unwrap();
+                buf->len = buffer.realsize();
+                buf->base = static_cast<char *>(buffer.release());
+            }
+    });
+}
+
+#if MANAPIHTTP_GRPC_TELEMETRY_INFO
+
+std::shared_ptr<grpc_event_engine::experimental::EventEngine::Endpoint::TelemetryInfo> manapi::net::wgrpc::net_endpoint::GetTelemetryInfo() const {
+    return this->metric;
+}
+#endif
 
 void unbind_net_endpoint (manapi::ev::shared_tcp conn, manapi::async::shared_eventloop ev) noexcept {
     try {
@@ -413,9 +427,21 @@ manapi::net::wgrpc::net_endpoint::~net_endpoint() {
     unbind_net_endpoint (this->conn, this->ev);
 }
 
-bool manapi::net::wgrpc::net_endpoint::Read(absl::AnyInvocable<void(absl::Status)> on_read, grpc_event_engine::experimental::SliceBuffer *buffer, const ReadArgs *args) {
+bool manapi::net::wgrpc::net_endpoint::Read(absl::AnyInvocable<void(absl::Status)> on_read, grpc_event_engine::experimental::SliceBuffer *buffer,
+#if MANAPIHTTP_GRPC_ARGS_MOVEABLE
+const ReadArgs args
+#else
+const ReadArgs *args
+#endif
+) {
     auto const already = this->buffer.Length();
-    bool const want_more = already < args->read_hint_bytes;
+#if MANAPIHTTP_GRPC_ARGS_MOVEABLE
+    auto const read_hint_bytes = args.read_hint_bytes();
+#else
+    auto const read_hint_bytes = args->read_hint_bytes;
+#endif
+
+    bool const want_more = already < read_hint_bytes;
 
     assert(on_read);
 
@@ -439,7 +465,7 @@ bool manapi::net::wgrpc::net_endpoint::Read(absl::AnyInvocable<void(absl::Status
 
         this->on_read_buffer = buffer;
         this->on_read = std::move(on_read);
-        this->on_read_hints_bytes = args->read_hint_bytes - already;
+        this->on_read_hints_bytes = read_hint_bytes - already;
         assert(this->on_read);
         this->flags |= MANAPI_GRPC_ENDPOINT_WANT_READ;
     }
@@ -447,8 +473,13 @@ bool manapi::net::wgrpc::net_endpoint::Read(absl::AnyInvocable<void(absl::Status
 
     return false;
 }
-
-bool manapi::net::wgrpc::net_endpoint::Write(absl::AnyInvocable<void(absl::Status)> on_writable, grpc_event_engine::experimental::SliceBuffer *data, const WriteArgs *args) {
+bool manapi::net::wgrpc::net_endpoint::Write(absl::AnyInvocable<void(absl::Status)> on_writable, grpc_event_engine::experimental::SliceBuffer *data,
+#if MANAPIHTTP_GRPC_ARGS_MOVEABLE
+const WriteArgs args
+#else
+const WriteArgs *args
+#endif
+) {
     std::size_t carret = 0;
     ssize_t rhs = 0;
 
@@ -559,7 +590,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
                 auto local_addr = std::make_shared<grpc_event_engine::experimental::EventEngine::ResolvedAddress>(reinterpret_cast<sockaddr*>(&sock_addr), sock_len);
 
-                auto endpoint = std::make_unique<net_endpoint>(w, std::move(peer), std::move(local_addr), std::move(memory_allocator));
+                auto endpoint = std::make_unique<wgrpc::net_endpoint>(w, std::move(peer), std::move(local_addr), std::move(memory_allocator));
 
                 on_connect(std::move(endpoint));
 

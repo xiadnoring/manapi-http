@@ -94,7 +94,7 @@ int main () {
     manapi::async::context::threadpoolfs(2);
     manapi::async::context::gbs = manapi::async::context::blockedsignals();
     
-    auto ctx = manapi::async::context::create(4);
+    auto ctx = manapi::async::context::create(4).unwrap();
     manapi::async::cthread::current(ctx);
     
     ctx->eventloop()->setup_handle_interrupt();
@@ -105,59 +105,59 @@ int main () {
         manapi::ext::pq::connection db;
 
         router.GET ("/", [&cnt] (manapi::net::http::req &req, manapi::net::http::resp &resp) mutable -> manapi::future<> {
-            co_return resp.text(std::format("Hello World! Count: {}", cnt.fetch_add(1)));
+            co_return resp.text(std::format("Hello World! Count: {}", cnt.fetch_add(1))).unwrap();
         });
     
         router.GET("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             resp.replacers({
                 {"status_code", std::to_string(resp.status_code())},
                 {"status_message", std::string{resp.status_message()}}
-            });
+            }).unwrap();
     
-            co_return resp.file ("../examples/error.html");
+            co_return resp.file ("../examples/error.html").unwrap();
         });
     
         router.POST("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             co_return resp.json({{"error", resp.status_code()},
-                    {"msg", std::string{resp.status_message()}}});
+                    {"msg", std::string{resp.status_message()}}}).unwrap();
         });
     
         router.GET("/cat", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
-            auto fetch = co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
+            auto fetch = (co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
                 {"verify_peer", false},
                 {"alpn", true},
                 {"method", "GET"}
-            });
+            })).unwrap();
     
             if (!fetch.ok()) {
-                co_return resp.json ({{"error", true}, {"message", "fetch failed"}});
+                co_return resp.json ({{"error", true}, {"message", "fetch failed"}}).unwrap();
             }
     
-            auto data = co_await fetch.json();
+            auto data = (co_await fetch.json()).unwrap();
     
-            co_return resp.text(std::move(data["description"].as_string()));
+            co_return resp.text(std::move(data["description"].as_string())).unwrap();
         });
     
         router.GET("/proxy", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
-            co_return resp.proxy("http://127.0.0.1:8889/video");
+            co_return resp.proxy("http://127.0.0.1:8889/video").unwrap();
         });
     
         router.GET("/video", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             resp.partial_enabled(true);
             resp.compress_enabled(false);
-            co_return resp.file("video.mp4");
+            co_return resp.file("video.mp4").unwrap();
         });
     
         router.GET("/stop", [ctx](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             /* stop the app */
             co_await ctx->stop();
-            co_return resp.text("stopped");
+            co_return resp.text("stopped").unwrap();
         });
     
         router.GET("/timeout", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             /* stop the app */
             co_await manapi::async::delay{10000};
-            co_return resp.text("10sec");
+            co_return resp.text("10sec").unwrap();
         });
         
         router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
@@ -174,12 +174,12 @@ int main () {
                 content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
             }
 
-            co_return resp.text(std::move(content));
+            co_return resp.text(std::move(content)).unwrap();
         });
     
         manapi::async::run([router, db] () -> manapi::future<> {
-            co_await db.connect("127.0.0.1", "7879", "development", "password", "db");
-            co_await router.config_object({
+            (co_await db.connect("127.0.0.1", "7879", "development", "password", "db")).unwrap();
+            (co_await router.config_object({
                 {"pools", manapi::json::array({
                     {
                         {"address", "127.0.0.1"},
@@ -198,13 +198,13 @@ int main () {
                     }
                 })},
                 {"save_config", false}
-            });
+            })).unwrap();
             
-            co_await router.start();
+            (co_await router.start()).unwrap();
         });
         
         bind();
-    });
+    }).unwrap();
   
 
     return 0;
@@ -219,29 +219,29 @@ int main () {
 | MANAPIHTTP_CURL_DEPENDENCY     | Fetch Support            | ON/OFF        |
 | MANAPIHTTP_ZLIB_DEPENDENCY     | gzip/deflate Support     | ON/OFF        |
 | MANAPIHTTP_QUICHE_DEPENDENCY   | HTTP3/QUIC by Cloudflare | ON/OFF        | 
-| MANAPIHTTP_OPENSSL_DEPENDENCY  | TLS by OpenSSL           | ON/OFF        |
+| MANAPIHTTP_OPENSSL_DEPENDENCY  | TLS/QUIC by OpenSSL      | ON/OFF        |
 | MANAPIHTTP_WOLFSSL_DEPENDENCY  | TLS by WolfSSL           | ON/OFF        |
 | MANAPIHTTP_GRPC_DEPENDENCY     | gRPC Support             | ON/OFF        |
 | MANAPIHTTP_BROTLI_DEPENDENCY   | brotli Support           | ON/OFF        |
 | MANAPIHTTP_ZSTD_DEPENDENCY     | zstd Support             | ON/OFF        |
 | MANAPIHTTP_WOLFSSL_WITH_ALPN   | WolfSSL with ALPN        | ON/OFF        |
-| MANAPIHTTP_NGHTTP2_DEPENDENCY  | HTTP2/TLS by nghttp2     | ON/OFF        |
-| MANAPIHTTP_NGHTTP3_DEPENDENCY  | HTTP3/QUIC by nghttp3    | ON/OFF        |
+| MANAPIHTTP_NGHTTP2_DEPENDENCY  | HTTP2 by nghttp2         | ON/OFF        |
+| MANAPIHTTP_NGHTTP3_DEPENDENCY  | HTTP3 by nghttp3         | ON/OFF        |
 | MANAPIHTTP_JSON_DEBUG          | JSON debug symbols       | ON/OFF        |
 | BUILD_SHARED_LIBS              | Build as a shared lib    | ON/OFF        |
 | MANAPIHTTP_BUILD_METHOD        | Build Method             | conan/default | 
 
 ## TODO
 
-- [ ] Async
+- [x] Async
   - [x] Mutex, Conditional Variable, Future  
   - [x] Default Async Context
   - [x] ⭐ Some improvements
-- [ ] Debugging
+- [x] Debugging
   - [x] Error Codes
   - [x] Stack Error
   - [x] Async I/O Debug
-- [ ] Configuration
+- [x] Configuration
   - [x] limit-rate (TCP: HTTP/1.1, HTTP/2)
   - [x] limit-rate (UDP: HTTP/3)
   - [x] minimum speed requirements
@@ -267,7 +267,7 @@ int main () {
   - [ ] Default realization 
   - [x] quiche
   - [ ] tquic
-  - [ ] OpenSSL
+  - [x] OpenSSL
   - [ ] WolfSSL
   - [ ] BoringSSL
 - [x] Fetch
@@ -284,7 +284,7 @@ int main () {
 
 ## Tested
 - Hyprland Arch Linux x86_64 kernel 6.9.3-zen1-1-zen wayland Debug/Release
-- Windows 11 Pro 22h2 x86_64 MSVC Debug
+- Windows 11 Pro 22h2 x86_64 MSVC Debug (exe)
 
 ## Made from
 

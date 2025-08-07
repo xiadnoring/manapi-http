@@ -121,7 +121,7 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
         find_package(PostgreSQL REQUIRED)
     endif ()
 else ()
-    message(STATUS "Build method: default")
+    message(STATUS "Build method: ${MANAPIHTTP_BUILD_METHOD}")
 
     find_package(PkgConfig REQUIRED)
 
@@ -199,9 +199,13 @@ else ()
     endif ()
 
     if (MANAPIHTTP_GRPC_DEPENDENCY)
-        pkg_check_modules(GRPC grpc)
-        pkg_check_modules(Protobuf protobuf)
-        if (NOT GRPC_FOUND OR NOT PROTOBUF_FOUND)
+        pkg_search_module(GRPC grpc)
+        pkg_search_module(GRPCPP grpc++>=1.22.0)
+        pkg_check_modules(PROTOBUF protobuf)
+        message(STATUS "grpc found: ${GRPC_FOUND}")
+        message(STATUS "protobuf found: ${PROTOBUF_FOUND}")
+        message(STATUS "grpcpp found: ${GRPCPP_FOUND}")
+        if (NOT (GRPC_FOUND AND PROTOBUF_FOUND AND GRPCPP_FOUND))
             set(MANAPIHTTP_GRPC_DEPENDENCY OFF)
         endif ()
     endif ()
@@ -466,10 +470,14 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
     message(STATUS "Build type 'exe'")
 
     if (MANAPIHTTP_GRPC_DEPENDENCY)
-        if (DEFINED protobuf_BIN_DIRS_DEBUG)
-            set(Protobuf_PROTOC_EXECUTABLE ${protobuf_BIN_DIRS_DEBUG}/protoc)
+        if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
+            if (DEFINED protobuf_BIN_DIRS_DEBUG)
+                set(Protobuf_PROTOC_EXECUTABLE ${protobuf_BIN_DIRS_DEBUG}/protoc)
+            else ()
+                set(Protobuf_PROTOC_EXECUTABLE ${protobuf_BIN_DIRS_RELEASE}/protoc)
+            endif ()
         else ()
-            set(Protobuf_PROTOC_EXECUTABLE ${protobuf_BIN_DIRS_RELEASE}/protoc)
+            find_program(Protobuf_PROTOC_EXECUTABLE protoc)
         endif ()
 
         set (PROTOS protobuf/helloworld.proto)
@@ -511,13 +519,22 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
                     VERBATIM
             )
 
+
+            set(GRPC_CPP_PLUGIN, "")
+
+            if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
+                set(GRPC_CPP_PLUGIN, gRPC::grpc_cpp_plugin)
+            else ()
+                find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
+            endif ()
+
             if (WIN32)
                 add_custom_command(
                         OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.cc"
                                 "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
                         COMMAND set "PATH=${MANAPI_grpc_LIB_DIRS};${MANAPI_protobuf_LIB_DIRS};%PATH%"
                         COMMAND ${Protobuf_PROTOC_EXECUTABLE}
-                        ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+                        ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
                         DEPENDS ${Protobuf_PROTOC_EXECUTABLE}
                         VERBATIM
                 )
@@ -527,7 +544,7 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
                                 "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
                         COMMAND export LD_LIBRARY_PATH=${MANAPI_grpc_LIB_DIRS}:${MANAPI_protobuf_LIB_DIRS}
                         COMMAND ${Protobuf_PROTOC_EXECUTABLE}
-                        ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+                        ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
                         DEPENDS ${Protobuf_PROTOC_EXECUTABLE}
                         VERBATIM
                 )
@@ -536,7 +553,7 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
                         OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.cc"
                                 "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
                         COMMAND LD_LIBRARY_PATH=${MANAPI_grpc_LIB_DIRS}:${MANAPI_protobuf_LIB_DIRS} ${Protobuf_PROTOC_EXECUTABLE}
-                        ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+                        ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
                         DEPENDS ${Protobuf_PROTOC_EXECUTABLE}
                         VERBATIM
                 )
@@ -684,75 +701,94 @@ else ()
     target_include_directories  (${PROJECT_NAME} PUBLIC ${LIBUV_INCLUDE_DIRS})
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
+        message(STATUS "gmp: libs=${GMP_LIBRARIES} include=${GMP_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${GMP_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${GMP_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_ZLIB_DEPENDENCY)
+        message(STATUS "zlib: libs=${ZLIB_LIBRARIES} include=${ZLIB_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${ZLIB_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${ZLIB_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_CURL_DEPENDENCY)
+        message(STATUS "curl: libs=${CURL_LIBRARIES} include=${CURL_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${CURL_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${CURL_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_OPENSSL_DEPENDENCY)
+        message(STATUS "openssl: libs=${OPENSSL_LIBRARIES} include=${OPENSSL_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${OPENSSL_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${OPENSSL_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_WOLFSSL_DEPENDENCY)
+        message(STATUS "wolfssl: libs=${WOLFSSL_LIBRARIES} include=${WOLFSSL_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${WOLFSSL_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${WOLFSSL_INCLUDE_DIRS})
     endif ()
 
 
     if (MANAPIHTTP_QUICHE_DEPENDENCY)
+        message(STATUS "quiche: libs=${QUICHE_LIBRARIES} include=${QUICHE_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${QUICHE_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${QUICHE_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_MSQUIC_DEPENDENCY)
+        message(STATUS "msquic: libs=${MSQUIC_LIBRARIES} include=${MSQUIC_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${MSQUIC_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${MSQUIC_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_TQUIC_DEPENDENCY)
+        message(STATUS "tquic: libs=${TQUIC_LIBRARIES} include=${TQUIC_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${TQUIC_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${TQUIC_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_BROTLI_DEPENDENCY)
+        message(STATUS "brotli: libs=${BROTLI_LIBRARIES} include=${BROTLI_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${BROTLI_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${BROTLI_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_ZSTD_DEPENDENCY)
+        message(STATUS "zstd: libs=${ZSTD_LIBRARIES} include=${ZSTD_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${ZSTD_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${ZSTD_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_GRPC_DEPENDENCY)
+        message(STATUS "grpc: libs=${GRPC_LIBRARIES} include=${GRPC_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${GRPC_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${GRPC_INCLUDE_DIRS})
 
-        target_link_libraries(${PROJECT_NAME} PUBLIC ${PROTOBUFF_LIBRARIES})
-        target_include_directories(${PROJECT_NAME} PUBLIC ${PROTOBUFF_INCLUDE_DIRS})
+        message(STATUS "protobuf: libs=${PROTOBUF_LIBRARIES} include=${PROTOBUF_INCLUDE_DIRS}")
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${PROTOBUF_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${PROTOBUF_INCLUDE_DIRS})
+
+        message(STATUS "grpcpp: libs=${GRPCPP_LIBRARIES} include=${GRPCPP_INCLUDE_DIRS}")
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${GRPCPP_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${GRPCPP_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_NGHTTP2_DEPENDENCY)
+        message(STATUS "nghttp2: libs=${LIBNGHTTP2_LIBRARIES} include=${LIBNGHTTP2_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBNGHTTP2_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${LIBNGHTTP2_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_NGHTTP3_DEPENDENCY)
+        message(STATUS "nghttp3: libs=${LIBNGHTTP3_LIBRARIES} include=${LIBNGHTTP3_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBNGHTTP3_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${LIBNGHTTP3_INCLUDE_DIRS})
     endif ()
 
     if (MANAPIHTTP_CPPTRACE_DEPENDENCY)
+        message(STATUS "cpptrace: libs=${CPPTRACE_LIBRARIES} include=${CPPTRACE_INCLUDE_DIRS}")
         target_link_libraries(${PROJECT_NAME} PUBLIC ${CPPTRACE_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${CPPTRACE_INCLUDE_DIRS})
     endif ()
