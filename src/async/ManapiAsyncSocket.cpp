@@ -17,44 +17,72 @@
 
 #include "../include/ManapiUtils.hpp"
 
-manapi::ev::io_cb pio_ready_mk_(int flags, int fd,manapi::async::promise<int>::resolve_t resolve, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
-    return [flags, resolve = std::move(resolve), reject = std::move(reject), cancellation = std::move(cancellation)]
-        (const std::shared_ptr<manapi::ev::io> &w, int status, int revents) mutable
-            -> void {
+manapi::ev::io_cb pio_ready_mk_(int flags, int fd,manapi::async::promise_sync<manapi::sys_error::status_or<int>>::resolve_t resolve, manapi::async::cancellation_action cancellation) {
+    try {
+        return [flags, resolve = std::move(resolve), cancellation = std::move(cancellation)]
+            (const std::shared_ptr<manapi::ev::io> &w, int status, int revents) mutable
+                -> void {
+            auto resolve_ = std::move(resolve);
+            cancellation.disable();
+            manapi::async::current()->eventloop()->stop_watcher(w);
+
+            if (!status) {
+                resolve_(manapi::sys_error::status_internal("io ready failed", status));
+                return;
+            }
+
             if ((revents & flags)) {
-                auto resolve_ = std::move(resolve);
 
-                cancellation.disable();
-
-                assert(!w->stop());
                 manapi::async::current()->eventloop()->stop_watcher(w);
 
                 resolve_(revents);
             }
         };
+    }
+    catch (std::exception const &) {
+        return nullptr;
+    }
 }
 
-void pio_ready (manapi::socket_t fd, int flags, manapi::ev::io_cb cb, manapi::async::promise<int>::reject_t reject, manapi::async::cancellation_action cancellation) {
-    auto w = manapi::async::current()->eventloop()->create_watcher_socket(fd, std::move(cb));
+void pio_ready (manapi::socket_t fd, int flags, manapi::ev::io_cb cb, const manapi::async::promise_sync<manapi::sys_error::status_or<int>>::resolve_t &resolve, manapi::async::cancellation_action cancellation) MANAPIHTTP_NOEXCEPT {
+    if (!cb)
+        goto err;
 
-    if (cancellation.contains_cancel_callback()) {
-        cancellation.cancel_callback([w, reject] () mutable
-            -> void {
-                assert(!w->stop());
-                manapi::async::current()->eventloop()->stop_watcher(w);
-                reject (std::make_exception_ptr(RETHROW_MANAPIHTTP_EXCEPTION2(manapi::ERR_CANCELLED, "socket i/o operation has been cancelled")));
-            });
+    try {
+        auto wres = manapi::async::current()->eventloop()->create_watcher_socket(fd, std::move(cb));
+
+        if (!wres)
+            goto err;
+
+        auto w = wres.unwrap();
+
+        if (cancellation.contains_cancel_callback()) {
+            cancellation.cancel_callback([w, resolve] () mutable
+                -> void {
+                    assert(!w->stop());
+                    manapi::async::current()->eventloop()->stop_watcher(w);
+                    resolve (manapi::sys_error::status_internal("socket i/o operation has been cancelled", manapi::ev::ERR_CANCELED));
+                });
+        }
+
+        /** bind watcher */
+        if(w->start(flags)) {
+            manapi::async::current()->eventloop()->stop_watcher(std::move(w));
+            goto err;
+        }
+        return;
     }
-
-    /** bind watcher */
-    w->start(flags);
+    catch (std::exception const &e) {
+        manapi_log_trace("%s failed due to %s", "io", e.what());
+    }
+    err: resolve (manapi::sys_error::status_internal("io:something gets wrong", manapi::ev::ERR_UNKNOWN));
 }
 
 #if MANAPIHTTP_NONUNIX
 
 #endif
 
-void manapi::async::set_non_blocking(socket_t fd) {
+void manapi::async::set_non_blocking(socket_t fd) MANAPIHTTP_NOEXCEPT {
 #ifdef _WIN32
     u_long arg = 1;
     ioctlsocket(fd, FIONBIO, &arg);
@@ -65,12 +93,12 @@ void manapi::async::set_non_blocking(socket_t fd) {
 #endif
 }
 
-manapi::socket_t manapi::async::create_socket(int family, int protocol, int socktype, sockaddr *addr, socklen_t addrlen) {
+manapi::error::status_or<manapi::socket_t> manapi::async::create_socket(int family, int protocol, int socktype) MANAPIHTTP_NOEXCEPT {
     socket_t fd = socket(family, socktype, protocol);
-    if (fd < 0) { THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "socket(...) returned an invalid value: {}", fd); }
-
-    before_delete bd ([fd] ()
-        -> void { close_descriptor(fd); });
+    if (fd < 0) {
+        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s fd=%d", "socket() failed", fd);
+        return manapi::error::status_internal("socket() failed");
+    }
 
 #ifdef _WIN32
     char param_true = 1;
@@ -81,23 +109,20 @@ manapi::socket_t manapi::async::create_socket(int family, int protocol, int sock
 #endif
 
     if (0 > setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &param_true, sizeof(param_true))) {
-        THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "setsockopt(...) failed: reuseaddr option. fd = {}", fd);
+        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s fd=%d", "setsockopt(): SO_REUSEADDR failed", fd);
+        return manapi::error::status_internal("setsockopt(): SO_REUSEADDR failed");
     }
 
     if (protocol == IPPROTO_TCP) {
-        // if (0 > setsockopt(fd, protocol, TCP_NODELAY, &param_true, sizeof(param_true))) {
-        //     THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "setsockopt(...) failed: tcp nodelay option. fd = {}", fd);
-        // }
+        // if (0 > setsockopt(fd, protocol, TCP_NODELAY, &param_true, sizeof(param_true)))
     }
 
     set_non_blocking(fd);
 
-    bd.disable();
-
     return fd;
 }
 
-void manapi::async::close_descriptor(socket_t fd) {
+void manapi::async::close_descriptor(socket_t fd) MANAPIHTTP_NOEXCEPT {
 #if MANAPIHTTP_NONUNIX
     ::closesocket(fd);
 #else
@@ -105,38 +130,46 @@ void manapi::async::close_descriptor(socket_t fd) {
 #endif
 }
 
-manapi::future<int> manapi::async::custom_ready(socket_t flags, socket_t fd) {
-    co_return co_await promise<int, std::false_type> ([flags, fd] (promise<int>::resolve_t resolve, promise<int>::reject_t reject) -> void {
-        auto cb = pio_ready_mk_(flags, fd, std::move(resolve), std::move(reject), nullptr);
-        auto s = async::current()->eventloop()->create_watcher_socket(fd, std::move(cb));
+manapi::future<manapi::sys_error::status_or<int>> manapi::async::custom_ready(int flags, socket_t fd) {
+    using promise = manapi::async::promise_sync<manapi::sys_error::status_or<int>>;
+    co_return co_await promise ([flags, fd] (promise::resolve_t resolve, promise::reject_t reject) -> void {
+        auto cb = pio_ready_mk_(flags, fd, resolve, nullptr);
+        auto wres = async::current()->eventloop()->create_watcher_socket(fd, std::move(cb));
+        if (!wres) {
+            resolve(wres.err());
+            return;
+        }
+        auto s = wres.unwrap();
         s->start(flags);
     });
 }
 
-manapi::future<int> manapi::async::read_ready(socket_t fd) {
-    co_return co_await custom_ready(ev::READ, fd);
+manapi::future<manapi::sys_error::status> manapi::async::read_ready(socket_t fd) {
+    co_return (co_await custom_ready(ev::READ, fd)).err();
 }
 
-manapi::future<int> manapi::async::write_ready(socket_t fd) {
-    co_return co_await custom_ready(ev::WRITE, fd);
+manapi::future<manapi::sys_error::status> manapi::async::write_ready(socket_t fd) {
+    co_return (co_await custom_ready(ev::WRITE, fd)).err();
 }
 
-manapi::future<int> manapi::async::custom_ready(int flags, socket_t fd, cancellation_action cancellation) {
-    auto res = co_await promise<int> ([flags, fd, cancellation] (promise<int>::resolve_t resolve, promise<int>::reject_t reject) mutable -> manapi::future<> {
-            auto cb = pio_ready_mk_(flags, fd, resolve, reject, cancellation);
-            pio_ready(fd, flags, std::move(cb), std::move(reject), cancellation);
-            co_return;
-        });
+manapi::future<manapi::sys_error::status_or<int>> manapi::async::custom_ready(int flags, socket_t fd, cancellation_action cancellation) {
+    using promise = promise_sync<manapi::sys_error::status_or<int>>;
+
+    auto res = co_await  promise([flags, fd, cancellation] (promise::resolve_t resolve, promise::reject_t reject) mutable -> manapi::future<> {
+        auto cb = pio_ready_mk_(flags, fd, resolve, cancellation);
+        pio_ready(fd, flags, std::move(cb), resolve, cancellation);
+        co_return;
+    });
 
     /** already */
     cancellation.cancel();
-    co_return res;
+    co_return std::move(res);
 }
 
-manapi::future<int> manapi::async::read_ready(socket_t fd,cancellation_action cancellation) {
-    return custom_ready(ev::READ, fd, std::move(cancellation));
+manapi::future<manapi::sys_error::status> manapi::async::read_ready(socket_t fd,cancellation_action cancellation) {
+    co_return (co_await custom_ready(ev::READ, fd, std::move(cancellation))).err();
 }
 
-manapi::future<int> manapi::async::write_ready(socket_t fd,cancellation_action cancellation) {
-    return custom_ready(ev::WRITE, fd, std::move(cancellation));
+manapi::future<manapi::sys_error::status> manapi::async::write_ready(socket_t fd,cancellation_action cancellation) {
+    co_return (co_await custom_ready(ev::WRITE, fd, std::move(cancellation))).err();
 }

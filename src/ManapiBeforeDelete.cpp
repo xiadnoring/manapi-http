@@ -27,7 +27,7 @@ manapi::before_delete & manapi::before_delete::operator=(before_delete &&n) noex
     return *this;
 }
 
-void manapi::before_delete::call () {
+void manapi::before_delete::call () MANAPIHTTP_NOEXCEPT {
     try {
         this->disable();
 
@@ -41,11 +41,11 @@ void manapi::before_delete::call () {
     }
 }
 
-void manapi::before_delete::disable() {
+void manapi::before_delete::disable() MANAPIHTTP_NOEXCEPT {
     this->autostart = false;
 }
 
-void manapi::before_delete::enable() {
+void manapi::before_delete::enable() MANAPIHTTP_NOEXCEPT {
     this->autostart = true;
 }
 
@@ -69,7 +69,7 @@ manapi::sbefore_delete::~sbefore_delete() {
 
 manapi::sbefore_delete & manapi::sbefore_delete::operator=(sbefore_delete &&n) noexcept = default;
 
-void manapi::sbefore_delete::call() {
+void manapi::sbefore_delete::call() MANAPIHTTP_NOEXCEPT {
     try {
         if (this->f) {
             auto cb = std::move(this->f);

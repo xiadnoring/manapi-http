@@ -25,6 +25,34 @@ void mutex_promise::await_suspend(std::coroutine_handle<manapi::future<>::promis
     }
 }
 
+manapi::async::mutex_locker::mutex_locker(mutex *mx) : mx(mx) {
+}
+
+manapi::async::mutex_locker::mutex_locker(mutex_locker &&n) MANAPIHTTP_NOEXCEPT {
+    this->mx = n.mx;
+    n.mx = nullptr;
+}
+
+manapi::async::mutex_locker & manapi::async::mutex_locker::operator=(mutex_locker &&n) MANAPIHTTP_NOEXCEPT {
+    this->mx = n.mx;
+    n.mx = nullptr;
+    return *this;
+}
+
+manapi::async::mutex_locker::~mutex_locker() {
+    this->call();
+}
+
+void manapi::async::mutex_locker::call() MANAPIHTTP_NOEXCEPT {
+    if (this->mx) {
+        this->mx->unlock();
+    }
+}
+
+void manapi::async::mutex_locker::disable() MANAPIHTTP_NOEXCEPT {
+    this->mx = nullptr;
+}
+
 manapi::async::mutex::mutex() {
     this->own = false;
 }
@@ -70,11 +98,9 @@ void manapi::async::mutex::unlock() MANAPIHTTP_NOEXCEPT {
     });
 }
 
-manapi::future<manapi::sbefore_delete> manapi::async::mutex::lock_guard()  {
+manapi::future<manapi::async::mutex_locker> manapi::async::mutex::lock_guard()  {
     co_await this->lock();
-    co_return sbefore_delete([this] () -> void {
-        this->unlock();
-    });
+    co_return async::mutex_locker{this};
 }
 
 manapi::async::mutex::~mutex() {

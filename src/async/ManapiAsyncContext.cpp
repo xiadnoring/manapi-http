@@ -34,10 +34,12 @@ manapi::async::cthread::~cthread() = default;
 //     co_await this->eventloop_->start(this->eventloop_);
 // }
 
-void manapi::async::cthread::sync_start() {
+manapi::sys_error::status manapi::async::cthread::sync_start() {
     this->taskpool_->start();
-    timerpool()->start();
-    this->eventloop_->sync_start(this->eventloop_);
+    auto res = timerpool()->start();
+    if (!res)
+        return std::move(res);
+    return this->eventloop_->sync_start(this->eventloop_);
 }
 
 manapi::future<void> manapi::async::cthread::stop() {
@@ -93,92 +95,118 @@ manapi::async::context::context(shared_eventloop eventloop, std::shared_ptr<mthr
 //     }
 // }
 
-manapi::async::shared_ctx manapi::async::context::create(unsigned int threadnum) {
-    auto logger_ = std::make_shared<manapi::logger>();
-    auto taskpool_ = std::make_shared<manapi::mthreadpool>(logger_, threadnum);
+manapi::error::status_or<manapi::async::shared_ctx> manapi::async::context::create(unsigned int threadnum) MANAPIHTTP_NOEXCEPT {
+    try {
+        auto logger_ = std::make_shared<manapi::logger>();
+        auto taskpool_ = std::make_shared<manapi::mthreadpool>(logger_, threadnum);
 
-    /* Main Event Loop */
-    auto watcher_ = std::make_shared<manapi::event_loop>(taskpool_, logger_);
-    auto timerpool_ = std::make_shared<manapi::timerpool>(watcher_);
+        /* Main Event Loop */
+        auto watcher_ = manapi::event_loop::create(taskpool_, logger_).unwrap();
+        auto timerpool_ = std::make_shared<manapi::timerpool>(manapi::timerpool::create(watcher_).unwrap());
 
-    auto mainctx = std::make_shared<context>(std::move(watcher_), taskpool_, std::move(timerpool_), logger_);
+        auto mainctx = std::make_shared<context>(std::move(watcher_), taskpool_, std::move(timerpool_), logger_);
 
-    manapi::async::context::current(mainctx);
+        manapi::async::context::current(mainctx);
 
-    return std::move(mainctx);
+        return std::move(mainctx);
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "ctx:create failed", e.what());
+        return error::status_internal("ctx:create failed");
+    }
 }
 
-void manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<void(std::function<void()> bind)> callback) {
-    auto const mtaskpool = dynamic_cast<mthreadpool *> (ctx->taskpool_.get());
+manapi::error::status manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT {
+    try {
+        auto const mtaskpool = dynamic_cast<mthreadpool *> (ctx->taskpool_.get());
 
-    if (loops > mtaskpool->size()) {
-        loops = mtaskpool->size();
-        MANAPIHTTP_LOG("not enough threads for additional event loops. available: {}", mtaskpool->size());
-    }
+        if (loops > mtaskpool->size()) {
+            loops = mtaskpool->size();
+            manapi_log_info("not enough threads for additional event loops. available: %zu", mtaskpool->size());
+        }
 
-    ctx->loops_.resize(loops);
+        ctx->loops_.resize(loops);
 
-    for (int i = 0; i < loops; ++i) {
-        auto watcher_ = std::make_shared<manapi::event_loop>(ctx->taskpool_, ctx->logger_);
-        auto timerpool_ = std::make_shared<manapi::timerpool>(watcher_);
+        try {
+            for (int i = 0; i < loops; ++i) {
+                auto watcher_ = manapi::event_loop::create(ctx->taskpool_, ctx->logger_).unwrap();
+                auto timerpool_ = std::make_shared<manapi::timerpool>(manapi::timerpool::create(watcher_).unwrap());
 
-        ctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), ctx->taskpool_, std::move(timerpool_), ctx->logger_);
-    }
+                ctx->loops_[i] = std::make_shared<async::cthread> (std::move(watcher_), ctx->taskpool_, std::move(timerpool_), ctx->logger_);
+            }
+        }
+        catch (std::exception const &) {
+            ctx->loops_.clear();
 
-    //assert(!manapi::async::internal::current_() && "Async ctx already exists");
+            std::rethrow_exception(std::current_exception());
+        }
 
-    if (!manapi::async::internal::current_())
-        manapi::async::context::current(ctx);
+        //assert(!manapi::async::internal::current_() && "Async ctx already exists");
+
+        if (!manapi::async::internal::current_())
+            manapi::async::context::current(ctx);
 
 
-    manapi::init_tools::ssl_library_init();
-    manapi::init_tools::ev_library_init();
-    manapi::init_tools::curl_library_init();
+        manapi::init_tools::ssl_library_init();
+        manapi::init_tools::ev_library_init();
+        manapi::init_tools::curl_library_init();
 
-    for (int i = 0; i < loops; ++i) {
-        mtaskpool->for_all_threads([&] (mthreadpool::tasks_by_thread_t *v)
-            -> void {
-            manapi::init_tools::ssl_library_init();
-            manapi::init_tools::ev_library_init();
-            manapi::init_tools::curl_library_init();
-
-            (*v)[i].push_back([callback, thr = ctx->loops_[i]] ()
+        for (int i = 0; i < loops; ++i) {
+            mtaskpool->for_all_threads([&] (mthreadpool::tasks_by_thread_t *v)
                 -> void {
-                async::cthread::current(thr);
-                thr->timerpool()->start();
+                manapi::init_tools::ssl_library_init();
+                manapi::init_tools::ev_library_init();
+                manapi::init_tools::curl_library_init();
 
-                callback([thr] () -> void {
-                    thr->sync_start();
+                (*v)[i].push_back([callback, thr = ctx->loops_[i]] ()
+                    -> void {
+                    async::cthread::current(thr);
 
-                    thr->timerpool()->stop();
+                    callback([thr] () -> void {
+                        thr->sync_start().unwrap();
 
-                    thr->eventloop()->wait();
+                        thr->timerpool()->stop();
 
-                    manapi::async::context::current(nullptr);
+                        thr->eventloop()->wait();
 
-                    manapi::clear_tools::ssl_library_thread_clear();
+                        manapi::async::context::current(nullptr);
+
+                        manapi::clear_tools::ssl_library_thread_clear();
+                    });
                 });
             });
+        }
+
+
+        auto tres= manapi::async::current()->timerpool()->append_interval_sync(60 * 1000,
+            [] (const manapi::timer &t) -> void {
+            manapi::async::current()->memory_fabric().clear();
         });
+
+        if (!tres)
+            tres.err().log();
+
+        callback([ctx] () -> void {
+            ctx->sync_start().unwrap();
+
+            ctx->timerpool_->stop();
+
+            ctx->eventloop_->wait();
+
+            ctx->taskpool_->stop();
+            ctx->taskpool_->join();
+
+            manapi::async::context::current(nullptr);
+        });
+
+        return error::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "ctx:run failed", e.what());
     }
 
-    manapi::async::current()->timerpool()->append_interval_sync(60 * 1000,
-        [] (const manapi::timer &t) -> void {
-        manapi::async::current()->memory_fabric().clear();
-    });
-
-    callback([ctx = std::move(ctx)] () -> void {
-        ctx->sync_start();
-
-        ctx->timerpool_->stop();
-
-        ctx->eventloop_->wait();
-
-        ctx->taskpool_->stop();
-        ctx->taskpool_->join();
-
-        manapi::async::context::current(nullptr);
-    });
+    manapi::async::context::current(nullptr);
+    return error::status_internal("ctx:run failed");
 }
 
 void manapi::async::context::run(shared_ctx ctx, std::function<void(std::function<void()> bind)> callback) {

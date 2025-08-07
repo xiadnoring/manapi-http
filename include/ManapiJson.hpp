@@ -640,7 +640,7 @@ namespace manapi {
 
         void pop_back ();
 
-        [[nodiscard]] int data_type () const;
+        [[nodiscard]] int data_type () const MANAPIHTTP_NOEXCEPT;
 
         template<class T>
         requires(std::is_same_v<T, OBJECT>)
@@ -706,57 +706,57 @@ namespace manapi {
          * check the JSON type
          * @return true if it's an object
          */
-        [[nodiscard]] bool is_object      () const;
+        [[nodiscard]] bool is_object () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's an array
          */
-        [[nodiscard]] bool is_array       () const;
+        [[nodiscard]] bool is_array () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's a string
          */
-        [[nodiscard]] bool is_string      () const;
+        [[nodiscard]] bool is_string () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's a integer
          */
-        [[nodiscard]] bool is_integer     () const;
+        [[nodiscard]] bool is_integer () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's a null
          */
-        [[nodiscard]] bool is_null        () const;
+        [[nodiscard]] bool is_null () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's a decimal
          */
-        [[nodiscard]] bool is_decimal     () const;
+        [[nodiscard]] bool is_decimal () const MANAPIHTTP_NOEXCEPT;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
 
         /**
          * check the JSON type
          * @return true if it's a integer
          */
-        [[nodiscard]] bool is_bigint      () const;
+        [[nodiscard]] bool is_bigint () const MANAPIHTTP_NOEXCEPT;
 #endif
 
         /**
          * check the JSON type
          * @return true if it's a bool
          */
-        [[nodiscard]] bool is_bool        () const;
+        [[nodiscard]] bool is_bool () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's a pair
          */
-        [[nodiscard]] bool is_pair        () const;
+        [[nodiscard]] bool is_pair () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * strict object retrieval
@@ -987,9 +987,7 @@ namespace manapi {
         // other
         void parse_ (const nullptr_t &n);
 
-        static void delete_value_static (short type, void *src);
-
-        void delete_value ();
+        void delete_value () MANAPIHTTP_NOEXCEPT;
         void set_object_ ();
         void set_bool_ ();
         void set_array_ ();

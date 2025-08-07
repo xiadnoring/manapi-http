@@ -82,12 +82,17 @@ manapi::future<T> async_fs_operation (std::move_only_function<bool(std::shared_p
     try {
         co_return co_await promise([&] (typename promise::resolve_t resolve, typename promise::reject_t reject)
             -> void {
-            auto watcher = manapi::async::current()->eventloop()->create_watcher_fs([resolve, event_cb = std::move(event_cb), cancellation] (const std::shared_ptr<manapi::ev::fs> &w) mutable
+            auto watcher_res = manapi::async::current()->eventloop()->create_watcher_fs([resolve, event_cb = std::move(event_cb), cancellation] (const std::shared_ptr<manapi::ev::fs> &w) mutable
                 -> void {
                 async_fs_operation_event_handler<T>(w, std::move(resolve), std::move(cancellation), event_cb);
             });
 
-            if (!start_cb(watcher)) {
+            manapi::ev::shared_fs watcher;
+
+            if (watcher_res)
+                watcher = watcher_res.unwrap();
+
+            if (!watcher_res || !start_cb(watcher)) {
                 resolve(manapi::sys_error::status_internal("fs i/o init watcher failed", manapi::ev::ERR_UNKNOWN));
                 return;
             }
@@ -249,14 +254,19 @@ manapi::future<manapi::sys_error::status_or<manapi::ev::file>> manapi::filesyste
 manapi::future<manapi::sys_error::status> manapi::filesystem::async_close(ev::file file, async::cancellation_action cancellation) {
     using promise = manapi::async::promise<manapi::sys_error::status>;
 
+    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "fs:fd %d close", file);
+
     co_return co_await async_fs_operation<manapi::sys_error::status>([file] (std::shared_ptr<ev::fs> w)
         -> bool {
             return !w->close(file);
-        }, +[](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, manapi::async::cancellation_action &cancel)
+        }, [file](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, manapi::async::cancellation_action &cancel)
         -> void {
-            if (async_fs_operation_result_error<manapi::sys_error::status>(w, resolve, cancel))
+            if (async_fs_operation_result_error<manapi::sys_error::status>(w, resolve, cancel)) {
+                manapi_log_error("fs:fd %d close failed due to %s",
+                    file, ev::strerror(w->result()));
                 return;
-
+            }
+            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "fs:fd %d finished", file);
             resolve(sys_error::status_ok());
         }, std::move(cancellation));
 }
@@ -294,25 +304,29 @@ struct fileno_deleter {
 
         auto b = manapi::async::timeout_cancellation(64000);
         MANAPIHTTP_MUST_ALLOC_START
-        cb = [b] (std::exception_ptr err, manapi::sys_error::status *s)
+        cb = [fileno = this->fileno] (std::exception_ptr err, manapi::sys_error::status *s)
             -> void {
             if (err) {
                 int errnum;
-                std::string msg;
-                std::string_view status = "exception";
+                char msg[256];
+                std::size_t msg_size = sizeof (msg);
+                std::string_view constexpr status = "exception";
 
-                manapi::extract_exception_ptr(std::move(err), &errnum, &msg);
-                manapi_log_error("%.*s:FD close failed %.*s", status.size(), status.data(),
-                    msg.size(), msg.data());
+                manapi::extract_exception_ptr(std::move(err), &errnum, msg, &msg_size);
+                manapi_log_error("fs(%.*s):fd %d close failed %.*s",
+                    status.size(), status.data(),
+                    fileno, msg_size, msg);
             }
             else {
-                if (s->ok())
+                if (s->ok()) {
                     return;
+                }
 
                 auto const status = s->status_msg();
                 auto const msg = s->msg();
-                manapi_log_error("%.*s:FD close failed %.*s", status.size(), status.data(),
-                    msg.size(), msg.data());
+                manapi_log_error("fs(%.*s):fd %d close failed %.*s",
+                     status.size(), status.data(),
+                    fileno, msg.size(), msg.data());
             }
         };
         MANAPIHTTP_MUST_ALLOC_END
@@ -320,7 +334,7 @@ struct fileno_deleter {
         manapi::future<manapi::sys_error::status> task(nullptr);
 
         MANAPIHTTP_MUST_ALLOC_START
-        task = manapi::filesystem::async_close(this->fileno, std::move(b));
+        task = manapi::filesystem::async_close(this->fileno, b);
         MANAPIHTTP_MUST_ALLOC_END
 
         manapi::async::run<manapi::sys_error::status>(std::move(task), std::move(cb));
@@ -445,56 +459,70 @@ manapi::future<manapi::sys_error::status_or<ssize_t>> manapi::filesystem::async_
     dd.offset = offset;
     dd.event_cb = [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, manapi::async::cancellation_action &cancel)
         -> void {
-        if (async_fs_operation_result_error<sys_error::status_or<ssize_t>>(w, resolve, cancel))
-            return;
+        try {
+            if (async_fs_operation_result_error<sys_error::status_or<ssize_t>>(w, resolve, cancel))
+                return;
 
-        auto rhs = w->result();
+            auto rhs = w->result();
 
-        if (rhs < 0) {
-            /* ignore ? */
-            if (dd.result) {
-                rhs = dd.result;
-            }
-            cancel.disable();
-            resolve(static_cast<ssize_t>(rhs));
-            return;
-        }
-
-        dd.result += rhs;
-
-        if (dd.offset >= 0)
-            dd.offset += rhs;
-
-        while (dd.nbuff
-            && rhs >= dd.buff->len) {
-            rhs -= dd.buff->len;
-            dd.buff++;
-            dd.nbuff--;
-        }
-
-        if (dd.nbuff) {
-            /* retry */
-            auto w1 = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, cancel] (std::shared_ptr<ev::fs> w) mutable
-                -> void {
-                async_fs_operation_event_handler<manapi::sys_error::status_or<ssize_t>>(std::move(w), std::move(resolve), std::move(cancel), dd.event_cb);
-            });
-
-            dd.buff->base += rhs;
-            dd.buff->len -= rhs;
-
-            if (w1->write(dd.file, dd.buff, dd.nbuff, dd.offset)) {
-                resolve(sys_error::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
+            if (rhs < 0) {
+                /* ignore ? */
+                if (dd.result) {
+                    rhs = dd.result;
+                }
+                cancel.disable();
+                resolve(static_cast<ssize_t>(rhs));
                 return;
             }
 
-            if (cancel.contains_cancel_callback()) {
-                cancel.cancel_callback([w = std::move(w1)] () mutable
-                    -> void { manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
+            dd.result += rhs;
+
+            if (dd.offset >= 0)
+                dd.offset += rhs;
+
+            while (dd.nbuff
+                && rhs >= dd.buff->len) {
+                rhs -= dd.buff->len;
+                dd.buff++;
+                dd.nbuff--;
+                }
+
+            if (dd.nbuff) {
+                /* retry */
+                auto wres = manapi::async::current()->eventloop()->create_watcher_fs(
+                    [&dd, resolve, cancel] (std::shared_ptr<ev::fs> w) mutable
+                    -> void {
+                    async_fs_operation_event_handler<manapi::sys_error::status_or<ssize_t>>(std::move(w), std::move(resolve), std::move(cancel), dd.event_cb);
+                });
+
+                if (!wres) {
+                    resolve(wres.err());
+                    return;
+                }
+
+                auto w1 = wres.unwrap();
+
+                dd.buff->base += rhs;
+                dd.buff->len -= rhs;
+
+                if (w1->write(dd.file, dd.buff, dd.nbuff, dd.offset)) {
+                    resolve(sys_error::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
+                    return;
+                }
+
+                if (cancel.contains_cancel_callback()) {
+                    cancel.cancel_callback([w = std::move(w1)] () mutable
+                        -> void { manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
+                }
+            }
+            else {
+                cancel.disable();
+                resolve(static_cast<ssize_t>(dd.result));
             }
         }
-        else {
-            cancel.disable();
-            resolve(static_cast<ssize_t>(dd.result));
+        catch (std::exception const &e) {
+            manapi_log_error("%s due to %s", "async_write:Failed", e.what());
+            resolve(sys_error::status_internal("async_write:Failed", ev::ERR_UNKNOWN));
         }
     };
 
@@ -566,58 +594,73 @@ manapi::future<manapi::sys_error::status_or<ssize_t>> manapi::filesystem::async_
     dd.nbuff = nbuff;
     dd.buff = buff;
 
-    dd.event_cb = [&dd](std::shared_ptr<ev::fs> w, promise::resolve_t &resolve, manapi::async::cancellation_action &cancel)
+    dd.event_cb = [&dd](std::shared_ptr<ev::fs> wlocal, promise::resolve_t &resolve, manapi::async::cancellation_action &cancel)
         -> void {
-        if (async_fs_operation_result_error<manapi::sys_error::status_or<ssize_t>>(w, resolve, cancel)) {
-            return;
-        }
-
-        auto rhs = w->result();
-
-        if (rhs < 0) {
-            if (dd.result) {
-                rhs = dd.result;
-            }
-            cancel.disable();
-            resolve(static_cast<ssize_t>(rhs));
-            return;
-        }
-
-        if (dd.offset >= 0)
-            dd.offset += rhs;
-
-        dd.result += rhs;
-
-        while (dd.nbuff
-            && rhs >= dd.buff->len) {
-            rhs -= dd.buff->len;
-            dd.nbuff--;
-            dd.buff++;
-        }
-
-        if (dd.nbuff && rhs) {
-            /* retry */
-            auto w  = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, cancel] (std::shared_ptr<ev::fs> w) mutable
-                -> void {
-                async_fs_operation_event_handler<manapi::sys_error::status_or<ssize_t>>( std::move(w), std::move(resolve), std::move(cancel), dd.event_cb);
-            });
-
-            dd.buff->base += rhs;
-            dd.buff->len -= rhs;
-
-            if (w->read(dd.file, dd.buff, dd.nbuff, dd.offset)) {
-                resolve(sys_error::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
+        try {
+            if (async_fs_operation_result_error<manapi::sys_error::status_or<ssize_t>>(wlocal, resolve, cancel)) {
                 return;
             }
 
-            if (cancel.contains_cancel_callback()) {
-                cancel.cancel_callback([w = std::move(w)] () mutable
-                    -> void { manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
+            auto rhs = wlocal->result();
+
+            if (rhs < 0) {
+                if (dd.result) {
+                    rhs = dd.result;
+                }
+                cancel.disable();
+                resolve(static_cast<ssize_t>(rhs));
+                return;
+            }
+
+            if (dd.offset >= 0)
+                dd.offset += rhs;
+
+            dd.result += rhs;
+
+            while (dd.nbuff
+                && rhs >= dd.buff->len) {
+                rhs -= dd.buff->len;
+                dd.nbuff--;
+                dd.buff++;
+                }
+
+            if (dd.nbuff && rhs) {
+                /* retry */
+                auto wres  = manapi::async::current()->eventloop()->create_watcher_fs([&dd, resolve, cancel] (std::shared_ptr<ev::fs> w) mutable
+                    -> void {
+                    async_fs_operation_event_handler<manapi::sys_error::status_or<ssize_t>>( std::move(w), std::move(resolve), std::move(cancel), dd.event_cb);
+                });
+
+                if (!wres) {
+                    cancel.disable();
+                    resolve(wres.err());
+                    return;
+                }
+
+                auto w = wres.unwrap();
+
+                dd.buff->base += rhs;
+                dd.buff->len -= rhs;
+
+                if (w->read(dd.file, dd.buff, dd.nbuff, dd.offset)) {
+                    resolve(sys_error::status_internal("fs i/o init watcher failed", ev::ERR_UNKNOWN));
+                    return;
+                }
+
+                if (cancel.contains_cancel_callback()) {
+                    cancel.cancel_callback([w = std::move(w)] () mutable
+                        -> void { manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(w)); });
+                }
+            }
+            else {
+                cancel.disable();
+                resolve(static_cast<ssize_t>(dd.result));
             }
         }
-        else {
+        catch (std::exception const &e) {
+            manapi_log_error("%s due to %s", "async_read:Failed", e.what());
             cancel.disable();
-            resolve(static_cast<ssize_t>(dd.result));
+            resolve(sys_error::status_internal("async_read:Failed", ev::ERR_UNKNOWN));
         }
     };
 

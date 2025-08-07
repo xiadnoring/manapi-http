@@ -125,7 +125,7 @@ namespace manapi::net::http {
 
         manapi::future<> init_pool_ ();
 
-        void pool_ (std::move_only_function<void()> cb);
+        manapi::error::status pool_ (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT;
 
         static void clean_up (std::shared_ptr<data2_t> data2);
 

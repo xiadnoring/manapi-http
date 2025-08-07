@@ -14,6 +14,7 @@
 
 namespace manapi {
     namespace async {
+        class mutex_locker;
         class cthread;
         extern size_t max_stack_depth;
 

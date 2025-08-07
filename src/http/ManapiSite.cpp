@@ -177,27 +177,33 @@ const std::string & manapi::net::http::site::config_cache_dir() {
     return this->data->config_->at("cache_path").as_string();
 }
 
-void manapi::net::http::site::on_config_update(std::shared_ptr<data_t> data, const manapi::json &n) {
-    if (n.is_null())
-        return;
+void manapi::net::http::site::on_config_update(std::shared_ptr<data_t> data, const manapi::json &n) MANAPIHTTP_NOEXCEPT {
+    try {
+        if (n.is_null())
+            return;
 
-    auto &site = data->config_->at("site");
-    auto &cache = data->config_->at("cache");
-    auto &site_time =data->config_->at("site_time");
-    auto &cache_time = data->config_->at("cache_time");
+        auto &site = data->config_->at("site");
+        auto &cache = data->config_->at("cache");
+        auto &site_time =data->config_->at("site_time");
+        auto &cache_time = data->config_->at("cache_time");
 
-    if (site_time != n["site_time"]) {
-        site = n["site"];
+        if (site_time != n["site_time"]) {
+            site = n["site"];
+        }
+
+        if (cache_time != n["cache_time"]) {
+            cache = n["cache"];
+
+        }
+
+        data->config_ = std::make_shared<json>();
+        *data->config_ = n;
+
+        assert(*data->config_ == n);
     }
-
-    if (cache_time != n["cache_time"]) {
-        cache = n["cache"];
-
+    catch (std::exception const &e) {
+        manapi_log_error("%s failed due to %s", "on_config_update", e.what());
     }
-
-    data->config_ = std::make_shared<json>();
-    *data->config_ = n;
-    assert(*data->config_ == n);
 }
 
 manapi::error::status_or<std::unique_ptr<manapi::net::worker::wrk_interface_global_t>> create_http_protocol_worker (manapi::net::worker::interface_worker *w, manapi::error::status (*init_global_cb)(manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::interface_worker *w)) {
@@ -274,7 +280,7 @@ manapi::future<manapi::error::status> manapi::net::http::site::config(std::strin
         this->data->server_config = co_await this->data->sctx.storage().subscribe([data = this->data] (auto &&f1)
             -> void { on_config_update(data, std::forward<decltype(f1)>(f1)); });
 
-        co_await this->data->sctx.storage().edit_async (this->data->server_config,
+        auto res = co_await this->data->sctx.storage().edit_async (this->data->server_config,
             [this, path = std::move(path)] (manapi::json &config) mutable -> manapi::future<bool> {
                 if (!config.is_object())
                     config = manapi::json::object();
@@ -313,6 +319,7 @@ manapi::future<manapi::error::status> manapi::net::http::site::config(std::strin
                 *this->data->config_ = config;
                 co_return false;
         });
+        res.unwrap();
         co_return error::status_ok();
     }
     catch (std::exception const &e) {
@@ -326,7 +333,7 @@ manapi::future<manapi::error::status> manapi::net::http::site::config_object(jso
         this->data->server_config = co_await this->data->sctx.storage().subscribe([data = this->data] (auto &&f1)
             -> void { on_config_update(data, std::forward<decltype(f1)>(f1)); });
 
-        co_await this->data->sctx.storage().edit_async (this->data->server_config,
+        auto res = co_await this->data->sctx.storage().edit_async (this->data->server_config,
             [this, nconfig = std::move(config)] (manapi::json &config) mutable -> manapi::future<bool> {
                 if (!config.is_object())
                     config = manapi::json::object();
@@ -349,6 +356,7 @@ manapi::future<manapi::error::status> manapi::net::http::site::config_object(jso
                 co_await this->setup_config(config);
                 co_return true;
         });
+        res.unwrap();
         co_return error::status_ok();
     }
     catch (std::exception const &e) {
@@ -451,8 +459,9 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::site::g
 
 manapi::future<manapi::error::status> manapi::net::http::site::set_compressed_cache_file(std::string file, std::string compressed, std::string algorithm, std::chrono::system_clock::time_point filetime) {
     try {
-        co_await this->data->sctx.storage().edit (this->data->server_config,
+        auto res = co_await this->data->sctx.storage().edit (this->data->server_config,
             [&] (manapi::json &n) -> bool {
+
                 auto *cache = &n["cache"];
 
                 std::string fts = std::format("{:%Y-%m-%d-%H-%M-%S}", filetime);
@@ -482,7 +491,8 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_compressed_ca
                     cache->at(algorithm)[file] = std::move(file_info);
                 }
                 catch (std::exception const &e) {
-                    MANAPIHTTP_LOG("Fatal error in caching: {}", e.what());
+                    manapi_log_error("%s: %s failed due to %s",
+                        "http", "caching", e.what());
                     cache->at(algorithm).erase(file);
                 }
 
@@ -502,6 +512,8 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_compressed_ca
                 return true;
         });
 
+        res.unwrap();
+
         co_return manapi::error::status_ok();
     }
     catch (std::exception const &e) {
@@ -514,7 +526,33 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_compressed_ca
 manapi::future<manapi::error::status> manapi::net::http::site::set_locked_cache_file(std::string file, bool lock, std::string algorithm) {
     try {
         bool busy = false;
-        co_await this->data->sctx.storage().edit(this->data->server_config, [&] (manapi::json &all) -> bool {
+        if (this->data->config_ && this->data->config_->is_object()) {
+            auto cache_config = this->data->config_->find("cache");
+            if (cache_config != this->data->config_->end<manapi::json::OBJECT>()) {
+                auto algoit = cache_config->second.find(algorithm);
+                if (algoit != cache_config->second.end<manapi::json::OBJECT>()) {
+                    auto it = algoit->second.find(file);
+                    if (it == algoit->second.end<manapi::json::OBJECT>()) {
+                        if (!lock)
+                            co_return error::status_ok();
+                    }
+                    else {
+                        if (lock) {
+                            if (it->second.is_bool()
+                                && it->second == false)
+                                co_return error::status_unavailable("compress:Busy");
+                        }
+                        else {
+                            if (it->second.is_object())
+                                co_return error::status_ok();
+                        }
+                    }
+                }
+            }
+        }
+
+        auto edit_res = co_await this->data->sctx.storage().edit(this->data->server_config,
+            [&] (manapi::json &all) -> bool {
             auto &n = all["cache"];
             auto it = n.find(algorithm);
             if (it == n.end<json::OBJECT>()) {
@@ -552,10 +590,15 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_locked_cache_
                 }
             }
             else {
-                it->second.erase(fit);
+                if (fit != it->second.end<json::OBJECT>()) {
+                    if (!it->second.is_object())
+                        it->second.erase(fit);
+                }
             }
             return true;
         });
+
+        edit_res.unwrap();
 
         if (busy)
             co_return error::status_unavailable("compress:Busy");

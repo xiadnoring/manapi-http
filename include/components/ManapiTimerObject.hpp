@@ -16,22 +16,10 @@ namespace manapi {
 
     class timer {
     public:
-        enum timer_tasks_flags {
-            TIMER_TASK_ENABLED = 1,
-            TIMER_TASK_INTERVAL = 2,
-            TIMER_TASK_ACTIVE = 4
-        };
-
         typedef std::move_only_function<manapi::future<>(const manapi::timer &data)> async_cb_t;
         typedef std::move_only_function<void(const manapi::timer &data)> sync_cb_t;
 
-        struct timer_data_t {
-            int flags{0};
-            std::chrono::milliseconds delay;
-            std::chrono::steady_clock::time_point point;
-            std::unique_ptr<async_cb_t> async_cb{};
-            std::unique_ptr<sync_cb_t> sync_cb{};
-        };
+        struct timer_data_t;
 
         timer ();
 
@@ -39,15 +27,15 @@ namespace manapi {
 
         timer (std::shared_ptr<timer_data_t> data);
 
-        timer (bool interval,sync_cb_t sync_cb);
+        static manapi::error::status_or<timer> create (bool interval,sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT;
 
-        timer (bool interval,async_cb_t async_cb);
+        static manapi::error::status_or<timer> create (bool interval,async_cb_t async_cb) MANAPIHTTP_NOEXCEPT;
 
         timer (const timer &n);
 
-        timer (timer &&n) noexcept;
+        timer (timer &&n) MANAPIHTTP_NOEXCEPT;
 
-        timer &operator=(timer &&n) noexcept;
+        timer &operator=(timer &&n) MANAPIHTTP_NOEXCEPT;
 
         timer &operator=(const timer &n);
 
@@ -55,11 +43,11 @@ namespace manapi {
 
         ~timer ();
 
-        explicit operator bool () const;
+        explicit operator bool () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] size_t id () const;
+        MANAPIHTTP_NODISCARD size_t id () const MANAPIHTTP_NOEXCEPT;
 
-        void call_ ();
+        void call_ () MANAPIHTTP_NOEXCEPT;
 
         void clear () MANAPIHTTP_NOEXCEPT;
 
@@ -67,19 +55,19 @@ namespace manapi {
 
         void stop () MANAPIHTTP_NOEXCEPT;
 
-        void callback_async (async_cb_t cb);
+        void callback_async (async_cb_t cb) MANAPIHTTP_NOEXCEPT;
 
-        void callback_sync (sync_cb_t cb);
+        void callback_sync (sync_cb_t cb) MANAPIHTTP_NOEXCEPT;
 
         manapi::error::status again (std::size_t ms) MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_async () const;
+        [[nodiscard]] bool is_async () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_sync () const;
+        [[nodiscard]] bool is_sync () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool enabled () const;
+        [[nodiscard]] bool enabled () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] std::shared_ptr<timer_data_t> data_ () const;
+        [[nodiscard]] std::shared_ptr<timer_data_t> data_ () const MANAPIHTTP_NOEXCEPT;
     private:
         [[nodiscard]] static size_t id_ (const std::shared_ptr<timer_data_t> &data);
         std::shared_ptr<timer_data_t> data;

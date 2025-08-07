@@ -39,7 +39,7 @@ manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t
     manapi_log_trace(debug::LOG_TRACE_HIGH, "UDP PORT USED: %.*s. %.*s:%.*s",
         port.size(), port.data(), address.size(), address.data(), port.size(), port.data());
 
-    this->udp_accept_ = manapi::async::current()->eventloop()->create_watcher_udp([this] (const std::shared_ptr<ev::udp> &w, ssize_t nread, const ev::buff_t *buf, const sockaddr *addr, unsigned flags)
+    auto wres = manapi::async::current()->eventloop()->create_watcher_udp([this] (const std::shared_ptr<ev::udp> &w, ssize_t nread, const ev::buff_t *buf, const sockaddr *addr, unsigned flags)
         -> void {
         assert (nread >= 0);
 
@@ -53,6 +53,11 @@ manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t
         -> void {
         this->recv_buffer_alloc_(nread, buff);
     });
+
+    if (!wres)
+        co_return wres.err();
+
+    this->udp_accept_ = wres.unwrap();
 
     memset(&this->sockaddrin, '\0', sizeof (sockaddr));
 

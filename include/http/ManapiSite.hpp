@@ -270,7 +270,7 @@ namespace manapi::net::http {
         [[nodiscard]] const std::string &config_cache_dir();
 
     protected:
-        static void on_config_update (std::shared_ptr<data_t> data, const manapi::json &n);
+        static void on_config_update (std::shared_ptr<data_t> data, const manapi::json &n) MANAPIHTTP_NOEXCEPT;
 
         void setup ();
 

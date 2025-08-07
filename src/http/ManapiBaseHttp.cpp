@@ -20,6 +20,7 @@
 #include "../include/ManapiUtils.hpp"
 #include "ext/ManapiMustache.hpp"
 #include "../include/ManapiSiteInternal.hpp"
+#include "async/ManapiEasyCancellation.hpp"
 
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 
@@ -150,9 +151,14 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 
                 try {
                     auto rhs = co_await internal::compress_file(cdata->worker->site(), resfile, cdata->worker->site().config_cache_dir(), features.compress, features.compressor_for_file, force_compress);
-                    if (!rhs.ok())
-                        rst_compress = true;
-                    filepath = rhs.unwrap();
+                    if (!rhs.ok()) {
+                        if (rhs.code() == manapi::ERR_UNAVAILABLE)
+                            rst_compress = true;
+                        else
+                            rhs.unwrap();
+                    }
+                    else
+                        filepath = rhs.unwrap();
                 }
                 catch (std::exception const &e) {
                     manapi_log_error("compress:Compress file failed due to %s", e.what());
@@ -1176,9 +1182,13 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
     size += current;
 
     async::parallel_run<ssize_t> parallel;
+    auto parallel_status = async::parallel_run<ssize_t>::create();
+    if (!parallel_status)
+        co_return;
+
+    parallel = parallel_status.unwrap();
 
     ssize_t rhs;
-    std::exception_ptr error{nullptr};
 
     if ((rhs = co_await f.read(write_block.subslice(0,
         std::min(block_size, size - current)).unwrap())) <= 0) {
@@ -1191,8 +1201,13 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
             current += rhs;
             bool readsome = size > current;
             if (readsome) {
-                parallel.run(f.read(read_block.subslice(0,
+                auto status = parallel.run(f.read(read_block.subslice(0,
                     std::min(block_size, size - current)).unwrap()));
+                if (!status) {
+                    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,
+                        "%s failed due to %.*s", "send_file", status.msg().size(), status.msg().data());
+                    break;
+                }
             }
 
             auto sv = write_block.subslice(0, rhs).unwrap();
@@ -1225,14 +1240,9 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
     }
     catch (std::exception const &e) {
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "send_file() %p failed due to %s", cdata->conn.get(), e.what());
-        error = std::current_exception();
     }
 
     err: co_await parallel.get_or(0);
-
-    if (error) {
-        std::rethrow_exception(error);
-    }
 }
 
 manapi::future<void> manapi::net::http::internal::send_text(std::unique_ptr<response> res, std::string text) {
@@ -1308,15 +1318,17 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
                 if (res.code() == ERR_NOT_FOUND)
                     cached.clear();
                 else
-                    co_return std::move(file);
+                    co_return manapi::error::status_unavailable("busy");
             }
         }
 
         if (cached.empty()) {
             auto res = co_await site.set_locked_cache_file(file, true, compress);
             try {
-                if (!res.ok())
-                    co_return std::move(file);
+                if (!res.ok()) {
+                    res = manapi::error::status_unavailable("busy");
+                    goto err;
+                }
 
                 try {
                     auto exists = co_await filesystem::async_exists (folder);
@@ -1325,23 +1337,35 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
                 }
                 catch (std::exception const &e) {
                     manapi_log_error("%s due to %s", "mkdir cache directory failed", e.what());
-                    co_return error::status_internal("mkdir cache directory failed");
+                    res =  error::status_internal("mkdir cache directory failed");
+                    goto err;
                 }
 
                 filepath = folder + generate_cache_name(file, compress);
 
                 auto compress_res = co_await (*compressor)(file, filepath);
-                if (!compress_res.ok())
-                    co_return std::move(compress_res);
+                if (!compress_res.ok()) {
+                    res = std::move(compress_res);
+                    goto err;
+                }
 
                 res = co_await site.set_compressed_cache_file(file, filepath, compress, filetime);
-                if (!res.ok())
-                    co_return std::move(file);
+                if (!res.ok()) {
+                    res = manapi::error::status_unavailable("busy");
+                    goto err;
+                }
 
                 co_return std::move(filepath);
             }
             catch (std::exception const &e) {
-                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_INTERNAL, "file compress failed due to {}", e.what());
+                manapi_log_error("%s failed due to %s", "file compress", e.what());
+                res = manapi::error::status_internal("file compress");
+            }
+
+err:
+            if (!res) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %.*s",
+                    "file compress", res.msg().size(), res.msg().data());
             }
 
             res = co_await site.set_locked_cache_file(file, false, compress);
@@ -1349,7 +1373,7 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::interna
             if (!res.ok())
                 manapi_log_error("compress:Failed to unlock compressed file due to %s:%s", res.status_msg(), res.msg());
 
-            co_return std::move(file);
+            co_return manapi::error::status_unavailable("busy");
         }
         else {
             filepath = std::move(cached);

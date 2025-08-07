@@ -94,11 +94,16 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
 
         this->limit_rate_timer = timer_status.unwrap();
 
-        this->watcher_accept_ = manapi::async::current()->eventloop()->create_watcher_tcp_accept(
+        auto wres = manapi::async::current()->eventloop()->create_watcher_tcp_accept(
             [this] (const std::shared_ptr<ev::tcp> & w, int status)
             -> void {
                 this->onaccept(w, status);
             });
+
+        if (!wres)
+            co_return wres.err();
+
+        this->watcher_accept_ = wres.unwrap();
 
         memset(&this->sockaddrin, '\0', sizeof (sockaddr));
 
@@ -256,7 +261,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
         if (!connection)
             return connection;
 
-        ev::shared_tcp client = manapi::async::current()->eventloop()->create_watcher_tcp_connection(
+        auto wres = manapi::async::current()->eventloop()->create_watcher_tcp_connection(
             [this, weak = std::weak_ptr(connection)] (const std::shared_ptr<ev::tcp> &w, ssize_t nread, const uv_buf_t *buf)
             -> void {
                 try {
@@ -296,6 +301,11 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
             }
         });
 
+        if (!wres) {
+            goto err;
+        }
+
+        auto client = wres.unwrap();
 
         if (client->accept(w.get())) {
             manapi::async::current()->eventloop()->stop_watcher(std::move(client));

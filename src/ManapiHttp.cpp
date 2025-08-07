@@ -80,14 +80,16 @@ manapi::future<manapi::error::status> manapi::net::http::server::start() {
 
         co_await this->init_pool_();
 
-        using promise = async::promise<void, std::false_type>;
-        co_await  promise([this, &lk] (promise::resolve_t resolve, promise::reject_t reject) -> void {
-            this->pool_([&lk, resolve = std::move(resolve)] () mutable -> void {
+        using promise = async::promise_sync<error::status>;
+        co_return co_await promise([this, &lk] (promise::resolve_t resolve, promise::reject_t reject) -> void {
+            auto res = this->pool_([&lk, resolve] () mutable -> void {
                 lk.call();
-                resolve ();
+                resolve (error::status_ok());
             });
+
+            if (!res)
+                resolve(std::move(res));
         });
-        co_return error::status_ok();
     }
     catch (std::bad_alloc const &) {
         co_return error::status_resource_exhausted();
@@ -230,16 +232,31 @@ manapi::future<> manapi::net::http::server::init_pool_() {
     }
 }
 
-void manapi::net::http::server::pool_(std::move_only_function<void()> cb) {
-    this->data2->init_watcher = async::current()->eventloop()->create_watcher_async([data2 = this->data2, cb = std::move(cb)] (const std::shared_ptr<ev::async> &w) mutable
-        -> void {
-        cb();
+manapi::error::status manapi::net::http::server::pool_(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
+    try {
+        auto wres = async::current()->eventloop()->create_watcher_async(
+            [data2 = this->data2, cb = std::move(cb)] (const std::shared_ptr<ev::async> &w) mutable
+            -> void {
+            cb();
 
-        auto wz = std::move(data2->init_watcher);
-        manapi::async::current()->eventloop()->stop_watcher(std::move(wz));
-    });
+            auto wz = std::move(data2->init_watcher);
+            manapi::async::current()->eventloop()->stop_watcher(std::move(wz));
+        });
 
-    this->data2->init_watcher->send();
+        if (!wres)
+            return error::status{wres.err()};
+
+        this->data2->init_watcher = wres.unwrap();
+
+        if (auto rhs = this->data2->init_watcher->send())
+            manapi_log_error("%s due to %s", "http:Failed", ev::strerror(rhs));
+
+        return error::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "http:Failed", e.what());
+        return error::status_internal("http:Failed");
+    }
 }
 
 void manapi::net::http::server::clean_up(std::shared_ptr<data2_t> data2) {

@@ -25,7 +25,7 @@ void tmutex_promise::await_suspend(std::coroutine_handle<manapi::future<>::promi
             manapi::future<>::resume_promise(std::exchange(handle_, nullptr));
         });
 
-        this->waiters.push_back(std::move(watcher));
+        this->waiters.push_back(std::move(watcher.unwrap()));
     }
     else {
         this->locked_ = true;

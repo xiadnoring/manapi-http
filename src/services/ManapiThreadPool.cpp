@@ -65,7 +65,7 @@ namespace manapi {
     }
 
     
-    void mthreadpool::stop() {
+    void mthreadpool::stop() MANAPIHTTP_NOEXCEPT {
         if (!(this->flags & 0b1)) {
             return;
         }
@@ -252,7 +252,7 @@ namespace manapi {
     }
 
     
-    void ethreadpool::stop() {
+    void ethreadpool::stop() MANAPIHTTP_NOEXCEPT {
         if (!(this->flags_ & 0b1)) {
             return;
         }

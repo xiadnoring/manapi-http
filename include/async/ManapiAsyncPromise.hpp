@@ -67,31 +67,43 @@ namespace manapi::async {
         requires(std::is_base_of_v<promise_base, T1>)
         void await_suspend (std::coroutine_handle<T1> handle) {
             if (this->data->flags & PROMISE_FLAG_ASYNC /* async */) {
-                async::run<void>(static_cast<async_cb *>(this->data->cb)->operator()([handle, data = this->data] (T v) mutable
+                async::run<void>(static_cast<async_cb *>(this->data->cb)->operator()([data = this->data, handle] (T v) mutable
                     -> void { resolve((data), handle, v); },
-                    [handle, data = this->data] (std::exception_ptr e) mutable
-                    -> void { reject((data), handle, std::move(e)); }), [data = this->data] (std::exception_ptr err) -> void {});
+                    [data = this->data, handle] (std::exception_ptr e) mutable
+                    -> void { reject((data), handle, std::move(e)); }),
+                    [data = this->data, handle] (std::exception_ptr e) -> void {
+                        if (e)
+                            reject(data, handle, std::current_exception());
+                    });
             }
             else {
-                static_cast<sync_cb *>(this->data->cb)->operator() ([handle, data = this->data] (T v) mutable
-                    -> void { resolve((data), handle, v); },
-                    [handle, data = this->data] (std::exception_ptr e) mutable
-                    -> void { reject((data), handle, std::move(e)); });
+                try {
+                    static_cast<sync_cb *>(this->data->cb)->operator() ([data = this->data, handle] (T v) mutable
+                        -> void { resolve(data, handle, v); },
+                        [data = this->data, handle] (std::exception_ptr e) mutable
+                        -> void { reject((data), handle, std::move(e)); });
+                }
+                catch (std::exception const &e) {
+                    manapi_log_error(e.what());
+                    reject(data, handle, std::current_exception());
+                }
             }
         }
     private:
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
+        static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) MANAPIHTTP_NOEXCEPT {
+            MANAPIHTTP_MUST_ALLOC_START
             manapi::async::internal::ethreadpool_(manapi::async::current())->append_task([handle] ()
                 -> void {
                 handle.resume();
             });
+            MANAPIHTTP_MUST_ALLOC_END
         }
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        static void resolve (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, T &v) {
+        static void resolve (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, T &v) MANAPIHTTP_NOEXCEPT {
             if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
                 return;
             }
@@ -102,7 +114,7 @@ namespace manapi::async {
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        static void reject (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, std::exception_ptr e) {
+        static void reject (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, std::exception_ptr e) MANAPIHTTP_NOEXCEPT {
             if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
                 return;
             }
@@ -138,7 +150,6 @@ namespace manapi::async {
             }
         };
 
-
         template<typename Async1 = Async>
         requires(std::is_same_v<Async1, std::true_type>)
         promise(async_cb cb) {
@@ -168,32 +179,40 @@ namespace manapi::async {
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
         void await_suspend (std::coroutine_handle<T1> handle) {
-            if ((this->data->flags & PROMISE_FLAG_ASYNC)) {
-                async::run<void>(static_cast<async_cb *>(this->data->cb)->operator() ([data = this->data, handle] () mutable
+            if (this->data->flags & PROMISE_FLAG_ASYNC /* async */) {
+                async::run<void>(static_cast<async_cb *>(this->data->cb)->operator()([data = this->data, handle] () mutable
                     -> void { resolve((data), handle); },
-                [data = this->data, handle] (std::exception_ptr e) mutable
-                    -> void { reject((data), handle, std::move(e)); }), [data = this->data] (std::exception_ptr err) -> void {});
+                    [data = this->data, handle] (std::exception_ptr e) mutable
+                    -> void { reject((data), handle, std::move(e)); }));
             }
             else {
-                static_cast<sync_cb *>(this->data->cb)->operator() ([data = this->data, handle] () mutable
-                    -> void { resolve((data), handle); },
-                [data = this->data, handle] (std::exception_ptr e) mutable
-                    -> void { reject((data), handle, std::move(e)); });
+                try {
+                    static_cast<sync_cb *>(this->data->cb)->operator() ([data = this->data, handle] () mutable
+                        -> void { resolve(data, handle); },
+                        [data = this->data, handle] (std::exception_ptr e) mutable
+                        -> void { reject((data), handle, std::move(e)); });
+                }
+                catch (std::exception const &e) {
+                    manapi_log_error(e.what());
+                    reject(data, handle, std::current_exception());
+                }
             }
         }
     private:
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
+        static void call (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) MANAPIHTTP_NOEXCEPT {
+            MANAPIHTTP_MUST_ALLOC_START
             manapi::async::internal::ethreadpool_(manapi::async::current())->append_task([handle] ()
                 -> void {
                 handle.resume();
             });
+            MANAPIHTTP_MUST_ALLOC_END
         }
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        static void resolve (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) {
+        static void resolve (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle) MANAPIHTTP_NOEXCEPT {
             if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
                 return;
             }
@@ -203,7 +222,7 @@ namespace manapi::async {
 
         template <typename T1>
         requires(std::is_base_of_v<promise_base, T1>)
-        static void reject (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, std::exception_ptr e) {
+        static void reject (std::shared_ptr<data_t> data, std::coroutine_handle<T1> handle, std::exception_ptr e) MANAPIHTTP_NOEXCEPT {
             if ((data->flags & PROMISE_FLAG_EXECUTED) /* ready */) {
                 return;
             }

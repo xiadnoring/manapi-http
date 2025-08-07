@@ -32,7 +32,7 @@ namespace manapi {
 
         virtual void start() = 0;
 
-        virtual void stop() = 0;
+        virtual void stop() MANAPIHTTP_NOEXCEPT = 0;
 
         virtual void join () MANAPIHTTP_NOEXCEPT = 0;
 
@@ -61,7 +61,7 @@ namespace manapi {
 
         void for_all_threads (std::move_only_function<void(tasks_by_thread_t *)> cb);
 
-        void stop () override;
+        void stop () MANAPIHTTP_NOEXCEPT override;
 
         void start () override;
 
@@ -111,7 +111,7 @@ namespace manapi {
 
         void set_notify_cb (std::move_only_function<void()> ontask) MANAPIHTTP_NOEXCEPT;
 
-        void stop () override;
+        void stop () MANAPIHTTP_NOEXCEPT override;
 
         void start () override;
 

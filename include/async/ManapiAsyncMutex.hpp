@@ -6,10 +6,28 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "../ManapiBeforeDelete.hpp"
 #include "./ManapiAsyncContext.hpp"
 
 namespace manapi::async {
+    class mutex;
+
+    class mutex_locker {
+    public:
+        mutex_locker (mutex *mx);
+
+        mutex_locker (mutex_locker &&n) MANAPIHTTP_NOEXCEPT;
+
+        mutex_locker &operator= (mutex_locker &&) MANAPIHTTP_NOEXCEPT;
+
+        ~mutex_locker();
+
+        void call () MANAPIHTTP_NOEXCEPT;
+
+        void disable () MANAPIHTTP_NOEXCEPT;
+    private:
+        mutex *mx;
+    };
+
     class mutex {
     public:
         mutex ();
@@ -24,7 +42,7 @@ namespace manapi::async {
 
         void unlock () MANAPIHTTP_NOEXCEPT;
 
-        future<sbefore_delete> lock_guard ();
+        future<mutex_locker> lock_guard ();
 
         ~mutex ();
     private:

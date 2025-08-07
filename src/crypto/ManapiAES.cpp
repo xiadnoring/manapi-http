@@ -1,4 +1,6 @@
 #include "crypto/ManapiAES.hpp"
+
+#include "ManapiBeforeDelete.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "crypto/ManapiCryptoUtils.hpp"
 
@@ -109,9 +111,7 @@ manapi::error::status_or<std::string> manapi::crypto::aes_decrypt(std::string_vi
         }
 
         EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-        before_delete ctx_cleanup ([ctx] () -> void {
-            EVP_CIPHER_CTX_free(ctx);
-        });
+        std::unique_ptr<EVP_CIPHER_CTX, evp_cipher_deleter> ctx_cleanup (ctx);
 
         if (!EVP_DecryptInit_ex(ctx, algorithm_cb, nullptr, nullptr, nullptr))
             return error::status_invalid_argument("EVP_DecryptInit_ex() failed");

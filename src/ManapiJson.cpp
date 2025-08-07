@@ -12,14 +12,54 @@
 #include "ManapiJsonBuilder.hpp"
 #include "include/ManapiJsonMaskUtils.hpp"
 
-constexpr char JSON_TRUE[] = "true";
-constexpr char JSON_FALSE[] = "false";
-constexpr char JSON_NULL[] = "null";
+static constexpr std::string_view json_true_ = "true";
+static constexpr std::string_view json_false_ = "false";
+static constexpr std::string_view json_null_ = "null";
 
 #define RETHROW_MANAPIHTTP_JSON_ERROR(errnum, msg, ...) manapi::json_parse_exception (errnum, std::format(msg, __VA_ARGS__));
 #define THROW_MANAPIHTTP_JSON_MISSING_FUNCTION throw RETHROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_UNSUPPORTED_TYPE, "json object with type {}({}) could not use func: {}", \
     json_type_to_str(this->type), static_cast <int> (this->type), __FUNCTION__)
 #define THROW_MANAPIHTTP_JSON_ERROR(errnum, msg, ...) throw RETHROW_MANAPIHTTP_JSON_ERROR(errnum, msg, __VA_ARGS__)
+
+static void delete_value_static(short type, void *src) MANAPIHTTP_NOEXCEPT {
+    switch (type) {
+        case manapi::json::type_null:
+            break;
+        case manapi::json::type_number:
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s", "json(bug)","type_number is a complex type");
+        assert(false && "type_number is a complex type");
+        break;
+        case manapi::json::type_array:
+            delete static_cast<manapi::json::ARRAY  *> (src);
+        break;
+        case manapi::json::type_object:
+            delete static_cast<manapi::json::OBJECT *> (src);
+        break;
+        case manapi::json::type_boolean:
+            delete static_cast<manapi::json::BOOLEAN *> (src);
+        break;
+        case manapi::json::type_integer:
+            delete static_cast<manapi::json::INTEGER *> (src);
+        break;
+        case manapi::json::type_string:
+            delete static_cast<manapi::json::STRING *> (src);
+        break;
+        case manapi::json::type_decimal:
+            delete static_cast<manapi::json::DECIMAL *> (src);
+        break;
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+        case manapi::json::type_bigint:
+            delete static_cast<manapi::json::BIGINT *> (src);
+        break;
+#endif
+        case manapi::json::type_pair:
+            delete static_cast<manapi::json::PAIR *> (src);
+        break;
+        default:
+            manapi_log_error("%s: %s(%d)", "json(bug)", "invalid data type to delete", static_cast<int>(type));
+        assert(false && "invalid data type to delete");
+    }
+}
 
 manapi::json::json() = default;
 
@@ -262,10 +302,13 @@ void json_dump_ (std::string &res, const manapi::json *n, int spaces, int first_
         break;
 #endif
         case manapi::json::type_boolean:
-            res += n->as_bool() ? JSON_TRUE : JSON_FALSE;
+            if (n->as_bool())
+                res.append(json_true_);
+            else
+                res.append(json_false_);
         break;
         case manapi::json::type_null:
-            res += JSON_NULL;
+            res.append(json_null_);
         break;
         case manapi::json::type_object: {
             const bool spaces_enabled  = spaces > 0;
@@ -362,7 +405,7 @@ void manapi::json::error_unexpected_end(size_t i) {
     THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_UNEXPECTED_END, "Unexpected end of JSON input at {}", i + 1);
 }
 
-void manapi::json::delete_value() {
+void manapi::json::delete_value() MANAPIHTTP_NOEXCEPT {
     delete_value_static(
         std::exchange(this->type, types::type_null), std::exchange(this->src, nullptr));
 }
@@ -775,7 +818,7 @@ void manapi::json::pop_back() {
     as_array().pop_back();
 }
 
-int manapi::json::data_type() const {
+int manapi::json::data_type() const MANAPIHTTP_NOEXCEPT {
     return this->type;
 }
 
@@ -950,41 +993,41 @@ void manapi::json::erase(const std::string &key) {
     this->as_object().erase(key);
 }
 
-bool manapi::json::is_object() const {
+bool manapi::json::is_object() const MANAPIHTTP_NOEXCEPT {
     return this->type == type_object;
 }
 
-bool manapi::json::is_array() const {
+bool manapi::json::is_array() const MANAPIHTTP_NOEXCEPT {
     return this->type == type_array;
 }
 
-bool manapi::json::is_string() const {
+bool manapi::json::is_string() const MANAPIHTTP_NOEXCEPT {
     return this->type == type_string;
 }
 
-bool manapi::json::is_integer() const {
+bool manapi::json::is_integer() const MANAPIHTTP_NOEXCEPT {
     return this->type == type_integer;
 }
 
-bool manapi::json::is_null() const {
+bool manapi::json::is_null() const MANAPIHTTP_NOEXCEPT {
     return this->type == type_null;
 }
 
-bool manapi::json::is_decimal() const {
+bool manapi::json::is_decimal() const MANAPIHTTP_NOEXCEPT {
     return this->type == type_decimal;
 }
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-bool manapi::json::is_bigint() const {
+bool manapi::json::is_bigint() const MANAPIHTTP_NOEXCEPT {
     return this->type == type_bigint;
 }
 #endif
 
-bool manapi::json::is_bool() const {
+bool manapi::json::is_bool() const MANAPIHTTP_NOEXCEPT {
     return this->type == type_boolean;
 }
 
-bool manapi::json::is_pair() const {
+bool manapi::json::is_pair() const MANAPIHTTP_NOEXCEPT {
     return this->type == type_pair;
 }
 
@@ -1141,6 +1184,12 @@ manapi::json::STRING manapi::json::as_string_cast() const {
 #endif
     if (this->type == type_decimal) {
         return std::to_string(as_decimal());
+    }
+    if (this->type == type_null) {
+        return "0";
+    }
+    if (this->type == type_boolean) {
+        return std::to_string(static_cast<int>(this->as_bool()));
     }
     THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
 }
@@ -1585,44 +1634,6 @@ manapi::json manapi::json::operator-(const BIGINT &num) const {
     return std::move(this->operator+(-num));
 }
 #endif
-
-void manapi::json::delete_value_static(short type, void *src) {
-    switch (type) {
-        case type_null:
-            break;
-        case type_number:
-            THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "type_number is a complex type");
-            break;
-        case type_array:
-            delete static_cast<ARRAY  *> (src);
-            break;
-        case type_object:
-            delete static_cast<OBJECT *> (src);
-            break;
-        case type_boolean:
-            delete static_cast<BOOLEAN *> (src);
-            break;
-        case type_integer:
-            delete static_cast<INTEGER *> (src);
-            break;
-        case type_string:
-            delete static_cast<STRING *> (src);
-            break;
-        case type_decimal:
-            delete static_cast<DECIMAL *> (src);
-            break;
-#ifdef MANAPIHTTP_BIGINT_SUPPORT
-        case type_bigint:
-            delete static_cast<BIGINT *> (src);
-            break;
-#endif
-        case type_pair:
-            delete static_cast<PAIR *> (src);
-            break;
-        default:
-            THROW_MANAPIHTTP_JSON_ERROR(ERR_JSON_BUG, "JSON BUG: Invalid type of data to delete: {}", static_cast<int> (type_pair));
-    }
-}
 
 
 // Exceptions

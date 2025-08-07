@@ -44,47 +44,63 @@ manapi::future<std::shared_ptr<manapi::multithread_storage::worker_t>> manapi::m
                 if (err)
                     return;
 
-                this->call_sync_callback_(w.get());
+                auto res = this->call_sync_callback_(w.get());
+                if (!res) {
+                    manapi_log_error("%s: %s failed due to %.*s", "multhithread storage", "user callback",
+                        res.msg().size(), res.msg().data());
+                }
             });
-    });
+    }).unwrap();
 
     auto lk = co_await this->data_->mx.lock_guard();
     this->data_->workers.insert(w);
-    this->call_sync_callback_(w.get());
+    auto res = this->call_sync_callback_(w.get());
+    if (!res) {
+        manapi_log_error("%s: %s failed due to %.*s", "multhithread storage", "user callback",
+            res.msg().size(), res.msg().data());
+    }
     co_return std::move(w);
 }
 
-manapi::future<> manapi::multithread_storage::edit(const std::shared_ptr<worker_t> &m, std::move_only_function<bool(manapi::json &data)> cb) {
-    if (!m)
-        co_return;
+manapi::future<manapi::error::status> manapi::multithread_storage::edit(const std::shared_ptr<worker_t> &m, std::move_only_function<bool(manapi::json &data)> cb) {
+    manapi::error::status status = error::status_ok();
 
-    auto lk = co_await this->data_->mx.lock_guard();
-    bool notify = false;
-    try {
-        notify = cb (*this->data_->data);
+    if (m) {
+        auto lk = co_await this->data_->mx.lock_guard();
+        bool notify = false;
+        try {
+            notify = cb (*this->data_->data);
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s due to %s", "mutlithread storage: edit cb failed", e.what());
+            status = manapi::error::status_internal("mutlithread storage: edit cb failed");
+        }
+
+        if (notify)
+            this->notify_(m);
     }
-    catch (std::exception const &e) {
-        manapi_log_error("mutlithread storage: edit cb failed due to %s", e.what());
-    }
-    if (notify)
-        this->notify_(m);
+
+    co_return std::move(status);
 }
 
-manapi::future<> manapi::multithread_storage::edit_async(const std::shared_ptr<worker_t> &m, std::move_only_function<manapi::future<bool>(manapi::json &data)> cb) {
-    if (!m)
-        co_return;
-
-
-    auto lk = co_await this->data_->mx.lock_guard();
-    bool notify = false;
-    try {
-        notify = co_await cb (*this->data_->data);
+manapi::future<manapi::error::status> manapi::multithread_storage::edit_async(const std::shared_ptr<worker_t> &m, std::move_only_function<manapi::future<bool>(manapi::json &data)> cb) {
+    auto status = manapi::error::status_ok();
+    if (m) {
+        auto lk = co_await this->data_->mx.lock_guard();
+        bool notify = false;
+        try {
+            notify = co_await cb (*this->data_->data);
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s due to %s", "mutlithread storage: edit cb failed", e.what());
+            status = manapi::error::status_internal("mutlithread storage: edit cb failed");
+        }
+        if (notify) {
+            this->notify_(m);
+        }
     }
-    catch (std::exception const &e) {
-        manapi_log_error("mutlithread storage: edit cb failed due to %s", e.what());
-    }
-    if (notify)
-        this->notify_(m);
+
+    co_return std::move(status);
 }
 
 manapi::future<> manapi::multithread_storage::unsubscribe(const std::shared_ptr<worker_t> &m) {
@@ -101,13 +117,17 @@ manapi::future<manapi::sbefore_delete> manapi::multithread_storage::write_lock()
     return this->data_->mx.lock_guard();
 }
 
-void * manapi::multithread_storage::pointer() {
+void * manapi::multithread_storage::pointer() MANAPIHTTP_NOEXCEPT {
     return this->data_->src.get();
 }
 
-void manapi::multithread_storage::notify_(const std::shared_ptr<worker_t> &m) {
+void manapi::multithread_storage::notify_(const std::shared_ptr<worker_t> &m) MANAPIHTTP_NOEXCEPT {
+    if (!this->data_)
+        return;
+
     try {
-        m->cb(*this->data_->data);
+        if (m->cb)
+            m->cb(*this->data_->data);
     }
     catch (std::exception const &e) {
         manapi_log_error("multithread storage:Notify failed");
@@ -122,21 +142,23 @@ void manapi::multithread_storage::notify_(const std::shared_ptr<worker_t> &m) {
     }
 }
 
-void manapi::multithread_storage::unsubscribe_(const std::shared_ptr<worker_t> &w) {
+void manapi::multithread_storage::unsubscribe_(const std::shared_ptr<worker_t> &w) MANAPIHTTP_NOEXCEPT {
     this->data_->workers.erase(w);
 }
 
-void manapi::multithread_storage::call_sync_callback_(worker_t *w) {
+manapi::error::status manapi::multithread_storage::call_sync_callback_(worker_t *w) MANAPIHTTP_NOEXCEPT {
     try {
-        if (w)
+        if (w && w->cb)
             w->cb(*this->data_->data);
+        return error::status_ok();
     }
     catch (std::exception const &e) {
-        manapi_log_error("mutlithread storage: subscribe cb failed due to %s", e.what());
+        manapi_log_error("%s due to %s", "mutlithread storage: subscribe cb failed", e.what());
+        return error::status_internal("mutlithread storage: subscribe cb failed");
     }
 }
 
-void manapi::multithread_storage::call_callback_(worker_t *w) {
+void manapi::multithread_storage::call_callback_(worker_t *w) MANAPIHTTP_NOEXCEPT {
     try {
         if (w)
             w->w->send();

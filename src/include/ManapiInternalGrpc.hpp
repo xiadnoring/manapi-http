@@ -36,7 +36,7 @@ namespace manapi::net::wgrpc {
 
         void shutdown (bool notify = true) noexcept;
 
-        void set (ev::shared_tcp connection);
+        manapi::error::status set (ev::shared_tcp connection);
 
         const ev::shared_tcp &conn () const;
     private:

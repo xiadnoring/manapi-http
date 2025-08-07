@@ -127,7 +127,7 @@ int main () {
     try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS").unwrap()); }
     catch (...) {  }
 
-    auto ctx = manapi::async::context::create(loops);
+    auto ctx = manapi::async::context::create(loops).unwrap();
     ctx->eventloop()->setup_handle_interrupt();
 
     grpc::EnableDefaultHealthCheckService(true);
@@ -224,7 +224,8 @@ int main () {
             manapi::init_tools::ev_library_init();
             manapi::async::current()->memory_fabric().clear();
             resp.compress_enabled(false);
-            co_return resp.text(std::to_string(a.load())).unwrap();
+            co_return resp.text(std::format("requests: {}; active: {}", a.load(),
+                resp.connection_data()->worker->worker_data()->as<manapi::net::http::server_ctx::worker_data_t>()->count.load())).unwrap();
         });
 
         init_http_server (router, folder);
@@ -237,7 +238,7 @@ int main () {
         });
 
         bind();
-    });
+    }).unwrap();
 
     manapi::clear_tools::curl_library_clear();
     manapi::clear_tools::ev_library_clear();

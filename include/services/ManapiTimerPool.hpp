@@ -26,11 +26,13 @@ namespace manapi {
 
         struct data_t;
 
+        timerpool();
+
         /**
          * timerpool based on libuv timer event
          * @param events event loop
          */
-        timerpool(std::shared_ptr<event_loop> events);
+        static manapi::error::status_or<timerpool> create (std::shared_ptr<event_loop> events) MANAPIHTTP_NOEXCEPT;
 
         /* deconstructor */
         ~timerpool();
@@ -100,25 +102,25 @@ namespace manapi {
          * @param data timer data
          * @return Ok on success, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status again_timer (std::shared_ptr<manapi::timer::timer_data_t> data);
+        manapi::error::status again_timer (std::shared_ptr<manapi::timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT;
 
-        void start ();
+        manapi::sys_error::status start () MANAPIHTTP_NOEXCEPT;
 
-        void stop ();
+        void stop () MANAPIHTTP_NOEXCEPT;
 
-        void run_once ();
+        void run_once () MANAPIHTTP_NOEXCEPT;
 
-        void clear();
+        void clear() MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] std::shared_ptr<threadpool> taskpool () const;
+        [[nodiscard]] std::shared_ptr<threadpool> taskpool () const MANAPIHTTP_NOEXCEPT;
     protected:
-        static void stop_ (std::shared_ptr<data_t> data, bool evloop);
+        static void stop_ (std::shared_ptr<data_t> data, bool evloop) MANAPIHTTP_NOEXCEPT;
         //
         // std::optional<manapi::timer> _cb_event (void *data);
 
         static void erase_task_ (const std::shared_ptr<data_t> &data_,sorted_storage::iterator sorted_task) MANAPIHTTP_NOEXCEPT;
 
-        static void start_ (const std::shared_ptr<data_t> &data);
+        static void start_ (const std::shared_ptr<data_t> &data) MANAPIHTTP_NOEXCEPT;
 
         static void flush_stack_free (const std::shared_ptr<data_t> &data_);
 

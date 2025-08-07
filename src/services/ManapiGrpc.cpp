@@ -57,20 +57,31 @@ void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_eve
 
         if (s) {
             if (conn) {
+                MANAPIHTTP_MUST_ALLOC_START
                 ev->stop_callback (conn, [cb = std::move(on_shutdown)] (const manapi::ev::shared_tcp &w) mutable
                     -> void {
                     if (cb) {
                         cb (absl::OkStatus());
                     }
                 });
+                MANAPIHTTP_MUST_ALLOC_END
                 ev->stop_watcher(std::move(conn));
             }
             return;
         }
-
-        ev->custom_callback([conn = std::move(conn), ev, cb = std::move(on_shutdown)] (manapi::event_loop *ev_) mutable -> void {
+        std::move_only_function<void(manapi::event_loop *ev)> cb;
+        MANAPIHTTP_MUST_ALLOC_START
+        cb = [conn = std::move(conn), ev, cb = std::move(on_shutdown)] (manapi::event_loop *ev_) mutable -> void {
             unbind_net_listener(std::move(conn), std::move(ev), std::move(cb));
-        });
+        };
+        MANAPIHTTP_MUST_ALLOC_END
+        MANAPIHTTP_MUST_ALLOC_START
+        auto res = ev->custom_callback(&cb);
+        if (!res) {
+            res.log();
+            throw std::bad_alloc{};
+        }
+        MANAPIHTTP_MUST_ALLOC_END
     }
     catch (std::exception const &e) {
         manapi_log_error("grpc:Close tcp listener failed due to %s", e.what());
@@ -109,7 +120,7 @@ bool manapi::net::wgrpc::event_engine_wrapper::Cancel(TaskHandle handle) {
     }
 
     this->ev->custom_callback([this, handle] (event_loop *ev)
-        -> void { this->Cancel(handle); });
+        -> void { this->Cancel(handle); }).unwrap();
 
     return true;
 }
@@ -170,18 +181,36 @@ void manapi::net::wgrpc::net_listener::shutdown(bool notify) noexcept {
             unbind_net_listener(std::move(this->connection), this->ev, notify ? std::move(this->on_shutdown) : nullptr);
         }
         else {
-            this->ev->custom_callback([this, ev = this->ev, notify, conn = std::move(this->connection), cb = std::move(on_shutdown)] (event_loop *ev_) mutable
+            std::move_only_function<void(event_loop *ev)> cb;
+            MANAPIHTTP_MUST_ALLOC_START
+            cb =[this, ev = this->ev, notify, conn = std::move(this->connection), cb = std::move(on_shutdown)] (event_loop *ev_) mutable
                 -> void {
                 wgrpc_storage.wgrpc_tcp_listeners.erase(this);
                 unbind_net_listener(conn, ev, notify ? std::move(cb) : nullptr);
-            });
+            };
+            MANAPIHTTP_MUST_ALLOC_END
+            MANAPIHTTP_MUST_ALLOC_START
+            auto res = this->ev->custom_callback(&cb);
+            if (!res) {
+                res.log();
+                throw std::bad_alloc{};
+            }
+            MANAPIHTTP_MUST_ALLOC_END
         }
     }
 }
 
-void manapi::net::wgrpc::net_listener::set(ev::shared_tcp connection) {
-    assert(wgrpc_storage.wgrpc_tcp_listeners.insert(this).second);
+manapi::error::status manapi::net::wgrpc::net_listener::set(ev::shared_tcp connection) {
+    try {
+        assert(wgrpc_storage.wgrpc_tcp_listeners.insert(this).second);
+    }
+    catch (std::exception const &) {
+        manapi::async::current()->eventloop()->stop_watcher(std::move(connection));
+        return error::status_resource_exhausted();
+    }
     this->connection = std::move(connection);
+    return error::status_ok();
+
 }
 
 const manapi::ev::shared_tcp & manapi::net::wgrpc::net_listener::conn() const {
@@ -364,9 +393,16 @@ void unbind_net_endpoint (manapi::ev::shared_tcp conn, manapi::async::shared_eve
             return;
         }
 
-        ev->custom_callback([conn = std::move(conn), ev] (manapi::event_loop *ev_) mutable -> void {
+        MANAPIHTTP_MUST_ALLOC_START
+        std::move_only_function<void(manapi::event_loop *ev)> cb = [conn, ev] (manapi::event_loop *ev_) mutable -> void {
             unbind_net_endpoint(std::move(conn), std::move(ev));
-        });
+        };
+
+        auto res = ev->custom_callback(&cb);
+
+        if (!res)
+            throw std::bad_alloc{};
+        MANAPIHTTP_MUST_ALLOC_END
     }
     catch (std::exception const &e) {
         manapi_log_error("grpc: close conn failed due to %s", e.what());
@@ -494,7 +530,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
     assert(data && timer);
 
-    auto [connect, conn] = manapi::async::current()->eventloop()->connect_tcp (addr.address(),
+    auto wres = manapi::async::current()->eventloop()->connect_tcp (addr.address(),
         [timer = timer.get(), on_connect = std::move(on_connect), memory_allocator = std::move(memory_allocator)]
         (const std::shared_ptr<manapi::ev::tcp> &w, int status) mutable
         -> void {
@@ -538,6 +574,8 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
         },
         nullptr, nullptr);
 
+    auto [connect, conn] = wres.unwrap();
+
     auto res = manapi::async::current()->timerpool()->append_timer_sync(
         std::max(1UL, static_cast<std::size_t>(timeout.count() / 1000000)), [connect] (manapi::timer t)
         -> void {
@@ -556,7 +594,14 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
     auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
 
-    assert(wgrpc_storage.wgrpc_connect_exists.insert({reinterpret_cast<std::uintptr_t>(data.get()), time}).second);
+    try {
+        assert(wgrpc_storage.wgrpc_connect_exists.insert({reinterpret_cast<std::uintptr_t>(data.get()), time}).second);
+    }
+    catch (std::exception const &) {
+        auto &ev = manapi::async::current()->eventloop();
+        ev->stop_watcher(std::move(connect));
+        ev->stop_watcher(std::move(conn));
+    }
 
     handle.keys[0] = time;
     handle.keys[1] = reinterpret_cast<std::intptr_t>(data.release());
@@ -621,26 +666,44 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
     auto b = std::make_unique<net_listener>(std::move(on_shutdown));
 
     auto local_addr = std::make_shared<grpc_event_engine::experimental::EventEngine::ResolvedAddress> ();
-    b->set(manapi::async::current()->eventloop()->create_watcher_tcp_accept(
+    auto wres = manapi::async::current()->eventloop()->create_watcher_tcp_accept(
         [local_addr, on_accept = std::move(on_accept), memory_allocator_factory = std::move(memory_allocator_factory)]
         (const std::shared_ptr<manapi::ev::tcp> & w, int status) mutable
         -> void {
-        auto conn = manapi::async::current()->eventloop()->create_watcher_tcp_connection(nullptr, nullptr);
+        auto wres = manapi::async::current()->eventloop()->create_watcher_tcp_connection(nullptr, nullptr);
 
-        if (conn->accept(w.get())) {
-            conn->unbind();
+        if (!wres) {
             return;
         }
 
-        sockaddr_storage sock_addr{};
-        int sock_len = sizeof (sock_addr);
-        w->getpeername(reinterpret_cast<sockaddr*>(&sock_addr), &sock_len);
-        auto peer = std::make_unique<grpc_event_engine::experimental::EventEngine::ResolvedAddress>(reinterpret_cast<sockaddr*>(&sock_addr), sock_len);
+        auto conn = wres.unwrap();
 
-        auto endpoint = std::make_unique<net_endpoint>(std::move(conn), std::move(peer), local_addr, memory_allocator_factory->CreateMemoryAllocator("tcp-endpoint"));
-        on_accept (std::move(endpoint), memory_allocator_factory->CreateMemoryAllocator("tcp-handler"));
-    }));
+        if (conn->accept(w.get())) {
+            manapi::async::current()->eventloop()->stop_watcher(std::move(conn));
+            return;
+        }
 
+        try {
+            sockaddr_storage sock_addr{};
+            int sock_len = sizeof (sock_addr);
+            w->getpeername(reinterpret_cast<sockaddr*>(&sock_addr), &sock_len);
+
+            auto peer = std::make_unique<grpc_event_engine::experimental::EventEngine::ResolvedAddress>(reinterpret_cast<sockaddr*>(&sock_addr), sock_len);
+
+            auto endpoint = std::make_unique<net_endpoint>(std::move(conn), std::move(peer), local_addr, memory_allocator_factory->CreateMemoryAllocator("tcp-endpoint"));
+            on_accept (std::move(endpoint), memory_allocator_factory->CreateMemoryAllocator("tcp-handler"));
+        }
+        catch (std::exception const &e) {
+            manapi_log_error(e.what());
+            manapi::async::current()->eventloop()->stop_watcher(std::move(conn));
+        }
+    });
+
+    if (!wres) {
+        /*error*/
+    }
+
+    b->set(wres.unwrap()).unwrap();
 
     sockaddr_storage sock_addr{};
     int sock_len = sizeof (sock_addr);
@@ -814,9 +877,7 @@ err:
     if (!res.ok())
         co_return std::move(res);
 
-    this->setup_user_config_();
-
-    co_return error::status_ok();
+    co_return this->setup_user_config_();
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::config_object(manapi::json config) {
@@ -850,92 +911,97 @@ err:
     if (!res.ok())
         co_return std::move(res);
 
-    this->setup_user_config_();
-
-    co_return error::status_ok();
+    co_return this->setup_user_config_();
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::move_only_function<manapi::error::status(grpc::ServerBuilder &b)> cb) {
     // if (this->data_->ctx.ctx() != manapi::async::current())
     //     co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
+    try {
+        if (this->data_->finishid) {
+            co_return error::status_already_exists("grpc:Server is already running");
+        }
 
-    if (this->data_->finishid) {
-        co_return error::status_already_exists("grpc:Server is already running");
-    }
+        using ci = manapi::internal::config_interface;
 
-    using ci = manapi::internal::config_interface;
+        error::status res;
+        if (!this->data_->worker) {
+            res = co_await this->subscribe_();
+            if (!res.ok())
+                co_return std::move(res);
 
-    error::status res;
-    if (!this->data_->worker) {
-        res = co_await this->subscribe_();
-        if (!res.ok())
-            co_return std::move(res);
+            res = this->setup_user_config_();
+            if (!res)
+                co_return std::move(res);
+        }
 
-        this->setup_user_config_();
-    }
+        auto grpc_ = &this->data_->data["grpc"];
+        auto const ip = ci::get_config_param<std::string>(*grpc_, "address", "localhost");
+        auto const port = ci::get_config_param<std::string>(*grpc_, "port", "8080");
+        auto const ssl_it = grpc_->find("ssl");
 
-    auto grpc_ = &this->data_->data["grpc"];
-    auto const ip = ci::get_config_param<std::string>(*grpc_, "address", "localhost");
-    auto const port = ci::get_config_param<std::string>(*grpc_, "port", "8080");
-    auto const ssl_it = grpc_->find("ssl");
+        std::string server_address = absl::StrFormat("%s:%s", ip.data(), port.data());
 
-    std::string server_address = absl::StrFormat("%s:%s", ip.data(), port.data());
+        grpc::ServerBuilder builder;
+        //auto cq = builder.AddCompletionQueue();
 
-    grpc::ServerBuilder builder;
-    //auto cq = builder.AddCompletionQueue();
+        std::shared_ptr<grpc::ServerCredentials> creds;
+        if (ssl_it == grpc_->end<json::OBJECT>() || !ssl_it->second.is_object())
+            creds = grpc::InsecureServerCredentials();
+        else {
+            auto const cert = ci::get_config_param<std::string>(ssl_it->second, "cert", {});
+            auto const key = ci::get_config_param<std::string>(ssl_it->second, "key", {});
+            auto const peer_verify = ci::get_config_param<bool>(ssl_it->second, "verify_peer", true);
 
-    std::shared_ptr<grpc::ServerCredentials> creds;
-    if (ssl_it == grpc_->end<json::OBJECT>() || !ssl_it->second.is_object())
-        creds = grpc::InsecureServerCredentials();
-    else {
-        auto const cert = ci::get_config_param<std::string>(ssl_it->second, "cert", {});
-        auto const key = ci::get_config_param<std::string>(ssl_it->second, "key", {});
-        auto const peer_verify = ci::get_config_param<bool>(ssl_it->second, "verify_peer", true);
+            try {
+                grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
+                auto read_res = co_await manapi::filesystem::async_read(cert);
+                if (!read_res.ok())
+                    co_return read_res.err();
+                pkcp.cert_chain = read_res.unwrap();
+                read_res = co_await manapi::filesystem::async_read(key);
+                if (!read_res.ok())
+                    co_return read_res.err();
+                pkcp.private_key = read_res.unwrap();
+                grpc::SslServerCredentialsOptions ssl_opts(peer_verify ? GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY : GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE);
+                ssl_opts.pem_root_certs="";
+                ssl_opts.pem_key_cert_pairs.push_back(pkcp);
+                creds = grpc::SslServerCredentials(ssl_opts);
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("%s due to %s", "wgrpc:Ssl certs set failed", e.what());
+                co_return error::status_internal("wgrpc:Ssl certs set failed");
+            }
+        }
+
+        if (cb)
+            cb(builder);
+
+        builder.AddListeningPort(server_address, std::move(creds));
+        this->data_->server = builder.BuildAndStart();
 
         try {
-            grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
-            auto read_res = co_await manapi::filesystem::async_read(cert);
-            if (!read_res.ok())
-                co_return read_res.err();
-            pkcp.cert_chain = read_res.unwrap();
-            read_res = co_await manapi::filesystem::async_read(key);
-            if (!read_res.ok())
-                co_return read_res.err();
-            pkcp.private_key = read_res.unwrap();
-            grpc::SslServerCredentialsOptions ssl_opts(peer_verify ? GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY : GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE);
-            ssl_opts.pem_root_certs="";
-            ssl_opts.pem_key_cert_pairs.push_back(pkcp);
-            creds = grpc::SslServerCredentials(ssl_opts);
+            this->data_->finishid = manapi::async::current()->eventloop()->subscribe_finish([data = this->data_] () -> manapi::future<> {
+                //wgrpc_shutdown();
+                co_await data->ctx.storage().unsubscribe(std::move(data->worker));
+                co_await server::stop_(data);
+                manapi_log_trace("grpc:Shutdown() finished");
+                co_return;
+            });
         }
         catch (std::exception const &e) {
-            manapi_log_error("%s due to %s", "wgrpc:Ssl certs set failed", e.what());
-            co_return error::status_internal("wgrpc:Ssl certs set failed");
+            manapi_log_error("%s due to %s", "wgrpc:Failed to subscribe shutdown service", e.what());
         }
-    }
 
-    if (cb)
-        cb(builder);
+        manapi_log_trace("TCP PORT USED: %.*s. %.*s:%.*s (grpc)", port.size(), port.data(),
+            ip.size(), ip.data(), port.size(), port.data());
 
-    builder.AddListeningPort(server_address, std::move(creds));
-    this->data_->server = builder.BuildAndStart();
-
-    try {
-        this->data_->finishid = manapi::async::current()->eventloop()->subscribe_finish([data = this->data_] () -> manapi::future<> {
-            //wgrpc_shutdown();
-            co_await data->ctx.storage().unsubscribe(std::move(data->worker));
-            co_await server::stop_(data);
-            manapi_log_trace("grpc:Shutdown() finished");
-            co_return;
-        });
+        co_return error::status_ok();
     }
     catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "wgrpc:Failed to subscribe shutdown service", e.what());
+        manapi_log_error("%s due to %s", "grpc:Start failed", e.what());
+        co_return error::status_internal("grpc:Start failed");
     }
-
-    manapi_log_trace("TCP PORT USED: %.*s. %.*s:%.*s (grpc)", port.size(), port.data(),
-        ip.size(), ip.data(), port.size(), port.data());
-
-    co_return error::status_ok();
 }
 
 manapi::error::status manapi::net::wgrpc::server::stop() {
@@ -979,17 +1045,29 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::subscribe_() {
     co_return error::status_internal("wgrpc:Worker subscribe failed");
 }
 
-void manapi::net::wgrpc::server::setup_user_config_() {
-    this->data_->config = std::make_shared<wgrpc::config>(this->data_->data["grpc"]);
+manapi::error::status manapi::net::wgrpc::server::setup_user_config_() {
+    try {
+        this->data_->config = std::make_shared<wgrpc::config>(this->data_->data["grpc"]);
+        return error::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "grpc:setup_user_config failed", e.what());
+        return error::status_internal("grpc:setup_user_config failed");
+    }
 }
 
 manapi::error::status manapi::net::wgrpc::server::setup_config_(manapi::json data, manapi::json &n) {
-    if (!data.is_object())
-        return error::status_invalid_argument("wgrpc:Grpc config isn't object");
+    try {
+        if (!data.is_object())
+            return error::status_invalid_argument("wgrpc:Grpc config isn't object");
 
-    n["grpc"] = std::move(data);
+        n["grpc"] = std::move(data);
 
-    return error::status_ok();
+        return error::status_ok();
+    }
+    catch (std::exception const &) {
+        return error::status_resource_exhausted();
+    }
 }
 
 

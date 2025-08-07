@@ -75,7 +75,7 @@ manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *
                             return;
                         }
                         resolve(manapi::error::status_ok());
-                });
+                }).unwrap();
                 if (cancellation.contains_cancel_callback()) {
                     cancellation.cancel_callback([w, resolve = std::move(resolve)] () mutable
                         -> void {

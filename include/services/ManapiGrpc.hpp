@@ -51,7 +51,7 @@ namespace manapi::net::wgrpc {
 
         manapi::future<manapi::error::status> subscribe_ ();
 
-        void setup_user_config_ ();
+        manapi::error::status setup_user_config_ ();
 
         error::status setup_config_ (manapi::json data, manapi::json &n);
 

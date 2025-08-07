@@ -32,17 +32,17 @@ namespace manapi {
         /**
          * Call the callback and remove it
          */
-        void call ();
+        void call () MANAPIHTTP_NOEXCEPT;
 
         /**
          * Disable the callback before destruction
          */
-        void disable ();
+        void disable () MANAPIHTTP_NOEXCEPT;
 
         /**
          * Enable the callback before destruction
          */
-        void enable ();
+        void enable () MANAPIHTTP_NOEXCEPT;
     private:
         /**
          * auto call state
@@ -71,7 +71,7 @@ namespace manapi {
         /**
          * Call the callback and remove it
          */
-        void call ();
+        void call () MANAPIHTTP_NOEXCEPT;
     private:
         std::move_only_function <void()> f;
     };

@@ -50,7 +50,7 @@ namespace manapi::async {
          * @param callback Callback that will be called while canceling
          * @note It must be called only in @code event loop thread@endcode
          */
-        void cancel_callback (std::move_only_function<void()> callback);
+        void cancel_callback (std::move_only_function<void()> callback) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set an other cancellation that will be cancelled while canceling

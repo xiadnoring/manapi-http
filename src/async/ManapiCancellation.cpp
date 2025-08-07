@@ -14,7 +14,7 @@ struct manapi::async::cancellation_action::data_t {
     int status_;
     size_t timeout_; /* ms */
     manapi::timer timeout_struct_;
-    std::unique_ptr<std::move_only_function<void()>> cancel_sync_callback_;
+    std::move_only_function<void()> cancel_sync_callback_;
     std::unique_ptr<manapi::chain<cancellation_action>> unites;
     manapi::chain<cancellation_action>::iterator it;
     cancellation_action *parent;
@@ -99,9 +99,9 @@ void manapi::async::cancellation_action::reset() {
             nullptr, nullptr, nullptr, nullptr);
 }
 
-void manapi::async::cancellation_action::cancel_callback (std::move_only_function<void()> callback) {
+void manapi::async::cancellation_action::cancel_callback (std::move_only_function<void()> callback) MANAPIHTTP_NOEXCEPT {
     if (this->data) {
-        this->data->cancel_sync_callback_ = std::make_unique<decltype(callback)>(std::move(callback));
+        this->data->cancel_sync_callback_ = (std::move(callback));
     }
 }
 
@@ -229,8 +229,8 @@ void manapi::async::cancellation_action::cancel_(std::shared_ptr<data_t> data) M
     cancellation_action::stop_timeout_(data);
 
     if (data->cancel_sync_callback_) {
-        auto cb = std::move(*data->cancel_sync_callback_);
-        data->cancel_sync_callback_.reset();
+        auto cb = std::move(data->cancel_sync_callback_);
+        data->cancel_sync_callback_=nullptr;
         if (!(data->status_ & FLAG_DISABLED)) {
             std::move_only_function<void()> callback;
 
