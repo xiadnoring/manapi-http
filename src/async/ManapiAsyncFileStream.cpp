@@ -9,7 +9,7 @@ manapi::filesystem::fstream::fstream() : data() {
 
 }
 
-manapi::error::status_or<manapi::filesystem::fstream> manapi::filesystem::fstream::create(std::string path, async::cancellation_action cancellation) {
+manapi::error::status_or<manapi::filesystem::fstream> manapi::filesystem::fstream::create(std::string path, async::cancellation_action cancellation) MANAPIHTTP_NOEXCEPT {
     try {
         fstream f;
         f.data = std::make_shared<fstream_data_t_>(

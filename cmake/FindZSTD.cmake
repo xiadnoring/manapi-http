@@ -34,12 +34,12 @@ endif()
 # First, find via if specified ZTD_ROOT
 if(ZSTD_ROOT)
     message(STATUS "Using ZSTD_ROOT: ${ZSTD_ROOT}")
-    find_library(ZSTD_LIB
+    find_library(ZSTD_LIBRARIES
             NAMES ${ZSTD_LIB_NAMES}
             PATHS ${ZSTD_ROOT}
             PATH_SUFFIXES ${LIB_PATH_SUFFIXES}
             NO_DEFAULT_PATH)
-    find_path(ZSTD_INCLUDE_DIR
+    find_path(ZSTD_INCLUDE_DIRS
             NAMES zstd.h
             PATHS ${ZSTD_ROOT}
             NO_DEFAULT_PATH
@@ -48,22 +48,22 @@ else()
     # Second, find via pkg_check_modules
     pkg_check_modules(ZSTD_PC libzstd)
     if(ZSTD_PC_FOUND)
-        set(ZSTD_INCLUDE_DIR "${ZSTD_PC_INCLUDEDIR}")
+        set(ZSTD_INCLUDE_DIRS "${ZSTD_PC_INCLUDEDIR}")
         list(APPEND ZSTD_PC_LIBRARY_DIRS "${ZSTD_PC_LIBDIR}")
-        find_library(ZSTD_LIB zstd
+        find_library(ZSTD_LIBRARIES zstd
                 PATHS ${ZSTD_PC_LIBRARY_DIRS}
                 NO_DEFAULT_PATH
                 PATH_SUFFIXES ${LIB_PATH_SUFFIXES})
         # Third, check all other CMake paths
     else()
-        find_library(ZSTD_LIB NAMES ${ZSTD_LIB_NAMES} PATH_SUFFIXES ${LIB_PATH_SUFFIXES})
-        find_path(ZSTD_INCLUDE_DIR NAMES zstd.h PATH_SUFFIXES ${INCLUDE_PATH_SUFFIXES})
+        find_library(ZSTD_LIBRARIES NAMES ${ZSTD_LIB_NAMES} PATH_SUFFIXES ${LIB_PATH_SUFFIXES})
+        find_path(ZSTD_INCLUDE_DIRS NAMES zstd.h PATH_SUFFIXES ${INCLUDE_PATH_SUFFIXES})
     endif()
 endif()
-find_package_handle_standard_args(ZSTD REQUIRED_VARS ZSTD_LIB ZSTD_INCLUDE_DIR)
+find_package_handle_standard_args(ZSTD REQUIRED_VARS ZSTD_LIBRARIES ZSTD_INCLUDE_DIRS)
 if(ZSTD_FOUND)
     add_library(zstd::libzstd UNKNOWN IMPORTED)
     set_target_properties(zstd::libzstd
-            PROPERTIES IMPORTED_LOCATION "${ZSTD_LIB}"
-            INTERFACE_INCLUDE_DIRECTORIES "${ZSTD_INCLUDE_DIR}")
+            PROPERTIES IMPORTED_LOCATION "${ZSTD_LIBRARIES}"
+            INTERFACE_INCLUDE_DIRECTORIES "${ZSTD_INCLUDE_DIRS}")
 endif()
