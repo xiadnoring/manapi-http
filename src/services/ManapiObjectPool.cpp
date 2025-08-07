@@ -85,7 +85,7 @@ void object_item_pool_clear (const std::shared_ptr<manapi::internal::object_pool
             auto pn = std::move(n.back());
             n.pop_back();
             locked -= pn.second;
-            delete static_cast<char *>(pn.first);
+            delete[] static_cast<char *>(pn.first);
         }
     }
 

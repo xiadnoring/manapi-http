@@ -1073,7 +1073,7 @@ void manapi::event_loop::async_break_loop_() {
     if (this->resolve_stop) {
         manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "eventloop:stop_pool() has been started");
         /* if resolve caballback exists; otherwise, break the loop */
-        this->stop_pool(std::exchange(this->resolve_stop, nullptr));
+        this->stop_pool(std::move(this->resolve_stop));
         manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "eventloop:stop_pool() has been finished");
     }
 }

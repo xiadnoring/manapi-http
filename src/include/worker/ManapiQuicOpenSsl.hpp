@@ -100,6 +100,7 @@ namespace manapi::net::worker {
         int try_init_conn_ (const shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 
         std::function<void()> finish;
+        uint32_t finish_ref;
         std::map<uintptr_t, shared_conn> conns_;
         int sock;
         std::size_t count;

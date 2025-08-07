@@ -60,6 +60,7 @@ manapi::net::worker::openssl_quic::openssl_quic(net::http::site site, std::share
     this->listener = nullptr;
     this->ctx = nullptr;
     this->count = 0;
+    this->finish_ref=0;
     this->flags_ = WORKER_BASE_FLAG_MULTISTREAM;
 }
 
@@ -310,13 +311,14 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
 
 void manapi::net::worker::openssl_quic::stop(std::function<void()> cb) {
     try {
-        if (this->t_ && this->t_->is_active()) {
+        if (this->t_) {
             if (auto err = this->t_->stop()) {
                 manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,"%s due to %s",
                     "openssl_quic:timer stop failed", ev::strerror(err));
             }
 
-            this->t_.reset();
+            this->finish_ref++;
+            this->t_->unbind(io_unbind_cb);
         }
 
         if (this->update_limit_timer) {
@@ -336,12 +338,15 @@ void manapi::net::worker::openssl_quic::stop(std::function<void()> cb) {
 
             this->finish = std::move(cb);
             this->w_->unbind(io_unbind_cb);
+            this->finish_ref++;
         }
         else {
-            BIO_closesocket(std::exchange(this->sock, 0));
+            if (!this->finish_ref) {
+                BIO_closesocket(std::exchange(this->sock, 0));
 
-            auto func = std::move(cb);
-            func ();
+                auto func = std::move(cb);
+                func ();
+            }
         }
     }
     catch (std::exception const &e) {
@@ -1217,8 +1222,17 @@ void manapi::net::worker::openssl_quic::io_unbind_cb(ev::handle *s) MANAPIHTTP_N
     try {
         auto w = static_cast<openssl_quic *>(s->data);
         if (w) {
+            w->finish_ref--;
+            if (w->finish_ref)
+                return;
+
+            manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: close socket %d", "openssl_quic", w->sock);
             BIO_closesocket(std::exchange(w->sock, 0));
+
             w->finish();
+
+            w->w_.reset();
+            w->t_.reset();
         }
         else
             manapi_log_trace(debug::LOG_TRACE_HIGH, "%s: %s failed due to %s", "openssl_quic", "io_unbind_cb", "data is null");
