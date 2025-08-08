@@ -1,4 +1,5 @@
-# Manapi Http Server/Client
+# <img src="assets/logo.png" alt="logo" style="width:2em;vertical-align:middle; margin-left:10px;"> Manapi Http
+
 
 ## Introduction
 HTTP server written on C++ which supports HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC)
@@ -12,7 +13,9 @@ This HTTP server should simplify development of `web applications`, `API-interfa
 Many important utils will be supported out of the box, for example, `JSON`, `MySQL-client`, `PostgreSQL-client`, `JSON-masks`, `Big Int`, `modules`, `plugins`.
 
 ## Installation
-For compile this project, you need to install below projects:
+![console](/assets/console1.png)
+
+To compile this project, you need to install below projects:
 - OpenSSL 3.3.1 or greater \[optional\]
 - zlib 1.3.1 or greater \[optional\]
 - gmp 6.3.0 or greater \[optional\]
@@ -106,7 +109,7 @@ int main () {
 
         router.GET ("/", [&cnt] (manapi::net::http::req &req, manapi::net::http::resp &resp) mutable -> manapi::future<> {
             co_return resp.text(std::format("Hello World! Count: {}", cnt.fetch_add(1))).unwrap();
-        });
+        }).unwrap();
     
         router.GET("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             resp.replacers({
@@ -115,12 +118,12 @@ int main () {
             }).unwrap();
     
             co_return resp.file ("../examples/error.html").unwrap();
-        });
+        }).unwrap();
     
         router.POST("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             co_return resp.json({{"error", resp.status_code()},
                     {"msg", std::string{resp.status_message()}}}).unwrap();
-        });
+        }).unwrap();
     
         router.GET("/cat", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             auto fetch = (co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
@@ -136,29 +139,29 @@ int main () {
             auto data = (co_await fetch.json()).unwrap();
     
             co_return resp.text(std::move(data["description"].as_string())).unwrap();
-        });
+        }).unwrap();
     
         router.GET("/proxy", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             co_return resp.proxy("http://127.0.0.1:8889/video").unwrap();
-        });
+        }).unwrap();
     
         router.GET("/video", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             resp.partial_enabled(true);
             resp.compress_enabled(false);
             co_return resp.file("video.mp4").unwrap();
-        });
+        }).unwrap();
     
         router.GET("/stop", [ctx](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             /* stop the app */
             co_await ctx->stop();
             co_return resp.text("stopped").unwrap();
-        });
+        }).unwrap();
     
         router.GET("/timeout", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
             /* stop the app */
             co_await manapi::async::delay{10000};
             co_return resp.text("10sec").unwrap();
-        });
+        }).unwrap();
         
         router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
             try {
@@ -175,7 +178,7 @@ int main () {
             }
 
             co_return resp.text(std::move(content)).unwrap();
-        });
+        }).unwrap();
     
         manapi::async::run([router, db] () -> manapi::future<> {
             (co_await db.connect("127.0.0.1", "7879", "development", "password", "db")).unwrap();
@@ -286,7 +289,7 @@ int main () {
 - Hyprland Arch Linux x86_64 kernel 6.9.3-zen1-1-zen wayland Debug/Release
 - Windows 11 Pro 22h2 x86_64 MSVC Debug (exe)
 
-## Made from
+## Made in
 
 [![ГБОУ РИЛИ](assets/rili.png)](https://rilirb.ru)
 

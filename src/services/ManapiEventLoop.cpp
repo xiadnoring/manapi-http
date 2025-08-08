@@ -1391,24 +1391,26 @@ manapi::error::status manapi::event_loop::unpause_watch_curl(std::shared_ptr<CUR
 #endif
 
 void manapi::event_loop::interrupt(int sig) MANAPIHTTP_NOEXCEPT {
-    std::unique_lock <std::mutex> lk (event_loop::stop_mx, std::try_to_lock);
-    event_loop::interrupted.store(true);
+    std::unique_lock <std::mutex> lk (event_loop::stop_mx);
+    auto prev = event_loop::interrupted.exchange(true);
 
     switch (sig) {
         case SIGABRT:
         case SIGTERM:
         case SIGINT:
-            break;
+            if (!prev)
+                break;
+            manapi_log_error("eventloop:2nd interrupt was received");
+            /* well well well */
         default:
             evloop_stack_trace ();
             exit(-1);
     }
 
-    // if (sig == SIGFPE)
-    //     exit(-1);
-
     for (auto &loop_ :  manapi::event_loop::events) {
-        loop_.second->interrupted_watcher_->send();
+        if (auto rhs = loop_.second->interrupted_watcher_->send())
+            manapi_log_error("%s:%s failed due to %s",
+                "eventloop", "send interrupt signal", ev::strerror(rhs));
     }
 
     manapi::event_loop::events.clear();
