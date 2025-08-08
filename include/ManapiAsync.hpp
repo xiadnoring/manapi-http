@@ -19,9 +19,9 @@ namespace manapi {
         extern size_t max_stack_depth;
 
         namespace internal {
-            static thread_local std::size_t current_stack_cnt = 0;
+            extern thread_local std::size_t current_stack_cnt;
 
-            static thread_local std::shared_ptr<cthread> current_cthread_ = nullptr;
+            extern thread_local std::shared_ptr<cthread> current_cthread_;
 
             const std::shared_ptr<threadpool> &ethreadpool_(const std::shared_ptr<cthread> &ctx) MANAPIHTTP_NOEXCEPT;
 

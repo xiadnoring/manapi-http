@@ -200,12 +200,6 @@ int main () {
                 a.load())).unwrap();
         }).unwrap();
 
-        router.GET("/stat", [server_ctx, &a] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
-            co_return resp.text(std::format("online: {} requests: {}",
-                server_ctx.storage().as<manapi::net::http::server_ctx::worker_data_t>()->count.load(),
-                a.load())).unwrap();
-        }).unwrap();
-
         router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response *resp)
             -> void {
             a.fetch_add(1);
