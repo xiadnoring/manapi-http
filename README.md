@@ -1,4 +1,4 @@
-# <div style="display:flex;gap:1rem;align-items:center;"><img src="assets/logo.png" alt="logo" style="width:2em;vertical-align:middle; margin-left:10px;"> <span>Manapi Http</span></div>
+# <img src="assets/logo.png" alt="logo" style="width:2em;vertical-align:middle; margin-left:10px;"> <span style="margin-top:0.2em;">Manapi Http</span>
 
 
 ## Introduction
@@ -7,13 +7,14 @@ HTTP server written on C++ which supports HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC
 > [!CAUTION]
 > This project is in development!!!
 
-## About
+## About!
+![console](/assets/console1.png)
+
 This HTTP server should simplify development of `web applications`, `API-interfaces` and other things.
 
 Many important utils will be supported out of the box, for example, `JSON`, `MySQL-client`, `PostgreSQL-client`, `JSON-masks`, `Big Int`, `modules`, `plugins`.
 
 ## Installation
-![console](/assets/console1.png)
 
 To compile this project, you need to install below projects:
 - OpenSSL 3.3.1 or greater \[optional\]
