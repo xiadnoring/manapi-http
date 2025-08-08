@@ -1,4 +1,4 @@
-# <img src="assets/logo.png" alt="logo" style="width:2em;vertical-align:middle; margin-left:10px;"> <span style="margin-bottom:0.4em;">Manapi Http</span>
+# <img src="assets/logo.png" alt="logo" style="height:0.8em;vertical-align:middle; margin-left:10px;"> <span>Manapi Http</span>
 
 
 ## Introduction
@@ -7,7 +7,7 @@ HTTP server written on C++ which supports HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC
 > [!CAUTION]
 > This project is in development!!!
 
-## About!
+## About
 ![console](/assets/console1.png)
 
 This HTTP server should simplify development of `web applications`, `API-interfaces` and other things.
