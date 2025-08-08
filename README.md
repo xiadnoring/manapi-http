@@ -1,4 +1,4 @@
-# <img src="assets/logo.png" alt="logo" style="width:0.8em;vertical-align:middle; margin-left:10px;"> <span>Manapi Http</span>
+# <img src="assets/logo.png" alt="logo" style="width:20px;vertical-align:middle; margin-left:10px;"> <span>Manapi Http</span>
 
 
 ## Introduction
