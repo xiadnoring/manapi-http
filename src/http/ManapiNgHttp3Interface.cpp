@@ -262,10 +262,9 @@ static int ng_wrk_http3(const manapi::net::worker::shared_conn &stream, int flag
             auto rhs = nghttp3_conn_read_stream (s->ctx->ctx.get(), stream_id, nullptr,
                 0, true);
 
-            if (rhs < 0 && rhs != NGHTTP3_ERR_MALFORMED_HTTP_MESSAGING) {
+            if (rhs < 0 && (rhs != NGHTTP3_ERR_H3_FRAME_UNEXPECTED && rhs != NGHTTP3_ERR_MALFORMED_HTTP_MESSAGING)) {
                 manapi_log_trace(manapi::debug::LOG_TRACE_LOW,
                     "%s: %s failed due to %s", "nghttp3", "nghttp3_conn_shutdown_stream_read", nghttp3_strerror(rhs));
-                goto err;
             }
         }
 

@@ -618,15 +618,6 @@ manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> da
             config["site"].dump(4), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
 }
 
-void manapi::net::http::site::check_exists_method_on_url(const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "The method {} already contains in the url {}", method, url); }
-}
-
-void manapi::net::http::site::check_exists_method_on_url(const std::string &url,
-    const std::unique_ptr<handlers_static_types_t> &m, const std::string &method) {
-    if (m->contains((method))) { THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "The method {} already contains in the static url {}", method, url); }
-}
-
 std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::handler(http::request_data_t *request_data) const {
     auto handler_page = std::make_unique<http_handler_page>();
     handler_page->error = std::make_unique<http_handler_page>();
@@ -786,97 +777,145 @@ manapi::net::http::site::site(const site &n) {
 manapi::net::http::site & manapi::net::http::site::operator=(const site &n) = default;
 
 
-manapi::net::http::http_uri_part *manapi::net::http::site::handler(std::string method, std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    size_t type = URI_PAGE_DEFAULT;
+manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) MANAPIHTTP_NOEXCEPT {
+    manapi::error::status status;
+    try {
+        size_t type = URI_PAGE_DEFAULT;
 
-    http_uri_part *cur = build_uri_part(uri, type);
+        http_uri_part *cur = build_uri_part(uri, type);
 
-    http_handler_function functions;
+        http_handler_function functions;
 
-    if (get_mask.is_enabled())
-    {
-        functions.get_mask = std::make_unique<json_mask> (std::move(get_mask));
-    }
+        if (get_mask.is_enabled())
+            functions.get_mask = std::make_unique<json_mask> (std::move(get_mask));
 
-    if (post_mask.is_enabled())
-    {
-        functions.post_mask = std::make_unique<json_mask> (std::move(post_mask));
-    }
+        if (post_mask.is_enabled())
+            functions.post_mask = std::make_unique<json_mask> (std::move(post_mask));
 
-    functions.handler = std::move(handler);
+        functions.handler = std::move(handler);
 
-    switch (type) {
-        case URI_PAGE_DEFAULT:
-            if (cur->handlers == nullptr)
-            {
-                cur->handlers = std::make_unique<handlers_types_t> ();
+        switch (type) {
+            case URI_PAGE_DEFAULT: {
+                if (!cur->handlers)
+                    cur->handlers = std::make_unique<handlers_types_t> ();
+
+                auto res = cur->handlers->insert({std::move(method), std::move(functions)});
+                if (!res.second) {
+                    status = manapi::error::status_already_exists("http:handler exists");
+                    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%.*s url=%.*s method=%.*s",
+                        status.msg().size(), status.msg().data(), uri.size(), uri.data(),
+                        res.first->first.size(), res.first->first.data());
+                    goto err;
+                }
+                break;
             }
-            check_exists_method_on_url(uri, cur->handlers, method);
-            cur->handlers->insert({std::move(method), std::move(functions)});
+            case URI_PAGE_ERROR: {
+                if (!cur->errors) {
+                    cur->errors = std::make_unique<handlers_types_t>();
+                }
+                auto res = cur->errors->insert({std::move(method), std::move(functions)});
+                if (!res.second) {
+                    status = manapi::error::status_already_exists("http:error handler exists");
+                    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%.*s url=%.*s method=%.*s",
+                        status.msg().size(), status.msg().data(), uri.size(), uri.data(),
+                        res.first->first.size(), res.first->first.data());
+                    goto err;
+                }
 
-            break;
-        case URI_PAGE_ERROR:
-            if (cur->errors == nullptr) {
-                cur->errors = std::make_unique<handlers_types_t>();
+                break;
             }
-            check_exists_method_on_url(uri, cur->errors, method);
-            cur->errors->insert({std::move(method), std::move(functions)});
+            case URI_PAGE_LAYER: {
+                if (!cur->layers) {
+                    cur->layers = std::make_unique<handlers_types_t> ();
+                }
 
-            break;
-        case URI_PAGE_LAYER:
-            if (cur->layers == nullptr) {
-                cur->layers = std::make_unique<handlers_types_t> ();
+                auto res = cur->layers->insert({std::move(method), std::move(functions)});
+                if (!res.second) {
+                    status = manapi::error::status_already_exists("http:layer handler exists");
+                    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%.*s url=%.*s method=%.*s",
+                        status.msg().size(), status.msg().data(), uri.size(), uri.data(),
+                        res.first->first.size(), res.first->first.data());
+                    goto err;
+                }
+
+                break;
             }
-            check_exists_method_on_url(uri, cur->layers, method);
-            cur->layers->insert({std::move(method), std::move(functions)});
+            default:
+                return nullptr;
+        }
 
-            break;
-        default:
-            return nullptr;
+
+        return cur;
     }
-
-
-    return cur;
+    catch (std::bad_alloc const &) {
+        status = error::status_resource_exhausted();
+    }
+    catch (std::exception const &e) {
+        manapi_log_trace("%s due to %s", "http:handler failed", e.what());
+        status = error::status_internal("http:handler failed");
+    }
+err:
+    return std::move(status);
 }
 
-manapi::net::http::http_uri_part *manapi::net::http::site::handler(std::string method, std::string uri, std::string folder, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    size_t  type            = URI_PAGE_DEFAULT;
+manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, std::string folder, handler_template_t handler, json_mask get_mask, json_mask post_mask) MANAPIHTTP_NOEXCEPT {
+    manapi::error::status status;
+    try {
+        size_t type = URI_PAGE_DEFAULT;
 
-    http_uri_part *cur      = build_uri_part(uri, type);
+        http_uri_part *cur = build_uri_part(uri, type);
 
-    switch (type) {
-        case URI_PAGE_DEFAULT: {
-            if (cur->statics == nullptr) {
-                cur->statics = std::make_unique<handlers_static_types_t> ();
-            }
+        switch (type) {
+            case URI_PAGE_DEFAULT: {
+                if (cur->statics == nullptr) {
+                    cur->statics = std::make_unique<handlers_static_types_t> ();
+                }
 
-            check_exists_method_on_url(uri, cur->statics, method);
-            auto it = cur->statics->insert({std::move(method), {std::move(folder), nullptr}});
-            if (it.second) {
-                if (handler) {
-                    auto &layer = it.first->second.layer;
-                    layer = std::make_unique<http_handler_function>(
-                        std::move(handler), nullptr, nullptr);
 
-                    if (get_mask.is_enabled()) {
-                        layer->get_mask = std::make_unique<decltype(get_mask)>(std::move(get_mask));
-                    }
+                auto res = cur->statics->insert({std::move(method), {std::move(folder), nullptr}});
 
-                    if (post_mask.is_enabled()) {
-                        layer->post_mask = std::make_unique<decltype(post_mask)>(std::move(post_mask));
+                if (res.second) {
+                    if (handler) {
+                        auto &layer = res.first->second.layer;
+                        layer = std::make_unique<http_handler_function>(
+                            std::move(handler), nullptr, nullptr);
+
+                        if (get_mask.is_enabled()) {
+                            layer->get_mask = std::make_unique<decltype(get_mask)>(std::move(get_mask));
+                        }
+
+                        if (post_mask.is_enabled()) {
+                            layer->post_mask = std::make_unique<decltype(post_mask)>(std::move(post_mask));
+                        }
                     }
                 }
+                else {
+                    status = manapi::error::status_already_exists("http:static handler exists");
+                    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%.*s url=%.*s method=%.*s",
+                        status.msg().size(), status.msg().data(), uri.size(), uri.data(),
+                        res.first->first.size(), res.first->first.data());
+                    goto err;
+                }
+
+
+                break;
             }
-
-
-            break;
+            default:
+                status = manapi::error::status_invalid_argument("http:can not use the special pages with the static files");
+            goto err;
         }
-        default:
-            THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION, "{}", "can not use the special pages with the static files");
+
+        return cur;
     }
-
-
-    return cur;
+    catch (std::bad_alloc const &) {
+        status = manapi::error::status_resource_exhausted();
+    }
+    catch (std::exception const &e) {
+        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %s", "http:handler failed", e.what());
+        status = manapi::error::status_internal("http:handler failed");
+    }
+err:
+    return std::move(status);
 }
 
 manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(const std::string &uri, size_t &type)

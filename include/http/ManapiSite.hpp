@@ -145,7 +145,7 @@ namespace manapi::net::http {
          * @param post_mask POST mask
          * @return
          */
-        http_uri_part *handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+        manapi::error::status_or<http_uri_part *> handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set a folder sharing handler by its method and URI
@@ -157,7 +157,7 @@ namespace manapi::net::http {
          * @param post_mask POST mask
          * @return
          */
-        http_uri_part *handler (std::string method, std::string uri, std::string folder, handler_template_t handler = nullptr, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+        manapi::error::status_or<http_uri_part *> handler (std::string method, std::string uri, std::string folder, handler_template_t handler = nullptr, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Get the handler by its method and URI
@@ -283,10 +283,6 @@ namespace manapi::net::http {
         static std::string_view default_config_name;
     private:
         static http_handler_function default_error_handler;
-
-        static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_types_t> &m, const std::string &method);
-
-        static void check_exists_method_on_url (const std::string &url, const std::unique_ptr<handlers_static_types_t> &m, const std::string &method);
 
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);
 

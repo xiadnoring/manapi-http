@@ -100,32 +100,28 @@ manapi::future<manapi::error::status> manapi::net::http::server::start() {
     co_return error::status_internal("start() failed");
 }
 
-void manapi::net::http::server::GET(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->handler("GET", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
+manapi::error::status manapi::net::http::server::GET(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) MANAPIHTTP_NOEXCEPT {
+    return this->handler("GET", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask)).err();
 }
 
-void manapi::net::http::server::POST(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->handler("POST", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
+manapi::error::status manapi::net::http::server::POST(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) MANAPIHTTP_NOEXCEPT {
+    return this->handler("POST", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask)).err();
 }
 
-void manapi::net::http::server::OPTIONS(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->handler("OPTIONS", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
+manapi::error::status manapi::net::http::server::OPTIONS(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) MANAPIHTTP_NOEXCEPT {
+    return this->handler("OPTIONS", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask)).err();
 }
 
-void manapi::net::http::server::PUT(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->handler("PUT", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
+manapi::error::status manapi::net::http::server::PUT(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) MANAPIHTTP_NOEXCEPT {
+    return this->handler("PUT", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask)).err();
 }
 
-void manapi::net::http::server::PATCH(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->handler("PATCH", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask));
+manapi::error::status manapi::net::http::server::PATCH(std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) MANAPIHTTP_NOEXCEPT {
+    return this->handler("PATCH", std::move(uri), std::move(handler), std::move(get_mask), std::move(post_mask)).err();
 }
 
-// void manapi::net::http::server::DELETE(const std::string &uri, handler_template_t handler, const json_mask &get_mask, const json_mask &post_mask) {
-//     this->set_handler("DELETE", uri, std::move(handler), get_mask, post_mask);
-// }
-
-void manapi::net::http::server::GET(std::string uri, std::string folder, handler_template_t handler, json_mask get_mask, json_mask post_mask) {
-    this->handler ("GET", std::move(uri), std::move(folder), std::move(handler), std::move(get_mask), std::move(post_mask));
+manapi::error::status manapi::net::http::server::GET(std::string uri, std::string folder, handler_template_t handler, json_mask get_mask, json_mask post_mask) MANAPIHTTP_NOEXCEPT {
+    return this->handler ("GET", std::move(uri), std::move(folder), std::move(handler), std::move(get_mask), std::move(post_mask)).err();
 }
 
 manapi::future<manapi::error::status> manapi::net::http::server::stop() {

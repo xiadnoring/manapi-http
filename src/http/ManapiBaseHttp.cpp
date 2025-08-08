@@ -951,28 +951,39 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
 
 manapi::error::status execute_user_callback (manapi::net::http::handler_template_t &handle, manapi::net::http::request *req,
     manapi::net::http::response *resp, std::move_only_function<void(std::exception_ptr err)> after_work) {
+    try {
+        if (handle.is_async_cb()) {
+            auto err = handle.async_cb();
+            if (!err.ok())
+                return err.err();
 
-    if (handle.is_async_cb()) {
-        auto err = handle.async_cb();
-        if (!err.ok())
-            return err.err();
-        manapi::async::run(err.unwrap()->operator()(*req, *resp), std::move(after_work));
+            manapi::async::run(err.unwrap()->operator()(*req, *resp), std::move(after_work));
+        }
+        else if (handle.is_sync_cb()) {
+            auto err = handle.sync_cb();
+            if (!err.ok())
+                return err.err();
+
+            std::unique_ptr<decltype(after_work)> after_work_uq( new (std::nothrow) decltype(after_work)(std::move(after_work)));
+            if (!after_work_uq)
+                return manapi::error::status_resource_exhausted();
+
+            resp->finish(std::move(after_work_uq));
+
+            try {
+                err.unwrap()->operator()(*req, resp);
+            }
+            catch (std::exception const &e) {
+                manapi_log_trace("%s due to %s", "http:User cb failed", e.what());
+            }
+        }
+
+        return manapi::error::status_ok();
     }
-    else if (handle.is_sync_cb()) {
-        auto err = handle.sync_cb();
-        if (!err.ok())
-            return err.err();
-
-        std::unique_ptr<decltype(after_work)> after_work_uq( new (std::nothrow) decltype(after_work)(std::move(after_work)));
-        if (!after_work_uq)
-            return manapi::error::status_resource_exhausted();
-
-        resp->finish(std::move(after_work_uq));
-
-        err.unwrap()->operator()(*req, resp);
+    catch (std::exception const &e) {
+        manapi_log_trace("%s due to %s", "http:User cb failed", e.what());
+        return manapi::error::status_internal("http:User cb failed");
     }
-
-    return manapi::error::status_ok();
 }
 
 namespace manapi::net::http::internal {
@@ -994,7 +1005,8 @@ namespace manapi::net::http::internal {
 
         auto &layer = cdata_ptr->router->layer;
         if (index >= 0 && index < layer.size()) {
-            execute_user_callback (layer[index]->handler, res_ptr->req(), res_ptr,
+            auto &layer_handler = layer[index]->handler;
+            auto status = execute_user_callback (layer_handler, res_ptr->req(), res_ptr,
                 [handler, res = std::move(res), index = index + 1] (std::exception_ptr err) mutable -> void {
                     if (err)
                         return handle_income_request_err_(std::move(res), std::move(err));
@@ -1006,12 +1018,17 @@ namespace manapi::net::http::internal {
                         handle_income_request_next_(handler, std::move(res), index);
             });
 
+            if (!status) {
+                if (layer_handler.is_sync_cb())
+                    res_ptr->finish();
+            }
+
             return;
         }
 
 
         if (handler) {
-            execute_user_callback (*handler, res_ptr->req(), res_ptr,
+            auto status = execute_user_callback (*handler, res_ptr->req(), res_ptr,
             [res = std::move(res)] (std::exception_ptr err) mutable -> void {
                     if (err)
                         return handle_income_request_err_(std::move(res), std::move(err));
@@ -1020,9 +1037,14 @@ namespace manapi::net::http::internal {
                         send_response(std::move(res));
                     }
                     catch (const std::exception &e) {
-                        MANAPIHTTP_LOG("Unexpected error: {}", e.what());
+                        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s",
+                            "send_response", e.what());
                     }
             });
+            if (!status) {
+                if (handler->is_sync_cb())
+                    res_ptr->finish();
+            }
         }
         else {
             send_response (std::move(res));

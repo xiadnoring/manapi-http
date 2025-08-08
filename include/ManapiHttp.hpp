@@ -65,7 +65,7 @@ namespace manapi::net::http {
          * @param get_mask GET mask
          * @param post_mask POST mask
          */
-        void GET (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+        manapi::error::status GET (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the POST method for a path
@@ -74,7 +74,7 @@ namespace manapi::net::http {
          * @param get_mask GET mask
          * @param post_mask POST mask
          */
-        void POST (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+        manapi::error::status POST (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the OPTIONS method for a path
@@ -83,7 +83,7 @@ namespace manapi::net::http {
          * @param get_mask GET mask
          * @param post_mask POST mask
          */
-        void OPTIONS(std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+        manapi::error::status OPTIONS(std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the PUT method for a path
@@ -92,7 +92,7 @@ namespace manapi::net::http {
          * @param get_mask GET mask
          * @param post_mask POST mask
          */
-        void PUT (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+        manapi::error::status PUT (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the PATCH method for a path
@@ -101,7 +101,7 @@ namespace manapi::net::http {
          * @param get_mask GET mask
          * @param post_mask POST mask
          */
-        void PATCH (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+        manapi::error::status PATCH (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * share the folder for the GET method
@@ -111,7 +111,7 @@ namespace manapi::net::http {
          * @param get_mask GET mask
          * @param post_mask  POST mask
          */
-        void GET (std::string uri, std::string folder, handler_template_t handler = nullptr, json_mask get_mask = nullptr, json_mask post_mask = nullptr);
+        manapi::error::status GET (std::string uri, std::string folder, handler_template_t handler = nullptr, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * stop working the server

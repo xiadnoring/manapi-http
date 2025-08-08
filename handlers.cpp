@@ -418,7 +418,7 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
             auto cancellation = req.cancellation().sub();
         cancellation.timeout(timeout);
 
-            auto response = co_await manapi::net::fetch2::fetch(ip, {
+            auto response = (co_await manapi::net::fetch2::fetch(ip, {
                 {"method", "POST"},
                 {"verify_peer", false},
                 {"alpn", true},
@@ -428,23 +428,20 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
                     {"Authorization", std::format("Bearer {}", token)}
                 }}
             }, manapi::json({
-                {"model", "tngtech/deepseek-r1t2-chimera:free"},
+                {"model", "openai/gpt-oss-20b:free"},
                 {"messages", manapi::json::array({
                     {
                         {"role", "user"},
                         {"content", std::move(text)}
                     }
                 })}
-            }).dump(), cancellation);
+            }).dump(), cancellation)).unwrap();
 
             if (!response.ok()) {
-                co_return resp.text(std::format("fetch failed. Http:", response.message())).unwrap();
+                co_return resp.text(std::format("fetch failed. Http:", response.status())).unwrap();
             }
 
-            resp.callback_stream([response = response.unwrap()] (manapi::net::http::response::resp_stream_cb cb) mutable -> manapi::future<> {
-                (co_await response.callback_async([&] (manapi::slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
-                    co_return co_await cb (buffs, fin);
-                })).unwrap();
-            }).unwrap();
+            auto ans = (co_await response.json()).unwrap();
+            co_return resp.text(ans.dump(4)).unwrap();
         });
 }
