@@ -1,4 +1,4 @@
-# <div style="display:flex;gap:1rem;align-items:center;"><img src="assets/logo.png" alt="logo" style="max-width:2em;vertical-align:middle; margin-left:10px;"> <span>Manapi Http</span></div>
+# <div style="display:flex;gap:1rem;align-items:center;"><img src="assets/logo.png" alt="logo" style="width:2em;vertical-align:middle; margin-left:10px;"> <span>Manapi Http</span></div>
 
 
 ## Introduction
