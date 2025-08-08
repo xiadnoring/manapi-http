@@ -49,7 +49,9 @@ namespace manapi::net {
          * get the site instance
          * @return the site instance
          */
-        const http::site &get_site () const;
+        MANAPIHTTP_NODISCARD http::site site () const;
+
+        MANAPIHTTP_NODISCARD std::shared_ptr <http::config> config () const;
     private:
         manapi::future<manapi::error::status> pool_ ();
 
@@ -57,7 +59,7 @@ namespace manapi::net {
 
         std::shared_ptr<multithread_storage::worker_t> worker_config;
 
-        std::shared_ptr <http::config> config;
+        std::shared_ptr <http::config> config_;
 
         std::shared_ptr <worker::base> worker;
 
@@ -69,7 +71,7 @@ namespace manapi::net {
 
         std::unique_ptr<std::promise <int> > pool_promise;
 
-        http::site site;
+        http::site site_;
         // watchers
         std::shared_ptr <ev::io> watcher;
     };

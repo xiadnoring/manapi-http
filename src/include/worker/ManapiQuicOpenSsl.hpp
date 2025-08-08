@@ -109,6 +109,9 @@ namespace manapi::net::worker {
 
         static int select_alpn (SSL *ssl, const unsigned char **out, unsigned char *out_len, const unsigned char *in, unsigned int in_len, void *arg);
 
+
+        http::server_ctx::pool_t *pool_data_;
+        std::size_t deep_worker_id_;
         std::vector<SSL_POLL_ITEM> polls_;
         std::unique_ptr<ev::io> w_;
         manapi::timer update_limit_timer;

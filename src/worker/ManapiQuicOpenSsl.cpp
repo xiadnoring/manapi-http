@@ -19,8 +19,6 @@
 #   define MANAPI_AS_CTX(n_) static_cast<SSL_CTX*>(n_)
 #   define MANAPI_AS_BIO_ADDR(n_) (BIO_ADDR*)(n_)
 
-#   define MANAPI_POLL_MAXQUIC_IDS 64
-
 enum conn_tls_flags  {
     CONN_QUIC_SHUTDOWN = manapi::net::worker::base::CONN_MAX_CODE << 1,
     CONN_QUIC_EARLY_DATA = CONN_QUIC_SHUTDOWN << 2,
@@ -28,9 +26,21 @@ enum conn_tls_flags  {
     CONN_QUIC_SHUTDOWN_FINISHED = CONN_QUIC_SHUTDOWN << 4
 };
 
+struct ssl_worker_ctx_t {
+    std::map<std::string, SSL_SESSION*, std::less<>> sessions;
+    SSL_CTX *ctx;
+    manapi::timer sessions_flush_timer;
+};
+
 struct ssl_bio_deleter_t {
     void operator() (BIO *b) const MANAPIHTTP_NOEXCEPT {
         BIO_free(b);
+    }
+};
+
+struct ssl_ctx_deleter_t {
+    void operator() (SSL_CTX *b) const MANAPIHTTP_NOEXCEPT {
+        SSL_CTX_free(b);
     }
 };
 
@@ -66,7 +76,20 @@ manapi::net::worker::openssl_quic::openssl_quic(net::http::site site, std::share
 
 manapi::net::worker::openssl_quic::~openssl_quic() {
     SSL_free(MANAPI_AS_SSL(this->listener));
-    SSL_CTX_free(MANAPI_AS_CTX(this->ctx));
+
+    if (this->pool_data_) {
+        std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
+        auto &wdata = this->pool_data_->data[this->deep_worker_id_];
+        if (wdata.ref) {
+            if (!(--wdata.ref)) {
+                auto ctx_data = static_cast<ssl_worker_ctx_t *> (wdata.data);
+                ctx_data->sessions_flush_timer.stop();
+                SSL_CTX_free(ctx_data->ctx);
+                delete ctx_data;
+                wdata.data = nullptr;
+            }
+        }
+    }
 }
 
 std::shared_ptr<manapi::net::worker::openssl_quic> manapi::net::worker::openssl_quic::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
@@ -180,24 +203,49 @@ manapi::error::status manapi::net::worker::openssl_quic::load_params (manapi::ne
 manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(std::size_t deep) {
     try {
         using ci = internal::config_interface;
+
         this->polls_.reserve(16);
+        this->deep_worker_id_ = deep;
 
-        auto const ctx = SSL_CTX_new(OSSL_QUIC_server_method());
-        if (!ctx)
-            co_return error::status_internal("openssl_quic:SSL_CTX_new");
+        this->pool_data_ = &this->worker_data_->as<http::server_ctx::worker_data_t>()->pools[this->worker_pool_id_];
+        std::lock_guard<std::mutex> lk (*this->pool_data_->mx);
 
-        auto &sslconfig = this->config_->ssl;
+        if (this->pool_data_->data.size() <= deep)
+            this->pool_data_->data.resize(deep + 1);
 
-        auto const sslcert = ci::get_config_param<std::string>(sslconfig, "cert", {});
-        auto const sslkey = ci::get_config_param<std::string>(sslconfig, "key", {});
+        if (!(this->pool_data_->data[deep].ref))
+            this->pool_data_->data[deep].data = new ssl_worker_ctx_t{};
 
-        auto res = load_certs(ctx, sslcert, sslkey);
-        if (!res)
-            co_return std::move(res);
+        auto ctx_data = static_cast<ssl_worker_ctx_t *>(this->pool_data_->data[deep].data);
+        this->pool_data_->data[deep].ref++;
 
-        res = load_params(this, ctx, std::move(sslconfig));
-        if (!res)
-            co_return std::move(res);
+        if (!ctx_data->sessions_flush_timer) {
+
+        }
+        if (!ctx_data->ctx) {
+            std::unique_ptr<SSL_CTX, ssl_ctx_deleter_t> ctx (SSL_CTX_new(OSSL_QUIC_server_method()));
+            if (!ctx)
+                co_return error::status_internal("openssl_quic:SSL_CTX_new");
+
+            auto &sslconfig = this->config_->ssl;
+
+            auto const sslcert = ci::get_config_param<std::string>(sslconfig, "cert", {});
+            auto const sslkey = ci::get_config_param<std::string>(sslconfig, "key", {});
+
+            auto res = load_certs(ctx.get(), sslcert, sslkey);
+            if (!res) {
+                co_return std::move(res);
+            }
+
+            res = load_params(this, ctx.get(), std::move(sslconfig));
+            if (!res) {
+                co_return std::move(res);
+            }
+
+            ctx_data->ctx = ctx.release();
+        }
+
+        this->ctx = ctx_data->ctx;
 
         addrinfo hints = {
             .ai_family = PF_UNSPEC,
@@ -235,7 +283,7 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
         if (BIO_socket_nbio(this->sock, 1) <= 0)
             co_return error::status_internal("openssl_quic:BIO_socket_nbio");
 
-        auto const listener = SSL_new_listener (ctx, 0);
+        auto const listener = SSL_new_listener (MANAPI_AS_CTX(this->ctx), 0);
         if (!listener)
             co_return error::status_internal("openssl_quic:SSL_new_listener");
 
@@ -327,7 +375,6 @@ void manapi::net::worker::openssl_quic::stop(std::function<void()> cb) {
         }
 
         SSL_free(MANAPI_AS_SSL(this->listener));
-        SSL_CTX_free(MANAPI_AS_CTX(this->ctx));
 
         this->listener = nullptr;
         this->ctx = nullptr;

@@ -70,7 +70,7 @@ manapi::future<manapi::error::status> manapi::net::http::server::start() {
         this->data2->event_id = async::current()->eventloop()->subscribe_finish([data = this->data, data2 = this->data2] ()
             -> future<> {
             auto res = co_await stop_(data, data2, true);
-            res.log();
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http:Stop status=%.*s", res.msg().size(), res.msg().data());
         });
 
         this->data2->clean_up_id = async::current()->eventloop()->subscribe_clean_up([data2 = this->data2] ()
@@ -166,9 +166,9 @@ manapi::future<manapi::error::status> manapi::net::http::server::stop_(std::shar
         }
 
         if (data2->init_watcher) {
-            printf("unwatch_async(this->data2->init_watcher);\n");
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http:unwatch_async(this->data2->init_watcher)");
             async::current()->eventloop()->stop_watcher(std::move(data2->init_watcher));
-            printf("finish unwatch_async(this->data2->init_watcher);\n");
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http:finish unwatch_async(this->data2->init_watcher)");
         }
 
         if (data->server_config) {
@@ -264,10 +264,13 @@ void manapi::net::http::server::clean_up(std::shared_ptr<data2_t> data2) {
 
 manapi::future<> manapi::net::http::server::stop_pool(std::shared_ptr<data2_t> data2) {
     auto &pools = data2->pools[std::this_thread::get_id()];
+
     // stop all pools
     for (const auto &pool: pools)
     {
-        manapi_log_trace (manapi::debug::LOG_TRACE_HIGH, "pool #%zu is stopping...", pool.first);
+        auto config = pool.second->config();
+        manapi_log_trace (manapi::debug::LOG_TRACE_HIGH, "pool %.*s:%.*s #%zu is stopping...",
+            config->address.size(), config->address.data(), config->port.size(), config->port.data(), pool.first);
         auto res= co_await pool.second->stop();
         if (!res.ok())
             res.log();

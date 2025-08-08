@@ -116,7 +116,7 @@ int main () {
     catch (...) {
         manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_LOW);
     }
-    int threads = 2;
+    int threads = 4;
     try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }
     catch (...) {  }
 
