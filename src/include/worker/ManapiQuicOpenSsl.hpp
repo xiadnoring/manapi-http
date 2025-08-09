@@ -95,7 +95,7 @@ namespace manapi::net::worker {
 
         void stream_processing (const shared_conn &s) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<shared_conn> conn_accept (SSL *client) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status_or<shared_conn> conn_accept (SSL *client, const sockaddr *addr) MANAPIHTTP_NOEXCEPT;
 
         void conn_processing (SSL *client) MANAPIHTTP_NOEXCEPT;
 

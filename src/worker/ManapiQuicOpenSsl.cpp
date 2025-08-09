@@ -1322,7 +1322,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
                             |SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER
                         );
                         if (client) {
-                            auto res = this->conn_accept(client);
+                            auto res = this->conn_accept(client, addr);
                             it = &this->polls_[i];
                             if (!res.ok()) {
                                 /* who cares */
@@ -1669,12 +1669,15 @@ void manapi::net::worker::openssl_quic::stream_processing(const shared_conn &s) 
         this->feed_event(s, ev::WRITE, nullptr, 0, nullptr);
 }
 
-manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::conn_accept(SSL *client) MANAPIHTTP_NOEXCEPT {
+manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::conn_accept(SSL *client, const sockaddr *addr) MANAPIHTTP_NOEXCEPT {
     shared_conn conn;
     quic_conn_t *sn;
     try {
         auto p = std::make_unique<quic_conn_t>();
         auto ipstorage = std::make_unique<worker::connection::ipdata_t>();
+        ipstorage->len = async::socklen(addr);
+        memcpy (&ipstorage->client, addr, ipstorage->len);
+
 
         p->conn = client;
         p->worker = this;
