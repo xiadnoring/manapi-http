@@ -55,6 +55,10 @@ void manapi::ev::buffer_deleter::operator()(manapi::ev::buff_t *data) {
     delete[] data;
 }
 
+void manapi::ev::chars_deleter::operator()(char *data) {
+    delete[] data;
+}
+
 manapi::ev::async::async() : s_() {}
 
 int manapi::ev::async::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {

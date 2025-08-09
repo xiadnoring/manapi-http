@@ -13,7 +13,7 @@
 #       define MANAPIHTTP_OPENSSL_QUIC_SUPPORT
 
 namespace manapi::net::worker {
-    class openssl_quic : public interface_worker {
+    class openssl_quic : public udp {
     protected:
         struct quic_conn_t;
 
@@ -69,6 +69,8 @@ namespace manapi::net::worker {
 
         MANAPIHTTP_NODISCARD std::size_t streams_size(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT override;
     protected:
+        void bio_flush_write () MANAPIHTTP_NOEXCEPT;
+
         void remove_poll_id (std::size_t poll_id) MANAPIHTTP_NOEXCEPT;
 
         void flush_read_ (const shared_conn &conn, quic_stream_t *data) MANAPIHTTP_NOEXCEPT;
@@ -85,7 +87,7 @@ namespace manapi::net::worker {
 
         static void timeout_event_cb (uv_timer_t *s) MANAPIHTTP_NOEXCEPT;
 
-        static void io_event_cb (uv_poll_t *s, int status, int events) MANAPIHTTP_NOEXCEPT;
+        void onrecv(const std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) override;
 
         static void io_unbind_cb (ev::handle *s) MANAPIHTTP_NOEXCEPT;
 
@@ -102,18 +104,18 @@ namespace manapi::net::worker {
         std::function<void()> finish;
         uint32_t finish_ref;
         std::map<uintptr_t, shared_conn> conns_;
-        int sock;
         std::size_t count;
     private:
         static manapi::error::status load_params (manapi::net::worker::openssl_quic *w, SSL_CTX *ctx, manapi::json sslconfig);
 
         static int select_alpn (SSL *ssl, const unsigned char **out, unsigned char *out_len, const unsigned char *in, unsigned int in_len, void *arg);
 
-
+        std::size_t pending_writes = 0;
+        BIO *rbio;
+        BIO *wbio;
         http::server_ctx::pool_t *pool_data_;
         std::size_t deep_worker_id_;
         std::vector<SSL_POLL_ITEM> polls_;
-        std::unique_ptr<ev::io> w_;
         manapi::timer update_limit_timer;
         std::unique_ptr<ev::timer> t_;
         std::string alpn_ossltest_;

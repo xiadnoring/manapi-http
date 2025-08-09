@@ -538,7 +538,7 @@ manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_co
     ctx = SSL_CTX_new(method);
 
     if (!ctx)
-        THROW_MANAPIHTTP_EXCEPTION(ERR_INTERNAL, "{}", "cannot create the openssl context for the tcp connection");
+        return error::status_resource_exhausted();
 
     SSL_CTX_set_app_data(ctx, this);
 

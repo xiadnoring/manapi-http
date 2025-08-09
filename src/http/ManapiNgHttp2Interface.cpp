@@ -409,7 +409,7 @@ static int ng_wrk_http2_data_chunk_recv_callback (nghttp2_session *session, uint
     if (manapi::net::worker::http_v2_flush_recv(config, *conn, s))
         return NGHTTP2_ERR_CALLBACK_FAILURE;
 
-    if (s->top->recv_size > config->max_buffer_stack
+    if (manapi::net::worker::prepared::read_buffs_is_full(s->top.get(), config)
             && !(s->flags & HTTP2_STREAM_IS_READING)) {
         s->flags |= HTTP2_STREAM_IS_READING;
         sess->want_read ++;

@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <memory>
 #include "../include/ManapiUtils.hpp"
+#include "worker/ManapiBaseUtils.hpp"
 
 struct wb_write_ctx_t {
     using promise = manapi::async::promise<ssize_t, std::false_type>;
@@ -331,7 +332,7 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
                     }
                 }
 
-                if (cnt && *cnt >= max_cnt)
+                if (cnt && prepared::buffs_is_full(top, *cnt, max_cnt))
                     break;
 
                 auto bufres = bufferpool->buffer(buffer_size);

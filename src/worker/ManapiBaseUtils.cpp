@@ -103,7 +103,7 @@ int manapi::net::worker::prepared::flush_read2_(http::config *config, const shar
 }
 
 bool manapi::net::worker::prepared::is_writable(http::config *config, const shared_conn &conn,connection_prepared_t *data) MANAPIHTTP_NOEXCEPT {
-    return data->top->send_size <= config->max_buffer_stack
+    return !prepared::write_buffs_is_full(data->top.get(), config)
         && data->transfered < config->speed_limit_rate;
 }
 
@@ -209,6 +209,38 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
 
 void manapi::net::worker::prepared::update_limit_rate_connection(const shared_conn &sconn, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT {
     update_limit_rate_connection(sconn, sconn->as<connection_prepared_base_t>(), w, config, global);
+}
+
+bool manapi::net::worker::prepared::buffs_is_full(connection_io_part *s, std::size_t size, std::size_t stack_size) MANAPIHTTP_NOEXCEPT {
+    if (!stack_size)
+        return true;
+
+    return size > stack_size
+        || (size == stack_size && s->last_deque->buffer.size() == s->deque_cursor);
+}
+
+bool manapi::net::worker::prepared::write_buffs_is_full(connection_io *s, std::size_t stack_size) MANAPIHTTP_NOEXCEPT {
+    assert(s);
+    return prepared::buffs_is_full(&s->send, s->send_size, stack_size);
+}
+
+bool manapi::net::worker::prepared::write_buffs_is_full(connection_io *s, http::config *config) MANAPIHTTP_NOEXCEPT {
+    assert(config);
+    return write_buffs_is_full(s, config->max_buffer_stack);
+}
+
+bool manapi::net::worker::prepared::read_buffs_is_full(connection_io *s, std::size_t stack_size) MANAPIHTTP_NOEXCEPT {
+    assert(s);
+
+    if (!stack_size)
+        return true;
+
+    return prepared::buffs_is_full(&s->recv, s->recv_size, stack_size);
+}
+
+bool manapi::net::worker::prepared::read_buffs_is_full(connection_io *s, http::config *config) MANAPIHTTP_NOEXCEPT {
+    assert(config);
+    return read_buffs_is_full(s, config->max_buffer_stack);
 }
 
 manapi::net::worker::worker_watcher_cb manapi::net::worker::prepared::event_on(const shared_conn &conn,connection_prepared_base_t *data,worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT {

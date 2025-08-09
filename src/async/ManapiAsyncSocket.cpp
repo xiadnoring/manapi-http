@@ -173,3 +173,14 @@ manapi::future<manapi::sys_error::status> manapi::async::read_ready(socket_t fd,
 manapi::future<manapi::sys_error::status> manapi::async::write_ready(socket_t fd,cancellation_action cancellation) {
     co_return (co_await custom_ready(ev::WRITE, fd, std::move(cancellation))).err();
 }
+
+socklen_t manapi::async::socklen(const sockaddr *addr) noexcept(true) {
+    if (addr->sa_family == ev::IPv4) {
+        return sizeof (sockaddr_in);
+    }
+    if (addr->sa_family == ev::IPv6) {
+        return sizeof (sockaddr_in6);
+    }
+
+    return sizeof (sockaddr_storage);
+}

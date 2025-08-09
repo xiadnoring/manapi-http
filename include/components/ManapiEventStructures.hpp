@@ -385,6 +385,10 @@ namespace manapi::ev {
         void operator()(ev::buff_t *data);
     };
 
+    struct chars_deleter {
+        void operator()(char *data);
+    };
+
     /**
      * Data type used for streaming directory iteration.
      * Used by fs::opendir(), fs::readdir(), and fs::closedir().

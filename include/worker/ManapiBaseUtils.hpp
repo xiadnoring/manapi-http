@@ -93,6 +93,16 @@ namespace manapi::net::worker {
 
         void update_limit_rate_connection (const shared_conn &sconn, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT;
 
+        bool buffs_is_full (connection_io_part *s, std::size_t size, std::size_t stack_size) MANAPIHTTP_NOEXCEPT;
+
+        bool write_buffs_is_full (connection_io *s, std::size_t stack_size) MANAPIHTTP_NOEXCEPT;
+
+        bool write_buffs_is_full (connection_io *s, http::config *config) MANAPIHTTP_NOEXCEPT;
+
+        bool read_buffs_is_full (connection_io *s, std::size_t stack_size) MANAPIHTTP_NOEXCEPT;
+
+        bool read_buffs_is_full (connection_io *s, http::config *config) MANAPIHTTP_NOEXCEPT;
+
         manapi::net::worker::worker_watcher_cb event_on (const shared_conn & conn, connection_prepared_base_t *data, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT;
 
         manapi::net::worker::worker_watcher_cb event_on (const shared_conn & conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT;

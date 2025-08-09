@@ -755,12 +755,12 @@ int manapi::net::http::http_v2_on_read_stream(const worker::shared_conn &conn) M
 
     auto const config = s->ctx->worker->config();
     auto const bs = config->max_buffer_stack;
-    bool const read_blocked = s->top->recv_size >= bs;
+    bool const read_blocked = worker::prepared::read_buffs_is_full(s->top.get(), bs);
 
     if (auto const rhs = worker::http_v2_flush_recv (config, conn, s))
         return rhs;
 
-    if (read_blocked && s->top->recv_size < bs)
+    if (read_blocked && !worker::prepared::read_buffs_is_full(s->top.get(), bs))
         s->ctx->worker->event_toggle(s->ctx->conn, true, ev::READ);
 
     return http_v2_process_window (conn, s);
@@ -1759,7 +1759,7 @@ header_skip:
                                         }
                                     }
 
-                                    if (sdata->top->recv_size >= config->max_buffer_stack)
+                                    if (worker::prepared::read_buffs_is_full(sdata->top.get(), config))
                                         ctx->worker->event_toggle(ctx->conn, false, ev::READ);
                                 }
                             }

@@ -577,7 +577,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::connection_init_cb(vo
 }
 
 int manapi::net::worker::TLS::check_read_stack_full_(tls_connection_t *data) {
-    if (data->top->recv_size >= this->config_->max_buffer_stack) {
+    if (prepared::read_buffs_is_full(data->top.get(), this->config_)) {
         /* sadness */
         this->read_stop_(data);
     }
