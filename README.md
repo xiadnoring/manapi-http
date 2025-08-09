@@ -31,15 +31,15 @@ To compile this project, you need to install below projects:
 Using 16 threads on my laptop (Intel i5-12500H) wrk (HTTP/1.1) gave me the following results
 
 ```bash
-wrk http://127.0.0.1:8889 -d 10 -t 4 -c 200
-Running 10s test @ http://127.0.0.1:8889
+wrk http://0.0.0.0:8889/main -d 10 -t 4 -c 200
+Running 10s test @ http://0.0.0.0:8889/main
   4 threads and 200 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     0.90ms  739.74us  17.73ms   79.30%
-    Req/Sec    58.46k     4.39k   78.92k    76.25%
-  2329117 requests in 10.01s, 306.53MB read
-Requests/sec: 232592.51
-Transfer/sec:     30.61MB
+    Latency     1.76ms    3.02ms  47.19ms   94.79%
+    Req/Sec    40.90k     3.15k   48.84k    63.75%
+  1627891 requests in 10.00s, 263.92MB read
+Requests/sec: 162781.12
+Transfer/sec:     26.39MB
 ```
 
 ### For Arch Linux
