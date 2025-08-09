@@ -665,7 +665,6 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         if (!s->top->send_size) {
             ERR_clear_error();
             rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
-            this->bio_flush_write ();
         }
         else {
             rhs = 1;
@@ -1071,7 +1070,6 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
                 break;
             }
 
-            this->bio_flush_write ();
 
             data->transfered += written;
         }
@@ -1295,7 +1293,6 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
     if (rhs != 1) {
         ssl_dump_error_(SSL_get_error(MANAPI_AS_SSL(this->listener), rhs), "SSL_handle_events");
     }
-    this->bio_flush_write();
 
     std::size_t result;
     timeval poll_tv{0};
@@ -1497,10 +1494,10 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
     }
 
     if (SSL_net_write_desired(MANAPI_AS_SSL(this->listener))) {
-
+        //this->bio_flush_write ();
     }
 
-    this->bio_flush_write ();
+
 
     if (this->t_->is_active()) {
         rhs = this->t_->stop();
@@ -1513,6 +1510,8 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
         if (rhs)
             manapi_log_trace("%s: %s failed due to %s", "openssl_quic", "timeout", ev::strerror(rhs));
     }
+
+    this->bio_flush_write ();
 }
 
 void manapi::net::worker::openssl_quic::io_unbind_cb(ev::handle *s) MANAPIHTTP_NOEXCEPT {
@@ -1668,8 +1667,6 @@ void manapi::net::worker::openssl_quic::stream_processing(const shared_conn &s) 
 
     if (sn->flags & ev::WRITE && !sn->top->send_size)
         this->feed_event(s, ev::WRITE, nullptr, 0, nullptr);
-
-    this->bio_flush_write ();
 }
 
 manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::openssl_quic::conn_accept(SSL *client) MANAPIHTTP_NOEXCEPT {
