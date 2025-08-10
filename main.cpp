@@ -134,7 +134,7 @@ int main () {
     std::atomic<int> a = 0;
     std::atomic<int> thrcnt = 0;
 
-    manapi::net::http::server_ctx server_ctx;
+    auto server_ctx = manapi::net::http::server_ctx::create().unwrap();
     //manapi::net::wgrpc::server_ctx grpc_server_ctx;
 
     manapi::async::context::run(ctx, loops, [&thrcnt, &a, server_ctx/*,grpc_server_ctx*/] (const std::function<void()> &bind) -> void {
@@ -187,7 +187,7 @@ int main () {
 
         auto folder_env = manapi::process::get_env("MANAPIHTTP_FOLDER");
         std::string const folder = folder_env ? FOLDER2 : FOLDER;
-        manapi::net::http::server router (server_ctx);
+        auto router = manapi::net::http::server::create (server_ctx).unwrap();
 
         router.GET("/+layer", [] (http::req &req, manapi::net::http::response *resp) -> void {
             resp->header(std::string{"alt-svc"}, R"(h3=":8888"; ma=86400)");

@@ -103,11 +103,12 @@ int main () {
     
     ctx->eventloop()->setup_handle_interrupt();
     
+    auto router_ctx = manapi::net::http::server_ctx::create(ctx); 
     std::atomic<int> cnt = 0;
-    manapi::async::context::run(ctx, 4, [&cnt] (std::function<void> bind) -> void {
+    manapi::async::context::run(ctx, 4, [&cnt, router_ctx] (std::function<void> bind) -> void {
         using http = manapi::net::http::server;
-        manapi::net::http::server router; 
-        manapi::ext::pq::connection db = manapi::ext::pq::connection::create().unwrap();
+        auto router = manapi::net::http::server::create(router_ctx).unwrap();
+        auto db = manapi::ext::pq::connection::create().unwrap();
 
         router.GET ("/", [&cnt] (http::req &req, manapi::net::http::response *resp) mutable -> void {
             resp.text(std::format("Hello World! Count: {}", cnt.fetch_add(1))).unwrap();

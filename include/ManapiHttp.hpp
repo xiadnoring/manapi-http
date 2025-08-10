@@ -25,15 +25,18 @@ namespace manapi::net::http {
     using pools_t = std::map<std::thread::id, std::map<size_t, std::unique_ptr<http_pool>>>;
     class server : public site {
         struct data2_t;
+
+        server(server_ctx sctx);
     public:
         using resp = manapi::net::http::response &;
         using req = manapi::net::http::request &;
+
 
         /**
          * initialize the server with the server ctx
          * @param sctx the HTTP server context
          */
-        server(server_ctx sctx);
+        static manapi::error::status_or<server> create (server_ctx sctx) MANAPIHTTP_NOEXCEPT;
 
         /**
          * deconstructor

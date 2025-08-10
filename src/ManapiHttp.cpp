@@ -59,6 +59,16 @@ manapi::net::http::server::server(server_ctx sctx)
     this->setup ();
 }
 
+manapi::error::status_or<manapi::net::http::server> manapi::net::http::server::create(server_ctx sctx) MANAPIHTTP_NOEXCEPT {
+    try {
+        return server(std::move(sctx));
+    }
+    catch (std::exception const &e) {
+        manapi_log_error(e.what());
+        return error::status_resource_exhausted();
+    }
+}
+
 manapi::future<manapi::error::status> manapi::net::http::server::start() {
     try {
         auto lk = co_await this->data2->mx->lock_guard();

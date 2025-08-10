@@ -10,6 +10,7 @@ namespace manapi::net::http {
     class server_ctx {
         struct data_t;
 
+        server_ctx ();
     public:
         struct pool_worker_t {
             void *data;
@@ -26,7 +27,7 @@ namespace manapi::net::http {
             std::vector<pool_t> pools;
         };
 
-        server_ctx ();
+        static manapi::error::status_or<server_ctx> create () MANAPIHTTP_NOEXCEPT;
 
         ~server_ctx ();
 

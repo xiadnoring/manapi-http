@@ -7,6 +7,8 @@
 #endif
 #include "./utest.h"
 
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+
 UTEST(bigint, bigint_integer) {
     manapi::bigint n (78);
     ASSERT_TRUE(n == 78);
@@ -84,3 +86,5 @@ UTEST(bigint, bigint_parse_divide_integer) {
     auto n3 = n1 / n2;
     ASSERT_TRUE(n3.integerify() == 78 / 2);
 }
+
+#endif

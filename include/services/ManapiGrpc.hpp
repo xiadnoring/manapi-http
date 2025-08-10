@@ -18,12 +18,13 @@ namespace manapi::net::wgrpc {
 
     class server_ctx {
         struct data_t;
+        server_ctx ();
     public:
         struct worker_data_t {
             std::atomic<ssize_t> cnt;
         };
 
-        server_ctx ();
+        static manapi::error::status_or<server_ctx> create () MANAPIHTTP_NOEXCEPT;
 
         multithread_storage &storage ();
 
@@ -34,8 +35,10 @@ namespace manapi::net::wgrpc {
 
     class server {
         struct data_t;
-    public:
+
         server (wgrpc::server_ctx ctx);
+    public:
+        static manapi::error::status_or<server> create (wgrpc::server_ctx ctx) MANAPIHTTP_NOEXCEPT;
 
         ~server();
 

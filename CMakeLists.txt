@@ -598,6 +598,7 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
         add_executable(${PROJECT_NAME} main.cpp handlers.hpp handlers.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
     else ()
         add_executable(${PROJECT_NAME}
+                test_package/test_http.hpp
                 test_package/test_json.hpp
                 test_package/test_parse.hpp
                 test_package/test_package.cpp

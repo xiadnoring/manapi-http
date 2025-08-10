@@ -849,6 +849,16 @@ manapi::net::wgrpc::server_ctx::server_ctx() {
     }
 }
 
+static manapi::error::status_or<manapi::net::wgrpc::server_ctx> manapi::net::wgrpc::server_ctx::create () MANAPIHTTP_NOEXCEPT {
+    try {
+        return server_ctx{};
+    }
+    catch (std::exception const &e) {
+        manapi_log_error(e.what());
+        return error::status_resource_exhausted();
+    }
+}
+
 manapi::multithread_storage & manapi::net::wgrpc::server_ctx::storage() {
     return this->data_->ms;
 }
@@ -859,6 +869,16 @@ const manapi::async::shared_cthread & manapi::net::wgrpc::server_ctx::ctx() {
 
 manapi::net::wgrpc::server::server(wgrpc::server_ctx ctx) {
     this->data_ = std::make_shared<data_t>(std::move(ctx), nullptr);
+}
+
+static manapi::error::status_or<manapi::net::wgrpc::server> manapi::net::wgrpc::server::create (wgrpc::server_ctx ctx) MANAPIHTTP_NOEXCEPT {
+    try {
+        return server(std::move(ctx));
+    }
+    catch (std::exception const &e) {
+        manapi_log_error(e.what());
+        return error::status_resource_exhausted();
+    }
 }
 
 manapi::net::wgrpc::server::~server() = default;
