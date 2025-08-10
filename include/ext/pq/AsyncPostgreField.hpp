@@ -55,7 +55,9 @@ namespace manapi::ext::pq {
         template<typename T>
         T as () const {
             if (this->is_null()) {
-                THROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_RESULT, "Feild is null");
+                auto name = this->name();
+                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s:%.*s is null", "pq", name.size(), name.data());
+                throw std::runtime_error("field is null");
             }
 
             return pq::from_string<T>(std::string_view{this->c_str(), this->size()});

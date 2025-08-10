@@ -160,6 +160,10 @@ manapi::error::status::status(status &&n) noexcept = default;
 
 manapi::error::status & manapi::error::status::operator=(status &&n) noexcept = default;
 
+manapi::error::status::status(const status &n) = default;
+
+manapi::error::status & manapi::error::status::operator=(const status &n) = default;
+
 std::string_view manapi::error::status::msg() const {
     return this->msg_;
 }
@@ -220,6 +224,10 @@ manapi::error::status manapi::error::status_not_found(std::string_view msg) {
 
 manapi::error::status manapi::error::status_already_exists(std::string_view msg) {
     return {ERR_ALREADY_EXISTS, msg};
+}
+
+manapi::error::status manapi::error::status_already_exists() {
+    return error::status_already_exists("already exists");
 }
 
 manapi::error::status manapi::error::status_permission_denied(std::string_view msg) {

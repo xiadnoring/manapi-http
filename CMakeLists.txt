@@ -463,6 +463,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/ManapiHttp3Worker.cpp
         src/worker/ManapiBaseUtils.cpp
         include/components/ManapiFunction.hpp
+        include/ext/pq/AsyncPostgreError.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

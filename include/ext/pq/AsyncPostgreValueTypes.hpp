@@ -39,7 +39,7 @@ namespace manapi::ext::pq {
                     }
 #endif
                     else {
-                        THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "invalid size for integral_traits: {}", s);
+                        throw std::runtime_error("invalid size for integral_traits");
                     }
                 }
                 else {
@@ -58,7 +58,7 @@ namespace manapi::ext::pq {
                     }
 #endif
                     else {
-                        THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "invalid size for integral_traits: {}", s);
+                        throw std::runtime_error("invalid size for integral_traits");
                     }
                 }
             }
@@ -100,7 +100,7 @@ namespace manapi::ext::pq {
                 }
 #endif
                 else {
-                    THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "invalid size for float_traits: {}", s);
+                        throw std::runtime_error("invalid size for float_traits");
                 }
             }
             else {

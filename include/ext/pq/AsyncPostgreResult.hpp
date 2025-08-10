@@ -1,8 +1,9 @@
 #pragma once
 
 #include "./AsyncPostgreRow.hpp"
+#include "AsyncPostgreError.hpp"
 #include "../../ManapiErrors.hpp"
-#include "../../../src/include/ManapiUtils.hpp"
+#include "../../../include/ManapiUtils.hpp"
 
 namespace manapi::ext::pq {
 #include "libpq-events.h"
@@ -56,22 +57,25 @@ namespace manapi::ext::pq {
             return this->res_.get();
         }
 
-        [[nodiscard]] int sqlstate() const noexcept {
+        MANAPIHTTP_NODISCARD pq::sql_states sqlstate() const noexcept {
             if (this->sqlstate_.has_value()) {
-                return this->sqlstate_.value();
+                return static_cast<sql_states>(this->sqlstate_.value());
             }
 
             int n = 0;
             const char *ptr = PQresultErrorField(this->res_.get(), PG_DIAG_SQLSTATE);
 
             while (ptr && *ptr) {
-                n *= 10;
-                n += (*(ptr++))-'0';
+                n *= 43;
+                if (isalpha(*ptr))
+                    n += tolower(*(ptr++))-'a'+10;
+                else
+                    n += (*(ptr++))-'0';
             }
 
             this->sqlstate_ = n;
 
-            return n;
+            return static_cast<sql_states>(n);
         }
 
         row at (int index) {
@@ -79,7 +83,8 @@ namespace manapi::ext::pq {
                 return row{this->res_.get(), index};
             }
 
-            THROW_MANAPIHTTP_EXCEPTION2 (ERR_POSTGRE_RESULT, "Out of range");
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s:%s id=%d", "pq", "out of range in result", index);
+            throw std::out_of_range("row doesn't exists");
         }
 
         row operator[](int index) {
@@ -105,7 +110,7 @@ namespace manapi::ext::pq {
         [[nodiscard]] const_iterator end () const noexcept;
     private:
         std::unique_ptr<PGresult, pgresult_deleter> res_;
-        std::optional<int> mutable sqlstate_;
+        std::optional<std::size_t> mutable sqlstate_;
         std::optional<size_t> mutable affected_rows_;
     };
 

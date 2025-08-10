@@ -691,6 +691,10 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
                 }
             }
         }
+
+        if (flags)
+            this->bio_flush_write();
+
         if (!written) {
             auto sent = interface_worker::connection_io_send(&s->top->send, buff->base, static_cast<ssize_t>(buff->len),
                 &this->bufferpool(), this->config_->buffer_size, &s->top->send_size, maxcnt);
@@ -1070,6 +1074,8 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
                 break;
             }
 
+            if (flags)
+                this->bio_flush_write();
 
             data->transfered += written;
         }

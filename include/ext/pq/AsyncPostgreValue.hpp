@@ -46,12 +46,12 @@ namespace manapi::ext::pq {
 
     template<typename T>
     [[nodiscard]] size_t size_of (const T *v) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "template was used");
+        throw std::runtime_error("template");
     }
 
     template<typename T>
     [[nodiscard]] size_t size_of (const T &v) {
-        THROW_MANAPIHTTP_EXCEPTION2(ERR_POSTGRE_ERROR, "template was used");
+        throw std::runtime_error("template");
     }
 
     template<typename T>

@@ -24,19 +24,14 @@ manapi::ev::io_cb pio_ready_mk_(int flags, int fd,manapi::async::promise_sync<ma
                 -> void {
             auto resolve_ = std::move(resolve);
             cancellation.disable();
+
             manapi::async::current()->eventloop()->stop_watcher(w);
 
-            if (!status) {
-                resolve_(manapi::sys_error::status_internal("io ready failed", status));
-                return;
-            }
-
-            if ((revents & flags)) {
-
-                manapi::async::current()->eventloop()->stop_watcher(w);
-
+            if (!status && (revents & flags)) {
                 resolve_(revents);
             }
+
+            resolve_(manapi::sys_error::status_internal("io ready failed", status));
         };
     }
     catch (std::exception const &) {
@@ -61,7 +56,7 @@ void pio_ready (manapi::socket_t fd, int flags, manapi::ev::io_cb cb, const mana
                 -> void {
                     assert(!w->stop());
                     manapi::async::current()->eventloop()->stop_watcher(w);
-                    resolve (manapi::sys_error::status_internal("socket i/o operation has been cancelled", manapi::ev::ERR_CANCELED));
+                    resolve (manapi::sys_error::status_cancelled("socket i/o operation has been cancelled"));
                 });
         }
 
@@ -155,10 +150,9 @@ manapi::future<manapi::sys_error::status> manapi::async::write_ready(socket_t fd
 manapi::future<manapi::sys_error::status_or<int>> manapi::async::custom_ready(int flags, socket_t fd, cancellation_action cancellation) {
     using promise = promise_sync<manapi::sys_error::status_or<int>>;
 
-    auto res = co_await  promise([flags, fd, cancellation] (promise::resolve_t resolve, promise::reject_t reject) mutable -> manapi::future<> {
+    auto res = co_await  promise([flags, fd, cancellation] (promise::resolve_t resolve, promise::reject_t reject) mutable -> void {
         auto cb = pio_ready_mk_(flags, fd, resolve, cancellation);
         pio_ready(fd, flags, std::move(cb), resolve, cancellation);
-        co_return;
     });
 
     /** already */

@@ -29,7 +29,8 @@ namespace manapi::ext::pq {
                 return field {this->res_, this->row_, i};
             }
 
-            THROW_MANAPIHTTP_EXCEPTION(ERR_POSTGRE_RESULT, "Field not exists: {}", name);
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s:%s name=%s", "pq", "field doesn't exists", name);
+            throw std::runtime_error("field doesn't exists");
         }
 
         [[nodiscard]] field at (int index) const {
@@ -37,7 +38,8 @@ namespace manapi::ext::pq {
                 return field{this->res_, this->row_, index};
             }
 
-            THROW_MANAPIHTTP_EXCEPTION(ERR_POSTGRE_RESULT, "Field with the index {} not found", index);
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s:%s id=%d", "pq", "field doesn't exists", index);
+            throw std::runtime_error("field doesn't exists");
         }
 
         [[nodiscard]] field operator[] (int index) const {

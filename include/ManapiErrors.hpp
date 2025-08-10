@@ -209,9 +209,13 @@ namespace manapi {
 
             status (err_num code, std::string_view msg);
 
-            status (status &&n) noexcept;
+            status (status &&n) MANAPIHTTP_NOEXCEPT;
 
-            status& operator= (status &&n) noexcept;
+            status& operator= (status &&n) MANAPIHTTP_NOEXCEPT;
+
+            status (const status &n);
+
+            status& operator= (const status &n);
 
             /**
              * Get the error message from the status
@@ -348,6 +352,7 @@ namespace manapi {
         status status_deadline_exceeded (std::string_view msg);
         status status_not_found (std::string_view msg);
         status status_already_exists (std::string_view msg);
+        status status_already_exists ();
         status status_permission_denied (std::string_view msg);
         status status_unauthenticated (std::string_view msg);
         status status_resource_exhausted ();

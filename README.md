@@ -105,14 +105,16 @@ int main () {
     
     std::atomic<int> cnt = 0;
     manapi::async::context::run(ctx, 4, [&cnt] (std::function<void> bind) -> void {
+        using http = manapi::net::http::server;
         manapi::net::http::server router; 
-        manapi::ext::pq::connection db;
+        manapi::ext::pq::connection db = manapi::ext::pq::connection::create().unwrap();
 
-        router.GET ("/", [&cnt] (manapi::net::http::req &req, manapi::net::http::resp &resp) mutable -> manapi::future<> {
-            co_return resp.text(std::format("Hello World! Count: {}", cnt.fetch_add(1))).unwrap();
+        router.GET ("/", [&cnt] (http::req &req, manapi::net::http::response *resp) mutable -> void {
+            resp.text(std::format("Hello World! Count: {}", cnt.fetch_add(1))).unwrap();
+            resp.finish();
         }).unwrap();
     
-        router.GET("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+        router.GET("/+error", [](http::req &req, http::resp &resp) -> manapi::future<> {
             resp.replacers({
                 {"status_code", std::to_string(resp.status_code())},
                 {"status_message", std::string{resp.status_message()}}
@@ -121,12 +123,12 @@ int main () {
             co_return resp.file ("../examples/error.html").unwrap();
         }).unwrap();
     
-        router.POST("/+error", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+        router.POST("/+error", [](http::req &req, http::resp &resp) -> manapi::future<> {
             co_return resp.json({{"error", resp.status_code()},
                     {"msg", std::string{resp.status_message()}}}).unwrap();
         }).unwrap();
     
-        router.GET("/cat", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+        router.GET("/cat", [](http::req &req, http::resp &resp) -> manapi::future<> {
             auto fetch = (co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
                 {"verify_peer", false},
                 {"alpn", true},
@@ -142,43 +144,48 @@ int main () {
             co_return resp.text(std::move(data["description"].as_string())).unwrap();
         }).unwrap();
     
-        router.GET("/proxy", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+        router.GET("/proxy", [](http::req &req, http::resp &resp) -> manapi::future<> {
             co_return resp.proxy("http://127.0.0.1:8889/video").unwrap();
         }).unwrap();
     
-        router.GET("/video", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+        router.GET("/video", [](http::req &req, http::resp &resp) -> manapi::future<> {
             resp.partial_enabled(true);
             resp.compress_enabled(false);
             co_return resp.file("video.mp4").unwrap();
         }).unwrap();
     
-        router.GET("/stop", [ctx](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+        router.GET("/stop", [ctx](http::req &req, http::resp &resp) -> manapi::future<> {
             /* stop the app */
             co_await ctx->stop();
             co_return resp.text("stopped").unwrap();
         }).unwrap();
     
-        router.GET("/timeout", [](manapi::net::http::req &req, manapi::net::http::resp &resp) -> manapi::future<> {
+        router.GET("/timeout", [](http::req &req, http::resp &resp) -> manapi::future<> {
             /* stop the app */
             co_await manapi::async::delay{10000};
             co_return resp.text("10sec").unwrap();
         }).unwrap();
         
         router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
-            try {
-                auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::stoll(req.param("id")));
+            auto msg = req.param("id").unwrap();
+            char *end;
+            auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::strtoll(msg.data(), &end, 10));
+            if (!res1) {
+                if (res1.sqlcode() != manapi::ext::pq::SQL_STATE_UNIQUE_VIOLATION)
+                    res1.err().log();
             }
-            catch (...) {
-                /* already exists or maybe not... */
-            }
+
             auto res = co_await db.exec("SELECT * FROM for_test;");
+            if (res) {
+                std::string content = "b";
+                for (const auto &row: res.unwrap()) {
+                    content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+                }
 
-            std::string content = "b";
-            for (const auto &row: res) {
-                content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+                co_return resp.text(std::move(content)).unwrap();
             }
 
-            co_return resp.text(std::move(content)).unwrap();
+            co_return resp.text(std::string{res.is_sqlerr() ? res.sqlmsg() : res.message()}).unwrap();
         }).unwrap();
     
         manapi::async::run([router, db] () -> manapi::future<> {
