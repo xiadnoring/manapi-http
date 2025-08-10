@@ -438,27 +438,38 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
 
 void manapi::net::worker::openssl_quic::stop(std::function<void()> cb) {
     try {
-        if (this->t_) {
-            if (auto err = this->t_->stop()) {
-                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,"%s due to %s",
-                    "openssl_quic:timer stop failed", ev::strerror(err));
+        if (this->count) {
+            this->flags_ |= WORKER_BASE_FLAG_CLOSED;
+            this->finish = std::move(cb);
+        }
+        else {
+            if (this->t_) {
+                if (auto err = this->t_->stop()) {
+                    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,"%s due to %s",
+                        "openssl_quic:timer stop failed", ev::strerror(err));
+                }
+
+                this->finish_ref++;
+                this->t_->unbind(io_unbind_cb);
             }
 
-            this->finish_ref++;
-            this->t_->unbind(io_unbind_cb);
+            if (this->update_limit_timer) {
+                this->update_limit_timer.stop();
+                this->update_limit_timer = nullptr;
+            }
+
+            this->listener = nullptr;
+            this->ctx = nullptr;
+
+            if (this->finish_ref) {
+                this->finish = std::move(cb);
+            }
+            else {
+                udp::stop(std::move(cb));
+            }
         }
 
-        if (this->update_limit_timer) {
-            this->update_limit_timer.stop();
-            this->update_limit_timer = nullptr;
-        }
-
-        this->listener = nullptr;
-        this->ctx = nullptr;
-
-        if (!this->finish_ref) {
-            udp::stop(std::move(cb));
-        }
+        return;
     }
     catch (std::exception const &e) {
         manapi_log_error("%s: %s failed due to %s", "openssl_quic", "stop", e.what());
@@ -1252,8 +1263,9 @@ void manapi::net::worker::openssl_quic::connection_interface_eraser(worker::conn
             wrk->onrecv(wrk->udp_accept_, nullptr, 0, nullptr, 0);
 
         if (wrk->flags_ & WORKER_BASE_FLAG_CLOSED
-            && !wrk->count && wrk->finish)
-            wrk->finish();
+            && !wrk->count && wrk->finish) {
+            wrk->stop(std::move(wrk->finish));
+        }
     }
 }
 
@@ -1530,7 +1542,8 @@ void manapi::net::worker::openssl_quic::io_unbind_cb(ev::handle *s) MANAPIHTTP_N
 
             w->t_.reset();
 
-            w->udp::stop(std::move(w->finish));
+            if (w->finish)
+                w->udp::stop(std::move(w->finish));
         }
         else
             manapi_log_trace(debug::LOG_TRACE_HIGH, "%s: %s failed due to %s", "openssl_quic", "io_unbind_cb", "data is null");
