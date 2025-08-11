@@ -1282,7 +1282,10 @@ manapi::error::status manapi::event_loop::watch_curl(void * shared_curl, std::mo
         return error::status_invalid_argument ("watch_curl:curl_easy_setopt failed");
 
     try {
-        if (!this->curl_watcher->curl_res.insert({curl.get(), {curl, std::move(cb), nullptr}}).second)
+        ev::internal::curl_res_value_t curl_res_value{};
+        curl_res_value.self = curl;
+        curl_res_value.finish = std::move(cb);
+        if (!this->curl_watcher->curl_res.insert({curl.get(), std::move(curl_res_value)}).second)
             return error::status_already_exists("duplicate");
 
         CURLMcode const mcode = curl_multi_add_handle(this->curl_watcher->curl_multi.get(), curl.get());
