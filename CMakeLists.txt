@@ -127,6 +127,7 @@ else ()
     include(ExternalProject)
 
     set(MANAPIHTTP_DEPS_PREFIX "${CMAKE_BINARY_DIR}/deps")
+    set(MANAPIHTTP_PATCHES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches")
 
     message(STATUS "Build method: ${MANAPIHTTP_BUILD_METHOD}")
 
@@ -144,10 +145,35 @@ else ()
     pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv)
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
-        pkg_check_modules(GMP gmp)
+        # pkg_check_modules(GMP gmp)
+        set(GMP_FOUND OFF)
 
         if (NOT GMP_FOUND)
-            set(MANAPIHTTP_GMP_DEPENDENCY OFF)
+            if (MANAPIHTTP_DEPENDENCY_FETCH)
+                set(MANAPIHTTP_GMP_INSTALL_DIR ${MANAPIHTTP_DEPS_PREFIX}/lib/gmp)
+                set(GMP_LIBRARIES "${MANAPIHTTP_GMP_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}gmp${CMAKE_STATIC_LIBRARY_SUFFIX}")
+                set(GMP_INCLUDE_DIRS $<BUILD_INTERFACE:${MANAPIHTTP_GMP_INSTALL_DIR}/include>)
+
+                ExternalProject_Add(
+                    gmp
+                    PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
+                    DOWNLOAD_NAME gmp.tar.gz
+                    DOWNLOAD_NO_PROGRESS TRUE
+                    URL https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.bz2
+                    URL_HASH SHA256=ac28211a7cfb609bae2e2c8d6058d66c8fe96434f740cf6fe2e47b000d1c20cb
+                    USES_TERMINAL_DOWNLOAD TRUE
+                    PATCH_COMMAND patch -p1 --directory "${MANAPIHTTP_DEPS_PREFIX}/src/gmp" < "${MANAPIHTTP_PATCHES_DIR}/gmp-3.5.0-0001-configure.patch"
+                    CONFIGURE_COMMAND sh ./../gmp/configure --prefix=${MANAPIHTTP_GMP_INSTALL_DIR}
+                    BUILD_COMMAND make
+                    TEST_COMMAND ""
+                    INSTALL_COMMAND make install
+                    INSTALL_DIR "${MANAPIHTTP_GMP_INSTALL_DIR}"
+                    BUILD_BYPRODUCTS "${GMP_LIBRARIES}"
+                )
+                set(MANAPIHTTP_GMP_DEPENDENCY_FETCH ON)
+            else ()
+                set(MANAPIHTTP_GMP_DEPENDENCY OFF)
+            endif ()
         endif ()
     endif ()
 
@@ -807,6 +833,10 @@ else ()
     endif ()
 
 
+endif ()
+
+if (MANAPIHTTP_GMP_DEPENDENCY_FETCH)
+    add_dependencies(${PROJECT_NAME} gmp)
 endif ()
 
 if(BUILD_SHARED_LIBS)
