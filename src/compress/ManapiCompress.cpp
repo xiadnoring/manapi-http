@@ -4,8 +4,6 @@
 #include <fstream>
 #include <format>
 
-#include <zlib.h>
-
 #include "ManapiFilesystem.hpp"
 #include "async/ManapiAsyncFileStream.hpp"
 #include "../include/ManapiUtils.hpp"
@@ -429,6 +427,8 @@ err:
 #endif
 
 #if MANAPIHTTP_ZLIB_DEPENDENCY
+
+#include <zlib.h>
 
 manapi::future<manapi::error::status> manapi::compress::deflate_compress_file(std::string src, std::string dest, int level, int strategy, manapi::async::cancellation_action cancellation) {
     manapi::filesystem::fstream input, output;
