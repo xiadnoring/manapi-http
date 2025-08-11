@@ -45,6 +45,12 @@ UTEST(json, block_dump_special_symbols) {
     ASSERT_TRUE(b == R"({"hello": "world\ntest"})");
 }
 
+UTEST(json, block_dump_special_symbols2) {
+    manapi::json a = {{"hello", "🇦🇪🏕️👬😎😎😎😎🥴🥴😼😼😼"}};
+    std::string b = a.dump();
+    ASSERT_TRUE(b == "{\"hello\": \"🇦🇪🏕️👬😎😎😎😎🥴🥴😼😼😼\"}");
+}
+
 UTEST(json, block_parse_unsigned_integer) {
     auto rhs = manapi::json::parse(R"({"int": 18446744073709551615})");
     ASSERT_TRUE(rhs.ok());

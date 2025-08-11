@@ -81,6 +81,10 @@ bool manapi::unicode::is_space_symbol (char32_t symbol) {
 
 std::string manapi::unicode::escape_string (std::string_view str, char quotes) {
     std::size_t size = str.size() + 2;
+
+    // int utf_size = 0;
+    // uint8_t utf_tmp = 0;
+
     for (auto & c : str) {
         switch (c) {
             case '\n':
@@ -93,8 +97,23 @@ std::string manapi::unicode::escape_string (std::string_view str, char quotes) {
                 size++;
             break;
             default:
-                if (!isprint(c))
-                    size += sizeof ("\u0000") - 1 - 1;
+                // if (utf_size) {
+                //     if ((c & 0xC0)!=0x80)
+                //         throw std::runtime_error("utf8 invalid");
+                //
+                //     utf_size--;
+                // }
+                // else if (!isprint(c)) {
+                //     utf_size = count_of_octet(c);
+                //
+                //     if(utf_size > 3)
+                //         throw std::runtime_error("utf8 invalid");
+                //
+                //     size += sizeof ("\u0000") - 1 - utf_size;
+                //
+                //     utf_size--;
+                // }
+
             break;
         }
     }
@@ -125,14 +144,54 @@ std::string manapi::unicode::escape_string (std::string_view str, char quotes) {
                 s.append("\\\\");
             break;
             default:
-                if (isprint(c)) {
-                    s.push_back(c);
-                }
-                else {
-                    s.append("\\u00");
-                    s.push_back(static_cast<char>(onedec2hex(c >> 4)));
-                    s.push_back(static_cast<char>(onedec2hex(c & 0x0F)));
-                }
+                s.push_back(c);
+                // if (utf_size) {
+                //     switch (utf_size) {
+                //         case 1:
+                //             s.push_back(static_cast<char>(onedec2hex(((utf_tmp << 2) | (c & 0x30)))));
+                //             s.push_back(static_cast<char>(onedec2hex(c & 0x0F)));
+                //
+                //             utf_tmp = 0;
+                //             break;
+                //
+                //         case 2:
+                //             s.push_back(static_cast<char>(onedec2hex(c & 0x3C)));
+                //             utf_tmp = c & 0x3;
+                //             break;
+                //
+                //         default:
+                //             break;
+                //     }
+                //     s.push_back(static_cast<char>(onedec2hex((c >> 4))));
+                //
+                //     utf_size--;
+                // }
+                // else if (!isprint(c)) {
+                //     utf_size = count_of_octet(c);
+                //
+                //     s.append("\\u");
+                //
+                //     switch (utf_size) {
+                //         case 1:
+                //             s.append("00");
+                //             s.push_back(static_cast<char>(onedec2hex((c >> 4))));
+                //             s.push_back(static_cast<char>(onedec2hex((c & 0x0F))));
+                //             break;
+                //         case 2:
+                //             s.push_back('0');
+                //             s.push_back(static_cast<char>(onedec2hex((c & 0x1C) >> 2)));
+                //             utf_tmp = (c & 0x3);
+                //             break;
+                //         case 3:
+                //             s.push_back(static_cast<char>(onedec2hex((c & 0x0F))));
+                //             break;
+                //
+                //         default:
+                //             break;
+                //     }
+                //
+                //     utf_size--;
+                // }
             break;
         }
     }
