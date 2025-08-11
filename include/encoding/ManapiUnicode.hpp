@@ -92,5 +92,7 @@ namespace manapi::unicode {
      */
     std::string escape_string (std::string_view str, char quotes = '"');
 
-    uint8_t onehex2dec (uint8_t c);
+    uint8_t onehex2dec (uint8_t c) MANAPIHTTP_NOEXCEPT;
+
+    uint8_t onedec2hex (uint8_t c) MANAPIHTTP_NOEXCEPT;
 }

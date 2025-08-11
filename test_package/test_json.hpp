@@ -32,6 +32,19 @@ UTEST(json, block_parse_2) {
     ASSERT_TRUE(res[0]["_id"] == std::string{"686402978cc071126e7518cc"});
 }
 
+UTEST(json, block_parse_special_symbols) {
+    auto rhs = manapi::json::parse(R"({"hello": "worl\nd"})");
+    ASSERT_TRUE(rhs.ok());
+    auto res = rhs.unwrap();
+    ASSERT_TRUE(res["hello"] == "worl\nd");
+}
+
+UTEST(json, block_dump_special_symbols) {
+    manapi::json a = {{"hello", "world\ntest"}};
+    std::string b = a.dump();
+    ASSERT_TRUE(b == R"({"hello": "world\ntest"})");
+}
+
 UTEST(json, block_parse_unsigned_integer) {
     auto rhs = manapi::json::parse(R"({"int": 18446744073709551615})");
     ASSERT_TRUE(rhs.ok());
