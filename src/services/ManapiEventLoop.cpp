@@ -2,6 +2,10 @@
 
 #include "services/ManapiEventLoop.hpp"
 
+#if MANAPIHTTP_CURL_DEPENDENCY
+#   include <curl/curl.h>
+#endif
+
 #if MANAPIHTTP_CPPTRACE_DEPENDENCY
 #   include <cpptrace/cpptrace.hpp>
 #endif
@@ -1164,13 +1168,14 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::io>> manapi::event_loop
         return sys_error::status_resource_exhausted();
     }
 }
-curl_socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, curlsocktype type, curl_sockaddr *addr) {
+manapi::socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, int socktype, void *addr) {
     auto data = static_cast<event_loop *>(cbp);
 
     manapi::socket_t fd;
 
     try {
-        auto res = manapi::async::create_socket(addr->family, addr->protocol, addr->socktype);
+        auto curladdr = static_cast<curl_sockaddr*>(addr);
+        auto res = manapi::async::create_socket(curladdr->family, curladdr->protocol, curladdr->socktype);
         if (!res) {
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "curl open sock failed: %.*s",
                 res.message().size(), res.message().data());
@@ -1188,7 +1193,7 @@ curl_socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, curlsocktyp
     return fd;
 }
 
-int manapi::event_loop::handle_curl_socket(CURL *curl, curl_socket_t fd, int revents, void *userp, void *) {
+int manapi::event_loop::handle_curl_socket(void *curl, manapi::socket_t fd, int revents, void *userp, void *) {
     auto data = static_cast<event_loop *> (userp);
 
     if ((revents & 0b11)) {
@@ -1263,7 +1268,8 @@ const std::shared_ptr<manapi::threadpool> &manapi::event_loop::taskpool() const 
 }
 
 #if MANAPIHTTP_CURL_DEPENDENCY
-manapi::error::status manapi::event_loop::watch_curl(std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb) MANAPIHTTP_NOEXCEPT {
+manapi::error::status manapi::event_loop::watch_curl(void * shared_curl, std::move_only_function<void(int result)> cb) MANAPIHTTP_NOEXCEPT {
+    auto &curl = *static_cast<std::shared_ptr<CURL> *> (shared_curl);
     /* add */
     if (CURLE_OK != curl_easy_setopt (curl.get(), CURLOPT_OPENSOCKETFUNCTION, handle_curl_open_socket))
         return error::status_invalid_argument ("watch_curl:curl_easy_setopt failed");
@@ -1302,7 +1308,8 @@ manapi::error::status manapi::event_loop::watch_curl(std::shared_ptr<CURL> curl,
     return manapi::error::status_ok();
 }
 
-manapi::error::status manapi::event_loop::unwatch_curl(std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT {
+manapi::error::status manapi::event_loop::unwatch_curl(void * shared_curl) MANAPIHTTP_NOEXCEPT {
+    auto &curl = *static_cast<std::shared_ptr<CURL> *> (shared_curl);
     /* remove */
     auto curl_data = this->curl_watcher->curl_res.extract(curl.get());
     if (curl_data.empty()) {
@@ -1339,7 +1346,8 @@ manapi::error::status manapi::event_loop::unwatch_curl(std::shared_ptr<CURL> cur
     return manapi::error::status_ok();
 }
 
-manapi::error::status manapi::event_loop::pause_watch_curl(std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT {
+manapi::error::status manapi::event_loop::pause_watch_curl(void * shared_curl) MANAPIHTTP_NOEXCEPT {
+    auto &curl = *static_cast<std::shared_ptr<CURL> *> (shared_curl);
     /* pause */
     const auto rhs = curl_easy_pause(curl.get(), CURLPAUSE_ALL);
     if (CURLE_OK != rhs) {
@@ -1370,7 +1378,8 @@ manapi::error::status manapi::event_loop::custom_callback(std::move_only_functio
     }
 }
 
-manapi::error::status manapi::event_loop::unpause_watch_curl(std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT {
+manapi::error::status manapi::event_loop::unpause_watch_curl(void *shared_curl) MANAPIHTTP_NOEXCEPT {
+    auto &curl = *static_cast<std::shared_ptr<CURL> *> (shared_curl);
     /* unpause */
     const auto rhs = curl_easy_pause(curl.get(), CURLPAUSE_CONT);
 

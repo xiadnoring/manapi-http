@@ -36,6 +36,8 @@ OPTION(MANAPIHTTP_NGHTTP2_DEPENDENCY "libnghttp2 by nghttp2" OFF)
 OPTION(MANAPIHTTP_NGHTTP3_DEPENDENCY "libnghttp3 by nghttp3" OFF)
 OPTION(MANAPIHTTP_CPPTRACE_DEPENDENCY "Stack Tracing c++" OFF)
 OPTION(MANAPIHTTP_DEPENDENCY_FETCH_SHARED "Dependency using Fetch Enabled Shared Build" ON)
+OPTION(MANAPIHTTP_OPENSSL_SYSTEM_DISABLE "Disable default OpenSSL" OFF)
+OPTION(MANAPIHTTP_CURL_SYSTEM_DISABLE "Disable default cURL" OFF)
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 message(STATUS "C++ Stack Tracing: ${MANAPIHTTP_CPPTRACE_DEPENDENCY}")
@@ -251,7 +253,11 @@ else ()
     endif ()
 
     if (MANAPIHTTP_OPENSSL_DEPENDENCY)
-        pkg_check_modules(OPENSSL openssl)
+        if (MANAPIHTTP_OPENSSL_SYSTEM_DISABLE)
+            set(OPENSSL_FOUND OFF)
+        else ()
+            pkg_check_modules(OPENSSL openssl)
+        endif ()
         if (NOT OPENSSL_FOUND)
             if (MANAPIHTTP_DEPENDENCY_FETCH)
                 set(MANAPIHTTP_OPENSSL_INSTALL_DIR ${MANAPIHTTP_DEPS_PREFIX}/lib/openssl)
@@ -288,7 +294,11 @@ else ()
     endif ()
 
     if (MANAPIHTTP_CURL_DEPENDENCY)
-        pkg_check_modules(CURL libcurl)
+        if (MANAPIHTTP_CURL_SYSTEM_DISABLE)
+            set(CURL_FOUND OFF)
+        else ()
+            pkg_check_modules(CURL libcurl)
+        endif ()
         # set(CURL_FOUND OFF)
         if (NOT CURL_FOUND)
             if (MANAPIHTTP_DEPENDENCY_FETCH)
@@ -667,6 +677,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/worker/ManapiBaseUtils.cpp
         include/components/ManapiFunction.hpp
         include/ext/pq/AsyncPostgreError.hpp
+        src/include/ManapiEventLoopCurl.hpp
 )
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")

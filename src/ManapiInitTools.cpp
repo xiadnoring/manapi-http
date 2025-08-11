@@ -15,7 +15,9 @@
 #   include <openssl/bio.h>
 #   include <openssl/engine.h>
 #endif
-
+#if MANAPIHTTP_CURL_DEPENDENCY
+#   include <curl/curl.h>
+#endif
 // static int cnt = 0;
 //
 // static std::map<std::pair<char*, int>, std::pair<const char*, int>> allocated;

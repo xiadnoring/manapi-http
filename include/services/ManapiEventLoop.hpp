@@ -4,9 +4,6 @@
 #include <stack>
 
 #include "../ManapiUtils.hpp"
-#if MANAPIHTTP_CURL_DEPENDENCY
-#   include <curl/curl.h>
-#endif
 
 #include "../ManapiInt.hpp"
 #include "../ManapiAsync.hpp"
@@ -279,13 +276,13 @@ namespace manapi {
 
         [[nodiscard]] const std::shared_ptr<threadpool> &taskpool () const MANAPIHTTP_NOEXCEPT;
 #if MANAPIHTTP_CURL_DEPENDENCY
-        manapi::error::status watch_curl (std::shared_ptr<CURL> curl, std::move_only_function<void(CURLcode result)> cb) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status watch_curl (void *shared_curl, std::move_only_function<void(int result)> cb) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status unwatch_curl (std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status unwatch_curl (void *shared_curl) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status unpause_watch_curl (std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status unpause_watch_curl (void *shared_curl) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status pause_watch_curl (std::shared_ptr<CURL> curl) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status pause_watch_curl (void *shared_curl) MANAPIHTTP_NOEXCEPT;
 #endif
         manapi::error::status custom_callback (std::move_only_function<void(event_loop *ev)> *cb) MANAPIHTTP_NOEXCEPT;
 
@@ -306,13 +303,13 @@ namespace manapi {
 #if MANAPIHTTP_CURL_DEPENDENCY
         static manapi::sys_error::status_or<std::shared_ptr<ev::io>> handle_curl_watcher_gen(event_loop *data, socket_t fd) MANAPIHTTP_NOEXCEPT;
 
-        static curl_socket_t handle_curl_open_socket (void *cbp, curlsocktype type, curl_sockaddr *addr);
+        static socket_t handle_curl_open_socket (void *cbp, int socktype, void *addr);
 
-        static_assert(ev::READ == CURL_POLL_IN && ev::WRITE == CURL_POLL_OUT, "need for review");
+        //static_assert(ev::READ == CURL_POLL_IN && ev::WRITE == CURL_POLL_OUT, "need for review");
 
-        static int handle_curl_socket (CURL *curl, curl_socket_t fd, int revents, void *userp, void *);
+        static int handle_curl_socket (void *curl, socket_t fd, int revents, void *userp, void *);
 
-        static int handle_curl_close_socket (void *cbp, curl_socket_t socket);
+        static int handle_curl_close_socket (void *cbp, socket_t socket);
 
         void handle_curl_watcher_data(std::unique_ptr<ev::internal::adding_curl_data_t> data);
 #endif

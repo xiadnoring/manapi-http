@@ -9,6 +9,7 @@
 #include "../ManapiErrors.hpp"
 #include "../ManapiDebug.hpp"
 
+#define MANAPI_EV_SINCE_AT(major,minor,patch) UV_VERSION_MAJOR > major || (UV_VERSION_MAJOR==major&&(UV_VERSION_MINOR > minor || (UV_VERSION_MINOR==minor && UV_VERSION_PATCH>=patch)))
 #define MANAPI_EV_CAST_STREAM(x) reinterpret_cast<uv_stream_t *> (x)
 #define MANAPI_EV_CAST_HANDLE(x) reinterpret_cast <uv_handle_t *> (x)
 #define MANAPI_EV_DEFAULT_PRIVATE_VAR(name_class, name_struct)
@@ -58,7 +59,11 @@ namespace manapi::ev {
     enum udp_flags {
         UDP_IPV6ONLY = UV_UDP_IPV6ONLY,
         UDP_REUSEADDR = UV_UDP_REUSEADDR,
+#if MANAPI_EV_SINCE_AT(1, 49, 0)
         UDP_REUSEPORT = UV_UDP_REUSEPORT,
+#else
+        UDP_REUSEPORT = 0,
+#endif
         UDP_MMSG_CHUNK = UV_UDP_MMSG_CHUNK,
         UDP_MMSG_FREE = UV_UDP_MMSG_FREE,
         UDP_PARTIAL = UV_UDP_PARTIAL,
@@ -68,7 +73,11 @@ namespace manapi::ev {
 
     enum tcp_flags {
         TCP_IPV6ONLY = UV_TCP_IPV6ONLY,
-        TCP_REUSEPORT = UV_TCP_REUSEPORT
+#if MANAPI_EV_SINCE_AT(1,49,0)
+        TCP_REUSEPORT = UV_TCP_REUSEPORT,
+#else
+        TCP_REUSEPORT = 0,
+#endif
     };
 
     enum types {
@@ -979,13 +988,6 @@ namespace manapi::ev {
     const char *namerror (int errnum) MANAPIHTTP_NOEXCEPT;
 }
 
-#undef MANAPI_EV_CAST_HANDLE
-#undef MANAPI_EV_DEFAULT_PRIVATE_VAR
-#undef MANAPI_EV_STREAM
-#undef MANAPI_EV_CHECK
-#undef MANAPI_EV_DEFAULT
-#undef MANAPI_EV_CAST_STREAM
-
 namespace manapi::sys_error {
     /**
      * error status for the OS event
@@ -1139,3 +1141,11 @@ namespace manapi::sys_error {
      */
     sys_error::status status_ok ();
 }
+
+#undef MANAPI_EV_CAST_HANDLE
+#undef MANAPI_EV_DEFAULT_PRIVATE_VAR
+#undef MANAPI_EV_STREAM
+#undef MANAPI_EV_CHECK
+#undef MANAPI_EV_DEFAULT
+#undef MANAPI_EV_CAST_STREAM
+#undef MANAPI_EV_SINCE_AT

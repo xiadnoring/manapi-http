@@ -8,7 +8,7 @@
 #   include <openssl/ssl.h>
 #   include <openssl/quic.h>
 
-#   if OPENSSL_VERSION_NUMBER >= ((3<<28)|(2<<20)|(0<<4)|0x0L)
+#   if OPENSSL_VERSION_NUMBER >= ((3<<28)|(5<<20)|(0<<4)|0x0L)
 
 #       define MANAPIHTTP_OPENSSL_QUIC_SUPPORT
 

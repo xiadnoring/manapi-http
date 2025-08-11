@@ -256,7 +256,7 @@ namespace manapi::net {
          *
          * @return
          */
-        std::shared_ptr<CURL> custom () MANAPIHTTP_NOEXCEPT;
+        void *custom () MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set the enabled status of the verify peer
@@ -351,7 +351,7 @@ namespace manapi::net {
 
         void default_setup_curl_ ();
 
-        future<CURLcode> async_curl_perform ();
+        future<int> async_curl_perform ();
 
         std::shared_ptr<data_t> data;
     };
