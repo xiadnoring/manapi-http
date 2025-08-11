@@ -35,6 +35,7 @@ OPTION(MANAPIHTTP_WOLFSSL_WITH_ALPN "WolfSSL with ALPN" ON)
 OPTION(MANAPIHTTP_NGHTTP2_DEPENDENCY "libnghttp2 by nghttp2" OFF)
 OPTION(MANAPIHTTP_NGHTTP3_DEPENDENCY "libnghttp3 by nghttp3" OFF)
 OPTION(MANAPIHTTP_CPPTRACE_DEPENDENCY "Stack Tracing c++" OFF)
+OPTION(MANAPIHTTP_DEPENDENCY_FETCH_SHARED "Dependency using Fetch Enabled Shared Build" ON)
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 message(STATUS "C++ Stack Tracing: ${MANAPIHTTP_CPPTRACE_DEPENDENCY}")
@@ -137,33 +138,69 @@ else ()
         set(MANAPIHTTP_DEPENDENCY_FETCH ON)
     endif ()
 
-    find_package(PkgConfig REQUIRED)
+    find_package(PkgConfig)
 
     # include finders
     # include(./cmake/FindLibev.cmake)
 
-    pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv)
+    if (MANAPIHTTP_DEPENDENCY_FETCH)
+        pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv)
+    else ()
+        pkg_check_modules(LIBUV IMPORTED_TARGET libuv)
+    endif ()
+    # set (LIBUV_FOUND OFF)
+    if (NOT LIBUV_FOUND)
+        if (MANAPIHTTP_DEPENDENCY_FETCH)
+            set(MANAPIHTTP_LIBUV_INSTALL_DIR ${MANAPIHTTP_DEPS_PREFIX}/lib/libuv)
+            if (MANAPIHTTP_DEPENDENCY_FETCH_SHARED)
+                set(LIBUV_LIBRARIES "${MANAPIHTTP_LIBUV_INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}uv${CMAKE_SHARED_LIBRARY_SUFFIX}")
+            else ()
+                set(LIBUV_LIBRARIES "${MANAPIHTTP_LIBUV_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}uv${CMAKE_STATIC_LIBRARY_SUFFIX}")
+            endif ()
+            set(LIBUV_INCLUDE_DIRS $<BUILD_INTERFACE:${MANAPIHTTP_LIBUV_INSTALL_DIR}/include>)
+
+            ExternalProject_Add(
+                    libuv
+                    PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
+                    DOWNLOAD_NAME libuv.tar.gz
+                    GIT_REPOSITORY https://github.com/libuv/libuv
+                    GIT_TAG v1.51.0
+                    CMAKE_ARGS
+                        -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_LIBUV_INSTALL_DIR}
+                        -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
+                    BUILD_BYPRODUCTS "${LIBUV_LIBRARIES}"
+            )
+            set(MANAPIHTTP_LIBUV_DEPENDENCY_FETCH ON)
+        endif ()
+    endif ()
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
-        # pkg_check_modules(GMP gmp)
-        set(GMP_FOUND OFF)
+        pkg_check_modules(GMP gmp)
+        # set(GMP_FOUND OFF)
 
         if (NOT GMP_FOUND)
             if (MANAPIHTTP_DEPENDENCY_FETCH)
                 set(MANAPIHTTP_GMP_INSTALL_DIR ${MANAPIHTTP_DEPS_PREFIX}/lib/gmp)
-                set(GMP_LIBRARIES "${MANAPIHTTP_GMP_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}gmp${CMAKE_STATIC_LIBRARY_SUFFIX}")
+                if (MANAPIHTTP_DEPENDENCY_FETCH_SHARED)
+                    set(GMP_LIBRARIES "${MANAPIHTTP_GMP_INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}gmp${CMAKE_SHARED_LIBRARY_SUFFIX}")
+                else ()
+                    set(GMP_LIBRARIES "${MANAPIHTTP_GMP_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}gmp${CMAKE_STATIC_LIBRARY_SUFFIX}")
+                endif ()
                 set(GMP_INCLUDE_DIRS $<BUILD_INTERFACE:${MANAPIHTTP_GMP_INSTALL_DIR}/include>)
 
                 ExternalProject_Add(
                     gmp
                     PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
                     DOWNLOAD_NAME gmp.tar.gz
-                    DOWNLOAD_NO_PROGRESS TRUE
-                    URL https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.bz2
+                    URL https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.bz2 https://gmplib.org/download/gmp/gmp-6.3.0.tar.bz2
                     URL_HASH SHA256=ac28211a7cfb609bae2e2c8d6058d66c8fe96434f740cf6fe2e47b000d1c20cb
                     USES_TERMINAL_DOWNLOAD TRUE
                     PATCH_COMMAND patch -p1 --directory "${MANAPIHTTP_DEPS_PREFIX}/src/gmp" < "${MANAPIHTTP_PATCHES_DIR}/gmp-3.5.0-0001-configure.patch"
                     CONFIGURE_COMMAND sh ./../gmp/configure --prefix=${MANAPIHTTP_GMP_INSTALL_DIR}
+                        $<$<BOOL:${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}>:--enable-shared=True>
+                        $<$<BOOL:${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}>:--enable-static=False>
+                        $<$<NOT:$<BOOL:${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}>>:--enable-shared=False>
+                        $<$<NOT:$<BOOL:${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}>>:--enable-static=True>
                     BUILD_COMMAND make
                     TEST_COMMAND ""
                     INSTALL_COMMAND make install
@@ -179,15 +216,105 @@ else ()
 
     if (MANAPIHTTP_ZLIB_DEPENDENCY)
         pkg_check_modules(ZLIB zlib)
+        #set(ZLIB_FOUND OFF)
         if (NOT ZLIB_FOUND)
-            set(MANAPIHTTP_ZLIB_DEPENDENCY OFF)
+            if (MANAPIHTTP_DEPENDENCY_FETCH)
+                set(MANAPIHTTP_ZLIB_INSTALL_DIR ${MANAPIHTTP_DEPS_PREFIX}/lib/zlib)
+                if (MANAPIHTTP_DEPENDENCY_FETCH_SHARED)
+                    set(ZLIB_LIBRARIES "${MANAPIHTTP_ZLIB_INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}z${CMAKE_SHARED_LIBRARY_SUFFIX}")
+                else ()
+                    set(ZLIB_LIBRARIES "${MANAPIHTTP_ZLIB_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}z${CMAKE_STATIC_LIBRARY_SUFFIX}")
+                endif ()
+                set(ZLIB_INCLUDE_DIRS $<BUILD_INTERFACE:${MANAPIHTTP_ZLIB_INSTALL_DIR}/include>)
+
+                ExternalProject_Add(
+                        zlib
+                        PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
+                        DOWNLOAD_NAME zlib.tar.gz
+                        URL https://zlib.net/fossils/zlib-1.3.1.tar.gz https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz
+                        URL_HASH SHA256=9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23
+                        CMAKE_ARGS
+                            -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_ZLIB_INSTALL_DIR}
+                            -DZLIB_BUILD_EXAMPLES=OFF
+                            -DSKIP_INSTALL_ALL=OFF
+                            -DSKIP_INSTALL_LIBRARIES=OFF
+                            -DSKIP_INSTALL_HEADERS=OFF
+                            -DSKIP_INSTALL_FILES=ON
+                            -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
+                        BUILD_BYPRODUCTS "${ZLIB_LIBRARIES}"
+                )
+                set(MANAPIHTTP_ZLIB_DEPENDENCY_FETCH ON)
+            else ()
+                set(MANAPIHTTP_ZLIB_DEPENDENCY OFF)
+            endif ()
+        endif ()
+    endif ()
+
+    if (MANAPIHTTP_OPENSSL_DEPENDENCY)
+        pkg_check_modules(OPENSSL openssl)
+        if (NOT OPENSSL_FOUND)
+            if (MANAPIHTTP_DEPENDENCY_FETCH)
+                set(MANAPIHTTP_OPENSSL_INSTALL_DIR ${MANAPIHTTP_DEPS_PREFIX}/lib/openssl)
+                if (MANAPIHTTP_DEPENDENCY_FETCH_SHARED)
+                    set(OPENSSL_LIBRARIES "${MANAPIHTTP_OPENSSL_INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}crypto${CMAKE_SHARED_LIBRARY_SUFFIX};${MANAPIHTTP_OPENSSL_INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}ssl${CMAKE_SHARED_LIBRARY_SUFFIX}")
+                else ()
+                    set(OPENSSL_LIBRARIES "${MANAPIHTTP_OPENSSL_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}crypto${CMAKE_STATIC_LIBRARY_SUFFIX};${MANAPIHTTP_OPENSSL_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}ssl${CMAKE_STATIC_LIBRARY_SUFFIX}")
+                endif ()
+
+                set(OPENSSL_INCLUDE_DIRS $<BUILD_INTERFACE:${MANAPIHTTP_OPENSSL_INSTALL_DIR}/include>)
+
+                ExternalProject_Add(
+                    openssl
+                    PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
+                    DOWNLOAD_NAME openssl.tar.gz
+                    URL https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.2.zip
+                    URL_HASH SHA256=ea744bf784bdc3554284f6dc82d40e82cb89dd86c737151b2890289b6624c180
+                    USES_TERMINAL_DOWNLOAD TRUE
+                    CONFIGURE_COMMAND
+                        ${MANAPIHTTP_DEPS_PREFIX}/src/openssl/config
+                        --prefix=${MANAPIHTTP_OPENSSL_INSTALL_DIR}
+                        --openssldir=${MANAPIHTTP_OPENSSL_INSTALL_DIR}
+                    BUILD_COMMAND make
+                    INSTALL_COMMAND make install
+                    INSTALL_DIR ${MANAPIHTTP_OPENSSL_INSTALL_DIR}
+                    BUILD_BYPRODUCTS "${OPENSSL_LIBRARIES}"
+                )
+
+                set(MANAPIHTTP_OPENSSL_DEPENDENCY_FETCH ON)
+            else ()
+                set(MANAPIHTTP_OPENSSL_DEPENDENCY OFF)
+            endif ()
         endif ()
     endif ()
 
     if (MANAPIHTTP_CURL_DEPENDENCY)
         pkg_check_modules(CURL libcurl)
+        # set(CURL_FOUND OFF)
         if (NOT CURL_FOUND)
-            set(MANAPIHTTP_CURL_DEPENDENCY OFF)
+            if (MANAPIHTTP_DEPENDENCY_FETCH)
+                set(MANAPIHTTP_CURL_INSTALL_DIR ${MANAPIHTTP_DEPS_PREFIX}/lib/curl)
+                if (MANAPIHTTP_DEPENDENCY_FETCH_SHARED)
+                    set(CURL_LIBRARIES "${MANAPIHTTP_CURL_INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}curl${CMAKE_SHARED_LIBRARY_SUFFIX}")
+                else ()
+                    set(CURL_LIBRARIES "${MANAPIHTTP_CURL_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}curl${CMAKE_STATIC_LIBRARY_SUFFIX}")
+                endif ()
+                set(CURL_INCLUDE_DIRS $<BUILD_INTERFACE:${MANAPIHTTP_CURL_INSTALL_DIR}/include>)
+
+                ExternalProject_Add(
+                        curl
+                        PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
+                        DOWNLOAD_NAME curl.tar.gz
+                        GIT_REPOSITORY https://github.com/curl/curl
+                        GIT_TAG curl-8_15_0
+                        CMAKE_ARGS
+                            -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_CURL_INSTALL_DIR}
+                            -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
+                        BUILD_BYPRODUCTS "${CURL_LIBRARIES}"
+                )
+                set(MANAPIHTTP_CURL_DEPENDENCY_FETCH ON)
+            else ()
+                set(MANAPIHTTP_CURL_DEPENDENCY OFF)
+            endif ()
         endif ()
     endif ()
 
@@ -195,13 +322,6 @@ else ()
         pkg_check_modules(WOLFSSL wolfssl)
         if (NOT WOLFSSL_FOUND)
             set(MANAPIHTTP_WOLFSSL_DEPENDENCY OFF)
-        endif ()
-    endif ()
-
-    if (MANAPIHTTP_OPENSSL_DEPENDENCY)
-        pkg_check_modules(OPENSSL openssl)
-        if (NOT OPENSSL_FOUND)
-            set(MANAPIHTTP_OPENSSL_DEPENDENCY OFF)
         endif ()
     endif ()
 
@@ -263,15 +383,61 @@ else ()
 
     if (MANAPIHTTP_NGHTTP2_DEPENDENCY)
         include(./cmake/FindLibNgHttp2.cmake)
+        # set(LIBNGHTTP2_FOUND OFF)
         if (NOT LIBNGHTTP2_FOUND)
-            set(MANAPIHTTP_NGHTTP2_DEPENDENCY OFF)
+            if (MANAPIHTTP_DEPENDENCY_FETCH)
+                set(MANAPIHTTP_LIBNGHTTP2_INSTALL_DIR ${MANAPIHTTP_DEPS_PREFIX}/lib/libnghttp2)
+                if (MANAPIHTTP_DEPENDENCY_FETCH_SHARED)
+                    set(LIBNGHTTP2_LIBRARIES "${MANAPIHTTP_LIBNGHTTP2_INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}nghttp2${CMAKE_SHARED_LIBRARY_SUFFIX}")
+                else ()
+                    set(LIBNGHTTP2_LIBRARIES "${MANAPIHTTP_LIBNGHTTP2_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}nghttp2${CMAKE_STATIC_LIBRARY_SUFFIX}")
+                endif ()
+                set(LIBNGHTTP2_INCLUDE_DIRS $<BUILD_INTERFACE:${MANAPIHTTP_LIBNGHTTP2_INSTALL_DIR}/include>)
+
+                ExternalProject_Add(
+                        libnghttp2
+                        PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
+                        GIT_REPOSITORY https://github.com/nghttp2/nghttp2
+                        GIT_TAG v1.66.0
+                        CMAKE_ARGS
+                            -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_LIBNGHTTP2_INSTALL_DIR}
+                            -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
+                        BUILD_BYPRODUCTS "${LIBNGHTTP2_LIBRARIES}"
+                )
+                set(MANAPIHTTP_NGHTTP2_DEPENDENCY_FETCH ON)
+            else ()
+                set(MANAPIHTTP_NGHTTP2_DEPENDENCY OFF)
+            endif ()
         endif ()
     endif ()
 
     if (MANAPIHTTP_NGHTTP3_DEPENDENCY)
         include(./cmake/FindLibNgHttp3.cmake)
+        # set(LIBNGHTTP3_FOUND OFF)
         if (NOT LIBNGHTTP3_FOUND)
-            set(MANAPIHTTP_NGHTTP3_DEPENDENCY OFF)
+            if (MANAPIHTTP_DEPENDENCY_FETCH)
+                set(MANAPIHTTP_LIBNGHTTP3_INSTALL_DIR ${MANAPIHTTP_DEPS_PREFIX}/lib/libnghttp3)
+                if (MANAPIHTTP_DEPENDENCY_FETCH_SHARED)
+                    set(LIBNGHTTP3_LIBRARIES "${MANAPIHTTP_LIBNGHTTP3_INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}nghttp3${CMAKE_SHARED_LIBRARY_SUFFIX}")
+                else ()
+                    set(LIBNGHTTP3_LIBRARIES "${MANAPIHTTP_LIBNGHTTP3_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}nghttp3${CMAKE_STATIC_LIBRARY_SUFFIX}")
+                endif ()
+                set(LIBNGHTTP3_INCLUDE_DIRS $<BUILD_INTERFACE:${MANAPIHTTP_LIBNGHTTP3_INSTALL_DIR}/include>)
+
+                ExternalProject_Add(
+                        libnghttp3
+                        PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
+                        GIT_REPOSITORY https://github.com/ngtcp2/nghttp3
+                        GIT_TAG v1.11.0
+                        CMAKE_ARGS
+                            -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_LIBNGHTTP3_INSTALL_DIR}
+                            -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
+                        BUILD_BYPRODUCTS "${LIBNGHTTP3_LIBRARIES}"
+                )
+                set(MANAPIHTTP_NGHTTP3_DEPENDENCY_FETCH ON)
+            else ()
+                set(MANAPIHTTP_NGHTTP3_DEPENDENCY OFF)
+            endif ()
         endif ()
     endif ()
 endif ()
@@ -736,7 +902,8 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
             ${CONAN_LIBS}
     )
 else ()
-    target_link_libraries       (${PROJECT_NAME} PUBLIC PkgConfig::LIBUV)
+    message(STATUS "libuv: libs=${LIBUV_LIBRARIES} include=${LIBUV_INCLUDE_DIRS}")
+    target_link_libraries       (${PROJECT_NAME} PUBLIC ${LIBUV_LIBRARIES})
     target_include_directories  (${PROJECT_NAME} PUBLIC ${LIBUV_INCLUDE_DIRS})
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
@@ -837,6 +1004,30 @@ endif ()
 
 if (MANAPIHTTP_GMP_DEPENDENCY_FETCH)
     add_dependencies(${PROJECT_NAME} gmp)
+endif ()
+
+if (MANAPIHTTP_ZLIB_DEPENDENCY_FETCH)
+    add_dependencies(${PROJECT_NAME} zlib)
+endif ()
+
+if (MANAPIHTTP_LIBUV_DEPENDENCY_FETCH)
+    add_dependencies(${PROJECT_NAME} libuv)
+endif ()
+
+if (MANAPIHTTP_CURL_DEPENDENCY_FETCH)
+    add_dependencies(${PROJECT_NAME} curl)
+endif ()
+
+if (MANAPIHTTP_OPENSSL_DEPENDENCY_FETCH)
+    add_dependencies(${PROJECT_NAME} openssl)
+endif ()
+
+if (MANAPIHTTP_NGHTTP2_DEPENDENCY_FETCH)
+    add_dependencies(${PROJECT_NAME} libnghttp2)
+endif ()
+
+if (MANAPIHTTP_NGHTTP3_DEPENDENCY_FETCH)
+    add_dependencies(${PROJECT_NAME} libnghttp3)
 endif ()
 
 if(BUILD_SHARED_LIBS)

@@ -158,7 +158,8 @@ int manapi::net::worker::openssl_quic::select_alpn(SSL *ssl, const unsigned char
                     (*conn)->version = version;
                 }
                 else {
-                    if (!SSL_set_app_data(ssl, version))
+                    auto ref = (void*)(&version);
+                    if (!SSL_set_app_data(ssl, *(void**)(ref)))
                         return SSL_TLSEXT_ERR_ALERT_FATAL;
                 }
             }
