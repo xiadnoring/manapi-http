@@ -3,7 +3,7 @@
 #include <memory>
 #include <functional>
 
-#include "ManapiErrors.hpp"
+#include "../ManapiErrors.hpp"
 #include "../ManapiUtils.hpp"
 
 namespace manapi::async {

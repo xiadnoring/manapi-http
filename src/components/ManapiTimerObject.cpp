@@ -107,7 +107,7 @@ manapi::error::status_or<manapi::timer> manapi::timer::create(bool interval, asy
         if (interval) {
             w.data->flags |= TIMER_TASK_INTERVAL;
         }
-        w.data->flags |= TIMER_TASK_ENABLED;
+        w.data->flags |= TIMER_TASK_ENABLED|TIMER_TASK_IS_ASYNC;
 
         new (&w.data->cb.async_cb) async_cb_t (std::move(async_cb));
 

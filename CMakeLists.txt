@@ -3,6 +3,7 @@ project(manapihttp VERSION 0.0.2 DESCRIPTION "Fast HTTP Server/Client Library fo
 
 cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0070 NEW)
+cmake_policy(SET CMP0135 NEW)
 
 if (EXISTS "./build/generators/conan_toolchain.cmake")
     include(./build/generators/conan_toolchain.cmake)
@@ -51,6 +52,7 @@ message(STATUS "libnghttp2 by nghttp2" ${MANAPIHTTP_NGHTTP2_DEPENDENCY})
 message(STATUS "libnghttp3 by nghttp3" ${MANAPIHTTP_NGHTTP3_DEPENDENCY})
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}/shm>")
+set(MANAPIHTTP_GMP_DEPENDENCY_OBJ OFF)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Build type: Debug")
@@ -121,7 +123,18 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
         find_package(PostgreSQL REQUIRED)
     endif ()
 else ()
+    include(FetchContent)
+    include(ExternalProject)
+
+    set(MANAPIHTTP_DEPS_PREFIX "${CMAKE_BINARY_DIR}/deps")
+
     message(STATUS "Build method: ${MANAPIHTTP_BUILD_METHOD}")
+
+    set(MANAPIHTTP_DEPENDENCY_FETCH OFF)
+
+    if (MANAPIHTTP_BUILD_METHOD STREQUAL "fetch")
+        set(MANAPIHTTP_DEPENDENCY_FETCH ON)
+    endif ()
 
     find_package(PkgConfig REQUIRED)
 
@@ -132,7 +145,7 @@ else ()
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
         pkg_check_modules(GMP gmp)
-        set(MANAPIHTTP_GMP_DEPENDENCY GMP_FOUND)
+
         if (NOT GMP_FOUND)
             set(MANAPIHTTP_GMP_DEPENDENCY OFF)
         endif ()
@@ -140,7 +153,6 @@ else ()
 
     if (MANAPIHTTP_ZLIB_DEPENDENCY)
         pkg_check_modules(ZLIB zlib)
-        set(MANAPIHTTP_ZLIB_DEPENDENCY ZLIB_FOUND)
         if (NOT ZLIB_FOUND)
             set(MANAPIHTTP_ZLIB_DEPENDENCY OFF)
         endif ()
@@ -148,7 +160,6 @@ else ()
 
     if (MANAPIHTTP_CURL_DEPENDENCY)
         pkg_check_modules(CURL libcurl)
-        set(MANAPIHTTP_CURL_DEPENDENCY CURL_FOUND)
         if (NOT CURL_FOUND)
             set(MANAPIHTTP_CURL_DEPENDENCY OFF)
         endif ()
@@ -794,6 +805,7 @@ else ()
         target_link_libraries(${PROJECT_NAME} PUBLIC ${CPPTRACE_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${CPPTRACE_INCLUDE_DIRS})
     endif ()
+
 
 endif ()
 

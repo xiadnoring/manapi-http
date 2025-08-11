@@ -97,76 +97,76 @@ cmake ... -DMANAPIHTTP_BUILD_METHOD=conan
 int main () {
     manapi::async::context::threadpoolfs(2);
     manapi::async::context::gbs = manapi::async::context::blockedsignals();
-    
+
     auto ctx = manapi::async::context::create(4).unwrap();
-    manapi::async::cthread::current(ctx);
-    
     ctx->eventloop()->setup_handle_interrupt();
+
+    auto router_ctx = manapi::net::http::server_ctx::create().unwrap();
     
-    auto router_ctx = manapi::net::http::server_ctx::create(ctx); 
     std::atomic<int> cnt = 0;
-    manapi::async::context::run(ctx, 4, [&cnt, router_ctx] (std::function<void> bind) -> void {
+    
+    manapi::async::context::run(ctx, 4, [&cnt, router_ctx] (std::function<void()> bind) -> void {
         using http = manapi::net::http::server;
         auto router = manapi::net::http::server::create(router_ctx).unwrap();
         auto db = manapi::ext::pq::connection::create().unwrap();
 
         router.GET ("/", [&cnt] (http::req &req, manapi::net::http::response *resp) mutable -> void {
-            resp.text(std::format("Hello World! Count: {}", cnt.fetch_add(1))).unwrap();
-            resp.finish();
+            resp->text(std::format("Hello World! Count: {}", cnt.fetch_add(1))).unwrap();
+            resp->finish();
         }).unwrap();
-    
+
         router.GET("/+error", [](http::req &req, http::resp &resp) -> manapi::future<> {
             resp.replacers({
                 {"status_code", std::to_string(resp.status_code())},
                 {"status_message", std::string{resp.status_message()}}
             }).unwrap();
-    
+
             co_return resp.file ("../examples/error.html").unwrap();
         }).unwrap();
-    
+
         router.POST("/+error", [](http::req &req, http::resp &resp) -> manapi::future<> {
             co_return resp.json({{"error", resp.status_code()},
                     {"msg", std::string{resp.status_message()}}}).unwrap();
         }).unwrap();
-    
+
         router.GET("/cat", [](http::req &req, http::resp &resp) -> manapi::future<> {
             auto fetch = (co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
                 {"verify_peer", false},
                 {"alpn", true},
                 {"method", "GET"}
             })).unwrap();
-    
+
             if (!fetch.ok()) {
                 co_return resp.json ({{"error", true}, {"message", "fetch failed"}}).unwrap();
             }
-    
+
             auto data = (co_await fetch.json()).unwrap();
-    
+
             co_return resp.text(std::move(data["description"].as_string())).unwrap();
         }).unwrap();
-    
+
         router.GET("/proxy", [](http::req &req, http::resp &resp) -> manapi::future<> {
             co_return resp.proxy("http://127.0.0.1:8889/video").unwrap();
         }).unwrap();
-    
+
         router.GET("/video", [](http::req &req, http::resp &resp) -> manapi::future<> {
             resp.partial_enabled(true);
             resp.compress_enabled(false);
             co_return resp.file("video.mp4").unwrap();
         }).unwrap();
-    
-        router.GET("/stop", [ctx](http::req &req, http::resp &resp) -> manapi::future<> {
+
+        router.GET("/stop", [](http::req &req, http::resp &resp) -> manapi::future<> {
             /* stop the app */
-            co_await ctx->stop();
+            co_await manapi::async::current()->stop();
             co_return resp.text("stopped").unwrap();
         }).unwrap();
-    
+
         router.GET("/timeout", [](http::req &req, http::resp &resp) -> manapi::future<> {
             /* stop the app */
             co_await manapi::async::delay{10000};
             co_return resp.text("10sec").unwrap();
         }).unwrap();
-        
+
         router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
             auto msg = req.param("id").unwrap();
             char *end;
@@ -188,8 +188,8 @@ int main () {
 
             co_return resp.text(std::string{res.is_sqlerr() ? res.sqlmsg() : res.message()}).unwrap();
         }).unwrap();
-    
-        manapi::async::run([router, db] () -> manapi::future<> {
+
+        manapi::async::run([router, db] () mutable -> manapi::future<> {
             (co_await db.connect("127.0.0.1", "7879", "development", "password", "db")).unwrap();
             (co_await router.config_object({
                 {"pools", manapi::json::array({
@@ -211,13 +211,16 @@ int main () {
                 })},
                 {"save_config", false}
             })).unwrap();
-            
+
             (co_await router.start()).unwrap();
         });
-        
+
         bind();
     }).unwrap();
-  
+
+    manapi::clear_tools::curl_library_clear();
+    manapi::clear_tools::ev_library_clear();
+    manapi::clear_tools::ssl_library_clear();
 
     return 0;
 }

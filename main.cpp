@@ -25,7 +25,7 @@
 // #include "services/ManapiGrpc.hpp"
 
 #include "components/ManapiFunction.hpp"
-
+//
 #include "ext/pq/AsyncPostgreClient.hpp"
 
 

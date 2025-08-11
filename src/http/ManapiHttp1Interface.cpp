@@ -20,7 +20,9 @@ return httpctx->namecb(__VA_ARGS__); \
 case manapi::net::http::versions::HTTP_v3: \
 httpctx = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data)->http3.get(); \
 return httpctx->namecb(__VA_ARGS__); \
-default: assert(false && "unreachable code"); }
+default: assert(false && "unreachable code");  } \
+httpctx = static_cast<manapi::net::worker::wrk_http_ctx_global_t *> (global->data)->http1.get(); \
+return httpctx->namecb(__VA_ARGS__);
 
 enum http_v1_flags {
     HTTP1_BODY_CHUNKED = 1

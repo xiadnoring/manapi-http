@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../../src/include/ManapiUtils.hpp"
+#include "../../ManapiUtils.hpp"
 #include "../../async/ManapiAsyncContext.hpp"
 #include "../../async/ManapiAsyncSocket.hpp"
 
@@ -81,7 +81,9 @@ namespace manapi::ext::pq {
          * otherwise it prints to the stdout
          */
         void log () const override {
-            MANAPIHTTP_LOG ("{}: msg: {} sqlmsg: {}", this->status_msg(), this->msg_, this->sqlmsg_);
+            manapi_log_debug ("%.*s: msg: %.*s sqlmsg: %.*s",
+                this->status_msg().size(), this->status_msg().data(), this->msg_.size(), this->msg_.data(),
+                this->sqlmsg_.size(), this->sqlmsg_.data());
         }
 
         /**

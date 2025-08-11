@@ -5,7 +5,7 @@
 
 #include <uv.h>
 
-#include "ManapiErrors.hpp"
+#include "../ManapiErrors.hpp"
 
 namespace manapi {
     class bytebuffer {

@@ -3,7 +3,7 @@
 #include "./AsyncPostgreRow.hpp"
 #include "AsyncPostgreError.hpp"
 #include "../../ManapiErrors.hpp"
-#include "../../../include/ManapiUtils.hpp"
+#include "../../ManapiUtils.hpp"
 
 namespace manapi::ext::pq {
 #include "libpq-events.h"

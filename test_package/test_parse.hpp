@@ -9,7 +9,7 @@
 #    include <manapihttp/ManapiHttp.hpp>
 #    include <manapihttp/ManapiString.hpp>
 
-#    include <manapihttp/http/ManapiHttp1.hpp> // http_v1_1_t
+//#    include <manapihttp/http/ManapiHttp1.hpp> // http_v1_1_t
 #endif
 #include "./utest.h"
 

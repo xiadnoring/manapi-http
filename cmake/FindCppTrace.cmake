@@ -1,18 +1,13 @@
-find_path(CPPTRACE_INCLUDE_DIR
+find_path(CPPTRACE_INCLUDE_DIRS
         NAMES cpptrace/cpptrace.hpp
 )
-find_library(CPPTRACE_LIBRARY
+find_library(CPPTRACE_LIBRARIES
         NAMES cpptrace
 )
 
 include(FindPackageHandleStandardArgs)
 
 find_package_handle_standard_args(CppTrace REQUIRED_VARS
-        CPPTRACE_LIBRARY CPPTRACE_INCLUDE_DIR)
+        CPPTRACE_LIBRARIES CPPTRACE_INCLUDE_DIRS)
 
-if(CPPTRACE_FOUND)
-    set(CPPTRACE_LIBRARIES     ${CPPTRACE_LIBRARY})
-    set(CPPTRACE_INCLUDE_DIRS  ${CPPTRACE_INCLUDE_DIR})
-endif()
-
-mark_as_advanced(CPPTRACE_INCLUDE_DIR CPPTRACE_LIBRARY)
+mark_as_advanced(CPPTRACE_INCLUDE_DIRS CPPTRACE_LIBRARIES)

@@ -3,7 +3,7 @@
 #include <cassert>
 #include <climits>
 
-#include "../../../src/include/ManapiUtils.hpp"
+#include "../../ManapiUtils.hpp"
 #include "./AsyncPostgreValue.hpp"
 
 #include <charconv>
