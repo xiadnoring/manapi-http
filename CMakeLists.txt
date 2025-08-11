@@ -1031,14 +1031,17 @@ endif ()
 
 if (MANAPIHTTP_ZLIB_DEPENDENCY_FETCH)
     add_dependencies(${PROJECT_NAME} zlib)
+    set_property(TARGET zlib PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif ()
 
 if (MANAPIHTTP_LIBUV_DEPENDENCY_FETCH)
     add_dependencies(${PROJECT_NAME} libuv)
+    set_property(TARGET libuv PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif ()
 
 if (MANAPIHTTP_CURL_DEPENDENCY_FETCH)
     add_dependencies(${PROJECT_NAME} curl)
+    set_property(TARGET curl PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif ()
 
 if (MANAPIHTTP_OPENSSL_DEPENDENCY_FETCH)
@@ -1047,10 +1050,12 @@ endif ()
 
 if (MANAPIHTTP_NGHTTP2_DEPENDENCY_FETCH)
     add_dependencies(${PROJECT_NAME} libnghttp2)
+    set_property(TARGET libnghttp2 PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif ()
 
 if (MANAPIHTTP_NGHTTP3_DEPENDENCY_FETCH)
     add_dependencies(${PROJECT_NAME} libnghttp3)
+    set_property(TARGET libnghttp3 PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif ()
 
 if(BUILD_SHARED_LIBS)
