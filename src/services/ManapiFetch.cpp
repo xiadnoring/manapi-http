@@ -547,15 +547,24 @@ manapi::net::fetch_formdata & manapi::net::fetch_formdata::operator=(fetch_formd
 }
 
 void manapi::net::fetch_formdata::setdata(std::string name, std::string value) {
-    this->mdata.insert({std::move(name), {.strdata = std::move(std::move(value)), .filedata = {}, .type = PARAM_DEFAULT}});
+    multipart_param_value res{};
+    res.strdata = std::move(value);
+    res.type = PARAM_DEFAULT;
+    this->mdata.insert({std::move(name), std::move(res)});
 }
 
 void manapi::net::fetch_formdata::setfile(std::string name, std::string filepath) {
-    this->mdata.insert({std::move(name), {.strdata = std::move(filepath), .filedata = {}, .type = PARAM_FILE}});
+    multipart_param_value res{};
+    res.strdata = std::move(filepath);
+    res.type = PARAM_FILE;
+    this->mdata.insert({std::move(name), std::move(res)});
 }
 
 void manapi::net::fetch_formdata::setcallback(std::string name, ssize_t size, std::move_only_function<size_t(void *buff, size_t buff_size)> cb) {
-    this->mdata.insert({std::move(name), {.strdata = {}, .filedata = multipart_param_value_file({std::move(cb), size}), .type = PARAM_CALLBACK}});
+    multipart_param_value res{};
+    res.filedata = multipart_param_value_file({std::move(cb), size});
+    res.type = PARAM_CALLBACK;
+    this->mdata.insert({std::move(name), std::move(res)});
 }
 
 void manapi::net::fetch_formdata::clear() {
