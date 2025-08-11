@@ -872,7 +872,9 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
                 }
 
 
-                auto res = cur->statics->insert({std::move(method), {std::move(folder), nullptr}});
+                http_static_handler_function func_static_hdl{};
+                func_static_hdl.folder = std::move(folder);
+                auto res = cur->statics->insert({std::move(method), std::move(func_static_hdl)});
 
                 if (res.second) {
                     if (handler) {
