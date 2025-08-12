@@ -55,7 +55,7 @@ manapi::net::fetch2::~fetch2() {
                 manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed due to %.*s", "fetch2", "continue_receiving", size, msg);
             }
 
-            if (!res) {
+            if (res && !res->ok()) {
                 manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed due to %.*s", "fetch2", "continue_receiving",
                     res->msg().size(), res->msg().data());
             }

@@ -97,6 +97,10 @@ manapi::exception::exception(manapi::err_num errnum, std::string_view message) {
 manapi::exception::exception(manapi::err_num errnum, const char *message) : data_() {
     this->flags = 1;
     this->errnum_ = errnum;
+
+    if (!message)
+        message = "null";
+
     new (&this->data_.view) std::string_view((message));
 }
 
