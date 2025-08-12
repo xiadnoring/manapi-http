@@ -12,6 +12,8 @@
 #   include "http/ManapiBaseHttp.hpp"
 #   include "../include/ManapiSiteInternal.hpp"
 
+static_assert(NGHTTP3_VERSION_NUM >= 0x010000, "libnghttp3 version must be greater than v1.0.0");
+
 extern manapi::net::worker::http_v3_callbacks_t ng_wrk_http3_callbacks;
 
 enum http3_stream_flags {
