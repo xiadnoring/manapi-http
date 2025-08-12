@@ -5,7 +5,7 @@
 #include "ManapiUtils.hpp"
 #include "../ManapiUtils.hpp"
 
-#ifdef MANAPIHTTP_NGHTTP3_DEPENDENCY && MANAPIHTTP_NGHTTP3_DEPENDENCY
+#if defined( MANAPIHTTP_NGHTTP3_DEPENDENCY ) && MANAPIHTTP_NGHTTP3_DEPENDENCY
 
 namespace manapi::net::worker {
     struct ng_wrk_http3_ctx_global_t;
