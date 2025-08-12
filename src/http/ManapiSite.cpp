@@ -268,7 +268,7 @@ void manapi::net::http::site::setup() {
         { return create_http_protocol_worker (w, worker::ng_wrk_http2_global_init); });
 #endif
 
-#if MANAPIHTTP_NGHTTP2_DEPENDENCY
+#if MANAPIHTTP_NGHTTP3_DEPENDENCY
     this->http_protocol_worker(http::versions::HTTP_v3, "nghttp", [] (worker::interface_worker *w)
         { return create_http_protocol_worker (w, worker::ng_wrk_http3_global_init); });
 #endif
