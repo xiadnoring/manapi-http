@@ -139,14 +139,6 @@ int manapi_bio_gets (BIO *bio, char *buf, int size) {
     return rhs;
 }
 
-int manapi_bio_recvmmsg(BIO *, BIO_MSG *, size_t, size_t, uint64_t, size_t *) {
-    return 0;
-}
-
-int manapi_bio_sendmmsg(BIO *, BIO_MSG *, size_t, size_t, uint64_t, size_t *) {
-    return 0;
-}
-
 BIO_METHOD *BIO_manapi_mem () noexcept {
     auto c = BIO_meth_new(BIO_TYPE_MEM, "ManapiOpenSslBio");
     if (!c) return nullptr;
@@ -160,9 +152,7 @@ BIO_METHOD *BIO_manapi_mem () noexcept {
         ||!BIO_meth_set_write_ex(c, manapi_bio_write_ex)
         ||!BIO_meth_set_read_ex(c, manapi_bio_read_ex)
         ||!BIO_meth_set_puts(c, manapi_bio_puts)
-        ||!BIO_meth_set_gets(c, manapi_bio_gets)
-        ||!BIO_meth_set_recvmmsg(c, manapi_bio_recvmmsg)
-        ||!BIO_meth_set_sendmmsg(c, manapi_bio_sendmmsg)) {
+        ||!BIO_meth_set_gets(c, manapi_bio_gets)) {
         BIO_meth_free(c);
         return nullptr;
     }
@@ -221,7 +211,11 @@ void ssl_flush_sessions (std::mutex *mx, ssl_worker_ctx_t *ctx_data) {
     auto const current_time = ::time(nullptr);
 
     for (auto it = sessions.begin(); it != sessions.end(); ) {
+#ifdef OSSL_DEPRECATEDIN_3_4_FOR
         auto const created_at = SSL_SESSION_get_time_ex(it->second);
+#else
+        std::time_t created_at = SSL_SESSION_get_time (it->second);
+#endif
         auto const timeout_in = SSL_SESSION_get_timeout(it->second);
 
         if (created_at + timeout_in < current_time) {
@@ -549,28 +543,43 @@ manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_co
     auto ktls_tx_zerocopy_senfile = http::config::get_config_param<bool>(
         this->config_->ssl, "ktls_tx_zerocopy_senfile", true);
 
+#ifdef SSL_OP_ENABLE_KTLS
     if (ktls)
         SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+#endif
+
+#ifdef SSL_OP_ENABLE_KTLS_TX_ZEROCOPY_SENDFILE
     if (ktls_tx_zerocopy_senfile)
         SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS_TX_ZEROCOPY_SENDFILE);
+#endif
 
     if (max_early_data) {
         if (!SSL_CTX_set_max_early_data(ctx, max_early_data)) {
             manapi_log_error("openssl: %s failed", "SSL_CTX_set_max_early_data");
         }
     }
+#ifdef SSL_OP_NO_COMPRESSION
     SSL_CTX_set_options(ctx, SSL_OP_NO_COMPRESSION);
+#endif
     // SSL_CTX_set_min_proto_version(ctx, 0);
     // SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
 
     // SSL_CTX_set_max_send_fragment(ctx, this->config->buffer_size());
     // SSL_CTX_set_default_read_buffer_len(ctx, this->config->buffer_size());
+#ifdef SSL_OP_NO_SSLv2
     if (!ssl_v2)
         SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
+#endif
+
+#ifdef SSL_OP_NO_SSLv3
     if (!ssl_v3)
         SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv3);
+#endif
+
+#ifdef SSL_OP_NO_TICKET
     if (!ticket)
         SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
+#endif
 
     if (sess_cache) {
         //SSL_SESS_CACHE_NO_INTERNAL_STORE
@@ -596,8 +605,10 @@ manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_co
     if (!SSL_CTX_set_timeout(ctx, sess_timeout))
         goto err;
 
+#ifdef SSL_OP_SINGLE_DH_USE
     if (single_dh_use)
         SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+#endif
 
     SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS
         |SSL_MODE_AUTO_RETRY

@@ -218,16 +218,15 @@ manapi::error::status manapi::net::worker::openssl_quic::load_params (manapi::ne
         auto config_list = w->config()->alpns();
 
         list.insert(list.end(), config_list.begin(), config_list.end());
-        list.emplace_back("hq-interop");
 
         w->alpn_ossltest(generate_alpn_ossltest(list));
 
 
         SSL_CTX_set_verify(ctx, verify_peer, nullptr);
         SSL_CTX_set_alpn_select_cb(ctx, manapi::net::worker::openssl_quic::select_alpn, w);
-
+#ifdef SSL_OP_NO_COMPRESSION
         SSL_CTX_set_options(ctx, SSL_OP_NO_COMPRESSION);
-
+#endif
         if (sess_cache) {
             //SSL_SESS_CACHE_NO_INTERNAL_STORE
             SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_SERVER);
@@ -239,28 +238,36 @@ manapi::error::status manapi::net::worker::openssl_quic::load_params (manapi::ne
         else {
             SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
         }
-
+#ifdef SSL_OP_ENABLE_KTLS
         if (ktls)
             SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+#endif
+#ifdef SSL_OP_ENABLE_KTLS_TX_ZEROCOPY_SENDFILE
         if (ktls_tx_zerocopy_senfile)
             SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS_TX_ZEROCOPY_SENDFILE);
-
-
+#endif
+#ifdef SSL_OP_NO_SSLv2
         if (!ssl_v2)
             SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
+#endif
+#ifdef SSL_OP_NO_SSLv3
         if (!ssl_v3)
             SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv3);
+#endif
+#ifdef SSL_OP_NO_TICKET
         if (!ticket)
             SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
+#endif
 
 
         SSL_CTX_sess_set_cache_size(ctx, sess_cache_size);
 
         if (!SSL_CTX_set_timeout(ctx, sess_timeout))
             goto err;
+#ifdef SSL_OP_SINGLE_DH_USE
         if (single_dh_use)
             SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
-
+#endif
         if (cipher_list.empty()) {
             SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
         }
