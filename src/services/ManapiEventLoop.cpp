@@ -12,7 +12,10 @@
 
 #include <memory>
 #include <cstring>
-#include <stacktrace>
+
+#if __cplusplus >= 202302L
+#   include <stacktrace>
+#endif
 
 #include "../include/ManapiUtils.hpp"
 #include "async/ManapiAsyncSocket.hpp"
@@ -407,7 +410,7 @@ static void evloop_stack_trace () MANAPIHTTP_NOEXCEPT {
     try {
 #if MANAPIHTTP_CPPTRACE_DEPENDENCY
         cpptrace::generate_trace().print();
-#else
+#elif __cplusplus >= 202302L
         auto stack = std::stacktrace::current();
         for (std::size_t i = 0; i < stack.size(); i++) {
             auto &it = stack[i];
@@ -416,7 +419,8 @@ static void evloop_stack_trace () MANAPIHTTP_NOEXCEPT {
                 it.source_file().size(), it.source_file().data(),
                 it.source_line());
         }
-        //manapi_log_error("stack trace is disabled");
+#else
+        manapi_log_error("stack trace is disabled");
 #endif
     }
     catch (std::exception const &e) {
