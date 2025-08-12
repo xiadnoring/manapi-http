@@ -25,8 +25,8 @@
 // #include "services/ManapiGrpc.hpp"
 
 #include "components/ManapiFunction.hpp"
-//
-#include "ext/pq/AsyncPostgreClient.hpp"
+// //
+// #include "ext/pq/AsyncPostgreClient.hpp"
 
 
 // Logic and data behind the server's behavior.
@@ -139,7 +139,7 @@ int main () {
 
     manapi::async::context::run(ctx, loops, [&thrcnt, &a, server_ctx/*,grpc_server_ctx*/] (const std::function<void()> &bind) -> void {
         using http = manapi::net::http::server;
-        auto db = manapi::ext::pq::connection::create().unwrap();
+       // auto db = manapi::ext::pq::connection::create().unwrap();
 
         /**
          * grpc
@@ -225,27 +225,27 @@ int main () {
             }).unwrap();
         }).unwrap();
 
-        router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
-            auto msg = req.param("id").unwrap();
-            char *end;
-            auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::strtoll(msg.data(), &end, 10));
-            if (!res1) {
-                if (res1.sqlcode() != manapi::ext::pq::SQL_STATE_UNIQUE_VIOLATION)
-                    res1.err().log();
-            }
-
-            auto res = co_await db.exec("SELECT * FROM for_test;");
-            if (res) {
-                std::string content = "b";
-                for (const auto &row: res.unwrap()) {
-                    content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
-                }
-
-                co_return resp.text(std::move(content)).unwrap();
-            }
-
-            co_return resp.text(std::string{res.is_sqlerr() ? res.sqlmsg() : res.message()}).unwrap();
-        }).unwrap();
+        // router.GET("/pq/[id]", [db](manapi::net::http::request& req, manapi::net::http::response& resp) mutable -> manapi::future<> {
+        //     auto msg = req.param("id").unwrap();
+        //     char *end;
+        //     auto res1 = co_await db.exec("INSERT INTO for_test (id, str_col) VALUES ($2, $1);","no way", std::strtoll(msg.data(), &end, 10));
+        //     if (!res1) {
+        //         if (res1.sqlcode() != manapi::ext::pq::SQL_STATE_UNIQUE_VIOLATION)
+        //             res1.err().log();
+        //     }
+        //
+        //     auto res = co_await db.exec("SELECT * FROM for_test;");
+        //     if (res) {
+        //         std::string content = "b";
+        //         for (const auto &row: res.unwrap()) {
+        //             content += std::to_string(row["id"].as<int>()) + " - " + row["str_col"].as<std::string>() + "<hr/>";
+        //         }
+        //
+        //         co_return resp.text(std::move(content)).unwrap();
+        //     }
+        //
+        //     co_return resp.text(std::string{res.is_sqlerr() ? res.sqlmsg() : res.message()}).unwrap();
+        // }).unwrap();
 
         router.GET ("/free", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
             -> manapi::future<> {
@@ -258,8 +258,8 @@ int main () {
 
         init_http_server (router, folder);
 
-        manapi::async::run([router, db] () mutable -> manapi::future<> {
-            (co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main")).unwrap();
+        manapi::async::run([router/*, db*/] () mutable -> manapi::future<> {
+            //(co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main")).unwrap();
 
             (co_await router.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
             (co_await router.start()).unwrap();
