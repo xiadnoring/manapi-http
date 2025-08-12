@@ -13,7 +13,7 @@
 #include <memory>
 #include <cstring>
 
-#if __cplusplus >= 202302L
+#if __cplusplus >= 202302L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
 #   include <stacktrace>
 #endif
 
@@ -410,7 +410,7 @@ static void evloop_stack_trace () MANAPIHTTP_NOEXCEPT {
     try {
 #if MANAPIHTTP_CPPTRACE_DEPENDENCY
         cpptrace::generate_trace().print();
-#elif __cplusplus >= 202302L
+#elif __cplusplus >= 202302L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
         auto stack = std::stacktrace::current();
         for (std::size_t i = 0; i < stack.size(); i++) {
             auto &it = stack[i];
