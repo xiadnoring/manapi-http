@@ -3,7 +3,10 @@ project(manapihttp VERSION 0.0.2 DESCRIPTION "Fast HTTP Server/Client Library fo
 
 cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0070 NEW)
-cmake_policy(SET CMP0135 NEW)
+
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+    cmake_policy(SET CMP0135 NEW)
+endif ()
 
 if (EXISTS "./build/generators/conan_toolchain.cmake")
     include(./build/generators/conan_toolchain.cmake)
