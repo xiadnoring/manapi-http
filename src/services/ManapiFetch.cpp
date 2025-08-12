@@ -18,7 +18,7 @@
 #include "async/ManapiAsyncPromise.hpp"
 #include "ManapiString.hpp"
 
-#define MANAPIHTTP_CURL_VERSION_REQUIRE(major, minor, patch) (LIBCURL_VERSION_MAJOR > major || (LIBCURL_VERSION_MAJOR == major && (LIBCURL_VERSION_MINOR > minor || LIBCURL_VERSION_MINOR == minor && (LIBCURL_VERSION_PATCH >= patch))))
+#define MANAPIHTTP_CURL_VERSION_REQUIRE(major, minor, patch) MANAPIHTTP_SINCE_AT_CUSTOM(LIBCURL_VERSION_MAJOR,LIBCURL_VERSION_MINOR,LIBCURL_VERSION_PATCH, major, minor, patch)
 
 // Utils
 

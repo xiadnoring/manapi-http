@@ -13,7 +13,6 @@
 #include "http/ManapiBaseHttp.hpp"
 #include "../include/ManapiSiteInternal.hpp"
 
-
 extern manapi::net::worker::http_v2_callbacks_t ng_wrk_http2_callbacks;
 
 enum http2_stream_flags {
@@ -334,9 +333,11 @@ static int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const 
         case NGHTTP2_ORIGIN: {
             break;
         }
+#if (NGHTTP2_VERSION_NUM >= 0x013000)
         case NGHTTP2_PRIORITY_UPDATE: {
             break;
         }
+#endif
         default:
             break;
     }

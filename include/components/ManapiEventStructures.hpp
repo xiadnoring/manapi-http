@@ -9,7 +9,7 @@
 #include "../ManapiErrors.hpp"
 #include "../ManapiDebug.hpp"
 
-#define MANAPHTTP_UV_SINCE_AT(major,minor,patch) UV_VERSION_MAJOR > major || (UV_VERSION_MAJOR==major&&(UV_VERSION_MINOR > minor || (UV_VERSION_MINOR==minor && UV_VERSION_PATCH>=patch)))
+#define MANAPHTTP_UV_SINCE_AT(major,minor,patch) MANAPIHTTP_SINCE_AT_CUSTOM(UV_VERSION_MAJOR, UV_VERSION_MINOR, UV_VERSION_PATCH,major,minor,patch)
 #define MANAPI_EV_CAST_STREAM(x) reinterpret_cast<uv_stream_t *> (x)
 #define MANAPI_EV_CAST_HANDLE(x) reinterpret_cast <uv_handle_t *> (x)
 #define MANAPI_EV_DEFAULT_PRIVATE_VAR(name_class, name_struct)
