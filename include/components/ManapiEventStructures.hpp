@@ -1153,4 +1153,3 @@ namespace manapi::sys_error {
 #undef MANAPI_EV_CHECK
 #undef MANAPI_EV_DEFAULT
 #undef MANAPI_EV_CAST_STREAM
-#undef MANAPHTTP_UV_SINCE_AT
