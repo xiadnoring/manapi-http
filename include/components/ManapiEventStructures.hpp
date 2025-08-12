@@ -286,10 +286,15 @@ namespace manapi::ev {
         ERR_NOTEMPTY = UV_ENOTEMPTY ,
         /* too many symbolic links encountered (-40) */
         ERR_LOOP = UV_ELOOP ,
+#if MANAPI_EV_SINCE_AT(1,45,0)
         /* protocol driver not attached (-49) */
         ERR_UNATCH = UV_EUNATCH,
         /* (-61) */
         ERR_NODATA = UV_ENODATA ,
+#else
+        ERR_UNATCH = UV_ERRNO_MAX,
+        ERR_NODATA = UV_ERRNO_MAX ,
+#endif
         /* machine is not on the network (-64) */
         ERR_NONET = UV_ENONET ,
         /* protocol error (-71) */

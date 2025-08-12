@@ -18,6 +18,8 @@
 #include "async/ManapiAsyncPromise.hpp"
 #include "ManapiString.hpp"
 
+#define MANAPIHTTP_CURL_VERSION_REQUIRE(major, minor, patch) (LIBCURL_VERSION_MAJOR > major || (LIBCURL_VERSION_MAJOR == major && (LIBCURL_VERSION_MINOR > minor || LIBCURL_VERSION_MINOR == minor && (LIBCURL_VERSION_PATCH >= patch))))
+
 // Utils
 
 enum body_type {
@@ -233,9 +235,14 @@ size_t manapi::net::fetch::curl_header_handler (char *buffer, size_t size, size_
 
 size_t manapi::net::fetch::curl_write_handler (char *buffer, size_t size, size_t nitems, void *user_p) {
     auto f = static_cast <data_t *> (user_p);
+
     try {
         // call user handler
-        return static_cast<size_t>(f->handler_recv_body (f->data, buffer, static_cast<ssize_t>(size * nitems)));
+        auto const len = static_cast<ssize_t>(size * nitems);
+        if (!len)
+            return 0;
+
+        return (f->handler_recv_body (f->data, buffer, len));
     }
     catch (std::exception const &e) {
         manapi_log_error("%s: %s failed due to %s", "fetch", "curl_write_handler", e.what());
@@ -296,54 +303,69 @@ static std::size_t curl_recv_data_and_wait (const std::shared_ptr<manapi::net::f
         const auto copy = size;
         auto res = data->async_buffer.copy_from(buffer, data->async_buffer_size, copy);
         if (!res.ok())
-            return CURL_WRITEFUNC_ERROR;
+            goto err;
 
         data->async_buffer_size += copy;
 
         return copy;
     }
+    else {
+        /* in the loop event */
+        if (!data->async_run.try_to_lock()) {
+            /** something gets wrong **/
+            goto err;
+        }
 
-    /* in the loop event */
-    if (!data->async_run.try_to_lock()) {
-        /** something gets wrong **/
-        return CURL_WRITEFUNC_ERROR;
+        auto res = data->parallel_task (data);
+        if (!res) {
+            data->async_run.unlock();
+            goto err;
+        }
+
+        return CURL_WRITEFUNC_PAUSE;
     }
-
-    auto res = data->parallel_task (data);
-    if (!res) {
-        data->async_run.unlock();
-        return CURL_WRITEFUNC_ERROR;
-    }
-
+    err:
+#if MANAPIHTTP_CURL_VERSION_REQUIRE(7,87,0)
     return CURL_WRITEFUNC_PAUSE;
+#else
+    return 0;
+#endif
 }
 
 static std::size_t curl_recv_async_headers_and_continiue (const std::shared_ptr<manapi::net::fetch::data_t> &data, char *buffer, ssize_t buffer_size)  {
-    if (!data->async_run.try_to_lock()) {
-        /** something gets wrong **/
-        return CURL_WRITEFUNC_ERROR;
-    }
+    if (data->async_run.try_to_lock()) {
+        auto res = data->parallel_task (data);
+        if (!res) {
+            data->async_run.unlock();
+            goto err;
+        }
 
-    auto res = data->parallel_task (data);
-    if (!res) {
-        data->async_run.unlock();
-        return CURL_WRITEFUNC_ERROR;
+        return CURL_WRITEFUNC_PAUSE;
     }
-
+err:
+#if MANAPIHTTP_CURL_VERSION_REQUIRE(7,87,0)
     return CURL_WRITEFUNC_PAUSE;
+#else
+    return 0;
+#endif
+
 }
 
 static std::size_t curl_recv_sync_continiue (const std::shared_ptr<manapi::net::fetch::data_t> &data, char *buffer, ssize_t buffer_size) {
     try {
         auto const rhs = data->sync_user_body_cb->operator() (buffer, buffer_size);
-        if (rhs < 0)
-            return CURL_WRITEFUNC_ERROR;
-        return static_cast<std::size_t>(rhs);
+        if (rhs >= 0)
+            return static_cast<std::size_t>(rhs);
     }
     catch (std::exception const &e) {
         manapi_log_trace("%s: %s failed due to %s", "fetch", "recv user callback", e.what());
     }
-    return CURL_WRITEFUNC_ERROR;
+
+#if MANAPIHTTP_CURL_VERSION_REQUIRE(7,87,0)
+    return CURL_WRITEFUNC_PAUSE;
+#else
+    return 0;
+#endif
 }
 
 static manapi::future<manapi::error::status> curl_recv_async_callback (const std::shared_ptr<manapi::net::fetch::data_t> &data, bool finish) {
