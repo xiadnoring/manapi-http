@@ -6,7 +6,6 @@
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 
 #   include <openssl/ssl.h>
-#   include <openssl/quic.h>
 
 #   if OPENSSL_VERSION_NUMBER >= ((3<<28)|(5<<20)|(0<<4)|0x0L)
 
