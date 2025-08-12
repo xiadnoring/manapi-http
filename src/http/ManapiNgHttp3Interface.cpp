@@ -1,6 +1,7 @@
 #include "../include/http/ManapiNgHttp3Interface.hpp"
+#include "ManapiUtils.hpp"
 
-#if MANAPIHTTP_NGHTTP3_DEPENDENCY
+#ifdef MANAPIHTTP_NGHTTP3_DEPENDENCY && MANAPIHTTP_NGHTTP3_DEPENDENCY
 
 #   include <cstring>
 
