@@ -2,6 +2,7 @@
 
 #include <memory>
 #include "worker/ManapiHttp3Worker.hpp"
+#include "ManapiUtils.hpp"
 #include "../ManapiUtils.hpp"
 
 #if MANAPIHTTP_NGHTTP3_DEPENDENCY

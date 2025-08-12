@@ -5,6 +5,7 @@
 
 #include "../ManapiHttpConfig.hpp"
 #include "../http/ManapiSite.hpp"
+#include "../ManapiUtils.hpp"
 
 namespace manapi::net::worker {
     struct sockaddr_st {
