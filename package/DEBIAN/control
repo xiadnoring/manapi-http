@@ -5,6 +5,6 @@ Section: libs
 Maintainer: Xiadnoring <me@timurtuty.ru>
 Homepage: https://github.com/xiadnoring/manapi-http
 Architecture: amd64
-Depends: libstdc++6,libuv1-dev,libbrolti-dev,libzstd-dev,libgmp-dev,libcurl4-openssl-dev,libnghttp2-dev,libssl-dev
+Depends: libstdc++6,libuv1-dev,libbrotli-dev,libzstd-dev,libgmp-dev,libcurl4-openssl-dev,libnghttp2-dev,libssl-dev
 Description: HTTP server to easy develop API-services and Web Applications.
  HTTP server to easy develop API-services and Web Applications.
