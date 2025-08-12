@@ -9,7 +9,7 @@
 #include "../ManapiErrors.hpp"
 #include "../ManapiDebug.hpp"
 
-#define MANAPI_EV_SINCE_AT(major,minor,patch) UV_VERSION_MAJOR > major || (UV_VERSION_MAJOR==major&&(UV_VERSION_MINOR > minor || (UV_VERSION_MINOR==minor && UV_VERSION_PATCH>=patch)))
+#define MANAPHTTP_UV_SINCE_AT(major,minor,patch) UV_VERSION_MAJOR > major || (UV_VERSION_MAJOR==major&&(UV_VERSION_MINOR > minor || (UV_VERSION_MINOR==minor && UV_VERSION_PATCH>=patch)))
 #define MANAPI_EV_CAST_STREAM(x) reinterpret_cast<uv_stream_t *> (x)
 #define MANAPI_EV_CAST_HANDLE(x) reinterpret_cast <uv_handle_t *> (x)
 #define MANAPI_EV_DEFAULT_PRIVATE_VAR(name_class, name_struct)
@@ -59,7 +59,7 @@ namespace manapi::ev {
     enum udp_flags {
         UDP_IPV6ONLY = UV_UDP_IPV6ONLY,
         UDP_REUSEADDR = UV_UDP_REUSEADDR,
-#if MANAPI_EV_SINCE_AT(1, 49, 0)
+#if MANAPHTTP_UV_SINCE_AT(1, 49, 0)
         UDP_REUSEPORT = UV_UDP_REUSEPORT,
 #else
         UDP_REUSEPORT = 0,
@@ -73,7 +73,7 @@ namespace manapi::ev {
 
     enum tcp_flags {
         TCP_IPV6ONLY = UV_TCP_IPV6ONLY,
-#if MANAPI_EV_SINCE_AT(1,49,0)
+#if MANAPHTTP_UV_SINCE_AT(1,49,0)
         TCP_REUSEPORT = UV_TCP_REUSEPORT,
 #else
         TCP_REUSEPORT = 0,
@@ -286,7 +286,7 @@ namespace manapi::ev {
         ERR_NOTEMPTY = UV_ENOTEMPTY ,
         /* too many symbolic links encountered (-40) */
         ERR_LOOP = UV_ELOOP ,
-#if MANAPI_EV_SINCE_AT(1,45,0)
+#if MANAPHTTP_UV_SINCE_AT(1,45,0)
         /* protocol driver not attached (-49) */
         ERR_UNATCH = UV_EUNATCH,
         /* (-61) */
@@ -1153,4 +1153,4 @@ namespace manapi::sys_error {
 #undef MANAPI_EV_CHECK
 #undef MANAPI_EV_DEFAULT
 #undef MANAPI_EV_CAST_STREAM
-#undef MANAPI_EV_SINCE_AT
+#undef MANAPHTTP_UV_SINCE_AT

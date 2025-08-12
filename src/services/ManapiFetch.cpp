@@ -326,7 +326,7 @@ static std::size_t curl_recv_data_and_wait (const std::shared_ptr<manapi::net::f
     }
     err:
 #if MANAPIHTTP_CURL_VERSION_REQUIRE(7,87,0)
-    return CURL_WRITEFUNC_PAUSE;
+    return CURL_WRITEFUNC_ERROR;
 #else
     return 0;
 #endif
@@ -344,7 +344,7 @@ static std::size_t curl_recv_async_headers_and_continiue (const std::shared_ptr<
     }
 err:
 #if MANAPIHTTP_CURL_VERSION_REQUIRE(7,87,0)
-    return CURL_WRITEFUNC_PAUSE;
+    return CURL_WRITEFUNC_ERROR;
 #else
     return 0;
 #endif
@@ -362,7 +362,7 @@ static std::size_t curl_recv_sync_continiue (const std::shared_ptr<manapi::net::
     }
 
 #if MANAPIHTTP_CURL_VERSION_REQUIRE(7,87,0)
-    return CURL_WRITEFUNC_PAUSE;
+    return CURL_WRITEFUNC_ERROR;
 #else
     return 0;
 #endif
@@ -464,6 +464,13 @@ static manapi::future<bool> handle_body_verify (std::shared_ptr<manapi::net::fet
 
 static manapi::future<manapi::error::status> handle_sync_body_finish(std::shared_ptr<manapi::net::fetch::data_t> data, bool finish) {
     manapi::error::status status;
+    std::size_t constexpr error_value =
+    #if MANAPIHTTP_CURL_VERSION_REQUIRE(7,87,0)
+        CURL_WRITEFUNC_ERROR;
+    #else
+        0;
+    #endif
+
     try {
         data->handler_recv_body = curl_recv_sync_continiue;
 
@@ -485,7 +492,7 @@ static manapi::future<manapi::error::status> handle_sync_body_finish(std::shared
                 auto const buff = static_cast<char*>(it.buffer());
 
                 while (current < size) {
-                    if ((rhs = data->handler_recv_body (data, buff + current, size - current)) == CURL_WRITEFUNC_ERROR) {
+                    if ((rhs = data->handler_recv_body (data, buff + current, size - current)) == error_value) {
                         goto err;
                     }
 

@@ -149,7 +149,11 @@ manapi::future<manapi::sys_error::status_or<bool>> manapi::filesystem::async_exi
 manapi::future<manapi::sys_error::status_or<std::chrono::system_clock::time_point>> manapi::filesystem::async_last_time_write(std::string path, manapi::async::cancellation_action cancellation) {
     sys_error::status res;
     try {
+#if MANAPHTTP_UV_SINCE_AT(1,45,0)
         uv_timespec64_t mtime;
+#else
+        uv_timespec_t mtime;
+#endif
         res = co_await filesystem::async_stat(std::move(path), [&mtime] (ev::stat_t *stat)
             -> void {
             assert(stat);
