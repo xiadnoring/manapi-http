@@ -978,7 +978,8 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
             top->deque = std::move(top->deque->next);
 
             if (!top->deque) {
-                assert(object.resize(top->deque_cursor).ok());
+                auto resize_res = object.resize(top->deque_cursor);
+                assert(resize_res.ok());
                 top->last_deque = nullptr;
                 top->deque_cursor = 0;
             }

@@ -110,33 +110,33 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
         if (this->local->ai_family == ev::IPv4) {
             rhs = this->watcher_accept_->ip4_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in *>(&this->sockaddrin));
             if (rhs) {
-                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set ipv4 addr due to result - {}", rhs);
+                manapi_log_error("tcp:couldn't set ipv4 addr due to result: %s", ev::strerror(rhs));
                 co_return error::status_internal("tcp:ip4_addr failed");
             }
         }
         else if (this->local->ai_family == ev::IPv6) {
             rhs = this->watcher_accept_->ip6_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin));
             if (rhs) {
-                manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set ipv6 addr due to result - {}", rhs);
+                manapi_log_error("tcp:couldn't set ipv6 addr due to result: %s", ev::strerror(rhs));
                 co_return error::status_internal("tcp:ip6_addr failed");
             }
         }
 
         rhs = this->watcher_accept_->nodelay(this->config_->tcp_no_delay);
         if (rhs) {
-            manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set nodelay due to result - {}", rhs);
+            manapi_log_error("tcp:couldn't set nodelay due to result: %s", ev::strerror(rhs));
             co_return error::status_internal("tcp:nodelay failed");
         }
 
         rhs = this->watcher_accept_->simultaneous_accepts(this->config_->simultaneous_accepts);
         if (rhs) {
-            manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set simultaneous_accepts due to result - {}", rhs);
+            manapi_log_error ("tcp:couldn't set simultaneous_accepts due to result:%s",ev::strerror(rhs));
             co_return error::status_internal("tcp:simultaneous_accepts failed");
         }
 
         rhs = this->watcher_accept_->keepalive(!!this->config_->keep_alive, this->config_->keep_alive);
         if (rhs) {
-            manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set keep-alive due to result - {}", rhs);
+            manapi_log_error("tcp:couldn't set keep-alive due to result:%s", rhs);
             co_return error::status_internal("tcp:keepalive failed");
         }
 
@@ -147,14 +147,14 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
 #endif
             rhs = this->watcher_accept_->s_bind(reinterpret_cast<sockaddr *> (&this->sockaddrin), bind_flags);
             if (rhs) {
-                manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't bind socket due to result - {} {}", rhs, uv_err_name (rhs));
+                manapi_log_error("tcp:couldn't bind socket due to result:%s", ev::strerror(rhs));
                 co_return error::status_internal("tcp:s_bind failed");
             }
         }
 
         rhs = this->watcher_accept_->listen(this->config_->tcp_backlog);
         if (rhs) {
-            manapi::async::current()->logger()->error(logger::default_service, ERR_FAILED_PRECONDITION, "couldn't listen socket due to result - {}", rhs);
+            manapi_log_error("tcp:couldn't listen socket due to result:%s", ev::strerror(rhs));
             co_return error::status_internal("tcp:listen failed");
         }
 
@@ -185,6 +185,7 @@ void manapi::net::worker::TCP::onaccept(const std::shared_ptr<ev::tcp> &watcher,
     connection = this->accept(watcher);
 
     if (!connection) {
+        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed", "tcp", "new_connection");
         return;
     }
 
@@ -201,6 +202,8 @@ void manapi::net::worker::TCP::onaccept(const std::shared_ptr<ev::tcp> &watcher,
 void manapi::net::worker::TCP::onrecv(const std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer) MANAPIHTTP_NOEXCEPT {
     auto const connection = conn->as<tcp_connection_t>();
     auto const size = static_cast<int>(buffer.size());
+
+    manapi_log_trace_hard("tcp:recv conn=%p data=%p size=%zu", conn.get(), buffer.data(), buffer.size());
 
     connection->transfered += size;
     if (connection->transfered >= this->config_->speed_limit_rate) {
@@ -287,7 +290,8 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
                     }
 
 
-                    assert(object.resize(nread).ok());
+                    auto resize_res = object.resize(nread);
+                    assert(resize_res.ok());
 
                     this->onrecv(w, connection, std::move(object));
                 }
@@ -359,8 +363,9 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
             connection->wrk.flags |= WRK_INTERFACE_CONN_RETRY;
         }
 
-        assert((it.insert({reinterpret_cast<uintptr_t>(connection.get()),
-            connection}).second));
+        auto res = it.insert({reinterpret_cast<uintptr_t>(connection.get()),
+            connection});
+        assert((res.second));
     }
     catch (std::exception const &e) {
         manapi_log_error("tcp accept: failed due to %s", e.what());
@@ -370,6 +375,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
 
     return std::move(connection);
     err:
+    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed", "tcp", "accept");
     if (connection) {
         auto it = this->ips.find(arr);
         if (it != this->ips.end())
@@ -644,14 +650,18 @@ void manapi::net::worker::TCP::read_start_(tcp_connection_t *data) MANAPIHTTP_NO
     if (!data->watcher || data->watcher->is_active() || data->transfered > this->config_->speed_limit_rate)
         return;
     manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_start()", data);
-    assert(!data->watcher->read_start());
+    auto res = data->watcher->read_start();
+    if (res)
+        manapi_log_error("%s failed due to %s", "tcp:read_start", ev::strerror(res));
 }
 
 void manapi::net::worker::TCP::read_stop_(tcp_connection_t *data) MANAPIHTTP_NOEXCEPT {
     if (!data->watcher || !data->watcher->is_active())
         return;
     manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_stop()", data);
-    assert(!data->watcher->read_stop());
+    auto res = data->watcher->read_stop();
+    if (res)
+        manapi_log_error("%s failed due to %s", "tcp:read_stop", ev::strerror(res));
 }
 
 int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection, bool flush) MANAPIHTTP_NOEXCEPT {
@@ -675,7 +685,8 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
 
                     if (current == conn->top->send.last_deque) {
                         conn->top->send.last_deque = nullptr;
-                        assert(object.resize(conn->top->send.deque_cursor).ok());
+                        auto resize_res = object.resize(conn->top->send.deque_cursor);
+                        assert(resize_res.ok());
                         conn->top->send.deque_cursor = 0;
                     }
 
@@ -793,7 +804,8 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                         else {
                             conn->top->send.last_deque = current;
                             conn->top->send.deque_cursor = conn->top->send.last_deque->buffer.size();
-                            assert(conn->top->send.last_deque->buffer.resize(current->buffer.realsize() - current->buffer.shift()).ok());
+                            auto resize_res = conn->top->send.last_deque->buffer.resize(current->buffer.realsize() - current->buffer.shift());
+                            assert(resize_res.ok());
                         }
 
                         conn->top->send.deque = std::move(sent);

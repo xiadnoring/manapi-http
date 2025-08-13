@@ -281,7 +281,8 @@ void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, co
             src->deque_current = 0;
 
             if (src->deque.get() != src->last_deque) {
-                assert(src->deque->buffer.resize(size).ok());
+                auto res = src->deque->buffer.resize(size).ok();
+                assert(res);
             }
         }
 
@@ -295,14 +296,16 @@ void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, co
         }
         else {
             dest->deque_cursor = src->deque_cursor;
-            assert(obj->buffer.resize(src->deque_cursor).ok());
+            auto res = obj->buffer.resize(src->deque_cursor).ok();
+            assert(res);
             src->last_deque = nullptr;
             src->deque_cursor = 0;
         }
 
         if (dest->last_deque) {
             if (dest->last_deque->buffer.size() != prev_deque_cursor) {
-                assert(dest->last_deque->buffer.resize(prev_deque_cursor).ok());
+                auto res = dest->last_deque->buffer.resize(prev_deque_cursor).ok();
+                assert(res);
             }
             dest->last_deque->next = std::move(obj);
             dest->last_deque = dest->last_deque->next.get();
@@ -327,7 +330,8 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
                 if (top->last_deque) {
                     auto const payload_size = top->last_deque->buffer.size() + top->last_deque->buffer.shift();
                     if (top->last_deque->buffer.realsize() != payload_size) {
-                        assert(top->last_deque->buffer.resize(top->last_deque->buffer.realsize() - top->last_deque->buffer.shift()).ok());
+                        auto resize_res = top->last_deque->buffer.resize(top->last_deque->buffer.realsize() - top->last_deque->buffer.shift());
+                        assert(resize_res.ok());
                         continue;
                     }
                 }
@@ -410,7 +414,8 @@ int manapi::net::worker::base::connection_io_send_start(connection_io_part *top,
             top->last_deque = top->deque.get();
             top->deque_current = 0;
             top->deque_cursor = static_cast<int>(top->deque->buffer.size());
-            assert(top->deque->buffer.realresize(top->deque->buffer.realsize()).ok());
+            auto resize_res = top->deque->buffer.realresize(top->deque->buffer.realsize());
+            assert(resize_res.ok());
             (*cnt)++;
         }
         return ERR_OK;

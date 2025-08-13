@@ -54,7 +54,8 @@ void pio_ready (manapi::socket_t fd, int flags, manapi::ev::io_cb cb, const mana
         if (cancellation.contains_cancel_callback()) {
             cancellation.cancel_callback([w, resolve] () mutable
                 -> void {
-                    assert(!w->stop());
+                    auto res_stop = w->stop();
+                    assert(!res_stop);
                     manapi::async::current()->eventloop()->stop_watcher(w);
                     resolve (manapi::sys_error::status_cancelled("socket i/o operation has been cancelled"));
                 });

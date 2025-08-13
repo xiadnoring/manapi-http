@@ -18,7 +18,8 @@ namespace manapi::debug {
         LOG_TRACE_NONE = 0,
         LOG_TRACE_HIGH,
         LOG_TRACE_MEDIUM,
-        LOG_TRACE_LOW
+        LOG_TRACE_LOW,
+        LOG_TRACE_HARD
     } trace_level;
 
     static const char* level_strings[] = {
@@ -43,6 +44,7 @@ namespace manapi::debug {
 
     // Convenience macros
 #define manapi_log_trace(...) manapi::debug::log_log(manapi::debug::LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
+#define manapi_log_trace_hard(...) manapi::debug::log_log(manapi::debug::LOG_TRACE, __FILE__, __LINE__, manapi::debug::LOG_TRACE_HARD, __VA_ARGS__)
 #define manapi_log_debug(...) manapi::debug::log_log(manapi::debug::LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
 #define manapi_log_info(...)  manapi::debug::log_log(manapi::debug::LOG_INFO,  __FILE__, __LINE__, __VA_ARGS__)
 #define manapi_log_warn(...)  manapi::debug::log_log(manapi::debug::LOG_WARN,  __FILE__, __LINE__, __VA_ARGS__)

@@ -4,6 +4,7 @@
 
 #if MANAPIHTTP_CURL_DEPENDENCY
 #   include <curl/curl.h>
+static_assert(manapi::ev::READ == CURL_POLL_IN && manapi::ev::WRITE == CURL_POLL_OUT, "need for review");
 #endif
 
 #if MANAPIHTTP_CPPTRACE_DEPENDENCY
@@ -1172,6 +1173,7 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::io>> manapi::event_loop
         return sys_error::status_resource_exhausted();
     }
 }
+
 manapi::socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, int socktype, void *addr) {
     auto data = static_cast<event_loop *>(cbp);
 

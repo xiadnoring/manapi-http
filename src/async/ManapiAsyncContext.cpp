@@ -215,7 +215,9 @@ void manapi::async::context::run(shared_ctx ctx, std::function<void(std::functio
 
 void manapi::async::context::threadpoolfs(std::size_t cnt) MANAPIHTTP_NOEXCEPT {
     auto s = std::to_string(cnt);
-    assert(!uv_os_setenv("UV_THREADPOOL_SIZE", s.data()));
+    if (auto rhs = uv_os_setenv("UV_THREADPOOL_SIZE", s.data())) {
+        manapi_log_trace("%s failed due to %s", "ctx:set UV_THREADPOOL_SIZE", ev::strerror(rhs));
+    }
 }
 
 std::unique_ptr<manapi::sigset_t> manapi::async::context::blockedsignals() MANAPIHTTP_NOEXCEPT {
