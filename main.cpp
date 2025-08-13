@@ -211,7 +211,9 @@ int main () {
 
         router.GET ("/fetch", [&a] (manapi::net::http::request &req, manapi::net::http::response *resp)
             -> void {
-            resp->proxy("https://www.wikipedia.org").unwrap();
+            resp->proxy("https://www.wikipedia.org", [] (manapi::net::fetch &n) -> void {
+                n.verbose(true);
+            }).unwrap();
             resp->finish();
         }).unwrap();
 
