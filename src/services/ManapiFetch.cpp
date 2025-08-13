@@ -432,11 +432,15 @@ static manapi::future<manapi::error::status> curl_recv_async_continiue (std::sha
 
 static manapi::future<bool> handle_body_verify (std::shared_ptr<manapi::net::fetch::data_t> data) {
     bool flg = false;
+
+    auto res = curl_easy_getinfo(data->curl.get(), CURLINFO_HTTP_CODE, &data->status_code_);
+    if (res) {
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s:%s failed due to %s", "fetch",
+            "curl_easy_getinfo with CURLINFO_HTTP_CODE", curl_easy_strerror(res));
+    }
+
     try {
         if (data->async_handler_headers) {
-            if (!data->status_code_)
-                curl_easy_getinfo(data->curl.get(), CURLINFO_HTTP_CODE, &data->status_code_);
-
             auto const cb = std::move(data->async_handler_headers);
             flg = co_await cb->operator()(std::move(*data->headers));
         }
