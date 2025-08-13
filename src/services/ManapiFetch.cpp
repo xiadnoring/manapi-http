@@ -434,6 +434,9 @@ static manapi::future<bool> handle_body_verify (std::shared_ptr<manapi::net::fet
     bool flg = false;
     try {
         if (data->async_handler_headers) {
+            if (!data->status_code_)
+                curl_easy_getinfo(data->curl.get(), CURLINFO_HTTP_CODE, &data->status_code_);
+
             auto const cb = std::move(data->async_handler_headers);
             flg = co_await cb->operator()(std::move(*data->headers));
         }

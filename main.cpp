@@ -209,6 +209,12 @@ int main () {
             resp->finish();
         }).unwrap();
 
+        router.GET ("/fetch", [&a] (manapi::net::http::request &req, manapi::net::http::response *resp)
+            -> void {
+            resp->proxy("https://www.wikipedia.org").unwrap();
+            resp->finish();
+        }).unwrap();
+
         router.GET ("/stop", [] (http::req &req, manapi::net::http::response *resp) mutable -> void {
             resp->text("OK");
 

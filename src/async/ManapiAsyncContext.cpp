@@ -1,6 +1,5 @@
 #include "async/ManapiAsyncContext.hpp"
 
-#include <stacktrace>
 #include <uv.h>
 
 #include "services/ManapiEventLoop.hpp"

@@ -4,7 +4,6 @@
 
 #include <cassert>
 #include <future>
-#include <stacktrace>
 
 #include "ManapiAsync.hpp"
 #include "ManapiDebug.hpp"

@@ -465,7 +465,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
                     manapi_log_error("%s failed due to %s", "send_response_proxy()", e.what());
                 }
                 co_return false;
-        });
+        }).unwrap();
 
         proxy_data->fetch.handle_async_body(
             [p = proxy_data.get()](slice_view buffs, bool fin) mutable
@@ -482,12 +482,12 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
             p->content_length -= rhs;
 
             co_return rhs;
-        });
+        }).unwrap();
 
         auto task = proxy_data->fetch.async_doit();
         manapi::async::run<error::status> (std::move(task), [proxy_data = std::move(proxy_data)]
                 (std::exception_ptr err, manapi::error::status *status) mutable -> void {
-                if (!status->ok()) {
+                if (status && !status->ok()) {
                     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %.*s", "send_response_proxy()",
                         status->msg().size(), status->msg().data());
                     return;
