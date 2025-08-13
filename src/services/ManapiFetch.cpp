@@ -439,6 +439,9 @@ static manapi::future<bool> handle_body_verify (std::shared_ptr<manapi::net::fet
             "curl_easy_getinfo with CURLINFO_HTTP_CODE", curl_easy_strerror(res));
     }
 
+    if (!data->status_code_)
+        data->status_code_ = 500;
+
     try {
         if (data->async_handler_headers) {
             auto const cb = std::move(data->async_handler_headers);
@@ -830,6 +833,17 @@ manapi::future<manapi::error::status> manapi::net::fetch::async_doit() {
         }
 
         if (this->data->headers && !this->data->headers->empty()) {
+            if (!this->data->status_code_) {
+                auto res = curl_easy_getinfo(this->data->curl.get(), CURLINFO_HTTP_CODE, &this->data->status_code_);
+                if (res) {
+                    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s:%s failed due to %s", "fetch",
+                        "curl_easy_getinfo with CURLINFO_HTTP_CODE", curl_easy_strerror(res));
+                }
+
+                if (!this->data->status_code_)
+                    this->data->status_code_ = 500;
+            }
+
             if (this->data->async_handler_headers) {
                 co_await this->data->async_handler_headers->operator()(std::move(*this->data->headers));
             }
