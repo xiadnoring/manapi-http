@@ -60,14 +60,14 @@ namespace manapi::memory {
 
 #if MANAPIHTTP_DISABLE_TRACE
 #   ifdef manapi_log_trace
-#       #undef manapi_log_trace
+#       undef manapi_log_trace
 #       define manapi_log_trace(...)
 #   endif
 #endif
 
 #if MANAPIHTTP_DISABLE_TRACE_HARD
 #   ifdef manapi_log_trace_hard
-#       #undef manapi_log_trace_hard
+#       undef manapi_log_trace_hard
 #       define manapi_log_trace_hard(...)
 #   endif
 #endif
