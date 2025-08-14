@@ -1,5 +1,4 @@
 #include "crypto/ManapiCryptoUtils.hpp"
-
 #include "../include/ManapiWindows.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 

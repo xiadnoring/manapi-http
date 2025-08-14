@@ -1,7 +1,7 @@
 #include "./handlers.hpp"
 
-#include "ManapiHash.hpp"
 #include "ManapiProcess.hpp"
+#include "hash/ManapiSHA256.hpp"
 
 void init_http_server(manapi::net::http::server &router, std::string const &folder) {
     using http = manapi::net::http::server;

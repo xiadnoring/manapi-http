@@ -1,10 +1,9 @@
-#include "worker/ManapiOpenSslOverTcp.hpp"
-
 #include "ManapiParams.hpp"
-#include "async/ManapiAsyncSocket.hpp"
 #include "ManapiInitTools.hpp"
+#include "std/ManapiAsyncSocket.hpp"
+#include "worker/ManapiBaseUtils.hpp"
+#include "worker/ManapiOpenSslOverTcp.hpp"
 #include "../include/ManapiUtils.hpp"
-#include "../../include/worker/ManapiBaseUtils.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 

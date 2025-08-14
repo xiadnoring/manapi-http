@@ -1,13 +1,12 @@
 #include "crypto/ManapiAES.hpp"
-
-#include "ManapiBeforeDelete.hpp"
-#include "../include/ManapiUtils.hpp"
 #include "crypto/ManapiCryptoUtils.hpp"
+#include "std/ManapiBeforeDelete.hpp"
+#include "../include/ManapiUtils.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
-#include <openssl/evp.h>
-#include <openssl/err.h>
-#include <openssl/crypto.h>
+# include <openssl/evp.h>
+# include <openssl/err.h>
+# include <openssl/crypto.h>
 #endif
 
 

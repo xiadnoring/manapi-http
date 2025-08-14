@@ -2,9 +2,9 @@
 
 #include <atomic>
 
-#include "../ManapiJson.hpp"
-#include "../async/ManapiAsyncThreadsMutex.hpp"
-#include "../components/ManapiMultithreadStorage.hpp"
+#include "../json/ManapiJson.hpp"
+#include "../std/ManapiAsyncThreadsMutex.hpp"
+#include "../utils/ManapiMultithreadStorage.hpp"
 
 namespace manapi::net::http {
     class server_ctx {

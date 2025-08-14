@@ -3,14 +3,13 @@
 #include <set>
 
 #include "../ManapiUtils.hpp"
-#include "../ManapiHttpTypes.hpp"
-#include "../worker/ManapiBaseWorker.hpp"
-#include "../ManapiHttpConfig.hpp"
-#include "ManapiSite.hpp"
-
+#include "./ManapiHttpTypes.hpp"
 #include "./ManapiHttpUtils.hpp"
-#include "../async/ManapiAsyncFileStream.hpp"
-#include "../components/ManapiBuffer.hpp"
+#include "./ManapiHttpConfig.hpp"
+#include "./ManapiSite.hpp"
+#include "../fs/ManapiFileStream.hpp"
+#include "../worker/ManapiBaseWorker.hpp"
+#include "../std/ManapiBuffer.hpp"
 
 namespace manapi::net::http::internal {
     typedef vbefore_delete<bool, false> cont_callback_cb_t;

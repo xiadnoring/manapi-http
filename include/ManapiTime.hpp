@@ -10,7 +10,7 @@
 #include <string>
 #include <chrono>
 
-#include "ManapiUtils.hpp"
+#include "./ManapiUtils.hpp"
 
 namespace manapi::time {
     /**

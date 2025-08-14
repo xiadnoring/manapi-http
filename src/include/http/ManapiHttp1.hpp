@@ -2,8 +2,8 @@
 
 #include "ManapiUtils.hpp"
 #include "http/ManapiBaseHttp.hpp"
-#include "ManapiHttpConfig.hpp"
-#include "components/ManapiURLDecodeStream.hpp"
+#include "http/ManapiHttpConfig.hpp"
+#include "http/ManapiURLDecodeStream.hpp"
 
 namespace manapi::net::http {
     struct http_v1_1_t {

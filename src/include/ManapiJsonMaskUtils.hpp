@@ -1,9 +1,9 @@
 #pragma once
 
-#include <ManapiDebug.hpp>
 #include <valarray>
 
-#include "ManapiJsonMask.hpp"
+#include <ManapiDebug.hpp>
+#include "json/ManapiJsonMask.hpp"
 
 namespace manapi {
     inline std::string json_format_path (const std::vector<std::string_view> *p) {

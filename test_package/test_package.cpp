@@ -4,5 +4,6 @@
 #include "./test_json_masks.hpp"
 #include "./test_bigint.hpp"
 #include "./test_http.hpp"
+#include "./test_fetch.hpp"
 
 UTEST_MAIN();

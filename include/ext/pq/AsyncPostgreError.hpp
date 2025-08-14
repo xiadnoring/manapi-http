@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../../ManapiUtils.hpp"
-#include "../../async/ManapiAsyncContext.hpp"
-#include "../../async/ManapiAsyncSocket.hpp"
+#include "../../std/ManapiAsyncContext.hpp"
+#include "../../std/ManapiAsyncSocket.hpp"
 
 namespace manapi::ext::pq {
     enum sql_states {

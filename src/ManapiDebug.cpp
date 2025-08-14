@@ -1,4 +1,4 @@
-#include "include/ManapiDebug.hpp"
+#include "./include/ManapiDebug.hpp"
 
 void manapi::debug::do_log_(std::string_view file_name, std::string_view func, std::size_t line, err_num errnum, std::string_view data) MANAPIHTTP_NOEXCEPT {
     auto &ctx = manapi::async::internal::current_();

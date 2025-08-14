@@ -5,10 +5,6 @@
 
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
 
-#if defined(__unix__)||defined(__APPLE__)
-#   include <netdb.h>
-#endif
-
 namespace manapi::net::worker {
     class WolfSSL_TLS : public worker::TLS {
     public:

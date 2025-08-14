@@ -1,11 +1,10 @@
-#include "http/ManapiHttpUtils.hpp"
-
 #include <cstring>
 
-#include "ManapiFilesystem.hpp"
-#include "ManapiHttpConfig.hpp"
+#include "fs/ManapiFilesystem.hpp"
+#include "fs/ManapiFileStream.hpp"
 #include "encoding/ManapiUnicode.hpp"
-#include "async/ManapiAsyncFileStream.hpp"
+#include "http/ManapiHttpUtils.hpp"
+#include "http/ManapiHttpConfig.hpp"
 #include "../include/ManapiUtils.hpp"
 
 static constexpr char header_delimiter[] = ": ";

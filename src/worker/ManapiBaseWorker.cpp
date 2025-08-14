@@ -1,15 +1,13 @@
-#include "worker/ManapiBaseWorker.hpp"
 #include <memory.h>
-#ifdef _WIN32
-#   include <processthreadsapi.h>
-#endif
 #include <fcntl.h>
 #include <memory>
-#include "../include/ManapiUtils.hpp"
+
+#include "worker/ManapiBaseWorker.hpp"
 #include "worker/ManapiBaseUtils.hpp"
+#include "../include/ManapiUtils.hpp"
 
 struct wb_write_ctx_t {
-    using promise = manapi::async::promise<ssize_t, std::false_type>;
+    using promise = manapi::async::promise_sync<ssize_t>;
 
     manapi::net::worker::base *w;
     manapi::ev::buff_t *buff;
@@ -59,7 +57,7 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
 }
 
 manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) {
-    using promise = manapi::async::promise<ssize_t, std::false_type>;
+    using promise = manapi::async::promise_sync<ssize_t>;
     assert(nbuff > 0);
     auto rhs = this->sync_write(conn, buff, nbuff, finish);
 
@@ -120,7 +118,7 @@ manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn
 }
 
 manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn, manapi::slice_view buffs, bool finish) {
-    using promise = manapi::async::promise<ssize_t, std::false_type>;
+    using promise = manapi::async::promise_sync<ssize_t>;
 
     auto rhs = this->sync_write(conn, buffs, finish);
 

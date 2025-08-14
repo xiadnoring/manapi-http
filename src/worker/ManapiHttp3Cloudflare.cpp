@@ -1,19 +1,19 @@
-#include "ManapiHttpResponse.hpp"
-#include "components/ManapiURLDecodeStream.hpp"
 #include "worker/ManapiHttp3Cloudflare.hpp"
 #include "../include/ManapiUtils.hpp"
-#include "async/ManapiAsyncSocket.hpp"
 
 #if MANAPIHTTP_QUICHE_DEPENDENCY
 
 #include <cstring>
 #include <quiche.h>
 
+#include "http/ManapiHttpResponse.hpp"
+#include "http/ManapiURLDecodeStream.hpp"
+#include "std/ManapiAsyncSocket.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "ManapiString.hpp"
 #include "ManapiVersions.hpp"
-#include "../include/ManapiSiteInternal.hpp"
 #include "worker/ManapiBaseUtils.hpp"
+#include "../include/ManapiSiteInternal.hpp"
 
 #define MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE 1350
 #define MANAPIHTTP_QUICHE_CONN_ID_SIZE 16
@@ -1322,7 +1322,7 @@ manapi::future<int> manapi::net::worker::http_v3_cloudflare_quiche::cloudflare_w
         size_t current_headers_size = 0;
         size_t constexpr max_headers_size = 4000;
 
-        using promise = manapi::async::promise<ssize_t, std::false_type>;
+        using promise = manapi::async::promise_sync<ssize_t>;
 
         worker_watcher_cb prev_cb{nullptr};
         int prev_events{0};

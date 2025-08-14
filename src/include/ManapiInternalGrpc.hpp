@@ -2,7 +2,7 @@
 
 
 #include "ManapiUtils.hpp"
-#include "components/ManapiConfig.hpp"
+#include "utils/ManapiConfig.hpp"
 
 #if MANAPIHTTP_GRPC_DEPENDENCY
 
@@ -11,10 +11,9 @@
 #include <grpcpp/health_check_service_interface.h>
 #include <grpcpp/version_info.h>
 
-#include "async/ManapiAsyncContext.hpp"
+#include "std/ManapiAsyncContext.hpp"
 
-#define MANAPIHTTP_GRPC_ARGS_MOVEABLE GRPC_CPP_VERSION_MAJOR >= 1 && GRPC_CPP_VERSION_MINOR >= 73 && GRPC_CPP_VERSION_PATCH >= 0
-#define MANAPIHTTP_GRPC_TELEMETRY_INFO GRPC_CPP_VERSION_MAJOR >= 1 && GRPC_CPP_VERSION_MINOR >= 74 && GRPC_CPP_VERSION_PATCH >= 0
+#define MANAPIHTTP_GRPC_SINCE_AT(major, minor, patch) MANAPIHTTP_SINCE_AT_CUSTOM(GRPC_CPP_VERSION_MAJOR, GRPC_CPP_VERSION_MINOR, GRPC_CPP_VERSION_PATCH, major, minor, patch)
 
 namespace manapi::net::wgrpc {
     class config : public internal::config_interface {
@@ -50,14 +49,18 @@ namespace manapi::net::wgrpc {
     };
 
     class dns_resolved final : public  grpc_event_engine::experimental::EventEngine::DNSResolver {
+        event_engine_wrapper *engine;
     public:
-        dns_resolved ();
+        dns_resolved (event_engine_wrapper *engine);
 
         void LookupHostname(LookupHostnameCallback on_resolve, absl::string_view name, absl::string_view default_port) override;
 
         void LookupSRV(LookupSRVCallback on_resolve, absl::string_view name) override;
 
         void LookupTXT(LookupTXTCallback on_resolve, absl::string_view name) override;
+#if MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
+        void *QueryExtension(absl::string_view key) override;
+#endif
     };
 
     class net_endpoint : public grpc_event_engine::experimental::EventEngine::Endpoint {
@@ -75,9 +78,10 @@ namespace manapi::net::wgrpc {
         std::size_t on_read_hints_bytes;
 
         grpc_event_engine::experimental::SliceBuffer buffer;
-#if MANAPIHTTP_GRPC_TELEMETRY_INFO
+#if MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
         std::shared_ptr<TelemetryInfo> metric;
 #endif
+
     public:
 
         net_endpoint (manapi::ev::shared_tcp conn,
@@ -86,7 +90,7 @@ namespace manapi::net::wgrpc {
             grpc_event_engine::experimental::MemoryAllocator memory_allocator);
 
         ~net_endpoint() override;
-#if MANAPIHTTP_GRPC_ARGS_MOVEABLE
+#if MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
         bool Read(absl::AnyInvocable<void(absl::Status)> on_read, grpc_event_engine::experimental::SliceBuffer *buffer, ReadArgs args) override;
 
         bool Write(absl::AnyInvocable<void(absl::Status)> on_writable, grpc_event_engine::experimental::SliceBuffer *data, WriteArgs args) override;
@@ -99,9 +103,11 @@ namespace manapi::net::wgrpc {
 
         [[nodiscard]] const grpc_event_engine::experimental::EventEngine::ResolvedAddress &GetPeerAddress() const override;
 
-#if MANAPIHTTP_GRPC_TELEMETRY_INFO
+#if MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
         std::shared_ptr<TelemetryInfo> GetTelemetryInfo() const override;
 #endif
+    private:
+        void init_ ();
     };
 
     class event_engine_wrapper final : public grpc_event_engine::experimental::EventEngine {
@@ -137,6 +143,8 @@ namespace manapi::net::wgrpc {
         bool IsWorkerThread() override;
 
         absl::StatusOr<std::unique_ptr<DNSResolver>> GetDNSResolver(const DNSResolver::ResolverOptions &options) override;
+
+        const async::shared_eventloop& shared_eventloop () const;
     };
 }
 

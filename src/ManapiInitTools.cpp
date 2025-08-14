@@ -2,9 +2,7 @@
 #include <memory>
 
 #include "ManapiInitTools.hpp"
-
-
-#include "services/ManapiEventLoop.hpp"
+#include "ManapiEventLoop.hpp"
 #include "ManapiDebug.hpp"
 #include "ManapiProcess.hpp"
 
@@ -15,9 +13,11 @@
 #   include <openssl/bio.h>
 #   include <openssl/engine.h>
 #endif
+
 #if MANAPIHTTP_CURL_DEPENDENCY
 #   include <curl/curl.h>
 #endif
+
 // static int cnt = 0;
 //
 // static std::map<std::pair<char*, int>, std::pair<const char*, int>> allocated;

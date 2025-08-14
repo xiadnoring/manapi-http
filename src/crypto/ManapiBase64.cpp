@@ -1,9 +1,8 @@
-#include "crypto/ManapiBase64.hpp"
-
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
 
+#include "crypto/ManapiBase64.hpp"
 #include "ManapiDebug.hpp"
 
 namespace manapi::crypto::base64 {

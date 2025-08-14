@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "ManapiUtils.hpp"
+#include "./ManapiUtils.hpp"
 
 #if MANAPIHTTP_GMP_DEPENDENCY
 #define MANAPIHTTP_BIGINT_SUPPORT
@@ -16,7 +16,7 @@
 #include <string>
 #include <memory>
 
-#include "ManapiInt.hpp"
+#include "./ManapiInt.hpp"
 
 #define MANAPI_BIGINT_DEFAULT_PRECISION 128
 
@@ -27,9 +27,11 @@ namespace manapi {
      */
     class bigint {
         struct data_t;
+
         struct data_t_deleter {
             void operator()(data_t *n) MANAPIHTTP_NOEXCEPT;
         };
+
     public:
         bigint();
 

@@ -1,8 +1,5 @@
 #include "worker/ManapiWolfSslOverTcp.hpp"
 #include "../include/ManapiUtils.hpp"
-#include "ManapiString.hpp"
-#include "../include/ManapiUtils.hpp"
-#include "../include/worker/ManapiBaseUtils.hpp"
 
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
 
@@ -24,9 +21,12 @@
 #include <netdb.h>
 #include <set>
 
+#include "ManapiString.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiInitTools.hpp"
-#include "async/ManapiAsyncSocket.hpp"
+#include "std/ManapiAsyncSocket.hpp"
+#include "../include/ManapiUtils.hpp"
+#include "../include/worker/ManapiBaseUtils.hpp"
 
 enum ssl_ex_data_codes {
     SSL_EX_DATA_WORKER_CTX = 0

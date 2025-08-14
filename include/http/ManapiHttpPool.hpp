@@ -1,21 +1,17 @@
 #pragma once
 
-#if defined(__unix__)||defined(__APPLE__)
-#   include <netdb.h>
-#endif
-
 #include <list>
 #include <future>
 #include <functional>
 
+#include "./ManapiSite.hpp"
+#include "./ManapiSiteCtx.hpp"
+#include "./ManapiBaseHttp.hpp"
+#include "./ManapiHttpConfig.hpp"
 #include "../ManapiUtils.hpp"
-#include "../ManapiHttpConfig.hpp"
 #include "../ManapiUtils.hpp"
-#include "../ManapiJson.hpp"
-#include "ManapiSite.hpp"
-#include "ManapiSiteCtx.hpp"
+#include "../json/ManapiJson.hpp"
 #include "../worker/ManapiBaseWorker.hpp"
-#include "ManapiBaseHttp.hpp"
 
 namespace manapi::net {
     class http_pool {

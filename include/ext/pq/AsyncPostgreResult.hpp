@@ -1,7 +1,7 @@
 #pragma once
 
 #include "./AsyncPostgreRow.hpp"
-#include "AsyncPostgreError.hpp"
+#include "./AsyncPostgreError.hpp"
 #include "../../ManapiErrors.hpp"
 #include "../../ManapiUtils.hpp"
 

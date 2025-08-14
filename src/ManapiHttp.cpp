@@ -4,10 +4,6 @@
 #include <utility>
 #include <vector>
 #include <memory.h>
-#if defined(__unix__) || defined(__APPLE__)
-#   include <netinet/in.h>
-#   include <netdb.h>
-#endif
 #include <filesystem>
 #include <chrono>
 #include <thread>
@@ -15,10 +11,11 @@
 #include <fcntl.h>
 
 #include "ManapiHttp.hpp"
-#include "include/ManapiSiteInternal.hpp"
-#include "include/ManapiUtils.hpp"
-#include "async/ManapiAsyncPromise.hpp"
-#include "include/ManapiUtils.hpp"
+#include "std/ManapiAsyncPromise.hpp"
+
+#include "./include/ManapiSiteInternal.hpp"
+#include "./include/ManapiUtils.hpp"
+#include "./include/ManapiUtils.hpp"
 
 manapi::net::http::server::~server() = default;
 
@@ -49,7 +46,7 @@ struct manapi::net::http::server::data2_t {
     std::size_t event_id;
     std::size_t clean_up_id;
     std::size_t next_pool_id;
-    async::promise<void>::resolve_t resolve_stop;
+    async::promise_sync<void>::resolve_t resolve_stop;
     std::shared_ptr<ev::async> init_watcher;
 };
 

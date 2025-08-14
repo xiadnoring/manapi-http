@@ -1,6 +1,6 @@
 #pragma once
 
-#include "worker/ManapiBaseWorker.hpp"
+#include "./ManapiBaseWorker.hpp"
 
 namespace manapi::net::worker {
     class interface_worker : public worker::base {

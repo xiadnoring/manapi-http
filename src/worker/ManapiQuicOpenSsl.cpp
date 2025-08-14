@@ -1,13 +1,12 @@
-#include "../include/worker/ManapiQuicOpenSsl.hpp"
-
 #include <memory>
 
+#include "../include/worker/ManapiQuicOpenSsl.hpp"
 #include "ManapiProcess.hpp"
 #include "ManapiString.hpp"
-#include "async/ManapiAsyncSocket.hpp"
-#include "async/ManapiEasyCancellation.hpp"
-#include "services/ManapiDns.hpp"
+#include "ManapiDns.hpp"
 #include "worker/ManapiBaseUtils.hpp"
+#include "std/ManapiAsyncSocket.hpp"
+#include "std/ManapiEasyCancellation.hpp"
 
 #ifdef MANAPIHTTP_OPENSSL_QUIC_SUPPORT
 

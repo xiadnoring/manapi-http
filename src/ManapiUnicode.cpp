@@ -1,8 +1,8 @@
-#include "encoding/ManapiUnicode.hpp"
-#include "include/ManapiUtils.hpp"
 #include <utility>
 #include <uv.h>
 
+#include "encoding/ManapiUnicode.hpp"
+#include "include/ManapiUtils.hpp"
 #include "ManapiDebug.hpp"
 
 #define BIT_AT(n, i, t) ((n >> (sizeof(t) * 8 - (i + 1))) & 1)

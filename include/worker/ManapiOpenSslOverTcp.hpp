@@ -5,10 +5,6 @@
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 
-#if defined(__unix__)||defined(__APPLE__)
-#   include <netdb.h>
-#endif
-
 namespace manapi::net::worker {
     class OpenSSL_TLS : public worker::TLS {
     public:

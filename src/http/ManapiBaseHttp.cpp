@@ -2,25 +2,23 @@
 #include <fstream>
 #include <memory>
 
-#include "http/ManapiBaseHttp.hpp"
-#include "../include/ManapiHttpStructs.hpp"
-#include "services/ManapiFetch.hpp"
-#include "ManapiFilesystem.hpp"
-#include "ManapiHash.hpp"
-#include "ManapiHttpMime.hpp"
+#include "ManapiFetch.hpp"
 #include "ManapiString.hpp"
 #include "ManapiTime.hpp"
-#include "async/ManapiAsyncFileStream.hpp"
-#include "async/ManapiAsyncParallelRun.hpp"
-
-#include "ManapiHttpRequest.hpp"
-#include "ManapiHttpResponse.hpp"
-#include "../include/ManapiDefaultErrors.hpp"
+#include "http/ManapiHttpMime.hpp"
+#include "http/ManapiBaseHttp.hpp"
+#include "http/ManapiHttpRequest.hpp"
+#include "http/ManapiHttpResponse.hpp"
+#include "fs/ManapiFilesystem.hpp"
+#include "fs/ManapiFileStream.hpp"
+#include "std/ManapiAsyncParallelRun.hpp"
+#include "std/ManapiEasyCancellation.hpp"
+#include "ext/ManapiMustache.hpp"
 #include "crypto/ManapiCryptoUtils.hpp"
 #include "../include/ManapiUtils.hpp"
-#include "ext/ManapiMustache.hpp"
 #include "../include/ManapiSiteInternal.hpp"
-#include "async/ManapiEasyCancellation.hpp"
+#include "../include/ManapiDefaultErrors.hpp"
+#include "../include/ManapiHttpStructs.hpp"
 
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 

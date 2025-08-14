@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "ManapiUtils.hpp"
+#include "./ManapiUtils.hpp"
 
 /**
  * Namespace with string utilities

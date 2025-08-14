@@ -220,9 +220,7 @@ bool manapi::net::worker::prepared::buffs_is_full(connection_io_part *s, std::si
         return true;
 
     if (size == stack_size) {
-        assert(s->last_deque);
-
-        if (s->last_deque->buffer.size() == s->deque_cursor)
+        if (!s->last_deque || s->last_deque->buffer.size() == s->deque_cursor)
             return true;
     }
 
@@ -231,7 +229,7 @@ bool manapi::net::worker::prepared::buffs_is_full(connection_io_part *s, std::si
 
 bool manapi::net::worker::prepared::write_buffs_is_full(connection_io *s, std::size_t stack_size) MANAPIHTTP_NOEXCEPT {
     assert(s);
-    return prepared::buffs_is_full(&s->send, s->cur_send_size, stack_size);
+    return prepared::buffs_is_full(&s->send, s->send_size, stack_size);
 }
 
 bool manapi::net::worker::prepared::write_buffs_is_full(connection_io *s, http::config *config) MANAPIHTTP_NOEXCEPT {

@@ -4,9 +4,9 @@
 #include <string>       // std::string
 
 #include "ManapiString.hpp"
-#include "include/ManapiUtils.hpp"
 #include "ManapiDebug.hpp"
 #include "ManapiMath.hpp"
+#include "./include/ManapiUtils.hpp"
 
 bool insensitive_char_equals(char a, char b) {
     return std::tolower(static_cast<unsigned char>(a)) ==

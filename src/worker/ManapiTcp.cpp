@@ -7,19 +7,6 @@
 #include <utility>
 #include <vector>
 #include <memory.h>
-#if defined(__unix__)||defined(__APPLE__)
-#   include <arpa/inet.h>
-#   include <netinet/tcp.h>
-#   include <netdb.h>
-#   include <error.h>
-#endif
-#if defined(_WIN32)
-#   define NOMINMAX
-#   define WIN32_LEAN_AND_MEAN
-#   include <windows.h>
-#   include <winsock2.h>
-#   include <ws2tcpip.h>
-#endif
 #include <filesystem>
 #include <chrono>
 #include <thread>
@@ -29,18 +16,15 @@
 #include <set>
 #include <future>
 
-#include "../include/http/ManapiHttp2.hpp"
-
-#include "../include/ManapiUtils.hpp"
-#include "async/ManapiAsyncSocket.hpp"
-#include "http/ManapiBaseHttp.hpp"
-
-#include "ManapiHttpRequest.hpp"
-#include "ManapiHttpResponse.hpp"
 #include "ManapiString.hpp"
-#include "services/ManapiDns.hpp"
-
+#include "ManapiDns.hpp"
+#include "http/ManapiBaseHttp.hpp"
+#include "http/ManapiHttpRequest.hpp"
+#include "http/ManapiHttpResponse.hpp"
+#include "std/ManapiAsyncSocket.hpp"
 #include "worker/ManapiBaseUtils.hpp"
+#include "../include/http/ManapiHttp2.hpp"
+#include "../include/ManapiUtils.hpp"
 
 // TLS: 454978.10 in sec | 348111.84 in sec (STUPID METHOD)
 // TCP: 661876.15 in sec | 560063.69 in sec (STUPID METHOD)

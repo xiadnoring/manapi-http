@@ -1,11 +1,9 @@
-#include "compress/ManapiCompress.hpp"
-
-
 #include <fstream>
 #include <format>
 
-#include "ManapiFilesystem.hpp"
-#include "async/ManapiAsyncFileStream.hpp"
+#include "compress/ManapiCompress.hpp"
+#include "fs/ManapiFilesystem.hpp"
+#include "fs/ManapiFileStream.hpp"
 #include "../include/ManapiUtils.hpp"
 
 #define CHUNK_SIZE 65536

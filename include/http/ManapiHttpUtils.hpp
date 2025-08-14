@@ -5,10 +5,10 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "../async/ManapiAsyncContext.hpp"
+#include "../ManapiObjectPool.hpp"
 #include "../compress/ManapiCompress.hpp"
-#include "../components/ManapiBuffer.hpp"
-#include "../services/ManapiObjectPool.hpp"
+#include "../std/ManapiAsyncContext.hpp"
+#include "../std/ManapiBuffer.hpp"
 
 namespace manapi::net::http {
     struct response_features_t {

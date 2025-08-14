@@ -2,7 +2,7 @@
 
 
 #include "./ManapiBaseWorker.hpp"
-#include "../components/ManapiBuffer.hpp"
+#include "../std/ManapiBuffer.hpp"
 #include "./ManapiBaseUtils.hpp"
 
 namespace manapi::net::worker {

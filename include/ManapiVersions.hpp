@@ -10,7 +10,7 @@
 #include <array>
 #include <string>
 
-#include "ManapiUtils.hpp"
+#include "./ManapiUtils.hpp"
 
 namespace manapi::macros {
     template<size_t Size>

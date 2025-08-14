@@ -12,7 +12,7 @@
 #include <filesystem>
 
 #include "../ManapiUtils.hpp"
-#include "../async/ManapiAsyncFileStream.hpp"
+#include "../fs/ManapiFileStream.hpp"
 
 namespace manapi::crypto {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY

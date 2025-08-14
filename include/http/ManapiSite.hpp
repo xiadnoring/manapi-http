@@ -1,5 +1,5 @@
 /**
- * @file ManapiSite.hpp
+ * @file http/ManapiSite.hpp
  * @brief Provides the site structs
  *
  * @author Timur Zajnullin
@@ -12,16 +12,15 @@
 #include <list>
 #include <set>
 
+#include "./ManapiHttpUtils.hpp"
+#include "./ManapiHttpConfig.hpp"
+#include "./ManapiSiteCtx.hpp"
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "../ManapiJson.hpp"
-#include "../ManapiJsonMask.hpp"
+#include "../json/ManapiJson.hpp"
+#include "../json/ManapiJsonMask.hpp"
 #include "../compress/ManapiCompress.hpp"
-
-#include "../async/ManapiAsyncMutex.hpp"
-#include "ManapiHttpUtils.hpp"
-#include "../ManapiHttpConfig.hpp"
-#include "ManapiSiteCtx.hpp"
+#include "../std/ManapiAsyncMutex.hpp"
 
 namespace manapi::net::worker {
     class base;
@@ -63,7 +62,7 @@ namespace manapi::net::http {
     public:
         handler_template_t ();
 
-        handler_template_t (const nullptr_t &n);
+        handler_template_t (const std::nullptr_t &n);
 
         handler_template_t (handler_template_t &&n) MANAPIHTTP_NOEXCEPT;
 

@@ -1,14 +1,14 @@
-#include "crypto/ManapiHKDF.hpp"
-#include "../include/ManapiUtils.hpp"
-
 #include <array>
 #include <stdexcept>
 
+#include "crypto/ManapiHKDF.hpp"
+#include "../include/ManapiUtils.hpp"
+
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
-#include <openssl/evp.h>
-#include <openssl/err.h>
-#include <openssl/hmac.h>
-#include <openssl/crypto.h>
+# include <openssl/evp.h>
+# include <openssl/err.h>
+# include <openssl/hmac.h>
+# include <openssl/crypto.h>
 #endif
 
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY

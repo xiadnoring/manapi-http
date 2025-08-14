@@ -1,4 +1,4 @@
-#include "../include/http/ManapiNgHttp2Interface.hpp"
+#include "ManapiUtils.hpp"
 #include "../include/ManapiUtils.hpp"
 
 #if MANAPIHTTP_NGHTTP2_DEPENDENCY
@@ -8,10 +8,11 @@
 #include "nghttp2/nghttp2.h"
 #include "nghttp2/nghttp2ver.h"
 
-#include "ManapiHttpResponse.hpp"
-#include "components/ManapiURLDecodeStream.hpp"
+#include "http/ManapiHttpResponse.hpp"
+#include "http/ManapiURLDecodeStream.hpp"
 #include "http/ManapiBaseHttp.hpp"
 #include "../include/ManapiSiteInternal.hpp"
+#include "../include/http/ManapiNgHttp2Interface.hpp"
 
 extern manapi::net::worker::http_v2_callbacks_t ng_wrk_http2_callbacks;
 

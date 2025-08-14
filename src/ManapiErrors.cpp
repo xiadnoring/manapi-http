@@ -1,13 +1,12 @@
-#include "ManapiErrors.hpp"
-
-#include "async/ManapiAsyncContext.hpp"
-#include "ManapiDebug.hpp"
-#include "ManapiJson.hpp"
-#include "include/ManapiUtils.hpp"
-
 #include <cstdarg>
 #include <ctime>
 #include <cstring>
+
+#include "ManapiErrors.hpp"
+#include "ManapiDebug.hpp"
+#include "json/ManapiJson.hpp"
+#include "std/ManapiAsyncContext.hpp"
+#include "./include/ManapiUtils.hpp"
 
 int manapi::debug::log_trace_enabled = -1;
 static std::mutex log_mx;

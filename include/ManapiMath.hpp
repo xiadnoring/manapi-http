@@ -9,7 +9,7 @@
 
 #include <cstddef>
 
-#include "ManapiUtils.hpp"
+#include "./ManapiUtils.hpp"
 
 /**
  * Namespace with math utilities

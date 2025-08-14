@@ -10,8 +10,8 @@
 #include <atomic>
 #include <mutex>
 
-#include "ManapiDebug.hpp"
-#include "ManapiUtils.hpp"
+#include "./ManapiDebug.hpp"
+#include "./ManapiUtils.hpp"
 
 /**
  * Namespace with initial utilities

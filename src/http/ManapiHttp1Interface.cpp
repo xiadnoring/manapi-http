@@ -1,9 +1,9 @@
 #include <cstring>
 
+#include "ManapiString.hpp"
+#include "http/ManapiHttpResponse.hpp"
 #include "../include/http/ManapiHttp1Interface.hpp"
 #include "../include/http/ManapiHttp1.hpp"
-#include "ManapiHttpResponse.hpp"
-#include "ManapiString.hpp"
 #include "../include/ManapiSiteInternal.hpp"
 #include "../include/ManapiUtils.hpp"
 

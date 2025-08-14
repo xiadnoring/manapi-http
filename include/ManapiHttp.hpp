@@ -1,25 +1,22 @@
 #pragma once
 
-#if defined(__unix__) || defined(__APPLE__)
-#   include <netinet/in.h>
-#endif
 #include <functional>
 #include <map>
 #include <regex>
 #include <thread>
 #include <future>
 
-#include "ManapiUtils.hpp"
-#include "http/ManapiSite.hpp"
-#include "services/ManapiThreadPool.hpp"
-#include "ManapiJsonMask.hpp"
-#include "http/ManapiHttpPool.hpp"
-#include "services/ManapiTimerPool.hpp"
+#include "./ManapiUtils.hpp"
+#include "./http/ManapiSite.hpp"
+#include "./ManapiThreadPool.hpp"
+#include "./json/ManapiJsonMask.hpp"
+#include "./http/ManapiHttpPool.hpp"
+#include "./ManapiTimerPool.hpp"
 
-#include "ManapiHttpResponse.hpp"
-#include "ManapiHttpRequest.hpp"
-#include "async/ManapiAsyncPromise.hpp"
-#include "services/ManapiEventLoop.hpp"
+#include "./http/ManapiHttpResponse.hpp"
+#include "./http/ManapiHttpRequest.hpp"
+#include "./std/ManapiAsyncPromise.hpp"
+#include "./ManapiEventLoop.hpp"
 
 namespace manapi::net::http {
     using pools_t = std::map<std::thread::id, std::map<size_t, std::unique_ptr<http_pool>>>;

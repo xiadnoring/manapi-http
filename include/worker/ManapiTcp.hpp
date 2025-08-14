@@ -1,15 +1,10 @@
 #pragma once
 
 #include "../ManapiUtils.hpp"
-
-#if defined(__unix__)||defined(__APPLE__)
-#   include <netdb.h>
-#endif
-
 #include "./ManapiBaseWorker.hpp"
 #include "./ManapiInterfaceWorker.hpp"
 #include "./ManapiAsync.hpp"
-#include "../async/ManapiCancellation.hpp"
+#include "../std/ManapiCancellation.hpp"
 
 namespace manapi::net::worker {
     struct tcp_connection_t;

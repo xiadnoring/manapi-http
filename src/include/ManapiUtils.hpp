@@ -7,17 +7,17 @@
 #include <deque>
 #include <set>
 #include <map>
-#include <unordered_map>
-#include <unordered_set>
 #include <stack>
 #include <queue>
 #include <list>
-#include <forward_list>
 #include <typeinfo>
+#include <unordered_map>
+#include <unordered_set>
+#include <forward_list>
+
 #include "ManapiInt.hpp"
 #include "ManapiParams.hpp"
 #include "ManapiDebug.hpp"
-//#include "./extensions/jemallocator.hpp"
 
 #define REQ(_x) manapi::net::http::request &_x
 #define RESP(_x) manapi::net::http::response &_x

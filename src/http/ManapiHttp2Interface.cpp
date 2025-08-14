@@ -1,8 +1,8 @@
-#include "../include/http/ManapiHttp2Interface.hpp"
+#include "http/ManapiHttpResponse.hpp"
 #include "worker/ManapiHttp2Worker.hpp"
 #include "../include/http/ManapiHttp2.hpp"
+#include "../include/http/ManapiHttp2Interface.hpp"
 #include "../include/http/ManapiHttp1Interface.hpp"
-#include "ManapiHttpResponse.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "../include/ManapiSiteInternal.hpp"
 

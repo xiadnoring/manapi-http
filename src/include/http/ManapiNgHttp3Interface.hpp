@@ -1,8 +1,9 @@
 #pragma once
 
 #include <memory>
-#include "worker/ManapiHttp3Worker.hpp"
+
 #include "ManapiUtils.hpp"
+#include "worker/ManapiHttp3Worker.hpp"
 #include "../ManapiUtils.hpp"
 
 #if defined( MANAPIHTTP_NGHTTP3_DEPENDENCY ) && MANAPIHTTP_NGHTTP3_DEPENDENCY

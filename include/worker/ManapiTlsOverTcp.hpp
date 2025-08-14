@@ -1,11 +1,6 @@
 #pragma once
 
 #include "../ManapiUtils.hpp"
-
-#if defined(__unix__)||defined(__APPLE__)
-#   include <netdb.h>
-#endif
-
 #include "./ManapiBaseWorker.hpp"
 #include "./ManapiTcp.hpp"
 

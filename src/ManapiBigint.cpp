@@ -1,4 +1,4 @@
-#include "include/ManapiUtils.hpp"
+#include "./include/ManapiUtils.hpp"
 #include "ManapiBigint.hpp"
 
 #if MANAPIHTTP_GMP_DEPENDENCY
@@ -9,11 +9,10 @@
 #include <codecvt>
 #include <gmp.h>
 
-#include "include/ManapiUtils.hpp"
-#include "./ManapiErrors.hpp"
-#include "./ManapiJson.hpp"
-#include "./ManapiTime.hpp"
-#include "./ManapiDebug.hpp"
+#include "ManapiErrors.hpp"
+#include "json/ManapiJson.hpp"
+#include "ManapiTime.hpp"
+#include "ManapiDebug.hpp"
 
 struct manapi::bigint::data_t {
     mpf_t m;

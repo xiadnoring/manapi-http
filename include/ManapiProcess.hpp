@@ -8,8 +8,8 @@
 
 #include <string>
 
-#include "ManapiErrors.hpp"
-#include "components/ManapiEventStructures.hpp"
+#include "./ManapiErrors.hpp"
+#include "./ManapiEventStructures.hpp"
 
 namespace manapi::process {
     /**

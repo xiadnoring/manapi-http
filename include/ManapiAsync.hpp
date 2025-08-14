@@ -10,7 +10,7 @@
 #include <utility>
 #include <functional>
 
-#include "services/ManapiThreadPool.hpp"
+#include "./ManapiThreadPool.hpp"
 
 namespace manapi {
     namespace async {
@@ -35,11 +35,11 @@ namespace manapi {
         const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXCEPT;
     }
 
-    class promise_base {
+    class promise_base_future {
     public:
-        promise_base() = default;
+        promise_base_future() = default;
 
-        ~promise_base() = default;
+        ~promise_base_future() = default;
 
         void unhandled_exception () {
             this->exception = std::current_exception();
@@ -93,12 +93,12 @@ namespace manapi {
             void await_resume () noexcept {}
         };
 
-        class promise : public promise_base
+        class promise : public promise_base_future
         {
         public:
-            promise () : promise_base() {}
+            promise () : promise_base_future() {}
 
-            promise (promise &&n) noexcept : promise_base(std::forward<decltype(n)>(n)) {}
+            promise (promise &&n) noexcept : promise_base_future(std::forward<decltype(n)>(n)) {}
 
             std::suspend_always yield_value(T value) {
                 this->value = std::move(value);
@@ -170,11 +170,11 @@ namespace manapi {
             this->resume_promise(this->handle_);
         }
 
-        [[nodiscard]] bool operator==(const nullptr_t &n) const {
+        [[nodiscard]] bool operator==(const std::nullptr_t &n) const {
             return this->handle_ == nullptr;
         }
 
-        [[nodiscard]] bool operator!=(const nullptr_t &n) const {
+        [[nodiscard]] bool operator!=(const std::nullptr_t &n) const {
             return false == this->operator==(std::forward<decltype(n)>(n));
         }
 
@@ -230,7 +230,7 @@ namespace manapi {
         };
 
         template <typename T1>
-        requires(std::is_base_of_v<promise_base, T1>)
+        requires(std::is_base_of_v<promise_base_future, T1>)
         static void resume_promise (const std::coroutine_handle<T1> &handle) MANAPIHTTP_NOEXCEPT {
             handle.resume();
         }
@@ -279,10 +279,10 @@ namespace manapi {
     };
 
     template<>
-    class future<void>::promise : public promise_base {
+    class future<void>::promise : public promise_base_future {
     public:
-        promise () : promise_base() {}
-        promise (promise &&n) noexcept : promise_base(std::forward<decltype(n)>(n)) {}
+        promise () : promise_base_future() {}
+        promise (promise &&n) noexcept : promise_base_future(std::forward<decltype(n)>(n)) {}
 
         void return_void () const {}
 

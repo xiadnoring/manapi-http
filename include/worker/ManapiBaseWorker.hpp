@@ -3,7 +3,7 @@
 #include <memory>
 #include <functional>
 
-#include "../ManapiHttpConfig.hpp"
+#include "../http/ManapiHttpConfig.hpp"
 #include "../http/ManapiSite.hpp"
 #include "../ManapiUtils.hpp"
 

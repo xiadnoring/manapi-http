@@ -1,7 +1,7 @@
 #include <mutex>
 #include <stack>
 
-#include "include/ManapiUtils.hpp"
+#include "./include/ManapiUtils.hpp"
 
 void manapi::memory::free(void *p) MANAPIHTTP_NOEXCEPT {
     ::free(p);

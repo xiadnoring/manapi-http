@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ManapiUtils.hpp"
+#include "./ManapiUtils.hpp"
 
 namespace manapi::debug {
 

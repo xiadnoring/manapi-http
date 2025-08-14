@@ -1,7 +1,8 @@
 #pragma once
 
 #include <uv.h>
-#include "components/ManapiTimerObject.hpp"
+
+#include "ManapiTimerObject.hpp"
 
 namespace manapi {
     struct timer::timer_data_t {

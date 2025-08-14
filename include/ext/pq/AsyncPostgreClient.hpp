@@ -2,8 +2,8 @@
 
 
 #include "../../ManapiUtils.hpp"
-#include "../../async/ManapiAsyncContext.hpp"
-#include "../../async/ManapiAsyncSocket.hpp"
+#include "../../std/ManapiAsyncContext.hpp"
+#include "../../std/ManapiAsyncSocket.hpp"
 
 #include "./AsyncPostgreResult.hpp"
 #include "./AsyncPostgreError.hpp"

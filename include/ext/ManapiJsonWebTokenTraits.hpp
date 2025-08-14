@@ -1,8 +1,9 @@
 #pragma once
 
-#include "../ManapiUtils.hpp"
 #include <jwt-cpp/jwt.h>
-#include "../ManapiJson.hpp"
+
+#include "../ManapiUtils.hpp"
+#include "../json/ManapiJson.hpp"
 
 namespace jwt {
     namespace traits {

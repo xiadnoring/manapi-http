@@ -1,10 +1,10 @@
 #pragma once
 
 #ifndef JWT_DISABLE_PICOJSON
-#define JWT_DISABLE_PICOJSON
+# define JWT_DISABLE_PICOJSON
 #endif
 
-#include "ManapiJsonWebTokenTraits.hpp"
+#include "./ManapiJsonWebTokenTraits.hpp"
 #include "../ManapiUtils.hpp"
 
 

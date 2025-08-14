@@ -1,16 +1,17 @@
 #include "ManapiUtils.hpp"
+#include "../include/ManapiUtils.hpp"
 
 #if defined( MANAPIHTTP_NGHTTP3_DEPENDENCY ) && MANAPIHTTP_NGHTTP3_DEPENDENCY
-#   include "../include/http/ManapiNgHttp3Interface.hpp"
 
 #   include <cstring>
 
 #   include "nghttp3/nghttp3.h"
 #   include "nghttp3/version.h"
 
-#   include "ManapiHttpResponse.hpp"
-#   include "components/ManapiURLDecodeStream.hpp"
+#   include "http/ManapiHttpResponse.hpp"
+#   include "http/ManapiURLDecodeStream.hpp"
 #   include "http/ManapiBaseHttp.hpp"
+#   include "../include/http/ManapiNgHttp3Interface.hpp"
 #   include "../include/ManapiSiteInternal.hpp"
 
 static_assert(MANAPIHTTP_NGHTTP3_DEPENDENCY && NGHTTP3_VERSION_NUM >= 0x010000, "libnghttp3 version must be greater than v1.0.0");

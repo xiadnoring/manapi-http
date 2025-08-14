@@ -3,19 +3,15 @@
 #include <utility>
 #include <vector>
 #include <memory.h>
-#if defined(__unix__)||defined(__APPLE__)
-#   include <arpa/inet.h>
-#   include <netdb.h>
-#endif
 #include <filesystem>
 #include <chrono>
 #include <thread>
 #include <unordered_map>
 #include <fcntl.h>
-#include "../include/ManapiUtils.hpp"
-#include "../../include/http/ManapiHttpPool.hpp"
-#include "../include/http/ManapiHttp1.hpp"
 
+#include "http/ManapiHttpPool.hpp"
+#include "../include/ManapiUtils.hpp"
+#include "../include/http/ManapiHttp1.hpp"
 #include "../include/http/ManapiHttp1Interface.hpp"
 
 manapi::net::http_pool::http_pool(const json &config, std::shared_ptr<multithread_storage::worker_t> worker_config, class http::site site, size_t id, std::shared_ptr<event_loop> events) : site_(std::move(site)) {
@@ -38,7 +34,7 @@ manapi::future<manapi::error::status> manapi::net::http_pool::stop() {
         auto lk = co_await this->mx->lock_guard();
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "shutdown socket");
         if (this->worker) {
-            using promise = manapi::async::promise<void, std::false_type>;
+            using promise = manapi::async::promise_sync<void>;
             co_await promise ([this] (promise::resolve_t resolve, promise::reject_t reject) -> void {
                 try {
                     this->worker->stop(std::move(resolve));

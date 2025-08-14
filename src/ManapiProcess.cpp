@@ -1,9 +1,9 @@
 #include "uv.h"
 
 #include "ManapiProcess.hpp"
-#include "include/ManapiUtils.hpp"
 #include "ManapiDebug.hpp"
-#include "services/ManapiEventLoop.hpp"
+#include "ManapiEventLoop.hpp"
+#include "./include/ManapiUtils.hpp"
 
 manapi::sys_error::status manapi::process::set_env(std::string_view name, std::string_view value) {
     if (auto rhs = uv_os_setenv(name.data(), value.data()))

@@ -8,9 +8,8 @@
 #include "ManapiAsync.hpp"
 #include "ManapiErrors.hpp"
 #include "ManapiTime.hpp"
-#include "async/ManapiAsyncContext.hpp"
-
-#include "async/ManapiAsyncLogger.hpp"
+#include "std/ManapiAsyncContext.hpp"
+#include "std/ManapiAsyncLogger.hpp"
 
 #if _MSC_VER
 #   define MANAPIHTTP_LOG(...) manapi::debug::log_ (__LINE__, __FILE__, __FUNCTION__, manapi::ERR_OK, __VA_ARGS__)

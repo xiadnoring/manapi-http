@@ -12,7 +12,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "./ManapiCryptoUtils.hpp"
-#include "../ManapiHttpTypes.hpp"
+#include "../http/ManapiHttpTypes.hpp"
 
 namespace manapi::crypto {
     /**

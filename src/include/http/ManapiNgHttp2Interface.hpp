@@ -1,8 +1,9 @@
 #pragma once
 
 #include <memory>
-#include "worker/ManapiHttp2Worker.hpp"
+
 #include "ManapiUtils.hpp"
+#include "worker/ManapiHttp2Worker.hpp"
 #include "../ManapiUtils.hpp"
 
 #if MANAPIHTTP_NGHTTP2_DEPENDENCY

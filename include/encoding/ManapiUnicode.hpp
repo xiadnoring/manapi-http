@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+
 #include "../ManapiUtils.hpp"
 #include "../ManapiErrors.hpp"
 

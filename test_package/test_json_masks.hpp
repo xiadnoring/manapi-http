@@ -3,7 +3,7 @@
 #ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
 #   include "ManapiJson.hpp"
 #   include "ManapiJsonMask.hpp"
-#   include "ManapiJsonBuilder.hpp"
+#include "../include/json/ManapiJsonBuilder.hpp"
 #else
 #   include <manapihttp/ManapiJson.hpp>
 #   include <manapihttp/ManapiJsonMask.hpp>

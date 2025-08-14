@@ -4,7 +4,7 @@
 #include "../ManapiUtils.hpp"
 #include "../http/ManapiBaseHttp.hpp"
 #include "../worker/ManapiBaseWorker.hpp"
-#include "../components/ManapiTimerObject.hpp"
+#include "../ManapiTimerObject.hpp"
 
 #if MANAPIHTTP_QUICHE_DEPENDENCY
 

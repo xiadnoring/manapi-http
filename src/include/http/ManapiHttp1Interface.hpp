@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ManapiHttp1.hpp"
 #include "worker/ManapiBaseWorker.hpp"
 #include "worker/ManapiInterfaceWorker.hpp"

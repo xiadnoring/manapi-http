@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(manapihttp VERSION 0.0.2 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
+project(manapihttp VERSION 0.0.3 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
 
 cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0070 NEW)
@@ -431,6 +431,11 @@ else ()
     if (MANAPIHTTP_GRPC_DEPENDENCY)
         pkg_search_module(GRPC grpc)
         pkg_search_module(GRPCPP grpc++>=1.22.0)
+
+        find_library(GRPCPP_REFLECTION NAMES grpc++_reflection)
+        if (NOT GRPCPP_REFLECTION)
+            set(GRPCPP_REFLECTION "")
+        endif ()
         pkg_check_modules(PROTOBUF protobuf)
         message(STATUS "grpc found: ${GRPC_FOUND}")
         message(STATUS "protobuf found: ${PROTOBUF_FOUND}")
@@ -574,27 +579,27 @@ set(CMAKE_CXX_STANDARD 23)
 
 set(MANAPIHTTP_HTTP_FILES
         include/ManapiHttp.hpp
-        include/services/ManapiThreadPool.hpp
+        include/ManapiThreadPool.hpp
         include/ManapiUtils.hpp
-        include/ManapiHttpResponse.hpp
-        include/ManapiHttpRequest.hpp
+        include/http/ManapiHttpResponse.hpp
+        include/http/ManapiHttpRequest.hpp
         include/ManapiBigint.hpp
-        include/ManapiHttpTypes.hpp
-        include/ManapiFilesystem.hpp
+        include/http/ManapiHttpTypes.hpp
+        include/fs/ManapiFilesystem.hpp
         include/crypto/ManapiBase64.hpp
         include/compress/ManapiCompress.hpp
-        include/ManapiHash.hpp
-        include/services/ManapiFetch.hpp
-        include/services/ManapiTimerPool.hpp
+        include/hash/ManapiSHA256.hpp
+        include/ManapiFetch.hpp
+        include/ManapiTimerPool.hpp
         include/http/ManapiHttpPool.hpp
-        include/ManapiJsonMask.hpp
+        include/json/ManapiJsonMask.hpp
         include/http/ManapiSite.hpp
-        include/ManapiHttpConfig.hpp
+        include/http/ManapiHttpConfig.hpp
         include/ext/ManapiJsonWebTokenTraits.hpp
         include/ext/ManapiJsonWebTokenDefaults.hpp
         include/encoding/ManapiUnicode.hpp
-        include/ManapiJsonBuilder.hpp
-        include/ManapiBeforeDelete.hpp
+        include/json/ManapiJsonBuilder.hpp
+        include/std/ManapiBeforeDelete.hpp
         include/worker/ManapiBaseWorker.hpp
         include/http/ManapiBaseHttp.hpp
         include/worker/ManapiOpenSslOverTcp.hpp
@@ -603,47 +608,46 @@ set(MANAPIHTTP_HTTP_FILES
         include/compress/ManapiHPack.hpp
         src/include/http/ManapiHttp2Interface.hpp
         src/include/http/ManapiHttp1Interface.hpp
-        include/ManapiHttpMime.hpp
-        include/components/ManapiAtomic.hpp
+        include/http/ManapiHttpMime.hpp
         include/worker/ManapiTcp.hpp
-        include/ManapiJson.hpp
+        include/json/ManapiJson.hpp
         ${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp
 
         src/ManapiHttp.cpp
-        src/services/ManapiThreadPool.cpp
+        src/ManapiThreadPool.cpp
         src/ManapiUtils.cpp
-        src/ManapiHttpResponse.cpp
-        src/ManapiHttpRequest.cpp
-        src/ManapiJson.cpp
+        src/http/ManapiHttpResponse.cpp
+        src/http/ManapiHttpRequest.cpp
+        src/json/ManapiJson.cpp
         src/ManapiBigint.cpp
         src/compress/ManapiCompress.cpp
-        src/ManapiFilesystem.cpp
-        src/ManapiHash.cpp
-        src/services/ManapiFetch.cpp
-        src/ManapiJsonMask.cpp
+        src/fs/ManapiFilesystem.cpp
+        src/hash/ManapiSHA256.cpp
+        src/ManapiFetch.cpp
+        src/json/ManapiJsonMask.cpp
         src/http/ManapiHttpPool.cpp
-        src/services/ManapiTimerPool.cpp
+        src/ManapiTimerPool.cpp
         src/http/ManapiSite.cpp
-        src/ManapiHttpConfig.cpp
+        src/http/ManapiHttpConfig.cpp
         src/ManapiUnicode.cpp
-        src/ManapiJsonBuilder.cpp
-        src/ManapiBeforeDelete.cpp
+        src/json/ManapiJsonBuilder.cpp
+        src/std/ManapiBeforeDelete.cpp
         src/worker/ManapiBaseWorker.cpp
         src/http/ManapiBaseHttp.cpp
         src/worker/ManapiOpenSslOverTcp.cpp
         src/http/ManapiHttp1.cpp
         src/http/ManapiHttp2.cpp
         src/http/ManapiHttp2Interface.cpp
-        src/ManapiHttpMime.cpp
+        src/http/ManapiHttpMime.cpp
         src/worker/ManapiTcp.cpp
-        src/components/ManapiFormData.cpp
-        include/components/ManapiFormData.hpp
+        src/http/ManapiFormData.cpp
+        include/http/ManapiFormData.hpp
         src/ManapiAsync.cpp
         include/ManapiAsync.hpp
-        include/async/ManapiAsyncMutex.hpp
-        include/async/ManapiAsyncConditionVariable.hpp
-        include/components/ManapiChain.hpp
-        include/async/ManapiAsyncTimer.hpp
+        include/std/ManapiAsyncMutex.hpp
+        include/std/ManapiAsyncConditionVariable.hpp
+        include/std/ManapiChain.hpp
+        include/std/ManapiAsyncTimer.hpp
         include/crypto/ManapiAEAD.hpp
         include/crypto/ManapiHKDF.hpp
         include/crypto/ManapiCryptoUtils.hpp
@@ -653,7 +657,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/ManapiInitTools.hpp
         include/worker/ManapiHttp3Cloudflare.hpp
         src/worker/ManapiHttp3Cloudflare.cpp
-        include/async/ManapiAsyncPromise.hpp
+        include/std/ManapiAsyncPromise.hpp
         include/encoding/ManapiURL.hpp
         include/ManapiErrors.hpp
         src/ManapiErrors.cpp
@@ -665,52 +669,49 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiMath.cpp
         include/http/ManapiHttpUtils.hpp
         src/http/ManapiHttpUtils.cpp
-        include/async/ManapiAsyncTools.hpp
         include/worker/ManapiWolfSslOverTcp.hpp
         src/worker/ManapiWolfSslOverTcp.cpp
-        # include/components/ManapiAtomicAsync.hpp
-        include/services/ManapiEventLoop.hpp
-        src/services/ManapiEventLoop.cpp
-        include/async/ManapiAsyncContext.hpp
-        src/async/ManapiAsyncContext.cpp
-        src/async/ManapiAsyncMutex.cpp
-        src/async/ManapiAsyncConditionVariable.cpp
-        include/async/ManapiAsyncFileStream.hpp
-        src/async/ManapiAsyncFileStream.cpp
+        include/ManapiEventLoop.hpp
+        src/ManapiEventLoop.cpp
+        include/std/ManapiAsyncContext.hpp
+        src/std/ManapiAsyncContext.cpp
+        src/std/ManapiAsyncMutex.cpp
+        src/std/ManapiAsyncConditionVariable.cpp
+        include/fs/ManapiFileStream.hpp
+        src/fs/ManapiFileStream.cpp
         include/ext/pq/AsyncPostgreClient.hpp
-        include/async/ManapiAsyncSocket.hpp
+        include/std/ManapiAsyncSocket.hpp
         include/ext/pq/AsyncPostgreResult.hpp
         include/ext/pq/AsyncPostgreRow.hpp
         include/ext/pq/AsyncPostgreField.hpp
         include/ext/pq/AsyncPostgreValue.hpp
         include/ext/pq/AsyncPostgreValueTypes.hpp
         include/ext/pq/AsyncPostgreNotification.hpp
-        include/async/ManapiAsyncParallelRun.hpp
-        include/services/ManapiFetch2.hpp
-        include/components/ManapiTimerObject.hpp
-        src/components/ManapiTimerObject.cpp
-        include/ext/jemallocator.hpp
-        include/components/ManapiBuffer.hpp
-        src/components/ManapiBuffer.cpp
-        include/services/ManapiObjectPool.hpp
+        include/std/ManapiAsyncParallelRun.hpp
+        include/ManapiFetch2.hpp
+        include/ManapiTimerObject.hpp
+        src/ManapiTimerObject.cpp
+        include/std/ManapiBuffer.hpp
+        src/std/ManapiBuffer.cpp
+        include/ManapiObjectPool.hpp
         src/ManapiInitTools.cpp
-        include/components/ManapiFileTransferInfo.hpp
-        src/async/ManapiAsyncSocket.cpp
-        include/async/ManapiCancellation.hpp
-        src/async/ManapiCancellation.cpp
-        include/components/ManapiURLDecodeStream.hpp
-        src/components/ManapiURLDecodeStream.cpp
+        include/http/ManapiFileTransferInfo.hpp
+        src/std/ManapiAsyncSocket.cpp
+        include/std/ManapiCancellation.hpp
+        src/std/ManapiCancellation.cpp
+        include/http/ManapiURLDecodeStream.hpp
+        src/http/ManapiURLDecodeStream.cpp
         src/http/ManapiURLParams.cpp
         include/http/ManapiURLParams.hpp
-        src/ManapiHttpTypes.cpp
+        src/http/ManapiHttpTypes.cpp
         src/encoding/ManapiURL.cpp
         include/ManapiVersions.hpp
         src/worker/ManapiTlsOverTcp.cpp
         include/worker/ManapiTlsOverTcp.hpp
-        src/async/ManapiAsyncLogger.cpp
-        include/async/ManapiAsyncLogger.hpp
-        include/components/ManapiEventStructures.hpp
-        src/components/ManapiEventStructures.cpp
+        src/std/ManapiAsyncLogger.cpp
+        include/std/ManapiAsyncLogger.hpp
+        include/ManapiEventStructures.hpp
+        src/ManapiEventStructures.cpp
         src/include/ManapiWindows.hpp
         src/crypto/ManapiCryptoUtils.cpp
         src/include/ManapiHttpStructs.hpp
@@ -719,18 +720,18 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiProcess.cpp
         include/http/ManapiSiteCtx.hpp
         src/http/ManapiSiteCtx.cpp
-        include/async/ManapiAsyncThreadsMutex.hpp
-        src/async/ManapiAsyncThreadsMutex.cpp
-        include/async/ManapiEasyCancellation.hpp
-        src/async/ManapiEasyCancellation.cpp
-        src/services/ManapiObjectPool.cpp
+        include/std/ManapiAsyncThreadsMutex.hpp
+        src/std/ManapiAsyncThreadsMutex.cpp
+        include/std/ManapiEasyCancellation.hpp
+        src/std/ManapiEasyCancellation.cpp
+        src/ManapiObjectPool.cpp
         include/worker/ManapiHttp2Worker.hpp
         src/worker/ManapiHttp2Worker.cpp
         src/http/ManapiHttp1Interface.cpp
         include/worker/ManapiInterfaceWorker.hpp
         src/worker/ManapiInterfaceWorker.cpp
-        include/components/ManapiSlice.hpp
-        src/components/ManapiSlice.cpp
+        include/std/ManapiSlice.hpp
+        src/std/ManapiSlice.cpp
         src/compress/ManapiHPack.cpp
         src/include/http/ManapiNgHttp2Interface.hpp
         src/http/ManapiNgHttp2Interface.cpp
@@ -740,19 +741,18 @@ set(MANAPIHTTP_HTTP_FILES
         src/crypto/ManapiAEAD.cpp
         src/crypto/ManapiHKDF.cpp
         src/crypto/ManapiAES.cpp
-        include/components/ManapiMultithreadStorage.hpp
-        src/components/ManapiMultithreadStorage.cpp
-        include/services/ManapiGrpc.hpp
-        src/services/ManapiGrpc.cpp
-        include/components/ManapiConfig.hpp
-        include/components/ManapiConfig.hpp
-        src/components/ManapiConfig.cpp
+        include/utils/ManapiMultithreadStorage.hpp
+        src/utils/ManapiMultithreadStorage.cpp
+        include/ManapiGrpc.hpp
+        src/ManapiGrpc.cpp
+        include/utils/ManapiConfig.hpp
+        src/utils/ManapiConfig.cpp
         src/include/ManapiInternalGrpc.hpp
-        include/services/ManapiDns.hpp
-        src/services/ManapiDns.cpp
+        include/ManapiDns.hpp
+        src/ManapiDns.cpp
         src/ManapiTime.cpp
         src/crypto/ManapiBase64.cpp
-        src/services/ManapiFetch2.cpp
+        src/ManapiFetch2.cpp
         src/ManapiDebug.cpp
         src/include/ManapiEventStructuresInternal.hpp
         include/ext/ManapiMustache.hpp
@@ -765,7 +765,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/worker/ManapiHttp3Worker.hpp
         src/worker/ManapiHttp3Worker.cpp
         src/worker/ManapiBaseUtils.cpp
-        include/components/ManapiFunction.hpp
+        include/std/ManapiFunction.hpp
         include/ext/pq/AsyncPostgreError.hpp
         src/include/ManapiEventLoopCurl.hpp
 )
@@ -908,6 +908,8 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
                 test_package/test_package.cpp
                 test_package/test_bigint.hpp
                 test_package/test_json_masks.hpp
+                test_package/test_fetch.hpp
+                test_package/test_fetch.cpp
                 test_package/utest.h
                 ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
     endif ()
@@ -1077,8 +1079,8 @@ else ()
         target_link_libraries(${PROJECT_NAME} PUBLIC ${PROTOBUF_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${PROTOBUF_INCLUDE_DIRS})
 
-        message(STATUS "grpcpp: libs=${GRPCPP_LIBRARIES} include=${GRPCPP_INCLUDE_DIRS}")
-        target_link_libraries(${PROJECT_NAME} PUBLIC ${GRPCPP_LIBRARIES})
+        message(STATUS "grpcpp: libs=${GRPCPP_LIBRARIES}${GRPCPP_REFLECTION} include=${GRPCPP_INCLUDE_DIRS}")
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${GRPCPP_LIBRARIES} ${GRPCPP_REFLECTION})
         target_include_directories(${PROJECT_NAME} PUBLIC ${GRPCPP_INCLUDE_DIRS})
     endif ()
 

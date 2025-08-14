@@ -1,7 +1,7 @@
-#include "ManapiMath.hpp"
-#include "include/ManapiUtils.hpp"
-
 #include <random>
+
+#include "ManapiMath.hpp"
+#include "./include/ManapiUtils.hpp"
 
 long long manapi::math::binpow(long long a, int n) {
     long long res = 1;

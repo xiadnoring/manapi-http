@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../ManapiUtils.hpp"
-#include "../async/ManapiAsyncContext.hpp"
-#include "../async/ManapiCancellation.hpp"
+#include "../std/ManapiAsyncContext.hpp"
+#include "../std/ManapiCancellation.hpp"
 
 namespace manapi::compress {
 #if MANAPIHTTP_ZLIB_DEPENDENCY

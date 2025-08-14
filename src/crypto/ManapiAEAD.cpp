@@ -1,4 +1,5 @@
 #include "crypto/ManapiAEAD.hpp"
+#include "../include/ManapiUtils.hpp"
 
 /**
  * 0 - DEFAULT
@@ -22,7 +23,6 @@
 #   define MANAPIHTTP_CRYPTO_LIBRARY 2 /* wolfssl */
 #endif
 
-#include "../include/ManapiUtils.hpp"
 
 manapi::error::status_or<std::string> manapi::crypto::aead_decrypt(std::string_view cipher_password, std::string_view aad, std::string_view key, std::string_view iv, std::string_view tag, ciphers algorithm) {
     std::string plaintext;

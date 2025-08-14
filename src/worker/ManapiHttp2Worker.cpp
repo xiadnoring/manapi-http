@@ -1,6 +1,5 @@
 #include "worker/ManapiHttp2Worker.hpp"
-
-#include "ManapiHttpResponse.hpp"
+#include "http/ManapiHttpResponse.hpp"
 #include "../include/ManapiUtils.hpp"
 
 int manapi::net::worker::http_v2_flush_recv(http::config *config, const manapi::net::worker::shared_conn &conn, manapi::net::worker::http_v2_stream_base_t *s) MANAPIHTTP_NOEXCEPT {

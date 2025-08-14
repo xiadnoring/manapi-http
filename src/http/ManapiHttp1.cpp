@@ -2,12 +2,11 @@
 #include <cctype>
 #include <memory>
 
-#include "../include/http/ManapiHttp1.hpp"
-
-#include "../../include/crypto/ManapiBase64.hpp"
-#include "ManapiFilesystem.hpp"
 #include "ManapiString.hpp"
-#include "services/ManapiFetch.hpp"
+#include "ManapiFetch.hpp"
+#include "crypto/ManapiBase64.hpp"
+#include "fs/ManapiFilesystem.hpp"
+#include "../include/http/ManapiHttp1.hpp"
 
 enum http_v1_1_callbacks {
     HTTP_V1_1_CALLBACK_INIT = 0,

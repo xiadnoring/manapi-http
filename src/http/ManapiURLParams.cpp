@@ -1,7 +1,6 @@
-#include "http/ManapiURLParams.hpp"
-
 #include "ManapiDebug.hpp"
 #include "ManapiErrors.hpp"
+#include "http/ManapiURLParams.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "encoding/ManapiURL.hpp"
 #include "../include/ManapiUtils.hpp"

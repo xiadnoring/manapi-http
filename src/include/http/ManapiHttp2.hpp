@@ -1,5 +1,4 @@
-#ifndef MANAPIHTTP_HTTP_HTTPV2_HPP
-#define MANAPIHTTP_HTTP_HTTPV2_HPP
+#pragma once
 
 #include <thread>
 
@@ -125,5 +124,3 @@ namespace manapi::net::http {
     int http_v2_rst_stream (const worker::shared_conn &s, int errcode) MANAPIHTTP_NOEXCEPT;
     manapi::future<int> http_v2_response (worker::base *worker, const worker::shared_conn &connection, int status, std::map<std::string, std::string, std::less<>> headers, bool finish);
 }
-
-#endif //MANAPIHTTP_HTTP_HTTPV2_HPP
