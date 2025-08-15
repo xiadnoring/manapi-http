@@ -7,7 +7,7 @@ HTTP server written on C++ which supports HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC
 > [!CAUTION]
 > This project is in development!!!
 
-> [!CAUTION]
+> [!WARNING]
 > It was created for educational purposes (experiment) and for internal use. 
 > It is not designed as a substitute for other frameworks (drogon, userver).
 
@@ -21,14 +21,19 @@ Many important utils will be supported out of the box, for example, `JSON`, `MyS
 ## Installation
 
 To compile this project, you need to install below projects:
-- OpenSSL 3.3.1 or greater \[optional\]
+- **libuv 1.49.2 or greater \[required\]**
+- openssl 3.3.1 or greater \[optional\]
 - zlib 1.3.1 or greater \[optional\]
 - gmp 6.3.0 or greater \[optional\]
-- **libuv 1.49.2 or greater \[required\]**
 - curl 8.8.0-1 or greater \[optional\]
 - wolfssl 5.5.0 or greater \[optional\]
 - quiche 0.22.0 or greater \[optional\]
-- tquic 1.5.0 or greater \[optional\]
+- grpc 1.72.0 or greater \[optional\]
+- cpptrace 0.74.1 or greater \[optional\]
+- brotli 1.1.0 or greater \[optional\]
+- zstd 1.5.5 or greater \[optional\]
+- nghttp2 1.59.0 or greater \[optional\]
+- nghttp3 1.6.0 or greater \[optional\]
 
 ### Benchmark
 
@@ -98,6 +103,8 @@ cmake ... -DMANAPIHTTP_BUILD_METHOD=conan
 ### Build with cmake Fetch
 > [!WARNING]
 > not everything is supported
+> 
+> (gmp (linux), libuv, zlib, curl, openssl, nghttp2, nghttp3)
 ```bash
 cmake ... -DMANAPIHTTP_BUILD_METHOD=fetch
 ```
