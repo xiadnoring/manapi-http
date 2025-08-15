@@ -7,6 +7,10 @@ HTTP server written on C++ which supports HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC
 > [!CAUTION]
 > This project is in development!!!
 
+> [!CAUTION]
+> It was created for educational purposes (experiment) and for internal use. 
+> It is not designed as a substitute for other frameworks (drogon, userver).
+
 ## About
 ![console](/assets/console1.png)
 
@@ -91,28 +95,40 @@ cmake ... -DMANAPIHTTP_BUILD_TYPE=lib
 cmake ... -DMANAPIHTTP_BUILD_METHOD=conan
 ```
 
+### Build with cmake Fetch
+> [!WARNING]
+> not everything is supported
+```bash
+cmake ... -DMANAPIHTTP_BUILD_METHOD=fetch
+```
+
 ## Example
 
 ```c++
 int main () {
+    /* creates 2 threads for blocking I/O syscalls */
     manapi::async::context::threadpoolfs(2);
+    /* disable several signals */
     manapi::async::context::gbs = manapi::async::context::blockedsignals();
-
+    /* creates 4 additional threads for 4 additional event loops */
     auto ctx = manapi::async::context::create(4).unwrap();
+    /* handle interrupt signals */
     ctx->eventloop()->setup_handle_interrupt();
-
+    /* HTTP context for multiple HTTP routers (threadsafe) */
     auto router_ctx = manapi::net::http::server_ctx::create().unwrap();
-    
+    /* metric */
     std::atomic<int> cnt = 0;
-    
+    /* runs main event loop and 4 additional event loops */
     manapi::async::context::run(ctx, 4, [&cnt, router_ctx] (std::function<void()> bind) -> void {
         using http = manapi::net::http::server;
+        
         auto router = manapi::net::http::server::create(router_ctx).unwrap();
+        
         auto db = manapi::ext::pq::connection::create().unwrap();
 
-        router.GET ("/", [&cnt] (http::req &req, manapi::net::http::response *resp) mutable -> void {
+        router.GET ("/", [&cnt] (http::req &req, http::uresp resp) mutable -> void {
             resp->text(std::format("Hello World! Count: {}", cnt.fetch_add(1))).unwrap();
-            resp->finish();
+            resp.finish();
         }).unwrap();
 
         router.GET("/+error", [](http::req &req, http::resp &resp) -> manapi::future<> {
@@ -189,6 +205,10 @@ int main () {
             co_return resp.text(std::string{res.is_sqlerr() ? res.sqlmsg() : res.message()}).unwrap();
         }).unwrap();
 
+        /**
+         * starts I/O jobs.
+         * works in this context as long as possible.
+         */
         manapi::async::run([router, db] () mutable -> manapi::future<> {
             (co_await db.connect("127.0.0.1", "7879", "development", "password", "db")).unwrap();
             (co_await router.config_object({
@@ -215,6 +235,7 @@ int main () {
             (co_await router.start()).unwrap();
         });
 
+        /* bind event loop in the current context */
         bind();
     }).unwrap();
 
@@ -268,32 +289,28 @@ int main () {
 - [x] Configuration
   - [x] limit-rate (TCP: HTTP/1.1, HTTP/2)
   - [x] limit-rate (UDP: HTTP/3)
+  - [x] connections limit
   - [x] minimum speed requirements
-- [ ] HTTP
+- [x] HTTP
   - [x] Default HTTP/1.1 realization
   - [x] Default HTTP/2 realization
-  - [ ] Default HTTP/3 realization
-  - [x] Support HTTP/1.1
-  - [x] Support HTTP/2
-  - [x] Support HTTP/3
+  - [x] Support HTTP/1.1 (Default)
+  - [x] Support HTTP/2 (nghttp2, Default)
+  - [x] Support HTTP/3 (nghttp3)
 - [ ] HTTP Features
   - [x] Chunked Transmission (HTTP/1.1 - 3)
   - [x] Ranges 
   - [x] FormData
   - [x] JSON (chunked transmission)
   - [ ] Multi-Ranges
+  - [ ] Trailers
 - [ ] TLS
-  - [ ] Default realization
   - [x] OpenSSL
   - [x] WolfSSL
   - [ ] BoringSSL
-- [ ] QUIC
-  - [ ] Default realization 
+- [x] QUIC
   - [x] quiche
-  - [ ] tquic
   - [x] OpenSSL
-  - [ ] WolfSSL
-  - [ ] BoringSSL
 - [x] Fetch
   - [x] Async CURL support
   - [x] Async/sync read callbacks

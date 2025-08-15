@@ -671,6 +671,7 @@ static int ng_wrk_http3_recv_settings (nghttp3_conn *conn, const nghttp3_setting
 }
 
 static int ng_wrk_http3_recv_trailer (nghttp3_conn *conn, int64_t stream_id, int32_t token, nghttp3_rcbuf *name, nghttp3_rcbuf *value, uint8_t flags, void *conn_user_data, void *stream_user_data)  MANAPIHTTP_NOEXCEPT {
+
     return 0;
 }
 

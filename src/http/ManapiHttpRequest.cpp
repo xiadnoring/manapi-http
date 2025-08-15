@@ -331,6 +331,15 @@ void manapi::net::http::request::propagation(bool state) {
     }
 }
 
+std::move_only_function<void(std::string_view name, std::string_view value)> & manapi::net::http::request::trailer_recv() MANAPIHTTP_NOEXCEPT {
+    return this->trailer_recv_cb_;
+}
+
+manapi::error::status manapi::net::http::request::trailer_recv(std::move_only_function<void(std::string_view name, std::string_view value)> cb) MANAPIHTTP_NOEXCEPT {
+    this->trailer_recv_cb_ = std::move(cb);
+    return error::status_ok();
+}
+
 bool manapi::net::http::request::propagation() const {
     return !(this->flags & internal::REQUEST_FLAG_IS_NO_PROPAGATION);
 }

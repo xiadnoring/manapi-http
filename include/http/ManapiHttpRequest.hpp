@@ -75,6 +75,10 @@ namespace manapi::net::http {
 
         void propagation (bool state);
 
+        std::move_only_function<void(std::string_view name, std::string_view value)> &trailer_recv () MANAPIHTTP_NOEXCEPT;
+
+        manapi::error::status trailer_recv (std::move_only_function<void(std::string_view name, std::string_view value)> cb) MANAPIHTTP_NOEXCEPT;
+
         MANAPIHTTP_NODISCARD bool propagation () const;
     private:
         static future<manapi::error::status> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler);
@@ -95,6 +99,8 @@ namespace manapi::net::http {
 
         // server
         worker::shared_worker worker_;
+
+        std::move_only_function<void(std::string_view name, std::string_view value)> trailer_recv_cb_;
 
         const http_handler_function *handler_;
 
