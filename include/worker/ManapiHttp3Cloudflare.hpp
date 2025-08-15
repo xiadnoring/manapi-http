@@ -110,7 +110,8 @@ namespace manapi::net::worker {
 
         static void stream_interface_eraser (worker::connection *ptr) MANAPIHTTP_NOEXCEPT;
 
-        std::map <std::string, shared_conn, std::less<>> connections;
+        std::map <std::array<char, 17>, std::map<std::string, shared_conn, std::less<>>> connections;
+
         quiche_config *quiche_config_{nullptr};
         quiche_h3_config *quiche_h3_config_{nullptr};
         manapi::timer limit_rate_timer{};

@@ -39,6 +39,9 @@ void manapi::net::worker::http_v2::feed_event(const shared_conn &conn, int flags
 }
 
 void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT {
+    if (!conn)
+        return;
+
     auto data = conn->as<http_v2_stream_base_t>();
     if (data->flags & CONN_REMOVED) {
         return;

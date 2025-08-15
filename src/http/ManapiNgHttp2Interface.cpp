@@ -282,9 +282,11 @@ static int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const 
                                             ctx->gctx->http2->close_connection(sconn, flags);
                                             auto it = ctx->streams.find(sdata->id);
                                             assert(it != ctx->streams.end());
-                                            ng_wrk_http2_on_stream_close_callback(ctx->ctx.get(),  sdata->id, 0,
-                                                ctx);
-                                            ctx->streams.erase(it);
+                                            if (it != ctx->streams.end()) {
+                                                ng_wrk_http2_on_stream_close_callback(ctx->ctx.get(),  sdata->id, 0,
+                                                    ctx);
+                                                ctx->streams.erase(it);
+                                            }
 
                                             //manapi::net::http::http_v2_on_close_stream(ctx->ctx.get(), sdata->id);
 

@@ -102,7 +102,7 @@ namespace manapi::net::worker {
 
         std::function<void()> finish;
         uint32_t finish_ref;
-        std::map<uintptr_t, shared_conn> conns_;
+        std::map<std::array<char, 17>, std::map<std::uintptr_t, shared_conn>> conns_;
         std::size_t count;
     private:
         static manapi::error::status load_params (manapi::net::worker::openssl_quic *w, SSL_CTX *ctx, manapi::json sslconfig);

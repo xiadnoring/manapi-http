@@ -41,11 +41,8 @@ manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t
 
     auto wres = manapi::async::current()->eventloop()->create_watcher_udp([this] (const std::shared_ptr<ev::udp> &w, ssize_t nread, const ev::buff_t *buf, const sockaddr *addr, unsigned flags)
         -> void {
-        assert (nread >= 0);
-
-        if (addr) {
+        if (nread > 0 && addr)
             this->onrecv(w, buf->base, static_cast<ssize_t>(nread), addr, flags);
-        }
 
         this->recv_buffer_dealloc_(buf);
     },
