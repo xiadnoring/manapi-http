@@ -35,11 +35,11 @@ wrk http://0.0.0.0:8889/main -d 10 -t 4 -c 200
 Running 10s test @ http://127.0.0.1:8889/main
   4 threads and 200 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     1.26ms    1.57ms  35.87ms   93.12%
-    Req/Sec    49.48k    13.32k   85.10k    55.25%
-  1970377 requests in 10.04s, 319.45MB read
-Requests/sec: 196261.90
-Transfer/sec:     31.82MB
+    Latency   306.86us  663.11us  20.34ms   92.75%
+    Req/Sec   196.75k    18.11k  251.75k    67.41%
+  7866675 requests in 10.10s, 1.25GB read
+Requests/sec: 778896.22
+Transfer/sec:    126.28MB
 ```
 
 ### For Arch Linux
