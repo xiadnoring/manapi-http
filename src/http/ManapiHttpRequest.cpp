@@ -110,15 +110,35 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::request
     }
 }
 
-manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::request::json()
+manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::request::json(const manapi::json_mask *mask)
 {
     try {
-        const auto &post_mask = this->post_mask();
+        struct builder_callback_data_t {
+            manapi::json_builder *builder_;
+            json_error::status *status_;
+        }
+        data_callback{};
 
-        if (post_mask) {
-            json_builder builder = json_builder (*post_mask);
-            auto res = co_await read_body_(this->worker_.get(), this->conn_, this->request_data,[&builder] (const char *data, ssize_t size, bool fin)
-                -> ssize_t { builder << std::string_view (data, size); return size; });
+        if (mask) {
+            json_builder builder = json_builder (*mask);
+            auto status = json_error::status_ok();
+
+            data_callback.builder_ = &builder;
+            data_callback.status_ = &status;
+
+            auto res = co_await read_body_(this->worker_.get(), this->conn_, this->request_data,
+                [&data_callback] (const char *data, ssize_t size, bool fin)
+                -> ssize_t {
+                *data_callback.status_ = data_callback.builder_->parse(std::string_view (data, size));
+                if (!*data_callback.status_)
+                    return -1;
+
+                return size;
+            });
+
+            if (!status)
+                co_return std::move(status);
+
             if (!res.ok())
                 co_return json_error::status(res);
             auto json_res = builder.get();
@@ -127,14 +147,31 @@ manapi::future<manapi::json_error::status_or<manapi::json>> manapi::net::http::r
             co_return json_res.unwrap();
         }
         else {
+            auto status = json_error::status_ok();
             json_builder builder = json_builder ();
-            auto res = co_await read_body_(this->worker_.get(), this->conn_, this->request_data,[&builder] (const char *data, ssize_t size, bool fin)
-                -> ssize_t { builder << std::string_view (data, size); return size; });
+
+            data_callback.builder_ = &builder;
+            data_callback.status_ = &status;
+
+            auto res = co_await read_body_(this->worker_.get(), this->conn_, this->request_data,
+                [&data_callback] (const char *data, ssize_t size, bool fin)
+            -> ssize_t {
+                *data_callback.status_ = data_callback.builder_->parse(std::string_view (data, size));
+                if (!*data_callback.status_)
+                    return -1;
+
+                return size;
+            });
+            if (!status)
+                co_return std::move(status);
+
             if (!res.ok())
                 co_return json_error::status(res);
+
             auto json_res = builder.get();
             if (!json_res)
                 co_return std::move(json_res);
+
             co_return json_res.unwrap();
         }
     }
@@ -191,8 +228,12 @@ ssize_t manapi::net::http::request::left() {
     return this->request_data->body_size;
 }
 
+manapi::json_error::status manapi::net::http::request::verify_get(const manapi::json_mask *mask) MANAPIHTTP_NOEXCEPT {
+    return this->prepare_get_params_(mask);
+}
+
 manapi::json_error::status_or<std::string_view> manapi::net::http::request::get(std::string_view key) {
-    auto err = this->prepare_get_params_();
+    auto err = this->prepare_get_params_(nullptr);
     if (!err)
         return std::move(err);
 
@@ -204,7 +245,7 @@ manapi::json_error::status_or<std::string_view> manapi::net::http::request::get(
 }
 
 manapi::json_error::status_or<std::pair<std::string, std::string>> manapi::net::http::request::get_extract(std::string_view key) {
-    auto err = this->prepare_get_params_();
+    auto err = this->prepare_get_params_(nullptr);
     if (!err)
         return std::move(err);
 
@@ -217,7 +258,7 @@ manapi::json_error::status_or<std::pair<std::string, std::string>> manapi::net::
 }
 
 manapi::json_error::status manapi::net::http::request::contains_get_param(std::string_view key) {
-    auto err = this->prepare_get_params_();
+    auto err = this->prepare_get_params_(nullptr);
     if (!err)
         return std::move(err);
 
@@ -250,7 +291,7 @@ manapi::error::status_or<std::pair<std::string, std::string>> manapi::net::http:
     return std::make_pair(std::move(data.key()), std::move(data.mapped()));
 }
 
-manapi::json_error::status manapi::net::http::request::prepare_get_params_() MANAPIHTTP_NOEXCEPT {
+manapi::json_error::status manapi::net::http::request::prepare_get_params_(const manapi::json_mask *mask) MANAPIHTTP_NOEXCEPT {
     try {
         if (!this->get_params_) {
             this->get_params_ = std::make_unique<decltype(this->get_params_)::element_type>();
@@ -260,7 +301,6 @@ manapi::json_error::status manapi::net::http::request::prepare_get_params_() MAN
             }
 
             // verify params
-            auto &mask = this->get_mask();
             if (mask) {
                 auto res = mask->valid(*this->get_params_);
                 if (!res.ok())
@@ -276,14 +316,6 @@ manapi::json_error::status manapi::net::http::request::prepare_get_params_() MAN
         manapi_log_error("%s due to %s", "get params:Failed" ,e.what());
         return error::status_internal("get params:Failed");
     }
-}
-
-const std::unique_ptr<const manapi::json_mask> &manapi::net::http::request::post_mask() const {
-    return this->handler_->post_mask;
-}
-
-const std::unique_ptr<const manapi::json_mask> &manapi::net::http::request::get_mask() const {
-    return this->handler_->get_mask;
 }
 
 void manapi::net::http::request::stop_propagation() {

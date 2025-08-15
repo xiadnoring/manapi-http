@@ -1005,7 +1005,8 @@ manapi::json_error::status manapi::json_builder::_check_min_mean() {
             goto ok;
     }
 
-    return json_error::status_invalid_argument("json_mask: value is lower or equals min_mean", this->i, json_format_path(this->path.get()));
+    return json_error::status_invalid_argument("json_mask: value is lower or equals min_mean",
+        this->i, json_format_path(this->path.get()));
     ok: return json_error::status_ok();
 }
 

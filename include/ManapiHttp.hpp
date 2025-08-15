@@ -27,6 +27,7 @@ namespace manapi::net::http {
     public:
         using resp = manapi::net::http::response &;
         using req = manapi::net::http::request &;
+        using uresp = manapi::net::http::uresponse;
 
 
         /**
@@ -62,56 +63,44 @@ namespace manapi::net::http {
          * set the GET method for a path
          * @param uri URI path
          * @param handler callback
-         * @param get_mask GET mask
-         * @param post_mask POST mask
          */
-        manapi::error::status GET (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status GET (std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the POST method for a path
          * @param uri URI path
          * @param handler callback
-         * @param get_mask GET mask
-         * @param post_mask POST mask
          */
-        manapi::error::status POST (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status POST (std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the OPTIONS method for a path
          * @param uri URI path
          * @param handler callback
-         * @param get_mask GET mask
-         * @param post_mask POST mask
          */
-        manapi::error::status OPTIONS(std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status OPTIONS(std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the PUT method for a path
          * @param uri URI path
          * @param handler callback
-         * @param get_mask GET mask
-         * @param post_mask POST mask
          */
-        manapi::error::status PUT (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status PUT (std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the PATCH method for a path
          * @param uri URI path
          * @param handler callback
-         * @param get_mask GET mask
-         * @param post_mask POST mask
          */
-        manapi::error::status PATCH (std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status PATCH (std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * share the folder for the GET method
          * @param uri URI path
          * @param folder folder
          * @param handler callback
-         * @param get_mask GET mask
-         * @param post_mask  POST mask
          */
-        manapi::error::status GET (std::string uri, std::string folder, handler_template_t handler = nullptr, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status GET (std::string uri, std::string folder, handler_template_t handler = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * stop working the server

@@ -4,7 +4,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "../ManapiObjectPool.hpp"
+#include "../ManapiMemoryPool.hpp"
 
 namespace manapi::async {
     class context;

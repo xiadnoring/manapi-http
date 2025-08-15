@@ -1,7 +1,7 @@
 #include <cstring>
 
 #include "ManapiAsync.hpp"
-#include "ManapiObjectPool.hpp"
+#include "ManapiMemoryPool.hpp"
 #include "std/ManapiSlice.hpp"
 #include "std/ManapiAsyncContext.hpp"
 

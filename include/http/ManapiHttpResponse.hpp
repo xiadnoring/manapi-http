@@ -26,6 +26,7 @@ namespace manapi::net::http {
     };
 
     class response {
+        friend class uresponse;
     public:
         using resp_callback_sync = std::move_only_function<ssize_t(char *buffer, ssize_t size, bool&)>;
         using resp_callback_async = std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool&)>;
@@ -138,11 +139,11 @@ namespace manapi::net::http {
         internal::handle_data_t *connection_data () MANAPIHTTP_NOEXCEPT;
 
         internal::handle_data_t *connection_data_release () MANAPIHTTP_NOEXCEPT;
+    private:
+        void finish () MANAPIHTTP_NOEXCEPT;
 
         manapi::error::status finish (std::unique_ptr<std::move_only_function<void(std::exception_ptr)>> cb) MANAPIHTTP_NOEXCEPT;
 
-        void finish () MANAPIHTTP_NOEXCEPT;
-    private:
         manapi::error::status check_type_ (int type) MANAPIHTTP_NOEXCEPT;
 
         std::string &body () MANAPIHTTP_NOEXCEPT;
@@ -181,4 +182,28 @@ namespace manapi::net::http {
 
         void *data_;
     };
+
+    class uresponse {
+    public:
+        uresponse (response *resp, std::unique_ptr<std::move_only_function<void(std::exception_ptr)>> cb);
+
+        ~uresponse();
+
+        uresponse (uresponse &&n) MANAPIHTTP_NOEXCEPT;
+
+        uresponse &operator=(uresponse &&n) MANAPIHTTP_NOEXCEPT;
+
+        response *operator->() MANAPIHTTP_NOEXCEPT;
+
+        const response *operator->() const MANAPIHTTP_NOEXCEPT;
+
+        response &operator*() MANAPIHTTP_NOEXCEPT;
+
+        const response &operator *() const MANAPIHTTP_NOEXCEPT;
+
+        void finish () MANAPIHTTP_NOEXCEPT;
+    private:
+        response *resp;
+    };
+
 }

@@ -1,13 +1,13 @@
 #pragma once
 
 #ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
-#   include "ManapiJson.hpp"
-#   include "ManapiJsonMask.hpp"
-#include "../include/json/ManapiJsonBuilder.hpp"
+#   include "json/ManapiJson.hpp"
+#   include "json/ManapiJsonMask.hpp"
+#   include "json/ManapiJsonBuilder.hpp"
 #else
-#   include <manapihttp/ManapiJson.hpp>
-#   include <manapihttp/ManapiJsonMask.hpp>
-#   include <manapihttp/ManapiJsonBuilder.hpp>
+#   include <manapihttp/json/ManapiJson.hpp>
+#   include <manapihttp/json/ManapiJsonMask.hpp>
+#   include <manapihttp/json/ManapiJsonBuilder.hpp>
 #endif
 
 UTEST(json_masks, simple_mask_1) {

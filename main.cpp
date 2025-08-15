@@ -193,9 +193,9 @@ int main () {
         std::string const folder = folder_env ? FOLDER2 : FOLDER;
         auto router = manapi::net::http::server::create (server_ctx).unwrap();
 
-        router.GET("/+layer", [] (http::req &req, manapi::net::http::response *resp) -> void {
+        router.GET("/+layer", [] (http::req &req, http::uresp resp) -> void {
             resp->header(std::string{"alt-svc"}, R"(h3=":8888"; ma=86400)");
-            resp->finish();
+            resp.finish();
         }).unwrap();
 
         router.GET("/stat", [server_ctx, &a] (http::req &req, http::resp &resp) mutable -> manapi::future<> {
@@ -206,34 +206,36 @@ int main () {
                 a.load())).unwrap();
         }).unwrap();
 
-        router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::response *resp)
+        router.GET ("/main", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
             -> void {
             a.fetch_add(1);
             resp->text("");
-            resp->finish();
+
+            resp.finish();
         }).unwrap();
 
-        router.GET ("/fetch", [&a] (manapi::net::http::request &req, manapi::net::http::response *resp)
+        router.GET ("/fetch", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
             -> void {
             resp->proxy("https://www.wikipedia.org", [] (manapi::net::fetch &n) -> void {
                 n.verbose(true);
             }).unwrap();
-            resp->finish();
+
+            resp.finish();
         }).unwrap();
 
-        router.GET ("/stop", [] (http::req &req, manapi::net::http::response *resp) mutable -> void {
+        router.GET ("/stop", [] (http::req &req, manapi::net::http::uresponse resp) mutable -> void {
             resp->text("OK");
 
             manapi::async::run (manapi::async::current()->stop());
 
-            resp->finish();
+            resp.finish();
         }).unwrap();
 
-        router.GET ("/timer", [&a] (manapi::net::http::request &req, manapi::net::http::response *resp)
+        router.GET ("/timer", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
             -> void {
             manapi::async::current()->timerpool()->append_timer_sync(1500,
-                [resp] (manapi::timer t) -> void {
-                    resp->finish();
+                [resp = std::move(resp)] (manapi::timer t) mutable  -> void {
+                    resp.finish();
             }).unwrap();
         }).unwrap();
 

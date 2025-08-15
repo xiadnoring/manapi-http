@@ -710,8 +710,9 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
             }
         }
 
-        if (flags)
-            this->bio_flush_write();
+        s->transfered += written;
+
+        this->bio_flush_write();
 
         if (!written) {
             auto sent = interface_worker::connection_io_send(&s->top->send, buff->base, static_cast<ssize_t>(buff->len),
@@ -735,7 +736,6 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
             break;
         }
 
-        s->transfered += written;
         res += static_cast<ssize_t>(written);
 
         if (written == buff->len) {
@@ -1069,7 +1069,6 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
         if (size) {
             auto rhs = SSL_write_ex2(data->stream, buffer.data(), size, flags, &written);
 
-
             if (rhs!=1) {
                 assert(!written);
                 auto err = SSL_get_error(data->stream, rhs);
@@ -1088,14 +1087,13 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
                     }
                 }
 
-                this->bio_flush_write ();
+                this->bio_flush_write();
                 break;
             }
 
-            if (flags)
-                this->bio_flush_write();
-
             data->transfered += written;
+
+            this->bio_flush_write();
         }
         else
             written = 0;

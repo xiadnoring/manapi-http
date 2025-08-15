@@ -39,9 +39,7 @@ manapi::net::http::http_handler_function manapi::net::http::site::default_error_
     = {
     .handler = [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
         co_return resp.text(http::internal::generate_default_page(resp.status_code(), resp.status_message())).unwrap();
-    },
-    .post_mask = nullptr,
-    .get_mask = nullptr,
+    }
 };
 
 std::string_view manapi::net::http::site::default_config_name = "config_.json";
@@ -775,7 +773,7 @@ manapi::net::http::site::site(const site &n) {
 manapi::net::http::site & manapi::net::http::site::operator=(const site &n) = default;
 
 
-manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, handler_template_t handler, json_mask get_mask, json_mask post_mask) MANAPIHTTP_NOEXCEPT {
+manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
     manapi::error::status status;
     try {
         size_t type = URI_PAGE_DEFAULT;
@@ -783,12 +781,6 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
         http_uri_part *cur = build_uri_part(uri, type);
 
         http_handler_function functions;
-
-        if (get_mask.is_enabled())
-            functions.get_mask = std::make_unique<json_mask> (std::move(get_mask));
-
-        if (post_mask.is_enabled())
-            functions.post_mask = std::make_unique<json_mask> (std::move(post_mask));
 
         functions.handler = std::move(handler);
 
@@ -878,15 +870,8 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
                     if (handler) {
                         auto &layer = res.first->second.layer;
                         layer = std::make_unique<http_handler_function>(
-                            std::move(handler), nullptr, nullptr);
+                            std::move(handler));
 
-                        if (get_mask.is_enabled()) {
-                            layer->get_mask = std::make_unique<decltype(get_mask)>(std::move(get_mask));
-                        }
-
-                        if (post_mask.is_enabled()) {
-                            layer->post_mask = std::make_unique<decltype(post_mask)>(std::move(post_mask));
-                        }
                     }
                 }
                 else {

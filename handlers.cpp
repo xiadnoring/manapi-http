@@ -13,7 +13,7 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
         co_return;
     });
 
-    router.GET("/http", [] (http::req &req, manapi::net::http::response *resp) -> void {
+    router.GET("/http", [] (http::req &req, http::uresp resp) -> void {
         std::string http = "";
         auto version = req.http();
         switch (version) {
@@ -29,7 +29,27 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
         });
 
         resp->file("/home/Timur/Desktop/WorkSpace/ManapiHTTP/examples/http.html");
-        resp->finish();
+        resp.finish();
+    });
+
+
+    router.GET("/json", [] (http::req &req, http::uresp resp) -> void {
+        return resp->json({{"message", "Hello, World!"}}).unwrap();
+    });
+
+    router.POST("/json", [] (http::req &req, http::resp &resp) -> manapi::future<> {
+        manapi::json_mask mask = {
+            {"hello", R"({string(>=5 <10)})"}
+        };
+
+        auto data = co_await req.json(&mask);
+
+        if (!data) {
+            co_return resp.json({{"error", true}, {"msg", data.message()},
+                {"pos", data.pos()}, {"path", data.path()}, {"data", data.additional_data()}}).unwrap();
+        }
+
+        co_return resp.json(data.unwrap()).unwrap();
     });
 
     router.GET("/", [&folder] (http::req &req, http::resp &resp) -> manapi::future<> {

@@ -43,7 +43,7 @@ namespace manapi::net::http {
 
         future<manapi::error::status_or<std::string>> text ();
 
-        future<manapi::json_error::status_or<manapi::json>> json ();
+        future<manapi::json_error::status_or<manapi::json>> json (const manapi::json_mask *mask = nullptr);
 
         future<manapi::error::status> form (formdata_recv::onparam_cb_t cb);
 
@@ -54,6 +54,8 @@ namespace manapi::net::http {
         future<manapi::error::status> file (std::string filepath);
 
         ssize_t left ();
+
+        manapi::json_error::status verify_get (const manapi::json_mask *mask) MANAPIHTTP_NOEXCEPT;
 
         manapi::json_error::status_or<std::string_view> get (std::string_view key);
 
@@ -69,10 +71,6 @@ namespace manapi::net::http {
 
         error::status_or<std::pair<std::string, std::string>> header_extract (std::string_view name);
 
-        MANAPIHTTP_NODISCARD const std::unique_ptr<const manapi::json_mask> &post_mask () const;
-
-        MANAPIHTTP_NODISCARD const std::unique_ptr<const manapi::json_mask> &get_mask () const;
-
         void stop_propagation ();
 
         void propagation (bool state);
@@ -85,7 +83,7 @@ namespace manapi::net::http {
 
         std::unique_ptr<std::map<std::string, std::string, std::less<>>> get_params_;
 
-        manapi::json_error::status prepare_get_params_() MANAPIHTTP_NOEXCEPT;
+        manapi::json_error::status prepare_get_params_(const manapi::json_mask *mask) MANAPIHTTP_NOEXCEPT;
 
         // peer ip
         std::unique_ptr<http::manapi_socket_information> ip_data_;

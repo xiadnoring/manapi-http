@@ -304,6 +304,53 @@ void manapi::net::http::response::detect_ranges () MANAPIHTTP_NOEXCEPT {
     }
 }
 
+manapi::net::http::uresponse::uresponse(response *resp, std::unique_ptr<std::move_only_function<void(std::exception_ptr)>> cb) {
+    assert (resp);
+    resp->finish(std::move(cb));
+
+    this->resp = resp;
+}
+
+manapi::net::http::uresponse::~uresponse() {
+    if (this->resp) {
+        this->resp->finish();
+    }
+}
+
+manapi::net::http::uresponse::uresponse(uresponse &&n) MANAPIHTTP_NOEXCEPT {
+    this->resp = n.resp;
+    n.resp = nullptr;
+}
+
+manapi::net::http::uresponse & manapi::net::http::uresponse::operator=(uresponse &&n) MANAPIHTTP_NOEXCEPT {
+    this->resp = n.resp;
+    n.resp = nullptr;
+    return *this;
+}
+
+manapi::net::http::response * manapi::net::http::uresponse::operator->() MANAPIHTTP_NOEXCEPT {
+    return this->resp;
+}
+
+const manapi::net::http::response * manapi::net::http::uresponse::operator->() const MANAPIHTTP_NOEXCEPT {
+    return this->resp;
+}
+
+manapi::net::http::response & manapi::net::http::uresponse::operator*() MANAPIHTTP_NOEXCEPT {
+    return *this->resp;
+}
+
+const manapi::net::http::response & manapi::net::http::uresponse::operator*() const MANAPIHTTP_NOEXCEPT {
+    return *this->resp;
+}
+
+void manapi::net::http::uresponse::finish() MANAPIHTTP_NOEXCEPT {
+    if (this->resp) {
+        this->resp->finish();
+        this->resp = nullptr;
+    }
+}
+
 bool manapi::net::http::response::partial_enabled() const MANAPIHTTP_NOEXCEPT {
     return (this->flags & internal::RESPONSE_FLAG_PARTITIAL_ENABLED);
 }

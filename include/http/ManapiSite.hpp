@@ -31,12 +31,13 @@ namespace manapi::net::worker {
 namespace manapi::net::http {
     class request;
     class response;
+    class uresponse;
 }
 
 namespace manapi::net::http {
     typedef std::move_only_function <future<>(manapi::net::http::request &req, manapi::net::http::response &res)> async_handler_t;
 
-    typedef std::move_only_function <void (manapi::net::http::request &req, manapi::net::http::response *res)> sync_handler_t;
+    typedef std::move_only_function <void (manapi::net::http::request &req, manapi::net::http::uresponse res)> sync_handler_t;
 
     struct http_handler_function;
 
@@ -144,7 +145,7 @@ namespace manapi::net::http {
          * @param post_mask POST mask
          * @return
          */
-        manapi::error::status_or<http_uri_part *> handler (std::string method, std::string uri, handler_template_t handler, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status_or<http_uri_part *> handler (std::string method, std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set a folder sharing handler by its method and URI

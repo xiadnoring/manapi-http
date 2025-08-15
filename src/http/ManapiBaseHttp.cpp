@@ -966,10 +966,10 @@ manapi::error::status execute_user_callback (manapi::net::http::handler_template
             if (!after_work_uq)
                 return manapi::error::status_resource_exhausted();
 
-            resp->finish(std::move(after_work_uq));
+            manapi::net::http::uresponse uresp (resp, std::move(after_work_uq));
 
             try {
-                err.unwrap()->operator()(*req, resp);
+                err.unwrap()->operator()(*req, std::move(uresp));
             }
             catch (std::exception const &e) {
                 manapi_log_trace("%s due to %s", "http:User cb failed", e.what());
@@ -1016,11 +1016,6 @@ namespace manapi::net::http::internal {
                         handle_income_request_next_(handler, std::move(res), index);
             });
 
-            if (!status) {
-                if (layer_handler.is_sync_cb())
-                    res_ptr->finish();
-            }
-
             return;
         }
 
@@ -1039,10 +1034,6 @@ namespace manapi::net::http::internal {
                             "send_response", e.what());
                     }
             });
-            if (!status) {
-                if (handler->is_sync_cb())
-                    res_ptr->finish();
-            }
         }
         else {
             send_response (std::move(res));

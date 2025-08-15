@@ -5,7 +5,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "../ManapiObjectPool.hpp"
+#include "../ManapiMemoryPool.hpp"
 #include "../compress/ManapiCompress.hpp"
 #include "../std/ManapiAsyncContext.hpp"
 #include "../std/ManapiBuffer.hpp"

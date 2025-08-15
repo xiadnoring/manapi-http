@@ -33,9 +33,6 @@ struct manapi::net::http::site::data_t {
 
 struct manapi::net::http::http_handler_function {
     handler_template_t handler = nullptr;
-
-    std::unique_ptr<const json_mask> post_mask = nullptr;
-    std::unique_ptr<const json_mask> get_mask = nullptr;
 };
 
 struct manapi::net::http::http_static_handler_function {

@@ -693,7 +693,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/ManapiTimerObject.cpp
         include/std/ManapiBuffer.hpp
         src/std/ManapiBuffer.cpp
-        include/ManapiObjectPool.hpp
+        include/ManapiMemoryPool.hpp
         src/ManapiInitTools.cpp
         include/http/ManapiFileTransferInfo.hpp
         src/std/ManapiAsyncSocket.cpp
@@ -724,7 +724,7 @@ set(MANAPIHTTP_HTTP_FILES
         src/std/ManapiAsyncThreadsMutex.cpp
         include/std/ManapiEasyCancellation.hpp
         src/std/ManapiEasyCancellation.cpp
-        src/ManapiObjectPool.cpp
+        src/ManapiMemoryPool.cpp
         include/worker/ManapiHttp2Worker.hpp
         src/worker/ManapiHttp2Worker.cpp
         src/http/ManapiHttp1Interface.cpp

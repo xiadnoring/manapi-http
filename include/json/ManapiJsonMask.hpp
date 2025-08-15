@@ -53,7 +53,7 @@ namespace manapi {
             }
 
             std::string additional_data () {
-                return this->err_.data();
+                return this->err_.additional_data();
             }
 
             [[nodiscard]] std::size_t pos () const {
