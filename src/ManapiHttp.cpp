@@ -107,24 +107,24 @@ manapi::future<manapi::error::status> manapi::net::http::server::start() {
     co_return error::status_internal("start() failed");
 }
 
-manapi::error::status manapi::net::http::server::GET(std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
-    return this->handler("GET", std::move(uri), std::move(handler)).err();
+manapi::error::status manapi::net::http::server::GET(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+    return this->handler("GET", std::move(uri), std::move(handler), std::move(params)).err();
 }
 
-manapi::error::status manapi::net::http::server::POST(std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
-    return this->handler("POST", std::move(uri), std::move(handler)).err();
+manapi::error::status manapi::net::http::server::POST(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+    return this->handler("POST", std::move(uri), std::move(handler),  std::move(params)).err();
 }
 
-manapi::error::status manapi::net::http::server::OPTIONS(std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
-    return this->handler("OPTIONS", std::move(uri), std::move(handler)).err();
+manapi::error::status manapi::net::http::server::OPTIONS(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+    return this->handler("OPTIONS", std::move(uri), std::move(handler), std::move(params)).err();
 }
 
-manapi::error::status manapi::net::http::server::PUT(std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
-    return this->handler("PUT", std::move(uri), std::move(handler)).err();
+manapi::error::status manapi::net::http::server::PUT(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+    return this->handler("PUT", std::move(uri), std::move(handler), std::move(params)).err();
 }
 
-manapi::error::status manapi::net::http::server::PATCH(std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
-    return this->handler("PATCH", std::move(uri), std::move(handler)).err();
+manapi::error::status manapi::net::http::server::PATCH(std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
+    return this->handler("PATCH", std::move(uri), std::move(handler), std::move(params)).err();
 }
 
 manapi::error::status manapi::net::http::server::GET(std::string uri, std::string folder, handler_template_t handler) MANAPIHTTP_NOEXCEPT {

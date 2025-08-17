@@ -25,7 +25,8 @@ enum http2_stream_flags {
     HTTP2_STREAM_SEND_END  = manapi::net::worker::base::CONN_SEND_END,
     HTTP2_STREAM_IO_WAITING = manapi::net::worker::base::CONN_IO_WAITING,
     HTTP2_STREAM_TOP_READ = manapi::net::worker::base::CONN_TOP_READ,
-    HTTP2_STREAM_IS_READING = manapi::net::worker::base::CONN_MAX_CODE * 2
+    HTTP2_STREAM_IS_READING = manapi::net::worker::base::CONN_MAX_CODE << 1,
+    HTTP2_STREAM_TRAILERS = manapi::net::worker::base::CONN_MAX_CODE << 2
     //HTTP2_STREAM_START_WORK_WAIT = 2048
 };
 
@@ -179,6 +180,28 @@ static ssize_t ng_wrk_http2_send_callback(nghttp2_session *session, const uint8_
     return NGHTTP2_ERR_CALLBACK_FAILURE;
 }
 
+static void close_connection (manapi::net::worker::shared_conn conn, manapi::net::worker::shared_conn sconn, manapi::net::worker::base *w, bool ok) MANAPIHTTP_NOEXCEPT {
+    auto const sdata = sconn->as<http_v2_stream_t>();
+    auto ctx = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(conn->wrk.data);
+
+    auto const flags = ok ? manapi::net::worker::CLOSE_CONN_SHUTDOWN : manapi::net::worker::CLOSE_CONN_ERR;
+    ctx->gctx->http2->close_connection(sconn, flags);
+    auto it = ctx->streams.find(sdata->id);
+    assert(it != ctx->streams.end());
+    if (it != ctx->streams.end()) {
+        ng_wrk_http2_on_stream_close_callback(ctx->ctx.get(), sdata->id, 0,
+            ctx);
+        ctx->streams.erase(it);
+    }
+
+    //manapi::net::http::http_v2_on_close_stream(ctx->ctx.get(), sdata->id);
+
+    if (ctx->streams.empty()) {
+        w->waiting(conn, true);
+        ng_wrk_http2_on_close (conn);
+    }
+}
+
 static int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const nghttp2_frame *frame, void *user_data) {
     auto const sess = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(user_data);
     switch (frame->hd.type) {
@@ -187,6 +210,15 @@ static int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const 
             auto const conn = static_cast<manapi::net::worker::shared_conn *>(nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
             if (!conn)
                 return 0;
+
+            auto s = (*conn)->as<http_v2_stream_t>();
+            if (!s)
+                return 0;
+
+            if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
+                s->flags |= HTTP2_STREAM_RECV_END;
+                sess->gctx->http2->feed_event(*conn, HTTP2_STREAM_RECV_END, nullptr, 0, nullptr);
+            }
 
             break;
         }
@@ -198,111 +230,116 @@ static int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const 
             try {
                 auto s = (*conn)->as<http_v2_stream_t>();
 
-                if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
+                if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
                     s->flags |= HTTP2_STREAM_RECV_END;
+                    sess->gctx->http2->feed_event(*conn, HTTP2_STREAM_RECV_END, nullptr, 0, nullptr);
+                }
 
                 if (frame->hd.flags & NGHTTP2_FLAG_END_HEADERS) {
-                    sess->gctx->worker->waiting(sess->conn, false);
+                    if (s->flags & HTTP2_STREAM_TRAILERS) {
 
-                    int status = manapi::net::http::OK_200;
-
-                    auto heit = s->req->headers.extract(":path");
-                    if (heit.empty()) {
-                        status = manapi::net::http::BAD_REQUEST_400;
-                        s->req->uri = "/";
-                        s->req->divided = -1;
                     }
                     else {
-                        s->req->uri = std::move(heit.mapped());
-                        manapi::net::http::url_decode_stream url_decoder;
-                        if (auto rhs = url_decoder << s->req->uri) {
-                            s->req->divided = -1;
-                            s->req->uri = "/";
+                        s->flags |= HTTP2_STREAM_TRAILERS;
 
+                        sess->gctx->worker->waiting(sess->conn, false);
+
+                        int status = manapi::net::http::OK_200;
+
+                        auto heit = s->req->headers.extract(":path");
+                        if (heit.empty()) {
                             status = manapi::net::http::BAD_REQUEST_400;
+                            s->req->uri = "/";
+                            s->req->divided = -1;
                         }
                         else {
-                            s->req->path = url_decoder.result();
-                            s->req->divided = url_decoder.divided();
-                        }
-                    }
+                            s->req->uri = std::move(heit.mapped());
+                            manapi::net::http::url_decode_stream url_decoder;
+                            if (auto rhs = url_decoder << s->req->uri) {
+                                s->req->divided = -1;
+                                s->req->uri = "/";
 
-                    heit = s->req->headers.extract(":method");
-                    if (heit.empty()) {
-                        status = manapi::net::http::BAD_REQUEST_400;
-                        s->req->method = "GET";
-                    }
-                    else {
-                        s->req->method = std::move(heit.mapped());
-                    }
-
-                    auto hit = s->req->headers.find(manapi::net::http::HEADER.CONTENT_LENGTH);
-                    if (hit == s->req->headers.end()) {
-                        s->req->body_size = -1;
-                    }
-                    else {
-                        try {
-                            s->req->body_size = std::stoll(hit->second);
+                                status = manapi::net::http::BAD_REQUEST_400;
+                            }
+                            else {
+                                s->req->path = url_decoder.result();
+                                s->req->divided = url_decoder.divided();
+                            }
                         }
-                        catch (std::exception const &e) {
-                            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s: %s",
-                                "nghttp2", e.what());
+
+                        heit = s->req->headers.extract(":method");
+                        if (heit.empty()) {
+                            status = manapi::net::http::BAD_REQUEST_400;
+                            s->req->method = "GET";
+                        }
+                        else {
+                            s->req->method = std::move(heit.mapped());
+                        }
+
+                        auto hit = s->req->headers.find(manapi::net::http::HEADER.CONTENT_LENGTH);
+                        if (hit == s->req->headers.end()) {
                             s->req->body_size = -1;
                         }
+                        else {
+                            try {
+                                s->req->body_size = std::stoll(hit->second);
+                            }
+                            catch (std::exception const &e) {
+                                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s: %s",
+                                    "nghttp2", e.what());
+                                s->req->body_size = -1;
+                            }
 
-                        if (s->req->body_size < 0) {
-                            status = manapi::net::http::BAD_REQUEST_400;
-                            s->req->body_size = 0;
+                            if (s->req->body_size < 0) {
+                                status = manapi::net::http::BAD_REQUEST_400;
+                                s->req->body_size = 0;
+                            }
                         }
-                    }
 
-                    manapi::async::current()->etaskpool()->append_task(
-                        [status, conn = sess->conn, id = frame->hd.stream_id, w = sess->gctx->worker, httpw = sess->gctx->http2] () -> void {
-                            auto wrk_ctx = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *> (conn->wrk.data);
-                            if (!wrk_ctx)
-                                return;
-                            auto http_v2_ctx = wrk_ctx->ctx.get();
-                            auto s = wrk_ctx->streams.find(id);
-                            if (s == wrk_ctx->streams.end())
-                                return;
+                        manapi::async::current()->etaskpool()->append_task(
+                            [status, conn = sess->conn, id = frame->hd.stream_id, w = sess->gctx->worker, httpw = sess->gctx->http2] () -> void {
+                                auto wrk_ctx = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *> (conn->wrk.data);
+                                if (!wrk_ctx)
+                                    return;
+                                auto http_v2_ctx = wrk_ctx->ctx.get();
+                                auto s = wrk_ctx->streams.find(id);
+                                if (s == wrk_ctx->streams.end())
+                                    return;
 
-                            auto const sdata = s->second->as<http_v2_stream_t>();
-                            auto const req_ptr = sdata->req.get();
-                            manapi_log_trace("http2: %d stream on %.*s", s->first, req_ptr->uri.size(), req_ptr->uri.data());
-                            auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(s->second, httpw,
-                                req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
-                                [w, sconn = s->second, conn, req = std::move(sdata->req)] (bool ok) mutable
-                                -> void {
+                                auto const sdata = s->second->as<http_v2_stream_t>();
+                                auto const req_ptr = sdata->req.get();
+                                manapi_log_trace("http2: %d stream on %.*s", s->first, req_ptr->uri.size(), req_ptr->uri.data());
+                                try {
+                                    auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(s->second, httpw,
+                                        req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
+                                        [w, sconn = s->second, conn] (bool ok) mutable
+                                        -> void {
+                                            MANAPIHTTP_MUST_ALLOC_START
+                                            manapi::async::current()->etaskpool()->append_task(
+                                                [w, ok, conn, sconn] () mutable  -> void {
+                                                    close_connection(std::move(conn), std::move(sconn), w, ok);
+                                            });
+                                            MANAPIHTTP_MUST_ALLOC_END
+                                    }));
+
+                                    // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
+                                    // this->event_flags(conn, 0);
+
+                                    cdata->router = w->site().handler(req_ptr);
+                                    manapi::net::http::internal::handle_income_request(std::move(cdata), status);
+                                }
+                                catch (std::exception const &e) {
+                                    manapi_log_error("%s: %s failed due to %s", "nghttp2", "client start", e.what());
+
+                                    MANAPIHTTP_MUST_ALLOC_START
                                     manapi::async::current()->etaskpool()->append_task(
-                                        [w = std::move(w), ok, conn = std::move(conn), sconn = std::move(sconn)] () -> void {
-                                            auto const sdata = sconn->as<http_v2_stream_t>();
-                                            auto ctx = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(conn->wrk.data);
-
-                                            auto const flags = ok ? manapi::net::worker::CLOSE_CONN_SHUTDOWN : manapi::net::worker::CLOSE_CONN_ERR;
-                                            ctx->gctx->http2->close_connection(sconn, flags);
-                                            auto it = ctx->streams.find(sdata->id);
-                                            assert(it != ctx->streams.end());
-                                            if (it != ctx->streams.end()) {
-                                                ng_wrk_http2_on_stream_close_callback(ctx->ctx.get(),  sdata->id, 0,
-                                                    ctx);
-                                                ctx->streams.erase(it);
-                                            }
-
-                                            //manapi::net::http::http_v2_on_close_stream(ctx->ctx.get(), sdata->id);
-
-                                            if (ctx->streams.empty()) {
-                                                w->waiting(conn, true);
-                                                ng_wrk_http2_on_close (conn);
-                                            }
+                                        [w, conn, sconn = s->second] () mutable  -> void {
+                                            close_connection(std::move(conn), std::move(sconn), w, false);
                                     });
-                            }));
-
-                            // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
-                            // this->event_flags(conn, 0);
-
-                            cdata->router = w->site().handler(req_ptr);
-                            manapi::net::http::internal::handle_income_request(std::move(cdata), status);
-                    });
+                                    MANAPIHTTP_MUST_ALLOC_END
+                                }
+                        });
+                    }
                 }
             }
             catch (std::bad_alloc const &e) {
@@ -351,34 +388,63 @@ static int ng_wrk_http2_on_header_callback (nghttp2_session *session, const nght
     auto const sess = static_cast<manapi::net::worker::ng_wrk_http2_ctx_t *>(user_data);
     switch (frame->hd.type) {
         case NGHTTP2_HEADERS: {
-            try {
-                if (frame->headers.cat != NGHTTP2_HCAT_REQUEST)
-                    break;
 
-                auto conn = static_cast<manapi::net::worker::shared_conn *>(nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
-                if (!conn)
-                    break;
+            auto conn = static_cast<manapi::net::worker::shared_conn *>(nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+            if (!conn)
+                break;
 
-                auto s = (*conn)->as<http_v2_stream_t>();
+            auto s = (*conn)->as<http_v2_stream_t>();
+            auto const config = sess->gctx->worker->config();
 
-                std::string_view name_str (reinterpret_cast<const char *>(name), namelen);
-                std::string_view value_str (reinterpret_cast<const char *>(value), valuelen);
+            std::string_view name_str (reinterpret_cast<const char *>(name), namelen);
+            std::string_view value_str (reinterpret_cast<const char *>(value), valuelen);
 
-                auto it = s->req->headers.find(name_str);
-                if (it == s->req->headers.end()) {
-                    s->req->headers.insert({std::string(name_str), std::string(value_str)});
+            if (config->max_header_key_size < name_str.size())
+                return -1;
+
+            if (config->max_header_value_size < value_str.size())
+                return -1;
+
+            if (s->flags & HTTP2_STREAM_TRAILERS) {
+                s->req->trailers_size += name_str.size() + value_str.size();
+
+                if (!s->req->handler || s->req->trailers_size > s->req->handler->trailers_size) {
+                    return NGHTTP2_ERR_TOO_MANY_CONTINUATIONS;
+                }
+
+                auto it = s->req->trailers.find(name_str);
+                if (it == s->req->trailers.end()) {
+                    s->req->trailers.insert({std::string(name_str), std::string(value_str)});
                 }
                 else {
                     it->second.append(", ");
                     it->second.append(value_str);
                 }
             }
-            catch (std::bad_alloc const &) {
-                return NGHTTP2_ERR_NOMEM;
-            }
-            catch (std::exception const &e) {
-                manapi_log_error(e.what());
-                return NGHTTP2_ERR_FATAL;
+            else {
+                s->req->headers_size += name_str.size() + value_str.size();
+
+                if (s->req->headers_size > config->max_headers_size) {
+                    return NGHTTP2_ERR_TOO_MANY_CONTINUATIONS;
+                }
+
+                try {
+                    auto it = s->req->headers.find(name_str);
+                    if (it == s->req->headers.end()) {
+                        s->req->headers.insert({std::string(name_str), std::string(value_str)});
+                    }
+                    else {
+                        it->second.append(", ");
+                        it->second.append(value_str);
+                    }
+                }
+                catch (std::bad_alloc const &) {
+                    return NGHTTP2_ERR_NOMEM;
+                }
+                catch (std::exception const &e) {
+                    manapi_log_error(e.what());
+                    return NGHTTP2_ERR_FATAL;
+                }
             }
 
             break;
@@ -398,9 +464,6 @@ static int ng_wrk_http2_data_chunk_recv_callback (nghttp2_session *session, uint
     auto const s = (*conn)->as<http_v2_stream_t>();
 
     auto const config = sess->gctx->worker->config();
-
-    if (flags & NGHTTP2_FLAG_END_STREAM)
-        s->flags |= HTTP2_STREAM_RECV_END;
 
     auto rhs = manapi::net::worker::base::connection_io_send(&s->top->recv, reinterpret_cast<const char*>(data), len, &sess->gctx->worker->bufferpool(),
         config->buffer_size, &s->top->recv_size, 1e5);

@@ -144,6 +144,9 @@ namespace manapi::net::worker {
          * if |shutdown_cb| exists it must call close_connection() after a couple of RTTs
          */
         int (*shutdown_cb)(const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w, bool force) MANAPIHTTP_NOEXCEPT;
+
+
+        ssize_t custom_cb (const worker::shared_conn &conn, wrk_interface_global_t *global, worker::base *w, void *data) MANAPIHTTP_NOEXCEPT;
     };
 
     struct buffer_deque {

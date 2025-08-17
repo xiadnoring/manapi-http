@@ -21,7 +21,7 @@ namespace manapi::net::http {
         using onrecv_sync_cb = std::move_only_function<ssize_t(const char *buffer, ssize_t size, bool fin)>;
         using onrecv_async_cb = std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)>;
 
-        request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::shared_conn *conn, worker::shared_worker worker, const http_handler_function *handler);
+        request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::shared_conn *conn, worker::shared_worker worker);
 
         ~request();
 
@@ -75,9 +75,7 @@ namespace manapi::net::http {
 
         void propagation (bool state);
 
-        std::move_only_function<void(std::string_view name, std::string_view value)> &trailer_recv () MANAPIHTTP_NOEXCEPT;
-
-        manapi::error::status trailer_recv (std::move_only_function<void(std::string_view name, std::string_view value)> cb) MANAPIHTTP_NOEXCEPT;
+        manapi::future<manapi::error::status_or<std::map<std::string, std::string, std::less<>>>> trailers ();
 
         MANAPIHTTP_NODISCARD bool propagation () const;
     private:
@@ -99,10 +97,6 @@ namespace manapi::net::http {
 
         // server
         worker::shared_worker worker_;
-
-        std::move_only_function<void(std::string_view name, std::string_view value)> trailer_recv_cb_;
-
-        const http_handler_function *handler_;
 
         // if peer sent larger by size then max_plain_body_size -> error
         int max_plain_body_size_;

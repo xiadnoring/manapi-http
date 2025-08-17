@@ -1090,7 +1090,9 @@ namespace manapi::net::http::internal {
                                 auto const handler = (cdata->router->statics->layer
                                     && cdata->router->statics->layer->handler) ? &cdata->router->statics->layer->handler : nullptr;
 
-                                auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
+                                cdata->req_data->handler = cdata->router->handler;
+
+                                auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker);
                                 auto res = std::make_unique<http::response> (cdata.release(), status, cdata->worker->config(), std::move(req));
 
                                 res->compress_enabled(!binary);
@@ -1139,7 +1141,9 @@ namespace manapi::net::http::internal {
 
             auto handler = &cdata->router->handler->handler;
 
-            auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker, cdata->router->handler);
+            cdata->req_data->handler = cdata->router->handler;
+
+            auto req = std::make_unique<http::request> (std::move(client), cdata->req_data, &cdata->conn, cdata->worker);
             auto res = std::make_unique<http::response> (cdata.release(), status, cdata->worker->config(), std::move(req));
 
             handle_income_request_next_ (handler, std::move(res), 0);

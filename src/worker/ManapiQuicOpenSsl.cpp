@@ -1754,6 +1754,7 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         }
 
         this->count++;
+        this->worker_data_->as<http::server_ctx::worker_data_t>()->count.fetch_add(1);
 
         conn = res.first->second;
 

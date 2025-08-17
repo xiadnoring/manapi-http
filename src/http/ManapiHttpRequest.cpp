@@ -14,14 +14,13 @@
 #include "../include/ManapiSiteInternal.hpp"
 
 
-manapi::net::http::request::request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::shared_conn *conn, worker::shared_worker worker, const http_handler_function *handler)  {
+manapi::net::http::request::request(std::unique_ptr<manapi::net::http::manapi_socket_information> ip_data, manapi::net::http::request_data_t *request_data, manapi::net::worker::shared_conn *conn, worker::shared_worker worker)  {
     this->conn_ = (conn);
     this->ip_data_ = std::move(ip_data);
     this->request_data = request_data;
     this->worker_ = std::move(worker);
     this->flags = 0;
     this->max_plain_body_size_ = 1000000;
-    this->handler_ = handler;
 }
 
 manapi::net::http::request::~request () = default;
@@ -331,13 +330,41 @@ void manapi::net::http::request::propagation(bool state) {
     }
 }
 
-std::move_only_function<void(std::string_view name, std::string_view value)> & manapi::net::http::request::trailer_recv() MANAPIHTTP_NOEXCEPT {
-    return this->trailer_recv_cb_;
-}
+manapi::future<manapi::error::status_or<std::map<std::string, std::string, std::less<>>>> manapi::net::http::request::trailers () {
+    auto &conn = *this->conn_;
+    auto flags = this->worker_->event_flags(conn);
 
-manapi::error::status manapi::net::http::request::trailer_recv(std::move_only_function<void(std::string_view name, std::string_view value)> cb) MANAPIHTTP_NOEXCEPT {
-    this->trailer_recv_cb_ = std::move(cb);
-    return error::status_ok();
+    if (!(flags & worker::base::CONN_RECV_END)) {
+        using promise = async::promise_sync<manapi::error::status>;
+
+        auto status = co_await promise ([this] (promise::resolve_t resolve, promise::reject_t reject) -> void {
+            auto &conn = *this->conn_;
+            this->worker_->event_on(conn,
+                [resolve = std::move(resolve)] (const worker::shared_conn & conn, int flags, const char *buffer, ssize_t nsize, worker::ibuffpool_t *p) -> void {
+
+                if (flags & ev::DISCONNECT) {
+                    resolve(manapi::error::status_aborted("connection closed"));
+                    return;
+                }
+
+                if (buffer && nsize) {
+                    resolve(manapi::error::status_data_loss("data was received"));
+                }
+
+                if (flags & worker::base::CONN_RECV_END) {
+                    resolve(manapi::error::status_ok());
+                }
+            });
+
+            this->worker_->event_flags(conn, ev::READ);
+        });
+
+        if (!status)
+            co_return std::move(status);
+    }
+
+
+    co_return std::move(this->request_data->trailers);
 }
 
 bool manapi::net::http::request::propagation() const {

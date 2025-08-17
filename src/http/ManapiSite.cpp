@@ -35,12 +35,11 @@ enum handler_template_types {
     HANDLER_TEMPLATE_ASYNC_CB_TYPE
 };
 
-manapi::net::http::http_handler_function manapi::net::http::site::default_error_handler
-    = {
-    .handler = [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
+std::shared_ptr<manapi::net::http::http_handler_function> manapi::net::http::site::default_error_handler = std::make_shared<manapi::net::http::http_handler_function>(
+    [] (manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
         co_return resp.text(http::internal::generate_default_page(resp.status_code(), resp.status_message())).unwrap();
     }
-};
+);
 
 std::string_view manapi::net::http::site::default_config_name = "config_.json";
 
@@ -616,8 +615,9 @@ manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> da
 
 std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::handler(http::request_data_t *request_data) const {
     auto handler_page = std::make_unique<http_handler_page>();
+
     handler_page->error = std::make_unique<http_handler_page>();
-    handler_page->error->handler = &site::default_error_handler;
+    handler_page->error->handler = site::default_error_handler;
 
     // how much we will take the layers from handler_page.layers at the start to the handler_page.error.layer
     size_t error_layer_depth = 0;
@@ -641,7 +641,7 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
             {
                 auto shared_it = cur->layers->find(request_data->method);
                 if (shared_it != cur->layers->end()) {
-                    handler_page->layer.push_back(&shared_it->second);
+                    handler_page->layer.push_back(shared_it->second);
                 }
             }
 
@@ -650,7 +650,7 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
                 auto error_it = cur->errors->find(request_data->method);
                 if (error_it != cur->errors->end()) {
                     // find errors handlers for method!
-                    handler_page->error->handler = &error_it->second;
+                    handler_page->error->handler = error_it->second;
                     error_layer_depth = handler_page->layer.size();
                 }
             }
@@ -726,10 +726,10 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
 
         auto it = cur->handlers->find (request_data->method);
 
-        http_handler_function *handler{nullptr};
+        std::shared_ptr<http_handler_function> handler{nullptr};
 
         if (it != cur->handlers->end()) {
-            handler = &it->second;
+            handler = it->second;
         }
 
         if (handler == nullptr) {
@@ -737,6 +737,7 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
         }
 
         handler_page->handler = handler;
+
         return std::move(handler_page);
     }
     catch (const std::exception &e) {
@@ -773,16 +774,31 @@ manapi::net::http::site::site(const site &n) {
 manapi::net::http::site & manapi::net::http::site::operator=(const site &n) = default;
 
 
-manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
+manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT {
     manapi::error::status status;
     try {
         size_t type = URI_PAGE_DEFAULT;
 
         http_uri_part *cur = build_uri_part(uri, type);
 
-        http_handler_function functions;
+        auto functions = std::make_shared<http_handler_function>();
 
-        functions.handler = std::move(handler);
+        functions->handler = std::move(handler);
+
+        if (params.is_object()) {
+            auto it = params.find("trailers");
+            if (it != params.as_object().end() && it->second.is_array()) {
+                for (auto &i : it->second.each()) {
+                    if (i.is_string())
+                        functions->trailers.insert(i.as_string());
+                }
+            }
+
+            it = params.find("trailers_size");
+            if (it != params.as_object().end() && it->second.is_integer()) {
+                functions->trailers_size = it->second.as_integer();
+            }
+        }
 
         switch (type) {
             case URI_PAGE_DEFAULT: {
@@ -848,7 +864,7 @@ err:
     return std::move(status);
 }
 
-manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, std::string folder, handler_template_t handler, json_mask get_mask, json_mask post_mask) MANAPIHTTP_NOEXCEPT {
+manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::site::handler(std::string method, std::string uri, std::string folder, handler_template_t handler) MANAPIHTTP_NOEXCEPT {
     manapi::error::status status;
     try {
         size_t type = URI_PAGE_DEFAULT;

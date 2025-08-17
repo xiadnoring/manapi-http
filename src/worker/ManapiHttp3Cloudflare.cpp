@@ -21,6 +21,12 @@
 static constexpr std::string_view many_connections_msg = "too many connections";
 static constexpr size_t quiche_token_max_len_ = sizeof ("quiche") - 1 + sizeof (struct sockaddr_storage) + QUICHE_MAX_CONN_ID_LEN;
 
+struct grab_headers_t {
+    std::map<std::string, std::string, std::less<>> *headers;
+    manapi::net::http::config *config;
+    uint32_t *headers_size;
+    uint32_t max_headers_size;
+};
 
 enum http_v3_stream_flags {
     HTTP_V3_STREAM_WANT_READ = manapi::ev::READ,
@@ -301,10 +307,36 @@ void manapi::net::worker::http_v3_cloudflare_quiche::quiche_timeout_(manapi::tim
 }
 
 int manapi::net::worker::http_v3_cloudflare_quiche::grab_headers_(uint8_t *name, size_t name_len, uint8_t *value, size_t value_len, void *argp) MANAPIHTTP_NOEXCEPT {
-    auto req = static_cast<http::request_data_t *> (argp);
-    auto const key = std::string{reinterpret_cast<const char *>(name), name_len};
-    req->headers[key].append(reinterpret_cast<const char *>(value), value_len);
-    return 0;
+    try {
+        auto req = static_cast<grab_headers_t *> (argp);
+        auto const key = std::string_view{reinterpret_cast<const char *>(name), name_len};
+        auto const val = std::string_view{reinterpret_cast<const char *>(value), value_len};
+
+        if (key.size() > req->config->max_header_key_size)
+            return 1;
+
+        if (val.size() > req->config->max_header_value_size)
+            return 1;
+
+        (*req->headers_size) += key.size() + val.size();
+
+        if (*req->headers_size > req->max_headers_size)
+            return 1;
+
+        auto it =  req->headers->find(key);
+        if (it == req->headers->end()) {
+            req->headers->insert({std::string{key}, std::string{val}});
+        }
+        else {
+            it->second.append(val);
+        }
+
+        return 0;
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s:%s failed due to %s", "cf quiche", "grab headers", e.what());
+    }
+    return 1;
 }
 
 bool manapi::net::worker::http_v3_cloudflare_quiche::validate_token_(char *token, size_t token_len, char *odcid, size_t *odcid_len, const sockaddr *sockaddr_src, const socklen_t &sockaddr_len) MANAPIHTTP_NOEXCEPT {
@@ -525,6 +557,20 @@ void quiche_set_header_(quiche_h3_header *header, std::string_view key, std::str
     };
 }
 
+static void wrk_close_connection ( manapi::net::worker::shared_conn conn, manapi::net::worker::shared_conn stream_conn, manapi::net::worker::base *w, bool ok) {
+    MANAPIHTTP_MUST_ALLOC_START
+    manapi::async::current()->etaskpool()->append_super_task(
+        [w, ok, stream_conn, conn] () -> void {
+        auto const s = stream_conn->as<manapi::net::worker::http_v3_cloudflare_quiche::connection_stream_t>();
+        auto const conndata = conn->as<manapi::net::worker::http_v3_cloudflare_quiche::connection_t>();
+
+        w->close_connection(stream_conn, ok ? 0 : manapi::net::worker::CLOSE_CONN_ERR);
+        conndata->streams.erase(s->id);
+        manapi::net::worker::http_v3_cloudflare_quiche::flush_connection_closed_(conn, conndata);
+    });
+    MANAPIHTTP_MUST_ALLOC_END
+}
+
 void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_ptr<ev::udp> &watcher, char *buff, ssize_t size, const sockaddr *addr, unsigned flags) MANAPIHTTP_NOEXCEPT {
     std::array<char, 17> iparr{};
     shared_conn connection{nullptr};
@@ -669,11 +715,27 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
 
 
             if (!res.second)
-                return;
+                throw std::runtime_error("already exists");
 
             conn_data->cid = res.first->first;
 
             this->count++;
+        }
+        catch (std::exception const &e) {
+            manapi_log_error("%s:%s failed due to %s", "cf quiche", "onrecv", e.what());
+
+            quiche_conn_free(quiche_conn_);
+
+            if (conn_data) {
+                conn_data->conn = nullptr;
+            }
+
+            connection = nullptr;
+        }
+
+        try {
+            if (!connection)
+                return;
 
             if (this->count > this->config_->max_connections + this->config_->max_connections ||
                 conn_by_ip->second.size() > this->config_->max_connections_by_ip + this->config_->max_connections_by_ip) {
@@ -740,92 +802,108 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
 
                 switch (quiche_h3_event_type(event)) {
                     case QUICHE_H3_EVENT_HEADERS: {
-                        shared_conn stream_conn{nullptr};
+                        auto stream_it = conn_data->streams.find(stream_id);
+                        if (stream_it == conn_data->streams.end()) {
+                            shared_conn stream_conn{nullptr};
 
-                        try {
-                            auto p = std::make_unique<connection_stream_t>();
+                            try {
+                                auto p = std::make_unique<connection_stream_t>();
 
-                            p->id = stream_id;
-                            p->conn = conn_data;
+                                p->id = stream_id;
+                                p->conn = conn_data;
 
-                            stream_conn = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, stream_interface_eraser);
-                            p.release();
+                                stream_conn = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, stream_interface_eraser);
+                                p.release();
 
-                            auto s = stream_conn->as<connection_stream_t>();
+                                auto s = stream_conn->as<connection_stream_t>();
 
-                            s->req = std::make_unique<http::request_data_t>();
-                            s->top = std::make_unique<connection_io>();
+                                s->req = std::make_unique<http::request_data_t>();
+                                s->top = std::make_unique<connection_io>();
 
-                            if (quiche_h3_event_for_each_header(event, http_v3_cloudflare_quiche::grab_headers_, s->req.get())) {
-                                goto err;
-                            }
+                                grab_headers_t grab_headers_data {};
+                                grab_headers_data.config = this->config_;
+                                grab_headers_data.headers = &s->req->headers;
+                                grab_headers_data.headers_size = &s->req->headers_size;
+                                grab_headers_data.max_headers_size = this->config_->max_headers_size;
 
-                            auto hit = s->req->headers.extract(":path");
-                            if (hit.empty())
-                                goto err;
+                                if (quiche_h3_event_for_each_header(event, http_v3_cloudflare_quiche::grab_headers_, &grab_headers_data)) {
+                                    goto err;
+                                }
 
-                            s->req->uri = std::move(hit.mapped());
+                                auto hit = s->req->headers.extract(":path");
+                                if (hit.empty())
+                                    goto err;
 
-                            hit = s->req->headers.extract(":method");
-                            if (hit.empty())
-                                goto err;
+                                s->req->uri = std::move(hit.mapped());
 
-                            s->req->method = std::move(hit.mapped());
-                            s->req->divided = -1;
-                            s->req->http = http::versions::HTTP_v3;
+                                hit = s->req->headers.extract(":method");
+                                if (hit.empty())
+                                    goto err;
 
-                            if (manapi_quiche_h3_event_headers_has_more_frames_(event)) {
-                                auto contentlength = s->req->headers.find(http::HEADER.CONTENT_LENGTH);
-                                s->req->body_size = contentlength != s->req->headers.end()
-                                 ? std::stoll(contentlength->second) : -1 /* The size isn't fixed */;
-                            }
-                            else {
-                                s->req->body_size = 0;
-                            }
+                                s->req->method = std::move(hit.mapped());
+                                s->req->divided = -1;
+                                s->req->http = http::versions::HTTP_v3;
 
-                            http::url_decode_stream url_decoder;
+                                if (manapi_quiche_h3_event_headers_has_more_frames_(event)) {
+                                    auto contentlength = s->req->headers.find(http::HEADER.CONTENT_LENGTH);
+                                    s->req->body_size = contentlength != s->req->headers.end()
+                                     ? std::stoll(contentlength->second) : -1 /* The size isn't fixed */;
+                                }
+                                else {
+                                    s->req->body_size = 0;
+                                }
 
-                            if (auto rhs = url_decoder << s->req->uri) {
-                                goto err;
-                            }
+                                http::url_decode_stream url_decoder;
 
-                            s->req->path = url_decoder.result();
-                            s->req->divided = url_decoder.divided();
+                                if (auto rhs = url_decoder << s->req->uri) {
+                                    goto err;
+                                }
 
-                            auto const req_ptr = s->req.get();
-                            auto cdata = std::make_unique<http::internal::handle_data_t>(stream_conn, this->copy(),
-                                req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
-                                [this, stream_conn, conn = connection, req = std::move(s->req)] (bool ok) mutable
-                                -> void {
-                                    auto const s = stream_conn->as<connection_stream_t>();
-                                    auto const conndata = conn->as<connection_t>();
-                                    s->ev_callback = nullptr;
-                                    s->flags = ev::DISCONNECT;
+                                s->req->path = url_decoder.result();
+                                s->req->divided = url_decoder.divided();
 
-                                    manapi::async::current()->etaskpool()->append_task(
-                                        [w = this->self_.lock(), ok, stream_conn = std::move(stream_conn), conn = std::move(conn)] () -> void {
+                                auto const req_ptr = s->req.get();
+                                auto cdata = std::make_unique<http::internal::handle_data_t>(stream_conn, this->copy(),
+                                    req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
+                                    [this, stream_conn, conn = connection] (bool ok) mutable
+                                    -> void {
                                         auto const s = stream_conn->as<connection_stream_t>();
                                         auto const conndata = conn->as<connection_t>();
+                                        s->ev_callback = nullptr;
+                                        s->flags = ev::DISCONNECT;
 
-                                        w->close_connection(stream_conn, ok ? 0 : CLOSE_CONN_ERR);
-                                        conndata->streams.erase(s->id);
-                                        flush_connection_closed_(conn, conndata);
-                                    });
-                            }));
+                                        wrk_close_connection(conn, stream_conn, this, ok);
+                                }));
 
-                            if (!conn_data->streams.insert({s->id, std::move(stream_conn)}).second) {
-                                goto err;
+                                if (!conn_data->streams.insert({s->id, std::move(stream_conn)}).second) {
+                                    goto err;
+                                }
+
+                                // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
+                                // this->event_flags(conn, 0);
+
+                                cdata->router = this->site().handler(req_ptr);
+                                net::http::internal::handle_income_request(std::move(cdata), http::OK_200);
                             }
-
-                            // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
-                            // this->event_flags(conn, 0);
-
-                            cdata->router = this->site().handler(req_ptr);
-                            net::http::internal::handle_income_request(std::move(cdata), http::OK_200);
+                            catch (std::exception const &e) {
+                                manapi_log_error("%s: %s failed due to %s", "cf quiche", "onrecv", e.what());
+                                if (stream_conn)
+                                    wrk_close_connection(connection, stream_conn, this, false);
+                            }
                         }
-                        catch (std::exception const &e) {
-                            manapi_log_error("%s: %s failed due to %s", "cf quiche", "onrecv", e.what());
-                            this->close_connection(stream_conn, CLOSE_CONN_EOF);
+                        else {
+                            auto &sconn = stream_it->second;
+                            auto s = sconn->as<connection_stream_t>();
+
+                            grab_headers_t grab_headers_data {};
+                            grab_headers_data.config = this->config_;
+                            grab_headers_data.headers = &s->req->trailers;
+                            grab_headers_data.headers_size = &s->req->trailers_size;
+                            grab_headers_data.max_headers_size = s->req->handler->trailers_size;
+
+                            if (quiche_h3_event_for_each_header(event, http_v3_cloudflare_quiche::grab_headers_, &grab_headers_data)) {
+                                this->close_connection(sconn, CLOSE_CONN_ERR);
+                            }
                         }
 
                         break;
@@ -887,9 +965,8 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                 }
 
                 quiche_h3_event_free(event);
+                event = nullptr;
             }
-
-            event = nullptr;
         }
 
 
@@ -903,17 +980,17 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
     catch (std::exception const &e) {
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s:%s failed due to %s", "cf quiche", "onrecv", e.what());
 
-        if (event) {
-            quiche_h3_event_free(event);
-            event = nullptr;
-        }
-
         goto err;
     }
 
     return;
 
     err: {
+        if (event) {
+            quiche_h3_event_free(event);
+            event = nullptr;
+        }
+
         if (connection)
             flush_connection_closed_(connection, connection->as<connection_t>());
     }

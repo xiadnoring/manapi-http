@@ -33,17 +33,19 @@ struct manapi::net::http::site::data_t {
 
 struct manapi::net::http::http_handler_function {
     handler_template_t handler = nullptr;
+    ssize_t trailers_size = 4096;
+    std::set<std::string> trailers;
 };
 
 struct manapi::net::http::http_static_handler_function {
     std::string folder;
-    std::unique_ptr<http_handler_function> layer;
+    std::shared_ptr<http_handler_function> layer;
 };
 
 struct manapi::net::http::http_handler_page {
-    http_handler_function                                       *handler = nullptr;
+    std::shared_ptr<http_handler_function>                      handler = nullptr;
     std::unique_ptr<http_handler_page>                          error = nullptr;
-    std::vector<http_handler_function*>                         layer;
+    std::vector<std::shared_ptr<http_handler_function>>         layer;
     http_static_handler_function                                *statics = nullptr;
     size_t                                                      statics_parts_len{};
 };

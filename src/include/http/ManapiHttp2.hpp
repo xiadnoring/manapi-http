@@ -91,12 +91,12 @@ namespace manapi::net::http {
         HTTP2_STREAM_SEND_END  = manapi::net::worker::base::CONN_SEND_END,
         HTTP2_STREAM_IO_WAITING = worker::base::CONN_IO_WAITING,
         HTTP2_STREAM_TOP_READ = worker::base::CONN_TOP_READ,
-        HTTP2_STREAM_PRIORITY_INCR = manapi::net::worker::base::CONN_MAX_CODE * 2,
-        HTTP2_STREAM_PRIORITY_LOCKED = manapi::net::worker::base::CONN_MAX_CODE * 4,
-        HTTP2_STREAM_BLOCK_WRITE = manapi::net::worker::base::CONN_MAX_CODE * 8,
-        HTTP2_STREAM_BAD_STATUS = manapi::net::worker::base::CONN_MAX_CODE * 16,
-        HTTP2_STREAM_WINDOW_EMPTY = manapi::net::worker::base::CONN_MAX_CODE * 32
-        //HTTP2_STREAM_START_WORK_WAIT = manapi::net::worker::base::CONN_MAX_CODE * 64
+        HTTP2_STREAM_PRIORITY_INCR = manapi::net::worker::base::CONN_MAX_CODE << 1,
+        HTTP2_STREAM_PRIORITY_LOCKED = manapi::net::worker::base::CONN_MAX_CODE <<2,
+        HTTP2_STREAM_BLOCK_WRITE = manapi::net::worker::base::CONN_MAX_CODE <<3,
+        HTTP2_STREAM_BAD_STATUS = manapi::net::worker::base::CONN_MAX_CODE <<4,
+        HTTP2_STREAM_WINDOW_EMPTY = manapi::net::worker::base::CONN_MAX_CODE <<5,
+        HTTP2_STREAM_RECV_DATA_END = manapi::net::worker::base::CONN_MAX_CODE <<6,
     };
 
 

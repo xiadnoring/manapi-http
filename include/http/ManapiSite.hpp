@@ -47,6 +47,8 @@ namespace manapi::net::http {
 
     struct http_handler_page;
 
+    struct http_handler_page_error;
+
     typedef std::map<std::string, std::unique_ptr<http_uri_part>> handlers_map_t;
 
     typedef std::pair<std::regex, std::unique_ptr<http_uri_part>> handlers_regex_pair_t;
@@ -57,7 +59,7 @@ namespace manapi::net::http {
 
     typedef std::map <std::string, http_static_handler_function> handlers_static_types_t;
 
-    typedef std::map <std::string, http_handler_function> handlers_types_t;
+    typedef std::map <std::string, std::shared_ptr<http_handler_function>> handlers_types_t;
 
     class handler_template_t {
     public:
@@ -141,11 +143,9 @@ namespace manapi::net::http {
          * @param method method
          * @param uri URI path
          * @param handler handler
-         * @param get_mask GET mask
-         * @param post_mask POST mask
          * @return
          */
-        manapi::error::status_or<http_uri_part *> handler (std::string method, std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status_or<http_uri_part *> handler (std::string method, std::string uri, handler_template_t handler, manapi::json params) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Set a folder sharing handler by its method and URI
@@ -153,11 +153,9 @@ namespace manapi::net::http {
          * @param uri URI
          * @param folder folder
          * @param handler callback
-         * @param get_mask GET mask
-         * @param post_mask POST mask
          * @return
          */
-        manapi::error::status_or<http_uri_part *> handler (std::string method, std::string uri, std::string folder, handler_template_t handler = nullptr, json_mask get_mask = nullptr, json_mask post_mask = nullptr) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status_or<http_uri_part *> handler (std::string method, std::string uri, std::string folder, handler_template_t handler = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Get the handler by its method and URI
@@ -282,7 +280,7 @@ namespace manapi::net::http {
 
         static std::string_view default_config_name;
     private:
-        static http_handler_function default_error_handler;
+        static std::shared_ptr<http_handler_function> default_error_handler;
 
         http_uri_part *build_uri_part (const std::string &uri, size_t &type);
 

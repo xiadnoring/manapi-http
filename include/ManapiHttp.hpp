@@ -64,35 +64,35 @@ namespace manapi::net::http {
          * @param uri URI path
          * @param handler callback
          */
-        manapi::error::status GET (std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status GET (std::string uri, handler_template_t handler, manapi::json params = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the POST method for a path
          * @param uri URI path
          * @param handler callback
          */
-        manapi::error::status POST (std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status POST (std::string uri, handler_template_t handler, manapi::json params = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the OPTIONS method for a path
          * @param uri URI path
          * @param handler callback
          */
-        manapi::error::status OPTIONS(std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status OPTIONS(std::string uri, handler_template_t handler, manapi::json params = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the PUT method for a path
          * @param uri URI path
          * @param handler callback
          */
-        manapi::error::status PUT (std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status PUT (std::string uri, handler_template_t handler, manapi::json params = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the PATCH method for a path
          * @param uri URI path
          * @param handler callback
          */
-        manapi::error::status PATCH (std::string uri, handler_template_t handler) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status PATCH (std::string uri, handler_template_t handler, manapi::json params = nullptr) MANAPIHTTP_NOEXCEPT;
 
         /**
          * share the folder for the GET method

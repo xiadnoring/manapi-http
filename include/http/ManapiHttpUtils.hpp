@@ -11,6 +11,8 @@
 #include "../std/ManapiBuffer.hpp"
 
 namespace manapi::net::http {
+    struct http_handler_function;
+
     struct response_features_t {
         typedef std::move_only_function<future<manapi::error::status>(std::string src, std::string dest)> compress_file_cb;
         typedef std::move_only_function<manapi::error::status_or<std::string>(std::string_view data)> compress_str_cb;
@@ -47,6 +49,8 @@ namespace manapi::net::http {
         // contains params from url .../[param1]-[param2]/...
         std::map<std::string, std::string, std::less<>> params;
 
+        std::map<std::string, std::string, std::less<>> trailers;
+
         // GET, POST, HEAD
         std::string method;
         // PATH
@@ -59,6 +63,11 @@ namespace manapi::net::http {
         int divided;
 
         ssize_t body_size;
+
+        uint32_t headers_size;
+        uint32_t trailers_size;
+
+        std::shared_ptr<http_handler_function> handler;
 
         int flags;
     };

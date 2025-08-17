@@ -7,10 +7,6 @@ HTTP server written on C++ which supports HTTP/1.1, HTTP/2 and HTTP/3 (over QUIC
 > [!CAUTION]
 > This project is in development!!!
 
-> [!WARNING]
-> It was created for educational purposes (experiment) and for internal use. 
-> It is not designed as a substitute for other frameworks (drogon, userver).
-
 ## About
 ![console](/assets/console1.png)
 

@@ -832,7 +832,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             {HTTP2_SETTING_SETTINGS_NO_RFC7540_PRIORITIES, 1},
                             {HTTP2_SETTING_ENABLE_PUSH, 0},
                         };
-                        int v = config->max_concurrent_streams < 0 ? 100 : config->max_concurrent_streams;
+                        int v = config->max_concurrent_streams < 0 ? 6 : config->max_concurrent_streams;
                         ops.emplace_back(HTTP2_SETTING_MAX_CONCURRENT_STREAMS, v);
                         v = config->max_frame_size;
                         if (v > 0)
@@ -1296,46 +1296,84 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                     const auto cutsize = std::min(static_cast<ssize_t>(size - pos), datasize);
 
                     auto s = ctx->streams->end();
-
+                    bool is_trailers = false;
                     http_v2_stream_t *sdata = nullptr;
 
                     if (ctx->frame_type == HTTP2_FRAME_HEADERS) {
                         s = ctx->streams->find(ctx->frame_stream_id);
 
                         if (s == ctx->streams->end()) {
-                            ctx->flags |= HTTP2_CTX_FLAG_NEW_CONNECTION;
-                            if (ctx->flags & HTTP2_CTX_FLAG_WANT_CLOSE) {
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-
-                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                    "conn was closed");
-                                ctx->n1 = 0;
-                                ctx->n2 = 0;
-                                ctx->pos1 = 0;
+                            if (ctx->frame_stream_id < ctx->last_stream_id || (ctx->frame_stream_id % 2 == 0)) {
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                    "unexpected stream id");
                                 goto repeat;
                             }
 
-                            auto p = std::make_unique<http_v2_stream_t>();
+                            if (ctx->frame_stream_id == ctx->last_stream_id) {
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_STREAM_CLOSED,
+                                    "stream is closed");
+                                goto repeat;
+                            }
 
-                            p->write_window = ctx->client->initial_window_size;
-                            p->read_window = ctx->server->initial_window_size;
-                            p->id = ctx->frame_stream_id;
-                            p->ctx = ctx;
+                            if (ctx->concurrent_streams_size >= ctx->server->max_concurret_streams) {
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_REFUSED_STREAM,
+                                    "max concurrent stream");
+                                goto repeat;
+                            }
 
-                            auto sconn = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
-                            p.release();
+                            ctx->last_stream_id = ctx->frame_stream_id;
 
-                            s = ctx->streams->insert({ctx->frame_stream_id, std::move(sconn)}).first;
-                            ctx->concurrent_streams_size++;
-                            sdata = s->second->as<http_v2_stream_t>();
-                            sdata->req = std::make_unique<request_data_t>();
-                            sdata->top = std::make_unique<worker::connection_io>();
-                            sdata->speed_min_delay = static_cast<int>(config->speed_check_delay);
+                            try {
+                                ctx->flags |= HTTP2_CTX_FLAG_NEW_CONNECTION;
+                                if (ctx->flags & HTTP2_CTX_FLAG_WANT_CLOSE) {
+                                    ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+
+                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                        "conn was closed");
+                                    ctx->n1 = 0;
+                                    ctx->n2 = 0;
+                                    ctx->pos1 = 0;
+                                    goto repeat;
+                                }
+
+                                auto p = std::make_unique<http_v2_stream_t>();
+
+                                p->write_window = ctx->client->initial_window_size;
+                                p->read_window = ctx->server->initial_window_size;
+                                p->id = ctx->frame_stream_id;
+                                p->ctx = ctx;
+
+                                auto sconn = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
+                                p.release();
+
+                                s = ctx->streams->insert({ctx->frame_stream_id, std::move(sconn)}).first;
+                                ctx->concurrent_streams_size++;
+                                sdata = s->second->as<http_v2_stream_t>();
+                                sdata->req = std::make_unique<request_data_t>();
+                                sdata->top = std::make_unique<worker::connection_io>();
+                                sdata->speed_min_delay = static_cast<int>(config->speed_check_delay);
+
+                                sdata->req->divided = -1;
+                                sdata->req->http = http::versions::http::HTTP_v2;
+                            }
+                            catch (std::exception const &e) {
+                                manapi_log_error("%s:%s failed due to %s", "http2", "new stream", e.what());
+                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_INTERNAL_ERROR,
+                                    "new stream failed");
+                                goto repeat;
+                            }
                         }
                         else {
-                            http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                            "stream is half closed(remote)");
-                            goto repeat;
+                            sdata = s->second->as<http_v2_stream_t>();
+                            is_trailers = (sdata->flags & HTTP2_STREAM_RECV_DATA_END) && !(sdata->flags & HTTP2_STREAM_RECV_END);
+                            if (is_trailers) {
+
+                            }
+                            else {
+                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                "stream is half closed(remote)");
+                                goto repeat;
+                            }
                         }
                     }
 
@@ -1366,12 +1404,15 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             // ctx->current = HTTP2_CALLBACK_GOAWAY;
                             flg = false;
                             ctx->decoder->headers(config->max_headers_size);
+
                             if (ctx->flags & HTTP2_CTX_FLAG_NEW_CONNECTION)
                                 ctx->flags ^= HTTP2_CTX_FLAG_NEW_CONNECTION;
+
                             goto header_skip;
                         }
 
                         sdata = s->second->as<http_v2_stream_t>();
+                        is_trailers = (sdata->flags & HTTP2_STREAM_RECV_DATA_END) && !(sdata->flags & HTTP2_STREAM_RECV_END);
                     }
 
                     if (sdata->flags & HTTP2_STREAM_CLOSED) {
@@ -1411,191 +1452,232 @@ header_skip:
                             sdata->flags |= HTTP2_STREAM_RECV_END;
 
                         if (flg) {
-                            /**
-                             * RFC9218 (4.1) Urgency
-                             * The urgency (u) parameter value is Integer (see Section 3.3.1 of
-                             * [STRUCTURED-FIELDS]), between 0 and 7 inclusive, in descending order
-                             * of priority.  The default is 3.
-                             *
-                             */
-                            sdata->priority = 3;
+                            if (!is_trailers) {
+                                /**
+                                 * RFC9218 (4.1) Urgency
+                                 * The urgency (u) parameter value is Integer (see Section 3.3.1 of
+                                 * [STRUCTURED-FIELDS]), between 0 and 7 inclusive, in descending order
+                                 * of priority.  The default is 3.
+                                 *
+                                 */
+                                sdata->priority = 3;
 
-                            if (ctx->flags & HTTP2_CTX_FLAG_NEW_CONNECTION)
-                                ctx->flags ^= HTTP2_CTX_FLAG_NEW_CONNECTION;
+                                if (ctx->flags & HTTP2_CTX_FLAG_NEW_CONNECTION)
+                                    ctx->flags ^= HTTP2_CTX_FLAG_NEW_CONNECTION;
 
-                            sdata->req->http = http::versions::HTTP_v2;
+                                sdata->req->http = http::versions::HTTP_v2;
 
-                            auto hres = ctx->decoder->headers(config->max_headers_size);
+                                auto hres = ctx->decoder->headers(config->max_headers_size);
+                                bool hres_ok = hres.ok();
 
-                            if (hres.ok()) {
-                                auto headers = std::move(hres.unwrap());
-                                while (!headers.empty()) {
-                                    auto it = headers.begin();
-                                    auto value = std::move(it->second);
-                                    auto node = headers.extract(it);
-                                    auto &key = node.key();
-                                    if (key.empty()) {
-                                    }
-                                    else {
-                                        for (auto &c : key) {
-                                            if (isupper(c)) {
-                                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                                    "header name uppercase");
-                                                goto repeat;
-                                            }
-                                        }
-                                        if (key[0] == ':') {
-                                            std::string_view const header_name (key.data() + 1, key.size() - 1);
-                                            /* :status for server */
-                                            if (header_name != "path" &&
-                                                header_name != "method" &&
-                                                header_name != "authority" &&
-                                                header_name != "scheme") {
-                                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                                    "header name incorrect");
-                                                goto repeat;
-                                            }
-                                        }
-                                    }
-
-                                    sdata->req->headers.insert({std::move(key), std::move(value)});
-                                }
-
-                                if (sdata->req->headers.contains(HEADER.CONNECTION)) {
-                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                        "connection header is denied");
-                                    goto repeat;
-                                }
-
-                                auto hv = sdata->req->headers.extract(":method");
-                                if (hv.empty() || hv.mapped().empty()) {
-                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                        ":method is empty");
-                                    goto repeat;
-                                }
-
-                                sdata->req->method = std::move(hv.mapped());
-
-                                hv = sdata->req->headers.extract("te");
-                                if (!hv.empty()) {
-                                    auto rhs = parse_header_value(hv.mapped());
-                                    if (rhs.ok())
-                                        return EHTTP_V2_PROTOCOL_ERROR;
-                                    auto p = rhs.unwrap();
-                                    if (p.size() != 1) {
-                                        http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                            "TE with invalid value");
-                                        goto repeat;
-                                    }
-                                }
-
-                                hv = sdata->req->headers.extract(":path");
-                                if (hv.empty() || hv.mapped().empty()) {
-                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                        ":path is empty");
-                                    goto repeat;
-                                }
-
-
-                                sdata->req->uri = std::move(hv.mapped());
-
-                                hv = sdata->req->headers.extract(":scheme");
-                                if (hv.empty() || hv.mapped().empty()) {
-                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                        ":scheme is empty");
-                                    goto repeat;
-                                }
-
-                                auto hit = sdata->req->headers.find(http::HEADER.CONTENT_LENGTH);
-                                if (hit == sdata->req->headers.end()) {
-                                    sdata->req->body_size = manapi::ERR_INTERNAL;
-                                }
-                                else {
+                                if (hres_ok) {
                                     try {
-                                        sdata->req->body_size = std::stoll(hit->second);
-                                    }
-                                    catch (...) {
-                                        sdata->req->body_size = manapi::ERR_INTERNAL;
-                                    }
+                                        auto headers = std::move(hres.unwrap());
 
-                                    if (sdata->req->body_size < 0) {
-                                        sdata->req->body_size = 0;
-                                        sdata->flags |= HTTP2_STREAM_BAD_STATUS;
-                                        ctx->status = BAD_REQUEST_400;
-                                    }
-                                }
-
-                                sdata->content_length = sdata->req->body_size;
-
-                                url_decode_stream url_decoder;
-
-                                if (auto rhs = url_decoder << sdata->req->uri) {
-                                    return EHTTP_V2_PROTOCOL_ERROR;
-                                }
-
-                                sdata->req->path = url_decoder.result();
-                                sdata->req->divided = url_decoder.divided();
-
-
-                                try {
-                                    hit = sdata->req->headers.find(http::HEADER.PRIORITY);
-                                    if (hit != sdata->req->headers.end()) {
-                                        auto rhs = parse_header_value(hit->second);
-                                        if (!rhs.ok())
-                                            return EHTTP_V2_PROTOCOL_ERROR;
-                                        auto val = rhs.unwrap();
-                                        for (const auto &p : val) {
-                                            if (p.value.empty()) {
-                                                auto vit = val[0].params.find("u");
-                                                if (vit != val[0].params.end()) {
-                                                    const auto priority = std::stoi(vit->second);
-                                                    if (priority >= HTTP2_PRIORITY_0
-                                                        && priority <= HTTP2_PRIORITY_MAX)
-                                                        sdata->priority = static_cast<uint8_t> (priority);
+                                        while (!headers.empty()) {
+                                            auto it = headers.begin();
+                                            auto value = std::move(it->second);
+                                            auto node = headers.extract(it);
+                                            auto &key = node.key();
+                                            if (key.empty()) {
+                                            }
+                                            else {
+                                                for (auto &c : key) {
+                                                    if (isupper(c)) {
+                                                        http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                                            "header name uppercase");
+                                                        goto repeat;
+                                                    }
+                                                }
+                                                if (key[0] == ':') {
+                                                    std::string_view const header_name (key.data() + 1, key.size() - 1);
+                                                    /* :status for server */
+                                                    if (header_name != "path" &&
+                                                        header_name != "method" &&
+                                                        header_name != "authority" &&
+                                                        header_name != "scheme") {
+                                                        http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                                            "header name incorrect");
+                                                        goto repeat;
+                                                        }
                                                 }
                                             }
-                                            else if (p.value == "i") {
-                                                //sdata->flags |= HTTP2_STREAM_PRIORITY_INCR;
+
+                                            sdata->req->headers.insert({std::move(key), std::move(value)});
+                                        }
+
+                                        if (sdata->req->headers.contains(HEADER.CONNECTION)) {
+                                            http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                                "connection header is denied");
+                                            goto repeat;
+                                        }
+
+                                        auto hv = sdata->req->headers.extract(":method");
+                                        if (hv.empty() || hv.mapped().empty()) {
+                                            http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                                ":method is empty");
+                                            goto repeat;
+                                        }
+
+                                        sdata->req->method = std::move(hv.mapped());
+
+                                        hv = sdata->req->headers.extract("te");
+                                        if (!hv.empty()) {
+                                            auto rhs = parse_header_value(hv.mapped());
+                                            if (rhs.ok())
+                                                return EHTTP_V2_PROTOCOL_ERROR;
+                                            auto p = rhs.unwrap();
+                                            if (p.size() != 1) {
+                                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                                    "TE with invalid value");
+                                                goto repeat;
                                             }
                                         }
+
+                                        hv = sdata->req->headers.extract(":path");
+                                        if (hv.empty() || hv.mapped().empty()) {
+                                            http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                                ":path is empty");
+                                            goto repeat;
+                                        }
+
+
+                                        sdata->req->uri = std::move(hv.mapped());
+
+                                        hv = sdata->req->headers.extract(":scheme");
+                                        if (hv.empty() || hv.mapped().empty()) {
+                                            http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                                ":scheme is empty");
+                                            goto repeat;
+                                        }
+
+                                        auto hit = sdata->req->headers.find(http::HEADER.CONTENT_LENGTH);
+                                        if (hit == sdata->req->headers.end()) {
+                                            sdata->req->body_size = manapi::ERR_INTERNAL;
+                                        }
+                                        else {
+                                            try {
+                                                sdata->req->body_size = std::stoll(hit->second);
+                                            }
+                                            catch (...) {
+                                                sdata->req->body_size = manapi::ERR_INTERNAL;
+                                            }
+
+                                            if (sdata->req->body_size < 0) {
+                                                sdata->req->body_size = 0;
+                                                sdata->flags |= HTTP2_STREAM_BAD_STATUS;
+                                                ctx->status = BAD_REQUEST_400;
+                                            }
+                                        }
+
+                                        sdata->content_length = sdata->req->body_size;
+
+                                        url_decode_stream url_decoder;
+
+                                        if (auto rhs = url_decoder << sdata->req->uri) {
+                                            return EHTTP_V2_PROTOCOL_ERROR;
+                                        }
+
+                                        sdata->req->path = url_decoder.result();
+                                        sdata->req->divided = url_decoder.divided();
+
+
+                                        try {
+                                            hit = sdata->req->headers.find(http::HEADER.PRIORITY);
+                                            if (hit != sdata->req->headers.end()) {
+                                                auto rhs = parse_header_value(hit->second);
+                                                if (!rhs.ok())
+                                                    return EHTTP_V2_PROTOCOL_ERROR;
+                                                auto val = rhs.unwrap();
+                                                for (const auto &p : val) {
+                                                    if (p.value.empty()) {
+                                                        auto vit = val[0].params.find("u");
+                                                        if (vit != val[0].params.end()) {
+                                                            const auto priority = std::stoi(vit->second);
+                                                            if (priority >= HTTP2_PRIORITY_0
+                                                                && priority <= HTTP2_PRIORITY_MAX)
+                                                                sdata->priority = static_cast<uint8_t> (priority);
+                                                        }
+                                                    }
+                                                    else if (p.value == "i") {
+                                                        //sdata->flags |= HTTP2_STREAM_PRIORITY_INCR;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        catch (std::exception const &e) {
+                                            /* ignore */
+                                            manapi_log_trace(debug::LOG_TRACE_HIGH, "%s: %s failed due to %s", "http2", "priority header", e.what());
+                                        }
+                                    }
+                                    catch (std::exception const &e) {
+                                        manapi_log_error(e.what());
+                                        hres_ok = false;
                                     }
                                 }
-                                catch (std::exception const &e) {
-                                    /* ignore */
-                                    manapi_log_trace(debug::LOG_TRACE_HIGH, "%s: %s failed due to %s", "http2", "priority header", e.what());
+
+                                if (!hres_ok) {
+                                    /* compression error */
+                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_COMPRESSION_ERROR,
+                                         "headers incorrect");
+                                    goto repeat;
+                                }
+
+                                if (http_v2_insert_priority (ctx, s->second, sdata,
+                                    http_v2_real_priority_by_stream(sdata))) {
+                                    http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_INTERNAL_ERROR;
+                                    http_goaway.err_msg = "priority status failed";
+                                    ctx->current = HTTP2_CALLBACK_GOAWAY;
+                                    ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
+                                    goto repeat;
                                 }
                             }
                             else {
-                                // if (sdata->flags & HTTP2_STREAM_BAD_STATUS) {
-                                //
-                                // }
-                                // else {
-                                //     MANAPIHTTP_LOG("hpack error({}): {}", hres.status_msg(), hres.message());
-                                //     switch (hres.code()) {
-                                //         case ERR_RESOURCE_EXHAUSTED: ctx->status = PAYLOAD_TOO_LARGE_413; break;
-                                //         case ERR_OUT_OF_RANGE: ctx->status = BAD_REQUEST_400; break;
-                                //         default: ctx->status = INTERNAL_SERVER_ERROR_500; break;
-                                //     }
-                                //     sdata->flags |= HTTP2_STREAM_BAD_STATUS;
-                                // }
-                                //
-                                // sdata->req->divided = -1;
-                                // sdata->req->uri = "/";
-                                // sdata->req->body_size = 0;
+                                sdata->flags |= HTTP2_STREAM_RECV_END;
 
-                                /* compression error */
-                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_COMPRESSION_ERROR,
-                                     "headers incorrect");
-                                goto repeat;
-                            }
+                                auto hres = ctx->decoder->headers(sdata->req->trailers_size);
+                                bool hres_ok = hres.ok();
+                                if (hres_ok) {
+                                    try {
+                                        auto headers = std::move(hres.unwrap());
 
-                            if (http_v2_insert_priority (ctx, s->second, sdata,
-                                http_v2_real_priority_by_stream(sdata))) {
-                                http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_INTERNAL_ERROR;
-                                http_goaway.err_msg = "priority status failed";
-                                ctx->current = HTTP2_CALLBACK_GOAWAY;
-                                ctx->flags |= HTTP2_CTX_FLAG_REALY_CLOSE;
-                                goto repeat;
+                                        while (!headers.empty()) {
+                                            auto it = headers.begin();
+                                            auto value = std::move(it->second);
+                                            auto node = headers.extract(it);
+                                            auto &key = node.key();
+                                            if (key.empty()) {
+                                            }
+                                            else {
+                                                for (auto &c : key) {
+                                                    if (isupper(c)) {
+                                                        http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                                            "header name uppercase");
+                                                        goto repeat;
+                                                    }
+                                                }
+
+                                                if (key[0] == ':') {
+                                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                                            "header is reserved");
+                                                    goto repeat;
+                                                }
+                                            }
+
+                                            sdata->req->trailers.insert({std::move(key), std::move(value)});
+                                        }
+                                    }
+                                    catch (std::exception const &e) {
+                                        manapi_log_error(e.what());
+                                        hres_ok = false;
+                                    }
+                                }
+
+                                if (!hres_ok) {
+                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_COMPRESSION_ERROR,
+                                         "headers incorrect");
+                                    goto repeat;
+                                }
                             }
                         }
 
@@ -1642,6 +1724,7 @@ header_skip:
                     }
 
                     auto datasize = ctx->frame_length - ctx->n2;
+                    bool const fin_data_frame = datasize == 0;
                     assert((datasize <= ctx->server->max_frame_size));
                     datasize = std::min(static_cast<int>(size - pos), static_cast<int>(datasize));
 
@@ -1649,7 +1732,7 @@ header_skip:
                     ssize_t const datapos = pos;
                     pos += datasize;
 
-                    bool const frame_fin = !(ctx->frame_length-ctx->n2);
+                    bool const fin_block_in_frame = !(ctx->frame_length-ctx->n2);
 
                     {
                         //MANAPIHTTP_LOG("RECV DATA {}", len);
@@ -1673,15 +1756,9 @@ header_skip:
                         else {
                             auto const sdata = s->second->as<http_v2_stream_t>();
 
-                            if (sdata->flags & HTTP2_STREAM_CLOSED) {
+                            if (sdata->flags & (HTTP2_STREAM_CLOSED|HTTP2_STREAM_RECV_DATA_END|HTTP2_STREAM_RECV_END)) {
                                 http_v2_setup_goaway(ctx, http_goaway,
                                     worker::HTTP2_ERROR_STREAM_CLOSED, "stream is closed");
-                                goto repeat;
-                            }
-
-                            if (sdata->flags & HTTP2_STREAM_RECV_END) {
-                                http_v2_setup_goaway(ctx, http_goaway,
-                                    worker::HTTP2_ERROR_STREAM_CLOSED, "stream is half closed(remote)");
                                 goto repeat;
                             }
 
@@ -1722,7 +1799,7 @@ header_skip:
                             if (sdata->content_length >= 0) {
                                 sdata->content_length -= datasize;
                                 if (sdata->content_length < 0 ||
-                                    (sdata->content_length != 0 && frame_fin && ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM)) {
+                                    (sdata->content_length != 0 && fin_block_in_frame && ((ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM )||fin_data_frame))) {
                                     http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
                                         "content-length incorrect");
                                     goto repeat;
@@ -1761,16 +1838,14 @@ header_skip:
                                         ctx->worker->event_toggle(ctx->conn, false, ev::READ);
                                 }
                             }
-                            else {
+                            else if (fin_block_in_frame) {
                                 if (ctx->frame_flag & HTTP2_FLAG_DATA_END_STREAM) {
                                     sdata->flags |= HTTP2_STREAM_RECV_END;
                                     if (!sdata->top->recv_size && (sdata->flags & ev::READ) && sdata->ev_callback)
                                         sdata->ev_callback(s->second, HTTP2_STREAM_RECV_END, buffer + datapos, datasize, nullptr);
                                 }
                                 else {
-                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                        "data frame is empty");
-                                    goto repeat;
+                                    sdata->flags |= HTTP2_STREAM_RECV_DATA_END;
                                 }
                             }
 
@@ -1780,7 +1855,7 @@ header_skip:
                         }
                     }
 
-                    if (frame_fin) {
+                    if (fin_block_in_frame) {
                         if (ctx->n2) {
                             ctx->n1 = ctx->n2;
                             ctx->n2 = 0;
@@ -1829,6 +1904,10 @@ header_skip:
                             }
                             else {
                                 ctx->current = HTTP2_CALLBACK_PARSE_BODY_DATA;
+
+                                if (!ctx->frame_length) {
+                                    goto repeat;
+                                }
                             }
                             break;
                         }
@@ -1840,8 +1919,10 @@ header_skip:
                             }
 
                             size_t additional = 0;
+
                             if (ctx->frame_flag & HTTP2_FLAG_HEADERS_PADDED)
                                 additional += 1;
+
                             if (ctx->frame_flag & HTTP2_FLAG_HEADERS_PRIORITY)
                                 additional += 5;
 
@@ -1856,28 +1937,6 @@ header_skip:
                                     "0 is reserved");
                                 goto finish;
                             }
-
-                            if (ctx->frame_stream_id < ctx->last_stream_id || (ctx->frame_stream_id % 2 == 0)) {
-                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                    "unexpected stream id");
-                                goto finish;
-                            }
-
-
-                            if (ctx->frame_stream_id == ctx->last_stream_id) {
-                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_STREAM_CLOSED,
-                                    "stream is closed");
-                                goto finish;
-                            }
-
-
-                            if (ctx->concurrent_streams_size >= ctx->server->max_concurret_streams) {
-                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_REFUSED_STREAM,
-                                    "max concurrent stream");
-                                goto finish;
-                            }
-
-                            ctx->last_stream_id = ctx->frame_stream_id;
 
                             if (ctx->frame_flag & HTTP2_FLAG_HEADERS_PADDED) {
                                 ctx->n1 = 1; /* number size */
@@ -2409,7 +2468,7 @@ int manapi::net::http::http_v2_rst_stream(const worker::shared_conn &s, int errc
 manapi::future<int> manapi::net::http::http_v2_response(worker::base *worker, const worker::shared_conn &connection, int status, std::map<std::string, std::string, std::less<>> headers, bool finish) {
     auto const s = connection->as<http_v2_stream_t>();
 
-    if (s->flags & ev::DISCONNECT)
+    if ((s->flags & ev::DISCONNECT) || (s->ctx->flags & HTTP2_CTX_FLAG_REALY_CLOSE))
         co_return manapi::ERR_ABORTED;
 
     *s->ctx->encoder = decltype(s->ctx->encoder)::element_type ();

@@ -190,7 +190,7 @@ int main () {
          */
 
         auto folder_env = manapi::process::get_env("MANAPIHTTP_FOLDER");
-        std::string const folder = folder_env ? FOLDER2 : FOLDER;
+        std::string const folder = folder_env ? FOLDER : FOLDER2;
         auto router = manapi::net::http::server::create (server_ctx).unwrap();
 
         router.GET("/+layer", [] (http::req &req, http::uresp resp) -> void {
@@ -214,8 +214,17 @@ int main () {
             resp.finish();
         }).unwrap();
 
+        router.GET("/trailer", [] (http::req &req, http::resp &resp) -> manapi::future<void> {
+            auto trailers = (co_await req.trailers()).unwrap();
+
+        }, {
+            {"trailers", manapi::json::array({"sha256"})},
+            {"trailers_size", 500}
+        });
+
         router.GET ("/fetch", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
             -> void {
+
             resp->proxy("https://www.wikipedia.org", [] (manapi::net::fetch &n) -> void {
                 n.verbose(true);
             }).unwrap();
