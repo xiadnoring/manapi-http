@@ -97,6 +97,7 @@ namespace manapi::net::http {
         HTTP2_STREAM_BAD_STATUS = manapi::net::worker::base::CONN_MAX_CODE <<4,
         HTTP2_STREAM_WINDOW_EMPTY = manapi::net::worker::base::CONN_MAX_CODE <<5,
         HTTP2_STREAM_RECV_DATA_END = manapi::net::worker::base::CONN_MAX_CODE <<6,
+        HTTP2_STREAM_RECV_END_FLAG = manapi::net::worker::base::CONN_MAX_CODE <<8,
     };
 
 

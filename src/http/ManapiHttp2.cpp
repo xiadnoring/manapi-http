@@ -1367,7 +1367,11 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             sdata = s->second->as<http_v2_stream_t>();
                             is_trailers = (sdata->flags & HTTP2_STREAM_RECV_DATA_END) && !(sdata->flags & HTTP2_STREAM_RECV_END);
                             if (is_trailers) {
-
+                                if (!(ctx->flags & HTTP2_FLAG_HEADERS_END_STREAM)) {
+                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                        "trailers must close the stream");
+                                    goto repeat;
+                                }
                             }
                             else {
                                 http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
@@ -1415,7 +1419,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         is_trailers = (sdata->flags & HTTP2_STREAM_RECV_DATA_END) && !(sdata->flags & HTTP2_STREAM_RECV_END);
                     }
 
-                    if (sdata->flags & HTTP2_STREAM_CLOSED) {
+                    if (sdata->flags & (HTTP2_STREAM_CLOSED|HTTP2_STREAM_RECV_END)) {
                         http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
                             "stream is closed");
                         goto repeat;
@@ -1448,8 +1452,14 @@ header_skip:
 
                     if (!ctx->frame_length) {
                         if (ctx->frame_type == HTTP2_FRAME_HEADERS
-                            && ctx->frame_flag & HTTP2_FLAG_HEADERS_END_STREAM)
+                            && ctx->frame_flag & HTTP2_FLAG_HEADERS_END_STREAM) {
+                            sdata->flags |= HTTP2_STREAM_RECV_END_FLAG;
+                        }
+
+                        if (ctx->frame_flag & HTTP2_FLAG_HEADERS_END_HEADERS
+                            && sdata->flags & HTTP2_STREAM_RECV_END_FLAG) {
                             sdata->flags |= HTTP2_STREAM_RECV_END;
+                        }
 
                         if (flg) {
                             if (!is_trailers) {
