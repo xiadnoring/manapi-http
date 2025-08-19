@@ -1337,6 +1337,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 }
 
                                 auto p = std::make_unique<http_v2_stream_t>();
+                                auto req_tmp = std::make_unique<request_data_t>();
+                                auto top_tmp = std::make_unique<worker::connection_io>();
 
                                 p->write_window = ctx->client->initial_window_size;
                                 p->read_window = ctx->server->initial_window_size;
@@ -1349,8 +1351,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 s = ctx->streams->insert({ctx->frame_stream_id, std::move(sconn)}).first;
                                 ctx->concurrent_streams_size++;
                                 sdata = s->second->as<http_v2_stream_t>();
-                                sdata->req = std::make_unique<request_data_t>();
-                                sdata->top = std::make_unique<worker::connection_io>();
+                                sdata->req = std::move(req_tmp);
+                                sdata->top = std::move(top_tmp);
                                 sdata->speed_min_delay = static_cast<int>(config->speed_check_delay);
 
                                 sdata->req->divided = -1;
