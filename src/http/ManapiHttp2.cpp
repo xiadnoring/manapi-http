@@ -1518,7 +1518,7 @@ header_skip:
                                             sdata->req->headers.insert({std::move(key), std::move(value)});
                                         }
 
-                                        if (sdata->req->headers.contains(HEADER.CONNECTION)) {
+                                        if (sdata->req->headers.contains(header::CONNECTION)) {
                                             http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
                                                 "connection header is denied");
                                             goto repeat;
@@ -1563,7 +1563,7 @@ header_skip:
                                             goto repeat;
                                         }
 
-                                        auto hit = sdata->req->headers.find(http::HEADER.CONTENT_LENGTH);
+                                        auto hit = sdata->req->headers.find(http::header::CONTENT_LENGTH);
                                         if (hit == sdata->req->headers.end()) {
                                             sdata->req->body_size = manapi::ERR_INTERNAL;
                                         }
@@ -1595,7 +1595,7 @@ header_skip:
 
 
                                         try {
-                                            hit = sdata->req->headers.find(http::HEADER.PRIORITY);
+                                            hit = sdata->req->headers.find(http::header::PRIORITY);
                                             if (hit != sdata->req->headers.end()) {
                                                 auto rhs = parse_header_value(hit->second);
                                                 if (!rhs.ok())

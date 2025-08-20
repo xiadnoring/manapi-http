@@ -12,6 +12,7 @@ namespace manapi::net::worker {
     struct wrk_http1_ctx_t {
         wrk_http1_ctx_global_t *gctx;
         char flgs;
+        http::request_data_t req;
         std::unique_ptr<manapi::net::http::http_v1_1_t> ctx;
         std::unique_ptr<manapi::net::http::http_v1_1_chunked_t> chunked_ctx;
     };

@@ -5,9 +5,11 @@
 #include "encoding/ManapiUnicode.hpp"
 #include "http/ManapiHttpUtils.hpp"
 #include "http/ManapiHttpConfig.hpp"
+#include "http/ManapiHttpTypes.hpp"
 #include "../include/ManapiUtils.hpp"
 
 static constexpr char header_delimiter[] = ": ";
+
 
 manapi::error::status_or<std::pair<std::string_view, std::string_view>> manapi::net::http::parse_header(std::string_view header) {
     std::pair <std::string_view, std::string_view> parsed;
@@ -465,6 +467,16 @@ int manapi::net::http::version_ip_by_addr(const sockaddr *addr) {
     }
 
     return -1;
+}
+
+bool manapi::net::http::header_has_more_fields(std::string_view name) MANAPIHTTP_NOEXCEPT {
+    if (name == manapi::net::http::header::CACHE_CONTROL
+        || name == manapi::net::http::header::WARNING
+        || name == manapi::net::http::header::SET_COOKIE) {
+        return true;
+    }
+
+    return false;
 }
 
 manapi::error::status_or<std::pair<std::string, uint16_t>> manapi::net::http::strinfigy_ip(const sockaddr *addr) {

@@ -1260,7 +1260,7 @@ manapi::error::status manapi::net::fetch::headers(std::map<std::string, std::str
         return manapi::error::status_internal("null");
 
     {
-        auto content_length = headers.find(http::HEADER.CONTENT_LENGTH);
+        auto content_length = headers.find(http::header::CONTENT_LENGTH);
         if (content_length != headers.end()) {
             this->data->flags |= FLAG_CONTENT_LENGTH;
             char *end;
@@ -1271,7 +1271,7 @@ manapi::error::status manapi::net::fetch::headers(std::map<std::string, std::str
         }
     }
 
-    if (headers.contains(http::HEADER.TRANSFER_ENCODING)) {
+    if (headers.contains(http::header::TRANSFER_ENCODING)) {
         this->data->flags |= FLAG_TRANSFER_ENCODING;
     }
 
@@ -1323,7 +1323,7 @@ manapi::error::status manapi::net::fetch::json_headers(manapi::json headers) MAN
 
     try {
         auto &m = headers.entries();
-        auto content_length = m.find(http::HEADER.CONTENT_LENGTH);
+        auto content_length = m.find(http::header::CONTENT_LENGTH);
         if (content_length != m.end()) {
             this->data->flags |= FLAG_CONTENT_LENGTH;
             this->data->content_length_ = content_length->second.as_integer_cast();
@@ -1335,7 +1335,7 @@ manapi::error::status manapi::net::fetch::json_headers(manapi::json headers) MAN
         return manapi::error::status_invalid_argument("fetch:as_integer_cast failed");
     }
 
-    auto it = headers.find(http::HEADER.TRANSFER_ENCODING);
+    auto it = headers.find(http::header::TRANSFER_ENCODING);
     if (it != headers.end<json::OBJECT>()) {
         this->data->flags |= FLAG_TRANSFER_ENCODING;
     }

@@ -68,8 +68,8 @@ manapi::error::status_or<std::pair<std::string, std::string>> manapi::net::http:
 
 manapi::future<manapi::error::status_or<std::string>> manapi::net::http::request::text() {
     try {
-        if (!(this->request_data->flags & internal::REQ_DATA_FLAG_HAS_BODY))
-            co_return manapi::error::status_invalid_argument("req:Body is denied");
+        // if (!(this->request_data->flags & internal::REQ_DATA_FLAG_HAS_BODY))
+        //     co_return manapi::error::status_invalid_argument("req:Body is denied");
 
         std::string body;
 

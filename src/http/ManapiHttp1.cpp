@@ -38,7 +38,7 @@ bool manapi::net::http::http_v1_1_is_token_char (const char &c) MANAPIHTTP_NOEXC
     return ::isalpha(c) || ::isdigit(c) || tcharlist.contains(c);
 }
 
-int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize) MANAPIHTTP_NOEXCEPT {
+int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, request_data_t *req, http::config *config, const char **nbuffer, ssize_t *nsize) MANAPIHTTP_NOEXCEPT {
             // ctx->request_data->buffer = site->bufferpool()->get();
     try {
         ssize_t pos = 0;
@@ -122,8 +122,6 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
 
                             ctx->current = HTTP_V1_1_CALLBACK_PARSE_HEADER_VALUE;
 
-
-
                             break;
                         }
 
@@ -176,8 +174,8 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                                 }
 
                                 /* insert */
-                                auto it = ctx->req->headers.find(ctx->s1);
-                                if (it == ctx->req->headers.end()) {
+                                auto it = req->headers.find(ctx->s1);
+                                if (it == req->headers.end()) {
                                     int value_start = 0;
                                     if (!ctx->s2.empty() && ctx->s2[0] == ' ')
                                         /**
@@ -186,7 +184,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                                          */
                                             value_start++;
 
-                                    ctx->req->headers.insert({ctx->s1, ctx->s2.substr(value_start)});
+                                    req->headers.insert({ctx->s1, ctx->s2.substr(value_start)});
                                 }
                                 else {
                                     /**
@@ -200,9 +198,10 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                                      * the interpretation of the combined field value;
                                      * a proxy MUST NOT change the order of these field values when forwarding a message.
                                      */
-
-                                    it->second.push_back(',');
-                                    it->second.append(ctx->s2);
+                                    if (header_has_more_fields(it->first)) {
+                                        it->second.push_back(',');
+                                        it->second.append(ctx->s2);
+                                    }
                                 }
 
                                 ctx->s1.resize(0);
@@ -386,21 +385,22 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                         }
                     }
 
-                    ctx->req = std::make_unique<request_data_t>();
-                    ctx->req->method = ctx->s1;
+                    *req = request_data_t{};
+
+                    req->method = ctx->s1;
                     /* s1 is buffer */
                     ctx->s1.resize(0);
 
-                    ctx->req->uri = ctx->s2;
+                    req->uri = ctx->s2;
                     ctx->s2.resize(0);
 
-                    if (auto rhs = url_decoder << ctx->req->uri) {
+                    if (auto rhs = url_decoder << req->uri) {
                         return EHTTP_V1_1_PROTOCOL_ERROR;
                     }
 
-                    ctx->req->http = ctx->http;
-                    ctx->req->path = url_decoder.result();
-                    ctx->req->divided = url_decoder.divided();
+                    req->http = ctx->http;
+                    req->path = url_decoder.result();
+                    req->divided = url_decoder.divided();
 
                     ctx->current = HTTP_V1_1_CALLBACK_NEXT_LINER;
                     ctx->next = HTTP_V1_1_CALLBACK_PARSE_HEADER_KEY;
@@ -417,16 +417,16 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                     size -= pos;
                     pos = 0;
 
-                    auto const hcontentlength = ctx->req->headers.find(HEADER.CONTENT_LENGTH);
-                    if (hcontentlength == ctx->req->headers.end()) {
-                        ctx->req->body_size = -1;
+                    auto const hcontentlength = req->headers.find(header::CONTENT_LENGTH);
+                    if (hcontentlength == req->headers.end()) {
+                        req->body_size = -1;
                     }
                     else {
-                        ctx->req->body_size = std::stoll(hcontentlength->second);
+                        req->body_size = std::stoll(hcontentlength->second);
                     }
 
-                    auto const hconnection = ctx->req->headers.find(HEADER.CONNECTION);
-                    if (hconnection != ctx->req->headers.end()) {
+                    auto const hconnection = req->headers.find(header::CONNECTION);
+                    if (hconnection != req->headers.end()) {
                         /**
                          * RFC7540 (3.2) Starting HTTP/2 for "http" URIs
                          *
@@ -445,7 +445,7 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
 
                         for (const auto &param: val) {
                             if (manapi::string::equals(param.value, "upgrade", 0b10)) {
-                                auto const hupgrade = ctx->req->headers.find(HEADER.UPGRADE);
+                                auto const hupgrade = req->headers.find(header::UPGRADE);
 
                                 if (hupgrade->second == "h2c") {
                                     ctx->http = versions::HTTP_v2;
@@ -512,16 +512,17 @@ int manapi::net::http::http_v1_1_work(http_v1_1_t *ctx, http::config *config, co
                                 buffer += pos;
                                 size -= pos;
 
-                                ctx->req = std::make_unique<request_data_t>();
-                                if (ctx->req->method.empty())
-                                    ctx->req->method = "GET";
+                                //req = std::make_unique<request_data_t>();
+                                *req = request_data_t{};
+                                if (req->method.empty())
+                                    req->method = "GET";
 
-                                if (ctx->req->uri.empty()) {
-                                    ctx->req->uri = "/";
-                                    ctx->req->divided = -1;
+                                if (req->uri.empty()) {
+                                    req->uri = "/";
+                                    req->divided = -1;
                                 }
 
-                                ctx->req->http = ctx->http;
+                                req->http = ctx->http;
 
                                 return EHTTP_V1_1_PROTOCOL_PAYLOAD_TOO_LARGE;
                             }
@@ -560,13 +561,15 @@ enum http_v1_1_chunked_flags {
     HTTP_V1_1_CHUNK_CHAR_N,
     HTTP_V1_1_CHUNK_BODY,
     HTTP_V1_1_CHUNK_THINK,
+    HTTP_V1_1_CHUNK_PARSE_HEADER_KEY,
+    HTTP_V1_1_CHUNK_PARSE_HEADER_VALUE,
     HTTP_V1_1_CHUNK_ERR,
 };
 
-int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::base *worker, const worker::shared_conn &conn, http::config *config, const char *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT {
+int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, std::map<std::string, std::string, std::less<>> *trailers, uint32_t *trailers_size, worker::base *worker, const worker::shared_conn &conn, http::config *config, const char *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT {
     ssize_t pos = 0;
     while (pos != size) {
-        switch (ctx->state) {
+        repeat:switch (ctx->state) {
             case HTTP_V1_1_CHUNK_NUM_GRAB:
                 if (buffer[pos] == '\r') {
                     ctx->state = HTTP_V1_1_CHUNK_CHAR_N;
@@ -575,7 +578,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::
                     break;
                 }
 
-                if (ctx->left > INT_MAX / 16) {
+                if (ctx->left > std::numeric_limits<int>::max() / 16) {
                     /**
                      * RFC9112 (7.1) Chunked Transfer Coding
                      *
@@ -607,7 +610,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::
                     return EHTTP_V1_1_CHUNKED_ERR;
                 }
 
-                if (ctx->left > INT_MAX - n) {
+                if (ctx->left > std::numeric_limits<int>::max() - n) {
                     /* would overflow */
                     return EHTTP_V1_1_CHUNKED_ERR;
                 }
@@ -634,11 +637,14 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::
                 ctx->state = ctx->next;
                 ctx->next = HTTP_V1_1_CHUNK_ERR;
 
+                if (ctx->state == HTTP_V1_1_CHUNK_THINK)
+                    goto repeat;
+
                 break;
             case HTTP_V1_1_CHUNK_BODY: {
                 auto const copy = std::min(size - pos, static_cast<ssize_t>(ctx->left));
                 if (copy) {
-                    if (!ctx->top.last_deque && worker->event_flags(conn) & ev::READ) {
+                    if (!ctx->top.last_deque && (worker->event_flags(conn) & ev::READ)) {
                         worker->feed_event(conn, ev::READ, buffer + pos, copy, nullptr /* no way :( */);
                     }
                     else {
@@ -656,6 +662,7 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::
                     ctx->state = HTTP_V1_1_CHUNK_CHAR_R;
                     ctx->next = HTTP_V1_1_CHUNK_NUM_GRAB;
                 }
+
                 break;
             }
             case HTTP_V1_1_CHUNK_THINK: {
@@ -663,14 +670,202 @@ int manapi::net::http::http_v1_1_chunked_read(http_v1_1_chunked_t *ctx, worker::
                     ctx->state = HTTP_V1_1_CHUNK_BODY;
                 }
                 else {
-                    ctx->state = -1;
-                    if (worker->event_flags(conn) & ev::READ) {
-                        return EHTTP_V1_1_CHUNKED_OK;
+                    if (ctx->trailer_names.empty()) {
+                        ctx->state = -1;
+                        if (worker->event_flags(conn) & ev::READ) {
+                            return EHTTP_V1_1_CHUNKED_OK;
+                        }
+                        return EHTTP_V1_1_CHUNKED_WAIT;
                     }
-                    return EHTTP_V1_1_CHUNKED_WAIT;
+
+                    ctx->state = HTTP_V1_1_CHUNK_PARSE_HEADER_KEY;
                 }
                 break;
             }
+            case HTTP_V1_1_CHUNK_PARSE_HEADER_KEY: {
+                    while (pos < size) {
+                        if (!ctx->s1.empty() && ctx->s1.back() == '\r') {
+                            /**
+                             * RFC7230 (3.2.4) Field Parsing
+                             * Historically, HTTP header field values could be extended over multiple
+                             * lines by preceding each extra line with at least one space or horizontal tab (obs-fold).
+                             */
+                            if (buffer[pos] == '\n') {
+                                if (ctx->s1.size() != 1 || !ctx->trailer_names.empty()) {
+                                    return EHTTP_V1_1_CHUNKED_ERR;
+                                }
+
+                                ctx->s1.pop_back();
+
+                                pos ++;
+
+                                ctx->state = HTTP_V1_1_CHUNK_THINK;
+                                ctx->left = 0;
+
+                                goto repeat;
+                            }
+
+                            return EHTTP_V1_1_CHUNKED_ERR;
+                        }
+
+                        if (buffer[pos] == '\r') {
+                            ctx->s1.push_back(buffer[pos]);
+                            pos++;
+                            continue;
+                        }
+
+                        if (buffer[pos] == ':') {
+                            /**
+                             * RFC7230 (3.2) Header Fields
+                             * Each header field consists of a case-insensitive field name followed by a colon (":"),
+                             * optional leading whitespace, the field value, and optional trailing whitespace.
+                             */
+
+                            pos++;
+
+                            if (((*trailers_size) += ctx->s1.size()) > config->max_headers_size) {
+                                ctx->s1.clear();
+                                return EHTTP_V1_1_CHUNKED_ERR;
+                            }
+
+                            auto trailer_it = ctx->trailer_names.find(ctx->s1);
+                            if (trailer_it == ctx->trailer_names.end()) {
+                                /* trailer isn't allowed */
+                                return EHTTP_V1_1_CHUNKED_ERR;
+                            }
+
+                            ctx->trailer_names.erase(trailer_it);
+
+                            ctx->state = HTTP_V1_1_CHUNK_PARSE_HEADER_VALUE;
+
+                            break;
+                        }
+
+                        if (!http_v1_1_is_token_char(buffer[pos])) {
+                            /**
+                             * RFC7230 (3.2.4) Field Parsing
+                             * No whitespace is allowed between the header field-name and colon.
+                             *
+                             * RFC7230 (3.2.6) Field Value Components
+                             * Most HTTP header field values are defined using
+                             * common syntax components (token, quoted-string, and comment)
+                             * separated by whitespace or specific delimiting characters.
+                             * Delimiters are chosen from the set of US-ASCII visual characters
+                             * not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}").
+                             */
+                            return EHTTP_V1_1_CHUNKED_ERR;
+                        }
+
+                        if (ctx->s1.size() >= config->max_header_key_size) {
+                            ctx->s1.clear();
+                            return EHTTP_V1_1_CHUNKED_ERR;
+                        }
+
+                        ctx->s1.push_back(static_cast<char>(std::tolower(buffer[pos])));
+                        pos++;
+                    }
+                    break;
+                }
+                case HTTP_V1_1_CHUNK_PARSE_HEADER_VALUE: {
+                    while (pos < size) {
+                        if (!ctx->s2.empty() && ctx->s2.back() == '\r') {
+                            if (buffer[pos] == '\n') {
+                                ctx->s2.pop_back();
+                                pos++;
+
+                                if (!ctx->s2.empty() && ctx->s2.back() == ' ') {
+                                    /**
+                                     * RFC7230 (3.2) Header Fields
+                                     * Optitional trailing whitespace
+                                     */
+                                    ctx->s2.pop_back();
+                                }
+
+                                if (((*trailers_size) += ctx->s2.size()) > config->max_headers_size) {
+                                    ctx->s2.clear();
+                                    ctx->s1.clear();
+                                    return EHTTP_V1_1_CHUNKED_ERR;
+                                }
+
+                                /* insert */
+                                auto it = trailers->find(ctx->s1);
+                                if (it == trailers->end()) {
+                                    int value_start = 0;
+                                    if (!ctx->s2.empty() && ctx->s2[0] == ' ')
+                                        /**
+                                         * RFC7230 (3.2) Header Fields
+                                         * Optitional leading whitespace
+                                         */
+                                        value_start++;
+
+                                    trailers->insert({ctx->s1, ctx->s2.substr(value_start)});
+                                }
+                                else {
+                                    /**
+                                     * RFC7230 (3.2.2) Field Order
+                                     * A recipient MAY combine multiple header fields with
+                                     * the same field name into one "field-name: field-value" pair,
+                                     * without changing the semantics of the message,
+                                     * by appending each subsequent field value to the combined field value in order,
+                                     * separated by a comma. The order in which header fields with the same
+                                     * field name are received is therefore significant to
+                                     * the interpretation of the combined field value;
+                                     * a proxy MUST NOT change the order of these field values when forwarding a message.
+                                     */
+                                    if (header_has_more_fields(it->first)) {
+                                        it->second.push_back(',');
+                                        it->second.append(ctx->s2);
+                                    }
+                                }
+
+                                ctx->s1.resize(0);
+                                ctx->s2.resize(0);
+
+                                ctx->state = HTTP_V1_1_CHUNK_PARSE_HEADER_KEY;
+
+                                break;
+                            }
+
+                            return EHTTP_V1_1_CHUNKED_ERR;
+                        }
+
+                        if (buffer[pos] == '\r') {
+                            ctx->s2.push_back(buffer[pos]);
+                            pos++;
+                            continue;
+                        }
+
+                        if (!isprint(buffer[pos])) {
+                            /**
+                             * RFC7230 (3.2) Header Fields
+                             *
+                             * header-field   = field-name ":" OWS field-value OWS
+                             *
+                             * field-name     = token
+                             * field-value    = *( field-content / obs-fold )
+                             * field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
+                             * field-vchar    = VCHAR / obs-text
+                             *
+                             * obs-fold       = CRLF 1*( SP / HTAB )
+                             *                ; obsolete line folding
+                             *                ; see Section 3.2.4
+                             *
+                             * V[isible]CHAR
+                             */
+                            return EHTTP_V1_1_CHUNKED_ERR;
+                        }
+
+                        if (ctx->s2.size() >= config->max_header_value_size) {
+                            ctx->s1.clear();
+                            ctx->s2.clear();
+                            return EHTTP_V1_1_CHUNKED_ERR;
+                        }
+
+                        ctx->s2.push_back(buffer[pos]);
+                        pos++;
+                    }
+                    break;
+                }
             default:
                 return EHTTP_V1_1_CHUNKED_ERR;
         }

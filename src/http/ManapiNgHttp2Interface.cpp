@@ -276,7 +276,7 @@ static int ng_wrk_http2_on_frame_recv_callback (nghttp2_session *session, const 
                             s->req->method = std::move(heit.mapped());
                         }
 
-                        auto hit = s->req->headers.find(manapi::net::http::HEADER.CONTENT_LENGTH);
+                        auto hit = s->req->headers.find(manapi::net::http::header::CONTENT_LENGTH);
                         if (hit == s->req->headers.end()) {
                             s->req->body_size = -1;
                         }

@@ -214,11 +214,14 @@ int main () {
             resp.finish();
         }).unwrap();
 
-        router.GET("/trailer", [] (http::req &req, http::resp &resp) -> manapi::future<void> {
+        router.POST("/trailer", [] (http::req &req, http::resp &resp) -> manapi::future<void> {
+            auto data = (co_await req.text()).unwrap();
             auto trailers = (co_await req.trailers()).unwrap();
-
+            for (auto &trailer : trailers)
+                printf("%.*s\n", trailer.second.size(), trailer.second.data());
+            resp.text("hello");
         }, {
-            {"trailers", manapi::json::array({"sha256"})},
+            {"trailers", manapi::json::array({"test", "HMMM"})},
             {"trailers_size", 500}
         });
 

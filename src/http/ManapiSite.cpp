@@ -789,8 +789,12 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
             auto it = params.find("trailers");
             if (it != params.as_object().end() && it->second.is_array()) {
                 for (auto &i : it->second.each()) {
-                    if (i.is_string())
-                        functions->trailers.insert(i.as_string());
+                    if (i.is_string()) {
+                        auto &s = i.as_string();
+                        for (auto &c : s)
+                            c = std::tolower(c);
+                        functions->trailers.insert(std::move(s));
+                    }
                 }
             }
 

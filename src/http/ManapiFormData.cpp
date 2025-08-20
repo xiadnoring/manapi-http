@@ -76,7 +76,7 @@ manapi::future<manapi::error::status> manapi::net::formdata_recv::get(onparam_cb
         int type = CONTENT_TYPE_NONE;
 
         {
-            auto const hit = this->req_->headers.find(http::HEADER.CONTENT_TYPE);
+            auto const hit = this->req_->headers.find(http::header::CONTENT_TYPE);
 
             if (hit == this->req_->headers.end())
                 co_return error::status_invalid_argument("formdata:Content-Type header is missing");
@@ -285,7 +285,7 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
 
                                     this->ctx_.n2 = static_cast<int>(pos);
 
-                                    auto hit = this->ctx_.headers->find(http::HEADER.CONTENT_DISPOSITION);
+                                    auto hit = this->ctx_.headers->find(http::header::CONTENT_DISPOSITION);
                                     if (hit == this->ctx_.headers->end()) {
                                         co_return -1;
                                     }
@@ -325,8 +325,8 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_multipart_(slice_view
                                  * optional leading whitespace, the field value, and optional trailing whitespace.
                                  */
 
-                                if (this->ctx_.hctx->s1 != http::HEADER.CONTENT_DISPOSITION
-                                    && this->ctx_.hctx->s1 != http::HEADER.CONTENT_TYPE)
+                                if (this->ctx_.hctx->s1 != http::header::CONTENT_DISPOSITION
+                                    && this->ctx_.hctx->s1 != http::header::CONTENT_TYPE)
                                     co_return -1;
 
                                 pos++;
@@ -774,7 +774,7 @@ ssize_t manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const 
         if (param.second.type == DATA_PLAIN) {
             std::string const name = json{param.first}.dump();
             std::string const val = http::stringify_header_value({{"form-data", {{"name", name}}}});
-            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION, val});
+            std::string header = http::stringify_header({http::header::CONTENT_DISPOSITION, val});
             s += static_cast<ssize_t> (header.size());
             s += (sizeof ("\r\n") - 1);
         }
@@ -782,12 +782,12 @@ ssize_t manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const 
             std::string const name = json{param.first}.dump();
             std::string const filename = json{param.second.file.value().filename}.dump();
             std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
-            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION, val});
+            std::string header = http::stringify_header({http::header::CONTENT_DISPOSITION, val});
             s += static_cast<ssize_t> (header.size());
             s += (sizeof ("\r\n") - 1);
 
             val = http::stringify_header_value({{param.second.file.value().filemime}});
-            header = http::stringify_header({http::HEADER.CONTENT_TYPE, val});
+            header = http::stringify_header({http::header::CONTENT_TYPE, val});
             s += static_cast<ssize_t> (header.size());
             s += (sizeof ("\r\n") - 1);
         }
@@ -824,7 +824,7 @@ manapi::future<manapi::error::status> manapi::net::formdata_send::data2multipart
 
         if (param.second.type == DATA_PLAIN) {
             std::string const name = json{param.first}.dump();
-            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION,
+            std::string header = http::stringify_header({http::header::CONTENT_DISPOSITION,
                 http::stringify_header_value({{"form-data", {{"name", name}}}})});
 
             part.buff.base = header.data();
@@ -863,7 +863,7 @@ manapi::future<manapi::error::status> manapi::net::formdata_send::data2multipart
             std::string name = json{param.first}.dump();
             std::string const filename = json{std::move(param.second.file.value().filename)}.dump();
             std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
-            std::string header = http::stringify_header({http::HEADER.CONTENT_DISPOSITION, val});
+            std::string header = http::stringify_header({http::header::CONTENT_DISPOSITION, val});
             part.buff.base = header.data();
             part.buff.len = header.size();
             status = co_await write (slice_view(&part), false);
@@ -876,7 +876,7 @@ manapi::future<manapi::error::status> manapi::net::formdata_send::data2multipart
                 goto err;
 
             val = http::stringify_header_value({{std::move(param.second.file.value().filemime)}});
-            header = http::stringify_header({http::HEADER.CONTENT_TYPE, val});
+            header = http::stringify_header({http::header::CONTENT_TYPE, val});
             part.buff.base = header.data();
             part.buff.len = header.size();
             status = co_await write (slice_view(&part), false);

@@ -845,7 +845,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                                 s->req->http = http::versions::HTTP_v3;
 
                                 if (manapi_quiche_h3_event_headers_has_more_frames_(event)) {
-                                    auto contentlength = s->req->headers.find(http::HEADER.CONTENT_LENGTH);
+                                    auto contentlength = s->req->headers.find(http::header::CONTENT_LENGTH);
                                     s->req->body_size = contentlength != s->req->headers.end()
                                      ? std::stoll(contentlength->second) : -1 /* The size isn't fixed */;
                                 }

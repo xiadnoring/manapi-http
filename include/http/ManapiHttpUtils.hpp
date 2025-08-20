@@ -96,6 +96,8 @@ namespace manapi::net::http {
 
     int version_ip_by_addr (const sockaddr *addr);
 
+    bool header_has_more_fields (std::string_view name) MANAPIHTTP_NOEXCEPT;
+
     error::status_or<std::pair<std::string, uint16_t>> strinfigy_ip (const sockaddr *addr);
 
     error::status_or<uint16_t> port_by_addr (const sockaddr *addr);

@@ -386,7 +386,10 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
 
     conn->cancellation.cancel();
 
-    if ((flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOF|CLOSE_CONN_SHUTDOWN))
+    if (  !(flags & CLOSE_CONN_FINISHED)
+        || (flags & CLOSE_CONN_ERR)
+        || (flags & CLOSE_CONN_EOF)
+        || (flags & CLOSE_CONN_SHUTDOWN)
         || !this->config_->keep_alive
         || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)) {
 

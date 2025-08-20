@@ -35,7 +35,8 @@ namespace manapi::net::worker {
     enum close_flags_t {
         CLOSE_CONN_EOF = 1,
         CLOSE_CONN_ERR = 2,
-        CLOSE_CONN_SHUTDOWN = 4
+        CLOSE_CONN_SHUTDOWN = 4,
+        CLOSE_CONN_FINISHED = 8
     };
 
     enum wrk_global_flags {

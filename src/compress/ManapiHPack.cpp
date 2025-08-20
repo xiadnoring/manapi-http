@@ -6,6 +6,7 @@
 #include "ManapiErrors.hpp"
 #include "std/ManapiAsyncContext.hpp"
 #include "../include/ManapiUtils.hpp"
+#include "http/ManapiHttpUtils.hpp"
 
 #define T true
 #define F false
@@ -933,7 +934,8 @@ err_zero:
 						else {
 							if (val->first[0] == ':')
 								return manapi::error::status_aborted("duplicate pesudo-header");
-							m_headers[val->first] += "," + val->second;
+							if (net::http::header_has_more_fields(val->first))
+								it->second += "," + val->second;
 						}
 						this->state = HPACK_DECODE_HBYTE;
 
