@@ -99,11 +99,14 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                         auto const globalctx = static_cast<manapi::net::worker::wrk_http2_ctx_global_t *> (global->data);
 
                         try {
+                            auto const sdata = s->second->as<manapi::net::http::http_v2_stream_t>();
+
                             manapi::async::current()->etaskpool()->append_super_task(
                                 [conn, status, id = s->first, w, w2 = globalctx->worker] () -> void {
                                     auto wrk_ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *> (conn->wrk.data);
                                     if (!wrk_ctx)
                                         return;
+
                                     auto http_v2_ctx = wrk_ctx->ctx.get();
                                     auto s = http_v2_ctx->streams->find(id);
                                     if (s == http_v2_ctx->streams->end())
@@ -115,19 +118,27 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
 
                                     manapi_log_trace("http2: %d stream on %.*s", s->first, req_ptr->uri.size(), req_ptr->uri.data());
 
-                                    auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(s->second, w2,
-                                        req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
-                                        [w, sconn = s->second, conn] (bool ok) mutable
-                                        -> void {
-                                            wrk_close_connection (conn, sconn, w, ok);
-                                    }));
+                                    try {
+                                        auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(s->second, w2,
+                                            req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
+                                            [w, sconn = s->second, conn] (bool ok) mutable
+                                            -> void {
+                                                wrk_close_connection (conn, sconn, w, ok);
+                                        }));
 
-                                    // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
-                                    // this->event_flags(conn, 0);
+                                        // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
+                                        // this->event_flags(conn, 0);
 
-                                    cdata->router = w->site().handler(req_ptr);
-                                    manapi::net::http::internal::handle_income_request(std::move(cdata), status);
+                                        cdata->router = w->site().handler(req_ptr);
+                                        manapi::net::http::internal::handle_income_request(std::move(cdata), status);
+                                    }
+                                    catch (std::exception const &e) {
+                                        manapi_log_error("%s:%s failed due to %s", "http2", "new conn", e.what());
+                                        wrk_close_connection(conn, s->second, w, false);
+                                    }
                             });
+
+                            sdata->flags |= manapi::net::http::HTTP2_STREAM_STARTED;
                         }
                         catch (std::exception const  &e ) {
                             manapi_log_error("%s:%s failed due to %s", "http2", "new conn", e.what());

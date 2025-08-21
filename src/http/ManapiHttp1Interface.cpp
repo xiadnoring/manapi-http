@@ -443,7 +443,8 @@ exec:
 
             for (auto &value : trailers_header) {
                 for (auto &c : value.value)
-                    c = std::tolower(c);
+                    c = std::tolower(static_cast<int>(c));
+
                 if (!wrk_data->req.handler->trailers.contains(value.value)) {
                     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "http1", "chunk body", "trailer not allowed");
                     goto send_error;

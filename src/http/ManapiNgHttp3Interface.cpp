@@ -681,8 +681,10 @@ static int ng_wrk_http3_recv_header (nghttp3_conn *conn, int64_t stream_id, int3
                 std::string(value_str)});
         }
         else {
-            it->second.append(", ");
-            it->second.append(value_str);
+            if (manapi::net::http::header_has_more_fields(it->first)) {
+                it->second.append(", ");
+                it->second.append(value_str);
+            }
         }
     }
     catch (std::exception const &e) {
@@ -726,13 +728,18 @@ static int ng_wrk_http3_recv_trailer (nghttp3_conn *conn, int64_t stream_id, int
         if (!s->req->handler || s->req->trailers_size > s->req->handler->trailers_size)
             return NGHTTP3_ERR_REMOVE_HTTP_HEADER;
 
+        if (!s->req->handler->trailers.contains(name_str))
+            return NGHTTP3_ERR_REMOVE_HTTP_HEADER;
+
         auto it = s->req->trailers.find(name_str);
         if (it == s->req->trailers.end()) {
             s->req->trailers.insert({std::string{name_str}, std::string(value_str)});
         }
         else {
-            it->second.append(", ");
-            it->second.append(value_str);
+            if (manapi::net::http::header_has_more_fields(it->first)) {
+                it->second.append(", ");
+                it->second.append(value_str);
+            }
         }
     }
     catch (std::exception const &e) {

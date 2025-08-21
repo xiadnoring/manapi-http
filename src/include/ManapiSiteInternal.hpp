@@ -34,7 +34,7 @@ struct manapi::net::http::site::data_t {
 struct manapi::net::http::http_handler_function {
     handler_template_t handler = nullptr;
     ssize_t trailers_size = 4096;
-    std::set<std::string> trailers;
+    std::set<std::string, std::less<>> trailers;
 };
 
 struct manapi::net::http::http_static_handler_function {

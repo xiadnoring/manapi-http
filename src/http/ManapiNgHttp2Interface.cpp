@@ -406,19 +406,33 @@ static int ng_wrk_http2_on_header_callback (nghttp2_session *session, const nght
                 return -1;
 
             if (s->flags & HTTP2_STREAM_TRAILERS) {
-                s->req->trailers_size += name_str.size() + value_str.size();
+                try {
+                    s->req->trailers_size += name_str.size() + value_str.size();
 
-                if (!s->req->handler || s->req->trailers_size > s->req->handler->trailers_size) {
-                    return NGHTTP2_ERR_TOO_MANY_CONTINUATIONS;
-                }
+                    if (!s->req->handler)
+                        return NGHTTP2_ERR_FATAL;
 
-                auto it = s->req->trailers.find(name_str);
-                if (it == s->req->trailers.end()) {
-                    s->req->trailers.insert({std::string(name_str), std::string(value_str)});
+                    if (s->req->trailers_size > s->req->handler->trailers_size) {
+                        return NGHTTP2_ERR_TOO_MANY_CONTINUATIONS;
+                    }
+
+                    if (!s->req->handler->trailers.contains(name_str))
+                        return NGHTTP2_ERR_FATAL;
+
+                    auto it = s->req->trailers.find(name_str);
+                    if (it == s->req->trailers.end()) {
+                        s->req->trailers.insert({std::string(name_str), std::string(value_str)});
+                    }
+                    else {
+                        if (manapi::net::http::header_has_more_fields(it->first)) {
+                            it->second.append(", ");
+                            it->second.append(value_str);
+                        }
+                    }
                 }
-                else {
-                    it->second.append(", ");
-                    it->second.append(value_str);
+                catch (std::exception const &e) {
+                    manapi_log_error(e.what());
+                    return NGHTTP2_ERR_FATAL;
                 }
             }
             else {
@@ -434,8 +448,10 @@ static int ng_wrk_http2_on_header_callback (nghttp2_session *session, const nght
                         s->req->headers.insert({std::string(name_str), std::string(value_str)});
                     }
                     else {
-                        it->second.append(", ");
-                        it->second.append(value_str);
+                        if (manapi::net::http::header_has_more_fields(it->first)) {
+                            it->second.append(", ");
+                            it->second.append(value_str);
+                        }
                     }
                 }
                 catch (std::bad_alloc const &) {

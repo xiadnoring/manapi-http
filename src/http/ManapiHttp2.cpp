@@ -3,7 +3,9 @@
 #include "encoding/ManapiUnicode.hpp"
 #include "encoding/ManapiURL.hpp"
 #include "http/ManapiURLDecodeStream.hpp"
+
 #include "../include/http/ManapiHttp2.hpp"
+#include "../include/ManapiSiteInternal.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "../include/http/ManapiHttp2Interface.hpp"
 
@@ -17,6 +19,7 @@ enum http_v2_priority {
     HTTP2_PRIORITY_5,
     HTTP2_PRIORITY_6,
     HTTP2_PRIORITY_7,
+    HTTP2_PRIORITY_DISABLED,
     HTTP2_PRIORITY_MAX = HTTP2_PRIORITY_7
 };
 
@@ -295,7 +298,7 @@ int http_v2_insert_priority (manapi::net::http::http_v2_t *ctx, const manapi::ne
     using namespace manapi::net::http;
 
     bool flg = false;
-    if (upriority == 78) {
+    if (upriority == HTTP2_PRIORITY_DISABLED) {
         sdata->flags |= manapi::net::http::HTTP2_STREAM_WINDOW_EMPTY;
     }
     try {
@@ -376,7 +379,7 @@ uint8_t http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net:
 
     //std::cout << "remove " << s->id << " " << (int)upriority << "\n";
 
-    if (upriority == 78) {
+    if (upriority == HTTP2_PRIORITY_DISABLED) {
         if (s->flags & manapi::net::http::HTTP2_STREAM_WINDOW_EMPTY)
             s->flags ^= manapi::net::http::HTTP2_STREAM_WINDOW_EMPTY;
     }
@@ -429,7 +432,7 @@ uint8_t http_v2_remove_priority (manapi::net::http::http_v2_t *ctx, manapi::net:
 
 int http_v2_real_priority_by_stream (manapi::net::http::http_v2_stream_t *s) MANAPIHTTP_NOEXCEPT {
     if ((s->write_window <= 0))
-        return 78;
+        return HTTP2_PRIORITY_DISABLED;
 
     return s->priority;
 }
@@ -438,12 +441,12 @@ int http_v2_update_priority (manapi::net::http::http_v2_t *ctx, const manapi::ne
     uint8_t rs;
     uint8_t as;
     if (http_v2_real_priority_by_stream (s) == s->priority) {
-        rs = 78;
+        rs = HTTP2_PRIORITY_DISABLED;
         as = s->priority;
     }
     else {
         rs = s->priority;
-        as = 78;
+        as = HTTP2_PRIORITY_DISABLED;
     }
 
     if (http_v2_remove_priority(ctx, s, rs))
@@ -626,11 +629,12 @@ int manapi::net::http::http_v2_on_close (http_v2_t *ctx) MANAPIHTTP_NOEXCEPT {
     if (ctx->streams) {
         for (auto it = ctx->streams->begin(); it != ctx->streams->end(); ) {
             auto data = it->second->as<http_v2_stream_t>();
-            if (data->req)
-                it = ctx->streams->erase(it);
-            else {
+            if (data->flags & HTTP2_STREAM_STARTED) {
                 ctx->http_v2_worker->close_connection(it->second, worker::CLOSE_CONN_ERR);
                 ++it;
+            }
+            else {
+                it = ctx->streams->erase(it);
             }
         }
     }
@@ -1419,6 +1423,12 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                         sdata = s->second->as<http_v2_stream_t>();
                         is_trailers = (sdata->flags & HTTP2_STREAM_RECV_DATA_END) && !(sdata->flags & HTTP2_STREAM_RECV_END);
+
+                        if (is_trailers && (!sdata->req->handler || sdata->req->handler->trailers.empty())) {
+                            http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_INTERNAL_ERROR,
+                                 "trailer not found");
+                            goto repeat;
+                        }
                     }
 
                     if (sdata->flags & (HTTP2_STREAM_CLOSED|HTTP2_STREAM_RECV_END)) {
@@ -1427,7 +1437,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         goto repeat;
                     }
 
-                    if (!sdata->req) {
+                    if (!is_trailers && (sdata->flags & HTTP2_STREAM_STARTED)) {
                         /* connection was already received all headers */
                         http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
                             "stream already received");
@@ -1647,6 +1657,12 @@ header_skip:
                             else {
                                 sdata->flags |= HTTP2_STREAM_RECV_END;
 
+                                if (!sdata->req->handler) {
+                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_INTERNAL_ERROR,
+                                         "handler not found");
+                                    goto repeat;
+                                }
+
                                 auto hres = ctx->decoder->headers(sdata->req->trailers_size);
                                 bool hres_ok = hres.ok();
                                 if (hres_ok) {
@@ -1674,6 +1690,12 @@ header_skip:
                                                             "header is reserved");
                                                     goto repeat;
                                                 }
+                                            }
+
+                                            if (!sdata->req->handler->trailers.contains(key)) {
+                                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_INTERNAL_ERROR,
+                                                     "trailer not found");
+                                                goto repeat;
                                             }
 
                                             sdata->req->trailers.insert({std::move(key), std::move(value)});
