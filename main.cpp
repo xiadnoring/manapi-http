@@ -230,6 +230,7 @@ int main () {
 
             resp->proxy("https://www.wikipedia.org", [] (manapi::net::fetch &n) -> void {
                 n.verbose(true);
+                n.headers({{"user-agent", R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)"}});
             }).unwrap();
 
             resp.finish();

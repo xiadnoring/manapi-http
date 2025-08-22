@@ -436,26 +436,29 @@ exec:
             cdata->router = w->site().handler(req_ptr);
             cdata->req_data->handler = cdata->router->handler;
 
-            if (wrk_data->req.handler->trailers.size() > trailers_header.size()) {
-                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "http1", "chunk body", "trailers too large");
-                goto send_error;
-            }
 
-            for (auto &value : trailers_header) {
-                for (auto &c : value.value)
-                    c = std::tolower(static_cast<int>(c));
-
-                if (!wrk_data->req.handler->trailers.contains(value.value)) {
-                    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "http1", "chunk body", "trailer not allowed");
+            if (wrk_data->req.handler) {
+                if (wrk_data->req.handler->trailers.size() > trailers_header.size()) {
+                    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "http1", "chunk body", "trailers too large");
                     goto send_error;
                 }
-            }
 
-            for (auto &value : trailers_header) {
-                auto it = wrk_data->chunked_ctx->trailer_names.insert(std::move(value.value));
-                if (!it.second){
-                    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "http1", "chunk body", "trailer name duplicate");
-                    goto send_error;
+                for (auto &value : trailers_header) {
+                    for (auto &c : value.value)
+                        c = std::tolower(static_cast<int>(c));
+
+                    if (!wrk_data->req.handler->trailers.contains(value.value)) {
+                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "http1", "chunk body", "trailer not allowed");
+                        goto send_error;
+                    }
+                }
+
+                for (auto &value : trailers_header) {
+                    auto it = wrk_data->chunked_ctx->trailer_names.insert(std::move(value.value));
+                    if (!it.second){
+                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "http1", "chunk body", "trailer name duplicate");
+                        goto send_error;
+                    }
                 }
             }
 

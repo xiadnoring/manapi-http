@@ -191,6 +191,8 @@ namespace manapi {
         manapi::error::status push_back (const void *buffer, ssize_t size) MANAPIHTTP_NOEXCEPT;
 
         void clear () MANAPIHTTP_NOEXCEPT;
+
+        void remove_shift () MANAPIHTTP_NOEXCEPT;
     };
 
     class slice_view final : public slice_base {

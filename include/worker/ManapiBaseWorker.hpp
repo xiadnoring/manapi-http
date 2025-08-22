@@ -259,6 +259,8 @@ namespace manapi::net::worker {
 
         manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice_view slice, bool finish);
 
+        manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice &slice, size_t size, bool finish);
+
         [[nodiscard]] virtual std::size_t recv_count (const shared_conn &conn) const MANAPIHTTP_NOEXCEPT = 0;
 
         virtual bytebuffer recv_first_buffer (const shared_conn &conn) MANAPIHTTP_NOEXCEPT = 0;

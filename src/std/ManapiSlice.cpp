@@ -500,11 +500,12 @@ manapi::error::status manapi::slice_base::rshift_add_(std::size_t s) noexcept(tr
     }
 
     while (this->count && this->rshift_ >= this->last->buff.len) {
+        this->rshift_ -= this->last->buff.len;
+        this->size_ -= this->last->buff.len;
+
         mem.free(this->last->buff.base, this->last->buff.len);
         delete this->last;
 
-        this->rshift_ -= this->last->buff.len;
-        this->size_ -= this->last->buff.len;
         this->count --;
 
         if (this->count) {
@@ -707,7 +708,7 @@ manapi::error::status manapi::slice::resize(std::size_t size) MANAPIHTTP_NOEXCEP
         return error::status_ok();
 
     if (size < cur) {
-        assert(this->rshift_add_(size).ok());
+        assert(this->rshift_add_(cur - size).ok());
     }
     else {
         size -= cur;
@@ -895,10 +896,10 @@ manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size)
 }
 
 
-void manapi::slice::clear() noexcept(true) {
+void manapi::slice::clear() MANAPIHTTP_NOEXCEPT {
     auto cur = this->first;
 
-    while (cur) {
+    while (cur&&cur != this->last->next) {
         manapi::async::current()->memory_fabric().free(cur->buff.base, cur->buff.len);
         delete std::exchange(cur, cur->next);
     }
@@ -906,6 +907,10 @@ void manapi::slice::clear() noexcept(true) {
     this->first = nullptr;
     this->last = nullptr;
     this->size_ = 0;
+    this->shift_ = 0;
+}
+
+void manapi::slice::remove_shift() MANAPIHTTP_NOEXCEPT {
     this->shift_ = 0;
 }
 

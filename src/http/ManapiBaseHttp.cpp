@@ -1192,60 +1192,75 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
     auto const cdata = res->connection_data();
 
     auto write_block = cdata->worker->bufferpool().slice(block_size).unwrap();
-    auto read_block = cdata->worker->bufferpool().slice(block_size).unwrap();
+    //auto read_block = cdata->worker->bufferpool().slice(block_size).unwrap();
 
     ssize_t current = f.tellg();
 
     size += current;
 
-    async::parallel_run<ssize_t> parallel;
-    auto parallel_status = async::parallel_run<ssize_t>::create();
-    if (!parallel_status)
-        co_return;
+    //async::parallel_run<ssize_t> parallel;
+    //auto parallel_status = async::parallel_run<ssize_t>::create();
+    //if (!parallel_status)
+    //    co_return;
 
-    parallel = parallel_status.unwrap();
+    //parallel = parallel_status.unwrap();
 
     ssize_t rhs;
 
-    if ((rhs = co_await f.read(write_block.subslice(0,
-        std::min(block_size, size - current)).unwrap())) <= 0) {
-        co_return;
-    }
+    // if ((rhs = co_await f.read(write_block.subslice(0,
+    //     std::min(block_size, size - current)).unwrap())) <= 0) {
+    //     co_return;
+    // }
 
     try {
         while (size > current) {
             /* add count of the chars which will be sent at this iterration */
-            current += rhs;
-            bool readsome = size > current;
-            if (readsome) {
-                auto status = parallel.run(f.read(read_block.subslice(0,
-                    std::min(block_size, size - current)).unwrap()));
-                if (!status) {
-                    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,
-                        "%s failed due to %.*s", "send_file", status.msg().size(), status.msg().data());
+            //current += rhs;
+            // bool readsome = size > current;
+            // if (readsome) {
+                // auto status = parallel.run(f.read(read_block.subslice(0,
+                //     std::min(block_size, size - current)).unwrap()));
+                // if (!status) {
+                //     manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,
+                //         "%s failed due to %.*s", "send_file", status.msg().size(), status.msg().data());
+                //     break;
+                // }
+
+                rhs = co_await f.read(write_block.subslice(0,
+                    std::min(block_size, size - current)).unwrap());
+
+                if (rhs <= 0) {
+                    // manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,
+                    //     "%s failed due to %s", "send_file", "read failed");
                     break;
                 }
-            }
+            //}
 
-            auto sv = write_block.subslice(0, rhs).unwrap();
+            current += rhs;
+            //auto sv = write_block.subslice(0, rhs).unwrap();
             // for (auto it = sv.begin(); it != sv.end(); it++) {
             //     if ((co_await cdata->worker->fwrite (cdata->conn, it.buffer(), it.size(), !readsome && it.is_last())) <= 0)
             //         /* failed to send */
             //         goto err;
             // }
 
-            assert(sv.size() == rhs);
-            if ((co_await cdata->worker->fwrite (cdata->conn, sv, !readsome)) <= 0) {
+            //assert(sv.size() == rhs);
+            if ((co_await cdata->worker->fwrite (cdata->conn, write_block, rhs, /*!readsome*/ size==current)) <= 0) {
                 manapi_log_trace(debug::LOG_TRACE_MEDIUM, "send_file() %p failed due to %s", cdata->conn.get(), "fwrite() <= 0");
                 /* failed to send */
                 goto err;
             }
 
-            if ((rhs = co_await parallel.get_or(0)) <= 0) {
-                break;
+            if (write_block.size() != block_size) {
+                write_block.remove_shift();
+                write_block.resize(block_size).unwrap();
             }
 
-            std::swap(write_block, read_block);
+            // if ((rhs = co_await parallel.get_or(0)) <= 0) {
+            //     break;
+            // }
+            //
+            // std::swap(write_block, read_block);
 
             //printf("%s STEP: %zi LEFT: %zi NEED: %zi CURRENT: %zi\n", res.get_file().data(), sent, left, size, current);
         }
@@ -1259,7 +1274,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "send_file() %p failed due to %s", cdata->conn.get(), e.what());
     }
 
-    err: co_await parallel.get_or(0);
+    err: //co_await parallel.get_or(0);
 }
 
 manapi::future<void> manapi::net::http::internal::send_text(std::unique_ptr<response> res, std::string text) {

@@ -889,7 +889,7 @@ err_zero:
 							goto repeat;
 						}
 
-						assert((itr != end));
+						//assert((itr != end));
 
 						break;
 					}

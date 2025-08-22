@@ -98,7 +98,8 @@ namespace manapi::net::http {
         HTTP2_STREAM_WINDOW_EMPTY = manapi::net::worker::base::CONN_MAX_CODE <<5,
         HTTP2_STREAM_RECV_DATA_END = manapi::net::worker::base::CONN_MAX_CODE <<6,
         HTTP2_STREAM_RECV_END_FLAG = manapi::net::worker::base::CONN_MAX_CODE <<8,
-        HTTP2_STREAM_STARTED = manapi::net::worker::base::CONN_MAX_CODE<<9
+        HTTP2_STREAM_STARTED = manapi::net::worker::base::CONN_MAX_CODE<<9,
+        HTTP2_STREAM_RST_BY_PEER = manapi::net::worker::base::CONN_MAX_CODE<<10
     };
 
 

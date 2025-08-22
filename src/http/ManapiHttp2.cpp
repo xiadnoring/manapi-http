@@ -1103,6 +1103,12 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
 
                                 auto const sdata = s->second->as<http_v2_stream_t>();
 
+                                if (sdata->flags & HTTP2_STREAM_RST_BY_PEER) {
+                                    http_v2_setup_goaway(ctx, http_goaway,
+                                        worker::HTTP2_ERROR_PROTOCOL_ERROR, "stream rst");
+                                    goto repeat;
+                                }
+
                                 if (std::numeric_limits<int32_t>::max() - sdata->write_window < ctx->n1) {
                                     http_v2_rst_stream_ex(ctx, sdata->id, worker::HTTP2_ERROR_FLOW_CONTROL_ERROR);
                                     ctx->http_v2_worker->close_connection(s->second, worker::CLOSE_CONN_ERR);
@@ -1174,9 +1180,16 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 }
                                 else {
                                     auto const data = s->second->as<http_v2_stream_t>();
+                                    if (data->flags & HTTP2_STREAM_RST_BY_PEER) {
+                                        http_v2_setup_goaway(ctx, http_goaway,
+                                            worker::HTTP2_ERROR_PROTOCOL_ERROR, "stream already rst");
+                                        goto repeat;
+                                    }
+
                                     if (!(data->flags & HTTP2_STREAM_SEND_END))
                                         ctx->concurrent_streams_size--;
 
+                                    data->flags |= HTTP2_STREAM_RST_BY_PEER;
                                     data->flags |= HTTP2_STREAM_RECV_END|HTTP2_STREAM_SEND_END;
                                     ctx->http_v2_worker->close_connection(s->second, worker::CLOSE_CONN_SHUTDOWN);
                                 }
@@ -1379,11 +1392,6 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     goto repeat;
                                 }
                             }
-                            else {
-                                http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                "stream is half closed(remote)");
-                                goto repeat;
-                            }
                         }
                     }
 
@@ -1431,7 +1439,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                         }
                     }
 
-                    if (sdata->flags & (HTTP2_STREAM_CLOSED|HTTP2_STREAM_RECV_END)) {
+                    if (sdata->flags & (HTTP2_STREAM_CLOSED|HTTP2_STREAM_RECV_END|HTTP2_STREAM_RST_BY_PEER)) {
                         http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
                             "stream is closed");
                         goto repeat;
@@ -1790,7 +1798,7 @@ header_skip:
                         else {
                             auto const sdata = s->second->as<http_v2_stream_t>();
 
-                            if (sdata->flags & (HTTP2_STREAM_CLOSED|HTTP2_STREAM_RECV_DATA_END|HTTP2_STREAM_RECV_END)) {
+                            if (sdata->flags & (HTTP2_STREAM_RST_BY_PEER|HTTP2_STREAM_CLOSED|HTTP2_STREAM_RECV_DATA_END|HTTP2_STREAM_RECV_END)) {
                                 http_v2_setup_goaway(ctx, http_goaway,
                                     worker::HTTP2_ERROR_STREAM_CLOSED, "stream is closed");
                                 goto repeat;
@@ -1966,6 +1974,14 @@ header_skip:
                                 goto finish;
                             }
 
+                            if (ctx->frame_stream_id == ctx->last_stream_id) {
+
+                                http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                    "id was used");
+
+                                goto finish;
+                            }
+
                             if (!ctx->frame_stream_id) {
                                 http_v2_setup_goaway(ctx, http_goaway, manapi::net::worker::HTTP2_ERROR_FRAME_SIZE_ERROR,
                                     "0 is reserved");
@@ -2019,8 +2035,8 @@ header_skip:
                                 goto finish;
                             }
 
-                            if (!ctx->frame_length) {
-                                if (!(ctx->frame_flag & HTTP2_FLAG_SETTINGS_ACK)) {
+                            if (ctx->frame_flag & HTTP2_FLAG_SETTINGS_ACK) {
+                                if (ctx->frame_length || !ctx->timeout) {
                                     http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
                                         "invalid ack settings");
                                     goto finish;
@@ -2036,12 +2052,23 @@ header_skip:
                                 }
                             }
                             else {
-                                if ((ctx->frame_flag & HTTP2_FLAG_SETTINGS_ACK)) {
-                                    http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
-                                        "invalid ack settings");
-                                    goto finish;
+                                /* NodeJS can send empty settings */
+
+                                // if (!ctx->frame_length) {
+                                //     http_v2_setup_goaway(ctx, http_goaway, worker::HTTP2_ERROR_PROTOCOL_ERROR,
+                                //         "invalid ack settings");
+                                //     goto finish;
+                                // }
+                                if (ctx->frame_length)
+                                    ctx->current = HTTP2_CALLBACK_PARSE_SETTING_ID;
+                                else {
+                                    /* send ack frame */
+                                    if (http_v2_send_frame(ctx, HTTP2_FRAME_SETTINGS, HTTP2_FLAG_SETTINGS_ACK, 0, nullptr, 0, 0)) {
+                                        return EHTTP_V2_PROTOCOL_ERROR;
+                                    }
+
+                                    ctx->current = HTTP2_CALLBACK_PARSE_NEW_FRAME;
                                 }
-                                ctx->current = HTTP2_CALLBACK_PARSE_SETTING_ID;
                             }
                             break;
                         }
@@ -2176,6 +2203,7 @@ header_skip:
                         goto repeat;
                 }
                 case HTTP2_CALLBACK_PARSE_HEADER_PRIORITY: {
+
                     if (ctx->frame_flag & HTTP2_FLAG_HEADERS_PRIORITY) {
                         ctx->n1 = 0;
                         ctx->current = HTTP2_CALLBACK_PARSE_HEADER_DEPENDENCY1;
@@ -2410,7 +2438,7 @@ header_skip:
 
 ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT {
     auto s = conn->as<http_v2_stream_t>();
-    if (s->flags & (HTTP2_STREAM_CLOSED|http::HTTP2_STREAM_PRIORITY_LOCKED))
+    if (s->flags & (HTTP2_STREAM_CLOSED/*|http::HTTP2_STREAM_PRIORITY_LOCKED*/))
         return (s->flags & ev::DISCONNECT) ? -1 : 0;
 
     if (s->ctx->flags & http::HTTP2_CTX_FLAG_BLOCK_WRITE)
@@ -2422,12 +2450,15 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::bu
     if (copy <= 0)
         return 0;
 
-    if (!(s->write_window -= static_cast<int>(copy))) {
-        if (http_v2_update_priority(s->ctx, conn, s))
-            return -1;
-    }
+    assert(s->ctx->write_window >= copy);
 
     s->ctx->write_window -= static_cast<int>(copy);
+
+    if (!(s->write_window -= static_cast<int>(copy))) {
+        if (http_v2_update_priority(s->ctx, conn, s)) {
+            return -1;
+        }
+    }
 
     ssize_t res = 0;
 
@@ -2517,9 +2548,11 @@ manapi::future<int> manapi::net::http::http_v2_response(worker::base *worker, co
     auto frameSize = static_cast<size_t>(s->ctx->client->max_frame_size);
     http2_frame_type ft = HTTP2_FRAME_HEADERS;
     if (finish) {
-        s->flags |= HTTP2_STREAM_SEND_END;
+        if (!(s->flags & HTTP2_STREAM_SEND_END)) {
+            s->ctx->concurrent_streams_size--;
+            s->flags |= HTTP2_STREAM_SEND_END;
+        }
         cflag |= HTTP2_FLAG_HEADERS_END_STREAM;
-        s->ctx->concurrent_streams_size--;
     }
     goto skip;
     while (cnt < data.size()) {
