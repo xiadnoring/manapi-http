@@ -306,11 +306,11 @@ int main () {
   - [x] FormData
   - [x] JSON (chunked transmission)
   - [ ] Multi-Ranges
-  - [ ] Trailers
-- [ ] TLS
+  - [x] Trailers (recv)
+  - [ ] Trailers (send)
+- [x] TLS
   - [x] OpenSSL
   - [x] WolfSSL
-  - [ ] BoringSSL
 - [x] QUIC
   - [x] quiche
   - [x] OpenSSL
