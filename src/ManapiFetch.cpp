@@ -182,7 +182,7 @@ static std::size_t curl_send_async_continue (const std::shared_ptr<manapi::net::
             return CURL_READFUNC_ABORT;
         }
 
-        manapi::async::current()->etaskpool()->append_super_task([data] () mutable
+        manapi::async::current()->etaskpool()->append_task([data] () mutable
             -> void { curl_send_query_to_send_data(std::move(data), false); });
 
         return CURL_READFUNC_PAUSE;
@@ -266,7 +266,7 @@ std::size_t manapi::net::fetch::curl_read_handler(char *buffer, std::size_t size
 
 static manapi::error::status process_accepted_data_cb (const std::shared_ptr<manapi::net::fetch::data_t> &data) MANAPIHTTP_NOEXCEPT {
     try {
-        manapi::async::current()->etaskpool()->append_super_task([data] () mutable -> void {
+        manapi::async::current()->etaskpool()->append_task([data] () mutable -> void {
             MANAPIHTTP_MUST_ALLOC_START
             manapi::async::run(data->async_handler_recv_body(data, false));
             MANAPIHTTP_MUST_ALLOC_END

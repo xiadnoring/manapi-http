@@ -565,7 +565,7 @@ void quiche_set_header_(quiche_h3_header *header, std::string_view key, std::str
 
 static void wrk_close_connection ( manapi::net::worker::shared_conn conn, manapi::net::worker::shared_conn stream_conn, manapi::net::worker::base *w, bool ok) {
     MANAPIHTTP_MUST_ALLOC_START
-    manapi::async::current()->etaskpool()->append_super_task(
+    manapi::async::current()->etaskpool()->append_task(
         [w, ok, stream_conn, conn] () -> void {
         auto const s = stream_conn->as<manapi::net::worker::http_v3_cloudflare_quiche::connection_stream_t>();
         auto const conndata = conn->as<manapi::net::worker::http_v3_cloudflare_quiche::connection_t>();

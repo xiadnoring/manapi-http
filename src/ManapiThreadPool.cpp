@@ -8,7 +8,7 @@
 #include "./include/ManapiUtils.hpp"
 
 
-void task_doit(std::move_only_function<void()> task, manapi::logger *logger) {
+void task_doit(std::move_only_function<void()>&task, manapi::logger *logger) {
     assert((task));
     try {
         task();
@@ -23,7 +23,7 @@ void task_doit(std::move_only_function<void()> task, manapi::logger *logger) {
     }
 }
 
-void task_doit(manapi::move_only_function<void()> task, manapi::logger *logger) {
+void task_doit(manapi::move_only_function<void()> &task, manapi::logger *logger) {
     assert((task));
 
     try {
@@ -125,7 +125,7 @@ namespace manapi {
             this->tasks.emplace_back(nullptr);
             MANAPIHTTP_MUST_ALLOC_END
         assert(cb);
-            *this->tasks.rbegin() = std::move(cb);
+            this->tasks.back() = std::move(cb);
         }
 
         this->cv.notify_one();
@@ -139,7 +139,7 @@ namespace manapi {
             MANAPIHTTP_MUST_ALLOC_START
             this->tasks2.emplace_back(nullptr);
             MANAPIHTTP_MUST_ALLOC_END
-            *this->tasks2.rbegin() = std::move(cb);
+            this->tasks2.back() = std::move(cb);
         }
 
         this->cv.notify_one();
@@ -154,7 +154,7 @@ namespace manapi {
 
             if (!this->tasks.empty())
             {
-                *cb1 = std::move(*this->tasks.rbegin());
+                *cb1 = std::move(this->tasks.back());
                 this->tasks.pop_back ();
                 return 1;
             }
@@ -166,7 +166,7 @@ namespace manapi {
         }
 
         if (!this->tasks2.empty()) {
-            *cb2 = std::move(*this->tasks2.rbegin());
+            *cb2 = std::move(this->tasks2.back());
             this->tasks2.pop_back ();
             return 2;
         }
@@ -196,11 +196,11 @@ namespace manapi {
                 }
                 case 1:
                     manapi::async::internal::current_stack_cnt_set(0);
-                    task_doit(std::move(cb1), this->logger_.get());
+                    task_doit(cb1, this->logger_.get());
                 break;
                 case 2:
                     manapi::async::internal::current_stack_cnt_set(0);
-                    task_doit(std::move(cb2), this->logger_.get());
+                    task_doit(cb2, this->logger_.get());
                 break;
             }
         }
@@ -222,7 +222,7 @@ namespace manapi {
             this->tasks.pop_front();
 
             manapi::async::internal::current_stack_cnt_set(0);
-            task_doit(std::move(task), this->logger_.get());
+            task_doit(task, this->logger_.get());
 
             return true;
         }
@@ -232,7 +232,7 @@ namespace manapi {
             this->tasks2.pop_front();
 
             manapi::async::internal::current_stack_cnt_set(0);
-            task_doit(std::move(task), this->logger_.get());
+            task_doit(task, this->logger_.get());
 
             return true;
         }
@@ -275,7 +275,7 @@ namespace manapi {
         this->tasks.emplace_back(nullptr);
         MANAPIHTTP_MUST_ALLOC_END
         assert(cb);
-        (*this->tasks.rbegin()) = std::move(cb);
+        this->tasks.back() = std::move(cb);
 
         if ((this->flags_ & 0b10) && this->ontask_) {
             try {
@@ -292,7 +292,7 @@ namespace manapi {
         MANAPIHTTP_MUST_ALLOC_START
         this->tasks2.emplace_back(nullptr);
         MANAPIHTTP_MUST_ALLOC_END
-        (*this->tasks2.rbegin()) = std::move(cb);
+        this->tasks2.back() = std::move(cb);
 
         if ((this->flags_ & 0b10) && this->ontask_) {
             try {

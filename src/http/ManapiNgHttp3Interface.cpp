@@ -540,7 +540,7 @@ static int ng_wrk_http3_end_headers (nghttp3_conn *conn, int64_t stream_id, int 
             }
         }
 
-        manapi::async::current()->etaskpool()->append_super_task(
+        manapi::async::current()->etaskpool()->append_task(
             [status, conn = s->s] () -> void {
                 auto s = MANAPI_AS_STREAM (conn->wrk.data);
                 if (!s)

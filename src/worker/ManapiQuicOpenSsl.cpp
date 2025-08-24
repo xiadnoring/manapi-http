@@ -693,6 +693,9 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
             try {
                 manapi::async::current()->etaskpool()->append_task(
                     [this, conn, s] () -> void {
+                    if (s->flags & ev::DISCONNECT)
+                        return;
+
                     s->sent_an_tick = 0;
                     if (s->send_an_tick_state < DATA_SIZE_TOPBYTE)
                         s->send_an_tick_state += DATA_SIZE_PARTBYTE;

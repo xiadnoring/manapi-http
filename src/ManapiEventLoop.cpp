@@ -700,7 +700,11 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_
 
         auto iter_tasks_res = ev->create_watcher_prepare([ev = ev.get()] (const ev::shared_prepare &w) mutable
             -> void {
-            ev->try_tasks_(ev->idle_tasks_);
+            auto etaskpool = dynamic_cast<ethreadpool *>(ev->etaskpool_.get());
+            while (etaskpool->try_task()) {}
+            etaskpool->set_notify();
+            w->stop();
+            ev->prepare_tasks_->stop();
         });
 
         ev->idle_tasks_ = idle_tasks_res.unwrap();
@@ -1092,11 +1096,10 @@ void manapi::event_loop::async_break_loop_() {
 
 void manapi::event_loop::try_tasks_(const ev::shared_idle &w) {
     auto etaskpool = dynamic_cast<ethreadpool *>(this->etaskpool_.get());
-    while (!etaskpool->try_task()) {
+    if (!etaskpool->try_task()) {
         etaskpool->set_notify();
         w->stop();
         this->prepare_tasks_->stop();
-        break;
     }
 }
 

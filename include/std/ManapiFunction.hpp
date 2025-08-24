@@ -57,7 +57,7 @@ namespace manapi {
         template <typename Functor>
         move_only_function (Functor f) {
             if constexpr (sizeof (FunctorHolder<Functor, Result, Arguments...>) <= sizeof (this->data.stack)) {
-                memset (&this->data, '\0', sizeof (this->data));
+                memset (&this->data.stack, '\0', sizeof (this->data.stack));
                 this->functorHolderPtr = (decltype (this->functorHolderPtr)) std::addressof (this->data.stack);
                 new (this->functorHolderPtr) FunctorHolder<Functor, Result, Arguments...> (std::move(f));
             }
@@ -85,8 +85,8 @@ namespace manapi {
 
         move_only_function (move_only_function&& other) MANAPIHTTP_NOEXCEPT {
             if (other.functorHolderPtr == (decltype (other.functorHolderPtr)) std::addressof (other.data.stack)) {
-                memset (&this->data, '\0', sizeof (this->data));
-                this->functorHolderPtr = (decltype (this->functorHolderPtr))std::addressof(this->data);
+                memset (&this->data.stack, '\0', sizeof (this->data.stack));
+                this->functorHolderPtr = (decltype (this->functorHolderPtr))std::addressof(this->data.stack);
                 other.functorHolderPtr->move(this->functorHolderPtr);
                 other.functorHolderPtr->~FunctorHolderBase();
             }
@@ -98,8 +98,8 @@ namespace manapi {
 
         move_only_function& operator= (move_only_function&& other) MANAPIHTTP_NOEXCEPT {
             if (other.functorHolderPtr == (decltype (other.functorHolderPtr)) std::addressof (other.data.stack)) {
-                memset (&this->data, '\0', sizeof (this->data));
-                this->functorHolderPtr = (decltype (this->functorHolderPtr))std::addressof(this->data);
+                memset (&this->data.stack, '\0', sizeof (this->data.stack));
+                this->functorHolderPtr = (decltype (this->functorHolderPtr))std::addressof(this->data.stack);
                 other.functorHolderPtr->move(this->functorHolderPtr);
                 other.functorHolderPtr->~FunctorHolderBase();
             }
