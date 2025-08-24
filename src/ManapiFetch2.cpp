@@ -138,7 +138,7 @@ bool manapi::net::fetch2::ok() const MANAPIHTTP_NOEXCEPT {
     return s >= 200 && s <= 299;
 }
 
-size_t manapi::net::fetch2::status() const MANAPIHTTP_NOEXCEPT {
+uint16_t manapi::net::fetch2::status() const MANAPIHTTP_NOEXCEPT {
     return this->fetchdata->data.status_code();
 }
 
@@ -150,6 +150,10 @@ manapi::future<manapi::error::status> manapi::net::fetch2::callback_async(std::f
     if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP))
         co_return error::status_resource_exhausted("null");
 
+    if (this->fetchdata->flags & FETCH2_DATA_FLAG_RESULT) {
+        co_return error::status_unavailable("data was already received");
+    }
+
     auto res = this->fetchdata->data.handle_async_body(std::move(cb));
     if (!res)
         co_return std::move(res);
@@ -160,6 +164,11 @@ manapi::future<manapi::error::status> manapi::net::fetch2::callback_async(std::f
 manapi::future<manapi::error::status> manapi::net::fetch2::callback_sync(std::function<ssize_t(char *buffer, ssize_t size)> cb) {
     if (!(this->fetchdata->flags & FETCH2_DATA_FLAG_SETUP))
         co_return error::status_resource_exhausted("null");
+
+    if (this->fetchdata->flags & FETCH2_DATA_FLAG_RESULT) {
+        co_return error::status_unavailable("data was already received");
+    }
+
     auto res = this->fetchdata->data.handle_body(std::move(cb));
     if (!res)
         co_return std::move(res);
@@ -354,6 +363,11 @@ manapi::future<> manapi::net::fetch2::response() {
                         auto err = (co_await fetchdata->data.async_doit());
                         if (!err) {
                             msg = err.msg();
+
+                            if (msg.empty()) {
+                                msg = "internal";
+                            }
+
                             if (!(fetchdata->flags & FETCH2_DATA_FLAG_RECEIVED)) {
                                 resolve (std::move(err));
                             }

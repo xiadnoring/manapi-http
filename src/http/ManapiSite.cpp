@@ -24,9 +24,10 @@ namespace manapi::net::worker {
 
 // default, +error, +layout in url
 enum uri_page_type {
-    URI_PAGE_DEFAULT    = 0,
-    URI_PAGE_ERROR      = 1,
-    URI_PAGE_LAYER      = 2
+    URI_PAGE_DEFAULT = 0,
+    URI_PAGE_ERROR,
+    URI_PAGE_LAYER,
+    URI_PAGE_CUSTOM
 };
 
 enum handler_template_types {
@@ -619,9 +620,14 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
     handler_page->error = std::make_unique<http_handler_page>();
     handler_page->error->handler = site::default_error_handler;
 
+
+    decltype(decltype(this->data->handlers)::handlers)::element_type::iterator it;
+
     // how much we will take the layers from handler_page.layers at the start to the handler_page.error.layer
     size_t error_layer_depth = 0;
     bool not_found = false;
+    bool page_found = false;
+
     try
     {
         const http_uri_part *cur = &this->data->handlers;
@@ -669,6 +675,18 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
                 }
             }
 
+            if (cur->handlers) {
+                auto const hhandler = cur->handlers->find(request_data->method);
+                if (hhandler != cur->handlers->end()) {
+                    if (hhandler->second->flags & HTTP_HANDLER_FUNC_FLAG_CUSTOM) {
+                        it = hhandler;
+                        page_found = true;
+
+                        break;
+                    }
+                }
+            }
+
             if (cur->regexes) {
                 std::smatch match;
                 bool find = false;
@@ -684,7 +702,7 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
                         if (cur->params == nullptr) {
                             // bug
 
-                            MANAPIHTTP_LOG2("cur->regexes_title (params) is null.");
+                            manapi_log_error("cur->regexes_title (params) is null.");
                             return handler_page;
                         }
 
@@ -692,8 +710,9 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
                         if (cur->params->size() != expected_size) {
                             // bug
 
-                            MANAPIHTTP_LOG("The expected number of parameters ({}) does not correspond of reality ({}). uri part: {}.",
-                                       cur->params->size(), expected_size, request_data->path.at(i));
+                            auto const &s = request_data->path.at(i);
+                            manapi_log_error("The expected number of parameters (%zu) does not correspond of reality (%zu). uri part: %.*s.",
+                                       cur->params->size(), expected_size, s.size(), s.data());
                             return handler_page;
                         }
 
@@ -720,11 +739,12 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
 
         // handler page
 
-        if (not_found || cur->handlers == nullptr) {
+        if (not_found || !cur->handlers) {
             return handler_page;
         }
 
-        auto it = cur->handlers->find (request_data->method);
+        if (!page_found)
+            it = cur->handlers->find (request_data->method);
 
         std::shared_ptr<http_handler_function> handler{nullptr};
 
@@ -732,7 +752,7 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
             handler = it->second;
         }
 
-        if (handler == nullptr) {
+        if (!handler) {
             // TODO: handler error
         }
 
@@ -850,6 +870,23 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
 
                 break;
             }
+            case URI_PAGE_CUSTOM: {
+                if (!cur->handlers)
+                    cur->handlers = std::make_unique<handlers_types_t> ();
+
+                functions->flags |= HTTP_HANDLER_FUNC_FLAG_CUSTOM;
+                auto res = cur->handlers->insert({std::move(method), std::move(functions)});
+
+                if (!res.second) {
+                    status = manapi::error::status_already_exists("http:handler exists");
+                    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%.*s url=%.*s method=%.*s",
+                        status.msg().size(), status.msg().data(), uri.size(), uri.data(),
+                        res.first->first.size(), res.first->first.data());
+                    goto err;
+                }
+
+                break;
+            }
             default:
                 return nullptr;
         }
@@ -923,9 +960,9 @@ err:
     return std::move(status);
 }
 
-manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(const std::string &uri, size_t &type)
+manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(std::string_view uri, size_t &type)
 {
-    std::string                 buff;
+    std::string buff;
     std::unique_ptr<handlers_regex_titles_t> regexes_title = nullptr;
 
     http_uri_part *cur      = &this->data->handlers;
@@ -939,16 +976,16 @@ manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(const 
     {
         const bool is_last_part = (i == uri.size());
 
-        if (uri[i] == '/' || is_last_part)
+        if (is_last_part || uri[i] == '/')
         {
             if (!buff.empty())
             {
 
                 if (is_regex)
                 {
-                    if (cur->regexes == nullptr || !cur->regexes->contains(buff))
+                    if (!cur->regexes || !cur->regexes->contains(buff))
                     {
-                        if (cur->regexes == nullptr)
+                        if (!cur->regexes)
                         {
                             cur->regexes = std::make_unique<handlers_regex_map_t>();
                         }
@@ -958,7 +995,7 @@ manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(const 
 
                         std::regex p(buff);
 
-                        if (regexes_title != nullptr)
+                        if (regexes_title)
                         {
                             new_part->params = std::move(regexes_title);
 
@@ -969,8 +1006,8 @@ manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(const 
                                 {
                                     if (std::find(past_params->get()->begin(), past_params->get()->end(), param) !=
                                         past_params->get()->end())
-                                        MANAPIHTTP_LOG("Warning: a param with a title '{}' is already in use. ({})",
-                                                   param, uri);
+                                        manapi_log_error("warning: a param with a title %.*s is already in use. (%.*s)",
+                                                   param.size(), param.data(), uri.size(), uri.data());
                                 }
                             }
 
@@ -997,12 +1034,13 @@ manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(const 
                     {
                         if (buff == "+error") { type = URI_PAGE_ERROR; }
                         else if (buff == "+layer") { type = URI_PAGE_LAYER; }
-                        else { MANAPIHTTP_LOG("The first char '{}' is reserved for special pages in {}", '+', buff); }
+                        else if (buff == "+custom") { type = URI_PAGE_CUSTOM; }
+                        else { manapi_log_error("first char %c is reserved for special pages in %.*s", '+', buff.size(), buff.data()); }
 
                         break;
                     }
 
-                    if (cur->map == nullptr)
+                    if (!cur->map)
                     {
                         cur->map = std::make_unique<handlers_map_t>();
                     }
@@ -1013,11 +1051,11 @@ manapi::net::http::http_uri_part *manapi::net::http::site::build_uri_part(const 
                         auto new_part_lnk   = new_part.get();
                         cur->map->insert({buff, std::move(new_part)});
 
-                        cur                 = new_part_lnk;
+                        cur = new_part_lnk;
                     }
                     else
                     {
-                        cur                 = cur->map->at(buff).get();
+                        cur = cur->map->at(buff).get();
                     }
                 }
 

@@ -23,7 +23,7 @@ void manapi::net::http::custom_data_deleter_t::operator()(custom_data_t *n) {
     }
 }
 
-manapi::net::http::response::response(internal::handle_data_t *cdata, int status, http::config *config, std::unique_ptr<http::request> req):
+manapi::net::http::response::response(internal::handle_data_t *cdata, uint16_t status, http::config *config, std::unique_ptr<http::request> req):
     req_(std::move(req)), config_(config), status_code_(status) {
     this->cdata_ = cdata;
     this->type_ = internal::RESPONSE_NO_DATA;
@@ -132,11 +132,11 @@ manapi::error::status manapi::net::http::response::form(formdata_send formdata) 
     }
 }
 
-void manapi::net::http::response::status_code(size_t status_code) MANAPIHTTP_NOEXCEPT {
+void manapi::net::http::response::status_code(uint16_t status_code) MANAPIHTTP_NOEXCEPT {
     this->status_code_ = status_code;
 }
 
-void manapi::net::http::response::status(size_t _status_code) MANAPIHTTP_NOEXCEPT {
+void manapi::net::http::response::status(uint16_t _status_code) MANAPIHTTP_NOEXCEPT {
     this->status_code_ = _status_code;
 }
 
@@ -192,7 +192,7 @@ manapi::error::status_or<std::string *> manapi::net::http::response::file() MANA
     return &this->body();
 }
 
-int manapi::net::http::response::status_code() const MANAPIHTTP_NOEXCEPT {
+uint16_t manapi::net::http::response::status_code() const MANAPIHTTP_NOEXCEPT {
     return this->status_code_;
 }
 

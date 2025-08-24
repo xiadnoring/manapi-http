@@ -132,6 +132,7 @@ manapi::error::status manapi::slice_base::shift_add(std::size_t shift) MANAPIHTT
 
     if (this->last) {
         this->shift_ += shift;
+        assert(this->first != this->last->next);
         while (this->first != this->last->next
                 && this->first->buff.len <= this->shift_) {
             this->shift_ -= this->first->buff.len;
@@ -144,6 +145,7 @@ manapi::error::status manapi::slice_base::shift_add(std::size_t shift) MANAPIHTT
 
             if (this->first == this->last->next) {
                 this->last = nullptr;
+                this->first = nullptr;
                 break;
             }
         }

@@ -303,7 +303,7 @@ namespace manapi::net {
          * Get the current HTTP status code
          * @return the HTTP status code
          */
-        [[nodiscard]] size_t status_code () const MANAPIHTTP_NOEXCEPT;
+        [[nodiscard]] uint16_t status_code () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * Send the request to the server

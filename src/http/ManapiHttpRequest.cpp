@@ -371,6 +371,14 @@ bool manapi::net::http::request::propagation() const {
     return !(this->flags & internal::REQUEST_FLAG_IS_NO_PROPAGATION);
 }
 
+std::string_view manapi::net::http::request::url() const {
+    return this->request_data->uri;
+}
+
+const std::vector<std::string> &manapi::net::http::request::path() const {
+    return this->request_data->path;
+}
+
 manapi::future<manapi::error::status> manapi::net::http::request::read_body_(worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler) {
     using promise = manapi::async::promise_sync<manapi::error::status>;
 

@@ -34,7 +34,7 @@ namespace manapi::net::http {
         using resp_stream = std::move_only_function<manapi::future<>(resp_stream_cb cb)>;
         using resp_proxy_setup_cb = std::move_only_function<void(class manapi::net::fetch &)>;
 
-        response (internal::handle_data_t* cdata, int status, http::config *config, std::unique_ptr<http::request> req);
+        response (internal::handle_data_t* cdata, uint16_t status, http::config *config, std::unique_ptr<http::request> req);
 
         ~response ();
 
@@ -48,9 +48,9 @@ namespace manapi::net::http {
 
         manapi::error::status form (formdata_send formdata) MANAPIHTTP_NOEXCEPT;
 
-        void status (size_t status_code) MANAPIHTTP_NOEXCEPT;
+        void status (uint16_t status_code) MANAPIHTTP_NOEXCEPT;
 
-        void status_code (size_t status_code) MANAPIHTTP_NOEXCEPT;
+        void status_code (uint16_t status_code) MANAPIHTTP_NOEXCEPT;
 
         manapi::error::status replacers (std::vector<std::pair<std::string, std::string>> replacers) MANAPIHTTP_NOEXCEPT;
 
@@ -70,7 +70,7 @@ namespace manapi::net::http {
 
         manapi::error::status callback_stream (resp_stream cb) MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] int status_code () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD uint16_t status_code () const MANAPIHTTP_NOEXCEPT;
 
         std::string_view status_message () MANAPIHTTP_NOEXCEPT;
 
@@ -155,7 +155,7 @@ namespace manapi::net::http {
 
         uint8_t type_;
 
-        int status_code_;
+        uint16_t status_code_;
 
         uint8_t flags;
 

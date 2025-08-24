@@ -78,6 +78,10 @@ namespace manapi::net::http {
         manapi::future<manapi::error::status_or<std::map<std::string, std::string, std::less<>>>> trailers ();
 
         MANAPIHTTP_NODISCARD bool propagation () const;
+
+        MANAPIHTTP_NODISCARD std::string_view url () const;
+
+        MANAPIHTTP_NODISCARD const std::vector<std::string> &path () const;
     private:
         static future<manapi::error::status> read_body_ (worker::base *worker, worker::shared_conn *conn, request_data_t *req, onrecv_sync_cb handler);
 

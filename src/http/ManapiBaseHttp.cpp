@@ -1050,11 +1050,22 @@ namespace manapi::net::http::internal {
                     // if statics exists
                     std::string path;
 
+
                     auto maxsize = static_cast<size_t> (cdata->req_data->divided >= 0
                         ? cdata->req_data->divided : cdata->req_data->path.size());
 
+                    size_t path_reserved = 0;
+
                     for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
-                        path += manapi::filesystem::path::delimiter + cdata->req_data->path[i];
+                        path_reserved += 1;
+                        path_reserved += cdata->req_data->path[i].size();
+                    }
+
+                    path.reserve(path_reserved);
+
+                    for (size_t i = cdata->router->statics_parts_len; i < maxsize; i++) {
+                        path += manapi::filesystem::path::delimiter;
+                        path += cdata->req_data->path[i];
                     }
 
                     path = manapi::filesystem::path::join(cdata->router->statics->folder, path);

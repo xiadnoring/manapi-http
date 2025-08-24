@@ -51,9 +51,7 @@ int manapi::net::http::url_decode_stream::handle_char_(const char &c) {
                 char x = static_cast<char> (manapi::unicode::onehex2dec(this->hex_symbols[0]) << 4 | manapi::unicode::onehex2dec(
                                      this->hex_symbols[1]));
 
-                if (((this->hex_symbols[0] >= 'a' && this->hex_symbols[0] <= 'z') || (this->hex_symbols[0] >= 'A' && this->hex_symbols[0] <= 'Z')
-                    || (this->hex_symbols[0] >= '0' && this->hex_symbols[0] <= '9')) && ((this->hex_symbols[1] >= 'a' && this->hex_symbols[1] <= 'z') || (this->hex_symbols[1] >= 'A' && this->hex_symbols[1] <= 'Z')
-                    || (this->hex_symbols[1] >= '0' && this->hex_symbols[1] <= '9'))) {
+                if (isalnum(this->hex_symbols[0]) && isalnum(this->hex_symbols[1])) {
                     this->result_.back() += x;
                 }
                 else {
@@ -86,7 +84,7 @@ int manapi::net::http::url_decode_stream::handle_char_(const char &c) {
 
         if (c == '?' || c == '#') {
             this->cleanup_uri_ ();
-            this->divided_ = static_cast<ssize_t>(this->result_.size());
+            this->divided_ = static_cast<int>(this->result_.size());
             this->result_.emplace_back(std::string{c});
             return 0;
         }

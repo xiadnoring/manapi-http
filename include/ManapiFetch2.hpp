@@ -36,7 +36,7 @@ namespace manapi::net {
 
         [[nodiscard]] bool ok () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] size_t status () const MANAPIHTTP_NOEXCEPT;
+        [[nodiscard]] uint16_t status () const MANAPIHTTP_NOEXCEPT;
 
         std::map<std::string, std::string, std::less<>> headers () MANAPIHTTP_NOEXCEPT;
 

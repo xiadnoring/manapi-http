@@ -1,7 +1,7 @@
 #include "http/ManapiHttpTypes.hpp"
 #include "../include/ManapiUtils.hpp"
 
-static const std::map<int, std::string_view> status_to_string_map = {
+static const std::map<uint16_t, std::string_view> status_to_string_map = {
     {100, manapi::net::http::status::CONTINUE_100},
     {101, manapi::net::http::status::SWITCHING_PROTOCOLS_101},
     {102, manapi::net::http::status::PROCESSING_102},
@@ -198,7 +198,7 @@ namespace manapi::net::http::header {
     std::string_view WARNING             = "warning";
 }
 
-manapi::error::status_or<std::string_view> manapi::net::http::status_to_string(int status) {
+manapi::error::status_or<std::string_view> manapi::net::http::status_to_string(uint16_t status) {
     auto const it = status_to_string_map.find(status);
     if (it != status_to_string_map.end())
         return it->second;

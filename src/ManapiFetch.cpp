@@ -815,7 +815,15 @@ manapi::future<manapi::error::status> manapi::net::fetch::async_doit() {
         this->data->flags |= FLAG_DATA_CLOSED;
 
         /* wait all jobs */
+#if !MANAPIHTTP_DISABLE_TRACE
+        if (this->data->async_run.try_to_lock()) {
+            manapi_log_trace(debug::LOG_TRACE_LOW, "fetch(%p):wait unfinished jobs", this->data.get());
+            this->data->async_run.unlock();
+        }
+#endif
         auto lk = co_await this->data->async_run.lock_guard();
+
+        manapi_log_trace(debug::LOG_TRACE_LOW, "fetch(%p):jobs have been finished", this->data.get());
 
         this->data->cancellation.disable();
         this->data->cancellation = nullptr;
@@ -1443,7 +1451,7 @@ manapi::error::status manapi::net::fetch::continue_write_loop() MANAPIHTTP_NOEXC
     return error::status_invalid_argument(curl_easy_strerror(res));
 }
 
-size_t manapi::net::fetch::status_code() const MANAPIHTTP_NOEXCEPT {
+uint16_t manapi::net::fetch::status_code() const MANAPIHTTP_NOEXCEPT {
     if (!this->data)
         return 0;
     return this->data->status_code_;

@@ -282,7 +282,7 @@ namespace manapi::net::http {
     private:
         static std::shared_ptr<http_handler_function> default_error_handler;
 
-        http_uri_part *build_uri_part (const std::string &uri, size_t &type);
+        http_uri_part *build_uri_part (std::string_view uri, size_t &type);
 
     };
 }

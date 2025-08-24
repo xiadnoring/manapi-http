@@ -225,15 +225,30 @@ int main () {
             {"trailers_size", 500}
         });
 
-        router.GET ("/fetch", [&a] (manapi::net::http::request &req, manapi::net::http::uresponse resp)
-            -> void {
+        router.GET ("/fetch/+custom", [&a] (manapi::net::http::request &req, manapi::net::http::response &resp)
+            -> manapi::future<> {
 
-            resp->proxy("https://www.wikipedia.org", [] (manapi::net::fetch &n) -> void {
-                n.verbose(true);
-                n.headers({{"user-agent", R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)"}});
-            }).unwrap();
+            auto path = std::vector<std::string> (std::next(req.path().begin()), req.path().end());
+            std::string url = "";
+            for (auto &p : path) {
+                url += '/';
+                url += p;
+            }
 
-            resp.finish();
+            auto response = (co_await manapi::net::fetch2::fetch(std::format("https://localhost:8885/{}", url), {
+                {"verify_peer", false},
+                {"verify_host", false},
+                {"verbose", true},
+                {"http", "2"},
+                {"headers", {
+                    {"user-agent", R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)"}
+                }}
+            })).unwrap();
+            if (!response.ok()) {
+                co_return resp.text(std::string{manapi::net::http::status_to_string(response.status()).unwrap()}).unwrap();
+            }
+
+            co_return resp.text((co_await response.text()).unwrap()).unwrap();
         }).unwrap();
 
         router.GET ("/stop", [] (http::req &req, manapi::net::http::uresponse resp) mutable -> void {

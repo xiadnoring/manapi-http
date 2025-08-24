@@ -255,7 +255,13 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
     ssize_t rhs = 0;
     ssize_t shifted = 0;
     auto const slice_size = size;
-    auto sv = slice.subslice(0, size).unwrap();
+    auto sv = slice.subslice(0, slice_size).unwrap();
+
+    if (!size) {
+        if (finish)
+            co_return this->sync_write(conn, sv, finish);
+        co_return 0;
+    }
 
     while (total < slice_size) {
         rhs = this->sync_write(conn, sv, finish);
@@ -264,18 +270,25 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
             co_return rhs;
 
         if (!rhs) {
-            if (size && size != slice.size()) {
+            auto const tmp = size;
+            if (size) {
+                assert(!shifted);
                 slice.resize(size).unwrap();
+                assert(slice.size() == size);
                 size = 0;
             }
+
+            assert(slice.size() == (slice_size - shifted));
 
             if (shifted != total) {
                 slice.shift_add(total - shifted).unwrap();
                 shifted = total;
+                assert(slice.size() == (slice_size - shifted));
             }
 
-            sv = slice.subslice(0).unwrap();
+            sv = slice_view{slice};
 
+            assert(sv.size() == (slice_size - shifted));
             rhs = co_await write_internal(this, rhs, conn, sv, finish);
             if (rhs <= 0)
                 co_return rhs;

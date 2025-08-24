@@ -33,6 +33,7 @@ struct manapi::net::http::site::data_t {
 
 struct manapi::net::http::http_handler_function {
     handler_template_t handler = nullptr;
+    uint8_t flags = 0;
     ssize_t trailers_size = 4096;
     std::set<std::string, std::less<>> trailers;
 };
@@ -48,4 +49,8 @@ struct manapi::net::http::http_handler_page {
     std::vector<std::shared_ptr<http_handler_function>>         layer;
     http_static_handler_function                                *statics = nullptr;
     size_t                                                      statics_parts_len{};
+};
+
+enum http_handler_function_flags {
+    HTTP_HANDLER_FUNC_FLAG_CUSTOM = 1
 };
