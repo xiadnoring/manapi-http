@@ -110,15 +110,16 @@ static int ng_wrk_http3_flush_write (manapi::net::worker::ng_wrk_http3_ctx_t *ct
         if (vec_len) {
             for (nghttp3_ssize i = 0; i < vec_len; i++) {
                 auto &b = vec[i];
-                auto rhs = ctx->gctx->worker->sync_write_ex (v_conn, b.base,
-                    b.len, pfin && i + 1 == vec_len, 1e5);
-                if (rhs !=b.len)
+                auto rhs = ctx->gctx->worker->sync_write (v_conn, b.base,
+                    b.len, pfin && i + 1 == vec_len);
+                if (rhs < 0)
                     goto err;
                 res += static_cast<std::size_t>(rhs);
-                // if (rhs != b.len) {
-                //     interruped = 1;
-                //     break;
-                // }
+                if (rhs != b.len) {
+                    interruped = 1;
+                    nghttp3_conn_block_stream(ctx->ctx.get(), v_stream_id);
+                    break;
+                }
             }
         }
         else if (pfin) {
@@ -142,10 +143,11 @@ static int ng_wrk_http3_flush_write (manapi::net::worker::ng_wrk_http3_ctx_t *ct
         }
 
         if (interruped) {
-            if (!(ctx->gctx->worker->event_flags(v_conn) & manapi::ev::WRITE))
+            if (!(ctx->gctx->worker->event_flags(v_conn) & manapi::ev::WRITE)) {
                 ctx->gctx->worker->event_toggle(v_conn, true, manapi::ev::WRITE);
-
-            break;
+                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "write event enable stream=%zu", v_stream_id);
+            }
+            //break;
         }
 
         continue;
@@ -250,7 +252,7 @@ static int ng_wrk_http3(const manapi::net::worker::shared_conn &stream, int flag
 
         assert(s->s);
 
-        int64_t stream_id = s->ctx->gctx->worker->stream_id(s->s);
+        int64_t const stream_id = s->ctx->gctx->worker->stream_id(s->s);
 
         if (stream_id < 0)
             return manapi::ERR_INTERNAL;
@@ -262,15 +264,21 @@ static int ng_wrk_http3(const manapi::net::worker::shared_conn &stream, int flag
 
         if (flags & manapi::ev::WRITE) {
             //assert(s->top->send.deque);
-            if (s->flags & manapi::ev::WRITE) {
-                s->ctx->gctx->http3->feed_event(stream, manapi::ev::WRITE, nullptr, 0, nullptr);
-
-                if (!s->top->send.deque) {
-                    s->ctx->gctx->worker->event_toggle(stream, false, manapi::ev::WRITE);
-                }
+            if (auto rhs = nghttp3_conn_unblock_stream (s->ctx->ctx.get(), stream_id)) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s", "nghttp3_conn_unblock_stream", nghttp3_strerror(rhs));
+                goto err;
             }
 
             ng_wrk_http3_flush_write (s->ctx);
+
+            if (s->flags & manapi::ev::WRITE) {
+                s->ctx->gctx->http3->feed_event(stream, manapi::ev::WRITE, nullptr, 0, nullptr);
+            }
+
+            if (nghttp3_conn_is_stream_writable(s->ctx->ctx.get(), stream_id)) {
+                s->ctx->gctx->worker->event_toggle(stream, false, manapi::ev::WRITE);
+                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "write event disable stream=%zu", stream_id);
+            }
         }
 
         if (flags & manapi::net::worker::base::CONN_READ) {
@@ -282,8 +290,6 @@ static int ng_wrk_http3(const manapi::net::worker::shared_conn &stream, int flag
                     "nghttp3", "nghttp3_conn_read_stream", nghttp3_strerror(rhs));
                 goto err;
             }
-
-            ng_wrk_http3_flush_write (s->ctx);
         }
         else if (flags & (manapi::net::worker::base::CONN_RECV_END)) {
             if (!(s->flags & manapi::net::worker::base::CONN_RECV_END)) {
@@ -298,6 +304,8 @@ static int ng_wrk_http3(const manapi::net::worker::shared_conn &stream, int flag
                 s->ctx->gctx->worker->event_toggle(s->s, false, manapi::ev::READ);
             }
         }
+
+        ng_wrk_http3_flush_write (s->ctx);
 
         return manapi::ERR_OK;
     }
@@ -909,7 +917,7 @@ static int ng_wrk_http3_init (const manapi::net::worker::shared_conn &conn, mana
         auto tp = std::make_unique<manapi::net::worker::ng_wrk_http3_ctx_t>();
 
         /* nghttp2 init */
-        nghttp3_callbacks callbacks;
+        nghttp3_callbacks callbacks{};
 
         callbacks.acked_stream_data = ng_wrk_http3_acked_stream_data;
 
@@ -1218,8 +1226,12 @@ static int ng_wrk_http3_on_read_stream (const manapi::net::worker::shared_conn &
 static int ng_wrk_http3_want_write (const manapi::net::worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     auto const s = MANAPI_AS_STREAM(conn->wrk.data);
 
-    if (s)
-        s->ctx->gctx->worker->event_toggle(conn, true, manapi::ev::WRITE);
+    if (s) {
+        if (!(s->ctx->gctx->worker->event_flags(conn) & manapi::ev::WRITE)) {
+            s->ctx->gctx->worker->event_toggle(conn, true, manapi::ev::WRITE);
+            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "write event enable stream=%zu", s->ctx->gctx->worker->stream_id(conn));
+        }
+    }
 
     return 0;
 }

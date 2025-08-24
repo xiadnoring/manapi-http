@@ -270,7 +270,6 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
             co_return rhs;
 
         if (!rhs) {
-            auto const tmp = size;
             if (size) {
                 assert(!shifted);
                 slice.resize(size).unwrap();

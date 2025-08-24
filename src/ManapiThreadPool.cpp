@@ -116,6 +116,7 @@ namespace manapi {
 
     
     void mthreadpool::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
+
         {
             // obtain a mutex
             std::lock_guard<std::mutex> lk (this->queue_mutex);
@@ -123,6 +124,7 @@ namespace manapi {
             MANAPIHTTP_MUST_ALLOC_START
             this->tasks.emplace_back(nullptr);
             MANAPIHTTP_MUST_ALLOC_END
+        assert(cb);
             *this->tasks.rbegin() = std::move(cb);
         }
 
@@ -268,9 +270,11 @@ namespace manapi {
 
 
     void ethreadpool::append_task(std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT {
+
         MANAPIHTTP_MUST_ALLOC_START
         this->tasks.emplace_back(nullptr);
         MANAPIHTTP_MUST_ALLOC_END
+        assert(cb);
         (*this->tasks.rbegin()) = std::move(cb);
 
         if ((this->flags_ & 0b10) && this->ontask_) {

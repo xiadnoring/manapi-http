@@ -20,6 +20,9 @@
 #   define MANAPI_AS_CTX(n_) static_cast<SSL_CTX*>(n_)
 #   define MANAPI_AS_BIO_ADDR(n_) (BIO_ADDR*)(n_)
 
+#   define DATA_SIZE_PARTBYTE 1024
+#   define DATA_SIZE_TOPBYTE 131072
+
 static int ssl_session_ctx_id = 1;
 
 enum conn_tls_flags  {
@@ -71,6 +74,8 @@ struct manapi::net::worker::openssl_quic::quic_stream_t : connection_prepared_t 
     SSL *stream;
     worker::connection *parent;
     std::size_t poll_id;
+    uint32_t sent_an_tick;
+    uint32_t send_an_tick_state;
 };
 
 manapi::net::worker::openssl_quic::openssl_quic(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config)
@@ -682,13 +687,34 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         std::size_t written = 0;
         int rhs;
 
-        if (!s->top->send_size) {
-            ERR_clear_error();
-            rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
-        }
-        else {
+        if (s->sent_an_tick > s->send_an_tick_state) {
             rhs = 1;
             written = 0;
+            try {
+                manapi::async::current()->etaskpool()->append_task(
+                    [this, conn, s] () -> void {
+                    s->sent_an_tick = 0;
+                    if (s->send_an_tick_state < DATA_SIZE_TOPBYTE)
+                        s->send_an_tick_state += DATA_SIZE_PARTBYTE;
+
+                    this->flush_write_(conn, s);
+                    this->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
+                });
+            }
+            catch (...) {
+                return -1;
+            }
+        }
+        else {
+            if (!s->top->send_size) {
+                ERR_clear_error();
+                rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
+                s->sent_an_tick += written;
+            }
+            else {
+                rhs = 1;
+                written = 0;
+            }
         }
 
         if (rhs!=1) {
@@ -1153,6 +1179,8 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
         try {
             auto data = it->second->as<quic_stream_t>();
 
+            conn_data->transfered += data->transfered;
+
             if (data->transfered >= config->speed_limit_rate
                 && data->ev_callback) {
                 data->transfered = 0;
@@ -1175,7 +1203,6 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
                 }
             }
             else {
-                conn_data->transfered += data->transfered;
                 data->transfered_k += data->transfered;
 
                 if (--data->speed_min_delay <= 0) {
@@ -1228,17 +1255,22 @@ void manapi::net::worker::openssl_quic::stream_interface_eraser(worker::connecti
     if (conn_ptr)
         conn = *conn_ptr;
 
-    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s:Free QUIC %p stream using %p conn",
-        "openssl_quic", connection.get(), conn_data->conn);
+    auto const wrk =  (conn_data->worker);
+
+
+    manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s:Free QUIC %p(%zu) stream using %p conn",
+        "openssl_quic", connection.get(), SSL_get_stream_id(connection->stream), conn_data->conn);
 
     if (connection->stream)
         SSL_free(connection->stream);
 
+
     /**
      * Decrease count of streams
      */
-    auto const wrk =  (conn_data->worker);
     if (wrk) {
+        wrk->bio_flush_write();
+
         if (auto rhs = wrk->global_.cleanup_cb(n, &wrk->global_, wrk))
             manapi_log_error("%s: %s failed due to %d", "openssl_quic", "this->global_.cleanup_cb failed", rhs);
 
@@ -1263,6 +1295,8 @@ void manapi::net::worker::openssl_quic::connection_interface_eraser(worker::conn
 
     auto const wrk =  (connection->worker);
     if (wrk) {
+        wrk->bio_flush_write();
+
         if (n->wrk.data) {
             if (auto rhs = wrk->global_.cleanup_cb(n, &wrk->global_, wrk))
                 manapi_log_error("%s: %s failed due to %d", "openssl_quic", "this->global_.cleanup_cb failed", rhs);
@@ -1423,12 +1457,13 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
 
                 /* write stream error */
                 if (it->revents & SSL_POLL_EVENT_EW) {
-                    manapi_log_trace(debug::LOG_TRACE_LOW, "%s: %s in %p", "openssl_quic", "stream write error", it->desc.value.ssl);
 
                     auto data = SSL_get_app_data(it->desc.value.ssl);
 
                     if (data) {
                         auto sdata = *static_cast<shared_conn *> (data);
+                        manapi_log_trace(debug::LOG_TRACE_LOW, "%s: %s in %p stream=%zu", "openssl_quic", "stream write error",
+                            it->desc.value.ssl, this->stream_id(sdata));
                         assert(sdata->wrk.flags & WRK_INTERFACE_IS_STREAM);
                         this->close_stream(sdata, CLOSE_CONN_ERR);
                     }

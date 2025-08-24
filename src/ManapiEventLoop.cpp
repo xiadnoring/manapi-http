@@ -698,11 +698,18 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_
         if (!idle_tasks_res)
             return idle_tasks_res.err();
 
+        auto iter_tasks_res = ev->create_watcher_prepare([ev = ev.get()] (const ev::shared_prepare &w) mutable
+            -> void {
+            ev->try_tasks_(ev->idle_tasks_);
+        });
+
         ev->idle_tasks_ = idle_tasks_res.unwrap();
+        ev->prepare_tasks_ = iter_tasks_res.unwrap();
 
         ev->etaskpool_ = std::make_shared<manapi::ethreadpool>(logger, [ev = ev.get()] ()
             -> void {
             ev->idle_tasks_->start();
+            ev->prepare_tasks_->start();
         });
 
         dynamic_cast<ethreadpool *>(ev->etaskpool_.get())->set_notify();
@@ -731,6 +738,11 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_
         curl_multi_setopt(ev->curl_watcher->curl_multi.get(), CURLMOPT_SOCKETFUNCTION, event_loop::handle_curl_socket);
         curl_multi_setopt(ev->curl_watcher->curl_multi.get(), CURLMOPT_SOCKETDATA, ev.get());
 #endif
+
+        if (auto rhs = ev->prepare_tasks_->start()) {
+            status = sys_error::status_internal("prepare_tasks::start", rhs);
+            goto err;
+        }
 
         if (auto rhs =ev->idle_tasks_->start()) {
             status = sys_error::status_internal("idle_tasks::start", rhs);
@@ -790,6 +802,7 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_
             }
 
             ev->stop_watcher(std::move(ev->interrupted_watcher_));
+            ev->stop_watcher(std::move(ev->prepare_tasks_));
             ev->stop_watcher(std::move(ev->idle_tasks_));
         }
         return std::move(status);
@@ -859,6 +872,7 @@ void manapi::event_loop::wait() {
     this->stop_watcher (std::move(this->interrupted_watcher_));
     this->stop_watcher(std::move(this->callback_watcher_->adding_async));
     this->stop_watcher(std::move(this->idle_tasks_));
+    this->stop_watcher(std::move(this->prepare_tasks_));
     this->stop_watcher(std::move(this->curl_watcher->timeout_watcher));
 
     std::shared_ptr<ev::idle> idle_tasks;
@@ -1081,6 +1095,7 @@ void manapi::event_loop::try_tasks_(const ev::shared_idle &w) {
     while (!etaskpool->try_task()) {
         etaskpool->set_notify();
         w->stop();
+        this->prepare_tasks_->stop();
         break;
     }
 }
@@ -1685,6 +1700,8 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::udp_send>> manapi::even
 
 manapi::sys_error::status_or<manapi::ev::shared_work> manapi::event_loop::append_task(std::move_only_function<void(const ev::shared_work &w)> work, std::move_only_function<void(const ev::shared_work &w, int status)> after_work) MANAPIHTTP_NOEXCEPT {
     try {
+        assert(work);
+
         auto w = std::make_shared<ev::work>();
 
         std::unique_ptr<ev::internal::work_ctx> data_ctx (new ev::internal::work_ctx{.s_ = w, .cb = std::move(work), .after_cb = std::move(after_work)});

@@ -22,8 +22,11 @@ namespace manapi {
         template <typename ReturnType, typename... Args>
         struct FunctorHolderBase
         {
-            virtual ~FunctorHolderBase() {}
+            virtual ~FunctorHolderBase() {};
+
             virtual ReturnType operator()(Args&&...) = 0;
+
+            virtual void move (void *data) MANAPIHTTP_NOEXCEPT = 0;
         };
 
         template <typename Functor, typename ReturnType, typename... Args>
@@ -34,6 +37,10 @@ namespace manapi {
             ReturnType operator()(Args&&... args) override
             {
                 return f (std::forward<Arguments> (args)...);
+            }
+
+            void move (void *data) MANAPIHTTP_NOEXCEPT override {
+                new (data) FunctorHolder (std::move(this->f));
             }
 
             Functor f;
@@ -50,6 +57,7 @@ namespace manapi {
         template <typename Functor>
         move_only_function (Functor f) {
             if constexpr (sizeof (FunctorHolder<Functor, Result, Arguments...>) <= sizeof (this->data.stack)) {
+                memset (&this->data, '\0', sizeof (this->data));
                 this->functorHolderPtr = (decltype (this->functorHolderPtr)) std::addressof (this->data.stack);
                 new (this->functorHolderPtr) FunctorHolder<Functor, Result, Arguments...> (std::move(f));
             }
@@ -76,22 +84,28 @@ namespace manapi {
         }
 
         move_only_function (move_only_function&& other) MANAPIHTTP_NOEXCEPT {
-            memcpy (&this->data, &other.data, sizeof (this->data));
-            memset (&other.data, '\0', sizeof (this->data));
-            if (other.functorHolderPtr == (decltype (other.functorHolderPtr))std::addressof(other.data))
+            if (other.functorHolderPtr == (decltype (other.functorHolderPtr)) std::addressof (other.data.stack)) {
+                memset (&this->data, '\0', sizeof (this->data));
                 this->functorHolderPtr = (decltype (this->functorHolderPtr))std::addressof(this->data);
-            else
+                other.functorHolderPtr->move(this->functorHolderPtr);
+                other.functorHolderPtr->~FunctorHolderBase();
+            }
+            else {
                 this->functorHolderPtr = other.functorHolderPtr;
+            }
             other.functorHolderPtr = nullptr;
         }
 
         move_only_function& operator= (move_only_function&& other) MANAPIHTTP_NOEXCEPT {
-            memcpy (&this->data, &other.data, sizeof (this->data));
-            memset (&other.data, '\0', sizeof (this->data));
-            if (other.functorHolderPtr == (decltype (other.functorHolderPtr))std::addressof(other.data))
+            if (other.functorHolderPtr == (decltype (other.functorHolderPtr)) std::addressof (other.data.stack)) {
+                memset (&this->data, '\0', sizeof (this->data));
                 this->functorHolderPtr = (decltype (this->functorHolderPtr))std::addressof(this->data);
-            else
+                other.functorHolderPtr->move(this->functorHolderPtr);
+                other.functorHolderPtr->~FunctorHolderBase();
+            }
+            else {
                 this->functorHolderPtr = other.functorHolderPtr;
+            }
             other.functorHolderPtr = nullptr;
             return *this;
         }

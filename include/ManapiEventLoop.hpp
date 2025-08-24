@@ -360,6 +360,8 @@ namespace manapi {
 
         std::shared_ptr<ev::idle> idle_tasks_;
 
+        std::shared_ptr<ev::prepare> prepare_tasks_;
+
         std::shared_ptr<manapi::logger> logger_;
     };
 }
