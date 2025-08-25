@@ -519,10 +519,11 @@ static void ng_wrk_close_connection (manapi::net::worker::shared_conn conn, bool
 
     auto &ctx = s->ctx;
 
-    auto flags = ok ? manapi::net::worker::CLOSE_CONN_SHUTDOWN : manapi::net::worker::CLOSE_CONN_ERR;
+    auto flags = ok ? (manapi::net::worker::CLOSE_CONN_SHUTDOWN|manapi::net::worker::CLOSE_CONN_FINISHED) : (manapi::net::worker::CLOSE_CONN_ERR|manapi::net::worker::CLOSE_CONN_FINISHED);
 
     ctx->active_connections--;
     ctx->gctx->http3->close_connection(conn, flags);
+    ctx->gctx->worker->close_connection(conn, flags);
 
     ng_wrk_http3_flush_close (s->ctx);
 }
@@ -949,10 +950,9 @@ static int ng_wrk_http3_stop_sending (nghttp3_conn *conn, int64_t stream_id, uin
 static int ng_wrk_http3_stream_close (nghttp3_conn *conn, int64_t stream_id, uint64_t app_error_code, void *conn_user_data, void *stream_user_data)  MANAPIHTTP_NOEXCEPT {
     auto s = MANAPI_AS_STREAM(stream_user_data);
 
-
     if (s) {
         if (s->s)
-            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
+            s->ctx->gctx->http3->close_connection(s->s, manapi::net::worker::CLOSE_CONN_EOF);
 
         ng_wrk_http3_flush_close(s->ctx);
     }
@@ -1321,6 +1321,11 @@ static int ng_wrk_http3_rst (const manapi::net::worker::shared_conn &conn, int c
 
             return manapi::ERR_INTERNAL;
         }
+
+        if (s->s)
+            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
+
+        ng_wrk_http3_flush_close(s->ctx);
     }
     else {
         if (s->s)

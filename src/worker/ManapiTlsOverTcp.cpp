@@ -267,7 +267,40 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) M
 }
 
 void manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &sconn) MANAPIHTTP_NOEXCEPT {
-    return TCP::update_limit_rate_connection(sconn);
+    auto const data = sconn->as<tcp_connection_t>();
+
+    if (data->transfered >= this->config_->speed_limit_rate
+        && data->ev_callback) {
+        data->transfered = 0;
+
+        this->read_start_(data);
+
+        if (!(data->flags & ev::DISCONNECT) && data->flags & ev::WRITE && data->ev_callback) {
+            if (manapi::net::worker::base::call_user_callback(&data->ev_callback, sconn, ev::WRITE, nullptr, 0, nullptr)) {
+                this->close_connection(sconn, CLOSE_CONN_ERR);
+                return;
+            }
+        }
+    }
+    else {
+        data->transfered_k += data->transfered;
+
+        if (--data->speed_min_delay <= 0) {
+            if (data->flags & (base::CONN_IO_WAITING)
+                && (data->transfered_k < this->config_->speed_check_bytes)) {
+                this->close_connection(sconn, CLOSE_CONN_ERR);
+                return;
+            }
+
+            data->transfered_k = 0;
+            data->speed_min_delay = static_cast<int>(this->config_->speed_check_delay);
+        }
+
+        data->transfered = 0;
+    }
+
+    if (sconn->wrk.flags & WRK_INTERFACE_CUSTOM_RATE_LIMIT)
+        this->global_.update_limit_rate(sconn, &this->global_, this);
 }
 
 void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *ptr) MANAPIHTTP_NOEXCEPT {

@@ -695,26 +695,26 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
             if (!s->top->send_size) {
                 ERR_clear_error();
                 rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
-                //s->sent_an_tick += written;
-                // if (s->sent_an_tick > s->send_an_tick_state) {
-                //     try {
-                //         manapi::async::current()->etaskpool()->append_task(
-                //             [this, conn, s] () -> void {
-                //             if (s->flags & ev::DISCONNECT)
-                //                 return;
-                //
-                //             s->sent_an_tick = 0;
-                //             if (s->send_an_tick_state < DATA_SIZE_TOPBYTE)
-                //                 s->send_an_tick_state += DATA_SIZE_PARTBYTE;
-                //
-                //             this->flush_write_(conn, s);
-                //             this->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
-                //         });
-                //     }
-                //     catch (...) {
-                //         return -1;
-                //     }
-                // }
+                s->sent_an_tick += written;
+                 if (s->sent_an_tick > s->send_an_tick_state) {
+                     try {
+                         manapi::async::current()->etaskpool()->append_task(
+                             [this, conn, s] () -> void {
+                             if (s->flags & ev::DISCONNECT)
+                                 return;
+
+                             s->sent_an_tick = 0;
+                             if (s->send_an_tick_state < DATA_SIZE_TOPBYTE)
+                                 s->send_an_tick_state += DATA_SIZE_PARTBYTE;
+
+                             this->flush_write_(conn, s);
+                             this->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
+                         });
+                     }
+                     catch (...) {
+                         return -1;
+                     }
+                 }
             }
             else {
                 rhs = 1;
@@ -749,7 +749,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
 
         if (!written) {
             auto sent = interface_worker::connection_io_send(&s->top->send, buff->base, static_cast<ssize_t>(buff->len),
-                &this->bufferpool(), this->config_->buffer_size, &s->top->send_size, 0);
+                &this->bufferpool(), this->config_->buffer_size, &s->top->send_size, maxcnt);
 
             if (sent < 0)
                 return -1;
@@ -823,9 +823,9 @@ void manapi::net::worker::openssl_quic::close_stream(shared_conn s, int flags) M
     SSL_STREAM_RESET_ARGS reset_args{};
     reset_args.quic_error_code = OSSL_QUIC_ERR_NO_ERROR;
     auto stream_status = SSL_stream_reset(data->stream, &reset_args, sizeof (reset_args));
-    if (stream_status) {
+    //if (stream_status) {
         ssl_dump_error_(SSL_get_error(data->stream, stream_status), "SSL_stream_reset");
-    }
+    //}
 
     this->bio_flush_write();
 

@@ -1416,7 +1416,22 @@ manapi::error::status manapi::event_loop::unpause_watch_curl(void *shared_curl) 
 #endif
 
 void manapi::event_loop::interrupt(int sig) MANAPIHTTP_NOEXCEPT {
-    std::unique_lock <std::mutex> lk (event_loop::stop_mx);
+    std::unique_lock <std::mutex> lk (event_loop::stop_mx, std::try_to_lock);
+    if (!lk.owns_lock()) {
+        manapi_log_trace(debug::LOG_TRACE_LOW, "interrupt:try_to_lock failed");
+        switch (sig) {
+            case SIGABRT:
+            case SIGTERM:
+            case SIGINT:
+                break;
+            /* well well well */
+            default:
+                evloop_stack_trace ();
+                std::quick_exit(-1);
+            return;
+        }
+        lk.lock();
+    }
     auto prev = event_loop::interrupted.exchange(true);
 
     switch (sig) {
@@ -1429,7 +1444,8 @@ void manapi::event_loop::interrupt(int sig) MANAPIHTTP_NOEXCEPT {
             /* well well well */
         default:
             evloop_stack_trace ();
-            exit(-1);
+            std::quick_exit(-1);
+        return;
     }
 
     for (auto &loop_ :  manapi::event_loop::events) {
