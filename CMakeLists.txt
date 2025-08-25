@@ -825,10 +825,10 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
             )
 
 
-            set(GRPC_CPP_PLUGIN, "")
+            set(GRPC_CPP_PLUGIN "")
 
             if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
-                set(GRPC_CPP_PLUGIN, gRPC::grpc_cpp_plugin)
+                set(GRPC_CPP_PLUGIN $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
             else ()
                 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
             endif ()

@@ -166,6 +166,10 @@ manapi::error::status manapi::bytebuffer::resize_max(std::size_t s) MANAPIHTTP_N
     return this->resize(std::max(s, this->realsize()));
 }
 
+void manapi::bytebuffer::remove_shift() MANAPIHTTP_NOEXCEPT {
+    this->shift_ = 0;
+}
+
 void manapi::bytebuffer::clear() MANAPIHTTP_NOEXCEPT {
     if (this->flags_ & BYTEBUFFER_FLAG_OBJECT_POOL) {
         if (this->src && this->reserved)

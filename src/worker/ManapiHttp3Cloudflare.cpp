@@ -278,6 +278,38 @@ void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_con
         return;
     }
 
+
+    /**
+     * TODO: wait new version of QUIC where the bug is fixed.
+     * There's I use quiche_h3_send_goaway instead of quiche_conn_stream_shutdown with write option to send
+     * RST frame because nothing doesn't work after quiche_conn_stream_shutdown (ex: sending)
+     */
+
+    int shutdown;
+
+    if (flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOF)) {
+        shutdown = quiche_h3_send_goaway(s->conn->http3_conn, s->conn->conn, s->conn->streams.empty() ? s->id : s->conn->streams.rbegin()->first);
+
+        if (shutdown) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %d", "cf quiche", "quiche_h3_send_goaway",
+                 shutdown);
+        }
+    }
+
+    // shutdown = quiche_conn_stream_shutdown(s->conn->conn, s->id, (quiche_shutdown::QUICHE_SHUTDOWN_READ), QUICHE_ERR_DONE);
+    //
+    // if (shutdown) {
+    //     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %d", "cf quiche", "quiche_conn_stream_shutdown",
+    //         shutdown);
+    // }
+
+    // shutdown = quiche_conn_stream_shutdown(s->conn->conn, s->id, (quiche_shutdown::QUICHE_SHUTDOWN_WRITE), QUICHE_ERR_DONE);
+    //
+    // if (shutdown) {
+    //     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %d", "cf quiche", "quiche_conn_stream_shutdown",
+    //         shutdown);
+    // }
+
     manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "quiche:close_connection() %p stream=%zu flags=%d",
         s->conn, static_cast<std::size_t>(s->id), flags);
 
@@ -440,7 +472,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::quiche_flush_egress_(connect
         return -1;
 
     try {
-        uint8_t out[MANAPIHTTP_QUICHE_MAX_DATAGRAM_SIZE];
+        uint8_t out[4096];
 
         quiche_send_info send_info;
 
@@ -572,6 +604,10 @@ static void wrk_close_connection ( manapi::net::worker::shared_conn conn, manapi
 
         w->close_connection(stream_conn, (ok ? (manapi::net::worker::CLOSE_CONN_FINISHED|manapi::net::worker::CLOSE_CONN_SHUTDOWN) : (manapi::net::worker::CLOSE_CONN_FINISHED|manapi::net::worker::CLOSE_CONN_ERR)));
         conndata->streams.erase(s->id);
+        if (!ok) {
+            if (s->conn->streams.empty())
+                manapi::net::worker::http_v3_cloudflare_quiche::force_close_(s->conn->self, s->conn);
+        }
         manapi::net::worker::http_v3_cloudflare_quiche::flush_connection_closed_(conn, conndata);
     });
     MANAPIHTTP_MUST_ALLOC_END

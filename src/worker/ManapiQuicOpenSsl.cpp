@@ -20,8 +20,8 @@
 #   define MANAPI_AS_CTX(n_) static_cast<SSL_CTX*>(n_)
 #   define MANAPI_AS_BIO_ADDR(n_) (BIO_ADDR*)(n_)
 
-#   define DATA_SIZE_PARTBYTE 1024
-#   define DATA_SIZE_TOPBYTE 131072
+#   define DATA_SIZE_PARTBYTE 4096
+#   define DATA_SIZE_TOPBYTE (131072)
 
 static int ssl_session_ctx_id = 1;
 
@@ -690,29 +690,31 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         if (s->sent_an_tick > s->send_an_tick_state) {
             rhs = 1;
             written = 0;
-            try {
-                manapi::async::current()->etaskpool()->append_task(
-                    [this, conn, s] () -> void {
-                    if (s->flags & ev::DISCONNECT)
-                        return;
-
-                    s->sent_an_tick = 0;
-                    if (s->send_an_tick_state < DATA_SIZE_TOPBYTE)
-                        s->send_an_tick_state += DATA_SIZE_PARTBYTE;
-
-                    this->flush_write_(conn, s);
-                    this->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
-                });
-            }
-            catch (...) {
-                return -1;
-            }
         }
         else {
             if (!s->top->send_size) {
                 ERR_clear_error();
                 rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
-                s->sent_an_tick += written;
+                //s->sent_an_tick += written;
+                // if (s->sent_an_tick > s->send_an_tick_state) {
+                //     try {
+                //         manapi::async::current()->etaskpool()->append_task(
+                //             [this, conn, s] () -> void {
+                //             if (s->flags & ev::DISCONNECT)
+                //                 return;
+                //
+                //             s->sent_an_tick = 0;
+                //             if (s->send_an_tick_state < DATA_SIZE_TOPBYTE)
+                //                 s->send_an_tick_state += DATA_SIZE_PARTBYTE;
+                //
+                //             this->flush_write_(conn, s);
+                //             this->feed_event(conn, ev::WRITE, nullptr, 0, nullptr);
+                //         });
+                //     }
+                //     catch (...) {
+                //         return -1;
+                //     }
+                // }
             }
             else {
                 rhs = 1;
@@ -747,7 +749,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
 
         if (!written) {
             auto sent = interface_worker::connection_io_send(&s->top->send, buff->base, static_cast<ssize_t>(buff->len),
-                &this->bufferpool(), this->config_->buffer_size, &s->top->send_size, maxcnt);
+                &this->bufferpool(), this->config_->buffer_size, &s->top->send_size, 0);
 
             if (sent < 0)
                 return -1;
@@ -817,6 +819,15 @@ void manapi::net::worker::openssl_quic::close_stream(shared_conn s, int flags) M
     }
 
     data->flags |= CONN_CLOSED|CONN_REMOVED;
+
+    SSL_STREAM_RESET_ARGS reset_args{};
+    reset_args.quic_error_code = OSSL_QUIC_ERR_NO_ERROR;
+    auto stream_status = SSL_stream_reset(data->stream, &reset_args, sizeof (reset_args));
+    if (stream_status) {
+        ssl_dump_error_(SSL_get_error(data->stream, stream_status), "SSL_stream_reset");
+    }
+
+    this->bio_flush_write();
 
     prepared::event_callback_clear(s, data);
 
@@ -1087,20 +1098,20 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
 
         auto &buffer = data->top->send.deque->buffer;
 
-        if (data->top->send.deque_current)
-            buffer.shift_add(std::exchange(data->top->send.deque_current, 0));
+        // if (data->top->send.deque_current)
+        //     buffer.shift_add(std::exchange(data->top->send.deque_current, 0));
 
         std::size_t size;
 
         if (last)
             size = data->top->send.deque_cursor;
         else
-            size = buffer.size();
+            size = buffer.size() - data->top->send.deque_current;
 
         std::size_t written;
 
         if (size) {
-            auto rhs = SSL_write_ex2(data->stream, buffer.data(), size, flags, &written);
+            auto rhs = SSL_write_ex2(data->stream, buffer.data() + data->top->send.deque_current, size, flags, &written);
 
             if (rhs!=1) {
                 assert(!written);
@@ -1145,7 +1156,7 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
             continue;
         }
 
-        buffer.shift_add(written);
+        data->top->send.deque_current += written;
 
         break;
     }
@@ -1856,7 +1867,10 @@ void manapi::net::worker::openssl_quic::conn_processing(SSL *client) MANAPIHTTP_
     try {
         while (true) {
             if (sn->flags & CONN_QUIC_SHUTDOWN) {
-                auto rhs = SSL_shutdown(sn->conn);
+                SSL_SHUTDOWN_EX_ARGS args{};
+                args.quic_error_code = OSSL_QUIC_ERR_NO_ERROR;
+                args.quic_reason = "timeout";
+                auto rhs = SSL_shutdown_ex(sn->conn, 0, &args, sizeof (args));
 
                 manapi_log_trace(debug::LOG_TRACE_LOW, "%s: %s %p returned %d", "openssl_quic", "SSL_shutdown()", sn->conn, rhs);
                 auto err = SSL_get_error(sn->conn, rhs);

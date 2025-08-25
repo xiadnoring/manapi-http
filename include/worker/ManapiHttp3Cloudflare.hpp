@@ -58,6 +58,8 @@ namespace manapi::net::worker {
         bytebuffer recv_first_buffer(const shared_conn &conn) MANAPIHTTP_NOEXCEPT override;
 
         static void flush_connection_closed_ (const shared_conn &conn, connection_t *conn_data) MANAPIHTTP_NOEXCEPT;
+
+        static void force_close_ (shared_conn conn, connection_t *conn_data) MANAPIHTTP_NOEXCEPT;
     protected:
         int flags;
 
@@ -84,7 +86,6 @@ namespace manapi::net::worker {
 
         int flush_read_ (const shared_conn &stream) MANAPIHTTP_NOEXCEPT;
 
-        static void force_close_ (shared_conn conn, connection_t *conn_data) MANAPIHTTP_NOEXCEPT;
 
         void wrk_global(wrk_interface_global_t *data) MANAPIHTTP_NOEXCEPT override;
 

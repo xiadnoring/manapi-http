@@ -29,6 +29,7 @@ enum http3_stream_flags {
     HTTP3_STREAM_TOP_READ = manapi::net::worker::base::CONN_TOP_READ,
     HTTP3_STREAM_IS_READING = manapi::net::worker::base::CONN_MAX_CODE << 1,
     HTTP3_STREAM_IS_DATA_STREAM = manapi::net::worker::base::CONN_MAX_CODE << 2,
+    HTTP3_STREAM_BUFF_IS_PROCESSING = manapi::net::worker::base::CONN_MAX_CODE << 3,
     //HTTP3_STREAM_START_WORK_WAIT = 2048
 };
 
@@ -59,9 +60,7 @@ struct ng_wrk_http3_stream_t : manapi::net::worker::http_v3_stream_base_t {
     manapi::net::worker::ng_wrk_http3_ctx_t *ctx;
     manapi::net::worker::shared_conn s;
     std::unique_ptr<manapi::net::http::request_data_t> req;
-
-    manapi::ev::buff_t *buffs;
-    ssize_t size;
+    manapi::bytebuffer buff;
 };
 
 enum ng_wrk_http3_ctx_flags {
@@ -107,11 +106,13 @@ static int ng_wrk_http3_flush_write (manapi::net::worker::ng_wrk_http3_ctx_t *ct
         int interruped = 0;
         std::size_t res = 0;
 
+
         if (vec_len) {
             for (nghttp3_ssize i = 0; i < vec_len; i++) {
                 auto &b = vec[i];
+                bool const finish = pfin && i + 1 == vec_len;
                 auto rhs = ctx->gctx->worker->sync_write (v_conn, b.base,
-                    b.len, pfin && i + 1 == vec_len);
+                    b.len, finish);
                 if (rhs < 0)
                     goto err;
                 res += static_cast<std::size_t>(rhs);
@@ -172,39 +173,81 @@ static ssize_t ng_wrk_http3_write (const manapi::net::worker::shared_conn &conn,
     if (!s->ctx->gctx->worker->is_writable(conn))
         return 0;
 
-    s->buffs = buff;
-    s->size = static_cast<ssize_t>(nbuff);
-
-    if (finish)
-        s->flags |= HTTP3_STREAM_SEND_END;
-
-    if (const auto err = nghttp3_conn_resume_stream(ctx, stream_id)) {
-        if (err != NGHTTP3_ERR_INVALID_ARGUMENT) {
-            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed due to %s",
-                "nghttp3", "nghttp3_conn_resume_stream", nghttp3_strerror(err));
-            return -1;
-        }
-    }
-
-    if (auto rhs = ng_wrk_http3_flush_write(s->ctx)) {
-        manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed",
-            "nghttp3", "ng_wrk_http3_flush_write");
-        goto err;
-    }
-
-    if (s->buffs) {
-        /* it means that send chunks cb was not executed */
-        if (finish && s->flags & HTTP3_STREAM_SEND_END)
-            s->flags ^= HTTP3_STREAM_SEND_END;
-
-        s->buffs = nullptr;
+    if (!s->buff.empty()) {
+        /* worker is already writing something */
         return 0;
     }
 
-    return s->size;
+    ssize_t res = 0;
+
+    while (nbuff) {
+        if (s->buff.empty()) {
+            auto sbuff_res = manapi::async::current()->memory_fabric().buffer(s->ctx->gctx->worker->config()->buffer_size);
+            if (!sbuff_res)
+                return -1;
+
+            s->buff = sbuff_res.unwrap();
+        }
+
+        s->buff.remove_shift();
+        auto const copy = std::min<ssize_t> (s->buff.size(), buff->len);
+        auto status = s->buff.resize(copy);
+        if (!status)
+            goto err;
+        assert(s->buff.size() == copy);
+
+        if (copy == buff->len) {
+            if (finish && nbuff == 1)
+                s->flags |= HTTP3_STREAM_SEND_END;
+        }
+
+
+        memcpy(s->buff.data(), buff->base, copy);
+
+        if (const auto err = nghttp3_conn_resume_stream(ctx, stream_id)) {
+            if (err != NGHTTP3_ERR_INVALID_ARGUMENT) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed due to %s",
+                    "nghttp3", "nghttp3_conn_resume_stream", nghttp3_strerror(err));
+                goto err;
+            }
+        }
+
+        if (auto rhs = ng_wrk_http3_flush_write(s->ctx)) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s: %s failed",
+                "nghttp3", "ng_wrk_http3_flush_write");
+            goto err;
+        }
+
+        ssize_t const written = copy - s->buff.size();
+        res += copy;
+
+        if (written != copy) {
+            break;
+        }
+
+        s->buff.remove_shift();
+        status = s->buff.resize(s->buff.realsize());
+        if (!status)
+            goto err;
+
+        buff->base += copy;
+        buff->len -= copy;
+
+        if (!buff->len) {
+            nbuff--;
+            buff++;
+
+            if (!nbuff) {
+                s->buff.clear();
+                break;
+            }
+        }
+    }
+
+    return res;
 
     err: {
-        s->buffs = nullptr;
+        s->buff.clear();
 
         if (s->flags & HTTP3_STREAM_IS_DATA_STREAM) {
             s->ctx->gctx->http3->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
@@ -388,6 +431,15 @@ static int ng_wrk_http3_acked_stream_data (nghttp3_conn *conn, int64_t stream_id
         if (s->ctx->gctx->flags & WRKHTTP3_GCTX_FLAG_QLOG) {
             manapi_log_debug("%s: stream id=%zu ack=%zu conn=%p", "nghttp3", stream_id, datalen, conn);
         }
+
+        s->buff.shift_add(datalen);
+
+        if (s->buff.empty()) {
+            s->flags ^= HTTP3_STREAM_BUFF_IS_PROCESSING;
+        }
+
+        if (s->flags & HTTP3_STREAM_SEND_END)
+            s->buff.clear();
     }
     return 0;
 }
@@ -1039,52 +1091,70 @@ static nghttp3_ssize ng_wrk_http3_read_data (nghttp3_conn *conn, int64_t stream_
     *pflags = 0;
 
     /* send data */
-    ssize_t cnt = 0;
+    //ssize_t cnt = 0;
 
-    auto buffs = s->buffs;
-    s->buffs = nullptr;
-
-    if (!s->size || !buffs) {
-
+    if (s->buff.empty() || (s->flags & HTTP3_STREAM_BUFF_IS_PROCESSING)) {
         if (s->flags & HTTP3_STREAM_SEND_END) {
             (*pflags) |= NGHTTP3_DATA_FLAG_EOF;
             return 0;
         }
-
         return NGHTTP3_ERR_WOULDBLOCK;
     }
 
-    std::size_t res = 0;
+    s->flags |= HTTP3_STREAM_BUFF_IS_PROCESSING;
 
-    if (buffs) {
-        while (veccnt && s->size) {
-            vec->base = reinterpret_cast<uint8_t *>(buffs->base);
-            vec->len = buffs->len;
+    vec->base = reinterpret_cast<uint8_t *>(s->buff.data());
+    vec->len = s->buff.size();
 
-            res += buffs->len;
+    if (s->flags & HTTP3_STREAM_SEND_END)
+        (*pflags) |= NGHTTP3_DATA_FLAG_EOF;
 
-            vec++;
-            veccnt--;
+    //
+    // auto buffs = s->buffs;
+    // s->buffs = nullptr;
+    //
+    // if (!s->size || !buffs) {
+    //
+    //     if (s->flags & HTTP3_STREAM_SEND_END) {
+    //         (*pflags) |= NGHTTP3_DATA_FLAG_EOF;
+    //         return 0;
+    //     }
+    //
+    //     return NGHTTP3_ERR_WOULDBLOCK;
+    // }
+    //
+    // std::size_t res = 0;
+    //
+    // if (buffs) {
+    //     while (veccnt && s->size) {
+    //         vec->base = new uint8_t[buffs->len];
+    //         vec->len = buffs->len;
+    //         memcpy(vec->base, reinterpret_cast<uint8_t *>(buffs->base), vec->len);
+    //
+    //         res += buffs->len;
+    //
+    //         vec++;
+    //         veccnt--;
+    //
+    //         buffs++;
+    //         s->size--;
+    //
+    //         cnt++;
+    //
+    //         break;
+    //     }
+    //
+    //     if (s->flags & HTTP3_STREAM_SEND_END) {
+    //         if (s->size)
+    //             s->flags ^= HTTP3_STREAM_SEND_END;
+    //         else
+    //             (*pflags) |= NGHTTP3_DATA_FLAG_EOF;
+    //     }
+    // }
+    //
+    // s->size = res;
 
-            buffs++;
-            s->size--;
-
-            cnt++;
-
-            break;
-        }
-
-        if (s->flags & HTTP3_STREAM_SEND_END) {
-            if (s->size)
-                s->flags ^= HTTP3_STREAM_SEND_END;
-            else
-                (*pflags) |= NGHTTP3_DATA_FLAG_EOF;
-        }
-    }
-
-    s->size = res;
-
-    return cnt;
+    return 1;
 }
 
 static int ng_wrk_http3_send_response_sync (const manapi::net::worker::shared_conn &stream, manapi::net::worker::wrk_interface_global_t *global, manapi::net::worker::base *w, manapi::net::http::response* res, bool finish) {

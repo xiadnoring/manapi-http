@@ -66,6 +66,8 @@ namespace manapi {
 
         manapi::error::status resize_max (std::size_t s) MANAPIHTTP_NOEXCEPT;
 
+        void remove_shift () MANAPIHTTP_NOEXCEPT;
+
         void clear () MANAPIHTTP_NOEXCEPT;
 
         void reinit ();

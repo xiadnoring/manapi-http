@@ -413,7 +413,11 @@ static int ng_wrk_http2_on_header_callback (nghttp2_session *session, const nght
                         return NGHTTP2_ERR_FATAL;
 
                     if (s->req->trailers_size > s->req->handler->trailers_size) {
-                        return NGHTTP2_ERR_TOO_MANY_CONTINUATIONS;
+#if NGHTTP2_VERSION_NUM >= 0x013b00
+                        return NGHTTP2_ERR_FLOODED;
+#else
+                        return NGHTTP2_ERR_FLOODED;
+#endif
                     }
 
                     if (!s->req->handler->trailers.contains(name_str))
@@ -439,7 +443,11 @@ static int ng_wrk_http2_on_header_callback (nghttp2_session *session, const nght
                 s->req->headers_size += name_str.size() + value_str.size();
 
                 if (s->req->headers_size > config->max_headers_size) {
-                    return NGHTTP2_ERR_TOO_MANY_CONTINUATIONS;
+#if NGHTTP2_VERSION_NUM >= 0x013b00
+                    return NGHTTP2_ERR_FLOODED;
+#else
+                    return NGHTTP2_ERR_FLOODED;
+#endif
                 }
 
                 try {
