@@ -539,7 +539,8 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
             co_return;
         }
 
-        auto size = co_await formdata->payload_size();
+        auto size_res = co_await formdata->payload_size();
+        auto size = size_res.unwrap();
 
         auto task = mask_response(res.get(), false);
         manapi::async::run<int> (std::move(task),
@@ -553,7 +554,7 @@ manapi::future<> manapi::net::http::internal::send_response_formdata(std::unique
 
                 if (result && *result == ERR_OK) {
                     auto boundary = formdata->generate_boundary();
-                    size += formdata->multipart_size(static_cast<ssize_t>(boundary.size()));
+                    size += formdata->multipart_size(static_cast<ssize_t>(boundary.size())).unwrap();
 
                     res->header(std::string{header::CONTENT_LENGTH}, std::to_string(size));
                     res->header(std::string{header::CONTENT_TYPE}, stringify_header_value({{"multipart/form-data", {{"boundary", boundary.substr(2)}}}}));

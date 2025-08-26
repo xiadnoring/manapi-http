@@ -348,6 +348,8 @@ manapi::future<manapi::error::status> manapi::net::http::site::config_object(jso
                 }
 
                 config["site_time"] = 0;
+                config["site_path"] = "";
+                config["cache_time"] = 0;
 
                 co_await this->setup_config(config);
                 co_return true;
@@ -610,7 +612,10 @@ manapi::future<manapi::error::status> manapi::net::http::site::set_locked_cache_
 
 manapi::future<> manapi::net::http::site::save_config(std::shared_ptr<data_t> data) {
     auto &config = *data->config_;
-    co_await manapi::filesystem::async_write(config["site_path"].as_string(),
+    auto path = config["site_path"].as_string();
+    if (path.empty())
+        co_return;
+    co_await manapi::filesystem::async_write(std::move(path),
             config["site"].dump(4), ev::IRWXU, ev::FS_O_CREAT|ev::FS_O_TRUNC|ev::FS_O_WRONLY);
 }
 

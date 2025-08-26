@@ -41,6 +41,14 @@ namespace manapi::string {
      * @return randomly generated string
      */
     std::string random (size_t len);
+    /**
+     * Get randomly generated string
+     *
+     * @param dst result
+     * @param len the size of the output string
+     * @return randomly generated string
+     */
+    void random (char *dst, size_t len) MANAPIHTTP_NOEXCEPT;
 
     /**
      * Get randomly generated string from the 'src' chars
@@ -50,6 +58,16 @@ namespace manapi::string {
      * @return randomly generated string
      */
     std::string random (size_t len, std::string_view src);
+
+    /**
+     * Get randomly generated string from the 'src' chars
+     *
+     * @param dst result
+     * @param len the size of the output string
+     * @param src chars which will be used to generate new string
+     * @return randomly generated string
+     */
+    void random (char *dst, size_t len, std::string_view src) MANAPIHTTP_NOEXCEPT;
 
     /**
      * Split the string by the separator
@@ -78,4 +96,12 @@ namespace manapi::string {
      * @param n the source string
      */
     void lower_ascii (std::string &n);
+
+    /**
+     * Generates a string of size |s| and fills in it with |c|
+     * @param s
+     * @param c
+     * @return
+     */
+    std::string fill (size_t s, char c);
 }

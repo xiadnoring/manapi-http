@@ -371,7 +371,6 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
         if (!wbio || !rbio) {
             co_return error::status_internal("openssl_quic:BIO_new");
         }
-
         auto const listener = SSL_new_listener (MANAPI_AS_CTX(this->ctx), 0);
         if (!listener)
             co_return error::status_internal("openssl_quic:SSL_new_listener");

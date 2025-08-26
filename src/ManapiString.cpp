@@ -37,10 +37,15 @@ std::string manapi::string::random (size_t len) {
     return random(len, std::string_view{ptr, sizeof(ptr) - 1});
 }
 
+void manapi::string::random(char *dst, size_t len) MANAPIHTTP_NOEXCEPT {
+    random(dst, len, std::string_view{ptr, sizeof(ptr) - 1});
+}
+
 std::string manapi::string::random (size_t len, std::string_view src) {
     if (src.empty()) {
         THROW_MANAPIHTTP_EXCEPTION2(ERR_INTERNAL, "random(...): the 'src' parameter is empty");
     }
+
     const size_t back = src.size() - 1;
 
     std::string result;
@@ -51,6 +56,19 @@ std::string manapi::string::random (size_t len, std::string_view src) {
     }
 
     return std::move(result);
+}
+
+void manapi::string::random(char *dst, size_t len, std::string_view src) MANAPIHTTP_NOEXCEPT {
+    if (src.empty()) {
+        manapi_log_error("random:source is empty");
+        return;
+    }
+
+    const size_t back = src.size() - 1;
+
+    for (size_t i = 0; i < len; i++) {
+        dst[i] = src[manapi::math::random(0, back)];
+    }
 }
 
 std::vector<std::string_view> manapi::string::split(std::string_view s, char c) {
@@ -120,4 +138,11 @@ void manapi::string::lower_ascii(std::string &n) {
         if (c >= 'A' && c <= 'Z')
             c = c - ('Z' - 'z');
     }
+}
+
+std::string manapi::string::fill(size_t s, char c) {
+    std::string b;
+    b.resize(s);
+    memset(b.data(), c, s);
+    return std::move(b);
 }

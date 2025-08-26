@@ -579,36 +579,61 @@ manapi::net::fetch_formdata & manapi::net::fetch_formdata::operator=(fetch_formd
     return *this;
 }
 
-void manapi::net::fetch_formdata::setdata(std::string name, std::string value) {
-    multipart_param_value res{};
-    res.strdata = std::move(value);
-    res.type = PARAM_DEFAULT;
-    this->mdata.insert({std::move(name), std::move(res)});
+manapi::error::status manapi::net::fetch_formdata::set_text(std::string name, std::string value) MANAPIHTTP_NOEXCEPT {
+    try {
+        multipart_param_value res{};
+        res.strdata = std::move(value);
+        res.type = PARAM_DEFAULT;
+        auto const it = this->mdata.insert({std::move(name), std::move(res)});
+        if (!it.second)
+            return error::status_already_exists("formdata:param exists");
+        return error::status_ok();
+    }
+    catch (...) {
+        return error::status_resource_exhausted();
+    }
 }
 
-void manapi::net::fetch_formdata::setfile(std::string name, std::string filepath) {
-    multipart_param_value res{};
-    res.strdata = std::move(filepath);
-    res.type = PARAM_FILE;
-    this->mdata.insert({std::move(name), std::move(res)});
+manapi::error::status manapi::net::fetch_formdata::set_file(std::string name, std::string filepath) MANAPIHTTP_NOEXCEPT {
+    try {
+        multipart_param_value res{};
+        res.strdata = std::move(filepath);
+        res.type = PARAM_FILE;
+        auto const it =this->mdata.insert({std::move(name), std::move(res)});
+
+        if (!it.second)
+            return error::status_already_exists("formdata:param exists");
+        return error::status_ok();
+    }
+    catch (...) {
+        return error::status_resource_exhausted();
+    }
 }
 
-void manapi::net::fetch_formdata::setcallback(std::string name, ssize_t size, std::move_only_function<size_t(void *buff, size_t buff_size)> cb) {
-    multipart_param_value res{};
-    res.filedata = multipart_param_value_file({std::move(cb), size});
-    res.type = PARAM_CALLBACK;
-    this->mdata.insert({std::move(name), std::move(res)});
+manapi::error::status manapi::net::fetch_formdata::set_callback(std::string name, ssize_t size, std::move_only_function<size_t(void *buff, size_t buff_size)> cb) MANAPIHTTP_NOEXCEPT {
+    try {
+        multipart_param_value res{};
+        res.filedata = multipart_param_value_file({std::move(cb), size});
+        res.type = PARAM_CALLBACK;
+        auto const it = this->mdata.insert({std::move(name), std::move(res)});
+        if (!it.second)
+            return error::status_already_exists("formdata:param exists");
+        return error::status_ok();
+    }
+    catch (...) {
+        return error::status_resource_exhausted();
+    }
 }
 
-void manapi::net::fetch_formdata::clear() {
+void manapi::net::fetch_formdata::clear() MANAPIHTTP_NOEXCEPT {
     this->mdata.clear();
 }
 
-manapi::net::fetch_formdata::tdata::iterator manapi::net::fetch_formdata::begin() {
+manapi::net::fetch_formdata::tdata::iterator manapi::net::fetch_formdata::begin() MANAPIHTTP_NOEXCEPT {
     return this->mdata.begin();
 }
 
-manapi::net::fetch_formdata::tdata::iterator manapi::net::fetch_formdata::end() {
+manapi::net::fetch_formdata::tdata::iterator manapi::net::fetch_formdata::end() MANAPIHTTP_NOEXCEPT {
     return this->mdata.end();
 }
 

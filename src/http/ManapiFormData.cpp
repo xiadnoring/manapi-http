@@ -708,52 +708,71 @@ manapi::future<ssize_t> manapi::net::formdata_recv::onrecv_urlencoded_(slice_vie
     co_return -1;
 }
 
-manapi::net::formdata_send::formdata_send(async::shared_ctx ctx) : ctx(std::move(ctx)) {}
+manapi::net::formdata_send::formdata_send() {}
 
 manapi::net::formdata_send::~formdata_send() = default;
 
-manapi::net::formdata_send::formdata_send(formdata_send &&n) noexcept {
-    this->operator=(std::forward<decltype(n)>(n));
+manapi::net::formdata_send::formdata_send(formdata_send &&n) MANAPIHTTP_NOEXCEPT = default;
+
+manapi::net::formdata_send & manapi::net::formdata_send::operator=(formdata_send &&n) MANAPIHTTP_NOEXCEPT = default;
+
+manapi::error::status manapi::net::formdata_send::set_file(const std::string &name, std::string filepath) MANAPIHTTP_NOEXCEPT {
+    try {
+        auto filename = manapi::filesystem::path::basename(filepath);
+        auto filemime = manapi::mime::mime_by_file_path(filename);
+
+        auto const res = this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::string{filename}, std::string{filemime}}}});
+        if (!res.second)
+            return error::status_already_exists("formdata:param exists");
+        return error::status_ok();
+    }
+    catch (...) {
+        return error::status_resource_exhausted();
+    }
 }
 
-manapi::net::formdata_send & manapi::net::formdata_send::operator=(formdata_send &&n) noexcept {
-    this->ctx = std::move(n.ctx);
-    this->data = std::move(n.data);
-    return *this;
+manapi::error::status manapi::net::formdata_send::set_file(const std::string &name, std::string filepath, std::string filename, std::string filemime) MANAPIHTTP_NOEXCEPT {
+    try {
+        auto const res = this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::move(filemime)}}});
+        if (!res.second)
+            return error::status_already_exists("formdata:param exists");
+        return error::status_ok();
+    }
+    catch (...) {
+        return error::status_resource_exhausted();
+    }
 }
 
-void manapi::net::formdata_send::append_file(const std::string &name, std::string filepath) {
-    auto filename = manapi::filesystem::path::basename(filepath);
-    auto filemime = manapi::mime::mime_by_file_path(filename);
-
-    this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::string{filename}, std::string{filemime}}}});
+manapi::error::status manapi::net::formdata_send::set_text(const std::string &name, std::string data) MANAPIHTTP_NOEXCEPT {
+    try {
+        auto const res = this->data.insert({name, {DATA_PLAIN, std::move(data), {}}});
+        if (!res.second)
+            return error::status_already_exists("formdata:param exists");
+        return error::status_ok();
+    }
+    catch (...) {
+        return error::status_resource_exhausted();
+    }
 }
 
-void manapi::net::formdata_send::append_file(const std::string &name, std::string filepath, std::string filename, std::string filemime) {
-    this->data.insert({name,  {DATA_FILE, std::move(filepath), data_file_storage{std::move(filename), std::move(filemime)}}});
+void manapi::net::formdata_send::erase(std::string_view name) MANAPIHTTP_NOEXCEPT {
+    auto it = this->data.find(name);
+    if (it != this->data.end())
+        this->data.erase(it);
 }
 
-void manapi::net::formdata_send::append_text(const std::string &name, std::string data) {
-    this->data.insert({name, {DATA_PLAIN, std::move(data), {}}});
-}
-
-void manapi::net::formdata_send::erase(const std::string &name) {
-    this->data.erase(name);
-}
-
-bool manapi::net::formdata_send::contains(const std::string &name) const {
+bool manapi::net::formdata_send::contains(std::string_view name) const MANAPIHTTP_NOEXCEPT {
     return this->data.contains(name);
 }
 
-manapi::future<ssize_t> manapi::net::formdata_send::payload_size() const {
+manapi::future<manapi::error::status_or<ssize_t>> manapi::net::formdata_send::payload_size() const {
     ssize_t s = 0;
     for (const auto &param : this->data) {
         switch (param.second.type) {
             case DATA_FILE: {
                 auto res = co_await manapi::filesystem::async_file_size(param.second.data);
-                // if (!res.ok())
-                //     res.unwrap();
-
+                if (!res.ok())
+                    co_return res.err();
                 s += res.unwrap();
                 break;
             }
@@ -767,40 +786,54 @@ manapi::future<ssize_t> manapi::net::formdata_send::payload_size() const {
     co_return s;
 }
 
-ssize_t manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const {
-    auto s = static_cast<ssize_t>(boundary_size + (sizeof ("--\r\n") - 1));
-    for (const auto &param : this->data) {
-        s += static_cast<ssize_t>(boundary_size + (sizeof ("\r\n") - 1));
-        if (param.second.type == DATA_PLAIN) {
-            std::string const name = json{param.first}.dump();
-            std::string const val = http::stringify_header_value({{"form-data", {{"name", name}}}});
-            std::string header = http::stringify_header({http::header::CONTENT_DISPOSITION, val});
-            s += static_cast<ssize_t> (header.size());
+manapi::error::status_or<ssize_t> manapi::net::formdata_send::multipart_size(ssize_t boundary_size) const MANAPIHTTP_NOEXCEPT {
+    try {
+        auto s = static_cast<ssize_t>(boundary_size + (sizeof ("--\r\n") - 1));
+        for (const auto &param : this->data) {
+            s += static_cast<ssize_t>(boundary_size + (sizeof ("\r\n") - 1));
+            if (param.second.type == DATA_PLAIN) {
+                std::string const name = json{param.first}.dump();
+                std::string const val = http::stringify_header_value({{"form-data", {{"name", name}}}});
+                std::string header = http::stringify_header({http::header::CONTENT_DISPOSITION, val});
+                s += static_cast<ssize_t> (header.size());
+                s += (sizeof ("\r\n") - 1);
+            }
+            else if (param.second.type == DATA_FILE) {
+                std::string const name = json{param.first}.dump();
+                std::string const filename = json{param.second.file.value().filename}.dump();
+                std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
+                std::string header = http::stringify_header({http::header::CONTENT_DISPOSITION, val});
+                s += static_cast<ssize_t> (header.size());
+                s += (sizeof ("\r\n") - 1);
+
+                val = http::stringify_header_value({{param.second.file.value().filemime}});
+                header = http::stringify_header({http::header::CONTENT_TYPE, val});
+                s += static_cast<ssize_t> (header.size());
+                s += (sizeof ("\r\n") - 1);
+            }
+
+            s += (sizeof ("\r\n") - 1);
+            /* ... */
             s += (sizeof ("\r\n") - 1);
         }
-        else if (param.second.type == DATA_FILE) {
-            std::string const name = json{param.first}.dump();
-            std::string const filename = json{param.second.file.value().filename}.dump();
-            std::string val = http::stringify_header_value({{"form-data", {{"name", name}, {"filename", filename}}}});
-            std::string header = http::stringify_header({http::header::CONTENT_DISPOSITION, val});
-            s += static_cast<ssize_t> (header.size());
-            s += (sizeof ("\r\n") - 1);
-
-            val = http::stringify_header_value({{param.second.file.value().filemime}});
-            header = http::stringify_header({http::header::CONTENT_TYPE, val});
-            s += static_cast<ssize_t> (header.size());
-            s += (sizeof ("\r\n") - 1);
-        }
-
-        s += (sizeof ("\r\n") - 1);
-        /* ... */
-        s += (sizeof ("\r\n") - 1);
+        return s;
     }
-    return s;
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "formdata: failed", e.what());
+    }
+    return error::status_internal("formdata: failed");
 }
 
+static constexpr char boundary_label[] = "--boundary";
+
 std::string manapi::net::formdata_send::generate_boundary() const {
-    return "--boundary" + manapi::string::random(boundary_payload_size, "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789");
+    std::string boundary;
+    size_t constexpr boundary_label_size = sizeof (boundary_label) - 1;
+    boundary.resize(boundary_label_size + boundary_payload_size);
+    memcpy (boundary.data(), boundary_label, boundary_label_size);
+    manapi::string::random(boundary.data() + boundary_label_size, boundary_payload_size,
+        "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789");
+    return std::move(boundary);
 }
 
 manapi::future<manapi::error::status> manapi::net::formdata_send::data2multipart(std::string boundary, ssize_t buffer_size,  std::move_only_function<manapi::future<manapi::error::status>(manapi::slice_view slice, bool fin)> write) {

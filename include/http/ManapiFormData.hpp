@@ -68,23 +68,29 @@ namespace manapi::net {
 
     class formdata_send {
     public:
-        formdata_send (async::shared_ctx ctx);
+        formdata_send ();
+
         ~formdata_send ();
 
-        formdata_send (formdata_send &&n) noexcept;
-        formdata_send& operator= (formdata_send &&n) noexcept;
+        formdata_send (formdata_send &&n) MANAPIHTTP_NOEXCEPT;
 
-        void append_file (const std::string &name, std::string filepath);
-        void append_file (const std::string &name, std::string filepath, std::string filename, std::string filemime);
-        void append_text (const std::string &name, std::string data);
+        formdata_send& operator= (formdata_send &&n) MANAPIHTTP_NOEXCEPT;
 
-        void erase (const std::string &name);
-        [[nodiscard]] bool contains (const std::string &name) const;
+        manapi::error::status set_file (const std::string &name, std::string filepath) MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] manapi::future<ssize_t> payload_size () const;
-        [[nodiscard]] ssize_t multipart_size (ssize_t boundary_size) const;
+        manapi::error::status set_file (const std::string &name, std::string filepath, std::string filename, std::string filemime) MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] std::string generate_boundary () const;
+        manapi::error::status set_text (const std::string &name, std::string data) MANAPIHTTP_NOEXCEPT;
+
+        void erase (std::string_view name) MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD bool contains (std::string_view name) const MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD manapi::future<manapi::error::status_or<ssize_t>> payload_size () const;
+
+        MANAPIHTTP_NODISCARD manapi::error::status_or<ssize_t> multipart_size (ssize_t boundary_size) const MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD std::string generate_boundary () const;
 
         manapi::future<manapi::error::status> data2multipart (std::string boundary, ssize_t buffer_size, std::move_only_function<manapi::future<manapi::error::status>(manapi::slice_view, bool fin)> write);
     private:
@@ -99,7 +105,6 @@ namespace manapi::net {
             std::optional<data_file_storage> file;
         };
 
-        std::map<std::string, data_storage> data{};
-        async::shared_ctx ctx;
+        std::map<std::string, data_storage, std::less<>> data{};
     };
 }

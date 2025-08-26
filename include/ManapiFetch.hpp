@@ -62,7 +62,7 @@ namespace manapi::net {
          * @param name the plain field name
          * @param value the plain field value
          */
-        void setdata (std::string name, std::string value);
+        manapi::error::status set_text (std::string name, std::string value) MANAPIHTTP_NOEXCEPT;
 
         /**
          * send the file by its filepath
@@ -70,7 +70,7 @@ namespace manapi::net {
          * @param name the file field name
          * @param filepath the file path
          */
-        void setfile (std::string name, std::string filepath);
+        manapi::error::status set_file (std::string name, std::string filepath) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the callback
@@ -79,26 +79,26 @@ namespace manapi::net {
          * @param size the data size
          * @param cb the callback
          */
-        void setcallback (std::string name, ssize_t size, std::move_only_function<size_t (void *buff, size_t buff_size)> cb);
+        manapi::error::status set_callback (std::string name, ssize_t size, std::move_only_function<size_t (void *buff, size_t buff_size)> cb) MANAPIHTTP_NOEXCEPT;
 
         /**
          * clear current state
          */
-        void clear ();
+        void clear () MANAPIHTTP_NOEXCEPT;
 
         /**
          * get the first field
          *
          * @return the first field
          */
-        tdata::iterator begin();
+        tdata::iterator begin() MANAPIHTTP_NOEXCEPT;
 
         /**
          * get the field boundary
          *
          * @return the field boundary
          */
-        tdata::iterator end();
+        tdata::iterator end() MANAPIHTTP_NOEXCEPT;
     private:
         /**
          * storage

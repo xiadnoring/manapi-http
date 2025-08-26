@@ -825,13 +825,13 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
             )
 
 
-            set(GRPC_CPP_PLUGIN "")
-
             if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
                 set(GRPC_CPP_PLUGIN $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
             else ()
                 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
             endif ()
+
+            message(STATUS "GRPC_CPP_PLUGIN=${GRPC_CPP_PLUGIN}")
 
             if (WIN32)
                 add_custom_command(
@@ -908,8 +908,8 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
                 test_package/test_package.cpp
                 test_package/test_bigint.hpp
                 test_package/test_json_masks.hpp
+                test_package/test_http_and_fetch.cpp
                 test_package/test_fetch.hpp
-                test_package/test_fetch.cpp
                 test_package/utest.h
                 ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
     endif ()

@@ -68,8 +68,8 @@ manapi::net::http::config::config(const json &config) {
         this->quic = manapi::json::object();
 
     /* http versions */
-    if (config.contains("http_versions")) {
-        for (const auto &version : config["http_versions"].as_array() ) {
+    if (config.contains("http")) {
+        for (const auto &version : config["http"].as_array() ) {
             int num = 0;
             if (version == "0.9")           num = HTTP_VER_BIT_0_9;
             else if (version == "1.0")      num = HTTP_VER_BIT_1_0;

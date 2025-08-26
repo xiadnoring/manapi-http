@@ -330,6 +330,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
         int addrlen = sizeof (connection->ipdata->client.data);
         if (auto rhs = conn->watcher->getpeername(reinterpret_cast <sockaddr *>(connection->ipdata->client.data), &addrlen)) {
             manapi_log_error("getpeername() failed: %d", rhs);
+            return nullptr;
         }
         connection->ipdata->len = addrlen;
 

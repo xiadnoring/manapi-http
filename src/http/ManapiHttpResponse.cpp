@@ -13,6 +13,27 @@
 #include "../include/ManapiUtils.hpp"
 #include "../include/ManapiSiteInternal.hpp"
 
+static void free_response_data (uint8_t type_, void *data_) MANAPIHTTP_NOEXCEPT {
+    switch (type_) {
+        case manapi::net::http::internal::RESPONSE_FORMDATA:
+            delete static_cast<manapi::net::formdata_send *> (data_);
+        break;
+        case manapi::net::http::internal::RESPONSE_SYNC_CALLBACK:
+            delete static_cast<manapi::net::http::response::resp_callback_sync *> (data_);
+        break;
+        case manapi::net::http::internal::RESPONSE_ASYNC_CALLBACK:
+            delete static_cast<manapi::net::http::response::resp_callback_async *> (data_);
+        break;
+        case manapi::net::http::internal::RESPONSE_FILE:
+        case manapi::net::http::internal::RESPONSE_PROXY:
+        case manapi::net::http::internal::RESPONSE_TEXT:
+            delete static_cast<std::string *> (data_);
+        break;
+        default:
+            break;
+    }
+}
+
 void manapi::net::http::custom_data_deleter_t::operator()(custom_data_t *n) {
     try {
         if (n && n->clean)
@@ -36,25 +57,7 @@ manapi::net::http::response::response(internal::handle_data_t *cdata, uint16_t s
 }
 
 manapi::net::http::response::~response() {
-    switch (this->type_) {
-        case internal::RESPONSE_FORMDATA:
-            delete static_cast<formdata_send *> (this->data_);
-            delete static_cast<char *> (this->data_);
-        break;
-        case internal::RESPONSE_SYNC_CALLBACK:
-            delete static_cast<resp_callback_sync *> (this->data_);
-        break;
-        case internal::RESPONSE_ASYNC_CALLBACK:
-            delete static_cast<resp_callback_async *> (this->data_);
-        break;
-        case internal::RESPONSE_FILE:
-        case internal::RESPONSE_PROXY:
-        case internal::RESPONSE_TEXT:
-            delete static_cast<std::string *> (this->data_);
-        break;
-        default:
-            break;
-    }
+    free_response_data (this->type_, this->data_);
 
     if (this->cdata_)
         delete this->cdata_;
@@ -97,7 +100,7 @@ manapi::error::status_or<std::string_view> manapi::net::http::response::header(s
 manapi::error::status manapi::net::http::response::text(std::string plain_text) MANAPIHTTP_NOEXCEPT {
     try {
         auto storage = std::make_unique<std::string>(std::move(plain_text));
-
+        free_response_data(this->type_, this->data_);
         this->type_ = internal::RESPONSE_TEXT;
         this->data_ = storage.release();
         return error::status_ok();
@@ -122,6 +125,7 @@ manapi::error::status manapi::net::http::response::json(manapi::json data, size_
 manapi::error::status manapi::net::http::response::form(formdata_send formdata) MANAPIHTTP_NOEXCEPT {
     try {
         auto storage = std::make_unique<formdata_send>(std::move(formdata));
+        free_response_data(this->type_, this->data_);
 
         this->data_ = storage.release();
         this->type_ = internal::RESPONSE_FORMDATA;
@@ -143,6 +147,7 @@ void manapi::net::http::response::status(uint16_t _status_code) MANAPIHTTP_NOEXC
 manapi::error::status manapi::net::http::response::file(std::string path) MANAPIHTTP_NOEXCEPT {
     try {
         auto storage = std::make_unique<std::string>(std::move(path));
+        free_response_data(this->type_, this->data_);
 
         this->type_ = internal::RESPONSE_FILE;
         this->data_ = storage.release();
