@@ -767,7 +767,7 @@ manapi::future<manapi::sys_error::status> manapi::filesystem::async_fstat(ev::fi
         }, cancellation);
 }
 
-void clean_delimiters_at_end (std::string_view &str) {
+static void clean_delimiters_at_end (std::string_view &str) {
     // clean delimiters at the end
     while (!str.empty() && str.back() == manapi::filesystem::path::delimiter)
         str = str.substr(0, str.size() - 1);
@@ -778,17 +778,36 @@ std::string_view manapi::filesystem::path::back (std::string_view str) {
     auto it = str.rfind(filesystem::path::delimiter);
     if (it != std::string_view::npos)
         str = str.substr(0, it);
-
     return str;
 }
 
 void manapi::filesystem::path::append(std::string &path, std::string_view next) {
     if (next.empty())
         return;
-    if (!path.empty() && path.back() != path::delimiter)
-        path.push_back(path::delimiter);
-    clean_delimiters_at_end(next);
-    path.append(next.data(), next.size());
+
+    if (next == ".") {
+        if (path.empty()) {
+            path = path::current_path();
+        }
+
+        return;
+    }
+
+    if (next == "..") {
+        auto it = path.rfind(path::delimiter);
+        if (it == std::string_view::npos) {
+            path.clear();
+        }
+        else {
+            path.resize(it);
+        }
+    }
+    else {
+        if (!path.empty() && path.back() != path::delimiter)
+            path.push_back(path::delimiter);
+        clean_delimiters_at_end(next);
+        path.append(next.data(), next.size());
+    }
 }
 
 std::string manapi::filesystem::path::current_path() {
@@ -802,16 +821,39 @@ std::string manapi::filesystem::path::serialize (std::string_view str) {
     std::size_t prev_delimiter_pos = 0;
     while (!str.empty()) {
         auto it = str.find(filesystem::path::delimiter);
-        if (it == std::string_view::npos)
-            str = std::string_view{};
+        if (it == std::string_view::npos) {
+            cleaned.append(str);
+            str = {};
+        }
         else {
-            if (it < prev_delimiter_pos && it - 1 != prev_delimiter_pos)
-                cleaned.append(str.data(), it + 1);
+            if (it < prev_delimiter_pos && it - 1 != prev_delimiter_pos) {
+                std::string_view const s (str.data(), it);
+                if (s != ".") {
+                    if (s == "..") {
+                        auto const rit = cleaned.rfind(filesystem::path::delimiter);
+                        if (rit == std::string_view::npos) {
+                            cleaned.clear();
+                        }
+                        else {
+                            cleaned.resize(rit + 1);
+                        }
+                    }
+                    else {
+                        cleaned.append(s);
+                        cleaned.push_back(filesystem::path::delimiter);
+                    }
+                }
+            }
+            prev_delimiter_pos = it;
             str = str.substr(it + 1);
         }
     }
 
     return std::move(cleaned);
+}
+
+std::string manapi::filesystem::path::absolute(std::string_view path) {
+    return std::filesystem::absolute(path).string();
 }
 
 manapi::future<manapi::sys_error::status> manapi::filesystem::async_unlink (std::string path, async::cancellation_action cancellation) {

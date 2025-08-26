@@ -5,6 +5,7 @@
 #include "./test_bigint.hpp"
 #include "./test_http.hpp"
 #include "./test_fetch.hpp"
+#include "./test_fs.hpp"
 
 #ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
 #   include "ManapiInitTools.hpp"

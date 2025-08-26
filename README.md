@@ -221,13 +221,13 @@ int main () {
                         {"http", manapi::json::array({"2", "1.1"})},
                         {"transport", "tls"},
                         {"partial_data_min_size", 0},
-                        {"tls_version", "1.3"},
                         {"implementation", "openssl"},
                         {"port", "8888"},
                         {"ssl", {
                             {"cert", "../examples/self-signed-ssl/cert.crt"},
                             {"key", "../examples/self-signed-ssl/cert.key"},
-                            {"enabled", true}
+                            {"enabled", true},
+                            {"tls", "1.3"}
                         }},
                         {"tcp_no_delay", true}
                     }

@@ -133,7 +133,7 @@ namespace manapi::filesystem {
 namespace manapi::filesystem::path {
     static constexpr char delimiter = std::filesystem::path::preferred_separator;
 
-    static const std::string string_delimiter (&delimiter, 1);
+    static constexpr std::string_view string_delimiter (&delimiter, 1);
 
     std::string_view basename (std::string_view path);
 
@@ -142,6 +142,8 @@ namespace manapi::filesystem::path {
     void append_delimiter(std::string &path);
 
     std::string serialize (std::string_view str);
+
+    std::string absolute (std::string_view path);
 
     std::string_view back (std::string_view str);
 

@@ -910,6 +910,8 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
                 test_package/test_json_masks.hpp
                 test_package/test_http_and_fetch.cpp
                 test_package/test_fetch.hpp
+                test_package/test_fs.cpp
+                test_package/test_fs.hpp
                 test_package/utest.h
                 ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
     endif ()

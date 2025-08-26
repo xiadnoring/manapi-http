@@ -562,3 +562,52 @@ UTEST(http_and_fetch, chunked_response) {
 
     wait_ctx(ctx);
 }
+
+UTEST(http_and_fetch, user_data) {
+    using http = manapi::net::http::server;
+
+    struct user_data_for_test_t {
+        std::string msg;
+    };
+
+    auto ctx = init_ctx();
+    auto router = init_router({
+        {"http1", true}
+    }, [&] () -> manapi::future<> {
+
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/admin/test", {
+            {"method", "GET"},
+            {"verbose", false}
+        }, manapi::async::timeout_cancellation(5000));
+
+        auto fetch = fetch_res.unwrap();
+
+#define return co_return
+        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+#undef return
+
+        auto data_res = co_await fetch.text();
+        auto data = data_res.unwrap();
+#define return co_return
+        ASSERT_TRUE_MSG((data == "OK"), "check response data");
+#undef return
+
+    });
+
+    router.GET ("/admin/+layer", [&] (http::req &req, http::uresp resp) -> void {
+        req.propagation(true);
+        manapi::net::http::custom_data_t cd;
+        auto s = new user_data_for_test_t ();
+        s->msg = "OK";
+        cd.src = s;
+        cd.clean = [] (void *data) -> void { delete (user_data_for_test_t *)data; };
+        resp->custom_data(std::move(cd));
+    }).unwrap();
+
+    router.GET ("/admin/test", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+        auto user_data = resp.custom_data_as<user_data_for_test_t>();
+        co_return resp.text(std::move(user_data->msg)).unwrap();
+    }).unwrap();
+
+    wait_ctx(ctx);
+}

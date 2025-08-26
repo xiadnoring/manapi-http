@@ -12,6 +12,8 @@ add_executable(${PROJECT_NAME} test_package.cpp utest.h
         test_http.hpp
         test_http_and_fetch.cpp
         test_fetch.hpp
+        test_fs.cpp
+        test_fs.hpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE manapihttp::manapihttp)

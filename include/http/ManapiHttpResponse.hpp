@@ -139,6 +139,11 @@ namespace manapi::net::http {
         internal::handle_data_t *connection_data () MANAPIHTTP_NOEXCEPT;
 
         internal::handle_data_t *connection_data_release () MANAPIHTTP_NOEXCEPT;
+
+        template<typename T>
+        T *custom_data_as () MANAPIHTTP_NOEXCEPT {
+            return static_cast<T*>(this->custom_data()->src);
+        }
     private:
         void finish () MANAPIHTTP_NOEXCEPT;
 

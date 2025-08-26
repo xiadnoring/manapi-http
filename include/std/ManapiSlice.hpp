@@ -59,6 +59,45 @@ namespace manapi {
         slice_base *base_;
     };
 
+
+    class slice_const_iterator {
+    public:
+        slice_const_iterator (slice_part_t *part, slice_base const *base);
+
+        slice_const_iterator (const slice_const_iterator &n);
+
+        slice_const_iterator &operator=(const slice_const_iterator &n);
+
+        ~slice_const_iterator();
+
+        slice_const_iterator &operator++();
+
+        slice_const_iterator &operator++(int);
+
+        bool operator==(const slice_const_iterator &n) const;
+
+        /**
+         * access the storage buffer via a pointer
+         * @return the storage buffer pointer
+         */
+        const void *buffer ();
+
+        /**
+         * get the storage buffer size
+         * @return the storage buffer size
+         */
+        MANAPIHTTP_NODISCARD std::size_t size () const;
+
+        /**
+         * is it the last in chain
+         * @return true if it's the last in the chain; otherwise, returns false
+         */
+        MANAPIHTTP_NODISCARD bool is_last () const;
+    private:
+        slice_part_t *part;
+        slice_base const *base_;
+    };
+
     class slice_base {
     public:
         struct slice_part_deleter {
@@ -113,7 +152,13 @@ namespace manapi {
 
         slice_iterator end ();
 
-        MANAPIHTTP_NODISCARD int cmp (const manapi::slice_base &n) const;
+        MANAPIHTTP_NODISCARD slice_const_iterator begin () const;
+
+        MANAPIHTTP_NODISCARD slice_const_iterator end () const;
+
+        MANAPIHTTP_NODISCARD int cmp (const manapi::slice_base &n) const MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD int cmp (void *data, std::size_t size) const MANAPIHTTP_NOEXCEPT;
 
         void slices_buffs (ev::buff_t *buffs) const;
 

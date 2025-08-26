@@ -109,6 +109,51 @@ bool manapi::slice_iterator::is_last() const {
     return this->base_->slices_end() == this->part->next;
 }
 
+manapi::slice_const_iterator::slice_const_iterator(slice_part_t *part, slice_base const *base) {
+    this->part = part;
+    this->base_ = base;
+}
+
+manapi::slice_const_iterator::slice_const_iterator(const slice_const_iterator &n) = default;
+
+manapi::slice_const_iterator & manapi::slice_const_iterator::operator=(const slice_const_iterator &n) = default;
+
+manapi::slice_const_iterator::~slice_const_iterator() = default;
+
+manapi::slice_const_iterator & manapi::slice_const_iterator::operator++() {
+    this->part = this->part->next;
+    return *this;
+}
+
+manapi::slice_const_iterator & manapi::slice_const_iterator::operator++(int) {
+    this->part = this->part->next;
+    return *this;
+}
+
+bool manapi::slice_const_iterator::operator==(const slice_const_iterator &n) const {
+    return this->part == n.part;
+}
+
+const void * manapi::slice_const_iterator::buffer() {
+    if (this->base_->slices_begin() == this->part)
+        return this->part->buff.base + this->base_->shift();
+
+    return this->part->buff.base;
+}
+
+std::size_t manapi::slice_const_iterator::size() const {
+    std::size_t s = this->part->buff.len;
+    if (this->base_->slices_begin() == this->part)
+        s -= this->base_->shift();
+    if (this->is_last())
+        s -= this->base_->rshift();
+    return s;
+}
+
+bool manapi::slice_const_iterator::is_last() const {
+    return this->base_->slices_end() == this->part->next;
+}
+
 void manapi::slice_base::slice_part_deleter::operator()(slice_part_t *ptr) {
     if (ptr) {
         manapi::slice_base::slice_part_deleter::operator()(ptr->next);
@@ -375,7 +420,15 @@ manapi::slice_iterator manapi::slice_base::end() {
     return slice_iterator{(this->last) ? (this->last->next) : nullptr, this};
 }
 
-int manapi::slice_base::cmp(const manapi::slice_base &n) const {
+manapi::slice_const_iterator manapi::slice_base::begin() const {
+    return slice_const_iterator{this->first, this};
+}
+
+manapi::slice_const_iterator manapi::slice_base::end() const {
+    return slice_const_iterator{(this->last) ? (this->last->next) : nullptr, this};
+}
+
+int manapi::slice_base::cmp(const manapi::slice_base &n) const MANAPIHTTP_NOEXCEPT {
     auto size = n.size();
     if (this->size() != size)
         return this->size() > size ? -1 : 1;
@@ -433,6 +486,32 @@ int manapi::slice_base::cmp(const manapi::slice_base &n) const {
         size -= cmp_size;
     };
 
+
+    return 0;
+}
+
+int manapi::slice_base::cmp(void *data, std::size_t size) const MANAPIHTTP_NOEXCEPT {
+    auto const s = this->size ();
+    if (s == size) {
+        if (!s)
+            return 0;
+        int rhs;
+        size_t ss;
+        for (auto it = this->begin(); it != this->end(); it++) {
+            assert(size);
+            ss = std::min<std::size_t>(it.size(), size);
+            rhs = memcmp (it.buffer(), data, ss);
+            if (rhs)
+                return rhs;
+            size -= ss;
+            data = static_cast<char*>(data) + ss;
+        }
+    }
+    else {
+        if (s > size)
+            return -1;
+        return 1;
+    }
 
     return 0;
 }
