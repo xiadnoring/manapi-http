@@ -82,6 +82,7 @@ manapi::async::cancellation_action::~cancellation_action() {
                 it.data->parent = nullptr;
             }
         }
+        this->data.reset();
     }
 }
 

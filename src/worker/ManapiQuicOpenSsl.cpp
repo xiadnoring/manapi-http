@@ -1136,7 +1136,6 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
             }
 
             data->transfered += written;
-
             this->bio_flush_write();
         }
         else

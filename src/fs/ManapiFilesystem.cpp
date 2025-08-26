@@ -66,10 +66,16 @@ void async_fs_operation_event_handler (std::shared_ptr<manapi::ev::fs> w, typena
     }
 }
 
+template<typename T>
 struct async_fs_operation_deleter {
-    manapi::async::cancellation_action c;
+    manapi::async::cancellation_action *c;
+    async_fs_operation_event_cb<T> *event_cb;
+    std::move_only_function<bool(std::shared_ptr<manapi::ev::fs> w)> *start_cb;
+
     ~async_fs_operation_deleter() {
-        this->c.cancel();
+        if (this->c) {
+            this->c->cancel();
+        }
     }
 };
 
@@ -77,11 +83,16 @@ template<typename T>
 manapi::future<T> async_fs_operation (std::move_only_function<bool(std::shared_ptr<manapi::ev::fs> w)> start_cb,
       async_fs_operation_event_cb<T> event_cb,  manapi::async::cancellation_action cancellation) {
     using promise_sync = manapi::async::promise_sync<T>;
-    async_fs_operation_deleter t {cancellation};
+    async_fs_operation_deleter<T> t {};
+
+    t.c = &cancellation;
+    t.event_cb = &event_cb;
+    t.start_cb = &start_cb;
+
     try {
-        co_return co_await promise_sync([&] (typename promise_sync::resolve_t resolve, typename promise_sync::reject_t reject)
+        co_return co_await promise_sync([&t] (typename promise_sync::resolve_t resolve, typename promise_sync::reject_t reject)
             -> void {
-            auto watcher_res = manapi::async::current()->eventloop()->create_watcher_fs([resolve, event_cb = std::move(event_cb), cancellation] (const std::shared_ptr<manapi::ev::fs> &w) mutable
+            auto watcher_res = manapi::async::current()->eventloop()->create_watcher_fs([resolve, event_cb = std::move(*t.event_cb), cancellation = *t.c] (const std::shared_ptr<manapi::ev::fs> &w) mutable
                 -> void {
                 async_fs_operation_event_handler<T>(w, std::move(resolve), std::move(cancellation), event_cb);
             });
@@ -91,13 +102,13 @@ manapi::future<T> async_fs_operation (std::move_only_function<bool(std::shared_p
             if (watcher_res)
                 watcher = watcher_res.unwrap();
 
-            if (!watcher_res || !start_cb(watcher)) {
+            if (!watcher_res || !((*t.start_cb)(watcher))) {
                 resolve(manapi::sys_error::status_internal("fs i/o init watcher failed", manapi::ev::ERR_UNKNOWN));
                 return;
             }
 
-            if (cancellation.contains_cancel_callback()) {
-                cancellation.cancel_callback([watcher = std::move(watcher), resolve = std::move(resolve)] () mutable
+            if (t.c->contains_cancel_callback()) {
+                t.c->cancel_callback([watcher = std::move(watcher), resolve = std::move(resolve)] () mutable
                     -> void {
                     manapi::async::current()->eventloop()->stop_watcher<manapi::ev::fs>(std::move(watcher));
                     resolve (manapi::sys_error::status_cancelled("fs i/o operation has been cancelled"));

@@ -42,6 +42,8 @@ manapi::future<void> manapi::async::cthread::stop() {
     co_await this->eventloop_->stop();
     this->timerpool_->stop();
     this->taskpool_->stop();
+
+    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "cthread has been stopped");
 }
 
 void manapi::async::cthread::join() MANAPIHTTP_NOEXCEPT {

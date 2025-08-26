@@ -14,7 +14,7 @@ manapi::net::worker::udp::udp(net::http::site site, std::shared_ptr<multithread_
 }
 
 manapi::net::worker::udp::~udp() {
-    freeaddrinfo(this->local);
+    ev::getaddrinfo::free(this->local);
 }
 
 manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t deep) {

@@ -555,6 +555,7 @@ void manapi::ev::callback_watcher_fs(uv_fs_t *req) MANAPIHTTP_NOEXCEPT {
         if (ss->cb)
             ss->cb(ss->s_);
         MANAPIHTTP_EV_CATCH_CALLBACK("fs")
+        ss->token.disable();
     }
     else {
         std::unique_ptr<uv_fs_t, fs_req_deleter> req_own (req);
@@ -571,6 +572,7 @@ void manapi::ev::callback_watcher_random(uv_random_t *s, int status, void *buff,
         if (ss->cb)
             ss->cb(ss->s_, status, buff, size);
         MANAPIHTTP_EV_CATCH_CALLBACK("random")
+        ss->token.disable();
     }
 }
 
@@ -584,6 +586,7 @@ void manapi::ev::callback_watcher_getnameinfo(uv_getnameinfo_t *req, int status,
         if (s->cb)
             s->cb(s->s_, status, hostname, service);
         MANAPIHTTP_EV_CATCH_CALLBACK("getnameinfo")
+        s->token.disable();
     }
 }
 
@@ -599,6 +602,7 @@ void manapi::ev::callback_watcher_getaddrinfo(uv_getaddrinfo_t *req, int status,
         if (s->cb)
             s->cb(s->s_, status, res_own.release());
         MANAPIHTTP_EV_CATCH_CALLBACK("getaddrinfo")
+        s->token.disable();
     }
 }
 
@@ -813,7 +817,10 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_
     }
 }
 
-manapi::event_loop::~event_loop() = default;
+manapi::event_loop::~event_loop() {
+    this->etaskpool_.reset();
+    this->mx.reset();
+}
 
 manapi::future<manapi::sys_error::status> manapi::event_loop::start(std::shared_ptr<event_loop> le) {
     auto lk = co_await this->mx->lock_guard();
@@ -826,6 +833,7 @@ manapi::future<manapi::sys_error::status> manapi::event_loop::start(std::shared_
 }
 
 manapi::sys_error::status manapi::event_loop::sync_start(std::shared_ptr<event_loop> le) {
+    manapi::sys_error::status status;
     if (this->mx->try_to_lock()) {
         auto lk = async::mutex_locker{this->mx.get()};
 
@@ -833,10 +841,12 @@ manapi::sys_error::status manapi::event_loop::sync_start(std::shared_ptr<event_l
             return manapi::error::status_already_exists("already is running");
         }
 
-        return this->pool_(&lk, std::move(le));
+        status = this->pool_(&lk, std::move(le));
     }
-
-    return error::status_internal("is locked");
+    else {
+        status = error::status_internal("is locked");
+    }
+    return std::move(status);
 }
 
 void manapi::event_loop::setup_handle_interrupt() MANAPIHTTP_NOEXCEPT {
@@ -870,6 +880,8 @@ manapi::future<> manapi::event_loop::stop() {
         this->resolve_stop = std::move(resolve);
         this->stop_watcher_->send();
     });
+
+    manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "eventloop:stop() has been finished");
 }
 
 void manapi::event_loop::wait() {
@@ -881,7 +893,7 @@ void manapi::event_loop::wait() {
 
     std::shared_ptr<ev::idle> idle_tasks;
 
-    while (uv_loop_alive(this->loop())) {
+    while (uv_loop_alive(this->loop()) || this->etaskpool_->tasks_size()) {
         auto etaskpool = dynamic_cast<ethreadpool *>(this->etaskpool_.get());
         MANAPIHTTP_MUST_ALLOC_START
         etaskpool->set_notify_cb([&] () -> void {
@@ -908,15 +920,18 @@ void manapi::event_loop::wait() {
         });
         MANAPIHTTP_MUST_ALLOC_END
 
+        while (etaskpool->try_task()) {}
+
         manapi::async::current()->timerpool()->run_once();
 
         auto const rhs = uv_run(this->loop(), UV_RUN_DEFAULT);
 
-        if (!rhs) {
+        if (!rhs && !this->etaskpool_->tasks_size()) {
             break;
         }
     }
 
+    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "eventloop:well done");
 
     if (auto rhs = uv_loop_close(this->loop_.get())) {
         manapi_log_error("%s failed due to %s", "uv_loop_close", ev::strerror(rhs));
@@ -1781,6 +1796,7 @@ MANAPIHTTP_EV_UNWATCHER(prepare, prepare_ctx);
 MANAPIHTTP_EV_CANCEL (fs, fs_ctx);
 MANAPIHTTP_EV_CANCEL (getaddrinfo, getaddrinfo_ctx);
 MANAPIHTTP_EV_CANCEL (getnameinfo, getnameinfo_ctx)
+MANAPIHTTP_EV_CANCEL (random, random_ctx);
 
 void manapi::event_loop::stop_watcher_ptr(ev::connect *w) MANAPIHTTP_NOEXCEPT {
     if (w) {
@@ -1798,7 +1814,6 @@ void manapi::event_loop::stop_watcher_ptr(ev::connect *w) MANAPIHTTP_NOEXCEPT {
         w->unbind();
     }
 };
-MANAPIHTTP_EV_CANCEL (random, random_ctx);
 
 void manapi::event_loop::event_loop::stop_watcher_ptr(ev::write *w) MANAPIHTTP_NOEXCEPT {
     if (w) {

@@ -305,6 +305,8 @@ int main () {
 
             (co_await router.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
             (co_await router.start()).unwrap();
+
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "http server has been started");
         });
 
         bind();

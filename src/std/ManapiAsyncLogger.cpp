@@ -70,9 +70,9 @@ void manapi::logger::setup_default_callback_(const std::shared_ptr<data_t> &data
         };
     }
     else {
-        data->callback = [data] (logger_type type, std::string_view service, int error_code, std::string msg) mutable -> void {
-            if (manapi::async::internal::current_()) {
-                auto tmp = std::move(data);
+        data->callback = [data = std::weak_ptr(data)] (logger_type type, std::string_view service, int error_code, std::string msg) mutable -> void {
+            auto tmp = data.lock();
+            if (tmp && manapi::async::internal::current_()) {
                 setup_default_callback_(tmp);
                 tmp->callback(type, service, error_code, msg);
             }

@@ -71,11 +71,16 @@ namespace manapi {
     }
 
     
-    std::size_t mthreadpool::size() const {
+    std::size_t mthreadpool::size() const MANAPIHTTP_NOEXCEPT {
         return this->threadnum;
     }
 
-    
+    std::size_t mthreadpool::tasks_size() const MANAPIHTTP_NOEXCEPT {
+        std::lock_guard<std::mutex> lk (this->queue_mutex);
+        return this->tasks.size() + this->tasks2.size();
+    }
+
+
     void mthreadpool::clear() {
         if (!(this->flags & 0b1)) {
             this->tasks.clear();
@@ -215,7 +220,11 @@ namespace manapi {
     
     ethreadpool::~ethreadpool() = default;
 
-    
+    std::size_t ethreadpool::tasks_size() const MANAPIHTTP_NOEXCEPT {
+        return this->tasks.size() + this->tasks2.size();
+    }
+
+
     bool ethreadpool::try_task() {
         if (!this->tasks.empty()) {
             auto task = std::move(this->tasks.front());
