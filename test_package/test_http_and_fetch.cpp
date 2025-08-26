@@ -4,9 +4,11 @@
 #ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
 #   include "ManapiFetch2.hpp"
 #   include "ManapiString.hpp"
+#   include "std/ManapiEasyCancellation.hpp"
 #else
 #   include <manapihttp/ManapiFetch2.hpp>
 #   include <manapihttp/ManapiString.hpp>
+#   include <manapihttp/std/ManapiEasyCancellation.hpp>
 #endif
 #include "./utest.h"
 
@@ -52,7 +54,8 @@ manapi::net::http::server init_router (manapi::json cnf, std::move_only_function
                 {"max_buffer_stack", 1},
                 {"max_merge_buffer_stack", 1},
                 {"max_connections", 2},
-                {"max_connections_by_ip", 2}
+                {"max_connections_by_ip", 2},
+                {"keep_alive", 0}
             });
         }
         auto res = co_await router.config_object (config);
@@ -188,14 +191,25 @@ UTEST(http_and_fetch, callback_async_get_request) {
         ASSERT_TRUE_MSG((fetch.ok()), "check response status");
 #undef return
 
+        auto zz = manapi::string::fill(300000, '2');
+        for (int i = 0; i < zz.size(); i+=100)
+            zz[i] = '3';
         size_t read = 0;
-        auto data_res = co_await fetch.callback_async([&read] (manapi::slice_view buffs, bool fin) -> manapi::future<ssize_t> {
-            if (read > 180000)
+        auto data_res = co_await fetch.callback_async([&, f =int(0)] (manapi::slice_view buffs, bool fin) mutable -> manapi::future<ssize_t> {
+            manapi::slice tt{};
+            tt.resize(buffs.size()).unwrap();
+            tt.copy_from(buffs, 0, 0, buffs.size()).unwrap();
+            if (read > 180000 && !f) {
                 co_await manapi::async::delay{100};
-
+                f = 1;
+            }
+#define return co_return -1
+        ASSERT_TRUE_MSG((tt.cmp(buffs) == 0), "memory corruption was detected #1");
+#undef return
             for (auto it = buffs.begin(); it != buffs.end(); it++) {
                 auto const s = (char*)it.buffer();
-                auto j = (read % 100);
+                auto j = 100 - (read % 100);
+                if (j == 100) j = 0;
                 for (size_t i = 0 ; i < it.size(); i++) {
                     if (i == j) {
                         if (s[j] != '3')
@@ -206,6 +220,9 @@ UTEST(http_and_fetch, callback_async_get_request) {
                     if (s[i] != '2')
                         co_return -1;
                 }
+#define return co_return -1
+                ASSERT_TRUE_MSG(!memcmp(it.buffer(), zz.data() + read, it.size()), "memory corruption was detected #2");
+#undef return
                 read += it.size();
             }
             co_return buffs.size();
@@ -217,18 +234,20 @@ UTEST(http_and_fetch, callback_async_get_request) {
 
     router.GET ("/callback", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
          resp.header(std::string{manapi::net::http::header::CONTENT_LENGTH}, "300000").unwrap();
-         co_return resp.callback_async([left = ssize_t(300000)] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
+         co_return resp.callback_async([left = ssize_t(300000), f = bool(false)] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
              size_t res = 0;
              for (auto it = buffs.begin(); it != buffs.end(); it++) {
                  auto const copy = std::min<ssize_t>(left, it.size());
                  memset (it.buffer(), '2', copy);
                  // 0->0 73->100 100->100
-                 auto i = ((300000 - left) % 100);
+                 auto i = 100 - ((300000 - left) % 100);
+                 if ( i==100) i=0;
                  auto cc = (char*)it.buffer();
                  for (; i < copy; i+=100)
                      (cc)[i] = '3';
-                 if (left > 70000) {
+                 if (left > 70000 && !f) {
                      co_await manapi::async::delay{100};
+                     f = true;
                  }
                  left -= copy;
                  res += copy;
@@ -345,6 +364,200 @@ UTEST(http_and_fetch, formdata_response) {
          send.set_text("hello", "world").unwrap();
          send.set_text("hello2", "world2").unwrap();
          co_return resp.form(std::move(send)).unwrap();
+    }).unwrap();
+
+    wait_ctx(ctx);
+}
+
+
+UTEST(http_and_fetch, formdata_bad_response__no_data) {
+    using http = manapi::net::http::server;
+
+    auto ctx = init_ctx();
+    auto router = init_router({
+        {"http1", true}
+    }, [&] () -> manapi::future<> {
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/bad", {
+            {"method", "GET"},
+            {"verbose", false}
+        }, manapi::async::timeout_cancellation(5000));
+
+        if (!fetch_res.ok())
+            co_return;
+
+        auto fetch = fetch_res.unwrap();
+
+#define return co_return
+        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+#undef return
+
+        auto data_res = co_await fetch.callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
+            /* skip */
+            return size;
+        });
+
+#define return co_return
+        ASSERT_TRUE_MSG((!data_res.ok()), "check response bad");
+#undef return
+
+    });
+
+    router.GET ("/bad", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+        resp.header(std::string{manapi::net::http::header::CONTENT_LENGTH}, "100000");
+        co_return resp.callback_stream([] (auto cb) -> manapi::future<> {
+            char tt[99999];
+            memset(tt, '1', sizeof (tt));
+            manapi::slice c{};
+            c.resize(sizeof (tt)).unwrap();
+            c.copy_from(tt, 0, sizeof (tt)).unwrap();
+            co_await cb (c, true);
+        }).unwrap();
+    }).unwrap();
+
+    wait_ctx(ctx);
+}
+
+UTEST(http_and_fetch, formdata_bad_response) {
+    using http = manapi::net::http::server;
+
+    auto ctx = init_ctx();
+    auto router = init_router({
+        {"http1", true}
+    }, [&] () -> manapi::future<> {
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" "443" "/bad", {
+            {"method", "GET"},
+            {"verbose", false}
+        }, manapi::async::timeout_cancellation(5000));
+
+        if (!fetch_res.ok())
+            co_return;
+
+        auto fetch = fetch_res.unwrap();
+
+#define return co_return
+        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+#undef return
+
+        auto data_res = co_await fetch.callback_sync([] (char *buffer, ssize_t size) -> ssize_t {
+            /* skip */
+            return size;
+        });
+
+#define return co_return
+        ASSERT_TRUE_MSG((!data_res.ok()), "check response bad");
+#undef return
+
+    });
+
+    wait_ctx(ctx);
+}
+
+UTEST(http_and_fetch, chunked_request) {
+    using http = manapi::net::http::server;
+
+    auto ctx = init_ctx();
+    auto router = init_router({
+        {"http1", true}
+    }, [&] () -> manapi::future<> {
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/chunked", {
+            {"method", "GET"},
+            {"verbose", false}
+        }, manapi::async::timeout_cancellation(5000));
+
+        auto fetch = fetch_res.unwrap();
+
+#define return co_return
+        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+#undef return
+
+        auto data_res = co_await fetch.text();
+        auto data = data_res.unwrap();
+
+        for (int i = 0 ; i < data.size(); i++) {
+#define return co_return
+            ASSERT_TRUE_MSG((data[i] == (i % 10)), "memory corruption #1");
+#undef return
+        }
+
+#define return co_return
+        ASSERT_TRUE_MSG((data.size() == 100000), "memory corruption #2");
+#undef return
+
+    });
+
+    router.GET ("/chunked", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+        co_return resp.callback_stream([] (manapi::net::http::response::resp_stream_cb cb) -> manapi::future<> {
+            char zz[100000];
+            for(int i = 0; i < sizeof (zz); i++) {
+                zz[i] = (char)(i % 10);
+            }
+            manapi::slice_ref ref;
+            ref.push_back(zz, 20000);
+            co_await cb (ref, false);
+
+            ref.clear();
+            ref.push_back(zz + 20000, 30000);
+            co_await cb (ref, false);
+
+            ref.clear();
+            ref.push_back(zz + 50000, 50000);
+            co_await cb (ref, true);
+        }).unwrap();
+    }).unwrap();
+
+    wait_ctx(ctx);
+}
+
+
+UTEST(http_and_fetch, chunked_response) {
+    using http = manapi::net::http::server;
+
+    auto ctx = init_ctx();
+    auto router = init_router({
+        {"http1", true}
+    }, [&] () -> manapi::future<> {
+        std::string zz;
+        zz.resize(100000);
+        for (int i = 0; i < zz.size(); i++)
+            zz[i] = (char)(i % 10);
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/chunked", {
+            {"method", "POST"},
+            {"verbose", false}
+        }, [&zz, cursor = int(0)] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
+            auto const copy = std::min<std::size_t>(zz.size() - cursor, buffs.size());
+            auto res = buffs.copy_from(zz.data() + cursor, 0, copy);
+            if (!res) {
+                res.log();
+                co_return -1;
+            }
+            cursor += copy;
+            if (cursor == zz.size())
+                fin = true;
+            co_return copy;
+        }, manapi::async::timeout_cancellation(5000));
+
+        auto fetch = fetch_res.unwrap();
+
+#define return co_return
+        ASSERT_TRUE_MSG((fetch.ok()), "check response status");
+#undef return
+
+
+    });
+
+    router.POST ("/chunked", [&] (http::req &req, http::resp &resp) -> manapi::future<> {
+        auto data_res = co_await req.text();
+        auto data = data_res.unwrap();
+        for (int i = 0 ; i < data.size(); i++) {
+#define return co_return
+            ASSERT_TRUE_MSG((data[i] == (i % 10)), "memory corruption #1");
+#undef return
+        }
+
+#define return co_return
+        ASSERT_TRUE_MSG((data.size() == 100000), "memory corruption #2");
+#undef return
+        co_return resp.text("OK").unwrap();
     }).unwrap();
 
     wait_ctx(ctx);

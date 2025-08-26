@@ -539,8 +539,11 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
         if (rhs < 0)
             if (rhs == ev::ERR_AGAIN)
                 rhs = 0;
-            else
+            else {
+                manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s",
+                    "TCP", "try_write", ev::strerror(rhs));
                 return -1;
+            }
         else
             connection->transfered += rhs;
     }
@@ -710,6 +713,8 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                         if (rhs == ev::ERR_AGAIN)
                             rhs = 0;
                         else {
+                            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s",
+                                "TCP", "try_write", ev::strerror(rhs));
                             conn->top->send_size -= conn->top->cur_send_size;
                             conn->top->cur_send_size = 0;
                             return CONN_IO_ERROR;

@@ -35,7 +35,9 @@ manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch
     auto res = response.setup_fetch(std::move(params));
     if (!res)
         co_return std::move(res);
-    co_await response.response();
+    res = co_await response.response();
+    if (!res)
+        co_return std::move(res);
     co_return std::move(response);
 }
 
@@ -107,7 +109,9 @@ manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch
     auto res = response.setup_fetch(std::move(params));
     if (!res)
         co_return std::move(res);
-    co_await response.response();
+    res = co_await response.response();
+    if (!res)
+        co_return std::move(res);
     co_return std::move(response);
 }
 
@@ -129,7 +133,9 @@ manapi::future<manapi::error::status_or<manapi::net::fetch2>> manapi::net::fetch
     auto res = response.setup_fetch(std::move(params));
     if (!res)
         co_return std::move(res);
-    co_await response.response();
+    res = co_await response.response();
+    if (!res)
+        co_return std::move(res);
     co_return std::move(response);
 }
 
@@ -331,7 +337,7 @@ manapi::error::status manapi::net::fetch2::setup_fetch(manapi::json params) MANA
     err: return std::move(res);
 }
 
-manapi::future<> manapi::net::fetch2::response() {
+manapi::future<manapi::error::status> manapi::net::fetch2::response() {
     MANAPIHTTP_MUST_ALLOC_START
     co_await this->fetchdata->mx.lock();
     MANAPIHTTP_MUST_ALLOC_END
@@ -397,15 +403,16 @@ manapi::future<> manapi::net::fetch2::response() {
         MANAPIHTTP_MUST_ALLOC_START
         std::string_view msg;
         auto res = co_await this->fetchdata->async_run.get();
-        if (!res.ok()) {
+        if (!res.ok())
             msg = res.message();
-        }
-        else {
+        else
             msg = res.unwrap();
-        }
         manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s due to %.*s", "fetch2:response failed", msg.size(), msg.data());
+        co_return error::status_aborted(msg);
         MANAPIHTTP_MUST_ALLOC_END
     }
+
+    co_return error::status_ok();
 }
 
 

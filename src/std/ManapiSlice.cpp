@@ -639,6 +639,7 @@ void manapi::slice_ref::clear() noexcept(true) {
     this->last = nullptr;
     this->size_ = 0;
     this->shift_ = 0;
+    this->count = 0;
 }
 
 

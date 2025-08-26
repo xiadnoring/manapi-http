@@ -374,14 +374,10 @@ manapi::future<void> manapi::net::http::internal::send_response_text(std::unique
             }
         }
 
-        auto err = res->header(std::string{header::CONTENT_LENGTH}, std::to_string(plaintext.size()));
-        if (!err)
-            co_return;
+        res->header(std::string{header::CONTENT_LENGTH}, std::to_string(plaintext.size()));
 
         if (!res->headers().contains(header::CONTENT_TYPE)) {
-            err = res->header(std::string{header::CONTENT_TYPE}, "text/html; charset=UTF-8");
-            if (!err)
-                co_return;
+            res->header(std::string{header::CONTENT_TYPE}, "text/html; charset=UTF-8");
         }
 
         auto task = mask_response(res.get(), plaintext.empty());

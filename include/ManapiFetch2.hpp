@@ -57,7 +57,7 @@ namespace manapi::net {
 
         manapi::error::status setup_fetch (manapi::json params) MANAPIHTTP_NOEXCEPT;
 
-        manapi::future<> response ();
+        manapi::future<manapi::error::status> response ();
 
         std::shared_ptr<fetch_data> fetchdata;
     };
