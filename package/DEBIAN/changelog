@@ -1,3 +1,5 @@
-manapihttp (0.0.2-1) UNRELEASED; urgency=medium
-  * Initial release
- -- packages <timurtuty@yandex.ru>  Mon, 11 Aug 2025 12:00:00 +0000
+manapihttp (1.0.0+dfsg-1) unstable; urgency=high
+  * Team upload
+  * Break changes
+  * A lot of bugs was fixed
+ -- Timur Zajnullin <me@timurtuty.ru>  Wed, 27 Aug 2025 12:00:00 +0000
