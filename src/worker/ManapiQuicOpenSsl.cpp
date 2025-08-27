@@ -403,7 +403,8 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
         this->listener = listener;
 
         auto loop = manapi::async::current()->eventloop()->loop();
-
+        if (!loop)
+            co_return error::status_not_found("ev:loop");
         this->t_ = std::make_unique<ev::timer>();
 
         auto rhs = this->t_->bind(loop);

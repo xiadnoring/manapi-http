@@ -893,52 +893,58 @@ void manapi::event_loop::wait() {
 
     std::shared_ptr<ev::idle> idle_tasks;
 
-    while (uv_loop_alive(this->loop()) || this->etaskpool_->tasks_size()) {
-        auto etaskpool = dynamic_cast<ethreadpool *>(this->etaskpool_.get());
-        MANAPIHTTP_MUST_ALLOC_START
-        etaskpool->set_notify_cb([&] () -> void {
+    if (this->loop_) {
+        while (uv_loop_alive(this->loop()) || this->etaskpool_->tasks_size()) {
+            auto etaskpool = dynamic_cast<ethreadpool *>(this->etaskpool_.get());
             MANAPIHTTP_MUST_ALLOC_START
-            auto idle_tasks_res = this->create_watcher_idle([&idle_tasks, etaskpool, this] (const ev::shared_idle &w) -> void {
-                while (etaskpool->try_task()) {}
-                etaskpool->set_notify();
+            etaskpool->set_notify_cb([&] () -> void {
+                MANAPIHTTP_MUST_ALLOC_START
+                auto idle_tasks_res = this->create_watcher_idle([&idle_tasks, etaskpool, this] (const ev::shared_idle &w) -> void {
+                    while (etaskpool->try_task()) {}
+                    etaskpool->set_notify();
 
-                auto const loop_ = this->loop();
-                this->stop_watcher(std::move(idle_tasks));
+                    auto const loop_ = this->loop();
+                    this->stop_watcher(std::move(idle_tasks));
 
-                if (!uv_loop_alive(loop_)) {
-                    uv_stop(loop_);
+                    if (!uv_loop_alive(loop_)) {
+                        uv_stop(loop_);
+                    }
+                });
+
+                if (!idle_tasks_res) {
+                    idle_tasks_res.err().log();
+                    throw std::bad_alloc{};
                 }
+
+                idle_tasks = idle_tasks_res.unwrap();
+                MANAPIHTTP_MUST_ALLOC_END
             });
-
-            if (!idle_tasks_res) {
-                idle_tasks_res.err().log();
-                throw std::bad_alloc{};
-            }
-
-            idle_tasks = idle_tasks_res.unwrap();
             MANAPIHTTP_MUST_ALLOC_END
-        });
-        MANAPIHTTP_MUST_ALLOC_END
 
-        while (etaskpool->try_task()) {}
+            while (etaskpool->try_task()) {}
 
-        manapi::async::current()->timerpool()->run_once();
+            manapi::async::current()->timerpool()->run_once();
 
-        auto const rhs = uv_run(this->loop(), UV_RUN_DEFAULT);
+            auto const rhs = uv_run(this->loop(), UV_RUN_DEFAULT);
 
-        if (!rhs && !this->etaskpool_->tasks_size()) {
-            break;
+            if (!rhs && !this->etaskpool_->tasks_size()) {
+                break;
+            }
         }
-    }
 
-    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "eventloop:well done");
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "eventloop:well done");
 
-    if (auto rhs = uv_loop_close(this->loop_.get())) {
-        manapi_log_error("%s failed due to %s", "uv_loop_close", ev::strerror(rhs));
+        if (auto rhs = uv_loop_close(this->loop_.get())) {
+            manapi_log_error("%s failed due to %s", "uv_loop_close", ev::strerror(rhs));
+        }
+        else {
+            this->loop_.reset();
+        }
     }
 
     this->etaskpool_->stop();
     this->etaskpool_->join();
+
 }
 
 size_t manapi::event_loop::subscribe_finish(std::move_only_function<manapi::future<void>()> cb) {
@@ -982,7 +988,11 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::tcp>> manapi::event_loo
         auto w = std::make_shared<ev::tcp>();
         auto ctx = new ev::internal::tcp_accept_ctx;
 
-        if (auto rhs = w->bind(this->loop_.get()))
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+
+        if (auto rhs = w->bind(loop))
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
 
         ctx->type = 1;
@@ -1003,7 +1013,10 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::tcp>> manapi::event_loo
     try {
         auto w = std::make_shared<ev::tcp>();
         auto ctx = std::make_unique<ev::internal::tcp_connection_ctx>();
-        if (auto rhs = w->bind(this->loop_.get()))
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (auto rhs = w->bind(loop))
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
         ctx->type = 0;
         ctx->s_ = w;
@@ -1048,7 +1061,11 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::udp>> manapi::event_loo
     try {
         auto w = std::make_shared<ev::udp>();
         auto ctx = std::make_unique<ev::internal::udp_ctx>();
-        if (auto rhs = w->bind(this->loop_.get())) {
+
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (auto rhs = w->bind(loop)) {
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
         }
         ctx->s_ = w;
@@ -1222,41 +1239,50 @@ manapi::socket_t manapi::event_loop::handle_curl_open_socket(void *cbp, int sock
 }
 
 int manapi::event_loop::handle_curl_socket(void *curl, manapi::socket_t fd, int revents, void *userp, void *) {
-    auto data = static_cast<event_loop *> (userp);
+    try {
+        auto data = static_cast<event_loop *> (userp);
 
-    if ((revents & 0b11)) {
-        auto it = data->curl_watcher->watchers.find(fd);
+        if (!data)
+            return -1;
 
-        if (it != data->curl_watcher->watchers.end()) {
-            it->second->restart(revents);
-        }
-        else {
-            auto watcher_res = handle_curl_watcher_gen(data, fd);
-            if (!watcher_res) {
-                return watcher_res.code();
+        if ((revents & 0b11)) {
+            auto it = data->curl_watcher->watchers.find(fd);
+
+            if (it != data->curl_watcher->watchers.end()) {
+                it->second->restart(revents);
             }
+            else {
+                auto watcher_res = handle_curl_watcher_gen(data, fd);
+                if (!watcher_res) {
+                    return watcher_res.code();
+                }
 
-            auto watcher = watcher_res.unwrap();
-            watcher->start(revents & 0b11);
-            data->curl_watcher->watchers.insert({fd, std::move(watcher)});
+                auto watcher = watcher_res.unwrap();
+                watcher->start(revents & 0b11);
+                data->curl_watcher->watchers.insert({fd, std::move(watcher)});
 
-            auto self = data->curl_watcher->curl_res.find(curl);
-            if (self != data->curl_watcher->curl_res.end()) {
-                self->second.watcher = watcher;
+                auto self = data->curl_watcher->curl_res.find(curl);
+                if (self != data->curl_watcher->curl_res.end()) {
+                    self->second.watcher = watcher;
+                }
             }
         }
-    }
-    else if ((revents & CURL_POLL_REMOVE)) {
-        // auto it = data->curl_watcher.watchers.find(fd);
-        // it->second->events = ev::READ;
-        //MANAPIHTTP_LOG("curl ev shutdown: {}",(int) fd);
-        auto mapped = data->curl_watcher->watchers.extract(fd);
-        if (!mapped.empty() && mapped.mapped()) {
-            data->stop_watcher(mapped.mapped());
+        else if ((revents & CURL_POLL_REMOVE)) {
+            // auto it = data->curl_watcher.watchers.find(fd);
+            // it->second->events = ev::READ;
+            //MANAPIHTTP_LOG("curl ev shutdown: {}",(int) fd);
+            auto mapped = data->curl_watcher->watchers.extract(fd);
+            if (!mapped.empty() && mapped.mapped()) {
+                data->stop_watcher(mapped.mapped());
+            }
         }
-    }
 
-    return 0;
+        return 0;
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s:%s failed due to %s", "eventloop", "handle_curl_socket", e.what());
+        return -1;
+    }
 }
 
 int manapi::event_loop::handle_curl_close_socket(void *cbp, curl_socket_t socket) {
@@ -1477,7 +1503,10 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::io>> manapi::event_loop
         auto w = std::make_shared<ev::io>();
         auto ctx = std::make_unique<ev::internal::io_ctx>();
 
-        if (const auto rhs = w->bind(this->loop_.get(), fd))
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (const auto rhs = w->bind(loop, fd))
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
 
         ctx->s_ = w;
@@ -1496,7 +1525,11 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::idle>> manapi::event_lo
     try {
         auto w = std::make_shared<ev::idle>();
         auto ctx = std::make_unique<ev::internal::idle_ctx>();
-        if (auto rhs = w->bind(this->loop_.get()))
+
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (auto rhs = w->bind(loop))
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
         ctx->s_ = w;
         ctx->cb = std::move(callback);
@@ -1512,7 +1545,11 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::io>> manapi::event_loop
     try {
         auto w = std::make_shared<ev::io>();
         auto ctx = std::make_unique<ev::internal::io_ctx>();
-        if (auto const rhs = w->bind(this->loop_.get(), sock))
+
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (auto const rhs = w->bind(loop, sock))
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
         ctx->s_ = w;
         ctx->cb = std::move(callback);
@@ -1529,7 +1566,10 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::async>> manapi::event_l
         auto w = std::make_shared<ev::async>();
         auto ctx = std::make_unique<ev::internal::async_ctx>();
 
-        if (auto rhs = w->bind(this->loop_.get()))
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (auto rhs = w->bind(loop))
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
         ctx->s_ = w;
         ctx->cb = std::move(callback);
@@ -1546,7 +1586,10 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::timer>> manapi::event_l
         auto w = std::make_shared<ev::timer>();
         auto ctx = std::make_unique<ev::internal::timer_ctx>();
 
-        if (auto rhs = w->bind(this->loop_.get()))
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (auto rhs = w->bind(loop))
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
 
         ctx->s_ = w;
@@ -1564,7 +1607,10 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::prepare>> manapi::event
         auto w = std::make_shared<ev::prepare>();
         auto ctx = std::make_unique<ev::internal::prepare_ctx>();
 
-        if (auto rhs = w->bind(this->loop_.get()))
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (auto rhs = w->bind(loop))
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
 
         ctx->s_ = w;
@@ -1579,7 +1625,10 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::prepare>> manapi::event
 
 manapi::sys_error::status_or<std::shared_ptr<manapi::ev::fs>> manapi::event_loop::create_watcher_fs(ev::fs_cb callback, manapi::async::cancellation_action token) MANAPIHTTP_NOEXCEPT {
     try {
-        auto w = std::make_shared<ev::fs>(this->loop_.get());
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        auto w = std::make_shared<ev::fs>(loop);
         auto ctx = std::make_unique<ev::internal::fs_ctx>();
 
         if (token) {
@@ -1616,7 +1665,10 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::getaddrinfo>> manapi::e
             });
         }
 
-        if (auto rhs = w->bind(this->loop_.get(), node, service, hints)) {
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (auto rhs = w->bind(loop, node, service, hints)) {
             token.disable();
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
         }
@@ -1647,7 +1699,10 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::getnameinfo>> manapi::e
             });
         }
 
-        if (auto rhs = w->bind(this->loop_.get(), addr, flags)) {
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (auto rhs = w->bind(loop, addr, flags)) {
             token.disable();
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
         }
@@ -1675,7 +1730,10 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::random>> manapi::event_
             });
         }
 
-        if (auto rhs = w->bind(this->loop_.get(), buff, size)) {
+        auto const loop = this->loop_.get();
+        if (!loop)
+            return sys_error::status_not_found("ev:loop");
+        if (auto rhs = w->bind(loop, buff, size)) {
             token.disable();
             return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
         }
@@ -1879,6 +1937,7 @@ manapi::sys_error::status manapi::event_loop::pool_(manapi::async::mutex_locker 
         init_watcher->send();
 
         this->etaskpool_->start();
+        assert(this->loop_.get());
         uv_run(this->loop_.get(), UV_RUN_DEFAULT);
         this->etaskpool_->stop();
 

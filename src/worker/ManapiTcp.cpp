@@ -226,7 +226,10 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
         if (!client)
             return nullptr;
         auto const ptr = client.get();
-        ptr->bind(manapi::async::current()->eventloop()->loop());
+        auto const loop = manapi::async::current()->eventloop()->loop();
+        if (!loop)
+            return nullptr;
+        ptr->bind(loop);
         if (auto const rhs = ptr->accept(w.get())) {
             manapi_log_error("%s due to %d", "accept() failed", rhs);
             return nullptr;
