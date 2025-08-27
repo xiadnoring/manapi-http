@@ -50,14 +50,16 @@ cmake --install build
 # 5) fake root
 
 # 5.1) pkgconfig
-find package/usr/lib/pkgconfig -name 'manapihttp*.*' -exec sed -i -e 's|'$ROOT'/package||g'
+find package/usr/lib/pkgconfig -name 'manapihttp*.*' -exec sed -i -e 's|'$ROOT'/package||g' {} \;
 # 5.2) cmake
-find package/usr/lib/cmake/manapihttp -name '*.*' -exec sed -i -e 's|'$ROOT'/package||g'
+find package/usr/lib/cmake/manapihttp -name '*.*' -exec sed -i -e 's|'$ROOT'/package||g' {} \;
 # 5.3) includes
-find package/usr/include/x86_64-linux-gnu/manapihttp -name '*.*' -exec sed -i -e 's|'$ROOT'/package||g'
+find package/usr/include/x86_64-linux-gnu/manapihttp -name '*.*' -exec sed -i -e 's|'$ROOT'/package||g' {} \;
 
 # 6) Package
 dpkg-deb --root-owner-group --build ./package manapihttp-vx.x.xubuntu22.04.deb
 
 # 7) clean up
-rm include/ManapiParams.hpp
+if [ -f include/ManapiParams.hpp ]; then
+  rm include/ManapiParams.hpp
+fi
