@@ -781,7 +781,24 @@ std::string_view manapi::filesystem::path::back (std::string_view str) {
     return str;
 }
 
-void manapi::filesystem::path::append(std::string &path, std::string_view next) {
+static void append_ (std::string &path, std::string_view next, int delimiter) {
+    using namespace manapi::filesystem;
+
+    if (delimiter) {
+        while (true) {
+            auto it = next.find(path::delimiter);
+            if (it == std::string_view::npos)
+                break;
+            if (it) {
+                append_(path, next.substr(0, it), false);
+            }
+            else if (path.empty() || path.back() != path::delimiter) {
+                path.push_back(path::delimiter);
+            }
+            next = next.substr(it + 1);
+        }
+    }
+
     if (next.empty())
         return;
 
@@ -799,6 +816,8 @@ void manapi::filesystem::path::append(std::string &path, std::string_view next) 
             path.clear();
         }
         else {
+            if (!it)
+                it++;
             path.resize(it);
         }
     }
@@ -810,46 +829,23 @@ void manapi::filesystem::path::append(std::string &path, std::string_view next) 
     }
 }
 
+void manapi::filesystem::path::append(std::string &path, std::string_view next) {
+    char c[path.size()];
+    auto const c_size = path.size();
+    memcpy (c, path.data(), path.size());
+    path.resize(0);
+    append_(path, std::string_view(c, c_size), true);
+    append_(path, next, true);
+}
+
 std::string manapi::filesystem::path::current_path() {
     return std::filesystem::current_path().string();
 }
 
 std::string manapi::filesystem::path::serialize (std::string_view str) {
-    std::string cleaned;
-    cleaned.reserve(str.size());
-    clean_delimiters_at_end(str);
-    std::size_t prev_delimiter_pos = 0;
-    while (!str.empty()) {
-        auto it = str.find(filesystem::path::delimiter);
-        if (it == std::string_view::npos) {
-            cleaned.append(str);
-            str = {};
-        }
-        else {
-            if (it < prev_delimiter_pos && it - 1 != prev_delimiter_pos) {
-                std::string_view const s (str.data(), it);
-                if (s != ".") {
-                    if (s == "..") {
-                        auto const rit = cleaned.rfind(filesystem::path::delimiter);
-                        if (rit == std::string_view::npos) {
-                            cleaned.clear();
-                        }
-                        else {
-                            cleaned.resize(rit + 1);
-                        }
-                    }
-                    else {
-                        cleaned.append(s);
-                        cleaned.push_back(filesystem::path::delimiter);
-                    }
-                }
-            }
-            prev_delimiter_pos = it;
-            str = str.substr(it + 1);
-        }
-    }
-
-    return std::move(cleaned);
+    std::string path;
+    append_ (path, str, true);
+    return std::move(path);
 }
 
 std::string manapi::filesystem::path::absolute(std::string_view path) {

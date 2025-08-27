@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(manapihttp VERSION 0.0.3 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
+project(manapihttp VERSION 1.0.0 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
 
 cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0070 NEW)

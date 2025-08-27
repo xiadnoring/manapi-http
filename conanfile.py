@@ -8,7 +8,7 @@ from conan.tools.env import VirtualBuildEnv, VirtualRunEnv
 class ManapiHttpConan(ConanFile):
     name = "manapihttp"
     description = "Fast http server/client"
-    version = "0.0.2"
+    version = "1.0.0"
 
     settings = "os", "compiler", "build_type", "arch"
 

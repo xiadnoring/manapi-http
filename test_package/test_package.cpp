@@ -23,7 +23,7 @@ int main(int argc, const char *const argv[]) {
         manapi::init_tools::log_trace_init((manapi::debug::trace_level)std::stoi(manapi::process::get_env("MANAPIHTTP_LOGTRACE").unwrap()));
     }
     catch (...) {
-        manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_LOW);
+        manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_NONE);
     }
 
     manapi::async::context::threadpoolfs(2);
