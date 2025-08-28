@@ -47,20 +47,13 @@ jobs:
 
     - name: Cache Conan Dependencies
       id: cache-conan
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: ${{ env.HOME }}/.conan2
-        key: conan-${{ runner.os }}-${{ hashFiles('**/conanfile.py') }}
+        key: conan-${{ runner.os }}
     - if: ${{steps.cache-conan.outputs.cache-hit != 'true'}}
       name: Create default Conan profile
       run: conan profile detect --force
-
-    - name: Debug Information
-      run: pwd
-
-
-    - name: Debug Information 2
-      run: ls -lh
 
     - name: Conan install dependencies
       run:  |
@@ -90,7 +83,7 @@ jobs:
       run: cmake --preset conan-release -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
 
     - name: Build
-      run: cmake --build build --config Release
+      run: cmake --build build/Release
 
     - name: Run unit tests
       run: ctest --output-on-failure -C Release
