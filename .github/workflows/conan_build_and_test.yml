@@ -45,12 +45,22 @@ jobs:
     - name: Conan Directory
       run: echo "$HOME/.conan2"
 
-    - name: Cache Conan Dependencies
+    - name: Cache Conan Dependencies (Ubuntu Latest)
+      if: ${{ runner.os == 'ubuntu-latest' }}
       id: cache-conan
       uses: actions/cache@v4
       with:
-        path: $HOME/.conan2
+        path: /home/runner/.conan2
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}
+
+    - name: Cache Conan Dependencies (Windows Latest)
+      if: ${{ runner.os == 'windows-latest' }}
+      id: cache-conan
+      uses: actions/cache@v4
+      with:
+        path: C:\Users\runneradmin\.conan2
+        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}
+
     - if: ${{steps.cache-conan.outputs.cache-hit != 'true'}}
       name: Create default Conan profile
       run: conan profile detect --force
