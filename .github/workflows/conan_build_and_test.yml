@@ -26,10 +26,16 @@ jobs:
         os: [ubuntu-latest]
         build_type: [Release]
         c_compiler: [gcc]
+        library_type: ["SHARED", "STATIC"]
         include:
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
+            library_type: SHARED
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+            library_type: STATIC
 
     steps:
     - uses: actions/checkout@v4
@@ -41,9 +47,6 @@ jobs:
 
     - name: Install Conan
       run: pip install conan==2.*
-
-    - name: Conan Directory
-      run: echo "$HOME/.conan2"
 
     - name: Cache Conan Dependencies (Ubuntu Latest)
       if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -71,8 +74,9 @@ jobs:
 
     - name: Conan install dependencies
       run:  |
+            [[ ${{ matrix.library_type }} == "SHARED" ]] && shared="ON" || shared="OFF"
             conan install . \
-            -o "manapihttp/*:shared=True" \
+            -o "manapihttp/*:shared=$shared" \
             -o "manapihttp/*:lib=True" \
             -o "manapihttp/*:json_debug=False" \
             -o "manapihttp/*:openssl_dependency=True" \
@@ -100,7 +104,7 @@ jobs:
       run: cmake --build build/Release -j4
 
     - name: Run unit tests
-      run: ctest --output-on-failure -C Release
+      run: ctest --extra-verbose --output-on-failure -C Release
       working-directory: build/Release
 
     
