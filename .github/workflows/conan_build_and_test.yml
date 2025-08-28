@@ -42,12 +42,12 @@ jobs:
     - name: Install Conan
       run: pip install conan==2.*
 
-    - name: Conan version
-      run: echo "${{ steps.conan.outputs.version }}"
+    - name: Conan Directory
+      run: echo "${{ env.HOME }}/.conan2"
 
     - name: Cache Conan Dependencies
       id: cache-conan
-      uses: actions/cache/restore@v4
+      uses: actions/cache@v2
       with:
         path: ${{ env.HOME }}/.conan2
         key: conan-${{ runner.os }}
@@ -83,7 +83,7 @@ jobs:
       run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
 
     - name: Build
-      run: cmake --build build/Release
+      run: cmake --build build/Release -j10
 
     - name: Run unit tests
       run: ctest --output-on-failure -C Release
