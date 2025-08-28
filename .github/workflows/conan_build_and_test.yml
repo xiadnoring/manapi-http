@@ -76,7 +76,10 @@ jobs:
             -o "manapihttp/*:nghttp3_dependency=True" \
             -o "manapihttp/*:cpptrace_dependency=False" \
             --build=missing
-            
+
+    - name: Clean up
+      run: conan cache clean "*/*"
+
     - name: Configure CMake
       run: cmake --preset conan-release -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
 
