@@ -49,7 +49,7 @@ jobs:
       id: cache-conan
       uses: actions/cache@v4
       with:
-        path: ${{github.workspace}}/.conan2
+        path: ${{ env.HOME }}/.conan2
         key: conan-${{ runner.os }}-${{ hashFiles('**/conanfile.py') }}
     - if: ${{steps.cache-conan.outputs.cache-hit != 'true'}}
       name: Create default Conan profile
@@ -58,7 +58,7 @@ jobs:
     - name: Conan install dependencies
       run:  |
             conan install . \
-            --output-folder build \
+            --install-folder build \
             -o "manapihttp/*:shared=True" \
             -o "manapihttp/*:lib=True" \
             -o "manapihttp/*:json_debug=False" \
