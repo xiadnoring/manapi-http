@@ -53,14 +53,7 @@ jobs:
         key: conan-${{ runner.os }}-${{ hashFiles('**/conanfile.py') }}
     - if: ${{steps.cache-conan.outputs.cache-hit != 'true'}}
       name: Create default Conan profile
-      run: conan profile new default --detect
-
-    - name: Conan profile update
-      run:  |
-            conan profile update settings.compiler=${{ matrix.c_compiler }} default
-            conan profile update env.CC=[${{ matrix.c_compiler }}] default
-            conan profile update env.CXX=[${{ matrix.cxx_compiler }}] default
-            conan profile show default
+      run: conan profile detect --force
 
     - name: Conan install dependencies
       run:  |
