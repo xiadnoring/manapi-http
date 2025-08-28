@@ -679,7 +679,7 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_
     try {
         ev->loop_ = std::make_unique<uv_loop_t>();
 
-#ifdef MANAPIHTTP_CURL_DEPENDENCY
+#if MANAPIHTTP_CURL_DEPENDENCY
         ev->curl_watcher = std::make_unique<ev::internal::curl_watcher_t>();
 #endif
 
@@ -804,11 +804,11 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_
             if (ev->callback_watcher_) {
                 ev->stop_watcher(std::move(ev->callback_watcher_->adding_async));
             }
-
+#if MANAPIHTTP_CURL_DEPENDENCY
             if (ev->curl_watcher) {
                 ev->stop_watcher(std::move(ev->curl_watcher->timeout_watcher));
             }
-
+#endif
             ev->stop_watcher(std::move(ev->interrupted_watcher_));
             ev->stop_watcher(std::move(ev->prepare_tasks_));
             ev->stop_watcher(std::move(ev->idle_tasks_));
@@ -889,8 +889,9 @@ void manapi::event_loop::wait() {
     this->stop_watcher(std::move(this->callback_watcher_->adding_async));
     this->stop_watcher(std::move(this->idle_tasks_));
     this->stop_watcher(std::move(this->prepare_tasks_));
+#if MANAPIHTTP_CURL_DEPENDENCY
     this->stop_watcher(std::move(this->curl_watcher->timeout_watcher));
-
+#endif
     std::shared_ptr<ev::idle> idle_tasks;
 
     if (this->loop_) {
@@ -1137,6 +1138,21 @@ void manapi::event_loop::try_tasks_(const ev::shared_idle &w) {
 
 manapi::error::status manapi::event_loop::custom_callback(std::move_only_function<void(event_loop *ev)> cb) MANAPIHTTP_NOEXCEPT {
     return this->custom_callback(&cb);
+}
+
+manapi::error::status manapi::event_loop::custom_callback(std::move_only_function<void(event_loop *ev)> *cb) MANAPIHTTP_NOEXCEPT {
+    try {
+        std::unique_lock<std::mutex> lk (this->callback_watcher_->adding_mx);
+        this->callback_watcher_->callback_data.push_back({nullptr});
+        this->callback_watcher_->callback_data.back().cb = std::move(*cb);
+        lk.unlock();
+        this->callback_watcher_->adding_async_cb();
+        return error::status_ok();
+    }
+    catch (std::exception const &e) {
+        manapi_log_error("%s due to %s", "custom_callback:Failed",e.what());
+        return error::status_internal("custom_callback:Failed");
+    }
 }
 
 #if MANAPIHTTP_CURL_DEPENDENCY
@@ -1418,21 +1434,6 @@ manapi::error::status manapi::event_loop::pause_watch_curl(void * shared_curl) M
     });
     MANAPIHTTP_MUST_ALLOC_END
     return error::status_ok();
-}
-
-manapi::error::status manapi::event_loop::custom_callback(std::move_only_function<void(event_loop *ev)> *cb) MANAPIHTTP_NOEXCEPT {
-    try {
-        std::unique_lock<std::mutex> lk (this->callback_watcher_->adding_mx);
-        this->callback_watcher_->callback_data.push_back({nullptr});
-        this->callback_watcher_->callback_data.back().cb = std::move(*cb);
-        lk.unlock();
-        this->callback_watcher_->adding_async_cb();
-        return error::status_ok();
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "custom_callback:Failed",e.what());
-        return error::status_internal("custom_callback:Failed");
-    }
 }
 
 manapi::error::status manapi::event_loop::unpause_watch_curl(void *shared_curl) MANAPIHTTP_NOEXCEPT {

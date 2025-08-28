@@ -22,11 +22,13 @@
 
 static const std::set<std::string> methods = {"POST", "GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE", "PATCH", "CONNECT"};
 
+#ifdef MANAPIHTTP_FETCH_SUPPORT
 struct response_proxy_data_t {
     ssize_t content_length;
     manapi::net::fetch fetch;
     std::unique_ptr<manapi::net::http::response> resp;
 };
+#endif
 
 std::string manapi::net::http::internal::generate_default_page(int status, std::string_view msg) {
     return std::format("<html>\n\t<head>\n\t\t"

@@ -32,7 +32,9 @@ namespace manapi::net::http {
         using resp_callback_async = std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool&)>;
         using resp_stream_cb = std::move_only_function<manapi::future<ssize_t>(manapi::slice_view buffs, bool)>;
         using resp_stream = std::move_only_function<manapi::future<>(resp_stream_cb cb)>;
+#ifdef MANAPIHTTP_FETCH_SUPPORT
         using resp_proxy_setup_cb = std::move_only_function<void(class manapi::net::fetch &)>;
+#endif
 
         response (internal::handle_data_t* cdata, uint16_t status, http::config *config, std::unique_ptr<http::request> req);
 

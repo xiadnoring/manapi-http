@@ -34,9 +34,10 @@ UTEST(http_and_fetch, simple_request) {
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT, {
+        manapi::json jparams = {
             {"method", "GET"}
-        });
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT, std::move(jparams));
 
         auto fetch = fetch_res.unwrap();
 
@@ -60,9 +61,10 @@ UTEST(http_and_fetch, simple_post_request) {
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/post", {
+        manapi::json jparams = {
             {"method", "POST"}
-        }, "Hello, World!");
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/post", std::move(jparams), "Hello, World!");
 
         auto fetch = fetch_res.unwrap();
 
@@ -94,9 +96,10 @@ UTEST(http_and_fetch, callback_sync_get_request) {
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/callback", {
+        manapi::json jparams = {
             {"method", "GET"}
-        });
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/callback", std::move(jparams));
 
         auto fetch = fetch_res.unwrap();
 
@@ -138,9 +141,10 @@ UTEST(http_and_fetch, callback_async_get_request) {
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/callback", {
+        manapi::json jparams = {
             {"method", "GET"}
-        });
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/callback", std::move(jparams));
 
         auto fetch = fetch_res.unwrap();
 
@@ -232,9 +236,10 @@ UTEST(http_and_fetch, formdata_request) {
         formdata.set_text("hello2", "msg2").unwrap();
         formdata.set_text("1", manapi::string::fill(500, 'A'));
         formdata.set_text("hello3", "msg3").unwrap();
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/formdata", {
+        manapi::json jparams = {
             {"method", "POST"}
-        }, std::move(formdata));
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/formdata", std::move(jparams), std::move(formdata));
 
         auto fetch = fetch_res.unwrap();
 
@@ -298,9 +303,10 @@ UTEST(http_and_fetch, formdata_response) {
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/formdata", {
+        manapi::json jparams = {
             {"method", "GET"}
-        });
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/formdata", std::move(jparams));
 
         auto fetch = fetch_res.unwrap();
 
@@ -334,10 +340,11 @@ UTEST(http_and_fetch, formdata_bad_response__no_data) {
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/bad", {
+        manapi::json jparams = {
             {"method", "GET"},
             {"verbose", false}
-        }, manapi::async::timeout_cancellation(5000));
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/bad", std::move(jparams), manapi::async::timeout_cancellation(5000));
 
         if (!fetch_res.ok())
             co_return;
@@ -381,10 +388,11 @@ UTEST(http_and_fetch, formdata_bad_response) {
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" "443" "/bad", {
+        manapi::json jparams = {
             {"method", "GET"},
             {"verbose", false}
-        }, manapi::async::timeout_cancellation(5000));
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" "443" "/bad", std::move(jparams), manapi::async::timeout_cancellation(5000));
 
         if (!fetch_res.ok())
             co_return;
@@ -416,10 +424,11 @@ UTEST(http_and_fetch, chunked_request) {
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/chunked", {
+        manapi::json jparams = {
             {"method", "GET"},
             {"verbose", false}
-        }, manapi::async::timeout_cancellation(5000));
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/chunked", std::move(jparams), manapi::async::timeout_cancellation(5000));
 
         auto fetch = fetch_res.unwrap();
 
@@ -477,10 +486,11 @@ UTEST(http_and_fetch, chunked_response) {
         zz.resize(100000);
         for (int i = 0; i < zz.size(); i++)
             zz[i] = (char)(i % 10);
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/chunked", {
+        manapi::json jparams = {
             {"method", "POST"},
             {"verbose", false}
-        }, [&zz, cursor = int(0)] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/chunked", std::move(jparams), [&zz, cursor = int(0)] (manapi::slice_view buffs, bool &fin) mutable -> manapi::future<ssize_t> {
             auto const copy = std::min<std::size_t>(zz.size() - cursor, buffs.size());
             auto res = buffs.copy_from(zz.data() + cursor, 0, copy);
             if (!res) {
@@ -532,10 +542,11 @@ UTEST(http_and_fetch, user_data) {
         {"http1", true}
     }, [&] () -> manapi::future<> {
 
-        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/admin/test", {
+        manapi::json jparams = {
             {"method", "GET"},
             {"verbose", false}
-        }, manapi::async::timeout_cancellation(5000));
+        };
+        auto fetch_res = co_await manapi::net::fetch2::fetch("http://127.0.0.1:" HTTP1PORT "/admin/test", std::move(jparams), manapi::async::timeout_cancellation(5000));
 
         auto fetch = fetch_res.unwrap();
 

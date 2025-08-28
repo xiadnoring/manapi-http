@@ -9,7 +9,6 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
     router.GET("/", folder, [] (http::req &req, http::resp &resp)
         -> manapi::future<> {
         resp.compress_enabled(true);
-        req.url()
         resp.compress("zstd");
         co_return;
     });

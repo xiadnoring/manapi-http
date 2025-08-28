@@ -38,15 +38,6 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: "3.11"
-
-    - name: switch to gcc-14 on linux
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      run: |
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/ppa -y
-        sudo apt update
-        sudo apt install g++-14 gcc-14
-        echo "CXX=g++-14" >> $GITHUB_ENV
-        echo "CC=gcc-14" >> $GITHUB_ENV
           
     - name: Install Conan
       run: pip install conan==2.*
@@ -89,13 +80,13 @@ jobs:
       run: conan cache clean "*/*"
 
     - name: Configure CMake
-      run: cmake --preset conan-release -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
+      run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
 
     - name: Build
       run: cmake --build build/Release
 
     - name: Run unit tests
       run: ctest --output-on-failure -C Release
-      working-directory: build
+      working-directory: build/Release
 
     

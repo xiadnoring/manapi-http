@@ -8,7 +8,39 @@
 
 #define CHUNK_SIZE 65536
 
-#ifdef MANAPIHTTP_BROTLI_DEPENDENCY
+
+static manapi::future<manapi::error::status> compress_file_init (manapi::filesystem::fstream &input, manapi::filesystem::fstream &output, std::string src, std::string dest, manapi::async::cancellation_action &cancellation) {
+    auto ires = manapi::filesystem::fstream::create (std::move(src), manapi::async::cancellation_action::unit(cancellation));
+    auto ores = manapi::filesystem::fstream::create (std::move(dest), manapi::async::cancellation_action::unit(cancellation));
+
+    if (!ires)
+        co_return ires.err();
+
+    if (!ores)
+        co_return ores.err();
+
+    input = ires.unwrap();
+    output = ores.unwrap();
+
+    auto oires = co_await input.open(manapi::ev::FS_O_RDONLY);
+    if (!oires) {
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %.*s",
+            "compress:input open", oires.sysmsg().size(), oires.sysmsg().data());
+        co_return std::move(oires);
+    }
+    auto oores = co_await output.open(manapi::ev::FS_O_CREAT|manapi::ev::FS_O_TRUNC|manapi::ev::FS_O_WRONLY,
+        manapi::ev::IRUSR|manapi::ev::IWUSR|manapi::ev::IRGRP);
+    if (!oores) {
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %.*s",
+            "compress:output open", oores.sysmsg().size(), oores.sysmsg().data());
+        co_return std::move(oores);
+    }
+
+    co_return manapi::error::status_ok();
+}
+
+
+#if MANAPIHTTP_BROTLI_DEPENDENCY
 
 #   include <brotli/encode.h>
 #   include <brotli/decode.h>
@@ -51,36 +83,6 @@ manapi::error::status_or<std::string> manapi::compress::brotli_compress_string(s
     } while (false);
 err:
     return error::status_internal("brotli: compress failed");
-}
-
-static manapi::future<manapi::error::status> compress_file_init (manapi::filesystem::fstream &input, manapi::filesystem::fstream &output, std::string src, std::string dest, manapi::async::cancellation_action &cancellation) {
-    auto ires = manapi::filesystem::fstream::create (std::move(src), manapi::async::cancellation_action::unit(cancellation));
-    auto ores = manapi::filesystem::fstream::create (std::move(dest), manapi::async::cancellation_action::unit(cancellation));
-
-    if (!ires)
-        co_return ires.err();
-
-    if (!ores)
-        co_return ores.err();
-
-    input = ires.unwrap();
-    output = ores.unwrap();
-
-    auto oires = co_await input.open(manapi::ev::FS_O_RDONLY);
-    if (!oires) {
-        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %.*s",
-            "compress:input open", oires.sysmsg().size(), oires.sysmsg().data());
-        co_return std::move(oires);
-    }
-    auto oores = co_await output.open(manapi::ev::FS_O_CREAT|manapi::ev::FS_O_TRUNC|manapi::ev::FS_O_WRONLY,
-        manapi::ev::IRUSR|manapi::ev::IWUSR|manapi::ev::IRGRP);
-    if (!oores) {
-        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s failed due to %.*s",
-            "compress:output open", oores.sysmsg().size(), oores.sysmsg().data());
-        co_return std::move(oores);
-    }
-
-    co_return manapi::error::status_ok();
 }
 
 manapi::future<manapi::error::status> manapi::compress::brotli_compress_file(std::string src, std::string dest, int quality, int window, int mode, manapi::async::cancellation_action cancellation) {
@@ -189,7 +191,7 @@ manapi::future<manapi::error::status> manapi::compress::brotli_decompress_file(s
 
 #endif
 
-#ifdef MANAPIHTTP_ZSTD_DEPENDENCY
+#if MANAPIHTTP_ZSTD_DEPENDENCY
 
 #   include <zstd.h>
 

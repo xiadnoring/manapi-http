@@ -255,7 +255,7 @@ manapi::error::status manapi::json::parse_(STRING_VIEW plain_text, bool use_bigi
     return error::status_ok();
 }
 #else
-void manapi::json::parse_(STRING_VIEW plain_text) {
+manapi::error::status manapi::json::parse_(STRING_VIEW plain_text) {
     json_builder builder (json_mask(nullptr));
     auto res = builder.parse(plain_text);
     if (!res.ok())
@@ -263,7 +263,7 @@ void manapi::json::parse_(STRING_VIEW plain_text) {
     auto rhs = builder.get();
     if (!rhs.ok())
         return std::move(rhs.err());
-    *this = std::move(rhs.value());
+    *this = rhs.unwrap();
     return error::status_ok();
 }
 #endif
@@ -1560,7 +1560,7 @@ bool manapi::json::operator<=(DECIMAL n) const {
 bool manapi::json::operator==(const NULLPTR &n) const {
     return this->is_null();
 }
-
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
 bool manapi::json::operator!=(const BIGINT &n) const {
     return !this->operator==(n);
 }
@@ -1620,6 +1620,8 @@ bool manapi::json::operator>=(const BIGINT &n) const {
     THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
 
 }
+
+#endif
 
 manapi::json manapi::json::operator-(INTEGER num) const {
     return std::move(this->operator+(-num));

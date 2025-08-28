@@ -1,19 +1,9 @@
-//#ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
 #   include "ManapiInitTools.hpp"
 #   include "ManapiProcess.hpp"
 #   include "json/ManapiJson.hpp"
 #   include "json/ManapiJsonMask.hpp"
 #   include "json/ManapiJsonBuilder.hpp"
 #   include "fs/ManapiFilesystem.hpp"
-// #else
-// #   include <manapihttp/ManapiInitTools.hpp>
-// #   include <manapihttp/ManapiProcess.hpp>
-// #   include <manapihttp/json/ManapiJson.hpp>
-// #   include <manapihttp/json/ManapiJsonMask.hpp>
-// #   include <manapihttp/json/ManapiJsonBuilder.hpp>
-// #   include <manapihttp/fs/ManapiFilesystem.hpp>
-// #endif
-
 #include "./utest.h"
 
 UTEST(fs_path, join_1) {
