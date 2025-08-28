@@ -44,7 +44,9 @@ jobs:
       run: |
         sudo add-apt-repository ppa:ubuntu-toolchain-r/ppa -y
         sudo apt update
-        sudo apt install g++-13 gcc-13
+        sudo apt install g++-14 gcc-14
+        echo "CXX=g++-14" >> $GITHUB_ENV
+        echo "CC=gcc-14" >> $GITHUB_ENV
           
     - name: Install Conan
       run: pip install conan==2.*
