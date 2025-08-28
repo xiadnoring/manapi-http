@@ -58,22 +58,22 @@ jobs:
     - name: Conan install dependencies
       run:  |
             conan install . \
-            --output-folder ${{github.workspace}}/build \
+            --output-folder build \
             -o "manapihttp/*:shared=True" \
             -o "manapihttp/*:lib=True" \
             -o "manapihttp/*:json_debug=False" \
-            -o "manapihttp/*:openssl_dependency=True" \
+            -o "manapihttp/*:openssl_dependency=False" \
             -o "manapihttp/*:wolfssl_dependency=False" \
             -o "manapihttp/*:quiche_dependency=False" \
             -o "manapihttp/*:tquic_dependency=False" \
-            -o "manapihttp/*:zlib_dependency=True" \
-            -o "manapihttp/*:curl_dependency=True" \
-            -o "manapihttp/*:gmp_dependency=True" \
+            -o "manapihttp/*:zlib_dependency=False" \
+            -o "manapihttp/*:curl_dependency=False" \
+            -o "manapihttp/*:gmp_dependency=False" \
             -o "manapihttp/*:zstd_dependency=True" \
-            -o "manapihttp/*:brotli_dependency=True" \
+            -o "manapihttp/*:brotli_dependency=False" \
             -o "manapihttp/*:grpc_dependency=False" \
-            -o "manapihttp/*:nghttp2_dependency=True" \
-            -o "manapihttp/*:nghttp3_dependency=True" \
+            -o "manapihttp/*:nghttp2_dependency=False" \
+            -o "manapihttp/*:nghttp3_dependency=False" \
             -o "manapihttp/*:cpptrace_dependency=False" \
             --build=missing
 
