@@ -38,18 +38,18 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: "3.11"
-          
+
     - name: Install Conan
       run: pip install conan==2.*
 
     - name: Conan Directory
-      run: echo "${{ runner.home }}/.conan2"
+      run: echo "$HOME/.conan2"
 
     - name: Cache Conan Dependencies
       id: cache-conan
       uses: actions/cache@v4
       with:
-        path: ${{ runner.home }}/.conan2
+        path: $HOME/.conan2
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}
     - if: ${{steps.cache-conan.outputs.cache-hit != 'true'}}
       name: Create default Conan profile
