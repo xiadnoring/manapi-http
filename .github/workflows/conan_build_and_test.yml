@@ -40,7 +40,7 @@ jobs:
         python-version: "3.11"
 
     - name: switch to gcc-14 on linux
-      if: ${{ matrix.os == 'Linux' }}
+      if: ${{ matrix.os == 'ubuntu-latest' }}
       run: |
         sudo add-apt-repository ppa:ubuntu-toolchain-r/ppa -y
         sudo apt update
