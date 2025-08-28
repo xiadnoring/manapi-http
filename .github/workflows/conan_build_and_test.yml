@@ -97,7 +97,7 @@ jobs:
       run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
 
     - name: Build
-      run: cmake --build build/Release -j10
+      run: cmake --build build/Release -j4
 
     - name: Run unit tests
       run: ctest --output-on-failure -C Release
