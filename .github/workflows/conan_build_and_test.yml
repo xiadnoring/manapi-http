@@ -55,10 +55,17 @@ jobs:
       name: Create default Conan profile
       run: conan profile detect --force
 
+    - name: Debug Information
+      run: pwd
+
+
+    - name: Debug Information 2
+      run: ls -lh
+
     - name: Conan install dependencies
       run:  |
             conan install . \
-            --install-folder build \
+            --output-folder build \
             -o "manapihttp/*:shared=True" \
             -o "manapihttp/*:lib=True" \
             -o "manapihttp/*:json_debug=False" \
