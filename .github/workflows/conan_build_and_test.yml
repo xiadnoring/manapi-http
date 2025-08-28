@@ -47,7 +47,7 @@ jobs:
 
     - name: Cache Conan Dependencies (Ubuntu Latest)
       if: ${{ runner.os == 'ubuntu-latest' }}
-      id: cache-conan
+      id: cache-conan-ubuntu
       uses: actions/cache@v4
       with:
         path: /home/runner/.conan2
@@ -55,13 +55,17 @@ jobs:
 
     - name: Cache Conan Dependencies (Windows Latest)
       if: ${{ runner.os == 'windows-latest' }}
-      id: cache-conan
+      id: cache-conan-windows
       uses: actions/cache@v4
       with:
         path: C:\Users\runneradmin\.conan2
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}
 
-    - if: ${{steps.cache-conan.outputs.cache-hit != 'true'}}
+    - if: ${{ runner.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true' }}
+      name: Create default Conan profile
+      run: conan profile detect --force
+
+    - if: ${{ runner.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true' }}
       name: Create default Conan profile
       run: conan profile detect --force
 
