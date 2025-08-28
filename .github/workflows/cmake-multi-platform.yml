@@ -1,0 +1,97 @@
+# This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
+# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
+name: Build And Tests
+
+on:
+  push:
+    branches: [ "development" ]
+  pull_request:
+    branches: [ "development" ]
+  
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
+      fail-fast: false
+
+      # Set up a matrix to run the following 3 configurations:
+      # 1. <Windows, Release, latest MSVC compiler toolchain on the default runner image, default generator>
+      # 2. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
+      # 3. <Linux, Release, latest Clang compiler toolchain on the default runner image, default generator>
+      #
+      # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
+      matrix:
+        os: [ubuntu-latest]
+        build_type: [Release]
+        c_compiler: [gcc]
+        include:
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+          
+    - name: Install Conan
+      run: pip install conan==2.*
+
+    - name: Conan version
+      run: echo "${{ steps.conan.outputs.version }}"
+
+    - name: Cache Conan Dependencies
+      id: cache-conan
+      uses: actions/cache@v2
+      with:
+        path: ${{github.workspace}}/.conan2
+        key: conan-${{ runner.os }}-${{ hashFiles('**/conanfile.py') }}
+    - if: ${{steps.cache-conan.outputs.cache-hit != 'true'}}
+      name: Create default Conan profile
+      run: conan profile new default --detect
+
+    - name: Conan profile update
+      run:  |
+            conan profile update settings.compiler=${{ matrix.c_compiler }} default
+            conan profile update env.CC=[${{ matrix.c_compiler }}] default
+            conan profile update env.CXX=[${{ matrix.cxx_compiler }}] default
+            conan profile show default
+
+    - name: Conan install dependencies
+      run:  |
+            conan install . \
+            --output-folder ${{github.workspace}}/build \
+            -o "manapihttp/*:shared=True" \
+            -o "manapihttp/*:lib=True" \
+            -o "manapihttp/*:json_debug=False" \
+            -o "manapihttp/*:openssl_dependency=True" \
+            -o "manapihttp/*:wolfssl_dependency=False" \
+            -o "manapihttp/*:quiche_dependency=False" \
+            -o "manapihttp/*:tquic_dependency=False" \
+            -o "manapihttp/*:zlib_dependency=True" \
+            -o "manapihttp/*:curl_dependency=True" \
+            -o "manapihttp/*:gmp_dependency=True" \
+            -o "manapihttp/*:zstd_dependency=True" \
+            -o "manapihttp/*:brotli_dependency=True" \
+            -o "manapihttp/*:grpc_dependency=False" \
+            -o "manapihttp/*:nghttp2_dependency=True" \
+            -o "manapihttp/*:nghttp3_dependency=True" \
+            -o "manapihttp/*:cpptrace_dependency=False" \
+            --build=missing
+            
+    - name: Configure CMake
+      run: cmake --preset conan-release -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Run unit tests
+      run: ctest --output-on-failure -C Release
+      working-directory: build
+
+    
