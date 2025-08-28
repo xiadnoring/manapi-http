@@ -54,7 +54,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: /home/runner/.conan2
-        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}
+        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
 
     - name: Cache Conan Dependencies (Windows Latest)
       if: ${{ matrix.os == 'windows-latest' }}
@@ -62,13 +62,9 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:\Users\runneradmin\.conan2
-        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}
+        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
 
-    - if: ${{ matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true' }}
-      name: Create default Conan profile
-      run: conan profile detect --force
-
-    - if: ${{ matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true' }}
+    - if: ${{ (matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true') }}
       name: Create default Conan profile
       run: conan profile detect --force
 
