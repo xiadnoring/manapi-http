@@ -65,7 +65,6 @@ jobs:
     - name: Conan install dependencies
       run:  |
             conan install . \
-            --output-folder build \
             -o "manapihttp/*:shared=True" \
             -o "manapihttp/*:lib=True" \
             -o "manapihttp/*:json_debug=False" \
