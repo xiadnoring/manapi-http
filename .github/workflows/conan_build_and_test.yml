@@ -47,7 +47,7 @@ jobs:
 
     - name: Cache Conan Dependencies
       id: cache-conan
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ${{ env.HOME }}/.conan2
         key: conan-${{ runner.os }}
