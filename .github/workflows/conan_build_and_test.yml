@@ -51,7 +51,7 @@ jobs:
     - name: Cache Conan Dependencies (Ubuntu Latest)
       if: ${{ matrix.os == 'ubuntu-latest' }}
       id: cache-conan-ubuntu
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: /home/runner/.conan2
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}
