@@ -43,14 +43,14 @@ jobs:
       run: pip install conan==2.*
 
     - name: Conan Directory
-      run: echo "${{ env.HOME }}/.conan2"
+      run: echo "${{ runner.home }}/.conan2"
 
     - name: Cache Conan Dependencies
       id: cache-conan
       uses: actions/cache@v4
       with:
-        path: ${{ env.HOME }}/.conan2
-        key: conan-${{ runner.os }}
+        path: ${{ runner.home }}/.conan2
+        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}
     - if: ${{steps.cache-conan.outputs.cache-hit != 'true'}}
       name: Create default Conan profile
       run: conan profile detect --force
