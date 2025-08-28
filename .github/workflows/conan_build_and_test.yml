@@ -74,7 +74,7 @@ jobs:
 
     - name: Conan install dependencies
       run:  |
-            [[ ${{ matrix.library_type }} == "SHARED" ]] && shared="ON" || shared="OFF"
+            [[ ${{ matrix.library_type }} == "SHARED" ]] && shared=True || shared=False
             conan install . \
             -o "manapihttp/*:shared=$shared" \
             -o "manapihttp/*:lib=True" \
