@@ -8,6 +8,8 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
     cmake_policy(SET CMP0135 NEW)
 endif ()
 
+include(CTest)
+
 if (EXISTS "./build/generators/conan_toolchain.cmake")
     include(./build/generators/conan_toolchain.cmake)
 endif ()
@@ -50,6 +52,7 @@ OPTION(MANAPIHTTP_NGHTTP3_SYSTEM_DISABLE "Disable default nghttp3" OFF)
 OPTION(MANAPIHTTP_DEPENDENCY_FETCH_OUTPUT "Output Directory For Libraries" OFF)
 OPTION(MANAPIHTTP_BUILD_TYPE "Build result: binary or library" "lib")
 OPTION(MANAPIHTTP_INSTALL_ARCH "/x86_64-linux-gnu for example" "")
+OPTION(MANAPIHTTP_ENABLE_TESTS "Enable Tests" OFF)
 
 OPTION(CMAKE_BUILD_TYPE "Library build type" "Release")
 message(STATUS "C++ Stack Tracing: ${MANAPIHTTP_CPPTRACE_DEPENDENCY}")
@@ -66,7 +69,6 @@ message(STATUS "Some compresses support by zlib: ${MANAPIHTTP_ZLIB_DEPENDENCY}")
 message(STATUS "libnghttp2 by nghttp2" ${MANAPIHTTP_NGHTTP2_DEPENDENCY})
 message(STATUS "libnghttp3 by nghttp3" ${MANAPIHTTP_NGHTTP3_DEPENDENCY})
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}/shm>")
 set(MANAPIHTTP_GMP_DEPENDENCY_OBJ OFF)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -546,7 +548,6 @@ else ()
     endif ()
 endif ()
 
-
 include(CheckLibraryExists)
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/preprocess/ManapiParams.hpp" TEXT)
@@ -900,20 +901,20 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
     add_compile_definitions(MANAPIHTTP_HTTP_AS_EXECUTABLE)
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
         add_executable(${PROJECT_NAME} main.cpp handlers.hpp handlers.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
-    else ()
-        add_executable(${PROJECT_NAME}
-                test_package/test_http.hpp
-                test_package/test_json.hpp
-                test_package/test_parse.hpp
-                test_package/test_package.cpp
-                test_package/test_bigint.hpp
-                test_package/test_json_masks.hpp
-                test_package/test_http_and_fetch.cpp
-                test_package/test_fetch.hpp
-                test_package/test_fs.cpp
-                test_package/test_fs.hpp
-                test_package/utest.h
-                ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+#    else ()
+#        add_executable(${PROJECT_NAME}
+#                test_package/test_http.hpp
+#                test_package/test_json.hpp
+#                test_package/test_parse.hpp
+#                test_package/test_package.cpp
+#                test_package/test_bigint.hpp
+#                test_package/test_json_masks.hpp
+#                test_package/test_http_and_fetch.cpp
+#                test_package/test_fetch.hpp
+#                test_package/test_fs.cpp
+#                test_package/test_fs.hpp
+#                test_package/utest.h
+#                ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
     endif ()
 else ()
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
@@ -1161,6 +1162,16 @@ target_include_directories  (${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/generat
 
 if (WIN32)
     # set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} "/FS")
+endif ()
+
+if (MANAPIHTTP_ENABLE_TESTS AND MANAPIHTTP_BUILD_TYPE STREQUAL "lib")
+    message(STATUS "Enable Testing")
+
+    add_subdirectory(./tests)
+
+    enable_testing()
+else ()
+    message(STATUS "Disable Testing")
 endif ()
 
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

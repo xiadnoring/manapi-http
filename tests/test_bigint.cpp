@@ -1,10 +1,9 @@
-#pragma once
-
-#ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
+//#ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
 #   include "ManapiBigint.hpp"
-#else
-#   include <manapihttp/ManapiBigint.hpp>
-#endif
+// #else
+// #   include <manapihttp/ManapiBigint.hpp>
+// #endif
+
 #include "./utest.h"
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
@@ -88,3 +87,5 @@ UTEST(bigint, bigint_parse_divide_integer) {
 }
 
 #endif
+
+UTEST_MAIN();

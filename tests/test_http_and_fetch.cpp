@@ -1,76 +1,33 @@
-#include "test_fetch.hpp"
+#include "ManapiInitTools.hpp"
+#include "ManapiProcess.hpp"
+#include "ManapiFetch2.hpp"
+#include "ManapiString.hpp"
+#include "ManapiHttp.hpp"
+#include "json/ManapiJson.hpp"
+#include "std/ManapiEasyCancellation.hpp"
 
 
-#ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
-#   include "ManapiFetch2.hpp"
-#   include "ManapiString.hpp"
-#   include "std/ManapiEasyCancellation.hpp"
-#else
-#   include <manapihttp/ManapiFetch2.hpp>
-#   include <manapihttp/ManapiString.hpp>
-#   include <manapihttp/std/ManapiEasyCancellation.hpp>
-#endif
 #include "./utest.h"
+#include "./tools.hpp"
 
-
-#define HTTP1PORT "8888"
-
-manapi::async::shared_ctx init_ctx () {
-    auto ctx = manapi::async::context::create(4).unwrap();
-    ctx->eventloop()->setup_handle_interrupt();
-    return ctx;
-}
-
-void wait_ctx (manapi::async::shared_ctx ctx) {
-    manapi::async::context::run(ctx, 0, [] (std::function<void()> bind) -> void {
-
-        bind();
-    });
-}
-
-manapi::net::http::server init_router (manapi::json cnf, std::move_only_function<manapi::future<>()> cb) {
+UTEST(http, http_router_exists) {
     using http = manapi::net::http::server;
 
     auto server = manapi::net::http::server_ctx::create();
     auto router = manapi::net::http::server::create(server.unwrap()).unwrap();
 
-    router.GET ("/", [] (http::req &req, http::uresp resp) -> void {
-        resp->text("Hello, World!");
+    router.GET ("/hello", [] (http::req &req, http::uresp resp) -> void {
+        resp.finish();
     }).unwrap();
 
-    manapi::async::run ([router, cnf, cb = std::move(cb)] () mutable -> manapi::future<> {
-        manapi::json config = {
-            {"pools", manapi::json::array()}
-        };
-        if (cnf.contains("http1") && cnf["http1"].as_bool_cast()) {
-            config["pools"].push_back({
-                {"address", "127.0.0.1"},
-                {"port", HTTP1PORT},
-                {"http", manapi::json::array("1.1")},
-                {"transport", "tcp"},
-                {"tcp_no_delay", true},
-                {"simultaneous_accepts", true},
-                {"buffer_size", 4096},
-                {"max_buffer_stack", 1},
-                {"max_merge_buffer_stack", 1},
-                {"max_connections", 2},
-                {"max_connections_by_ip", 2},
-                {"keep_alive", 0}
-            });
-        }
-        auto res = co_await router.config_object (config);
-        res.unwrap();
-
-        res = co_await router.start();
-        res.unwrap();
-
-        co_await cb();
-
-        co_await manapi::async::current()->stop();
+    auto res = router.GET ("/hello", [] (http::req &req, http::uresp resp) -> void {
+        resp.finish();
     });
 
-    return router;
+    ASSERT_TRUE_MSG(!res.ok(), "already exists");
 }
+
+#ifdef MANAPIHTTP_FETCH_SUPPORT
 
 UTEST(http_and_fetch, simple_request) {
     auto ctx = init_ctx();
@@ -611,3 +568,7 @@ UTEST(http_and_fetch, user_data) {
 
     wait_ctx(ctx);
 }
+
+#endif
+
+MANAPIHTTP_TESTS_MAIN

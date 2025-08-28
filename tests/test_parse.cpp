@@ -1,16 +1,14 @@
-#pragma once
-
-#ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
+//#ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
 #    include "ManapiHttp.hpp"
 #    include "ManapiString.hpp"
 
 //#    include "http/ManapiHttp1.hpp" // http_v1_1_t
-#else
-#    include <manapihttp/ManapiHttp.hpp>
-#    include <manapihttp/ManapiString.hpp>
-
-//#    include <manapihttp/http/ManapiHttp1.hpp> // http_v1_1_t
-#endif
+// #else
+// #    include <manapihttp/ManapiHttp.hpp>
+// #    include <manapihttp/ManapiString.hpp>
+//
+// //#    include <manapihttp/http/ManapiHttp1.hpp> // http_v1_1_t
+// #endif
 #include "./utest.h"
 
 UTEST(parse, headers_ok_1) {
@@ -96,3 +94,5 @@ UTEST(parse, headers_ok_1) {
 //     ASSERT_TRUE(req->headers["header1"] == "Key1");
 //     ASSERT_TRUE(req->headers["header2"] == " Key2");
 // }
+
+UTEST_MAIN();

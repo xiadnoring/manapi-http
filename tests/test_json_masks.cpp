@@ -1,14 +1,14 @@
-#pragma once
-
-#ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
+//#ifdef MANAPIHTTP_HTTP_AS_EXECUTABLE
 #   include "json/ManapiJson.hpp"
 #   include "json/ManapiJsonMask.hpp"
 #   include "json/ManapiJsonBuilder.hpp"
-#else
-#   include <manapihttp/json/ManapiJson.hpp>
-#   include <manapihttp/json/ManapiJsonMask.hpp>
-#   include <manapihttp/json/ManapiJsonBuilder.hpp>
-#endif
+// #else
+// #   include <manapihttp/json/ManapiJson.hpp>
+// #   include <manapihttp/json/ManapiJsonMask.hpp>
+// #   include <manapihttp/json/ManapiJsonBuilder.hpp>
+// #endif
+
+#include "./utest.h"
 
 UTEST(json_masks, simple_mask_1) {
     manapi::json_mask mask = {
@@ -402,3 +402,5 @@ UTEST(json_masks, stream_smart_condition_1) {
     jb << c;
 }, std::exception);
 }
+
+UTEST_MAIN();
