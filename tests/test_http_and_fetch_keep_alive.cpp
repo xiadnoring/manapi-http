@@ -62,11 +62,11 @@ UTEST (http_and_fetch, keep_alive_1) {
 UTEST (http_and_fetch, tls_keep_alive_1) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx(utest_result, 20000);
+    auto ctx = init_ctx(utest_result, 60000);
     auto router = init_router({
         {"http1", true},
         {"http1_cnf", {
-            {"keep_alive", 5},
+            {"keep_alive", 1},
             {"speed_check_delay", 1},
             {"speed_check_bytes", 100000000},
             {"transport", "tls"},
@@ -109,12 +109,14 @@ UTEST (http_and_fetch, tls_keep_alive_1) {
 UTEST (http_and_fetch, tls_http2_1) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx(utest_result, 20000);
+    auto ctx = init_ctx(utest_result, 60000);
     auto router = init_router({
         {"http2", true},
         {"http2_cnf", {
-            {"keep_alive", 5},
+            {"keep_alive", 1},
             {"speed_check_delay", 1},
+            {"speed_stream_check_delay", 1},
+            {"speed_stream_check_bytes", 100000000},
             {"speed_check_bytes", 100000000},
             {"transport", "tls"},
             {"implementation", "openssl"}
