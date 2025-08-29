@@ -155,8 +155,8 @@ UTEST (http_and_fetch, tls_http2_1) {
     wait_ctx(ctx);
 }
 
-#   endif
+#   endif**/
 
-#endif**/
+#endif
 
 MANAPIHTTP_TESTS_MAIN
