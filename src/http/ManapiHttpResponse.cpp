@@ -302,7 +302,8 @@ void manapi::net::http::response::detect_ranges () MANAPIHTTP_NOEXCEPT {
             }
         }
 
-        this->ranges_ = std::move(ranges);
+        if (!ranges->empty())
+            this->ranges_ = std::move(ranges);
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "resp:detect_ranges()", e.what());
@@ -553,6 +554,10 @@ manapi::error::status_or<std::string *> manapi::net::http::response::url() MANAP
     if (!err)
         return std::move(err);
     return &this->body();
+}
+
+bool manapi::net::http::response::contains_ranges() const MANAPIHTTP_NOEXCEPT {
+    return !!this->ranges_ && !this->ranges_->empty();
 }
 
 std::unique_ptr<std::vector<std::pair<ssize_t, ssize_t>>> manapi::net::http::response::ranges() MANAPIHTTP_NOEXCEPT {

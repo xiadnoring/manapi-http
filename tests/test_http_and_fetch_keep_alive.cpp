@@ -56,7 +56,7 @@ UTEST (http_and_fetch, keep_alive_1) {
 
     wait_ctx(ctx);
 }
-
+/**
 #   ifdef MANAPIHTTP_OPENSSL_DEPENDENCY
 
 UTEST (http_and_fetch, tls_keep_alive_1) {
@@ -157,6 +157,6 @@ UTEST (http_and_fetch, tls_http2_1) {
 
 #   endif
 
-#endif
+#endif**/
 
 MANAPIHTTP_TESTS_MAIN

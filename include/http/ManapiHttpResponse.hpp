@@ -112,6 +112,8 @@ namespace manapi::net::http {
 
         manapi::error::status_or<std::string *> url () MANAPIHTTP_NOEXCEPT;
 
+        MANAPIHTTP_NODISCARD bool contains_ranges () const MANAPIHTTP_NOEXCEPT;
+
         std::unique_ptr<std::vector<std::pair<ssize_t, ssize_t>>> ranges () MANAPIHTTP_NOEXCEPT;
 
         manapi::error::status_or<formdata_send *> formdata () MANAPIHTTP_NOEXCEPT;
