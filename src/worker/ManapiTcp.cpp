@@ -861,7 +861,7 @@ void manapi::net::worker::TCP::timeout_(shared_conn conn) MANAPIHTTP_NOEXCEPT {
     if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
         conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
 
-    this->close_connection(conn, CLOSE_CONN_ERR);
+    this->close_connection(conn, CLOSE_CONN_SHUTDOWN);
 }
 
 void manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &sconn) MANAPIHTTP_NOEXCEPT {

@@ -175,7 +175,7 @@ void manapi::net::worker::prepared::feed_event(worker::base *w, const shared_con
     return feed_event(w, conn, data, flags, buff, size, p);
 }
 
-void manapi::net::worker::prepared::update_limit_rate_connection(const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT {
+void manapi::net::worker::prepared::update_limit_rate_connection(const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, ssize_t speed_check_delay, ssize_t speed_check_bytes, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT {
     if (data->transfered >= config->speed_limit_rate
         && data->ev_callback) {
         data->transfered = 0;
@@ -186,19 +186,19 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
                 return;
             }
         }
-    }
+        }
     else {
         data->transfered_k += data->transfered;
 
         if (--data->speed_min_delay <= 0) {
             if (data->flags & (base::CONN_IO_WAITING)
-                && (data->transfered_k < config->speed_check_bytes)) {
+                && (data->transfered_k < speed_check_bytes)) {
                 w->close_connection(sconn, CLOSE_CONN_ERR);
                 return;
-            }
+                }
 
             data->transfered_k = 0;
-            data->speed_min_delay = static_cast<int>(config->speed_check_delay);
+            data->speed_min_delay = static_cast<int>(speed_check_delay);
         }
 
         data->transfered = 0;
@@ -206,6 +206,10 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
 
     if (sconn->wrk.flags & WRK_INTERFACE_CUSTOM_RATE_LIMIT)
         global->update_limit_rate(sconn, global, w);
+}
+
+void manapi::net::worker::prepared::update_limit_rate_connection(const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT {
+    return update_limit_rate_connection(sconn, data, w, config, config->speed_check_delay, config->speed_check_delay, global);
 }
 
 void manapi::net::worker::prepared::update_limit_rate_connection(const shared_conn &sconn, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT {

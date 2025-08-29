@@ -1323,16 +1323,16 @@ static int ng_wrk_http3_rst (const manapi::net::worker::shared_conn &conn, int c
         }
 
         if (s->s)
-            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
+            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
 
         ng_wrk_http3_flush_close(s->ctx);
     }
     else {
         if (s->s)
-            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
+            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
 
         if (!s->ctx->active_connections)
-            s->ctx->gctx->worker->close_connection(s->ctx->conn, manapi::net::worker::CLOSE_CONN_ERR);
+            s->ctx->gctx->worker->close_connection(s->ctx->conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
     }
 
     return manapi::ERR_OK;

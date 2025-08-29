@@ -70,7 +70,7 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
 
     if (!this->config_->force_conn_shutdown
         && (
-            (flags & (CLOSE_CONN_SHUTDOWN))
+            (flags & (CLOSE_CONN_SHUTDOWN|CLOSE_CONN_ERR))
             || (!flags
                 && (!this->config_->keep_alive
                     || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
@@ -351,6 +351,15 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
     if (s->accept_timer) {
         s->accept_timer.stop();
         s->accept_timer = nullptr;
+
+    }
+    auto accept_timer_res = manapi::async::current()->timerpool()->append_timer_sync(5000, [wconn = std::weak_ptr (conn)] (manapi::timer t)
+        -> void { auto conn = wconn.lock(); if (conn) { auto w = conn->as<tcp_connection_t>(); w->worker->close_connection(conn, CLOSE_CONN_EOF); } });
+    if (accept_timer_res)
+        s->accept_timer = accept_timer_res.unwrap();
+    else {
+        this->close_connection(conn, CLOSE_CONN_EOF);
+        return;
     }
 
     bool flg = false;
@@ -557,7 +566,7 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
         cdata->flags |= ev::DISCONNECT;
         conn->cancellation.cancel();
 
-        this->close_connection(conn, CLOSE_CONN_EOF);
+        this->close_connection(conn, CLOSE_CONN_SHUTDOWN);
 
         return;
     }
@@ -585,8 +594,11 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::connection_init_cb(vo
             return nullptr;
 
         auto rhs = manapi::async::current()->timerpool()->append_timer_sync(8000,
-            [ms] (const manapi::timer &t) mutable
+            [ms_w = std::weak_ptr (ms)] (const manapi::timer &t) mutable
             -> void {
+                auto ms = ms_w.lock();
+                if (!ms)
+                    return;
                 auto w = ms->as<tcp_connection_t>();
                 auto conn = std::move(ms);
                 w->worker->close_connection(std::move(conn), CLOSE_CONN_ERR);

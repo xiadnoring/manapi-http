@@ -23,7 +23,6 @@ enum http_version_bits {
 manapi::net::http::config::config(const json &config) {
     this->http_versions = 0;
     this->server_len = 0;
-    this->max_working_streams = get_config_param<ssize_t> (config, "max_working_streams", 6);
     this->window_stream_size = get_config_param<ssize_t> (config, "window_stream_size", 2000000);
     this->window_connection_size = get_config_param<ssize_t> (config, "window_connection_size", 4000000);
     this->max_concurrent_streams = get_config_param<ssize_t> (config, "max_concurrent_streams", -1);
@@ -46,6 +45,8 @@ manapi::net::http::config::config(const json &config) {
     this->tcp_no_delay = get_config_param<bool>(config, "tcp_no_delay", false);
     this->speed_check_delay = get_config_param<ssize_t>(config, "speed_check_delay", 5);
     this->speed_check_bytes = get_config_param<ssize_t>(config, "speed_check_bytes", 1048576);
+    this->speed_stream_check_delay = get_config_param<ssize_t>(config, "speed_stream_check_delay", 5);
+    this->speed_stream_check_bytes = get_config_param<ssize_t>(config, "speed_stream_check_bytes", 1048576);
     this->simultaneous_accepts = get_config_param<bool>(config, "simultaneous_accepts", false);
     this->max_headers_size = get_config_param<ssize_t>(config, "max_headers_size", 16384);
     this->max_header_key_size = get_config_param<ssize_t>(config, "max_header_key_size", 64);

@@ -530,7 +530,7 @@ static int ng_wrk_http2_on_begin_headers_callback(nghttp2_session *session, cons
         auto const id = frame->hd.stream_id;
 
         auto tp = std::make_unique<http_v2_stream_t>();
-        tp->speed_min_delay = static_cast<decltype(tp->speed_min_delay)>(sess->gctx->worker->config()->speed_check_delay);
+        tp->speed_min_delay = static_cast<decltype(tp->speed_min_delay)>(sess->gctx->worker->config()->speed_stream_check_delay);
         tp->id = id;
         tp->top = std::make_unique<manapi::net::worker::connection_io>();
         tp->req = std::make_unique<manapi::net::http::request_data_t>();

@@ -65,7 +65,7 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags)
         return;
 
     /* got something wrong */
-    this->callbacks->http_v2_rst_stream(conn, HTTP2_ERROR_REFUSED_STREAM);
+    this->callbacks->http_v2_rst_stream(conn, HTTP2_ERROR_NO_ERROR);
 }
 
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) MANAPIHTTP_NOEXCEPT {
@@ -75,7 +75,7 @@ int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) MANAPIHT
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT {
     auto const data = conn->as<http_v2_stream_base_t>();
 
-    MANAPIHTTP_WORKER_EVENT_LOOP(data) {
+    MANAPIHTTP_WORKER_EVENT_LOOP_STREAM(data) {
         if (data->ev_callback) {
             if (data->flags & CONN_CLOSED) {
                 if (http_v2::call_user_callback(&data->ev_callback, conn, CONN_CLOSED, nullptr, 0, nullptr))
@@ -135,7 +135,8 @@ ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, ev:
 }
 
 void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
-    return prepared::update_limit_rate_connection(conn, this, this->config(), this->wrk_global());
+    auto const c = this->config();
+    return prepared::update_limit_rate_connection(conn, conn->as<connection_prepared_base_t>(), this, c, c->speed_stream_check_delay, c->speed_stream_check_bytes, this->wrk_global());
 }
 
 std::size_t manapi::net::worker::http_v2::recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT {

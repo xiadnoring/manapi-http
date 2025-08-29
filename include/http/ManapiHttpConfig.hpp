@@ -100,9 +100,6 @@ namespace manapi::net::http {
          */
         static manapi::error::status_or<http::versions::http> parse_http_version (std::string_view version) MANAPIHTTP_NOEXCEPT;
 
-        // settings
-        int max_working_streams;
-
         /**
          * For Http/2 and QUIC
          * Max concurrent streams by the connection
@@ -259,6 +256,14 @@ namespace manapi::net::http {
          * Sets the minimum limit rate every 'speed_check_delay' seconds
          */
         ssize_t speed_check_bytes;
+        /**
+         * Sets the speed check delay interval
+         */
+        ssize_t speed_stream_check_delay;
+        /**
+         * Sets the minimum limit rate every 'speed_check_delay' seconds
+         */
+        ssize_t speed_stream_check_bytes;
 
         /**
          * Sets the maximum limit rate every second

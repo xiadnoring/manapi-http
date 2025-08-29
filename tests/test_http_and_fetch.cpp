@@ -30,7 +30,7 @@ UTEST(http, http_router_exists) {
 #ifdef MANAPIHTTP_FETCH_SUPPORT
 
 UTEST(http_and_fetch, simple_request) {
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
@@ -57,7 +57,7 @@ UTEST(http_and_fetch, simple_request) {
 UTEST(http_and_fetch, simple_post_request) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
@@ -92,7 +92,7 @@ UTEST(http_and_fetch, simple_post_request) {
 UTEST(http_and_fetch, callback_sync_get_request) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
@@ -137,7 +137,7 @@ UTEST(http_and_fetch, callback_sync_get_request) {
 UTEST(http_and_fetch, callback_async_get_request) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
@@ -227,7 +227,7 @@ UTEST(http_and_fetch, callback_async_get_request) {
 UTEST(http_and_fetch, formdata_request) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
@@ -299,7 +299,7 @@ UTEST(http_and_fetch, formdata_request) {
 UTEST(http_and_fetch, formdata_response) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
@@ -336,7 +336,7 @@ UTEST(http_and_fetch, formdata_response) {
 UTEST(http_and_fetch, formdata_bad_response__no_data) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
@@ -384,7 +384,7 @@ UTEST(http_and_fetch, formdata_bad_response__no_data) {
 UTEST(http_and_fetch, formdata_bad_response) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
@@ -420,7 +420,7 @@ UTEST(http_and_fetch, formdata_bad_response) {
 UTEST(http_and_fetch, chunked_request) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
@@ -478,7 +478,7 @@ UTEST(http_and_fetch, chunked_request) {
 UTEST(http_and_fetch, chunked_response) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
@@ -537,7 +537,7 @@ UTEST(http_and_fetch, user_data) {
         std::string msg;
     };
 
-    auto ctx = init_ctx();
+    auto ctx = init_ctx(utest_result);
     auto router = init_router({
         {"http1", true}
     }, [&] () -> manapi::future<> {
