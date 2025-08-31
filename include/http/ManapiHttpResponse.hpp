@@ -25,7 +25,7 @@ namespace manapi::net::http {
         void operator()(custom_data_t *n);
     };
 
-    class DLLExportImport response {
+    class response {
         friend class uresponse;
     public:
         using resp_callback_sync = std::move_only_function<ssize_t(char *buffer, ssize_t size, bool&)>;
@@ -111,6 +111,8 @@ namespace manapi::net::http {
         manapi::error::status_or<std::string *> text () MANAPIHTTP_NOEXCEPT;
 
         manapi::error::status_or<std::string *> url () MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD bool contains_ranges () const MANAPIHTTP_NOEXCEPT;
 
         std::unique_ptr<std::vector<std::pair<ssize_t, ssize_t>>> ranges () MANAPIHTTP_NOEXCEPT;
 

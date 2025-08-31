@@ -432,7 +432,7 @@ namespace manapi::ev {
     /* Stores the result of fs::stat() and other stat requests. */
     typedef uv_stat_t stat_t;
 
-    class DLLExportImport async {
+    class async {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(async, uv_async_t)
     public:
         MANAPIHTTP_EV_DEFAULT(async, uv_async_t)
@@ -480,7 +480,7 @@ namespace manapi::ev {
         uv_async_t s_;
     };
 
-    class DLLExportImport idle {
+    class idle {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(idle, uv_idle_t)
     public:
         MANAPIHTTP_EV_DEFAULT(idle, uv_idle_t)
@@ -519,7 +519,7 @@ namespace manapi::ev {
         uv_idle_t s_;
     };
 
-    class DLLExportImport check {
+    class check {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(check, uv_check_t)
     public:
         MANAPIHTTP_EV_DEFAULT(check, uv_check_t)
@@ -558,7 +558,7 @@ namespace manapi::ev {
         uv_check_t s_;
     };
 
-    class DLLExportImport io {
+    class io {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(io, uv_poll_t)
     public:
         MANAPIHTTP_EV_DEFAULT(io, uv_poll_t)
@@ -590,7 +590,7 @@ namespace manapi::ev {
         uv_poll_t s_;
     };
 
-    class DLLExportImport write {
+    class write {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(write, uv_write_t)
     public:
         MANAPIHTTP_EV_DEFAULT(write, uv_write_t)
@@ -616,7 +616,7 @@ namespace manapi::ev {
         uv_connect_t s_{};
     };
 
-    class DLLExportImport tcp {
+    class tcp {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(tcp, uv_tcp_t)
     public:
         MANAPIHTTP_EV_DEFAULT(tcp, uv_tcp_t)
@@ -661,7 +661,7 @@ namespace manapi::ev {
         uv_tcp_t s_;
     };
 
-    class DLLExportImport udp {
+    class udp {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(udp, uv_udp_t)
     public:
         MANAPIHTTP_EV_DEFAULT(udp, uv_udp_t)
@@ -685,7 +685,7 @@ namespace manapi::ev {
         uv_udp_t s_;
     };
 
-    class DLLExportImport udp_send {
+    class udp_send {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(udp_send, uv_udp_send_t)
     public:
         MANAPIHTTP_EV_DEFAULT(udp_send, uv_udp_send_t)
@@ -698,7 +698,7 @@ namespace manapi::ev {
         uv_udp_send_t s_;
     };
 
-    class DLLExportImport prepare {
+    class prepare {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(prepare, uv_prepare_t)
     public:
         MANAPIHTTP_EV_DEFAULT(prepare, uv_prepare_t)
@@ -715,7 +715,7 @@ namespace manapi::ev {
         uv_prepare_t s_;
     };
 
-    class DLLExportImport timer {
+    class timer {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(timer, uv_timer_t)
     public:
         MANAPIHTTP_EV_DEFAULT(timer, uv_timer_t)
@@ -741,7 +741,7 @@ namespace manapi::ev {
         uv_timer_t s_;
     };
 
-    class DLLExportImport fs {
+    class fs {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(fs, uv_fs_t)
     public:
         MANAPIHTTP_EV_DEFAULT(fs, uv_fs_t)
@@ -906,7 +906,7 @@ namespace manapi::ev {
         uv_fs_t s_;
     };
 
-    class DLLExportImport random {
+    class random {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(random, uv_random_t)
     public:
         MANAPIHTTP_EV_DEFAULT(random, uv_random_t)
@@ -922,7 +922,7 @@ namespace manapi::ev {
         uv_random_t s_;
     };
 
-    class DLLExportImport getaddrinfo {
+    class getaddrinfo {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(getaddrinfo, uv_getaddrinfo_t)
     public:
         MANAPIHTTP_EV_DEFAULT(getaddrinfo, uv_getaddrinfo_t)
@@ -940,7 +940,7 @@ namespace manapi::ev {
         uv_getaddrinfo_t s_;
     };
 
-    class DLLExportImport getnameinfo {
+    class getnameinfo {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(getnameinfo, uv_getnameinfo_t)
     public:
         MANAPIHTTP_EV_DEFAULT(getnameinfo, uv_getnameinfo_t)
@@ -956,7 +956,7 @@ namespace manapi::ev {
         uv_getnameinfo_t s_;
     };
 
-    class DLLExportImport work {
+    class work {
         MANAPIHTTP_EV_DEFAULT_PRIVATE_VAR(work, uv_work_t)
     public:
         MANAPIHTTP_EV_DEFAULT(work, uv_work_t)
@@ -997,7 +997,7 @@ namespace manapi::sys_error {
     /**
      * error status for the OS event
      */
-    class DLLExportImport status final : public manapi::error::status {
+    class status final : public manapi::error::status {
     public:
         /**
          * initialize error status

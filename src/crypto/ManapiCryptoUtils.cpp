@@ -58,18 +58,18 @@ manapi::error::status random_string_ (char *rnd, std::size_t len) {
 }
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
-DLLExportImport void manapi::crypto::evp_cipher_deleter::operator()(void *ptr) {
+void manapi::crypto::evp_cipher_deleter::operator()(void *ptr) {
     EVP_CIPHER_CTX_free(static_cast<EVP_CIPHER_CTX *>(ptr));
 }
 #endif
 
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
-DLLExportImport void manapi::crypto::wolfssl_evp_cipher_deleter::operator()(void *ptr) {
+void manapi::crypto::wolfssl_evp_cipher_deleter::operator()(void *ptr) {
     wolfSSL_EVP_CIPHER_CTX_free(static_cast<WOLFSSL_EVP_CIPHER_CTX *>(ptr));
 }
 #endif
 
-DLLExportImport manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *buff, std::size_t len, async::cancellation_action cancellation) {
+manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *buff, std::size_t len, async::cancellation_action cancellation) {
     if (!len)
         co_return error::status_ok();
 
@@ -112,7 +112,7 @@ DLLExportImport manapi::future<manapi::error::status> manapi::crypto::async_rand
     co_return std::move(res);
 }
 
-DLLExportImport manapi::error::status_or<std::string> manapi::crypto::random_string(std::size_t len) {
+manapi::error::status_or<std::string> manapi::crypto::random_string(std::size_t len) {
     try {
         std::string rnd;
         rnd.resize(len);
@@ -132,7 +132,7 @@ DLLExportImport manapi::error::status_or<std::string> manapi::crypto::random_str
     return error::status_internal("random_string:Failed");
 }
 
-DLLExportImport manapi::error::status_or<std::string> manapi::crypto::strdec2strhex(std::string_view input) {
+manapi::error::status_or<std::string> manapi::crypto::strdec2strhex(std::string_view input) {
     try {
         static const char hex_digits[] = "0123456789ABCDEF";
         std::string output;
@@ -150,7 +150,7 @@ DLLExportImport manapi::error::status_or<std::string> manapi::crypto::strdec2str
 }
 
 
-DLLExportImport manapi::error::status_or<std::string> manapi::crypto::strhex2strdec(std::string_view hex) {
+manapi::error::status_or<std::string> manapi::crypto::strhex2strdec(std::string_view hex) {
     try {
     auto len = hex.length();
     std::string newString;

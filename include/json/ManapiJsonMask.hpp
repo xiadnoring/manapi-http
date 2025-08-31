@@ -6,7 +6,7 @@
 
 namespace manapi {
     namespace json_error {
-        class DLLExportImport status : public manapi::error::status {
+        class status : public manapi::error::status {
         public:
             status ();
 
@@ -68,7 +68,7 @@ namespace manapi {
         json_error::status status_ok ();
     }
 
-    class DLLExportImport json_mask {
+    class json_mask {
     public:
         json_mask(const std::initializer_list<json> &data);
 

@@ -7,13 +7,13 @@
 #include "../ManapiMemoryPool.hpp"
 
 namespace manapi::async {
-    class DLLExportImport context;
+    class context;
 
-    class DLLExportImport cthread;
+    class cthread;
 
-    class DLLExportImport mutex;
+    class mutex;
 
-    class DLLExportImport condition_variable;
+    class condition_variable;
 
     /* provides an async context */
     typedef std::shared_ptr<context> shared_ctx;
@@ -76,9 +76,9 @@ namespace manapi::async {
 namespace manapi {
     class object_pool;
 #if defined (__unix__) || defined(__APPLE__)
-    struct DLLExportImport sigset_t : public ::sigset_t {};
+    struct sigset_t : public ::sigset_t {};
 #else
-    struct DLLExportImport sigset_t {
+    struct sigset_t {
         char payload[1];
     };
 #endif
@@ -109,7 +109,7 @@ namespace manapi::async {
     /**
      * provides a context
      */
-    class DLLExportImport cthread {
+    class cthread {
     public:
         /**
          * initialize the context
@@ -196,7 +196,7 @@ namespace manapi::async {
 
     typedef std::shared_ptr<cthread> shared_async_thread;
 
-    class DLLExportImport context : public cthread {
+    class context : public cthread {
     public:
         /**
          * initialize the context
@@ -305,11 +305,11 @@ namespace manapi::async::internal {
     enum async_task_flags {
         ASYNC_TASK_FLAG_EXECUTED = 1
     };
-    DLLExportImport void run_prepare_error_ (std::exception_ptr err) MANAPIHTTP_NOEXCEPT;
+    void run_prepare_error_ (std::exception_ptr err) MANAPIHTTP_NOEXCEPT;
 
-    DLLExportImport void run_prepare_std_exception_ (std::exception const &e) MANAPIHTTP_NOEXCEPT;
+    void run_prepare_std_exception_ (std::exception const &e) MANAPIHTTP_NOEXCEPT;
 
-    DLLExportImport void run_prepare_manapi_exception_ (manapi::exception &e) MANAPIHTTP_NOEXCEPT;
+    void run_prepare_manapi_exception_ (manapi::exception &e) MANAPIHTTP_NOEXCEPT;
 
     /**
      * FOR INTERNAL USE ONLY

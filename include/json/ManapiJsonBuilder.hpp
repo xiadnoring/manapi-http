@@ -8,7 +8,7 @@
 #include "./ManapiJsonMask.hpp"
 
 namespace manapi {
-    class DLLExportImport json_builder {
+    class json_builder {
     public:
         explicit json_builder (const json_mask &mask = nullptr);
         explicit json_builder (const json &mask);

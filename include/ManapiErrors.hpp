@@ -152,7 +152,7 @@ namespace manapi {
     /**
      * manapi exception
      */
-    class DLLExportImport exception final : public std::exception {
+    class exception final : public std::exception {
         union messages {
             std::string_view view{};
             std::string storage;
@@ -202,7 +202,7 @@ namespace manapi {
     };
 
     namespace error {
-        class DLLExportImport status {
+        class status {
         public:
             status ();
 

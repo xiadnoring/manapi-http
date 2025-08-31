@@ -109,7 +109,7 @@ struct http_v2_goaway_t {
 };
 
 static constexpr char smlabel[] = "PRI * HTTP/2.0\r\n\r\nSM\r\n";
-static constexpr int maxcnt = 1e9;
+static constexpr std::size_t maxcnt = 1e9;
 
 static std::map <int, manapi::json_mask> const allow_settings {
         {HTTP2_SETTING_RESERVED, manapi::json{"{null}"}},
@@ -1370,7 +1370,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 sdata = s->second->as<http_v2_stream_t>();
                                 sdata->req = std::move(req_tmp);
                                 sdata->top = std::move(top_tmp);
-                                sdata->speed_min_delay = static_cast<int>(config->speed_check_delay);
+                                sdata->speed_min_delay = static_cast<int>(config->speed_stream_check_delay);
 
                                 sdata->req->divided = -1;
                                 sdata->req->http = http::versions::http::HTTP_v2;

@@ -5,7 +5,7 @@
 #include <vector>
 
 namespace manapi::net::http {
-    class DLLExportImport url_decode_stream {
+    class url_decode_stream {
     public:
         url_decode_stream();
         ~url_decode_stream();

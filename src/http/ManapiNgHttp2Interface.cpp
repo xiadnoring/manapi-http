@@ -490,7 +490,7 @@ static int ng_wrk_http2_data_chunk_recv_callback (nghttp2_session *session, uint
     auto const config = sess->gctx->worker->config();
 
     auto rhs = manapi::net::worker::base::connection_io_send(&s->top->recv, reinterpret_cast<const char*>(data), len, &sess->gctx->worker->bufferpool(),
-        config->buffer_size, &s->top->recv_size, 1e5);
+        config->buffer_size, &s->top->recv_size, WORKER_MAX_CNT);
 
     if (rhs != len)
         return NGHTTP2_ERR_NOMEM;
@@ -530,7 +530,7 @@ static int ng_wrk_http2_on_begin_headers_callback(nghttp2_session *session, cons
         auto const id = frame->hd.stream_id;
 
         auto tp = std::make_unique<http_v2_stream_t>();
-        tp->speed_min_delay = static_cast<decltype(tp->speed_min_delay)>(sess->gctx->worker->config()->speed_check_delay);
+        tp->speed_min_delay = static_cast<decltype(tp->speed_min_delay)>(sess->gctx->worker->config()->speed_stream_check_delay);
         tp->id = id;
         tp->top = std::make_unique<manapi::net::worker::connection_io>();
         tp->req = std::make_unique<manapi::net::http::request_data_t>();
@@ -726,7 +726,7 @@ static int ng_wrk_http2_send_response_sync (const manapi::net::worker::shared_co
 
     auto &headers = res->headers();
     auto const hs = headers.size() + 1;
-#if _MSC_VER
+#ifdef _MSC_VER
     nghttp2_nv *p = static_cast<nghttp2_nv*>(alloca(sizeof (nghttp2_nv) * hs));
 #else
     nghttp2_nv p[hs];

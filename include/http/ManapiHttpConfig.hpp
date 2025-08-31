@@ -56,7 +56,7 @@ namespace manapi::net::http {
     /**
      * it helps to configure all http pools and endpoints
      */
-    class DLLExportImport config : public manapi::internal::config_interface {
+    class config : public manapi::internal::config_interface {
     public:
         config (const json &config);
 
@@ -99,9 +99,6 @@ namespace manapi::net::http {
          * @return NotFound if http version invalid otherwise http version as an integer
          */
         static manapi::error::status_or<http::versions::http> parse_http_version (std::string_view version) MANAPIHTTP_NOEXCEPT;
-
-        // settings
-        int max_working_streams;
 
         /**
          * For Http/2 and QUIC
@@ -212,7 +209,7 @@ namespace manapi::net::http {
         /**
          * Keep Alive (for TCP connections and Http/1)
          */
-        size_t keep_alive;
+        uint32_t keep_alive;
 
         /**
          * Contains server address in binary format
@@ -244,7 +241,7 @@ namespace manapi::net::http {
         /**
          * Max buffer size
          */
-        ssize_t buffer_size;
+        uint32_t buffer_size;
 
         /**
          * max count of reset streams when connected
@@ -254,11 +251,19 @@ namespace manapi::net::http {
         /**
          * Sets the speed check delay interval
          */
-        ssize_t speed_check_delay;
+        int speed_check_delay;
         /**
          * Sets the minimum limit rate every 'speed_check_delay' seconds
          */
         ssize_t speed_check_bytes;
+        /**
+         * Sets the speed check delay interval
+         */
+        ssize_t speed_stream_check_delay;
+        /**
+         * Sets the minimum limit rate every 'speed_check_delay' seconds
+         */
+        ssize_t speed_stream_check_bytes;
 
         /**
          * Sets the maximum limit rate every second

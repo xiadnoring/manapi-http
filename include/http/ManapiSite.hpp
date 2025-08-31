@@ -61,7 +61,7 @@ namespace manapi::net::http {
 
     typedef std::map <std::string, std::shared_ptr<http_handler_function>> handlers_types_t;
 
-    class DLLExportImport handler_template_t {
+    class handler_template_t {
     public:
         handler_template_t ();
 
@@ -99,7 +99,7 @@ namespace manapi::net::http {
         void *data;
     };
 
-    class DLLExportImport site {
+    class site {
     public:
         /**
          * Compress file callback

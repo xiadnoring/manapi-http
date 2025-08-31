@@ -21,7 +21,7 @@ namespace manapi::net {
      * A Fetch FormData interface to work with the Fetch and Fetch2 API.
      * Based on the curl formdata
      */
-    class DLLExportImport fetch_formdata {
+    class fetch_formdata {
     public:
         struct multipart_param_value_file {
             std::move_only_function<size_t (void *buff, size_t size)> callback;
@@ -110,7 +110,7 @@ namespace manapi::net {
     /**
      * Fetch API for C++. Based on cURL
      */
-    class DLLExportImport fetch {
+    class fetch {
     public:
         struct data_t;
 

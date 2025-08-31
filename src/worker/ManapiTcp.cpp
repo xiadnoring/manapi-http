@@ -1,6 +1,5 @@
 #include "worker/ManapiTcp.hpp"
 #include "ManapiParams.hpp"
-#include "../include/ManapiUtils.hpp"
 
 #include <iostream>
 #include <csignal>
@@ -63,7 +62,7 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
         if (rhs)
             co_return error::status_internal("tcp:failed to resolve host");
 
-        this->config_->server_len=(this->local->ai_addrlen);
+        this->config_->server_len=static_cast<socklen_t>(this->local->ai_addrlen);
         memcpy (&this->config_->server_addr,this->local->ai_addr, this->local->ai_addrlen);
 
         manapi_log_trace(debug::LOG_TRACE_HIGH, "TCP PORT USED: %.*s. %.*s:%.*s", port.size(), port.data(),
@@ -148,7 +147,7 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
     catch (std::exception const &e) {
         manapi_log_error("%s due to %s", "tcp: init failed", e.what());
     }
-err:
+
     co_return error::status_internal("tcp: init failed");
 }
 
@@ -291,7 +290,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
             auto res = this->bufferpool().buffer(suggested_size);
             if (res.ok()) {
                 auto buffer = res.unwrap();
-                buff->len = buffer.size();
+                buff->len = static_cast<decltype(buff->len)>(buffer.size());
                 buff->base = static_cast<char *>(buffer.release());
             }
         });
@@ -531,7 +530,7 @@ void manapi::net::worker::TCP::feed_event(const shared_conn &conn, int flags, co
     prepared::feed_event(this, conn, flags, buff, size, p);
 }
 
-ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     auto connection = conn->as<tcp_connection_t>();
 
     if (connection->flags & CONN_CLOSED)
@@ -550,7 +549,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
                 rhs = 0;
             else {
                 manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s",
-                    "TCP", "try_write", ev::strerror(rhs));
+                    "TCP", "try_write", ev::strerror(static_cast<int>(rhs)));
                 return -1;
             }
         else
@@ -570,7 +569,7 @@ ssize_t manapi::net::worker::TCP::sync_write_ex(const worker::shared_conn &conn,
             assert((nbuff > 0));
 
             buff->base += skip;
-            buff->len -= skip;
+            buff->len -= static_cast<decltype(buff->len)>(skip);
         }
 
         for (uint32_t i = 0; i < nbuff; i++) {
@@ -673,7 +672,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
             while (conn->top->cur_send_size && ((conn->top->cur_send_size >= this->config_->max_merge_buffer_stack)
                 //|| ((conn->top->cur_send_size == this->config_->max_merge_buffer_stack) && (conn->top->send.last_deque->buffer.size() == conn->top->send.deque_cursor))
                 || (flush))) {
-#if _MSC_VER
+#ifdef _MSC_VER
                 ev::buff_t *s = static_cast<ev::buff_t*>(alloca(sizeof (ev::buff_t) * conn->top->cur_send_size));
 #else
                 ev::buff_t s[conn->top->cur_send_size];
@@ -699,7 +698,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                     }
 
                     s[i].base = object.data();
-                    s[i].len = object.size();
+                    s[i].len = static_cast<decltype(s[i].len)>(object.size());
 
                     request += s[i].len;
 
@@ -726,7 +725,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                             rhs = 0;
                         else {
                             manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s",
-                                "TCP", "try_write", ev::strerror(rhs));
+                                "TCP", "try_write", ev::strerror(static_cast<int>(rhs)));
                             conn->top->send_size -= conn->top->cur_send_size;
                             conn->top->cur_send_size = 0;
                             return CONN_IO_ERROR;
@@ -761,7 +760,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                             if (rhs && sent) {
                                 sent->buffer.shift_add(rhs);
                                 buffptr->base += rhs;
-                                buffptr->len -= rhs;
+                                buffptr->len -= static_cast<decltype(buffptr->len)>(rhs);
                             }
 
 
@@ -809,7 +808,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                         }
                         else {
                             conn->top->send.last_deque = current;
-                            conn->top->send.deque_cursor = conn->top->send.last_deque->buffer.size();
+                            conn->top->send.deque_cursor = static_cast<int>(conn->top->send.last_deque->buffer.size());
                             auto resize_res = conn->top->send.last_deque->buffer.resize(current->buffer.realsize() - current->buffer.shift());
                             assert(resize_res.ok());
                         }
@@ -871,7 +870,7 @@ void manapi::net::worker::TCP::timeout_(shared_conn conn) MANAPIHTTP_NOEXCEPT {
     if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
         conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
 
-    this->close_connection(conn, CLOSE_CONN_ERR);
+    this->close_connection(conn, CLOSE_CONN_SHUTDOWN);
 }
 
 void manapi::net::worker::TCP::update_limit_rate_connection(const shared_conn &sconn) MANAPIHTTP_NOEXCEPT {

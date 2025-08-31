@@ -8,7 +8,7 @@
 #include "../ManapiErrors.hpp"
 
 namespace manapi {
-    class DLLExportImport bytebuffer {
+    class bytebuffer {
         struct slices_data {
             uv_buf_t *slices;
             int slices_cnt;
@@ -27,11 +27,11 @@ namespace manapi {
 
         bool operator==(const std::nullptr_t &) const;
 
-        bytebuffer (void *src, std::size_t size);
+        bytebuffer (void *src, uint32_t size);
 
-        bytebuffer (void *src, std::size_t size, char flags);
+        bytebuffer (void *src, uint32_t size, char flags);
 
-        static manapi::error::status_or<bytebuffer> create (std::size_t size);
+        static manapi::error::status_or<bytebuffer> create (uint32_t size);
 
         ~bytebuffer ();
 
@@ -47,24 +47,24 @@ namespace manapi {
 
         char &at (std::size_t i_);
 
-        [[nodiscard]] const char *c_str () const;
+        MANAPIHTTP_NODISCARD const char *c_str () const;
 
-        [[nodiscard]] const char *data () const;
+        MANAPIHTTP_NODISCARD const char *data () const;
 
         operator bool () const;
 
         template<typename T>
         T*as() { return reinterpret_cast<T *> (this->src) + this->shift_; }
 
-        [[nodiscard]] std::size_t size () const;
+        MANAPIHTTP_NODISCARD uint32_t size () const;
 
-        [[nodiscard]] std::size_t realsize () const;
+        MANAPIHTTP_NODISCARD uint32_t realsize () const;
 
-        manapi::error::status realresize (std::size_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status realresize (uint32_t s) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status resize (std::size_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status resize (uint32_t s) MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status resize_max (std::size_t s) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status resize_max (uint32_t s) MANAPIHTTP_NOEXCEPT;
 
         void remove_shift () MANAPIHTTP_NOEXCEPT;
 
@@ -74,15 +74,15 @@ namespace manapi {
 
         void *release ();
 
-        [[nodiscard]] std::size_t shift () const;
+        MANAPIHTTP_NODISCARD uint32_t shift () const;
 
-        void shift (std::size_t n);
+        void shift (uint32_t n);
 
-        void shift_add (std::size_t n);
+        void shift_add (uint32_t n);
 
         uint8_t flags ();
 
-        [[nodiscard]] bool empty () const;
+        MANAPIHTTP_NODISCARD bool empty () const;
     private:
 
         uint8_t flags_;

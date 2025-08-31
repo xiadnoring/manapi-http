@@ -11,13 +11,13 @@ namespace manapi {
     namespace internal {
         struct object_pool_data_t;
 
-        DLLExportImport void object_item_pool_return (const std::shared_ptr<internal::object_pool_data_t> &data, void *buffer, std::size_t size);
+        void object_item_pool_return (const std::shared_ptr<internal::object_pool_data_t> &data, void *buffer, std::size_t size);
 
-        DLLExportImport void object_item_pool_return (void *buffer, std::size_t size);
+        void object_item_pool_return (void *buffer, std::size_t size);
     }
 
     template<typename T>
-    class DLLExportImport object_item_pool {
+    class object_item_pool {
     public:
         object_item_pool () : object(nullptr) {}
 
@@ -68,7 +68,7 @@ namespace manapi {
         T *object;
     };
 
-    class DLLExportImport object_pool {
+    class object_pool {
         std::shared_ptr<internal::object_pool_data_t> data;
     public:
         typedef std::unique_ptr<manapi::slice> item;
@@ -81,11 +81,11 @@ namespace manapi {
 
         manapi::error::status_or<manapi::slice> slice (std::size_t suggested);
 
-        manapi::error::status_or<manapi::bytebuffer> buffer (std::size_t min, std::size_t max);
+        manapi::error::status_or<manapi::bytebuffer> buffer (uint32_t min, uint32_t max);
 
-        manapi::error::status_or<manapi::bytebuffer> buffer (std::size_t suggested);
+        manapi::error::status_or<manapi::bytebuffer> buffer (uint32_t suggested);
 
-        manapi::bytebuffer buffer (void *pointer, std::size_t suggested);
+        manapi::bytebuffer buffer (void *pointer, uint32_t suggested);
 
         void *alloc (std::size_t size) noexcept(true);
 

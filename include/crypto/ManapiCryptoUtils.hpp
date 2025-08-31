@@ -16,12 +16,12 @@
 
 namespace manapi::crypto {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
-    struct DLLExportImport evp_cipher_deleter {
+    struct evp_cipher_deleter {
         void operator()(void *ptr);
     };
 #endif
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
-    struct DLLExportImport wolfssl_evp_cipher_deleter {
+    struct wolfssl_evp_cipher_deleter {
         void operator()(void *ptr);
     };
 #endif
@@ -54,7 +54,7 @@ namespace manapi::crypto {
      * @param cancellation the cancellation token
      * @return Ok if there's no error, otherwise it returns Internal, ResourceExhausted, Cancelled
      */
-    DLLExportImport manapi::future<manapi::error::status> async_random_string (char *buff, size_t len, async::cancellation_action cancellation = nullptr);
+    manapi::future<manapi::error::status> async_random_string (char *buff, size_t len, async::cancellation_action cancellation = nullptr);
 
     /**
      * Get randomly generated string
@@ -62,7 +62,7 @@ namespace manapi::crypto {
      * @param len the size of the output string
      * @return the randomly generated string, but otherwise, it returns Internal, ResourceExhausted, InvalidArgument
      */
-    DLLExportImport manapi::error::status_or<std::string> random_string (std::size_t len);
+    manapi::error::status_or<std::string> random_string (std::size_t len);
 
     /**
      * convert the decimal string to the heximal string
@@ -70,7 +70,7 @@ namespace manapi::crypto {
      * @param input the decimal string
      * @return the heximal string, on error it returns ResourceExhausted
      */
-    DLLExportImport manapi::error::status_or<std::string> strdec2strhex(std::string_view input);
+    manapi::error::status_or<std::string> strdec2strhex(std::string_view input);
 
     /**
      * convert the heximal string to the decimal string
@@ -78,7 +78,7 @@ namespace manapi::crypto {
      * @param hex the heximal string
      * @return the decimal string, on error it returns ResourceExhausted
      */
-    DLLExportImport manapi::error::status_or<std::string> strhex2strdec (std::string_view hex);
+    manapi::error::status_or<std::string> strhex2strdec (std::string_view hex);
 
 
     /**

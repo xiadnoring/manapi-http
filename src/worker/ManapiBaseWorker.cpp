@@ -21,9 +21,9 @@ manapi::net::worker::base::base() = default;
 
 manapi::net::worker::base::~base() = default;
 
-ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, manapi::slice_view buffs, bool finish, int maxcnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, manapi::slice_view buffs, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     uint32_t const count = buffs.slices_size();
-#if _MSC_VER
+#ifdef _MSC_VER
     ev::buff_t *slices = static_cast<ev::buff_t*>(alloca(sizeof (ev::buff_t) * count));
 #else
     ev::buff_t slices[count];
@@ -32,16 +32,16 @@ ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, manapi
     return this->sync_write_ex(conn, slices, count, static_cast<ssize_t>(buffs.size()), finish, maxcnt);
 }
 
-ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, const void *buff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     ev::buff_t buffs;
     buffs.base = (char*)(buff);
-    buffs.len = static_cast<std::size_t> (size);
+    buffs.len = static_cast<decltype(buffs.len)> (size);
     return this->sync_write_ex(conn, &buffs, 1, size, finish, maxcnt);
 }
 
 ssize_t manapi::net::worker::base::sync_write(const shared_conn &conn, slice_view buffs, bool finish) MANAPIHTTP_NOEXCEPT {
     uint32_t const count = buffs.slices_size();
-#if _MSC_VER
+#ifdef _MSC_VER
     ev::buff_t *slices = static_cast<ev::buff_t*>(alloca(sizeof (ev::buff_t) * count));
 #else
     ev::buff_t slices[count];
@@ -53,14 +53,14 @@ ssize_t manapi::net::worker::base::sync_write(const shared_conn &conn, slice_vie
 ssize_t manapi::net::worker::base::sync_write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) MANAPIHTTP_NOEXCEPT {
     ev::buff_t buffs;
     buffs.base = (char*)(buff);
-    buffs.len = static_cast<std::size_t> (size);
+    buffs.len = static_cast<decltype(buffs.len)> (size);
     return this->sync_write(conn, &buffs, 1, finish);
 }
 
 manapi::future<ssize_t> manapi::net::worker::base::write(const shared_conn &conn, const void *buff, ssize_t size, bool finish) {
     ev::buff_t d;
     d.base = (char*)buff;
-    d.len = size;
+    d.len = static_cast<decltype(d.len)>(size);
     co_return co_await this->write(conn, &d, 1, finish);
 }
 
@@ -239,7 +239,7 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
 }
 
 manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &conn, manapi::slice_view slice, bool finish) {
-    ssize_t total = 0;
+    size_t total = 0;
     ssize_t rhs = 0;
     auto const size = slice.size();
 
@@ -255,10 +255,10 @@ manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &con
 
         slice = slice.subslice(rhs).unwrap();
     }
-    co_return total;
+    co_return static_cast<ssize_t>(total);
 }
 
-manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &conn, manapi::slice &slice, size_t size, bool finish) {
+manapi::future<ssize_t> manapi::net::worker::base::fwrite(const shared_conn &conn, manapi::slice &slice, ssize_t size, bool finish) {
     ssize_t total = 0;
     ssize_t rhs = 0;
     ssize_t shifted = 0;
@@ -347,7 +347,7 @@ manapi::error::status_or<std::shared_ptr<manapi::net::worker::connection>> manap
     return error::status_unimplemented("worker:Streams not supported");
 }
 
-void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, connection_io_part *src, int *dest_cnt, int *src_cnt, int max_cnt) MANAPIHTTP_NOEXCEPT {
+void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, connection_io_part *src, int *dest_cnt, int *src_cnt, std::size_t max_cnt) MANAPIHTTP_NOEXCEPT {
     while ((*dest_cnt) < max_cnt) {
         if (!src->deque) {
             return;
@@ -407,7 +407,7 @@ void manapi::net::worker::base::connection_io_merge(connection_io_part *dest, co
     }
 }
 
-ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, int *cnt, int max_cnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, uint32_t buffer_size, int *cnt, std::size_t max_cnt) MANAPIHTTP_NOEXCEPT {
     try {
         assert(size >= 0);
         ssize_t rhs = 0;
@@ -449,10 +449,10 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
             }
 
             assert(top->last_deque->buffer.size() > top->deque_cursor);
-            auto const copy = std::min(size - rhs, static_cast<ssize_t>(top->last_deque->buffer.size() - top->deque_cursor));
+            auto const copy = std::min<ssize_t>(size - rhs, static_cast<ssize_t>(top->last_deque->buffer.size() - top->deque_cursor));
             memcpy (top->last_deque->buffer.data() + top->deque_cursor, buffer + rhs, copy);
             rhs += copy;
-            top->deque_cursor += copy;
+            top->deque_cursor += static_cast<decltype(top->deque_cursor)>(copy);
         }
         return rhs;
     }
@@ -463,7 +463,7 @@ ssize_t manapi::net::worker::base::connection_io_send(connection_io_part *top, c
     return -1;
 }
 
-int manapi::net::worker::base::connection_io_send_start(connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, int buffer_size, ibuffpool_t *buff, int *cnt) MANAPIHTTP_NOEXCEPT {
+int manapi::net::worker::base::connection_io_send_start(connection_io_part *top, const char *buffer, ssize_t size, object_pool *bufferpool, uint32_t buffer_size, ibuffpool_t *buff, int *cnt) MANAPIHTTP_NOEXCEPT {
     try {
         if (top->deque && top->deque_current >= size) {
             top->deque_current -= static_cast<int>(size);
@@ -532,7 +532,7 @@ ssize_t manapi::net::worker::base::buffs_cut_by_size(ev::buff_t *buff, uint32_t 
         auto const want = (limit_size - size);
         if (buff[i].len >= want) {
             /* cut it */
-            buff[i].len = want;
+            buff[i].len = static_cast<decltype(buff[i].len)>(want);
             /* current number */
             nbuff = i + 1;
             /* obviously */
@@ -586,7 +586,7 @@ void manapi::net::worker::base::feed_event_read_(const shared_conn &conn, worker
                     goto err;
             }
             else {
-                auto rhs = connection_io_send(recv, buff, size, &this->bufferpool(), this->config()->buffer_size, recv_size, 1e5);
+                auto rhs = connection_io_send(recv, buff, size, &this->bufferpool(), this->config()->buffer_size, recv_size, WORKER_MAX_CNT);
                 if (rhs < 0)
                     goto err;
             }

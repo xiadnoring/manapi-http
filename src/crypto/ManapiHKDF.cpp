@@ -14,7 +14,7 @@
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
 
 #endif
-DLLExportImport manapi::error::status_or<std::string> manapi::crypto::hmac_digest(std::string_view key, std::string_view data, hashes hash_algorithm) {
+manapi::error::status_or<std::string> manapi::crypto::hmac_digest(std::string_view key, std::string_view data, hashes hash_algorithm) {
     try {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
         std::array<unsigned char, EVP_MAX_MD_SIZE> hash{};
@@ -56,7 +56,7 @@ DLLExportImport manapi::error::status_or<std::string> manapi::crypto::hmac_diges
     return error::status_internal("hmac:Failed");
 }
 
-DLLExportImport manapi::error::status_or<std::string> manapi::crypto::hkdf_extract(std::string_view salt, std::string_view ikm, hashes hash) {
+manapi::error::status_or<std::string> manapi::crypto::hkdf_extract(std::string_view salt, std::string_view ikm, hashes hash) {
     if (salt.empty()) {
         auto res = manapi::crypto::random_string(8);
         if (!res.ok())
@@ -67,7 +67,7 @@ DLLExportImport manapi::error::status_or<std::string> manapi::crypto::hkdf_extra
     return std::move(hmac_digest(salt, ikm, hash));
 }
 
-DLLExportImport manapi::error::status_or<std::string> manapi::crypto::hkdf_expand(std::string_view prk, std::string_view info, int length, hashes algorithm) {
+manapi::error::status_or<std::string> manapi::crypto::hkdf_expand(std::string_view prk, std::string_view info, int length, hashes algorithm) {
     try {
         std::string t;
         std::string okm;
@@ -95,7 +95,7 @@ DLLExportImport manapi::error::status_or<std::string> manapi::crypto::hkdf_expan
     }
 }
 
-DLLExportImport manapi::error::status_or<std::string> manapi::crypto::hkdf(std::string_view salt, std::string_view ikm, std::string_view info, int length, hashes hash) {
+manapi::error::status_or<std::string> manapi::crypto::hkdf(std::string_view salt, std::string_view ikm, std::string_view info, int length, hashes hash) {
     auto res = hkdf_extract(salt, ikm);
     if (!res.ok())
         return res.err();

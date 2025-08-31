@@ -6,14 +6,14 @@
 #include "../std/ManapiCancellation.hpp"
 
 namespace manapi::filesystem {
-    class DLLExportImport fstream {
+    class fstream {
         enum fstream_status_flags {
             FILE_READ = 0b1,
             FILE_WRITE  = 0b10,
             FILE_CLOSED = 0b100,
             FILE_EOF = 0b1000
         };
-        struct DLLExportImport fstream_data_t_ {
+        struct fstream_data_t_ {
             std::string path;
             async::cancellation_action cancellation;
             ev::file file;

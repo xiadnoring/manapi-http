@@ -10,7 +10,7 @@
 #endif
 
 
-DLLExportImport manapi::error::status_or<std::string> manapi::crypto::aes_encrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
+manapi::error::status_or<std::string> manapi::crypto::aes_encrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
     try {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
         const EVP_CIPHER *algorithm_cb;
@@ -73,7 +73,7 @@ DLLExportImport manapi::error::status_or<std::string> manapi::crypto::aes_encryp
 #endif
         return manapi::error::status_unimplemented("openssl or wolfssl is required");
     }
-    catch (std::bad_alloc const &e) {
+    catch (std::bad_alloc const &) {
         return error::status_resource_exhausted();
     }
     catch (std::exception const &e) {
@@ -82,7 +82,7 @@ DLLExportImport manapi::error::status_or<std::string> manapi::crypto::aes_encryp
     return manapi::error::status_internal("aes:Failed");
 }
 
-DLLExportImport manapi::error::status_or<std::string> manapi::crypto::aes_decrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
+manapi::error::status_or<std::string> manapi::crypto::aes_decrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
     try {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
         const EVP_CIPHER *algorithm_cb;
@@ -147,7 +147,7 @@ DLLExportImport manapi::error::status_or<std::string> manapi::crypto::aes_decryp
 #endif
         return manapi::error::status_unimplemented("openssl or wolfssl is required");
     }
-    catch (std::bad_alloc const &e) {
+    catch (std::bad_alloc const &) {
         return error::status_resource_exhausted();
     }
     catch (std::exception const &e) {

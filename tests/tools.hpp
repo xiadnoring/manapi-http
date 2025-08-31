@@ -12,6 +12,7 @@
 #include "std/ManapiEasyCancellation.hpp"
 
 #define HTTP1PORT "8888"
+#define HTTP2PORT "8887"
 #define MANAPIHTTP_TESTS_MAIN UTEST_STATE(); \
 int main(int argc, const char *const argv[]) { \
     try { manapi::init_tools::log_trace_init((manapi::debug::trace_level)std::stoi(manapi::process::get_env("MANAPIHTTP_LOGTRACE").unwrap())); }\
@@ -21,13 +22,17 @@ int main(int argc, const char *const argv[]) { \
     return utest_main(argc, argv); \
 }
 
-inline manapi::async::shared_ctx init_ctx (std::size_t timout_in_ms = 8000) {
+inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 8000) {
     auto ctx = manapi::async::context::create(4).unwrap();
     ctx->eventloop()->setup_handle_interrupt();
     /* task killer */
-    ctx->timerpool()->append_timer_sync(timout_in_ms, [timout_in_ms] (manapi::timer t) -> void {
+    ctx->timerpool()->append_interval_sync(timout_in_ms, [utest_result, timout_in_ms, flg = bool(false)] (manapi::timer t) mutable -> void {
         manapi_log_error("timeout in %zu ms was reached", timout_in_ms);
-        exit(-1);
+        *utest_result = UTEST_TEST_FAILURE;
+        if (flg)
+            exit(-1);
+        flg = true;
+        manapi::async::run(manapi::async::current()->stop());
     }).unwrap();
     return ctx;
 }
@@ -51,6 +56,28 @@ inline manapi::net::http::server init_router (manapi::json cnf, std::move_only_f
     }).unwrap();
 
     manapi::async::run ([router, cnf, cb = std::move(cb)] () mutable -> manapi::future<> {
+        std::string certkey;
+        std::string certpem;
+
+        std::string current = manapi::filesystem::path::current_path();
+        while (true) {
+            auto st = co_await manapi::filesystem::async_exists(manapi::filesystem::path::join(current, "examples", "self-signed-ssl"));
+            if (st.ok()) {
+                if (st.unwrap())
+                    break;
+            }
+            else {
+                st.err().log();
+            }
+            current = manapi::filesystem::path::join(current, "..");
+            if (!current.contains(manapi::filesystem::path::delimiter)) {
+                manapi_log_error("!!! failed to find self-signed-ssl !!!");
+                co_await manapi::async::current()->stop();
+                break;
+            }
+        }
+        current = manapi::filesystem::path::join(current, "examples", "self-signed-ssl");
+
         manapi::json config = {
             {"pools", manapi::json::array()}
         };
@@ -63,12 +90,55 @@ inline manapi::net::http::server init_router (manapi::json cnf, std::move_only_f
                 {"tcp_no_delay", true},
                 {"simultaneous_accepts", true},
                 {"buffer_size", 4096},
+                {"ssl", {
+                    {"verify_peer", false},
+                    {"key", manapi::filesystem::path::join(current, "cert.key")},
+                    {"cert", manapi::filesystem::path::join(current, "cert.crt")},
+                    {"ticket", false},
+                    {"enable", true}
+                }},
                 {"max_buffer_stack", 1},
                 {"max_merge_buffer_stack", 1},
                 {"max_connections", 2},
                 {"max_connections_by_ip", 2},
                 {"keep_alive", 0}
             });
+
+            if (cnf.contains("http1_cnf") && cnf["http1_cnf"].is_object()) {
+                auto &custom = cnf["http1_cnf"];
+                for (auto & it : custom.entries())
+                    config["pools"].as_array().back()[it.first] =  std::move(it.second);
+            }
+        }
+        if (cnf.contains("http2") && cnf["http2"].as_bool_cast()) {
+            config["pools"].push_back({
+                {"address", "127.0.0.1"},
+                {"port", HTTP2PORT},
+                {"http", manapi::json::array("2")},
+                {"transport", "tls"},
+                {"ssl", {
+                    {"verify_peer", false},
+                    {"key", manapi::filesystem::path::join(current, "cert.key")},
+                    {"cert", manapi::filesystem::path::join(current, "cert.crt")},
+                    {"ticket", false},
+                    {"enable", true}
+                }},
+                {"max_concurrent_streams", 6},
+                {"tcp_no_delay", true},
+                {"simultaneous_accepts", true},
+                {"buffer_size", 4096},
+                {"max_buffer_stack", 1},
+                {"max_merge_buffer_stack", 1},
+                {"max_connections", 100},
+                {"max_connections_by_ip", 100},
+                {"keep_alive", 0}
+            });
+
+            if (cnf.contains("http2_cnf") && cnf["http2_cnf"].is_object()) {
+                auto &custom = cnf["http2_cnf"];
+                for (auto & it : custom.entries())
+                    config["pools"].as_array().back()[it.first] =  std::move(it.second);
+            }
         }
         auto res = co_await router.config_object (config);
         res.unwrap();

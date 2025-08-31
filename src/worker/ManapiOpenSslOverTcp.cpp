@@ -75,7 +75,7 @@ int manapi_bio_read(BIO *bio, char *buf, int size) {
     }
     if (!d->s.empty())
         BIO_set_retry_read(bio);
-    return copy;
+    return static_cast<int>(copy);
 }
 
 long manapi_bio_ctrl(BIO *bio, int cmd, long arg1, void *arg2) {
@@ -172,7 +172,7 @@ manapi::net::worker::OpenSSL_TLS::OpenSSL_TLS(net::http::site site, std::shared_
     this->early_data_read_finish_ = SSL_READ_EARLY_DATA_FINISH;
     this->early_data_read_success_ = SSL_READ_EARLY_DATA_SUCCESS;
     this->ssl_shutdown_sucess = 1;
-    this->ssl_shutdown_fatal_error = 255;
+    this->ssl_shutdown_fatal_error = -128;
     this->ssl_shutdown_not_done = 0;
 
     this->pool_data_ = nullptr;
@@ -504,7 +504,7 @@ manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_co
     auto const sess_timeout = this->config_->get_config_param<uint32_t>(this->config_->ssl, "sess_timeout", 300);
     auto const sess_cache = this->config_->get_config_param<bool>(this->config_->ssl, "sess_cache", false);
     auto const sess_cache_size = this->config_->get_config_param<uint32_t>(this->config_->ssl, "sess_cache_size", 1024 * 20);
-    auto const max_early_data = this->config_->get_config_param<std::size_t>(this->config_->ssl, "max_early_data", 0);
+    auto const max_early_data = this->config_->get_config_param<uint32_t>(this->config_->ssl, "max_early_data", 0);
 
     this->ssl_session_ctx_id = 1;
 
@@ -513,13 +513,15 @@ manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_co
 
     switch (version)
     {
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#ifndef _MSC_VER
+    #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         case http::versions::TLS_v1:      method = TLSv1_server_method();     break;
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#   pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         case http::versions::TLS_v1_1:    method = TLSv1_1_server_method();   break;
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#   pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         case http::versions::TLS_v1_2:    method = TLSv1_2_server_method();   break;
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#   pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
         case http::versions::TLS_v1_3:    method = TLS_server_method();       break;
         default: THROW_MANAPIHTTP_EXCEPTION(ERR_FAILED_PRECONDITION,
             "can not find the initialization method openssl (tls_version): {}", version);
@@ -631,8 +633,8 @@ manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_co
         auto const worker = static_cast<OpenSSL_TLS *> (arg);
 
         int j = 0;
-        for (int i = 0; i < inlen;j++) {
-            int plen = in[i++];
+        for (uint32_t i = 0; i < inlen;j++) {
+            uint32_t plen = in[i++];
             std::string_view buff (reinterpret_cast<const char *>(in) + i, reinterpret_cast<const char *>(in) + i + plen);
             if ((buff == "h3" && worker->config_->contains_http_version(http::versions::HTTP_v3))
                 || (buff == "h2" && worker->config_->contains_http_version(http::versions::HTTP_v2))
@@ -654,7 +656,7 @@ manapi::error::status_or<void *> manapi::net::worker::OpenSSL_TLS::ssl_create_co
                 }
 
                 *out = reinterpret_cast<const unsigned char *> (buff.data());
-                *outlen = buff.size();
+                *outlen = static_cast<uint8_t>(buff.size());
                 return SSL_TLSEXT_ERR_OK;
             }
         }

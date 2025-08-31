@@ -8,6 +8,11 @@ auto const prev = std::exchange(n__->flags, ((n__->flags >> 2) << 2) | (flags & 
 if (n__->flags & CONN_EVENT_LOCKED) return prev; \
 n__->flags |= CONN_EVENT_LOCKED; auto status = n__->flags; \
 while (true)
+#define MANAPIHTTP_WORKER_EVENT_LOOP_STREAM(n__) n__->speed_min_delay = static_cast<int>(this->config()->speed_stream_check_delay); \
+auto const prev = std::exchange(n__->flags, ((n__->flags >> 2) << 2) | (flags & CONN_MASK_UPDATE)); \
+if (n__->flags & CONN_EVENT_LOCKED) return prev; \
+n__->flags |= CONN_EVENT_LOCKED; auto status = n__->flags; \
+while (true)
 #define MANAPIHTTP_WORKER_EVENT_BREAK(n__) if (status != n__->flags) { status = n__->flags; continue; }\
 assert (n__->flags & CONN_EVENT_LOCKED); n__->flags ^= CONN_EVENT_LOCKED;  break;
 
@@ -44,13 +49,13 @@ namespace manapi::net::worker {
     };
 
     namespace prepared {
-        DLLExportImport int event_flags (const shared_conn &conn) MANAPIHTTP_NOEXCEPT;
+        int event_flags (const shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport int event_flags (const shared_conn &conn, connection_prepared_base_t *data) MANAPIHTTP_NOEXCEPT;
+        int event_flags (const shared_conn &conn, connection_prepared_base_t *data) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport manapi::bytebuffer recv_first_buffer (const shared_conn &conn) MANAPIHTTP_NOEXCEPT;
+        manapi::bytebuffer recv_first_buffer (const shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport manapi::bytebuffer recv_first_buffer (const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
+        manapi::bytebuffer recv_first_buffer (const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
 
         inline ssize_t sync_write(interface_worker *w, const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT {
             auto const connection = conn->as<connection_prepared_base_t>();
@@ -65,46 +70,48 @@ namespace manapi::net::worker {
             return w->sync_write_ex(conn, buff, nbuff, size, finish, config->max_buffer_stack);
         }
 
-        DLLExportImport void waiting(const shared_conn &conn, connection_base2_t *data, bool state) MANAPIHTTP_NOEXCEPT;
+        void waiting(const shared_conn &conn, connection_base2_t *data, bool state) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport void waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT;
+        void waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport void flush_read_ (worker::base *w, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
+        void flush_read_ (worker::base *w, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport int flush_read2_ (http::config *config, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
+        int flush_read2_ (http::config *config, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport bool is_writable (http::config *config, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
+        bool is_writable (http::config *config, const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport std::size_t recv_count (const shared_conn &conn) MANAPIHTTP_NOEXCEPT;
+        std::size_t recv_count (const shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport std::size_t recv_count (const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
+        std::size_t recv_count (const shared_conn &conn, connection_prepared_t *data) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport void top_buffer_clear (connection_prepared_t *s) MANAPIHTTP_NOEXCEPT;
+        void top_buffer_clear (connection_prepared_t *s) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport void event_callback_clear (const shared_conn &conn, connection_prepared_base_t *s) MANAPIHTTP_NOEXCEPT;
+        void event_callback_clear (const shared_conn &conn, connection_prepared_base_t *s) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport void timer_clear (manapi::timer t) MANAPIHTTP_NOEXCEPT;
+        void timer_clear (manapi::timer t) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport void feed_event (worker::base *w, const shared_conn &conn, connection_prepared_t *data, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
+        void feed_event (worker::base *w, const shared_conn &conn, connection_prepared_t *data, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport void feed_event (worker::base *w, const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
+        void feed_event (worker::base *w, const shared_conn &conn, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport void update_limit_rate_connection (const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT;
+        void update_limit_rate_connection (const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, ssize_t speed_check_delay, ssize_t speed_check_bytes, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport void update_limit_rate_connection (const shared_conn &sconn, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT;
+        void update_limit_rate_connection (const shared_conn &sconn, connection_prepared_base_t *data, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport bool buffs_is_full (connection_io_part *s, std::size_t size, std::size_t stack_size) MANAPIHTTP_NOEXCEPT;
+        void update_limit_rate_connection (const shared_conn &sconn, worker::base *w, http::config *config, wrk_interface_global_t *global) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport bool write_buffs_is_full (connection_io *s, std::size_t stack_size) MANAPIHTTP_NOEXCEPT;
+        bool buffs_is_full (connection_io_part *s, std::size_t size, std::size_t stack_size) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport bool write_buffs_is_full (connection_io *s, http::config *config) MANAPIHTTP_NOEXCEPT;
+        bool write_buffs_is_full (connection_io *s, std::size_t stack_size) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport bool read_buffs_is_full (connection_io *s, std::size_t stack_size) MANAPIHTTP_NOEXCEPT;
+        bool write_buffs_is_full (connection_io *s, http::config *config) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport bool read_buffs_is_full (connection_io *s, http::config *config) MANAPIHTTP_NOEXCEPT;
+        bool read_buffs_is_full (connection_io *s, std::size_t stack_size) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport manapi::net::worker::worker_watcher_cb event_on (const shared_conn & conn, connection_prepared_base_t *data, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT;
+        bool read_buffs_is_full (connection_io *s, http::config *config) MANAPIHTTP_NOEXCEPT;
 
-        DLLExportImport manapi::net::worker::worker_watcher_cb event_on (const shared_conn & conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT;
+        manapi::net::worker::worker_watcher_cb event_on (const shared_conn & conn, connection_prepared_base_t *data, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT;
+
+        manapi::net::worker::worker_watcher_cb event_on (const shared_conn & conn, worker_watcher_cb callback) MANAPIHTTP_NOEXCEPT;
     }
 }

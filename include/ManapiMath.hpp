@@ -22,7 +22,7 @@ namespace manapi::math {
      * @param n the power
      * @return a raised to the power of n
      */
-    DLLExportImport long long binpow(long long a, int n) MANAPIHTTP_NOEXCEPT;
+    long long binpow(long long a, int n) MANAPIHTTP_NOEXCEPT;
 
     /**
      * Get a random integer between nmin and nmax, inclusive
@@ -31,5 +31,5 @@ namespace manapi::math {
      * @param nmax maximum limit
      * @return the randomly generated integer
      */
-    DLLExportImport size_t random (size_t nmin, size_t nmax) MANAPIHTTP_NOEXCEPT;
+    size_t random (size_t nmin, size_t nmax) MANAPIHTTP_NOEXCEPT;
 }

@@ -352,7 +352,7 @@ exec:
             if (it_header != req_ptr->headers.end()) {
                 ssize_t const copy = sizeof ("HTTP/1.1 100 Continue\r\n\r\n") - 1;
                 auto const rhs = w->sync_write_ex (conn, static_cast<const char *>("HTTP/1.1 100 Continue\r\n\r\n"),
-                    copy, true, 1e5);
+                    copy, true, WORKER_MAX_CNT);
                 if (copy != rhs) {
                     goto err;
                 }
@@ -496,9 +496,9 @@ exec:
                 auto const s = manapi::net::http::internal::generate_default_page (status, status_message);
                 auto const h = std::format("HTTP/{} {} {}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
                     manapi::net::http::config::stringify_http_version(conn->version), status, status_message, s.size());
-                if (h.size() != w->sync_write_ex(conn, h.data(), h.size(), false, 1e5))
+                if (h.size() != w->sync_write_ex(conn, h.data(), h.size(), false, WORKER_MAX_CNT))
                     goto err;
-                if (s.size() != w->sync_write_ex(conn, s.data(), s.size(), true, 1e5))
+                if (s.size() != w->sync_write_ex(conn, s.data(), s.size(), true, WORKER_MAX_CNT))
                     goto err;
                 w->close_connection (conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
             }

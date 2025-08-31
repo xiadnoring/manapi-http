@@ -22,20 +22,20 @@ namespace manapi {
 
             extern thread_local std::shared_ptr<cthread> current_cthread_;
 
-            DLLExportImport const std::shared_ptr<threadpool> &ethreadpool_(const std::shared_ptr<cthread> &ctx) MANAPIHTTP_NOEXCEPT;
+            const std::shared_ptr<threadpool> &ethreadpool_(const std::shared_ptr<cthread> &ctx) MANAPIHTTP_NOEXCEPT;
 
-            DLLExportImport const std::shared_ptr<cthread> &current_ () MANAPIHTTP_NOEXCEPT;
+            const std::shared_ptr<cthread> &current_ () MANAPIHTTP_NOEXCEPT;
 
-            DLLExportImport std::size_t current_stack_cnt_crt () MANAPIHTTP_NOEXCEPT;
+            std::size_t current_stack_cnt_crt () MANAPIHTTP_NOEXCEPT;
 
-            DLLExportImport void current_stack_cnt_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
+            void current_stack_cnt_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
 
-            DLLExportImport std::size_t max_stack_depth2 () MANAPIHTTP_NOEXCEPT;
+            std::size_t max_stack_depth2 () MANAPIHTTP_NOEXCEPT;
 
-            DLLExportImport void max_stack_depth2 (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
+            void max_stack_depth2 (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
         }
 
-        DLLExportImport const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXCEPT;
+        const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXCEPT;
     }
 
     class promise_base_future {

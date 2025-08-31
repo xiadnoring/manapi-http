@@ -16,7 +16,7 @@
 #include "../worker/ManapiBaseWorker.hpp"
 
 namespace manapi::net::http {
-    class DLLExportImport request {
+    class request {
     public:
         using onrecv_sync_cb = std::move_only_function<ssize_t(const char *buffer, ssize_t size, bool fin)>;
         using onrecv_async_cb = std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)>;
@@ -103,7 +103,7 @@ namespace manapi::net::http {
         worker::shared_worker worker_;
 
         // if peer sent larger by size then max_plain_body_size -> error
-        int max_plain_body_size_;
+        std::size_t max_plain_body_size_;
         int flags;
     };
 }

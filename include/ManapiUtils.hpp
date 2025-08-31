@@ -23,13 +23,4 @@
 #   define WIN32_LEAN_AND_MEAN
 #   include <windows.h>
 #   include <processthreadsapi.h>
-#   if MANAPIHTTP_IS_SHARED
-#       ifdef MANAPIHTTP_BUILD_SHARED_LIBS    
-#           define DLLExportImport __declspec(dllexport)
-#       else         
-#           define DLLExportImport __declspec(dllimport)
-#       endif
-#   else
-#       define DLLExportImport
-#   endif
 #endif

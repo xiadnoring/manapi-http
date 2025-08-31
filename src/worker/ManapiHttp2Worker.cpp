@@ -65,7 +65,7 @@ void manapi::net::worker::http_v2::close_connection(shared_conn conn, int flags)
         return;
 
     /* got something wrong */
-    this->callbacks->http_v2_rst_stream(conn, HTTP2_ERROR_REFUSED_STREAM);
+    this->callbacks->http_v2_rst_stream(conn, HTTP2_ERROR_NO_ERROR);
 }
 
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) MANAPIHTTP_NOEXCEPT {
@@ -75,7 +75,7 @@ int manapi::net::worker::http_v2::event_flags(const shared_conn & conn) MANAPIHT
 int manapi::net::worker::http_v2::event_flags(const shared_conn & conn, int flags) MANAPIHTTP_NOEXCEPT {
     auto const data = conn->as<http_v2_stream_base_t>();
 
-    MANAPIHTTP_WORKER_EVENT_LOOP(data) {
+    MANAPIHTTP_WORKER_EVENT_LOOP_STREAM(data) {
         if (data->ev_callback) {
             if (data->flags & CONN_CLOSED) {
                 if (http_v2::call_user_callback(&data->ev_callback, conn, CONN_CLOSED, nullptr, 0, nullptr))
@@ -130,12 +130,13 @@ ssize_t manapi::net::worker::http_v2::sync_write(const shared_conn &conn, ev::bu
     return sync_write_ex (conn, buff, nbuff, -1 /* no need */, finish, static_cast<int>(this->w->config()->max_buffer_stack));
 }
 
-ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::http_v2::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     return this->callbacks->http_v2_write(conn, buff, nbuff, finish);
 }
 
 void manapi::net::worker::http_v2::update_limit_rate_stream(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
-    return prepared::update_limit_rate_connection(conn, this, this->config(), this->wrk_global());
+    auto const c = this->config();
+    return prepared::update_limit_rate_connection(conn, conn->as<connection_prepared_base_t>(), this, c, c->speed_stream_check_delay, c->speed_stream_check_bytes, this->wrk_global());
 }
 
 std::size_t manapi::net::worker::http_v2::recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT {

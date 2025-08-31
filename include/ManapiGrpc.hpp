@@ -17,7 +17,7 @@ namespace manapi::net::wgrpc {
 
     manapi::future<manapi::error::status_or<std::shared_ptr<grpc::ChannelCredentials>>> secure_channel_credentials (std::string certfile);
 
-    class DLLExportImport server_ctx {
+    class server_ctx {
         struct data_t;
         server_ctx ();
     public:
@@ -34,7 +34,7 @@ namespace manapi::net::wgrpc {
         std::shared_ptr<data_t> data_;
     };
 
-    class DLLExportImport server {
+    class server {
         struct data_t;
 
         server (wgrpc::server_ctx ctx);

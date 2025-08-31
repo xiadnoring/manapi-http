@@ -248,19 +248,19 @@ const std::vector<manapi::async::shared_cthread> & manapi::async::context::loops
     return this->loops_;
 }
 
-DLLExportImport const manapi::async::shared_cthread &manapi::async::current() MANAPIHTTP_NOEXCEPT {
+const manapi::async::shared_cthread &manapi::async::current() MANAPIHTTP_NOEXCEPT {
    assert(async::internal::current_cthread_ && "async ctx doesn't exists in that thread");
     return async::internal::current_cthread_;
 }
 
 
-DLLExportImport const std::shared_ptr<manapi::async::cthread> & manapi::async::internal::current_() MANAPIHTTP_NOEXCEPT {
+const std::shared_ptr<manapi::async::cthread> & manapi::async::internal::current_() MANAPIHTTP_NOEXCEPT {
     return async::internal::current_cthread_;
 }
 
 manapi::async::context::~context() = default;
 
-DLLExportImport void manapi::async::internal::run_prepare_error_(std::exception_ptr err) MANAPIHTTP_NOEXCEPT {
+void manapi::async::internal::run_prepare_error_(std::exception_ptr err) MANAPIHTTP_NOEXCEPT {
     try {
         int errnum = manapi::ERR_OK;
         char errmsg[256];
@@ -275,16 +275,16 @@ DLLExportImport void manapi::async::internal::run_prepare_error_(std::exception_
 }
 
 
-DLLExportImport void manapi::async::internal::run_prepare_std_exception_(std::exception const &e) MANAPIHTTP_NOEXCEPT {
+void manapi::async::internal::run_prepare_std_exception_(std::exception const &e) MANAPIHTTP_NOEXCEPT {
     manapi_log_error("ctx: unhandled exception: %d, %s", ERR_UNKNOWN, e.what());
 }
 
 
-DLLExportImport void manapi::async::internal::run_prepare_manapi_exception_(manapi::exception &e) MANAPIHTTP_NOEXCEPT {
+void manapi::async::internal::run_prepare_manapi_exception_(manapi::exception &e) MANAPIHTTP_NOEXCEPT {
     manapi_log_error("ctx: unhandled exception: %d, %s", static_cast<int>(e.err_num()), e.what());
 }
 
-DLLExportImport const std::shared_ptr<manapi::threadpool> & manapi::async::internal::ethreadpool_(const shared_cthread &ctx) MANAPIHTTP_NOEXCEPT {
+const std::shared_ptr<manapi::threadpool> & manapi::async::internal::ethreadpool_(const shared_cthread &ctx) MANAPIHTTP_NOEXCEPT {
     return ctx->eventloop()->taskpool();
 }
 

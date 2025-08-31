@@ -33,7 +33,7 @@ manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t
         co_return error::status_internal("failed to resolve host");
     }
 
-    this->config_->server_len=(this->local->ai_addrlen);
+    this->config_->server_len=static_cast<decltype(this->config_->server_len)>(this->local->ai_addrlen);
     memcpy (&this->config_->server_addr,this->local->ai_addr, this->local->ai_addrlen);
 
     manapi_log_trace(debug::LOG_TRACE_HIGH, "UDP PORT USED: %.*s. %.*s:%.*s",
@@ -87,8 +87,6 @@ manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t
 
 
     co_return error::status_ok();
-err:
-    co_return error::status_internal("udp:couldn't initialize udp connection");
 }
 
 void manapi::net::worker::udp::stop(std::function<void()> cb) {
@@ -125,7 +123,7 @@ void manapi::net::worker::udp::recv_buffer_alloc_(ssize_t nread, ev::buff_t *buf
     auto bufres = this->bufferpool().buffer(1, nread);
     if (bufres.ok()) {
         auto buffer = bufres.unwrap();
-        buff->len = buffer.realsize();
+        buff->len = static_cast<decltype(buff->len)>(buffer.realsize());
         buff->base = static_cast<char *>(buffer.release());
     }
 }

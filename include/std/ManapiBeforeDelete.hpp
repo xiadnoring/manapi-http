@@ -13,7 +13,7 @@
 #include "../ManapiUtils.hpp"
 
 namespace manapi {
-    class DLLExportImport before_delete {
+    class before_delete {
     public:
 
         /**
@@ -53,7 +53,7 @@ namespace manapi {
         std::move_only_function <void()> f;
     };
 
-    class DLLExportImport sbefore_delete {
+    class sbefore_delete {
     public:
         /**
          * Initialize sbefore_delete with passing a callback

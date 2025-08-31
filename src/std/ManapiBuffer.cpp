@@ -20,7 +20,7 @@ bool manapi::bytebuffer::operator==(const std::nullptr_t &) const {
     return this->src == nullptr;
 }
 
-manapi::bytebuffer::bytebuffer(void *src, std::size_t size) {
+manapi::bytebuffer::bytebuffer(void *src, uint32_t size) {
     this->src = static_cast <uint8_t *> (src);
     this->s = static_cast<int>(size);
     this->reserved = static_cast<int>(size);
@@ -28,7 +28,7 @@ manapi::bytebuffer::bytebuffer(void *src, std::size_t size) {
     this->flags_ = 0;
 }
 
-manapi::bytebuffer::bytebuffer(void *src, std::size_t size, char flags_) {
+manapi::bytebuffer::bytebuffer(void *src, uint32_t size, char flags_) {
     this->src = static_cast <uint8_t *> (src);
     this->s = static_cast<int>(size);
     this->reserved = static_cast<int>(size);
@@ -36,7 +36,7 @@ manapi::bytebuffer::bytebuffer(void *src, std::size_t size, char flags_) {
     this->shift_ = 0;
 }
 
-manapi::error::status_or<manapi::bytebuffer> manapi::bytebuffer::create(std::size_t size) {
+manapi::error::status_or<manapi::bytebuffer> manapi::bytebuffer::create(uint32_t size) {
     auto src = manapi::memory::alloc<uint8_t>(size);
     if (!src)
         return error::status_resource_exhausted();
@@ -95,21 +95,21 @@ manapi::bytebuffer::operator bool() const {
     return !!this->src;
 }
 
-std::size_t manapi::bytebuffer::size() const {
+uint32_t manapi::bytebuffer::size() const {
     return this->s - this->shift_;
 }
 
-std::size_t manapi::bytebuffer::realsize() const {
+uint32_t manapi::bytebuffer::realsize() const {
     return this->reserved < 0 ? this->s : this->reserved;
 }
 
-manapi::error::status manapi::bytebuffer::realresize(std::size_t s) MANAPIHTTP_NOEXCEPT {
+manapi::error::status manapi::bytebuffer::realresize(uint32_t s) MANAPIHTTP_NOEXCEPT {
     if (this->s == s)
         return error::status_ok();
 
     if (this->reserved >= s) {
         this->s = static_cast<int>(s);
-        this->shift_ = std::min<std::size_t>(this->shift_, this->s);
+        this->shift_ = static_cast<uint32_t>(std::min<uint32_t>(this->shift_, this->s));
         return error::status_ok();
     }
 
@@ -154,16 +154,16 @@ manapi::error::status manapi::bytebuffer::realresize(std::size_t s) MANAPIHTTP_N
         this->s = static_cast<int>(s);
     }
 
-    this->shift_ = std::min<std::size_t>(this->shift_, this->s);
+    this->shift_ = static_cast<uint32_t>(std::min<std::size_t>(this->shift_, this->s));
     return error::status_ok();
 }
 
-manapi::error::status manapi::bytebuffer::resize(std::size_t s) MANAPIHTTP_NOEXCEPT {
+manapi::error::status manapi::bytebuffer::resize(uint32_t s) MANAPIHTTP_NOEXCEPT {
     return this->realresize(s + this->shift_);
 }
 
-manapi::error::status manapi::bytebuffer::resize_max(std::size_t s) MANAPIHTTP_NOEXCEPT {
-    return this->resize(std::max<std::size_t>(s, this->realsize()));
+manapi::error::status manapi::bytebuffer::resize_max(uint32_t s) MANAPIHTTP_NOEXCEPT {
+    return this->resize(std::max<uint32_t>(s, this->realsize()));
 }
 
 void manapi::bytebuffer::remove_shift() MANAPIHTTP_NOEXCEPT {
@@ -200,15 +200,15 @@ void * manapi::bytebuffer::release() {
     return std::exchange(this->src, nullptr);
 }
 
-std::size_t manapi::bytebuffer::shift() const {
+uint32_t manapi::bytebuffer::shift() const {
     return this->shift_;
 }
 
-void manapi::bytebuffer::shift(std::size_t n) {
+void manapi::bytebuffer::shift(uint32_t n) {
     this->shift_ = n;
 }
 
-void manapi::bytebuffer::shift_add(std::size_t n) {
+void manapi::bytebuffer::shift_add(uint32_t n) {
     this->shift_ += n;
 }
 

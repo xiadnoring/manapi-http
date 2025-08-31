@@ -692,7 +692,7 @@ static int ng_wrk_http3_recv_data (nghttp3_conn *conn, int64_t stream_id, const 
     auto const config = s->ctx->gctx->worker->config();
 
     auto rhs = manapi::net::worker::base::connection_io_send(&s->top->recv, reinterpret_cast<const char*>(data), datalen, &s->ctx->gctx->worker->bufferpool(),
-        config->buffer_size, &s->top->recv_size, 1e5);
+        config->buffer_size, &s->top->recv_size, WORKER_MAX_CNT);
 
     if (rhs != datalen)
         return NGHTTP3_ERR_NOMEM;
@@ -803,7 +803,7 @@ static int ng_wrk_http3_recv_trailer (nghttp3_conn *conn, int64_t stream_id, int
             }
         }
     }
-    catch (std::exception const &e) {
+    catch (std::exception const &) {
         ret = NGHTTP3_ERR_NOMEM;
     }
 
@@ -1163,7 +1163,7 @@ static int ng_wrk_http3_send_response_sync (const manapi::net::worker::shared_co
 
     auto &headers = res->headers();
     auto const hs = headers.size() + 1;
-#if _MSC_VER
+#ifdef _MSC_VER
     nghttp3_nv *p = static_cast<nghttp3_nv*>(alloca(sizeof (nghttp3_nv) * hs));
 #else
     nghttp3_nv p[hs];
@@ -1327,16 +1327,16 @@ static int ng_wrk_http3_rst (const manapi::net::worker::shared_conn &conn, int c
         }
 
         if (s->s)
-            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
+            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
 
         ng_wrk_http3_flush_close(s->ctx);
     }
     else {
         if (s->s)
-            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_ERR);
+            s->ctx->gctx->worker->close_connection(s->s, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
 
         if (!s->ctx->active_connections)
-            s->ctx->gctx->worker->close_connection(s->ctx->conn, manapi::net::worker::CLOSE_CONN_ERR);
+            s->ctx->gctx->worker->close_connection(s->ctx->conn, manapi::net::worker::CLOSE_CONN_SHUTDOWN);
     }
 
     return manapi::ERR_OK;

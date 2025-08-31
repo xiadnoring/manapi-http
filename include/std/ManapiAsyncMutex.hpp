@@ -11,7 +11,7 @@
 namespace manapi::async {
     class mutex;
 
-    class DLLExportImport mutex_locker {
+    class mutex_locker {
     public:
         mutex_locker (mutex *mx);
 
@@ -28,7 +28,7 @@ namespace manapi::async {
         mutex *mx;
     };
 
-    class DLLExportImport mutex {
+    class mutex {
     public:
         mutex ();
 

@@ -178,7 +178,7 @@ manapi::error::status manapi::slice_base::shift_add(std::size_t shift) MANAPIHTT
     if (this->last) {
         this->shift_ += shift;
         assert(this->first != this->last->next);
-        while (this->first != this->last->next
+        while (this->first && this->first != this->last->next
                 && this->first->buff.len <= this->shift_) {
             this->shift_ -= this->first->buff.len;
             this->size_ -= this->first->buff.len;
@@ -188,7 +188,7 @@ manapi::error::status manapi::slice_base::shift_add(std::size_t shift) MANAPIHTT
             this->count -= 1;
             delete ptr;
 
-            if (this->first == this->last->next) {
+            if (!this->first || this->first == this->last->next) {
                 this->last = nullptr;
                 this->first = nullptr;
                 break;
@@ -210,7 +210,7 @@ manapi::error::status manapi::slice_base::copy_from(const void *buffer, std::siz
 
     auto current = this->first;
     shift += this->shift_;
-    while (current != this->last->next
+    while (current && current != this->last->next
         && current->buff.len < shift) {
         shift -= current->buff.len;
         current = current->next;
@@ -519,7 +519,7 @@ int manapi::slice_base::cmp(void *data, std::size_t size) const MANAPIHTTP_NOEXC
 void manapi::slice_base::slices_buffs(ev::buff_t *buffs) const {
     auto buffsptr = buffs;
     auto cur = this->first;
-    while (this->last && cur != this->last->next) {
+    while (this->last && cur && cur != this->last->next) {
         *buffsptr = cur->buff;
         buffsptr++;
         cur = cur->next;
@@ -539,7 +539,7 @@ std::unique_ptr<manapi::ev::buff_t, manapi::ev::buffer_deleter> manapi::slice_ba
     buffs.reset(new ev::buff_t[this->count]);
     auto buffsptr = buffs.get();
     auto cur = this->first;
-    while (this->last && cur != this->last->next) {
+    while (this->last && cur && cur != this->last->next) {
         *buffsptr = cur->buff;
         buffsptr++;
         cur = cur->next;
@@ -556,7 +556,7 @@ std::unique_ptr<manapi::ev::buff_t, manapi::ev::buffer_deleter> manapi::slice_ba
     return std::move(buffs);
 }
 
-std::size_t manapi::slice_base::slices_size() const {
+uint32_t manapi::slice_base::slices_size() const {
     return this->count;
 }
 
@@ -571,7 +571,7 @@ manapi::error::status manapi::slice_base::rshift_add_(std::size_t s) noexcept(tr
     this->rshift_ += s;
 
     auto &mem = manapi::async::current()->memory_fabric();
-#if _MSC_VER
+#ifdef _MSC_VER
     slice_part_t** parts = static_cast<slice_part_t**>(alloca(sizeof (slice_part_t*)*this->count));
 #else
     slice_part_t *parts[this->count];
@@ -712,7 +712,7 @@ manapi::error::status manapi::slice_ref::push_back(const void *buffer, std::size
 void manapi::slice_ref::clear() noexcept(true) {
     auto cur = this->first;
     if (this->last) {
-        while (cur != this->last->next) {
+        while (cur && cur != this->last->next) {
             delete std::exchange(cur, cur->next);
         }
     }
@@ -871,7 +871,7 @@ manapi::error::status manapi::slice::push_back(slice s) MANAPIHTTP_NOEXCEPT {
             }
             else {
                 auto const datasize = s.size();
-#if _MSC_VER
+#ifdef _MSC_VER
                 char *data = static_cast<char*>(alloca(datasize));
 #else
                 char data[datasize];
@@ -891,11 +891,11 @@ manapi::error::status manapi::slice::push_back(slice s) MANAPIHTTP_NOEXCEPT {
                     i += rhs;
                 }
 
-                std::size_t s_shift_used = 0;
+                uint32_t s_shift_used = 0;
 
                 if (i != datasize) {
                     assert(s.first->buff.len >= s.shift_);
-                    s_shift_used = std::min<std::size_t>(s.shift_, datasize - i);
+                    s_shift_used = std::min<uint32_t>(s.shift_, datasize - i);
                     memcpy (s.first->buff.base + s.first->buff.len - s_shift_used,
                         data + i, s_shift_used);
 
@@ -931,7 +931,7 @@ manapi::error::status manapi::slice::push_back(const void *buffer, ssize_t size)
             return error::status_ok();
 
         if (this->rshift_) {
-            auto const copy = std::min<ssize_t>(size, this->rshift_);
+            auto const copy = static_cast<uint32_t>(std::min<ssize_t>(size, this->rshift_));
             memcpy (this->last->buff.base + this->last->buff.len - this->rshift_, buffer, copy);
 
             this->rshift_ -= copy;

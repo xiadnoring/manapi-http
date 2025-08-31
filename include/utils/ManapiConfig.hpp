@@ -3,7 +3,7 @@
 #include "../json/ManapiJson.hpp"
 
 namespace manapi::internal {
-    class DLLExportImport config_interface {
+    class config_interface {
     public:
 
         template<typename T>

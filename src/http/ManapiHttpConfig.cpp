@@ -23,7 +23,6 @@ enum http_version_bits {
 manapi::net::http::config::config(const json &config) {
     this->http_versions = 0;
     this->server_len = 0;
-    this->max_working_streams = get_config_param<ssize_t> (config, "max_working_streams", 6);
     this->window_stream_size = get_config_param<ssize_t> (config, "window_stream_size", 2000000);
     this->window_connection_size = get_config_param<ssize_t> (config, "window_connection_size", 4000000);
     this->max_concurrent_streams = get_config_param<ssize_t> (config, "max_concurrent_streams", -1);
@@ -44,16 +43,18 @@ manapi::net::http::config::config(const json &config) {
     this->max_connections_by_ip = get_config_param<ssize_t>(config, "max_connections_by_ip", 6);
     this->max_rst_cnt = get_config_param<ssize_t>(config, "max_rst_cnt", 5);
     this->tcp_no_delay = get_config_param<bool>(config, "tcp_no_delay", false);
-    this->speed_check_delay = get_config_param<ssize_t>(config, "speed_check_delay", 5);
+    this->speed_check_delay = get_config_param<int>(config, "speed_check_delay", 5);
     this->speed_check_bytes = get_config_param<ssize_t>(config, "speed_check_bytes", 1048576);
+    this->speed_stream_check_delay = get_config_param<ssize_t>(config, "speed_stream_check_delay", 5);
+    this->speed_stream_check_bytes = get_config_param<ssize_t>(config, "speed_stream_check_bytes", 1048576);
     this->simultaneous_accepts = get_config_param<bool>(config, "simultaneous_accepts", false);
     this->max_headers_size = get_config_param<ssize_t>(config, "max_headers_size", 16384);
     this->max_header_key_size = get_config_param<ssize_t>(config, "max_header_key_size", 64);
     this->max_header_value_size = get_config_param<ssize_t>(config, "max_header_value_size", 4096);
-    this->buffer_size = get_config_param<ssize_t>(config, "buffer_size", 4096);
+    this->buffer_size = get_config_param<uint32_t>(config, "buffer_size", 4096);
     this->tcp_backlog = get_config_param<ssize_t>(config, "tcp_backlog", 200);
     this->force_conn_shutdown = get_config_param<bool>(config, "force_conn_shutdown", false);
-    this->keep_alive = get_config_param<ssize_t>(config, "keep_alive", 2);
+    this->keep_alive = get_config_param<uint32_t>(config, "keep_alive", 2);
     this->implementation = get_config_param<std::string>(config, "implementation", "default");
     this->transport = get_config_param<std::string>(config, "transport", "tcp");
 

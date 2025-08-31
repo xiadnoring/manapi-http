@@ -10,7 +10,7 @@
 #include "../std/ManapiBeforeDelete.hpp"
 
 namespace manapi {
-    class DLLExportImport multithread_storage {
+    class multithread_storage {
         struct data_t;
     public:
         typedef std::move_only_function<void(const manapi::json &n)> subscribe_cb;

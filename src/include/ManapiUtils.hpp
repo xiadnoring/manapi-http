@@ -32,6 +32,8 @@
 #   define MANAPIHTTP_NONUNIX false
 #endif
 
+#define WORKER_MAX_CNT 100000
+
 namespace manapi::sockets {
     enum ip_version {
         IP_VERSION_4 = 4,

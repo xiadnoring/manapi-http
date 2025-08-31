@@ -100,123 +100,123 @@ namespace manapi::net::http {
      * provides all existing http status as a string
      */
     namespace status {
-        DLLExportImport inline std::string_view EMPTY                               = "Empty";
+        inline std::string_view EMPTY                               = "Empty";
 
-        DLLExportImport inline std::string_view CONTINUE_100                        = "Continue";
-        DLLExportImport inline std::string_view SWITCHING_PROTOCOLS_101             = "Switching Protocols";
-        DLLExportImport inline std::string_view PROCESSING_102                      = "Processing";
-        DLLExportImport inline std::string_view EARLY_HINTS_103                     = "Early Hints";
+        inline std::string_view CONTINUE_100                        = "Continue";
+        inline std::string_view SWITCHING_PROTOCOLS_101             = "Switching Protocols";
+        inline std::string_view PROCESSING_102                      = "Processing";
+        inline std::string_view EARLY_HINTS_103                     = "Early Hints";
 
-        DLLExportImport inline std::string_view OK_200                              = "OK";
-        DLLExportImport inline std::string_view CREATED_201                         = "Created";
-        DLLExportImport inline std::string_view ACCEPTED_202                        = "Accepted";
-        DLLExportImport inline std::string_view NON_AUTHORITATIVE_INFORMATION_203   = "Non-Authoritative Information";
-        DLLExportImport inline std::string_view NO_CONTENT_204                      = "No Content";
-        DLLExportImport inline std::string_view RESET_CONTENT_205                   = "Reset Content";
-        DLLExportImport inline std::string_view PARTIAL_CONTENT_206                 = "Partial Content";
-        DLLExportImport inline std::string_view MULTI_STATUS_207                    = "Multi-Status";
-        DLLExportImport inline std::string_view ALREADY_REPORTED_208                = "Already Reported";
-        DLLExportImport inline std::string_view IM_USED_226                         = "IM Used";
+        inline std::string_view OK_200                              = "OK";
+        inline std::string_view CREATED_201                         = "Created";
+        inline std::string_view ACCEPTED_202                        = "Accepted";
+        inline std::string_view NON_AUTHORITATIVE_INFORMATION_203   = "Non-Authoritative Information";
+        inline std::string_view NO_CONTENT_204                      = "No Content";
+        inline std::string_view RESET_CONTENT_205                   = "Reset Content";
+        inline std::string_view PARTIAL_CONTENT_206                 = "Partial Content";
+        inline std::string_view MULTI_STATUS_207                    = "Multi-Status";
+        inline std::string_view ALREADY_REPORTED_208                = "Already Reported";
+        inline std::string_view IM_USED_226                         = "IM Used";
 
-        DLLExportImport inline std::string_view MULTIPLE_CHOICES_300                = "Multiple Choices";
-        DLLExportImport inline std::string_view MOVED_PERMANENTLY_301               = "Moved Permanently";
-        DLLExportImport inline std::string_view FOUND_302                           = "Found";
-        DLLExportImport inline std::string_view SEE_OTHER_303                       = "See Other";
-        DLLExportImport inline std::string_view NOT_MODIFIED_304                    = "Not Modified";
-        DLLExportImport inline std::string_view USE_PROXY_305                       = "Use Proxy";
-        DLLExportImport inline std::string_view TEMPORARY_REDIRECT_307              = "Temporary Redirect";
-        DLLExportImport inline std::string_view PERMANENT_REDIRECT_308              = "Permanent Redirect";
+        inline std::string_view MULTIPLE_CHOICES_300                = "Multiple Choices";
+        inline std::string_view MOVED_PERMANENTLY_301               = "Moved Permanently";
+        inline std::string_view FOUND_302                           = "Found";
+        inline std::string_view SEE_OTHER_303                       = "See Other";
+        inline std::string_view NOT_MODIFIED_304                    = "Not Modified";
+        inline std::string_view USE_PROXY_305                       = "Use Proxy";
+        inline std::string_view TEMPORARY_REDIRECT_307              = "Temporary Redirect";
+        inline std::string_view PERMANENT_REDIRECT_308              = "Permanent Redirect";
 
-        DLLExportImport inline std::string_view BAD_REQUEST_400                     = "Bad Request";
-        DLLExportImport inline std::string_view UNAUTHORIZED_401                    = "Unauthorized";
-        DLLExportImport inline std::string_view PAYMENT_REQUIRED_402                = "Payment Required";
-        DLLExportImport inline std::string_view FORBIDDEN_403                       = "Forbidden";
-        DLLExportImport inline std::string_view NOT_FOUND_404                       = "Not Found";
-        DLLExportImport inline std::string_view METHOD_NOT_ALLOWED_405              = "Method Not Allowed";
-        DLLExportImport inline std::string_view NOT_ACCEPTABLE_406                  = "Not Acceptable";
-        DLLExportImport inline std::string_view PROXY_AUTHENTICATION_REQUIRED_407   = "Proxy Authentication Required";
-        DLLExportImport inline std::string_view REQUEST_TIMEOUT_408                 = "Request Timeout";
-        DLLExportImport inline std::string_view CONFLICT_409                        = "Conflict";
-        DLLExportImport inline std::string_view GONE_410                            = "Gone";
-        DLLExportImport inline std::string_view LENGTH_REQUIRED_411                 = "Length Required";
-        DLLExportImport inline std::string_view PRECONDITION_FAILED_412             = "Precondition Failed";
-        DLLExportImport inline std::string_view PAYLOAD_TOO_LARGE_413               = "Payload Too Large";
-        DLLExportImport inline std::string_view URI_TOO_LONG_414                    = "URI Too Long";
-        DLLExportImport inline std::string_view UNSUPPORTED_MEDIA_TYPE_415          = "Unsupported Media Type";
-        DLLExportImport inline std::string_view RANGE_NOT_SATISFIABLE_416           = "Range Not Satisfiable";
-        DLLExportImport inline std::string_view EXPECTATION_FAILED_417              = "Expectation Failed";
-        DLLExportImport inline std::string_view IM_A_TEAPOT_418                     = "I'm a teapot";
-        DLLExportImport inline std::string_view AUTHENTICATION_TIMEOUT_419          = "Authentication Timeout";
-        DLLExportImport inline std::string_view MISDIRECTED_REQUEST_421             = "Misdirected Request";
-        DLLExportImport inline std::string_view UNPROCESSABLE_ENTITY_422            = "Unprocessable Entity";
-        DLLExportImport inline std::string_view LOCKED_423                          = "Locked";
-        DLLExportImport inline std::string_view FAILED_DEPENDENCY_424               = "Failed Dependency";
-        DLLExportImport inline std::string_view TOO_EARLY_425                       = "Too Early";
-        DLLExportImport inline std::string_view UPGRADE_REQUIRED_426                = "Upgrade Required";
-        DLLExportImport inline std::string_view PRECONDITION_REQUIRED_428           = "Precondition Required";
-        DLLExportImport inline std::string_view TOO_MANY_REQUESTS_429               = "Too Many Requests";
-        DLLExportImport inline std::string_view REQUEST_HEADER_FIELDS_TOO_LARGE_431 = "Request Header Fields Too Large";
-        DLLExportImport inline std::string_view RETRY_WITH_449                      = "Retry With";
-        DLLExportImport inline std::string_view UNAVAILABLE_FOR_LEGAL_REASONS_451   = "Unavailable For Legal Reasons";
-        DLLExportImport inline std::string_view CLIENT_CLOSED_REQUEST_499           = "Client Closed Request";
+        inline std::string_view BAD_REQUEST_400                     = "Bad Request";
+        inline std::string_view UNAUTHORIZED_401                    = "Unauthorized";
+        inline std::string_view PAYMENT_REQUIRED_402                = "Payment Required";
+        inline std::string_view FORBIDDEN_403                       = "Forbidden";
+        inline std::string_view NOT_FOUND_404                       = "Not Found";
+        inline std::string_view METHOD_NOT_ALLOWED_405              = "Method Not Allowed";
+        inline std::string_view NOT_ACCEPTABLE_406                  = "Not Acceptable";
+        inline std::string_view PROXY_AUTHENTICATION_REQUIRED_407   = "Proxy Authentication Required";
+        inline std::string_view REQUEST_TIMEOUT_408                 = "Request Timeout";
+        inline std::string_view CONFLICT_409                        = "Conflict";
+        inline std::string_view GONE_410                            = "Gone";
+        inline std::string_view LENGTH_REQUIRED_411                 = "Length Required";
+        inline std::string_view PRECONDITION_FAILED_412             = "Precondition Failed";
+        inline std::string_view PAYLOAD_TOO_LARGE_413               = "Payload Too Large";
+        inline std::string_view URI_TOO_LONG_414                    = "URI Too Long";
+        inline std::string_view UNSUPPORTED_MEDIA_TYPE_415          = "Unsupported Media Type";
+        inline std::string_view RANGE_NOT_SATISFIABLE_416           = "Range Not Satisfiable";
+        inline std::string_view EXPECTATION_FAILED_417              = "Expectation Failed";
+        inline std::string_view IM_A_TEAPOT_418                     = "I'm a teapot";
+        inline std::string_view AUTHENTICATION_TIMEOUT_419          = "Authentication Timeout";
+        inline std::string_view MISDIRECTED_REQUEST_421             = "Misdirected Request";
+        inline std::string_view UNPROCESSABLE_ENTITY_422            = "Unprocessable Entity";
+        inline std::string_view LOCKED_423                          = "Locked";
+        inline std::string_view FAILED_DEPENDENCY_424               = "Failed Dependency";
+        inline std::string_view TOO_EARLY_425                       = "Too Early";
+        inline std::string_view UPGRADE_REQUIRED_426                = "Upgrade Required";
+        inline std::string_view PRECONDITION_REQUIRED_428           = "Precondition Required";
+        inline std::string_view TOO_MANY_REQUESTS_429               = "Too Many Requests";
+        inline std::string_view REQUEST_HEADER_FIELDS_TOO_LARGE_431 = "Request Header Fields Too Large";
+        inline std::string_view RETRY_WITH_449                      = "Retry With";
+        inline std::string_view UNAVAILABLE_FOR_LEGAL_REASONS_451   = "Unavailable For Legal Reasons";
+        inline std::string_view CLIENT_CLOSED_REQUEST_499           = "Client Closed Request";
 
-        DLLExportImport inline std::string_view INTERNAL_SERVER_ERROR_500           = "Internal Server Error";
-        DLLExportImport inline std::string_view NOT_IMPLEMENTED_501                 = "Not Implemented";
-        DLLExportImport inline std::string_view BAD_GATEWAY_502                     = "Bad Gateway";
-        DLLExportImport inline std::string_view SERVICE_UNAVAILABLE_503             = "Service Unavailable";
-        DLLExportImport inline std::string_view GATEWAY_TIMEOUT_504                 = "Gateway Timeout";
-        DLLExportImport inline std::string_view HTTP_VERSION_NOT_SUPPORTED_505      = "HTTP Version Not Supported";
-        DLLExportImport inline std::string_view VARIANT_ALSO_NEGOTIATES_506         = "Variant Also Negotiates";
-        DLLExportImport inline std::string_view INSUFFICIENT_STORAGE_507            = "Insufficient Storage";
-        DLLExportImport inline std::string_view LOOP_DETECTED_508                   = "Loop Detected";
-        DLLExportImport inline std::string_view BANDWIDTH_LIMIT_EXCEEDED_509        = "Bandwidth Limit Exceeded";
-        DLLExportImport inline std::string_view NOT_EXTENDED_510                    = "Not Extended";
-        DLLExportImport inline std::string_view NETWORK_AUTHENTICATION_REQUIRED_511 = "Network Authentication Required";
-        DLLExportImport inline std::string_view UNKNOWN_ERROR_520                   = "Unknown Error";
-        DLLExportImport inline std::string_view WEB_SERVER_IS_DOWN_521              = "Web Server Is Down";
-        DLLExportImport inline std::string_view CONNECTION_TIMED_OUT_522            = "Connection Timed Out";
-        DLLExportImport inline std::string_view ORIGIN_IS_UNREACHABLE_523           = "Origin Is Unreachable";
-        DLLExportImport inline std::string_view TIMEOUT_OCCURRED_524                = "Timeout Occurred";
-        DLLExportImport inline std::string_view SSL_HANDSHAKE_FAILED_525            = "SSL Handshake Failed";
-        DLLExportImport inline std::string_view INVALID_SSL_CERTIFICATE_526         = "Invalid SSL Certificate";
+        inline std::string_view INTERNAL_SERVER_ERROR_500           = "Internal Server Error";
+        inline std::string_view NOT_IMPLEMENTED_501                 = "Not Implemented";
+        inline std::string_view BAD_GATEWAY_502                     = "Bad Gateway";
+        inline std::string_view SERVICE_UNAVAILABLE_503             = "Service Unavailable";
+        inline std::string_view GATEWAY_TIMEOUT_504                 = "Gateway Timeout";
+        inline std::string_view HTTP_VERSION_NOT_SUPPORTED_505      = "HTTP Version Not Supported";
+        inline std::string_view VARIANT_ALSO_NEGOTIATES_506         = "Variant Also Negotiates";
+        inline std::string_view INSUFFICIENT_STORAGE_507            = "Insufficient Storage";
+        inline std::string_view LOOP_DETECTED_508                   = "Loop Detected";
+        inline std::string_view BANDWIDTH_LIMIT_EXCEEDED_509        = "Bandwidth Limit Exceeded";
+        inline std::string_view NOT_EXTENDED_510                    = "Not Extended";
+        inline std::string_view NETWORK_AUTHENTICATION_REQUIRED_511 = "Network Authentication Required";
+        inline std::string_view UNKNOWN_ERROR_520                   = "Unknown Error";
+        inline std::string_view WEB_SERVER_IS_DOWN_521              = "Web Server Is Down";
+        inline std::string_view CONNECTION_TIMED_OUT_522            = "Connection Timed Out";
+        inline std::string_view ORIGIN_IS_UNREACHABLE_523           = "Origin Is Unreachable";
+        inline std::string_view TIMEOUT_OCCURRED_524                = "Timeout Occurred";
+        inline std::string_view SSL_HANDSHAKE_FAILED_525            = "SSL Handshake Failed";
+        inline std::string_view INVALID_SSL_CERTIFICATE_526         = "Invalid SSL Certificate";
     }
 
     /**
      * provides all existing http headers as a string
      */
     namespace header {
-        DLLExportImport inline std::string_view CONTENT_RANGE       = "content-range";
-        DLLExportImport inline std::string_view CONTENT_LENGTH      = "content-length";
-        DLLExportImport inline std::string_view CONTENT_TYPE        = "content-type";
-        DLLExportImport inline std::string_view SET_COOKIE          = "set-cookie";
-        DLLExportImport inline std::string_view COOKIE              = "cookie";
-        DLLExportImport inline std::string_view ACCEPT              = "accept";
-        DLLExportImport inline std::string_view ACCEPT_LANGUAGE     = "accept-language";
-        DLLExportImport inline std::string_view ACCEPT_ENCODING     = "accept-encoding";
-        DLLExportImport inline std::string_view ACCEPT_RANGES       = "accept-ranges";
-        DLLExportImport inline std::string_view HOST                = "host";
-        DLLExportImport inline std::string_view USER_AGENT          = "user-agent";
-        DLLExportImport inline std::string_view CONNECTION          = "connection";
-        DLLExportImport inline std::string_view CACHE_CONTROL       = "cache-control";
-        DLLExportImport inline std::string_view EXPIRES             = "expires";
-        DLLExportImport inline std::string_view LAST_MODIFIED       = "last-modified";
-        DLLExportImport inline std::string_view ETAG                = "etag";
-        DLLExportImport inline std::string_view SERVER              = "server";
-        DLLExportImport inline std::string_view DATE                = "date";
-        DLLExportImport inline std::string_view LOCATION            = "location";
-        DLLExportImport inline std::string_view REFRESH             = "refresh";
-        DLLExportImport inline std::string_view PRAGMA              = "pragma";
-        DLLExportImport inline std::string_view CONTENT_DISPOSITION = "content-disposition";
-        DLLExportImport inline std::string_view CONTENT_ENCODING    = "content-encoding";
-        DLLExportImport inline std::string_view RANGE               = "range";
-        DLLExportImport inline std::string_view KEEP_ALIVE          = "keep-alive";
-        DLLExportImport inline std::string_view ALT_SVC             = "alt-svc";
-        DLLExportImport inline std::string_view AUTHORIZATION       = "authorization";
-        DLLExportImport inline std::string_view UPGRADE             = "upgrade";
-        DLLExportImport inline std::string_view EXPECT              = "expect";
-        DLLExportImport inline std::string_view TRANSFER_ENCODING   = "transfer-encoding";
-        DLLExportImport inline std::string_view PRIORITY            = "priority";
-        DLLExportImport inline std::string_view WARNING             = "warning";
+        inline std::string_view CONTENT_RANGE       = "content-range";
+        inline std::string_view CONTENT_LENGTH      = "content-length";
+        inline std::string_view CONTENT_TYPE        = "content-type";
+        inline std::string_view SET_COOKIE          = "set-cookie";
+        inline std::string_view COOKIE              = "cookie";
+        inline std::string_view ACCEPT              = "accept";
+        inline std::string_view ACCEPT_LANGUAGE     = "accept-language";
+        inline std::string_view ACCEPT_ENCODING     = "accept-encoding";
+        inline std::string_view ACCEPT_RANGES       = "accept-ranges";
+        inline std::string_view HOST                = "host";
+        inline std::string_view USER_AGENT          = "user-agent";
+        inline std::string_view CONNECTION          = "connection";
+        inline std::string_view CACHE_CONTROL       = "cache-control";
+        inline std::string_view EXPIRES             = "expires";
+        inline std::string_view LAST_MODIFIED       = "last-modified";
+        inline std::string_view ETAG                = "etag";
+        inline std::string_view SERVER              = "server";
+        inline std::string_view DATE                = "date";
+        inline std::string_view LOCATION            = "location";
+        inline std::string_view REFRESH             = "refresh";
+        inline std::string_view PRAGMA              = "pragma";
+        inline std::string_view CONTENT_DISPOSITION = "content-disposition";
+        inline std::string_view CONTENT_ENCODING    = "content-encoding";
+        inline std::string_view RANGE               = "range";
+        inline std::string_view KEEP_ALIVE          = "keep-alive";
+        inline std::string_view ALT_SVC             = "alt-svc";
+        inline std::string_view AUTHORIZATION       = "authorization";
+        inline std::string_view UPGRADE             = "upgrade";
+        inline std::string_view EXPECT              = "expect";
+        inline std::string_view TRANSFER_ENCODING   = "transfer-encoding";
+        inline std::string_view PRIORITY            = "priority";
+        inline std::string_view WARNING             = "warning";
     }
 
     /**
@@ -225,5 +225,5 @@ namespace manapi::net::http {
      * @param status Http Status
      * @return if the http status exists it returns the http status as a string, but otherwise, it returns the NotFound status
      */
-    DLLExportImport manapi::error::status_or<std::string_view> status_to_string (uint16_t status);
+    manapi::error::status_or<std::string_view> status_to_string (uint16_t status);
 }

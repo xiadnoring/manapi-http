@@ -3,7 +3,7 @@
 #include "./ManapiBaseWorker.hpp"
 
 namespace manapi::net::worker {
-    class DLLExportImport interface_worker : public worker::base {
+    class interface_worker : public worker::base {
     public:
         interface_worker (net::http::site site, std::shared_ptr<multithread_storage::worker_t> worker_data, manapi::net::http::config *config);
 

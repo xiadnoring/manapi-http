@@ -11,7 +11,7 @@
 #ifdef MANAPIHTTP_FETCH_SUPPORT
 
 namespace manapi::net {
-    class DLLExportImport fetch2 {
+    class fetch2 {
         struct fetch_data;
 
         fetch2 ();

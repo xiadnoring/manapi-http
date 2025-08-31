@@ -248,21 +248,21 @@ manapi::error::status_or<manapi::slice> manapi::object_pool::slice(std::size_t s
     return std::move(b);
 }
 
-manapi::error::status_or<manapi::bytebuffer> manapi::object_pool::buffer(std::size_t min, std::size_t max) {
+manapi::error::status_or<manapi::bytebuffer> manapi::object_pool::buffer(uint32_t min, uint32_t max) {
     return this->buffer(max);
 }
 
-manapi::error::status_or<manapi::bytebuffer> manapi::object_pool::buffer(std::size_t suggested) {
+manapi::error::status_or<manapi::bytebuffer> manapi::object_pool::buffer(uint32_t suggested) {
     void *buffer{nullptr};
     std::size_t size;
     if (object_pool_malloc (this->data.get(), &buffer, &size, suggested)) {
         delete []static_cast<char*>(buffer);
         return error::status_resource_exhausted();
     }
-    return this->buffer(buffer, size);
+    return this->buffer(buffer, static_cast<uint32_t>(size));
 }
 
-manapi::bytebuffer manapi::object_pool::buffer(void *pointer, std::size_t suggested) {
+manapi::bytebuffer manapi::object_pool::buffer(void *pointer, uint32_t suggested) {
     return {pointer, suggested, bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL};
 }
 

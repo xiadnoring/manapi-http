@@ -71,7 +71,7 @@ namespace manapi::mime {
      * @return MIME class
      * 
      */
-    DLLExportImport std::string_view mime_type (std::string_view mime);
+    std::string_view mime_type (std::string_view mime);
 
     /**
      * MIME media type classifier
@@ -79,7 +79,7 @@ namespace manapi::mime {
      * @param mime MIME
      * @return true if the MIME type is a media type
      */
-    DLLExportImport bool mime_media (std::string_view mime);
+    bool mime_media (std::string_view mime);
 
     /**
      * Recommends to use partitial methods
@@ -88,7 +88,7 @@ namespace manapi::mime {
      * @param mime MIME type
      * @return true if it recommends to use partitial methods
      */
-    DLLExportImport bool mime_partitial_data (std::string_view mime);
+    bool mime_partitial_data (std::string_view mime);
 
     /**
      * Get MIME type from the file path
@@ -96,7 +96,7 @@ namespace manapi::mime {
      * @param path the file path
      * @return MIME type
      */
-    DLLExportImport std::string_view mime_by_file_path (std::string_view path);
+    std::string_view mime_by_file_path (std::string_view path);
 
     /**
      * Get MIME type by the file extension
@@ -104,5 +104,5 @@ namespace manapi::mime {
      * @param ext the file extension
      * @return MIME type
      */
-    DLLExportImport std::string_view mime_by_file_extension (std::string_view ext);
+    std::string_view mime_by_file_extension (std::string_view ext);
 }

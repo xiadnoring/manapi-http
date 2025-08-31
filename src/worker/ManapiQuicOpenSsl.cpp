@@ -153,7 +153,7 @@ int manapi::net::worker::openssl_quic::select_alpn(SSL *ssl, const unsigned char
     auto const w = static_cast<manapi::net::worker::openssl_quic *>(arg);
     auto const alpn_ossltest = w->alpn_ossltest();
     if (SSL_select_next_proto((unsigned char **)out, out_len, reinterpret_cast<const uint8_t*>(alpn_ossltest.data()),
-        alpn_ossltest.size(), in, in_len) == OPENSSL_NPN_NEGOTIATED) {
+        static_cast<uint32_t>(alpn_ossltest.size()), in, in_len) == OPENSSL_NPN_NEGOTIATED) {
         manapi_log_trace(debug::LOG_TRACE_LOW, "%s: %p selected %.*s", "openssl_quic", ssl, *out_len, *out);
         if (w->global_.alpn_cb) {
             auto const version = w->global_.alpn_cb( &w->global_, reinterpret_cast<char const *>(*out), *out_len, w);
@@ -622,7 +622,7 @@ int manapi::net::worker::openssl_quic::event_flags(const shared_conn &conn) MANA
 int manapi::net::worker::openssl_quic::event_flags(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT {
     auto const data = conn->as<quic_stream_t>();
 
-    MANAPIHTTP_WORKER_EVENT_LOOP(data) {
+    MANAPIHTTP_WORKER_EVENT_LOOP_STREAM(data) {
         if ((status & (ev::READ|ev::DISCONNECT)) == ev::READ && data->ev_callback) {
             if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
                 this->global_.flush_custom_read_cb(conn, &this->global_, this);
@@ -668,7 +668,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write(const shared_conn &conn, e
     return prepared::sync_write(this, conn, buff, nbuff, finish);
 }
 
-ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     auto const s = conn->as<quic_stream_t>();
     ssize_t res = 0;
 
@@ -697,7 +697,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
             if (!s->top->send_size) {
                 ERR_clear_error();
                 rhs = SSL_write_ex2(s->stream, buff->base, buff->len, flags, &written);
-                s->sent_an_tick += written;
+                s->sent_an_tick += static_cast<decltype(s->sent_an_tick)>(written);
                  if (s->sent_an_tick > s->send_an_tick_state) {
                      try {
                          manapi::async::current()->etaskpool()->append_task(
@@ -780,7 +780,7 @@ ssize_t manapi::net::worker::openssl_quic::sync_write_ex(const shared_conn &conn
         }
 
         buff->base += written;
-        buff->len -= written;
+        buff->len -= static_cast<decltype(buff->len)>(written);
     }
 
     return res;
@@ -978,7 +978,7 @@ void manapi::net::worker::openssl_quic::bio_flush_write() MANAPIHTTP_NOEXCEPT {
             for (std::size_t i = 0; i < msgs_processed; i++) {
                 ev::buff_t buff;
                 buff.base = static_cast<char *>(msg->data);
-                buff.len = msg->data_len;
+                buff.len = static_cast<decltype(buff.len)>(msg->data_len);
 
                 if (!this->pending_writes)
                     rhs = this->udp_accept_->try_send(&buff, 1, reinterpret_cast<sockaddr *>(&storage_local));
@@ -1157,7 +1157,7 @@ void manapi::net::worker::openssl_quic::flush_write_(const shared_conn &conn, qu
             continue;
         }
 
-        data->top->send.deque_current += written;
+        data->top->send.deque_current += static_cast<decltype(data->top->send.deque_current)>(written);
 
         break;
     }
@@ -1221,7 +1221,7 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
                 data->transfered_k += data->transfered;
 
                 if (--data->speed_min_delay <= 0) {
-                    if (data->flags & (base::CONN_IO_WAITING) && (data->transfered_k < config->speed_check_bytes)) {
+                    if (data->flags & (base::CONN_IO_WAITING) && (data->transfered_k < config->speed_stream_check_bytes)) {
                         manapi::async::current()->etaskpool()->append_task([conn = it->second] () -> void {
                             auto data = conn->as<quic_stream_t>();
                             assert(data && data->parent);
@@ -1233,7 +1233,7 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
                         continue;
                     }
                     data->transfered_k = 0;
-                    data->speed_min_delay = static_cast<int>(config->speed_check_delay);
+                    data->speed_min_delay = static_cast<int>(config->speed_stream_check_delay);
                 }
                 data->transfered = 0;
             }

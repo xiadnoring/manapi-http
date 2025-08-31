@@ -10,7 +10,7 @@
 #include "./ManapiAsyncMutex.hpp"
 
 namespace manapi::async {
-    class DLLExportImport condition_variable {
+    class condition_variable {
     private:
         struct notify_sub_t {
             std::coroutine_handle<future<>::promise> handle;

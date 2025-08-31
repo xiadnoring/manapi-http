@@ -284,7 +284,7 @@ bool default_wrk_http2_is_writable (const manapi::net::worker::shared_conn &conn
 
 int default_wrk_http2_want_write (const manapi::net::worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     auto s = conn->as<manapi::net::http::http_v2_stream_t>();
-    s->ctx->worker->event_toggle(s->ctx->conn, manapi::ev::WRITE, true);
+    s->ctx->worker->event_toggle(s->ctx->conn, true, manapi::ev::WRITE);
     return 0;
 }
 

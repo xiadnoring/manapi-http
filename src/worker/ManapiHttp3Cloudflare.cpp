@@ -1046,7 +1046,7 @@ ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write(const shared_
     return sync_write_ex (conn, buff, nbuff, size, finish, static_cast<int>(this->config_->max_buffer_stack));
 }
 
-ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::http_v3_cloudflare_quiche::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     auto s = conn->as<connection_stream_t>();
 
     if (s->flags & ev::DISCONNECT)
@@ -1258,7 +1258,7 @@ int manapi::net::worker::http_v3_cloudflare_quiche::flush_read_(const shared_con
 
         if (rhs > 0) {
             auto copy = manapi::net::worker::http_v3_cloudflare_quiche::connection_io_send(top, buffer, rhs, &this->bufferpool(), this->config_->buffer_size,
-                &s->top->recv_size, 1e5);
+                &s->top->recv_size, WORKER_MAX_CNT);
 
             if (copy != rhs)
                 return CONN_IO_ERROR;

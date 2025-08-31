@@ -17,7 +17,7 @@ namespace manapi {
         LOGGER_ERROR = 2
     };
 
-    class DLLExportImport logger {
+    class logger {
     private:
         typedef std::move_only_function<void(logger_type type, std::string_view service, int error_code, std::string msg)> callback_t;
         struct data_t {

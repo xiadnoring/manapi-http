@@ -10,7 +10,7 @@
 #include "./ManapiAsyncContext.hpp"
 
 namespace manapi::async {
-    class DLLExportImport tmutex {
+    class tmutex {
     public:
         tmutex ();
 

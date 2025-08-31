@@ -73,10 +73,11 @@ manapi::future<manapi::error::status_or<std::string>> manapi::net::http::request
 
         std::string body;
 
-        if (this->request_data->body_size > this->max_plain_body_size_)
-            co_return manapi::error::status_invalid_argument("req:Body is too large");
 
         if (this->request_data->body_size >= 0) {
+            if (static_cast<std::size_t>(this->request_data->body_size) > this->max_plain_body_size_)
+                co_return manapi::error::status_invalid_argument("req:Body is too large");
+            
             body.resize(this->request_data->body_size);
 
             size_t j = 0;
@@ -480,7 +481,7 @@ manapi::future<manapi::error::status> manapi::net::http::request::read_body_(wor
             ctx_cb.pflags = ctx_cb.worker->event_flags(ctx_cb.conn, ev::READ);
         });
     }
-    catch (std::bad_alloc const &e) {
+    catch (std::bad_alloc const &) {
         status = error::status_resource_exhausted();
     }
     catch (std::exception const &e) {
@@ -645,7 +646,7 @@ manapi::future<manapi::error::status> manapi::net::http::request::read_async_bod
 
         });
     }
-    catch (std::bad_alloc const &e) {
+    catch (std::bad_alloc const &) {
         status = error::status_resource_exhausted();
     }
     catch (std::exception const &e) {

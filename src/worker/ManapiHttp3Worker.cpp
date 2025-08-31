@@ -67,7 +67,7 @@ void manapi::net::worker::http_v3::close_connection(shared_conn conn, int flags)
         return;
 
     /* got something wrong */
-    this->callbacks->http_v3_rst_stream(conn, HTTP3_ERROR_REQUEST_CANCELLED);
+    this->callbacks->http_v3_rst_stream(conn, HTTP3_ERROR_NO_ERROR);
 }
 
 int manapi::net::worker::http_v3::event_flags(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
@@ -77,7 +77,7 @@ int manapi::net::worker::http_v3::event_flags(const shared_conn &conn) MANAPIHTT
 int manapi::net::worker::http_v3::event_flags(const shared_conn &conn, int flags) MANAPIHTTP_NOEXCEPT {
     auto const data = MANAPI_AS_STREAM(conn->wrk.data);
 
-    MANAPIHTTP_WORKER_EVENT_LOOP(data) {
+    MANAPIHTTP_WORKER_EVENT_LOOP_STREAM(data) {
         if (data->ev_callback) {
             if (data->flags & CONN_CLOSED) {
                 if (http_v3::call_user_callback(&data->ev_callback, conn, CONN_CLOSED, nullptr, 0, nullptr))
@@ -132,12 +132,13 @@ ssize_t manapi::net::worker::http_v3::sync_write(const shared_conn &conn, ev::bu
     return sync_write_ex (conn, buff, nbuff, -1 /* no need */, finish, static_cast<int>(this->w->config()->max_buffer_stack));
 }
 
-ssize_t manapi::net::worker::http_v3::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, int maxcnt) MANAPIHTTP_NOEXCEPT {
+ssize_t manapi::net::worker::http_v3::sync_write_ex(const shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, ssize_t size, bool finish, std::size_t maxcnt) MANAPIHTTP_NOEXCEPT {
     return this->callbacks->http_v3_write(conn, buff, nbuff, finish);
 }
 
 void manapi::net::worker::http_v3::update_limit_rate_stream(const shared_conn &conn) MANAPIHTTP_NOEXCEPT {
-    prepared::update_limit_rate_connection(conn, MANAPI_AS_STREAM(conn->wrk.data), this, this->config(), this->wrk_global());
+    auto const c = this->config();
+    return prepared::update_limit_rate_connection(conn, MANAPI_AS_STREAM(conn->wrk.data), this, c, c->speed_stream_check_delay, c->speed_stream_check_bytes, this->wrk_global());
 }
 
 std::size_t manapi::net::worker::http_v3::recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT {

@@ -11,7 +11,7 @@ namespace manapi::unicode {
      * @param c octets
      * @return number of octets
      */
-    DLLExportImport int count_of_octet (unsigned char c);
+    int count_of_octet (unsigned char c);
 
     // namespace utf {
     //     /**
@@ -69,21 +69,21 @@ namespace manapi::unicode {
      * @param symbol symbol char to check
      * @return true if the char is a whitespace character ('\r', '\n', ' ', '\t')
      */
-    DLLExportImport bool is_space_symbol (unsigned char symbol);
+    bool is_space_symbol (unsigned char symbol);
 
     /**
      * Get information about the provided char
      * @param symbol symbol char to check
      * @return true if the char is a whitespace character ('\r', '\n', ' ', '\t')
      */
-    DLLExportImport bool is_space_symbol (wchar_t symbol);
+    bool is_space_symbol (wchar_t symbol);
 
     /**
      * Get information about the provided char
      * @param symbol symbol char to check
      * @return true if the char is a whitespace character ('\r', '\n', ' ', '\t')
      */
-    DLLExportImport bool is_space_symbol (char32_t symbol);
+    bool is_space_symbol (char32_t symbol);
 
     /**
      * Escape string. It works like as std::quoted() function
@@ -91,9 +91,9 @@ namespace manapi::unicode {
      * @param quotes delimiter
      * @return escaped string
      */
-    DLLExportImport std::string escape_string (std::string_view str, char quotes = '"');
+    std::string escape_string (std::string_view str, char quotes = '"');
 
-    DLLExportImport uint8_t onehex2dec (uint8_t c) MANAPIHTTP_NOEXCEPT;
+    uint8_t onehex2dec (uint8_t c) MANAPIHTTP_NOEXCEPT;
 
-    DLLExportImport uint8_t onedec2hex (uint8_t c) MANAPIHTTP_NOEXCEPT;
+    uint8_t onedec2hex (uint8_t c) MANAPIHTTP_NOEXCEPT;
 }

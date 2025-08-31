@@ -81,7 +81,7 @@ static const std::map<uint16_t, std::string_view> status_to_string_map = {
     {526, manapi::net::http::status::INVALID_SSL_CERTIFICATE_526}
 };
 
-DLLExportImport manapi::error::status_or<std::string_view> manapi::net::http::status_to_string(uint16_t status) {
+manapi::error::status_or<std::string_view> manapi::net::http::status_to_string(uint16_t status) {
     auto const it = status_to_string_map.find(status);
     if (it != status_to_string_map.end())
         return it->second;

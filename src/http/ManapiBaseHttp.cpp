@@ -244,11 +244,10 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
 
 
             // partial enabled
-            if (res->partial_enabled() && res->config()->partial_data_min_size <= fileSize) {
+            if (res->partial_enabled() && res->contains_ranges() && res->config()->partial_data_min_size <= fileSize) {
                 if (features.compressor_for_file) {
-                    manapi_log_error("%s failed due to %s", "send_response_file()",
+                    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed due to %s", "send_response_file()", "compressor_for_file",
                         "compress with the partial content is not supported");
-                    break;
                 }
 
                 res->status(http::PARTIAL_CONTENT_206);
@@ -262,6 +261,8 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                 ssize_t const ranges_size = ranges ? static_cast<ssize_t>(ranges->size()) : 0;
 
                 switch (ranges_size) {
+                    case 0:
+                        break;
                     case 1: {
                         auto &range = ranges->operator[](0);
                         if (range.first != -1) {
@@ -276,9 +277,6 @@ manapi::future<void> manapi::net::http::internal::send_response_file(std::unique
                         }
                         break;
                     }
-                    case 0:
-                        break;
-
                     default: {
                         manapi_log_error("%s: %s", "send_response_file()", "multi bytes not supported");
                     }

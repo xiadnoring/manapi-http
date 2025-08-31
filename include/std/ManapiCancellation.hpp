@@ -7,7 +7,7 @@
 #include "../ManapiUtils.hpp"
 
 namespace manapi::async {
-    class DLLExportImport cancellation_action {
+    class cancellation_action {
         struct data_t;
     public:
         cancellation_action (std::nullptr_t);
