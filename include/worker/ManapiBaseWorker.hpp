@@ -172,12 +172,12 @@ namespace manapi::net::worker {
 
     struct connection_base_t;
 
-    class base {
+    class DLLExportImport base {
     public:
 
         typedef std::map<uintptr_t, shared_conn> conn_by_port;
 
-        typedef std::map<std::array<char, 17>, conn_by_port> conns_by_ip;
+        typedef std::map<std::string, conn_by_port, std::less<>> conns_by_ip;
 
         typedef vbefore_delete<bool, false> oncont_cb;
 

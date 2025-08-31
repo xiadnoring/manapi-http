@@ -16,23 +16,26 @@ namespace manapi {
     namespace async {
         class mutex_locker;
         class cthread;
-        extern size_t max_stack_depth;
 
         namespace internal {
             extern thread_local std::size_t current_stack_cnt;
 
             extern thread_local std::shared_ptr<cthread> current_cthread_;
 
-            const std::shared_ptr<threadpool> &ethreadpool_(const std::shared_ptr<cthread> &ctx) MANAPIHTTP_NOEXCEPT;
+            DLLExportImport const std::shared_ptr<threadpool> &ethreadpool_(const std::shared_ptr<cthread> &ctx) MANAPIHTTP_NOEXCEPT;
 
-            const std::shared_ptr<cthread> &current_ () MANAPIHTTP_NOEXCEPT;
+            DLLExportImport const std::shared_ptr<cthread> &current_ () MANAPIHTTP_NOEXCEPT;
 
-            std::size_t current_stack_cnt_crt () MANAPIHTTP_NOEXCEPT;
+            DLLExportImport std::size_t current_stack_cnt_crt () MANAPIHTTP_NOEXCEPT;
 
-            void current_stack_cnt_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
+            DLLExportImport void current_stack_cnt_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
+
+            DLLExportImport std::size_t max_stack_depth2 () MANAPIHTTP_NOEXCEPT;
+
+            DLLExportImport void max_stack_depth2 (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
         }
 
-        const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXCEPT;
+        DLLExportImport const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXCEPT;
     }
 
     class promise_base_future {
@@ -189,7 +192,7 @@ namespace manapi {
                 promise.waiting = handle;
 
                 auto current_stack_cnt_ = manapi::async::internal::current_stack_cnt_crt ();
-                if (current_stack_cnt_ >= async::max_stack_depth) {
+                if (current_stack_cnt_ >= async::internal::max_stack_depth2()) {
                     auto &thr = manapi::async::current();
                     if (thr) {
                         async::internal::ethreadpool_(thr)->append_task([handle = this->handle] () -> void {

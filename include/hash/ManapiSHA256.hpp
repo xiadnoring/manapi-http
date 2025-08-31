@@ -13,7 +13,7 @@
 #include "../ManapiUtils.hpp"
 
 namespace manapi::net::hash {
-    class sha256 {
+    class DLLExportImport sha256 {
         protected:
             typedef unsigned char uint8;
             typedef unsigned int uint32;
@@ -41,7 +41,7 @@ namespace manapi::net::hash {
      * @param input the source string
      * @return a 32 byte sha256 string if completed successfuly, otherwise it returns OutOfRange, InternalError, ResourceExhausted
      */
-    manapi::error::status_or<std::string> sha256str(std::string_view input);
+    DLLExportImport manapi::error::status_or<std::string> sha256str(std::string_view input);
 
     /**
      *
@@ -50,5 +50,5 @@ namespace manapi::net::hash {
      * @param size the output size
      * @return Ok if completed successfuly, otherwise it returns OutOfRange
      */
-    manapi::error::status sha256str(std::string_view input, char *output, std::size_t size);
+    DLLExportImport manapi::error::status sha256str(std::string_view input, char *output, std::size_t size);
 }

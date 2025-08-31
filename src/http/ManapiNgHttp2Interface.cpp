@@ -726,7 +726,11 @@ static int ng_wrk_http2_send_response_sync (const manapi::net::worker::shared_co
 
     auto &headers = res->headers();
     auto const hs = headers.size() + 1;
+#if _MSC_VER
+    nghttp2_nv *p = static_cast<nghttp2_nv*>(alloca(sizeof (nghttp2_nv) * hs));
+#else
     nghttp2_nv p[hs];
+#endif
 
     try {
         std::size_t i = 0;

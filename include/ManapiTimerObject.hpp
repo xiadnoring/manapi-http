@@ -14,7 +14,7 @@ namespace manapi {
     class event_loop;
     class timerpool;
 
-    class timer {
+    class DLLExportImport timer {
     public:
         typedef std::move_only_function<manapi::future<>(const manapi::timer &data)> async_cb_t;
         typedef std::move_only_function<void(const manapi::timer &data)> sync_cb_t;

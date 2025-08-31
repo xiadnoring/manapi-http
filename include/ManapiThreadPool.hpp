@@ -45,7 +45,7 @@ namespace manapi {
         std::shared_ptr<manapi::logger> logger_;
     };
 
-    class mthreadpool : public threadpool {
+    class DLLExportImport mthreadpool : public threadpool {
     public:
         typedef std::vector<chain<std::move_only_function<void()>>> tasks_by_thread_t;
 
@@ -102,7 +102,7 @@ namespace manapi {
         ssize_t threadnum;
     };
 
-    class ethreadpool : public threadpool {
+    class DLLExportImport ethreadpool : public threadpool {
     public:
         ethreadpool (std::shared_ptr<manapi::logger> logger, std::move_only_function<void()> ontask);
 

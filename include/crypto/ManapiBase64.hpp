@@ -28,7 +28,7 @@ namespace manapi::crypto {
      * @param data the source string
      * @return the base64 encoded output string, but otherwise, it returns InternalError, InvalidArgument, ResourceExhausted
      */
-    manapi::error::status_or<std::string> base64_encode (std::string_view data);
+    DLLExportImport manapi::error::status_or<std::string> base64_encode (std::string_view data);
 
     /**
      * base64 string decoder
@@ -36,5 +36,5 @@ namespace manapi::crypto {
      * @param data the base64 encoded string
      * @return the decoded output string, but otherwise, it returns InternalError, InvalidArgument, ResourceExhausted
      */
-    manapi::error::status_or<std::string> base64_decode (std::string_view data);
+    DLLExportImport manapi::error::status_or<std::string> base64_decode (std::string_view data);
 }

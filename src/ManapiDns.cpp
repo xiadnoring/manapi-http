@@ -1,6 +1,6 @@
 #include "ManapiDns.hpp"
 
-manapi::future<int> manapi::dns::getaddrinfo(const char * node, const char* service, const addrinfo *hints, addrinfo **res, async::cancellation_action token) {
+DLLExportImport manapi::future<int> manapi::dns::getaddrinfo(const char * node, const char* service, const addrinfo *hints, addrinfo **res, async::cancellation_action token) {
     try {
         using promise = manapi::async::promise_sync<int>;
         co_return co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) -> void {

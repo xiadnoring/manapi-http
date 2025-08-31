@@ -1,4 +1,5 @@
 #include <memory>
+#include <array>
 
 #include "../include/worker/ManapiQuicOpenSsl.hpp"
 #include "ManapiProcess.hpp"
@@ -580,9 +581,10 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
 
     MANAPIHTTP_MUST_ALLOC_START
     manapi::async::current()->etaskpool()->append_task([conn] () -> void {
-        std::array<char, 17> arr{};
+        std::array<char, 17> arr;
+        memset(arr.data(), '\0', arr.size());
         auto const addr = reinterpret_cast<sockaddr *> (conn->ipdata->client.data);
-        arr[0] = static_cast<char>(http::version_ip_by_addr (addr));
+        *arr.data() = static_cast<char>(http::version_ip_by_addr (addr));
         http::ip_by_addr(addr, arr.data() + 1);
         auto s = conn->as<quic_conn_t>();
         auto const w = s->worker;
@@ -595,10 +597,10 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
         // prepared::top_buffer_clear(s);
 
 
-        auto conn_by_ip = w->conns_.find(arr);
+        auto conn_by_ip = w->conns_.find(std::string_view(arr.data(), arr.size()));
         assert(conn_by_ip != w->conns_.end());
         if (conn_by_ip != w->conns_.end()) {
-            auto cit = conn_by_ip->second.find(reinterpret_cast<std::uintptr_t>(reinterpret_cast<std::uintptr_t>(s->conn)));
+            auto cit = conn_by_ip->second.find(reinterpret_cast<std::uintptr_t>(s->conn));
             assert(cit != conn_by_ip->second.end());
             if (cit != conn_by_ip->second.end())
                 conn_by_ip->second.erase(cit);
@@ -1374,8 +1376,9 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
 
     std::size_t result;
     timeval poll_tv{0};
-    std::array<char, 17> arr{};
-    arr[0] = static_cast<char>(http::version_ip_by_addr (addr));
+    std::array<char, 17> arr;
+    memset(arr.data(), '\0', arr.size());
+    *arr.data() = static_cast<char>(http::version_ip_by_addr (addr));
     http::ip_by_addr(addr, arr.data() + 1);
 
     rhs = SSL_poll(this->polls_.data(), this->polls_.size(), sizeof (SSL_POLL_ITEM), &poll_tv, SSL_POLL_FLAG_NO_HANDLE_EVENTS, &result);
@@ -1522,7 +1525,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
                 if (it->revents & SSL_POLL_EVENT_EC) {
                     manapi_log_trace(debug::LOG_TRACE_MEDIUM, "%s: revents & SSL_POLL_EVENT_EC in %p conn",
                         "openssl_quic", it->desc.value.ssl);
-                    auto conn_by_ip = this->conns_.find(arr);
+                    auto conn_by_ip = this->conns_.find(std::string_view(arr.data(), arr.size()));
                     if (conn_by_ip != this->conns_.end()) {
                         auto cit = conn_by_ip->second.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
                         if (cit != conn_by_ip->second.end()) {
@@ -1537,7 +1540,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
                 if (it->revents & SSL_POLL_EVENT_ECD) {
                     manapi_log_trace(debug::LOG_TRACE_MEDIUM, "revents & SSL_POLL_EVENT_ECD in %p conn", it->desc.value.ssl);
 
-                    auto conn_by_ip = this->conns_.find(arr);
+                    auto conn_by_ip = this->conns_.find(std::string_view(arr.data(), arr.size()));
                     if (conn_by_ip != this->conns_.end()) {
                         auto cit = conn_by_ip->second.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
                         if (cit != conn_by_ip->second.end()) {
@@ -1761,8 +1764,8 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
     shared_conn conn;
     quic_conn_t *sn;
     try {
-        std::array<char, 17> arr{};
-
+        std::array<char, 17> arr;
+        arr.fill('\0');
         auto p = std::make_unique<quic_conn_t>();
         auto ipstorage = std::make_unique<worker::connection::ipdata_t>();
         ipstorage->len = async::socklen(addr);
@@ -1785,13 +1788,13 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         memcpy(shared->ipdata->client.data, &this->config_->server_addr, this->config_->server_len);
         shared->ipdata->len = this->config_->server_len;
 
-        auto const sock_data = reinterpret_cast <sockaddr *>(shared->ipdata->client.data);
-        arr[0] = static_cast<char>(http::version_ip_by_addr (sock_data));
+        const auto sock_data = reinterpret_cast <const sockaddr *>(shared->ipdata->client.data);
+        *arr.data() = static_cast<char>(http::version_ip_by_addr (sock_data));
         http::ip_by_addr(sock_data, arr.data() + 1);
 
-        auto conn_by_ip = this->conns_.find(arr);
+        auto conn_by_ip = this->conns_.find(std::string_view(arr.data(), arr.size()));
         if (conn_by_ip == this->conns_.end())
-            conn_by_ip = this->conns_.insert({arr, decltype(this->conns_)::value_type::second_type{}}).first;
+            conn_by_ip = this->conns_.insert({std::string(arr.data(), arr.size()), decltype(this->conns_)::value_type::second_type{}}).first;
 
         auto res = conn_by_ip->second.insert(
             {reinterpret_cast<std::uintptr_t>(client), std::move(shared)});

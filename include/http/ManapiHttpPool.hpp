@@ -14,7 +14,7 @@
 #include "../worker/ManapiBaseWorker.hpp"
 
 namespace manapi::net {
-    class http_pool {
+    class DLLExportImport http_pool {
     public:
         /**
          * initialize the http pool instance

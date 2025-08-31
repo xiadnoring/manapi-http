@@ -29,6 +29,9 @@
 
    For more information, please refer to <http://unlicense.org/>
 */
+#ifdef MANAPIHTTP_BUILD_SHARED_LIBS
+#   undef MANAPIHTTP_BUILD_SHARED_LIBS
+#endif
 
 #ifndef SHEREDOM_UTEST_H_INCLUDED
 #define SHEREDOM_UTEST_H_INCLUDED

@@ -6,7 +6,7 @@
 #include "./ManapiHttpMime.hpp"
 
 namespace manapi::net::http {
-    class file_transfer_info {
+    class DLLExportImport file_transfer_info {
     public:
         explicit file_transfer_info (std::string filelocal) {
             this->filelocal_ = std::move(filelocal);

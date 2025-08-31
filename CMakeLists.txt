@@ -14,7 +14,13 @@ if (EXISTS "./build/generators/conan_toolchain.cmake")
     include(./build/generators/conan_toolchain.cmake)
 endif ()
 
-add_compile_options(-fmerge-all-constants -fuse-ld=gold)
+if (WIN32)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
+if (CMAKE_COMPILER_IS_GNUCXX)
+    add_compile_options(-fmerge-all-constants)
+endif()
 
 if (NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     message(STATUS "This project has a top-level one called [${CMAKE_PROJECT_NAME}]")
@@ -145,7 +151,7 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
         # For Testing
-        find_package(PostgreSQL REQUIRED)
+        find_package(PostgreSQL)
     endif ()
 else ()
     include(FetchContent)
@@ -572,6 +578,7 @@ string(REPLACE "{{ VAR_MANAPIHTTP_NGHTTP2_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_NGH
 string(REPLACE "{{ VAR_MANAPIHTTP_NGHTTP3_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_NGHTTP3_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_CPPTRACE_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_CPPTRACE_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_STD_BACKTRACE_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_STD_BACKTRACE_DEPENDENCY}> TEXT "${TEXT}")
+string(REPLACE "{{ VAR_MANAPIHTTP_IS_SHARED }}" $<BOOL:${BUILD_SHARED_LIBS}> TEXT "${TEXT}")
 
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp" CONTENT "${TEXT}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp")
@@ -939,6 +946,12 @@ endif ()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
+
+if (WIN32 AND BUILD_SHARED_LIBS)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    add_compile_definitions(MANAPIHTTP_BUILD_SHARED_LIBS)
+endif()
+
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
@@ -946,6 +959,8 @@ find_package(Threads)
 target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
+    get_target_property(LIBUV_INCLUDE_DIRECTORIES uv INTERFACE_INCLUDE_DIRECTORIES)
+    message(STATUS "${LIBUV_INCLUDE_DIRECTORIES}")
     target_link_libraries (${PROJECT_NAME} PUBLIC uv)
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")

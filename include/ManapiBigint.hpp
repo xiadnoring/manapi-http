@@ -25,7 +25,7 @@ namespace manapi {
      * Bigint provides utilities to work
      * with large integers and decimals.
      */
-    class bigint {
+    class DLLExportImport bigint {
         struct data_t;
 
         struct data_t_deleter {

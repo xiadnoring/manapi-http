@@ -14,7 +14,7 @@ namespace manapi::net {
     };
 
 
-    class formdata_recv {
+    class DLLExportImport formdata_recv {
         struct formdata_recv_headers_t;
 
         struct formdata_recv_ctx_t {
@@ -66,7 +66,7 @@ namespace manapi::net {
         http::request_data_t *req_;
     };
 
-    class formdata_send {
+    class DLLExportImport formdata_send {
     public:
         formdata_send ();
 

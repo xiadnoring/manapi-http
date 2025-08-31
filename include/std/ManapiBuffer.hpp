@@ -3,12 +3,12 @@
 #include <typeinfo>
 #include <cstdint>
 
-#include <uv.h>
+#include "uv.h"
 
 #include "../ManapiErrors.hpp"
 
 namespace manapi {
-    class bytebuffer {
+    class DLLExportImport bytebuffer {
         struct slices_data {
             uv_buf_t *slices;
             int slices_cnt;

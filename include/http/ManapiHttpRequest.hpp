@@ -16,7 +16,7 @@
 #include "../worker/ManapiBaseWorker.hpp"
 
 namespace manapi::net::http {
-    class request {
+    class DLLExportImport request {
     public:
         using onrecv_sync_cb = std::move_only_function<ssize_t(const char *buffer, ssize_t size, bool fin)>;
         using onrecv_async_cb = std::move_only_function<manapi::future<ssize_t>(slice_view buffs, bool fin)>;

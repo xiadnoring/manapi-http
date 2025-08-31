@@ -15,7 +15,7 @@
 #include "./ManapiTimerObject.hpp"
 
 namespace manapi {
-    class timerpool {
+    class DLLExportImport timerpool {
     public:
         typedef std::pair <std::chrono::steady_clock::time_point, std::shared_ptr<timer::timer_data_t>> sorted_storage_key;
         struct sorted_tasks_compare_t {

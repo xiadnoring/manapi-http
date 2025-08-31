@@ -4,6 +4,8 @@
 #include <memory>
 #include <format>
 
+#include "../ManapiUtils.hpp"
+
 namespace manapi {
     namespace async {
         class cthread;
@@ -14,7 +16,9 @@ namespace manapi {
         LOGGER_WARNING = 1,
         LOGGER_ERROR = 2
     };
-    class logger {
+
+    class DLLExportImport logger {
+    private:
         typedef std::move_only_function<void(logger_type type, std::string_view service, int error_code, std::string msg)> callback_t;
         struct data_t {
             callback_t callback;

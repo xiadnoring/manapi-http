@@ -121,7 +121,7 @@ int main () {
     catch (...) {  }
 
     manapi::async::context::threadpoolfs(threads);
-    manapi::async::context::gbs = manapi::async::context::blockedsignals();
+    manapi::async::context::gbs(manapi::async::context::blockedsignals());
 
     int loops = 0;
     try { loops = std::stoi(manapi::process::get_env("MANAPIHTTP_LOOPS").unwrap()); }

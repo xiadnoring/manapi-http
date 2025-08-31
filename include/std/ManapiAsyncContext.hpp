@@ -7,13 +7,13 @@
 #include "../ManapiMemoryPool.hpp"
 
 namespace manapi::async {
-    class context;
+    class DLLExportImport context;
 
-    class cthread;
+    class DLLExportImport cthread;
 
-    class mutex;
+    class DLLExportImport mutex;
 
-    class condition_variable;
+    class DLLExportImport condition_variable;
 
     /* provides an async context */
     typedef std::shared_ptr<context> shared_ctx;
@@ -76,9 +76,9 @@ namespace manapi::async {
 namespace manapi {
     class object_pool;
 #if defined (__unix__) || defined(__APPLE__)
-    struct sigset_t : public ::sigset_t {};
+    struct DLLExportImport sigset_t : public ::sigset_t {};
 #else
-    struct sigset_t {
+    struct DLLExportImport sigset_t {
         char payload[1];
     };
 #endif
@@ -94,8 +94,8 @@ namespace manapi::async {
     typedef std::shared_ptr<event_loop> shared_eventloop;
 }
 
-#define GCTX(...) manapi::async::context::gctx, __VA_ARGS__
-#define GCTX_OBJ manapi::async::context::gctx
+#define GCTX(...) manapi::async::context::gctx(), __VA_ARGS__
+#define GCTX_OBJ manapi::async::context::gctx()
 
 #include "../ManapiEventLoop.hpp"
 #include "../ManapiTimerPool.hpp"
@@ -109,7 +109,7 @@ namespace manapi::async {
     /**
      * provides a context
      */
-    class cthread {
+    class DLLExportImport cthread {
     public:
         /**
          * initialize the context
@@ -196,7 +196,7 @@ namespace manapi::async {
 
     typedef std::shared_ptr<cthread> shared_async_thread;
 
-    class context : public cthread {
+    class DLLExportImport context : public cthread {
     public:
         /**
          * initialize the context
@@ -254,15 +254,22 @@ namespace manapi::async {
          */
         const std::vector<shared_cthread> &loops () MANAPIHTTP_NOEXCEPT;
 
+        static manapi::sigset_t *gbs () MANAPIHTTP_NOEXCEPT;
+
+        static void gbs (std::unique_ptr<manapi::sigset_t> n) MANAPIHTTP_NOEXCEPT;
+
+        static std::shared_ptr<context> gctx () MANAPIHTTP_NOEXCEPT;
+
+        static void gctx (std::shared_ptr<context> n) MANAPIHTTP_NOEXCEPT;
+    private:
         /**
          * global context storage
          */
-        static std::shared_ptr<context> gctx;
+        static std::shared_ptr<context> gctx_;
         /**
          * global blocked signals storage
          */
-        static std::unique_ptr<manapi::sigset_t> gbs;
-    private:
+        static std::unique_ptr<manapi::sigset_t> gbs_;
         /* copies */
         std::vector<shared_cthread> loops_;
     };
@@ -298,11 +305,11 @@ namespace manapi::async::internal {
     enum async_task_flags {
         ASYNC_TASK_FLAG_EXECUTED = 1
     };
-    void run_prepare_error_ (std::exception_ptr err) MANAPIHTTP_NOEXCEPT;
+    DLLExportImport void run_prepare_error_ (std::exception_ptr err) MANAPIHTTP_NOEXCEPT;
 
-    void run_prepare_std_exception_ (std::exception const &e) MANAPIHTTP_NOEXCEPT;
+    DLLExportImport void run_prepare_std_exception_ (std::exception const &e) MANAPIHTTP_NOEXCEPT;
 
-    void run_prepare_manapi_exception_ (manapi::exception &e) MANAPIHTTP_NOEXCEPT;
+    DLLExportImport void run_prepare_manapi_exception_ (manapi::exception &e) MANAPIHTTP_NOEXCEPT;
 
     /**
      * FOR INTERNAL USE ONLY
@@ -452,7 +459,7 @@ namespace manapi::async {
     requires(!std::is_same_v<T, void>)
     void run(manapi::future<T> task, run_cb_with_value<T> onfinish) MANAPIHTTP_NOEXCEPT {
         async_task_t<T>*  ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr});
-        while (!ptr) { ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr}); usleep(10000); }
+        while (!ptr) { ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr}); }
         std::unique_ptr<async_task_t<T>> task_data(ptr);
         task_data->task = manapi::future<T>{task.release()};
         internal::run_prepare_<T>(std::move(task_data), std::move(onfinish));
@@ -462,7 +469,7 @@ namespace manapi::async {
     requires(std::is_same_v<T, void>)
     void manapi::async::run(manapi::future<> task, std::move_only_function<void(std::exception_ptr err)> onfinish) MANAPIHTTP_NOEXCEPT {
         async_task_t<T>* ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr});
-        while (!ptr) { ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr}); usleep(10000); }
+        while (!ptr) { ptr = new(std::nothrow) async_task_t<T>(future<T>{nullptr}); }
         std::unique_ptr<async_task_t<T>> task_data(ptr);
         task_data->task = manapi::future<T>{task.release()};
         internal::run_prepare_<T>(std::move(task_data), std::move(onfinish));

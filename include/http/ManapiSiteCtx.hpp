@@ -7,7 +7,7 @@
 #include "../utils/ManapiMultithreadStorage.hpp"
 
 namespace manapi::net::http {
-    class server_ctx {
+    class DLLExportImport server_ctx {
         struct data_t;
 
         server_ctx ();

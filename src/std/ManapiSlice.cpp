@@ -571,8 +571,11 @@ manapi::error::status manapi::slice_base::rshift_add_(std::size_t s) noexcept(tr
     this->rshift_ += s;
 
     auto &mem = manapi::async::current()->memory_fabric();
-
+#if _MSC_VER
+    slice_part_t** parts = static_cast<slice_part_t**>(alloca(sizeof (slice_part_t*)*this->count));
+#else
     slice_part_t *parts[this->count];
+#endif
 
     auto current = this->first;
     for (uint32_t i = 0; i < this->count; i++) {
@@ -868,7 +871,11 @@ manapi::error::status manapi::slice::push_back(slice s) MANAPIHTTP_NOEXCEPT {
             }
             else {
                 auto const datasize = s.size();
+#if _MSC_VER
+                char *data = static_cast<char*>(alloca(datasize));
+#else
                 char data[datasize];
+#endif
                 std::size_t i = 0;
                 auto res = s.copy_to(data, 0, datasize);
                 if (!res)

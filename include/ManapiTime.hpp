@@ -44,5 +44,5 @@ namespace manapi::time {
      * @param local Use local time zone
      * @return zoned time
      */
-    std::chrono::zoned_time<std::chrono::system_clock::duration> current_time (bool local = true);
+    DLLExportImport std::chrono::zoned_time<std::chrono::system_clock::duration> current_time (bool local = true);
 }

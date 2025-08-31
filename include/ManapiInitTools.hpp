@@ -20,30 +20,30 @@ namespace manapi::init_tools {
     /**
      * Initialize all ssl libraries
      */
-    void ssl_library_init ();
+    DLLExportImport void ssl_library_init ();
 
     /**
      * Initialize libuv library
      */
-    void ev_library_init ();
+    DLLExportImport void ev_library_init ();
 
     /**
      * Initialize curl library
      */
-    void curl_library_init ();
+    DLLExportImport void curl_library_init ();
 
     /**
      * Enable Log Trace
      */
-    void log_trace_init (manapi::debug::trace_level lvl);
+    DLLExportImport void log_trace_init (manapi::debug::trace_level lvl);
 }
 
 namespace manapi::clear_tools {
-    void ssl_library_thread_clear () MANAPIHTTP_NOEXCEPT;
+    DLLExportImport void ssl_library_thread_clear () MANAPIHTTP_NOEXCEPT;
 
-    void ssl_library_clear () MANAPIHTTP_NOEXCEPT;
+    DLLExportImport void ssl_library_clear () MANAPIHTTP_NOEXCEPT;
 
-    void ev_library_clear () MANAPIHTTP_NOEXCEPT;
+    DLLExportImport void ev_library_clear () MANAPIHTTP_NOEXCEPT;
 
-    void curl_library_clear () MANAPIHTTP_NOEXCEPT;
+    DLLExportImport void curl_library_clear () MANAPIHTTP_NOEXCEPT;
 }

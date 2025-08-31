@@ -14,14 +14,14 @@
 #include "../ManapiErrors.hpp"
 
 namespace manapi {
-    class slice_base;
+    class DLLExportImport slice_base;
 
     struct slice_part_t {
         manapi::ev::buff_t buff;
         slice_part_t *next;
     };
 
-    class slice_iterator {
+    class DLLExportImport slice_iterator {
     public:
         slice_iterator (slice_part_t *part, slice_base *base);
 
@@ -60,7 +60,7 @@ namespace manapi {
     };
 
 
-    class slice_const_iterator {
+    class DLLExportImport slice_const_iterator {
     public:
         slice_const_iterator (slice_part_t *part, slice_base const *base);
 
@@ -98,7 +98,7 @@ namespace manapi {
         slice_base const *base_;
     };
 
-    class slice_base {
+    class DLLExportImport slice_base {
     public:
         struct slice_part_deleter {
             void operator () (slice_part_t *ptr);
@@ -186,7 +186,7 @@ namespace manapi {
         uint32_t count;
     };
 
-    class slice final : public slice_base {
+    class DLLExportImport slice final : public slice_base {
     public:
         slice ();
 
@@ -240,7 +240,7 @@ namespace manapi {
         void remove_shift () MANAPIHTTP_NOEXCEPT;
     };
 
-    class slice_view final : public slice_base {
+    class DLLExportImport slice_view final : public slice_base {
     public:
         slice_view ();
 
@@ -260,7 +260,7 @@ namespace manapi {
     private:
     };
 
-    class slice_ref final : public slice_base {
+    class DLLExportImport slice_ref final : public slice_base {
     public:
         slice_ref ();
 

@@ -22,5 +22,5 @@ namespace manapi::dns {
      * Errors:
      * -
      */
-    manapi::future<int> getaddrinfo (const char * node, const char* service, const addrinfo *hints, addrinfo **res, async::cancellation_action token = nullptr);
+    DLLExportImport manapi::future<int> getaddrinfo (const char * node, const char* service, const addrinfo *hints, addrinfo **res, async::cancellation_action token = nullptr);
 }

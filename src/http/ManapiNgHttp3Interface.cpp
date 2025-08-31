@@ -1163,7 +1163,11 @@ static int ng_wrk_http3_send_response_sync (const manapi::net::worker::shared_co
 
     auto &headers = res->headers();
     auto const hs = headers.size() + 1;
+#if _MSC_VER
+    nghttp3_nv *p = static_cast<nghttp3_nv*>(alloca(sizeof (nghttp3_nv) * hs));
+#else
     nghttp3_nv p[hs];
+#endif
     std::size_t i = 0;
     /* 0 is reserved for :status */
     i = 1;

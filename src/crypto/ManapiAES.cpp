@@ -10,7 +10,7 @@
 #endif
 
 
-manapi::error::status_or<std::string> manapi::crypto::aes_encrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
+DLLExportImport manapi::error::status_or<std::string> manapi::crypto::aes_encrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
     try {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
         const EVP_CIPHER *algorithm_cb;
@@ -82,7 +82,7 @@ manapi::error::status_or<std::string> manapi::crypto::aes_encrypt(std::string_vi
     return manapi::error::status_internal("aes:Failed");
 }
 
-manapi::error::status_or<std::string> manapi::crypto::aes_decrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
+DLLExportImport manapi::error::status_or<std::string> manapi::crypto::aes_decrypt(std::string_view data, std::string_view key, std::string_view iv, ciphers algorithm) {
     try {
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
         const EVP_CIPHER *algorithm_cb;

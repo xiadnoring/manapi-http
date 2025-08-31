@@ -30,7 +30,7 @@ namespace manapi {
         ERR_JSON_BAD_ESCAPED_CHAR
     };
 
-    class json {
+    class DLLExportImport json {
     public:
         typedef std::map <std::string, manapi::json, std::less<>> OBJECT;
 

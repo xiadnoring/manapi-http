@@ -25,7 +25,7 @@ namespace manapi::net::http {
         void operator()(custom_data_t *n);
     };
 
-    class response {
+    class DLLExportImport response {
         friend class uresponse;
     public:
         using resp_callback_sync = std::move_only_function<ssize_t(char *buffer, ssize_t size, bool&)>;

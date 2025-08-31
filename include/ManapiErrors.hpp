@@ -10,6 +10,7 @@
 #include <string>
 #include <memory>
 #include <format>
+#include <optional>
 
 #include "./ManapiUtils.hpp"
 
@@ -151,7 +152,7 @@ namespace manapi {
     /**
      * manapi exception
      */
-    class exception final : public std::exception {
+    class DLLExportImport exception final : public std::exception {
         union messages {
             std::string_view view{};
             std::string storage;
@@ -201,7 +202,7 @@ namespace manapi {
     };
 
     namespace error {
-        class status {
+        class DLLExportImport status {
         public:
             status ();
 

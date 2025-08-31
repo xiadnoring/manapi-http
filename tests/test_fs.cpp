@@ -94,7 +94,7 @@ int main(int argc, const char *const argv[]) {
     }
 
     manapi::async::context::threadpoolfs(2);
-    manapi::async::context::gbs = manapi::async::context::blockedsignals();
+    manapi::async::context::gbs(manapi::async::context::blockedsignals());
 
     return utest_main(argc, argv);
 }

@@ -73,7 +73,7 @@ namespace manapi::ev::internal {
 }
 
 namespace manapi {
-    class event_loop {
+    class DLLExportImport event_loop {
     public:
         event_loop();
 

@@ -38,7 +38,7 @@ manapi::net::worker::TCP::TCP(net::http::site site, std::shared_ptr<multithread_
 
 manapi::net::worker::TCP::~TCP() {
     if (this->local) {
-        freeaddrinfo(this->local);
+        ev::getaddrinfo::free(this->local);
     }
 
     if (this->limit_rate_timer) {
@@ -246,7 +246,8 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
     }
 
     std::shared_ptr<worker::connection> connection;
-    std::array<char, 17> arr{};
+    std::array<char, 17> arr;
+    arr.fill('\0');
 
     try {
         connection = init_cb(user_data);
@@ -343,15 +344,19 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
         arr[0] = static_cast<char>(http::version_ip_by_addr (sn));
         http::ip_by_addr(sn, arr.data() + 1);
 
-        auto &it = this->ips[arr];
-        if (it.size() >= this->config_->max_connections_by_ip) {
-            if (it.size() > this->config_->max_connections_by_ip * 2)
+        auto findex = std::string_view(arr.data(), arr.size());
+        auto it = this->ips.find(findex);
+        if (it == this->ips.end())
+            it = this->ips.insert({std::string(findex), conn_by_port{}}).first;
+
+        if (it->second.size() >= this->config_->max_connections_by_ip) {
+            if (it->second.size() > this->config_->max_connections_by_ip * 2)
                 return nullptr;
 
             connection->wrk.flags |= WRK_INTERFACE_CONN_RETRY;
         }
 
-        auto res = it.insert({reinterpret_cast<uintptr_t>(connection.get()),
+        auto res = it->second.insert({reinterpret_cast<uintptr_t>(connection.get()),
             connection});
         assert((res.second));
     }
@@ -365,7 +370,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
     err:
     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s:%s failed", "tcp", "accept");
     if (connection) {
-        auto it = this->ips.find(arr);
+        auto it = this->ips.find(std::string_view(arr.data(), arr.size()));
         if (it != this->ips.end())
             it->second.erase(reinterpret_cast<uintptr_t>(connection.get()));
     }
@@ -418,11 +423,12 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
 
         prepared::top_buffer_clear(connection);
 
-        std::array<char, 17> arr{};
+        std::array<char, 17> arr;
+        arr.fill('\0');
         auto const sn = reinterpret_cast <sockaddr *>(conn->ipdata->client.data);
         arr[0] = static_cast<char>(http::version_ip_by_addr (sn));
         http::ip_by_addr(sn, arr.data() + 1);
-        auto it = this->ips.find(arr);
+        auto it = this->ips.find(std::string_view(arr.data(), arr.size()));
         if (it != this->ips.end())
             it->second.erase(reinterpret_cast<uintptr_t>(conn.get()));
     }
@@ -667,8 +673,11 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
             while (conn->top->cur_send_size && ((conn->top->cur_send_size >= this->config_->max_merge_buffer_stack)
                 //|| ((conn->top->cur_send_size == this->config_->max_merge_buffer_stack) && (conn->top->send.last_deque->buffer.size() == conn->top->send.deque_cursor))
                 || (flush))) {
-
+#if _MSC_VER
+                ev::buff_t *s = static_cast<ev::buff_t*>(alloca(sizeof (ev::buff_t) * conn->top->cur_send_size));
+#else
                 ev::buff_t s[conn->top->cur_send_size];
+#endif
 
                 std::unique_ptr<buffer_deque> sent = std::move(conn->top->send.deque);
                 auto current = sent.get();
@@ -756,13 +765,14 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                             }
 
 
+                            auto nbuff = conn->top->cur_send_size;
                             auto w = manapi::async::current()->eventloop()
-                                ->create_watcher_write(conn->watcher.get(), [connection, b = std::move(sent), s = std::move(sn)]
+                                ->create_watcher_write(conn->watcher.get(), [connection, nbuff, b = std::move(sent), s = std::move(sn)]
                                     (const std::shared_ptr<ev::write> &w, int status)
                                     mutable -> void {
                                     auto conn = connection->as<tcp_connection_t>();
 
-                                    conn->top->send_size -= w->custom()->nbufs;
+                                    conn->top->send_size -= nbuff;
                                     s.reset();
                                     b.reset();
 
@@ -780,7 +790,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                             conn->worker->close_connection(connection, CLOSE_CONN_SHUTDOWN);
                                     }
 
-                                }, buffptr, conn->top->cur_send_size /* nbuf */);
+                                }, buffptr, nbuff /* nbuf */);
 
                             conn->top->cur_send_size = 0;
                         }

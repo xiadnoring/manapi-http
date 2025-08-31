@@ -109,7 +109,7 @@ manapi::error::status manapi::bytebuffer::realresize(std::size_t s) MANAPIHTTP_N
 
     if (this->reserved >= s) {
         this->s = static_cast<int>(s);
-        this->shift_ = std::min(this->shift_, this->s);
+        this->shift_ = std::min<std::size_t>(this->shift_, this->s);
         return error::status_ok();
     }
 
@@ -154,7 +154,7 @@ manapi::error::status manapi::bytebuffer::realresize(std::size_t s) MANAPIHTTP_N
         this->s = static_cast<int>(s);
     }
 
-    this->shift_ = std::min(this->shift_, this->s);
+    this->shift_ = std::min<std::size_t>(this->shift_, this->s);
     return error::status_ok();
 }
 
@@ -163,7 +163,7 @@ manapi::error::status manapi::bytebuffer::resize(std::size_t s) MANAPIHTTP_NOEXC
 }
 
 manapi::error::status manapi::bytebuffer::resize_max(std::size_t s) MANAPIHTTP_NOEXCEPT {
-    return this->resize(std::max(s, this->realsize()));
+    return this->resize(std::max<std::size_t>(s, this->realsize()));
 }
 
 void manapi::bytebuffer::remove_shift() MANAPIHTTP_NOEXCEPT {

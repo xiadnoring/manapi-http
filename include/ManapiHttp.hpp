@@ -20,8 +20,8 @@
 
 namespace manapi::net::http {
     using pools_t = std::map<std::thread::id, std::map<size_t, std::unique_ptr<http_pool>>>;
-    class server : public site {
-        struct data2_t;
+    class DLLExportImport server : public site {
+        struct DLLExportImport data2_t;
 
         server(server_ctx sctx);
     public:

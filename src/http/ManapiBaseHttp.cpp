@@ -119,12 +119,12 @@ void manapi::net::http::internal::send_response(std::unique_ptr<response> res) {
                 });
             }
         }
-
-        finish:
     }
     catch (std::exception const &e) {
         manapi_log_error("%s failed due to %s", "send_response()", e.what());
     }
+finish:
+    return;
 }
 
 manapi::future<void> manapi::net::http::internal::send_response_file(std::unique_ptr<response> res, response_features_t features) {
@@ -443,7 +443,7 @@ manapi::future<void> manapi::net::http::internal::send_response_proxy(std::uniqu
 
                     auto it = headers.find(header::CONTENT_LENGTH);
                     if (it != headers.end()) {
-                        char *strend = it->second.end().base();
+                        char *strend = nullptr;
                         p->content_length = std::strtoll(it->second.data(), &strend, 10);
                         if (!p->resp->header(std::string{header::CONTENT_LENGTH}, it->second))
                             co_return false;
@@ -699,7 +699,7 @@ void manapi::net::http::internal::send_response_sync_cb(std::unique_ptr<response
 
                             if (http_v1_1_is_chunked_data(res.get())) {
                                 auto bufres = manapi::async::current()->memory_fabric().buffer (
-                                    std::max(res->config()->buffer_size, 64L));
+                                    std::max<std::size_t>(res->config()->buffer_size, 64L));
                                 auto buffer = bufres.unwrap();
                                 while (!finish) {
                                     auto rhs = cb_sync(buffer.data(), buffer.size(), finish);
@@ -1285,6 +1285,7 @@ manapi::future<void> manapi::net::http::internal::send_file(std::unique_ptr<resp
     }
 
     err: //co_await parallel.get_or(0);
+    co_return;
 }
 
 manapi::future<void> manapi::net::http::internal::send_text(std::unique_ptr<response> res, std::string text) {

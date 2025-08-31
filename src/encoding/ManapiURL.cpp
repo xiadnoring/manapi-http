@@ -4,7 +4,7 @@
 
 const std::set<char> manapi::encoding::url_allowed_symbols = {'-', '_', '.', '~', '!', '*', '\'', '(', ')', ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '.', '#', '[', ']', '%'};
 
-void manapi::encoding::encode_url(std::string &dest, std::string_view str) {
+DLLExportImport void manapi::encoding::encode_url(std::string &dest, std::string_view str) {
     std::ostringstream escaped;
     escaped.fill('0');
     escaped << std::hex;
@@ -31,13 +31,13 @@ void manapi::encoding::encode_url(std::string &dest, std::string_view str) {
     dest += escaped.str();
 }
 
-std::string manapi::encoding::encode_url(std::string_view str) {
+DLLExportImport std::string manapi::encoding::encode_url(std::string_view str) {
     std::string dest;
     encode_url (dest, str);
     return std::move(dest);
 }
 
-void manapi::encoding::decode_url(std::string &dest, std::string_view str) {
+DLLExportImport void manapi::encoding::decode_url(std::string &dest, std::string_view str) {
     std::size_t i;
 
     for (i = 0; i < str.size(); i++){
@@ -69,12 +69,12 @@ void manapi::encoding::decode_url(std::string &dest, std::string_view str) {
     }
 }
 
-std::string manapi::encoding::decode_url(std::string_view str) {
+DLLExportImport std::string manapi::encoding::decode_url(std::string_view str) {
     std::string dest;
     decode_url(dest, str);
     return std::move(dest);
 }
 
-bool manapi::encoding::url_allowed_symbol(const char &c) {
+DLLExportImport bool manapi::encoding::url_allowed_symbol(const char &c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || url_allowed_symbols.contains(c);
 }

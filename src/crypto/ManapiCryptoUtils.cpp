@@ -12,6 +12,12 @@
 #   include <wolfssl/openssl/evp.h>
 #endif
 
+#ifdef _WIN32
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
+#   include "Wincrypt.h"
+#endif
+
 manapi::error::status random_string_ (char *rnd, std::size_t len) {
     try {
 #ifdef _WIN32
@@ -52,18 +58,18 @@ manapi::error::status random_string_ (char *rnd, std::size_t len) {
 }
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
-void manapi::crypto::evp_cipher_deleter::operator()(void *ptr) {
+DLLExportImport void manapi::crypto::evp_cipher_deleter::operator()(void *ptr) {
     EVP_CIPHER_CTX_free(static_cast<EVP_CIPHER_CTX *>(ptr));
 }
 #endif
 
 #if MANAPIHTTP_WOLFSSL_DEPENDENCY
-void manapi::crypto::wolfssl_evp_cipher_deleter::operator()(void *ptr) {
+DLLExportImport void manapi::crypto::wolfssl_evp_cipher_deleter::operator()(void *ptr) {
     wolfSSL_EVP_CIPHER_CTX_free(static_cast<WOLFSSL_EVP_CIPHER_CTX *>(ptr));
 }
 #endif
 
-manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *buff, std::size_t len, async::cancellation_action cancellation) {
+DLLExportImport manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *buff, std::size_t len, async::cancellation_action cancellation) {
     if (!len)
         co_return error::status_ok();
 
@@ -106,7 +112,7 @@ manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *
     co_return std::move(res);
 }
 
-manapi::error::status_or<std::string> manapi::crypto::random_string(std::size_t len) {
+DLLExportImport manapi::error::status_or<std::string> manapi::crypto::random_string(std::size_t len) {
     try {
         std::string rnd;
         rnd.resize(len);
@@ -126,7 +132,7 @@ manapi::error::status_or<std::string> manapi::crypto::random_string(std::size_t 
     return error::status_internal("random_string:Failed");
 }
 
-manapi::error::status_or<std::string> manapi::crypto::strdec2strhex(std::string_view input) {
+DLLExportImport manapi::error::status_or<std::string> manapi::crypto::strdec2strhex(std::string_view input) {
     try {
         static const char hex_digits[] = "0123456789ABCDEF";
         std::string output;
@@ -144,7 +150,7 @@ manapi::error::status_or<std::string> manapi::crypto::strdec2strhex(std::string_
 }
 
 
-manapi::error::status_or<std::string> manapi::crypto::strhex2strdec(std::string_view hex) {
+DLLExportImport manapi::error::status_or<std::string> manapi::crypto::strhex2strdec(std::string_view hex) {
     try {
     auto len = hex.length();
     std::string newString;

@@ -23,7 +23,11 @@ manapi::net::worker::base::~base() = default;
 
 ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, manapi::slice_view buffs, bool finish, int maxcnt) MANAPIHTTP_NOEXCEPT {
     uint32_t const count = buffs.slices_size();
+#if _MSC_VER
+    ev::buff_t *slices = static_cast<ev::buff_t*>(alloca(sizeof (ev::buff_t) * count));
+#else
     ev::buff_t slices[count];
+#endif
     buffs.slices_buffs(slices);
     return this->sync_write_ex(conn, slices, count, static_cast<ssize_t>(buffs.size()), finish, maxcnt);
 }
@@ -37,7 +41,11 @@ ssize_t manapi::net::worker::base::sync_write_ex(const shared_conn &conn, const 
 
 ssize_t manapi::net::worker::base::sync_write(const shared_conn &conn, slice_view buffs, bool finish) MANAPIHTTP_NOEXCEPT {
     uint32_t const count = buffs.slices_size();
+#if _MSC_VER
+    ev::buff_t *slices = static_cast<ev::buff_t*>(alloca(sizeof (ev::buff_t) * count));
+#else
     ev::buff_t slices[count];
+#endif
     buffs.slices_buffs(slices);
     return this->sync_write(conn, slices, count, finish);
 }

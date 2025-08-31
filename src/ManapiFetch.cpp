@@ -1314,7 +1314,11 @@ manapi::error::status manapi::net::fetch::headers(std::map<std::string, std::str
         try {
             auto val = std::make_pair<std::string_view, std::string_view>(header.first, header.second);
             auto const ss = http::stringify_header_size(val);
+#if _MSC_VER 
+            char *data = static_cast<char*>(alloca(ss + 1));
+#else
             char data[ss + 1];
+#endif
             auto hv = manapi::net::http::stringify_header(data, val);
             assert(ss == hv);
             data[ss]='\0';
@@ -1336,7 +1340,11 @@ manapi::error::status manapi::net::fetch::header_(std::string_view key, std::str
     try {
         auto val = std::make_pair(key, value);
         auto const ss = http::stringify_header_size(val);
+#if _MSC_VER
+        char *data = static_cast<char*>(alloca(ss+1));
+#else
         char data[ss + 1];
+#endif
         auto hv = manapi::net::http::stringify_header(data, val);
         assert(ss==hv);
         data[hv] = '\0';
@@ -1388,7 +1396,11 @@ manapi::error::status manapi::net::fetch::json_headers(manapi::json headers) MAN
             auto val = std::make_pair<std::string_view, std::string_view>(header.first, {});
             val.second = val_view;
             auto const ss = http::stringify_header_size(val);
+#if _MSC_VER
+            char *data = static_cast<char*>(alloca(ss+1));
+#else
             char data[ss + 1];
+#endif
             auto hv = manapi::net::http::stringify_header(data, val);
             assert(ss==hv);
             data[ss] = '\0';

@@ -24,7 +24,7 @@
 #endif
 
 
-manapi::error::status_or<std::string> manapi::crypto::aead_decrypt(std::string_view cipher_password, std::string_view aad, std::string_view key, std::string_view iv, std::string_view tag, ciphers algorithm) {
+DLLExportImport manapi::error::status_or<std::string> manapi::crypto::aead_decrypt(std::string_view cipher_password, std::string_view aad, std::string_view key, std::string_view iv, std::string_view tag, ciphers algorithm) {
     std::string plaintext;
 #if MANAPIHTTP_CRYPTO_LIBRARY == 1
 
@@ -159,7 +159,7 @@ manapi::error::status_or<std::string> manapi::crypto::aead_decrypt(std::string_v
     return std::move(plaintext);
 }
 
-manapi::error::status_or<std::string> manapi::crypto::aead_encrypt(std::string_view data, std::string_view aad, std::string_view key, std::string_view iv, std::string &tag, ciphers algorithm) {
+DLLExportImport manapi::error::status_or<std::string> manapi::crypto::aead_encrypt(std::string_view data, std::string_view aad, std::string_view key, std::string_view iv, std::string &tag, ciphers algorithm) {
     std::string plaintext;
 #if MANAPIHTTP_CRYPTO_LIBRARY == 1
 

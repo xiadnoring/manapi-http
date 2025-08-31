@@ -669,7 +669,7 @@ inline constexpr size_t decidx2{3};
     }
 }
 
-manapi::error::status_or<std::string> manapi::crypto::base64_encode(std::string_view data) {
+DLLExportImport manapi::error::status_or<std::string> manapi::crypto::base64_encode(std::string_view data) {
     try {
         return base64::encode_into<std::string>(std::begin(data), std::end(data));
     }
@@ -682,7 +682,7 @@ manapi::error::status_or<std::string> manapi::crypto::base64_encode(std::string_
     return manapi::error::status_internal("base64:Failed");
 }
 
-manapi::error::status_or<std::string> manapi::crypto::base64_decode(std::string_view data) {
+DLLExportImport manapi::error::status_or<std::string> manapi::crypto::base64_decode(std::string_view data) {
     try {
         return base64::encode_into<std::string>(data);
     }

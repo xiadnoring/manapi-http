@@ -1,9 +1,12 @@
 from conan import ConanFile
+from conan.tools.files import copy
 from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import CMake, CMakeDeps, cmake_layout, CMakeToolchain
 from conan.tools.apple import fix_apple_shared_install_name
 from conan.errors import ConanInvalidConfiguration
 from conan.tools.env import VirtualBuildEnv, VirtualRunEnv
+
+import os
 
 class ManapiHttpConan(ConanFile):
     name = "manapihttp"
@@ -100,6 +103,10 @@ class ManapiHttpConan(ConanFile):
         cmake_layout(self)
 
     def generate(self):
+        for dep in self.dependencies.values():
+            print("BINDIR PATH", dep.cpp_info.libdir)
+            copy(self, "*.dll", dep.cpp_info.libdir, os.path.join(self.build_folder, 'bin'))
+    
         VirtualBuildEnv(self).generate()
 
         runenv = VirtualRunEnv(self)
