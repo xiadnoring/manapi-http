@@ -579,7 +579,6 @@ string(REPLACE "{{ VAR_MANAPIHTTP_NGHTTP3_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_NGH
 string(REPLACE "{{ VAR_MANAPIHTTP_CPPTRACE_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_CPPTRACE_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_STD_BACKTRACE_DEPENDENCY }}" $<BOOL:${MANAPIHTTP_STD_BACKTRACE_DEPENDENCY}> TEXT "${TEXT}")
 string(REPLACE "{{ VAR_MANAPIHTTP_IS_SHARED }}" $<BOOL:${BUILD_SHARED_LIBS}> TEXT "${TEXT}")
-
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp" CONTENT "${TEXT}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp")
 
@@ -960,7 +959,17 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     get_target_property(LIBUV_INCLUDE_DIRECTORIES uv INTERFACE_INCLUDE_DIRECTORIES)
-    message(STATUS "${LIBUV_INCLUDE_DIRECTORIES}")
+    
+    message(STATUS ${libuv_CONAN_INCLUDE_DIRS})
+    if (NOT EXISTS "${CMAKE_BINARY_DIR}/include/ext/uv.h")
+        file(COPY ${libuv_CONAN_INCLUDE_DIRS}/uv DESTINATION ${CMAKE_BINARY_DIR}/include/ext FILES_MATCHING PATTERN "*.h")
+        file(COPY ${libuv_CONAN_INCLUDE_DIRS}/uv.h DESTINATION ${CMAKE_BINARY_DIR}/include/ext FILES_MATCHING PATTERN "*.h")
+    endif()
+
+    if (NOT EXISTS "${CMAKE_BINARY_DIR}/include/ext/uv.h")
+        message( FATAL_ERROR "Failed to copy uv.h from ${libuv_CONAN_INCLUDE_DIRS}" )
+    endif()
+
     target_link_libraries (${PROJECT_NAME} PUBLIC uv)
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
@@ -1120,7 +1129,10 @@ else ()
         target_include_directories(${PROJECT_NAME} PUBLIC ${CPPTRACE_INCLUDE_DIRS})
     endif ()
 
-
+    if (NOT EXISTS "${CMAKE_BINARY_DIR}/include/uv.h")
+        file(COPY ${LIBUV_INCLUDE_DIRS}/uv DESTINATION ${CMAKE_BINARY_DIR}/include/ext FILES_MATCHING PATTERN "*.h")
+        file(COPY ${LIBUV_INCLUDE_DIRS}/uv.h DESTINATION ${CMAKE_BINARY_DIR}/include/ext FILES_MATCHING PATTERN "*.h")
+    endif()
 endif ()
 
 if (MANAPIHTTP_GMP_DEPENDENCY_FETCH)

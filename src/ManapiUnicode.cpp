@@ -1,5 +1,5 @@
 #include <utility>
-#include <uv.h>
+#include "ext/uv.h"
 
 #include "encoding/ManapiUnicode.hpp"
 #include "include/ManapiUtils.hpp"

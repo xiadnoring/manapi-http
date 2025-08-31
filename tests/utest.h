@@ -29,9 +29,6 @@
 
    For more information, please refer to <http://unlicense.org/>
 */
-#ifdef MANAPIHTTP_BUILD_SHARED_LIBS
-#   undef MANAPIHTTP_BUILD_SHARED_LIBS
-#endif
 
 #ifndef SHEREDOM_UTEST_H_INCLUDED
 #define SHEREDOM_UTEST_H_INCLUDED
@@ -102,6 +99,13 @@ typedef uint32_t utest_uint32_t;
 #include <string.h>
 #include <errno.h>
 
+#ifdef _WIN32
+# define NOMINMAX
+# define WIN32_LEAN_AND_MEAN
+# include <windows.h>
+# include <profileapi.h>
+#endif
+
 #if defined(__cplusplus)
 #if defined(_MSC_VER) && !defined(_CPPUNWIND)
 /* We're on MSVC and the compiler is compiling without exception support! */
@@ -162,10 +166,10 @@ typedef union {
   utest_int64_t QuadPart;
 } utest_large_integer;
 
-UTEST_C_FUNC __declspec(dllimport) int __stdcall QueryPerformanceCounter(
-    utest_large_integer *);
-UTEST_C_FUNC __declspec(dllimport) int __stdcall QueryPerformanceFrequency(
-    utest_large_integer *);
+// UTEST_C_FUNC __declspec(dllimport) int __stdcall QueryPerformanceCounter(
+//     utest_large_integer *);
+// UTEST_C_FUNC __declspec(dllimport) int __stdcall QueryPerformanceFrequency(
+//     utest_large_integer *);
 
 #if defined(__MINGW64__) || defined(__MINGW32__)
 #pragma GCC diagnostic pop

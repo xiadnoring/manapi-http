@@ -137,7 +137,7 @@ manapi::json_error::status manapi::json_mask::valid(const manapi::json &obj) con
     if (!this->enabled)
         return json_error::status_invalid_argument("json_mask: it's disabled", 0, {});
 
-    std::vector<std::string_view> p;
+    std::vector<ev::buff_t> p;
     try {
         return recursive_valid (obj, this->information, true, &p);
     }
@@ -152,7 +152,7 @@ manapi::json_error::status manapi::json_mask::valid(const std::map<std::string, 
     if (!this->enabled)
         return json_error::status_invalid_argument("json_mask: it's disabled", 0, {});
 
-    std::vector<std::string_view> p;
+    std::vector<ev::buff_t> p;
     try {
         return recursive_valid (json{obj}, this->information, true, &p);
     }
@@ -166,7 +166,7 @@ manapi::json_error::status manapi::json_mask::valid(const std::map<std::string, 
     if (!this->enabled)
         return json_error::status_invalid_argument("json_mask: it's disabled", 0, {});
 
-    std::vector<std::string_view> p;
+    std::vector<ev::buff_t> p;
     try {
         return recursive_valid (json{obj}, this->information, true, &p);
     }
@@ -652,7 +652,7 @@ void manapi::json_mask::initial_resolve_information(manapi::json &obj)
 }
 
 template<typename T>
-manapi::json_error::status default_compare_information(const T &val, const manapi::json &information, std::vector<std::string_view> *path) {
+manapi::json_error::status default_compare_information(const T &val, const manapi::json &information, std::vector<manapi::ev::buff_t> *path) {
     auto &p = information.as_object();
     auto fit = p.find("min_mean");
     if (fit != p.end())
@@ -676,7 +676,7 @@ manapi::json_error::status default_compare_information(const T &val, const manap
     return manapi::json_error::status_ok();
 }
 
-manapi::json_error::status manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::json &item, bool is_complex, std::vector<std::string_view> *path) const {
+manapi::json_error::status manapi::json_mask::recursive_valid(const manapi::json &obj, const manapi::json &item, bool is_complex, std::vector<ev::buff_t> *path) const {
     const auto &information = is_complex ? item["obj"] : item;
 
     if (information.is_array())
@@ -915,8 +915,12 @@ manapi::json_error::status manapi::json_mask::recursive_valid(const manapi::json
                         if (it.second["none"].as_bool()) { continue; }
                         return json_error::status_invalid_argument("json_mask: item not exists", std::format("key = {}", it.first), 0, json_format_path(path));
                     }
+                    ev::buff_t path_part;
+                    path_part.base = (char*)it.first.data();
+                    path_part.len = static_cast<decltype(path_part.len)>(it.first.size());
+
                     if (path)
-                        path->push_back(it.first);
+                        path->push_back(path_part);
                     // incorrect value
                     res = recursive_valid(fit->second, it.second, true, path);
                     if (!res.ok())
@@ -932,8 +936,11 @@ manapi::json_error::status manapi::json_mask::recursive_valid(const manapi::json
                     // dont exists
                     if (fit == p.end())
                         return json_error::status_invalid_argument("json_mask: item not exists", std::format("key = {}", it.first), 0, json_format_path(path));
+                    ev::buff_t path_part;
+                    path_part.base = (char*)it.first.data();
+                    path_part.len = static_cast<decltype(path_part.len)>(it.first.size());
                     if (path)
-                        path->push_back(it.first);
+                        path->push_back(path_part);
                     // incorrect value
                     res = recursive_valid(it.second, fit->second, true, path);
                     if (!res.ok())
@@ -987,8 +994,11 @@ manapi::json_error::status manapi::json_mask::recursive_valid(const manapi::json
             auto &default_ = oit->second;
 
             for (size_t i = 0; i < obj.size(); i++) {
+                ev::buff_t path_part;
+                path_part.base = nullptr;
+                path_part.len = i + 1;
                 if (path)
-                    path->emplace_back(nullptr, i+1);
+                    path->emplace_back(path_part);
                 res = recursive_valid(obj.at(i), default_, false, path);
                 if (!res.ok())
                 {

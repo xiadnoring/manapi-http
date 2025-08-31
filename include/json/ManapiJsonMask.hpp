@@ -2,6 +2,7 @@
 
 #include "../ManapiErrors.hpp"
 #include "../ManapiUtils.hpp"
+#include "../ManapiEventStructures.hpp"
 #include "./ManapiJson.hpp"
 
 namespace manapi {
@@ -116,6 +117,6 @@ namespace manapi {
 
         static void initial_resolve_information (json &obj);
 
-        [[nodiscard]] manapi::json_error::status recursive_valid (const json &obj, const json &information, bool is_complex, std::vector<std::string_view> *path) const;
+        MANAPIHTTP_NODISCARD manapi::json_error::status recursive_valid (const json &obj, const json &information, bool is_complex, std::vector<ev::buff_t> *path) const;
     };
 }

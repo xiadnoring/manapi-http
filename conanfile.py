@@ -103,10 +103,6 @@ class ManapiHttpConan(ConanFile):
         cmake_layout(self)
 
     def generate(self):
-        for dep in self.dependencies.values():
-            print("BINDIR PATH", dep.cpp_info.libdir)
-            copy(self, "*.dll", dep.cpp_info.libdir, os.path.join(self.build_folder, 'bin'))
-    
         VirtualBuildEnv(self).generate()
 
         runenv = VirtualRunEnv(self)
@@ -130,6 +126,13 @@ class ManapiHttpConan(ConanFile):
         tc.variables['MANAPIHTTP_NGHTTP3_DEPENDENCY'] = self.options.get_safe('nghttp3_dependency', False)
         tc.variables['MANAPIHTTP_CPPTRACE_DEPENDENCY'] = self.options.get_safe('cpptrace_dependency', False)
         tc.variables['MANAPIHTTP_BUILD_TYPE'] = 'lib' if self.options.get_safe('lib', False) else 'exe'
+        
+        for [key, dep] in self.dependencies.items():
+            p = dep.cpp_info.includedir
+            if (self.settings.os == "Windows"):
+                p = p.replace('\\', '\\\\')
+            tc.variables[f"{str(key).split('/')[0]}_CONAN_INCLUDE_DIRS"] = p
+
         tc.cache_variables["CMAKE_TRY_COMPILE_CONFIGURATION"] = str(self.settings.build_type)
         tc.generate()
 

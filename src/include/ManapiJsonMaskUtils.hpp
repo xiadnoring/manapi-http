@@ -2,30 +2,31 @@
 
 #include <valarray>
 
-#include <ManapiDebug.hpp>
+#include "ManapiDebug.hpp"
+#include "ManapiEventStructures.hpp"
 #include "json/ManapiJsonMask.hpp"
 
 namespace manapi {
-    inline std::string json_format_path (const std::vector<std::string_view> *p) {
+    inline std::string json_format_path (const std::vector<ev::buff_t> *p) {
         std::string res;
         if (p && !p->empty()) {
             std::size_t size = 0;
             for (auto &c : *p) {
-                if (c.data())
-                    size += c.size();
+                if (c.base)
+                    size += c.len;
                 else
-                    size += static_cast<std::size_t>(std::log10(p->size()));
+                    size += static_cast<std::size_t>(std::log10(c.len));
             }
             size += p->size() - 1;
             res.reserve(size);
             for (const auto &c : *p) {
-                if (c.data()) {
-                    res += c;
+                if (c.base) {
+                    res.append(c.base, c.len);
                 }
                 else {
-                    auto n = static_cast<std::size_t>(ceil(std::log10(c.size())));
+                    auto n = static_cast<std::size_t>(ceil(std::log10(c.len)));
                     res.resize(res.size() + n + 1);
-                    auto err = std::snprintf(res.data() + res.size() - n - 1, n + 1, "%zu", c.size());
+                    auto err = std::snprintf(res.data() + res.size() - n - 1, n + 1, "%zu", static_cast<std::size_t>(c.len));
                     res.resize(res.size() - 1);
                     if (err < 0)
                         manapi_log_error("bug:snprintf() return < 0 on format path");

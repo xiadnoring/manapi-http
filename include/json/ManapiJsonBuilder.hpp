@@ -6,6 +6,7 @@
 #include "../ManapiUtils.hpp"
 #include "./ManapiJson.hpp"
 #include "./ManapiJsonMask.hpp"
+#include "../ManapiEventStructures.hpp"
 
 namespace manapi {
     class json_builder {
@@ -72,7 +73,7 @@ namespace manapi {
         size_t i;
         int action;
 
-        std::unique_ptr<std::vector<std::string_view>> path;
+        std::unique_ptr<std::vector<ev::buff_t>> path;
         const json *current_types;
         size_t current_type;
 
