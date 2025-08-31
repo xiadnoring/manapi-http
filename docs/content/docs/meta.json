@@ -3,17 +3,6 @@
     "pages": [
         "---Introduction---", 
         "intro/install", 
-        "intro/quick-start", 
-        "---Event Loop---", 
-        "event-loop/intro", 
-        "event-loop/multithreading", 
-        "event-loop/events", 
-        "event-loop/timers",
-        "event-loop/cancellation",
-        "event-loop/files",
-        "event-loop/socket",
-        "event-loop/mutex",
-        "event-loop/cv",
-        "event-loop/recommendations"
+        "intro/quick-start"
     ]
 }

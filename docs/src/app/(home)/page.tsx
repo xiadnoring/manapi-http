@@ -1,7 +1,7 @@
 import { loader } from 'fumadocs-core/source';
 import Link from 'next/link';
-import icon from './icon.svg';
-import icon_dark from './icon-dark.svg';
+import icon from './icon.png';
+import icon_dark from './icon.png';
 
 export default function HomePage() {
   return (
@@ -19,9 +19,9 @@ export default function HomePage() {
             <a className="bg-gray-300 text-black hover:bg-gray-200 dark:bg-gray-800 transition-colors py-2 px-4 rounded-[1.8rem] dark:hover:bg-gray-700 dark:text-white" href="./docs/">Documentation</a>
           </div>
         </div>
-        <div className="order-[-1] md:order-1 max-h-[350px]">
-        <img className="w-full h-full hidden dark:block" src={icon_dark.src}></img>
-          <img className="w-full h-full dark:hidden" src={icon.src}></img>
+        <div className="order-[-1] md:order-1 max-h-[350px] flex justify-center items-center">
+          <img className="h-full hidden dark:block" src={icon_dark.src}></img>
+          <img className="h-full dark:hidden" src={icon.src}></img>
         </div>
       </div>
     </main>

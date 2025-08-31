@@ -3,11 +3,13 @@ title: Quick start
 description: Quick Start
 ---
 
-After installation, iniclude the library using CMakeLists.txt.
+After installation, include the library using CMakeLists.txt.
 
 ## Preparation
 
 Import the ManapiHttp library to your project.
+
+
 
 ### Using System Libraries (Default)
 ```cmake
@@ -24,50 +26,63 @@ find_package(manapihttp REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE manapihttp::manapihttp)
 ```
 
-<Callout title="Rust libraries with the ManapiHttp shared library">
-    If you are using the rust libraries such as quiche or tquic, you should link these libraries again to your project to avoid undefined symbols error.
+<Callout title="Build shared libraries">
+    Be careful to link again shared libraries to avoid undefined symbols error.
 </Callout>
 
 ## Build
 
-All preparations were completed. Let's write the "hello world" programm.
+All preparations were completed. Let's write the "Hello, World!" program.
 
 ```c++
 #include <iostream>
 #include <format>
 
+#include <manapihttp/ManapiInitTools.hpp>
 #include <manapihttp/ManapiHttp.hpp>
 #include <manapihttp/ManapiFilesystem.hpp>
 
-int main () {
-    auto ctx = manapi::async::context::create();
-    manapi::net::http::server router (ctx);
-
+int main (int argc, char *argv[]) {
+    /* enable low level log tracing */
+    manapi::init_tools::log_trace_init (manapi::debug::LOG_TRACE_LOW);
+    /* creates 2 threads for blocking I/O syscalls */
+    manapi::async::context::threadpoolfs(2);
+    /* disable several signals */
+    manapi::async::context::gbs = manapi::async::context::blockedsignals();
+    auto ctx = manapi::async::context::create().unwrap();
+    /* handle interrupt signals */
     ctx->eventloop()->setup_handle_interrupt();
+    /* HTTP context for multiple HTTP routers (one by thread only) */
+    auto router_ctx = manapi::net::http::server_ctx::create().unwrap();
 
-    router.config_object({
-        {"pools", manapi::json::array({
-            {
-                {"address", "127.0.0.1"},
-                {"http", manapi::json::array({"2", "1.1"})},
-                {"transport", "tcp"},
-                {"partial_data_min_size", 0},
-                {"implementation", "default"},
-                {"port", "8888"},
-                {"tcp_no_delay", true}
-            }
-        })},
-        {"save_config", false}
+    manapi::async::context::run (ctx, [router_ctx] () -> manapi::future<> {
+        using http = manapi::net::http::server;
+        auto router = manapi::net::http::server::create (router_ctx).unwrap();
+
+        router.GET ("/", [] (http::req &req, http::uresp resp) -> void {
+            resp->text("Hello, World!").unwrap();
+        }).unwrap();
+
+        router.GET ("/stop", [] (http::req &req, http::resp &resp) -> manapi::future<> {
+            auto res = co_await manapi::async::current()->stop();
+            resp->text(std::format("status: {}", res.msg())).unwrap();
+        }).unwrap();
+
+        manapi::async::run ([router] () mutable -> manapi::future<> {
+            auto res = co_await router->config_object ({
+                {"pools", {
+                    {"address", "127.0.0.1"},
+                    {"port", "8888"},
+                    {"transport", "tcp"},
+                    {"http", manapi::json::array({"1.1"})}
+                }}
+            });
+            res.unwrap();
+
+            res = co_await router->start ();
+            res.unwrap();
+        });
     });
-
-    router.GET ("/", [](manapi::net::http::request &req, manapi::net::http::response &resp) -> manapi::future<> {
-        co_return resp.text("hello world");
-    });
-
-    manapi::async::run(ctx, [router] ()
-        -> manapi::future<> { return router.start(); });
-
-    ctx->sync_start();
 
     return 0;
 }
