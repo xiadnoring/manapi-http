@@ -1,5 +1,3 @@
-#include "ext/uv.h"
-
 #include "ManapiEventLoop.hpp"
 #include "ManapiTimerPool.hpp"
 #include "ManapiInitTools.hpp"

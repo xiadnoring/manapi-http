@@ -1,5 +1,3 @@
-#include "ext/uv.h"
-
 #include "ManapiProcess.hpp"
 #include "ManapiDebug.hpp"
 #include "ManapiEventLoop.hpp"

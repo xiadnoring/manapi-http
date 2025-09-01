@@ -3,7 +3,7 @@
 #include <typeinfo>
 #include <cstdint>
 
-#include "ext/uv.h"
+#include "../ManapiEventStructures.hpp"
 
 #include "../ManapiErrors.hpp"
 

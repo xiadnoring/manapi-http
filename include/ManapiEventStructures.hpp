@@ -3,8 +3,7 @@
 #include <type_traits>
 #include <memory>
 
-#include "ext/uv.h"
-
+#include "./ext/uv.h"
 #include "./ManapiUtils.hpp"
 #include "./ManapiErrors.hpp"
 #include "./ManapiDebug.hpp"
