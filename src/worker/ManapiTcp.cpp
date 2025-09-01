@@ -667,7 +667,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
     auto conn = connection->as<tcp_connection_t>();
 
     try {
-        if (conn->top->cur_send_size) {
+        if (conn->top && conn->top->cur_send_size) {
             //std::cout << "flush " << flush << " "<<(bool)conn->top->cur_send_size << " " << (bool)conn->top->send.deque << "\n";
             while (conn->top->cur_send_size && ((conn->top->cur_send_size >= this->config_->max_merge_buffer_stack)
                 //|| ((conn->top->cur_send_size == this->config_->max_merge_buffer_stack) && (conn->top->send.last_deque->buffer.size() == conn->top->send.deque_cursor))
@@ -864,8 +864,6 @@ void manapi::net::worker::TCP::timeout_(shared_conn conn) MANAPIHTTP_NOEXCEPT {
     auto const data = conn->as<tcp_connection_t>();
 
     prepared::timer_clear(std::move(data->t));
-
-    data->flags |= (ev::DISCONNECT);
 
     if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
         conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
