@@ -24,7 +24,7 @@ jobs:
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
         os: [windows-latest]
-        build_type: [Release]
+        build_type: [Debug]
         c_compiler: [msvc]
         library_type: ["SHARED", "STATIC"]
         include:
@@ -62,8 +62,8 @@ jobs:
 
     - name: Conan install dependencies (shared)
       if: ${{ matrix.library_type == 'SHARED' }}
-      # run:  conan install . --s build_type=Debug -o "manapihttp/*:shared=False" -o "manapihttp/*:lib=True" -o "manapihttp/*:json_debug=False" -o "manapihttp/*:openssl_dependency=True" -o "manapihttp/*:wolfssl_dependency=False" -o "manapihttp/*:quiche_dependency=False" -o "manapihttp/*:tquic_dependency=False" -o "manapihttp/*:zlib_dependency=True" -o "manapihttp/*:curl_dependency=True" -o "manapihttp/*:gmp_dependency=True" -o "manapihttp/*:zstd_dependency=True" -o "manapihttp/*:brotli_dependency=True" -o "manapihttp/*:grpc_dependency=False" -o "manapihttp/*:nghttp2_dependency=True" -o "manapihttp/*:nghttp3_dependency=True" -o "manapihttp/*:cpptrace_dependency=False" -b=missing
-      run: conan install . --s build_type=Debug -o "manapihttp/*:shared=True" -o "manapihttp/*:lib=True" -o "manapihttp/*:json_debug=False" -o "manapihttp/*:openssl_dependency=False" -o "manapihttp/*:wolfssl_dependency=False" -o "manapihttp/*:quiche_dependency=False" -o "manapihttp/*:tquic_dependency=False" -o "manapihttp/*:zlib_dependency=False" -o "manapihttp/*:curl_dependency=False" -o "manapihttp/*:gmp_dependency=False" -o "manapihttp/*:zstd_dependency=False" -o "manapihttp/*:brotli_dependency=False" -o "manapihttp/*:grpc_dependency=False" -o "manapihttp/*:nghttp2_dependency=False" -o "manapihttp/*:nghttp3_dependency=False" -o "manapihttp/*:cpptrace_dependency=False" -b=missing
+      # run:  conan install . -s build_type=Debug -o "manapihttp/*:shared=False" -o "manapihttp/*:lib=True" -o "manapihttp/*:json_debug=False" -o "manapihttp/*:openssl_dependency=True" -o "manapihttp/*:wolfssl_dependency=False" -o "manapihttp/*:quiche_dependency=False" -o "manapihttp/*:tquic_dependency=False" -o "manapihttp/*:zlib_dependency=True" -o "manapihttp/*:curl_dependency=True" -o "manapihttp/*:gmp_dependency=True" -o "manapihttp/*:zstd_dependency=True" -o "manapihttp/*:brotli_dependency=True" -o "manapihttp/*:grpc_dependency=False" -o "manapihttp/*:nghttp2_dependency=True" -o "manapihttp/*:nghttp3_dependency=True" -o "manapihttp/*:cpptrace_dependency=False" -b=missing
+      run: conan install . -s build_type=Debug -o "manapihttp/*:shared=True" -o "manapihttp/*:lib=True" -o "manapihttp/*:json_debug=False" -o "manapihttp/*:openssl_dependency=False" -o "manapihttp/*:wolfssl_dependency=False" -o "manapihttp/*:quiche_dependency=False" -o "manapihttp/*:tquic_dependency=False" -o "manapihttp/*:zlib_dependency=False" -o "manapihttp/*:curl_dependency=False" -o "manapihttp/*:gmp_dependency=False" -o "manapihttp/*:zstd_dependency=False" -o "manapihttp/*:brotli_dependency=False" -o "manapihttp/*:grpc_dependency=False" -o "manapihttp/*:nghttp2_dependency=False" -o "manapihttp/*:nghttp3_dependency=False" -o "manapihttp/*:cpptrace_dependency=False" -b=missing
 
     - name: Conan install dependencies (static)
       if: ${{ matrix.library_type == 'STATIC' }}
@@ -82,5 +82,3 @@ jobs:
     - name: Run unit tests
       run: ctest --extra-verbose --output-on-failure -C Debug
       working-directory: build
-
-    
