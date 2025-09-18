@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
-project(manapihttp VERSION 1.0.0 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
+project(manapihttp LANGUAGES CXX VERSION 1.0.0 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
+
+set(CMAKE_CXX_STANDARD 23)
 
 cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0070 NEW)
@@ -587,8 +589,6 @@ string(REPLACE "{{ VAR_MANAPIHTTP_STD_BACKTRACE_DEPENDENCY }}" $<BOOL:${MANAPIHT
 string(REPLACE "{{ VAR_MANAPIHTTP_IS_SHARED }}" $<BOOL:${BUILD_SHARED_LIBS}> TEXT "${TEXT}")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp" CONTENT "${TEXT}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp")
-
-set(CMAKE_CXX_STANDARD 23)
 
 set(MANAPIHTTP_HTTP_FILES
         include/ManapiHttp.hpp
