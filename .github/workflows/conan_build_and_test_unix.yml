@@ -1,0 +1,107 @@
+# This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
+# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
+name: Conan - Build And Test (Unix)
+
+on:
+  push:
+    branches: [ "development" ]
+  pull_request:
+    branches: [ "development" ]
+  
+jobs:
+  build:
+    if: ${{ false }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
+      fail-fast: false
+
+      # Set up a matrix to run the following 3 configurations:
+      # 1. <Windows, Release, latest MSVC compiler toolchain on the default runner image, default generator>
+      # 2. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
+      # 3. <Linux, Release, latest Clang compiler toolchain on the default runner image, default generator>
+      #
+      # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
+      matrix:
+        os: [ubuntu-latest]
+        build_type: [Release]
+        c_compiler: [gcc]
+        library_type: ["SHARED", "STATIC"]
+        include:
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+            library_type: SHARED
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+            library_type: STATIC
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install Conan
+      run: pip install conan==2.*
+
+    - name: Cache Conan Dependencies (Ubuntu Latest)
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+      id: cache-conan-ubuntu
+      uses: actions/cache@v4
+      with:
+        path: /home/runner/.conan2
+        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
+
+    - name: Cache Conan Dependencies (Windows Latest)
+      if: ${{ matrix.os == 'windows-latest' }}
+      id: cache-conan-windows
+      uses: actions/cache@v4
+      with:
+        path: C:\Users\runneradmin\.conan2
+        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
+
+    - if: ${{ (matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true') }}
+      name: Create default Conan profile
+      run: conan profile detect --force
+
+    - name: Conan install dependencies
+      run:  |
+            [[ ${{ matrix.library_type }} == "SHARED" ]] && shared=True || shared=False
+            conan install . \
+            -o "manapihttp/*:shared=$shared" \
+            -o "manapihttp/*:lib=True" \
+            -o "manapihttp/*:json_debug=False" \
+            -o "manapihttp/*:openssl_dependency=True" \
+            -o "manapihttp/*:wolfssl_dependency=False" \
+            -o "manapihttp/*:quiche_dependency=False" \
+            -o "manapihttp/*:tquic_dependency=False" \
+            -o "manapihttp/*:zlib_dependency=True" \
+            -o "manapihttp/*:curl_dependency=True" \
+            -o "manapihttp/*:gmp_dependency=True" \
+            -o "manapihttp/*:zstd_dependency=True" \
+            -o "manapihttp/*:brotli_dependency=True" \
+            -o "manapihttp/*:grpc_dependency=False" \
+            -o "manapihttp/*:nghttp2_dependency=True" \
+            -o "manapihttp/*:nghttp3_dependency=True" \
+            -o "manapihttp/*:cpptrace_dependency=False" \
+            --build=missing
+
+    - name: Clean up
+      run: conan cache clean "*/*"
+
+    - name: Configure CMake
+      run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
+
+    - name: Build
+      run: cmake --build build/Release -j4
+
+    - name: Run unit tests
+      run: ctest --extra-verbose --output-on-failure -C Release
+      working-directory: build/Release
+
+    

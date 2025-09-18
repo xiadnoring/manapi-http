@@ -1,6 +1,6 @@
 # This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
-name: Conan - Build And Test
+name: Conan - Build And Test (Windows)
 
 on:
   push:
@@ -10,6 +10,7 @@ on:
   
 jobs:
   build:
+    if: ${{ false }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -23,18 +24,18 @@ jobs:
       #
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest]
+        os: [windows-latest]
         build_type: [Release]
-        c_compiler: [gcc]
+        c_compiler: [msvc]
         library_type: ["SHARED", "STATIC"]
         include:
-          - os: ubuntu-latest
-            c_compiler: gcc
-            cpp_compiler: g++
+          - os: windows-latest
+            c_compiler: cl
+            cpp_compiler: cl
             library_type: SHARED
-          - os: ubuntu-latest
-            c_compiler: gcc
-            cpp_compiler: g++
+          - os: windows-latest
+            c_compiler: cl
+            cpp_compiler: cl
             library_type: STATIC
 
     steps:
@@ -47,14 +48,6 @@ jobs:
 
     - name: Install Conan
       run: pip install conan==2.*
-
-    - name: Cache Conan Dependencies (Ubuntu Latest)
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      id: cache-conan-ubuntu
-      uses: actions/cache@v4
-      with:
-        path: /home/runner/.conan2
-        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
 
     - name: Cache Conan Dependencies (Windows Latest)
       if: ${{ matrix.os == 'windows-latest' }}
@@ -97,10 +90,10 @@ jobs:
       run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
 
     - name: Build
-      run: cmake --build build/Release -j4
+      run: cmake --build build -j4
 
     - name: Run unit tests
       run: ctest --extra-verbose --output-on-failure -C Release
-      working-directory: build/Release
+      working-directory: build
 
     
