@@ -72,7 +72,7 @@ jobs:
       run: conan cache clean "*/*"
 
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES="conan_toolchain.cmake" -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
+      run: cmake -B build -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
 
     - name: Build
       run: cmake --build build -j4
