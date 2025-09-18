@@ -1,3 +1,6 @@
+#include <stdexcept>
+#include <utility>
+
 #include "crypto/ManapiAEAD.hpp"
 #include "../include/ManapiUtils.hpp"
 
@@ -50,10 +53,11 @@ manapi::error::status_or<std::string> manapi::crypto::aead_decrypt(std::string_v
     }
 
     std::unique_ptr<EVP_CIPHER_CTX, evp_cipher_deleter> n (EVP_CIPHER_CTX_new());
-    auto ctx = n.get();
 
-    if (!ctx)
+    if (!n)
         return error::status_invalid_argument("EVP_CIPHER_CTX_new() failure");
+
+    auto ctx = n.get();
 
     if (!EVP_DecryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr))
         return error::status_invalid_argument("EVP_DecryptInit_ex() failure");
@@ -185,10 +189,11 @@ manapi::error::status_or<std::string> manapi::crypto::aead_encrypt(std::string_v
     }
 
     std::unique_ptr<EVP_CIPHER_CTX, evp_cipher_deleter> n (EVP_CIPHER_CTX_new());
-    auto ctx = n.get();
 
-    if (!ctx)
+    if (!n)
         return error::status_invalid_argument("EVP_CIPHER_CTX_new() failure");
+
+    auto ctx = n.get();
 
     if (!EVP_EncryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr))
         return error::status_invalid_argument("EVP_EncryptInit_ex() failure");
@@ -218,7 +223,7 @@ manapi::error::status_or<std::string> manapi::crypto::aead_encrypt(std::string_v
     last.resize(len);
     plaintext.resize(outlen);
 
-    const int taglen = 16;
+    constexpr int taglen = 16;
     tag.resize(taglen);
     if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, taglen, tag.data()))
         return error::status_invalid_argument("EVP_CIPHER_CTX_ctrl() failure");

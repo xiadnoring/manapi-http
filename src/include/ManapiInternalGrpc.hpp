@@ -99,9 +99,9 @@ namespace manapi::net::wgrpc {
 
         bool Write(absl::AnyInvocable<void(absl::Status)> on_writable, grpc_event_engine::experimental::SliceBuffer *data, const WriteArgs *args) override;
 #endif
-        [[nodiscard]] const grpc_event_engine::experimental::EventEngine::ResolvedAddress &GetLocalAddress() const override;
+        MANAPIHTTP_NODISCARD const grpc_event_engine::experimental::EventEngine::ResolvedAddress &GetLocalAddress() const override;
 
-        [[nodiscard]] const grpc_event_engine::experimental::EventEngine::ResolvedAddress &GetPeerAddress() const override;
+        MANAPIHTTP_NODISCARD const grpc_event_engine::experimental::EventEngine::ResolvedAddress &GetPeerAddress() const override;
 
 #if MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
         std::shared_ptr<TelemetryInfo> GetTelemetryInfo() const override;

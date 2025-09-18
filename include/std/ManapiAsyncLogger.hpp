@@ -76,7 +76,7 @@ namespace manapi {
             this->call_(LOGGER_DEBUG, service, 0, std::move(msg), args...);
         }
 
-        [[nodiscard]] static std::string_view label_by_type (logger_type type);
+        MANAPIHTTP_NODISCARD static std::string_view label_by_type (logger_type type);
 
         static const char default_service[];
     private:

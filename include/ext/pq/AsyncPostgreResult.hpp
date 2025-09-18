@@ -45,11 +45,11 @@ namespace manapi::ext::pq {
             return !!this->res_;
         }
 
-        [[nodiscard]] int size () const noexcept {
+        MANAPIHTTP_NODISCARD int size () const noexcept {
             return PQntuples(this->res_.get());
         }
 
-        [[nodiscard]] bool empty () {
+        MANAPIHTTP_NODISCARD bool empty () {
             return this->size()==0;
         }
 
@@ -91,7 +91,7 @@ namespace manapi::ext::pq {
             return this->at(index);
         }
 
-        [[nodiscard]] size_t affected_rows () const {
+        MANAPIHTTP_NODISCARD size_t affected_rows () const {
             if (this->affected_rows_.has_value()) {
                 return this->affected_rows_.value();
             }
@@ -106,8 +106,8 @@ namespace manapi::ext::pq {
             return cnt;
         }
 
-        [[nodiscard]] const_iterator begin () const noexcept;
-        [[nodiscard]] const_iterator end () const noexcept;
+        MANAPIHTTP_NODISCARD const_iterator begin () const noexcept;
+        MANAPIHTTP_NODISCARD const_iterator end () const noexcept;
     private:
         std::unique_ptr<PGresult, pgresult_deleter> res_;
         std::optional<std::size_t> mutable sqlstate_;

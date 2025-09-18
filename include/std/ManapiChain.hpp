@@ -266,7 +266,7 @@ namespace manapi {
             --this->s_;
         }
 
-        [[nodiscard]] bool empty () const {
+        MANAPIHTTP_NODISCARD bool empty () const {
             return this->size() == 0;
         }
 
@@ -314,7 +314,7 @@ namespace manapi {
             return iterator{nullptr};
         }
 
-        [[nodiscard]] size_t size () const {
+        MANAPIHTTP_NODISCARD size_t size () const {
             return s_;
         }
 

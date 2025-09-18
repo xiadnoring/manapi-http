@@ -9,8 +9,6 @@ namespace manapi::net::worker {
 
         ~interface_worker () override;
 
-        std::shared_ptr<worker::base> copy ();
-
         void wrk_global (wrk_interface_global_t *data) MANAPIHTTP_NOEXCEPT;
 
         wrk_interface_global_t *wrk_global () MANAPIHTTP_NOEXCEPT;
@@ -37,8 +35,6 @@ namespace manapi::net::worker {
         wrk_interface_global_t global_;
 
         net::http::site site_;
-
-        std::weak_ptr<interface_worker> self_;
 
         manapi::net::http::config *config_;
 

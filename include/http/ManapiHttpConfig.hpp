@@ -79,7 +79,7 @@ namespace manapi::net::http {
          * @return true if the compressor exists
          */
 
-        [[nodiscard]] bool contains_compressor (std::string_view name);
+        MANAPIHTTP_NODISCARD bool contains_compressor (std::string_view name);
 
         void function_contains_compressor (std::move_only_function<bool(std::string_view name)> func);
 

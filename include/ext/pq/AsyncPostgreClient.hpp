@@ -75,62 +75,81 @@ namespace manapi::ext::pq {
 
                 this->data_->conn.reset(PQconnectStart(uri.data()));
 
-                if (!this->data_->conn) {
-                    status = error::status_resource_exhausted();
+                status = co_await connect_psql_ ();
+                if (!status) {
                     goto err;
                 }
+                co_return std::move(status);
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("%s due to %s", "pq::connect failed", e.what());
+                status = error::status_internal("pq::connect failed");
+            }
 
-                if (PQstatus(this->data_->conn.get()) == CONNECTION_BAD) {
-                    status = error::status_invalid_argument("pq::connection_bad");
-                    goto err;
-                }
+        err:
+            this->close();
+            co_return std::move(status);
+        }
 
-                if (PQsetnonblocking(this->data_->conn.get(), 1)) {
-                    status = error::status_invalid_argument("pq::nonblocking failed");
-                    goto err;
-                }
 
-                PQsetNoticeProcessor(
-                    this->data_->conn.get(), +[](void *, const char *) -> void{}, nullptr);
+        manapi::future<manapi::error::status> connect (std::string host, std::string port, std::string username, std::string password, std::string database) {
+            auto keywords = std::unique_ptr<const char *, ev::impl_array_deleter<const char *>>(new const char*[6]);
+            auto values = std::unique_ptr<const char *, ev::impl_array_deleter<const char *>>(new const char*[6]);
+            auto keys_ptr = keywords.get();
+            auto values_ptr = values.get();
+            keys_ptr[0] = "host";
+            keys_ptr[1] = "port";
+            keys_ptr[2] = "user";
+            keys_ptr[3] = "password";
+            keys_ptr[4] = "dbname";
+            values_ptr[0] = host.data();
+            values_ptr[1] = port.data();
+            values_ptr[2] = username.data();
+            values_ptr[3] = password.data();
+            values_ptr[4] = database.data();
+            keys_ptr[5] = nullptr; values_ptr[5] = nullptr;
+            co_return co_await this->connect (keys_ptr, values_ptr);
+        }
 
-                this->data_->fd_ = PQsocket(this->data_->conn.get());
-
-                while (true) {
-                    auto ret = PQconnectPoll(this->data_->conn.get());
-
-                    this->data_->cancellation.reset();
-
-                    if (this->data_->timeoutms_) {
-                        this->data_->cancellation.timeout(this->data_->timeoutms_);
-                    }
-
-                    switch (ret) {
-                        case PGRES_POLLING_READING:
-                            this->data_->fd_ = PQsocket(this->data_->conn.get());
-                            status = co_await async::read_ready(this->data_->fd_, manapi::async::cancellation_action::unit(this->data_->cancellation));
-                            if (!status)
-                                goto err;
-                        continue;
-                        case PGRES_POLLING_WRITING:
-                            this->data_->fd_ = PQsocket(this->data_->conn.get());
-                            status = co_await async::write_ready(this->data_->fd_, manapi::async::cancellation_action::unit(this->data_->cancellation));
-                            if (!status)
-                                goto err;
-
-                        continue;
-                        case PGRES_POLLING_FAILED:
-                            status = manapi::error::status_aborted("pq:polling failed");
+        manapi::future<manapi::error::status> connect (manapi::json params) {
+            if (params.is_object()) {
+                auto keywords = std::unique_ptr<const char *, ev::impl_array_deleter<const char *>>(new const char*[params.size() + 1]);
+                auto values = std::unique_ptr<const char *, ev::impl_array_deleter<const char *>>(new const char*[params.size() + 1]);
+                auto keys_ptr = keywords.get();
+                auto values_ptr = values.get();
+                for (auto &p : params.entries()) {
+                    *(keys_ptr++) = p.first.data();
+                    if (!p.second.is_string())
                         goto err;
-                        default:
-                            break;
-                    }
-
-                    break;
+                    *(values_ptr++) = p.second.as_string().data();
                 }
+                *keys_ptr = nullptr;
+                *values_ptr = nullptr;
+                co_return co_await this->connect (keywords.get(), values.get());
+            }
+        err:
+            co_return error::status_invalid_argument("pq:invalid params");
+        }
 
-                this->data_->flags |= DATA_FLAG_INIT;
+        manapi::future<manapi::error::status> connect (const char * const *keywords, const char * const *values) {
+            // auto uri = std::format("postgresql://{}:{}@{}:{}/{}", username, password, host, port, database);
+            // co_return co_await this->connect(uri);
 
-                co_return error::status_ok();
+            manapi::sys_error::status status;
+            try {
+                if (!this->data_)
+                    co_return error::status_invalid_argument("pq:connection doesn't exists");
+
+                if (this->data_->flags & DATA_FLAG_INIT)
+                    co_return error::status_already_exists();
+
+                this->data_->conn.reset(PQconnectdbParams(keywords, values, 1));
+
+                status = co_await connect_psql_ ();
+                if (!status) {
+                    goto err;
+                }
+                co_return std::move(status);
             }
             catch (std::exception const &e) {
                 manapi_log_error("%s due to %s", "pq::connect failed", e.what());
@@ -138,15 +157,8 @@ namespace manapi::ext::pq {
             }
 
             err:
-            if (this->data_)
-                this->data_.reset();
-
+                this->close();
             co_return std::move(status);
-        }
-
-        manapi::future<manapi::error::status> connect (std::string_view host, std::string_view port, std::string_view username, std::string_view password, std::string_view database) {
-            auto uri = std::format("postgresql://{}:{}@{}:{}/{}", username, password, host, port, database);
-            co_return co_await this->connect(uri);
         }
 
         manapi::future<pq::status_or<pq::result>> exec (std::string_view sql) {
@@ -289,6 +301,74 @@ err:
             return this->data_->timeoutms_;
         }
     private:
+        MANAPIHTTP_NODISCARD manapi::future<manapi::sys_error::status> connect_psql_ () const MANAPIHTTP_NOEXCEPT {
+            manapi::sys_error::status status = manapi::sys_error::status_ok();
+            try {
+                if (!this->data_->conn) {
+                    status = error::status_resource_exhausted();
+                    goto err;
+                }
+
+                if (PQstatus(this->data_->conn.get()) == CONNECTION_BAD) {
+                    status = error::status_invalid_argument("pq::connection_bad");
+                    goto err;
+                }
+
+                if (PQsetnonblocking(this->data_->conn.get(), 1)) {
+                    status = error::status_invalid_argument("pq::nonblocking failed");
+                    goto err;
+                }
+
+                PQsetNoticeProcessor(
+                    this->data_->conn.get(), +[](void *, const char *) -> void{}, nullptr);
+
+                this->data_->fd_ = PQsocket(this->data_->conn.get());
+
+                while (true) {
+                    auto ret = PQconnectPoll(this->data_->conn.get());
+
+                    this->data_->cancellation.reset();
+
+                    if (this->data_->timeoutms_) {
+                        status = this->data_->cancellation.timeout(this->data_->timeoutms_);
+                        if (!status)
+                            goto err;
+                    }
+
+                    switch (ret) {
+                        case PGRES_POLLING_READING:
+                            this->data_->fd_ = PQsocket(this->data_->conn.get());
+                        status = co_await async::read_ready(this->data_->fd_, manapi::async::cancellation_action::unit(this->data_->cancellation));
+                        if (!status)
+                            goto err;
+                        continue;
+                        case PGRES_POLLING_WRITING:
+                            this->data_->fd_ = PQsocket(this->data_->conn.get());
+                        status = co_await async::write_ready(this->data_->fd_, manapi::async::cancellation_action::unit(this->data_->cancellation));
+                        if (!status)
+                            goto err;
+
+                        continue;
+                        case PGRES_POLLING_FAILED:
+                            status = manapi::error::status_aborted("pq:polling failed");
+                        goto err;
+                        default:
+                            break;
+                    }
+
+                    break;
+                }
+
+                this->data_->flags |= DATA_FLAG_INIT;
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("%s due to %s", "psql:check_conn failed", e.what());
+                status = manapi::sys_error::status_internal("psql:check_conn failed", manapi::ev::ERR_UNKNOWN);
+            }
+        err:
+            co_return std::move(status);
+        }
+
         MANAPIHTTP_NODISCARD manapi::error::status check_conn_ () const MANAPIHTTP_NOEXCEPT {
             if (this->data_ && this->data_->conn) {
                 return error::status_ok();

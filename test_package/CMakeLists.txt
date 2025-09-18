@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
 project(test_package LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 23)
 find_package(manapihttp REQUIRED CONFIG)
 
 add_executable(${PROJECT_NAME} test_package.cpp utest.h)

@@ -227,21 +227,21 @@ namespace manapi::ext::pq {
         static inline void to_string (std::string_view text_, T const &value) {
             assert(text_.size() >= value.size()); memcpy((void*)text_.data(), value.data(), value.size());
         }
-        [[nodiscard]] static inline size_t size (T const &value) { return value.size(); }
+        MANAPIHTTP_NODISCARD static inline size_t size (T const &value) { return value.size(); }
     };
 
     template<typename T>
-    [[nodiscard]] T from_string (std::string_view text_) {
+    MANAPIHTTP_NODISCARD T from_string (std::string_view text_) {
         return string_traits<T>::from_string(text_);
     }
 
     template<typename T>
-    [[nodiscard]] size_t size_of (const T *v) {
+    MANAPIHTTP_NODISCARD size_t size_of (const T *v) {
         throw std::runtime_error("template");
     }
 
     template<typename T>
-    [[nodiscard]] size_t size_of (const T &v) {
+    MANAPIHTTP_NODISCARD size_t size_of (const T &v) {
         throw std::runtime_error("template");
     }
 
@@ -345,7 +345,7 @@ namespace manapi::ext::pq {
     }
 
     template<typename T>
-    [[nodiscard]] inline const char *serialize_param (const T v, int len, std::string_view &buffer) {
+    MANAPIHTTP_NODISCARD inline const char *serialize_param (const T v, int len, std::string_view &buffer) {
         pq::to_string<T>(buffer, v);
         const char *start = buffer.data();
         buffer = buffer.substr(len);

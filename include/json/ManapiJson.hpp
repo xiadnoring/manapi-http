@@ -322,7 +322,7 @@ namespace manapi {
          * @param key string
          * @return true if the key exists in the JSON
          */
-        [[nodiscard]] bool contains (const std::string &key) const;
+        MANAPIHTTP_NODISCARD bool contains (const std::string &key) const;
 
         /**
          * get a value by the key
@@ -357,14 +357,14 @@ namespace manapi {
          * @param key key
          * @return value if it exists, otherwise it throws an exception
          */
-        [[nodiscard]] const json &at (const STRING &key) const;
+        MANAPIHTTP_NODISCARD const json &at (const STRING &key) const;
 
         /**
          * get a value by the index
          * @param index index
          * @return value if it exists, otherwise it throws an exception
          */
-        [[nodiscard]] const json &at (size_t index) const;
+        MANAPIHTTP_NODISCARD const json &at (size_t index) const;
 
         /**
          * get a value by the key
@@ -640,7 +640,7 @@ namespace manapi {
 
         void pop_back ();
 
-        [[nodiscard]] int data_type () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD int data_type () const MANAPIHTTP_NOEXCEPT;
 
         template<class T>
         requires(std::is_same_v<T, OBJECT>)
@@ -687,154 +687,154 @@ namespace manapi {
 
         OBJECT::iterator find (STRING_VIEW key);
 
-        [[nodiscard]] OBJECT::const_iterator find (STRING_VIEW key) const;
+        MANAPIHTTP_NODISCARD OBJECT::const_iterator find (STRING_VIEW key) const;
 
-        [[nodiscard]] const ARRAY &each() const;
-        [[nodiscard]] const OBJECT &entries() const;
-        [[nodiscard]] ARRAY &each();
-        [[nodiscard]] OBJECT &entries();
+        MANAPIHTTP_NODISCARD const ARRAY &each() const;
+        MANAPIHTTP_NODISCARD const OBJECT &entries() const;
+        MANAPIHTTP_NODISCARD ARRAY &each();
+        MANAPIHTTP_NODISCARD OBJECT &entries();
 
         manapi::json &first ();
 
         manapi::json &second ();
 
-        [[nodiscard]] const manapi::json &first () const;
+        MANAPIHTTP_NODISCARD const manapi::json &first () const;
 
-        [[nodiscard]] const manapi::json &second () const;
+        MANAPIHTTP_NODISCARD const manapi::json &second () const;
 
         /**
          * check the JSON type
          * @return true if it's an object
          */
-        [[nodiscard]] bool is_object () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_object () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's an array
          */
-        [[nodiscard]] bool is_array () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_array () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's a string
          */
-        [[nodiscard]] bool is_string () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_string () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's a integer
          */
-        [[nodiscard]] bool is_integer () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_integer () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's a null
          */
-        [[nodiscard]] bool is_null () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_null () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's a decimal
          */
-        [[nodiscard]] bool is_decimal () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_decimal () const MANAPIHTTP_NOEXCEPT;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
 
         /**
          * check the JSON type
          * @return true if it's a integer
          */
-        [[nodiscard]] bool is_bigint () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_bigint () const MANAPIHTTP_NOEXCEPT;
 #endif
 
         /**
          * check the JSON type
          * @return true if it's a bool
          */
-        [[nodiscard]] bool is_bool () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_bool () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * check the JSON type
          * @return true if it's a pair
          */
-        [[nodiscard]] bool is_pair () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_pair () const MANAPIHTTP_NOEXCEPT;
 
         /**
          * strict object retrieval
          * @return
          */
-        [[nodiscard]] const OBJECT &as_object () const;
+        MANAPIHTTP_NODISCARD const OBJECT &as_object () const;
 
         /**
          * strict object retrieval
          * @return
          */
-        [[nodiscard]] OBJECT &as_object ();
+        MANAPIHTTP_NODISCARD OBJECT &as_object ();
 
         /**
          * strict array retrieval
          * @return
          */
-        [[nodiscard]] const ARRAY &as_array () const;
+        MANAPIHTTP_NODISCARD const ARRAY &as_array () const;
 
         /**
          * strict array retrieval
          * @return
          */
-        [[nodiscard]] ARRAY &as_array ();
+        MANAPIHTTP_NODISCARD ARRAY &as_array ();
 
         /**
          * strict string retrieval
          * @return
          */
-        [[nodiscard]] const STRING &as_string () const;
+        MANAPIHTTP_NODISCARD const STRING &as_string () const;
 
         /**
          * strict string retrieval
          * @return
          */
-        [[nodiscard]] STRING &as_string ();
+        MANAPIHTTP_NODISCARD STRING &as_string ();
 
         /**
          * strict integer retrieval
          * @return
          */
-        [[nodiscard]] const INTEGER &as_integer () const;
+        MANAPIHTTP_NODISCARD const INTEGER &as_integer () const;
 
         /**
          * strict integer retrieval
          * @return
          */
-        [[nodiscard]] INTEGER &as_integer ();
+        MANAPIHTTP_NODISCARD INTEGER &as_integer ();
 
         /**
          * strict null retrieval
          * @return
          */
-        [[nodiscard]] NULLPTR as_null () const;
+        MANAPIHTTP_NODISCARD NULLPTR as_null () const;
 
         /**
          * strict decimal retrieval
          * @return
          */
-        [[nodiscard]] const DECIMAL &as_decimal () const;
+        MANAPIHTTP_NODISCARD const DECIMAL &as_decimal () const;
 
         /**
          * strict decimal retrieval
          * @return
          */
-        [[nodiscard]] DECIMAL &as_decimal ();
+        MANAPIHTTP_NODISCARD DECIMAL &as_decimal ();
 
         /**
          * strict boolean retrieval
          * @return
          */
-        [[nodiscard]] const BOOLEAN &as_bool () const;
+        MANAPIHTTP_NODISCARD const BOOLEAN &as_bool () const;
 
         /**
          * strict boolean retrieval
          * @return
          */
-        [[nodiscard]] BOOLEAN &as_bool ();
+        MANAPIHTTP_NODISCARD BOOLEAN &as_bool ();
 
         /**
          * non-strict object retrieval
@@ -842,7 +842,7 @@ namespace manapi {
          * @note object - object
          * @return
          */
-        [[nodiscard]] OBJECT as_object_cast () const;
+        MANAPIHTTP_NODISCARD OBJECT as_object_cast () const;
 
         /**
          * non-strict array retrieval
@@ -850,7 +850,7 @@ namespace manapi {
          * @note array - array
          * @return
          */
-        [[nodiscard]] ARRAY as_array_cast () const;
+        MANAPIHTTP_NODISCARD ARRAY as_array_cast () const;
 
         /**
          * non-strict string retrieval
@@ -861,7 +861,7 @@ namespace manapi {
          * decimal - string
          * @return
          */
-        [[nodiscard]] STRING as_string_cast () const;
+        MANAPIHTTP_NODISCARD STRING as_string_cast () const;
 
         /**
          * non-strict integer retrieval
@@ -871,7 +871,7 @@ namespace manapi {
          * @note bigint - integer
          * @return
          */
-        [[nodiscard]] INTEGER as_integer_cast () const;
+        MANAPIHTTP_NODISCARD INTEGER as_integer_cast () const;
 
         /**
          * non-strict null retrieval
@@ -879,7 +879,7 @@ namespace manapi {
          * @note null - null
          * @return
          */
-        [[nodiscard]] NULLPTR as_null_cast () const;
+        MANAPIHTTP_NODISCARD NULLPTR as_null_cast () const;
 
         /**
          * non-strict deciaml retrieval
@@ -889,7 +889,7 @@ namespace manapi {
          * @note integer - decimal
          * @return
          */
-        [[nodiscard]] DECIMAL as_decimal_cast () const;
+        MANAPIHTTP_NODISCARD DECIMAL as_decimal_cast () const;
 
         /**
          * non-strict boolean retrieval
@@ -897,7 +897,7 @@ namespace manapi {
          * @note boolean - boolean
          * @return
          */
-        [[nodiscard]] BOOLEAN as_bool_cast () const;
+        MANAPIHTTP_NODISCARD BOOLEAN as_bool_cast () const;
 
         /**
          * get a JSON string
@@ -905,11 +905,11 @@ namespace manapi {
          * @param first_spaces left alignment
          * @return JSON string
          */
-        [[nodiscard]] std::string dump (int spaces = 0, int first_spaces = 0) const;
+        MANAPIHTTP_NODISCARD std::string dump (int spaces = 0, int first_spaces = 0) const;
 
-        [[nodiscard]] size_t size () const;
+        MANAPIHTTP_NODISCARD size_t size () const;
 
-        [[nodiscard]] bool empty () const;
+        MANAPIHTTP_NODISCARD bool empty () const;
 
         static void error_invalid_char (const STRING_VIEW &plain_text, size_t i);
 
@@ -925,7 +925,7 @@ namespace manapi {
          * @note string - bigint
          * @return
          */
-        [[nodiscard]] BIGINT as_bigint_cast () const;
+        MANAPIHTTP_NODISCARD BIGINT as_bigint_cast () const;
 
         json &operator+= (const BIGINT &num);
 
@@ -947,25 +947,25 @@ namespace manapi {
          * strict bigint retrieval
          * @return
          */
-        [[nodiscard]] const BIGINT &as_bigint () const;
+        MANAPIHTTP_NODISCARD const BIGINT &as_bigint () const;
 
         /**
          * strict bigint retrieval
          * @return
          */
-        [[nodiscard]] BIGINT &as_bigint ();
+        MANAPIHTTP_NODISCARD BIGINT &as_bigint ();
 #endif
     private:
-        [[nodiscard]] OBJECT &as_object_ () const;
-        [[nodiscard]] ARRAY &as_array_ () const;
-        [[nodiscard]] STRING &as_string_ () const;
-        [[nodiscard]] INTEGER &as_integer_ () const;
-        [[nodiscard]] DECIMAL &as_decimal_ () const;
-        [[nodiscard]] BOOLEAN &as_bool_ () const;
+        MANAPIHTTP_NODISCARD OBJECT &as_object_ () const;
+        MANAPIHTTP_NODISCARD ARRAY &as_array_ () const;
+        MANAPIHTTP_NODISCARD STRING &as_string_ () const;
+        MANAPIHTTP_NODISCARD INTEGER &as_integer_ () const;
+        MANAPIHTTP_NODISCARD DECIMAL &as_decimal_ () const;
+        MANAPIHTTP_NODISCARD BOOLEAN &as_bool_ () const;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
-        [[nodiscard]] BIGINT &as_bigint_ () const;
+        MANAPIHTTP_NODISCARD BIGINT &as_bigint_ () const;
 #endif
-        [[nodiscard]] PAIR &as_pair_ () const;
+        MANAPIHTTP_NODISCARD PAIR &as_pair_ () const;
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
         manapi::error::status parse_ (STRING_VIEW plain_text, bool bigint = false, size_t bigint_precision = 128);
@@ -1089,13 +1089,13 @@ namespace manapi {
          * Get the json error message
          * @return the json error message
          */
-        [[nodiscard]] const char *what () const noexcept override;
+        MANAPIHTTP_NODISCARD const char *what () const noexcept override;
 
         /**
          * Get the json error number
          * @return the json error number
          */
-        [[nodiscard]] const json_err_num &err_num () const;
+        MANAPIHTTP_NODISCARD const json_err_num &err_num () const;
     private:
         std::string message;
         json_err_num errnum;

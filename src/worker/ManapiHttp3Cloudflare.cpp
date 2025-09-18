@@ -110,9 +110,8 @@ manapi::net::worker::http_v3_cloudflare_quiche::~http_v3_cloudflare_quiche() {
 
 std::shared_ptr<manapi::net::worker::http_v3_cloudflare_quiche> manapi::net::worker::http_v3_cloudflare_quiche::create(
     net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata,
-    std::shared_ptr<manapi::net::http::config> config) {
-    auto worker = std::make_shared<worker::http_v3_cloudflare_quiche>(std::move(site), std::move(wdata), config.get());
-    worker->self_ = std::weak_ptr (worker);
+    manapi::net::http::config *config) {
+    auto worker = std::make_shared<worker::http_v3_cloudflare_quiche>(std::move(site), std::move(wdata), config);
     return std::move(worker);
 }
 
@@ -732,8 +731,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
             std::string conn_id{dcid, dcid_len};
 
             auto p = std::make_unique<connection_t>(std::string_view{conn_id}, 0, this, quiche_conn_, nullptr, std::map<int64_t, shared_conn>{});
-            connection = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
-            p.release();
+            connection = std::shared_ptr<worker::connection> (new worker::connection{p.release()}, connection_interface_eraser);
 
             conn_data = connection->as<connection_t>();
 
@@ -856,8 +854,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                                 p->id = stream_id;
                                 p->conn = conn_data;
 
-                                stream_conn = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, stream_interface_eraser);
-                                p.release();
+                                stream_conn = std::shared_ptr<worker::connection> (new worker::connection{p.release()}, stream_interface_eraser);
 
                                 auto s = stream_conn->as<connection_stream_t>();
 
@@ -907,7 +904,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                                 s->req->divided = url_decoder.divided();
 
                                 auto const req_ptr = s->req.get();
-                                auto cdata = std::make_unique<http::internal::handle_data_t>(stream_conn, this->copy(),
+                                auto cdata = std::make_unique<http::internal::handle_data_t>(stream_conn, this->shared_from_this(),
                                     req_ptr, std::make_unique<http::internal::cont_callback_cb_t>(
                                     [this, stream_conn, conn = connection] (bool ok) mutable
                                     -> void {

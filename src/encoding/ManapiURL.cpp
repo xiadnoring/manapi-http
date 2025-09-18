@@ -1,3 +1,6 @@
+#include <fstream>
+#include <iomanip>
+
 #include "encoding/ManapiURL.hpp"
 #include "encoding/ManapiUnicode.hpp"
 #include "../include/ManapiUtils.hpp"

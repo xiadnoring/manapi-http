@@ -13,50 +13,6 @@ namespace manapi::unicode {
      */
     int count_of_octet (unsigned char c);
 
-    // namespace utf {
-    //     /**
-    //      * convert utf32 string to utf8 string
-    //      * @param str32 utf32 source string
-    //      * @return utf8 string, othewise it returns InternalError, ResourceExhausted
-    //      */
-    //     manapi::error::status_or<std::string> str32to8 (std::u32string_view str32);
-    //
-    //     /**
-    //      * convert utf32 char to utf8 string
-    //      * @param str32 utf32 source char
-    //      * @return utf8 string, othewise it returns InternalError, ResourceExhausted
-    //      */
-    //     manapi::error::status_or<std::string> str32to8 (char32_t str32);
-    //
-    //     /**
-    //      * convert utf8 string to utf32 string
-    //      * @param str utf8 source string
-    //      * @return utf32 string, othewise it returns InternalError, ResourceExhausted
-    //      */
-    //     manapi::error::status_or<std::u32string> str8to32 (std::string_view str);
-    //
-    //     /**
-    //      * convert utf16 string to utf8 string
-    //      * @param str16 utf16 source string
-    //      * @return utf8 string, othewise it returns InternalError, ResourceExhausted
-    //      */
-    //     manapi::error::status_or<std::string> str16to8 (std::u16string_view str16);
-    //
-    //     /**
-    //      * convert utf16 char to utf8 string
-    //      * @param str16 utf16 source char
-    //      * @return utf8 string, othewise it returns InternalError, ResourceExhausted
-    //      */
-    //     manapi::error::status_or<std::string>  str16to8 (char16_t str16);
-    //
-    //     /**
-    //      * convert utf8 string to utf16 string
-    //      * @param str utf8 source string
-    //      * @return utf8 string, othewise it returns InternalError, ResourceExhausted
-    //      */
-    //     manapi::error::status_or<std::u16string> str8to16 (std::string_view str);
-    // }
-
     /**
      * Get information about the provided char
      * @param symbol symbol char to check

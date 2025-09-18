@@ -22,7 +22,7 @@ namespace manapi::async {
                 this->cancellation.timeout(std::min(tm, ms));
         }
         ~delay() = default;
-        [[nodiscard]] bool await_ready () const {
+        MANAPIHTTP_NODISCARD bool await_ready () const {
             return false;
         }
 

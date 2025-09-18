@@ -423,7 +423,7 @@ exec:
                 conn->wrk.flags |= manapi::net::worker::WRK_INTERFACE_TCP_KEEP_ALIVE;
 
             auto cdata = std::make_unique<manapi::net::http::internal::handle_data_t>(conn,
-                dynamic_cast<manapi::net::worker::interface_worker *>(w)->copy(), req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
+                w->shared_from_this(), req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
                 [w, conn] (bool ok)
                 -> void {
                     w->close_connection (conn, ok ? manapi::net::worker::CLOSE_CONN_FINISHED : manapi::net::worker::CLOSE_CONN_ERR);

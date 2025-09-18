@@ -8,15 +8,8 @@
 
 #pragma once
 
-#include <algorithm>
-#include <array>
-#include <cassert>
 #include <string>
 #include <string_view>
-
-#if defined(__cpp_lib_bit_cast)
-#include <bit>  // For std::bit_cast.
-#endif
 
 #include "../ManapiErrors.hpp"
 #include "../ManapiUtils.hpp"

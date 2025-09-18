@@ -110,9 +110,8 @@ manapi::net::worker::openssl_quic::~openssl_quic() {
     }
 }
 
-std::shared_ptr<manapi::net::worker::openssl_quic> manapi::net::worker::openssl_quic::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
-    auto worker = std::make_shared<worker::openssl_quic>(std::move(site), std::move(wdata), config.get());
-    worker->self_ = worker;
+std::shared_ptr<manapi::net::worker::openssl_quic> manapi::net::worker::openssl_quic::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
+    auto worker = std::make_shared<worker::openssl_quic>(std::move(site), std::move(wdata), config);
     return std::move(worker);
 }
 
@@ -1637,12 +1636,10 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         auto top = std::make_unique<connection_io>();
 
         auto stream_conn = std::shared_ptr<worker::connection> (
-                new worker::connection{p.get()}, stream_interface_eraser);
+                new worker::connection{p.release()}, stream_interface_eraser);
 
         stream_conn->wrk.flags |= WRK_INTERFACE_IS_STREAM;
         stream_conn->version = conn->version;
-
-        p.release();
 
         auto data = conn->as<quic_conn_t>();
         auto stream_data = stream_conn->as<quic_stream_t>();
@@ -1776,11 +1773,10 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
         p->speed_min_delay = this->config_->speed_check_delay;
         p->flags = 0;
 
-        auto shared = std::shared_ptr<worker::connection> (
-            new worker::connection{p.get()}, connection_interface_eraser);
 
         sn = p.get();
-        p.release();
+        auto shared = std::shared_ptr<worker::connection> (
+            new worker::connection{p.release()}, connection_interface_eraser);
 
         shared->ipdata = std::move(ipstorage);
         shared->ipdata->len = 0;

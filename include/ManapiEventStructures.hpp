@@ -399,7 +399,14 @@ namespace manapi::ev {
     };
 
     struct chars_deleter {
-        void operator()(char *data);
+        void operator()(const char *data);
+    };
+
+    template<typename T>
+    struct impl_array_deleter {
+        void operator () (const T *data) {
+            delete[] data;
+        }
     };
 
     /**
@@ -1037,19 +1044,19 @@ namespace manapi::sys_error {
          * Get the system code error
          * @return the system code error
          */
-        [[nodiscard]] int syserr () const;
+        MANAPIHTTP_NODISCARD int syserr () const;
 
         /**
          * Get the system name error
          * @return the system name error
          */
-        [[nodiscard]] std::string_view sysname () const;
+        MANAPIHTTP_NODISCARD std::string_view sysname () const;
 
         /**
          * Get the system msg error
          * @return the system msg error
          */
-        [[nodiscard]] std::string_view sysmsg () const;
+        MANAPIHTTP_NODISCARD std::string_view sysmsg () const;
     private:
         /* the system error code */
         int syserr_;
@@ -1076,7 +1083,7 @@ namespace manapi::sys_error {
          * Get the system code error
          * @return the system code error
          */
-        [[nodiscard]] int syserr () const {
+        MANAPIHTTP_NODISCARD int syserr () const {
             return this->err_.syserr();
         }
 
@@ -1084,7 +1091,7 @@ namespace manapi::sys_error {
          * Get the system name error
          * @return the system name error
          */
-        [[nodiscard]] std::string_view sysname () const {
+        MANAPIHTTP_NODISCARD std::string_view sysname () const {
             return this->err_.sysname();
         }
 
@@ -1092,7 +1099,7 @@ namespace manapi::sys_error {
          * Get the system msg error
          * @return the system msg error
          */
-        [[nodiscard]] std::string_view sysmsg () const {
+        MANAPIHTTP_NODISCARD std::string_view sysmsg () const {
             return this->err_.sysmsg();
         }
     };

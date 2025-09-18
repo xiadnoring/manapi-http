@@ -61,14 +61,14 @@ manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t
     if (this->local->ai_family == ev::IPv4) {
         rhs = this->udp_accept_->ip4_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in *>(&this->sockaddrin));
         if (rhs) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set ipv4 addr due to result - {}", rhs);
+            manapi_log_error("%s failed due to %s(%d)", "udp:ip4_addr failed", ev::strerror(rhs), rhs);
             co_return error::status_internal("udp:ip4_addr failed");
         }
     }
     else if (this->local->ai_family == ev::IPv6) {
         rhs = this->udp_accept_->ip6_addr(this->config_->address.data(), std::stoi(this->config_->port), reinterpret_cast<sockaddr_in6 *>(&this->sockaddrin));
         if (rhs) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't set ipv6 addr due to result - {}", rhs);
+            manapi_log_error("%s failed due to %s(%d)", "udp:ip6_addr failed", ev::strerror(rhs), rhs);
             co_return error::status_internal("udp:ip6_addr failed");
         }
     }
@@ -80,7 +80,7 @@ manapi::future<manapi::error::status> manapi::net::worker::udp::init(std::size_t
 #endif
         rhs = this->udp_accept_->s_bind(reinterpret_cast<sockaddr *>(&this->sockaddrin), bind_flags);
         if (rhs) {
-            manapi::async::current()->logger()->error(manapi::logger::default_service, ERR_FAILED_PRECONDITION, "couldn't bind socket due to result - {}", rhs);
+            manapi_log_error("%s failed due to %s(%d)", "udp:couldn't bind socket", ev::strerror(rhs), rhs);
             co_return error::status_internal("udp:s_bind failed");
         }
     }

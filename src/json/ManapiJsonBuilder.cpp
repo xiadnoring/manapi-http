@@ -573,11 +573,7 @@ manapi::json_error::status manapi::json_builder::_build_numeric_string(std::stri
             return _check_numeric();
         }
 
-        // TODO escape sub_plain_text
         return json_error::status_invalid_argument("json: invalid string", j, json_format_path(this->path.get()));
-        // throw json_parse_exception(ERR_JSON_INVALID_STRING, std::format("Invalid string: '{}' ({}, {})",
-        //                                        value, this->start_cut + 1,
-        //                                        this->end_cut));
     }
     return json_error::status_ok();
 }

@@ -23,8 +23,8 @@ namespace manapi {
         json_error::status parse (std::string_view str);
         json_error::status parse (char c);
         manapi::json_error::status_or<json> get ();
-        [[nodiscard]] bool is_ready () const;
-        [[nodiscard]] bool is_empty () const;
+        MANAPIHTTP_NODISCARD bool is_ready () const;
+        MANAPIHTTP_NODISCARD bool is_empty () const;
         void clear ();
         /**
          *
@@ -64,7 +64,7 @@ namespace manapi {
         manapi::json_error::status _check_part_object ();
         manapi::json_error::status call_action_(const std::string_view &plain_text, size_t &j);
 
-        [[nodiscard]] const json &get_current_type ();
+        MANAPIHTTP_NODISCARD const json &get_current_type ();
 
 
         json::types type;

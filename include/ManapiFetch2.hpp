@@ -34,9 +34,9 @@ namespace manapi::net {
 
         static manapi::future<manapi::error::status_or<fetch2>> fetch (std::string url, manapi::json params, std::optional<http::file_transfer_info> body, async::cancellation_action cancellation = nullptr);
 
-        [[nodiscard]] bool ok () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool ok () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] uint16_t status () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD uint16_t status () const MANAPIHTTP_NOEXCEPT;
 
         std::map<std::string, std::string, std::less<>> headers () MANAPIHTTP_NOEXCEPT;
 

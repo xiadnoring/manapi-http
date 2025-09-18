@@ -135,33 +135,33 @@ namespace manapi::async {
          * get the event loop
          * @return the event loop
          */
-        [[nodiscard]] const shared_eventloop& eventloop() MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD const shared_eventloop& eventloop() MANAPIHTTP_NOEXCEPT;
 
-        //[[nodiscard]] const shared_taskpool &taskpool();
+        //MANAPIHTTP_NODISCARD const shared_taskpool &taskpool();
 
         /**
          * get the timer pool
          * @return the timer pool
          */
-        [[nodiscard]] const shared_timerpool &timerpool() MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD const shared_timerpool &timerpool() MANAPIHTTP_NOEXCEPT;
 
         /**
          * get the event task pool
          * @return the event task pool
          */
-        [[nodiscard]] const shared_taskpool &etaskpool () MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD const shared_taskpool &etaskpool () MANAPIHTTP_NOEXCEPT;
 
         /**
          * get the logger
          * @return the logger
          */
-        [[nodiscard]] const shared_logger &logger() MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD const shared_logger &logger() MANAPIHTTP_NOEXCEPT;
 
         /**
          * get the memory fabric
          * @return the memory fabric
          */
-        [[nodiscard]] object_pool &memory_fabric () MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD object_pool &memory_fabric () MANAPIHTTP_NOEXCEPT;
 
         //manapi::future<void> start ();
 

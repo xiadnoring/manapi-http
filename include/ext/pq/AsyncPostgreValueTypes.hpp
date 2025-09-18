@@ -133,7 +133,7 @@ namespace manapi::ext::pq {
             if (value) { memset((void*)text_.data(), '\001', 1); }
             else { memset((void*)text_.data(), '\000', 1); }
         }
-        [[nodiscard]] static size_t size (bool const &value) {
+        MANAPIHTTP_NODISCARD static size_t size (bool const &value) {
             return 1;
         }
     };
@@ -147,7 +147,7 @@ namespace manapi::ext::pq {
             assert(text_.size() >= value.size());
             memcpy((void*)text_.data(), value.data(), value.size());
         }
-        [[nodiscard]] static size_t size (std::string const &value) {
+        MANAPIHTTP_NODISCARD static size_t size (std::string const &value) {
             return value.size();
         }
     };
@@ -160,114 +160,114 @@ namespace manapi::ext::pq {
         static constexpr void to_string (std::string_view text_, const char *value) {
             memcpy((void*)text_.data(), value, strlen(value));
         }
-        [[nodiscard]] static size_t size (const char *value) {
+        MANAPIHTTP_NODISCARD static size_t size (const char *value) {
             return strlen(value);
         }
     };
 
 
-    template<> [[nodiscard]] inline unsigned int from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline unsigned int from_string (std::string_view text_) {
         return integral_traits<unsigned int>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline short from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline short from_string (std::string_view text_) {
         return integral_traits<short>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline std::string from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline std::string from_string (std::string_view text_) {
         return string_traits <std::string>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline unsigned short from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline unsigned short from_string (std::string_view text_) {
         return integral_traits<unsigned short>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline char from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline char from_string (std::string_view text_) {
         return integral_traits<char>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline unsigned char from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline unsigned char from_string (std::string_view text_) {
         return integral_traits<unsigned char>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline int from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline int from_string (std::string_view text_) {
         return integral_traits<int>::from_string(text_);
     }
 
 
-    template<> [[nodiscard]] inline size_t from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline size_t from_string (std::string_view text_) {
         return integral_traits<size_t>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline ssize_t from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline ssize_t from_string (std::string_view text_) {
         return integral_traits<ssize_t>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline double from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline double from_string (std::string_view text_) {
         return float_traits <double>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline float from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline float from_string (std::string_view text_) {
         return float_traits <float>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const unsigned int &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const unsigned int &v) {
         return integral_traits<unsigned int>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const int &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const int &v) {
         return integral_traits<int>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const short &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const short &v) {
         return integral_traits<short>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const unsigned short &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const unsigned short &v) {
         return integral_traits<unsigned short>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const unsigned char &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const unsigned char &v) {
         return integral_traits<unsigned char>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const char &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const char &v) {
         return integral_traits<char>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const ssize_t &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const ssize_t &v) {
         return integral_traits<ssize_t>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const size_t &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const size_t &v) {
         return integral_traits<size_t>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const std::string &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const std::string &v) {
         return string_traits<std::string>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const pq::blob &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const pq::blob &v) {
         return string_traits<pq::blob>::size(v);
     }
-    template<> [[nodiscard]] inline size_t size_of (const pq::text &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const pq::text &v) {
         return string_traits<pq::text>::size(v);
     }
 
 
-    template<> [[nodiscard]] inline size_t size_of (const bool &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const bool &v) {
         return string_traits<bool>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const float &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const float &v) {
         return float_traits<float>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const double &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const double &v) {
         return float_traits<double>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const char *v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const char *v) {
         return string_traits<const char *>::size(v);
     }
 
@@ -333,11 +333,11 @@ namespace manapi::ext::pq {
 
 #ifdef LLONG_MAX
 
-    template<> [[nodiscard]] inline long double from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline long double from_string (std::string_view text_) {
         return float_traits <long double>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const long double &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const long double &v) {
         return float_traits<long double>::size(v);
     }
 
@@ -345,19 +345,19 @@ namespace manapi::ext::pq {
         return float_traits <long double>::to_string(text_, v);
     }
 
-    template<> [[nodiscard]] inline long long from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline long long from_string (std::string_view text_) {
         return integral_traits<long long>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline unsigned long long from_string (std::string_view text_) {
+    template<> MANAPIHTTP_NODISCARD inline unsigned long long from_string (std::string_view text_) {
         return integral_traits<unsigned long long>::from_string(text_);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const long long &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const long long &v) {
         return integral_traits<long long>::size(v);
     }
 
-    template<> [[nodiscard]] inline size_t size_of (const unsigned long long &v) {
+    template<> MANAPIHTTP_NODISCARD inline size_t size_of (const unsigned long long &v) {
         return integral_traits<unsigned long long>::size(v);
     }
 

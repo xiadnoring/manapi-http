@@ -29,7 +29,7 @@ namespace manapi::net::worker {
 
         virtual void onrecv (const std::shared_ptr<ev::tcp> &watcher, const worker::shared_conn &conn, ibuffpool_t buffer) MANAPIHTTP_NOEXCEPT;
 
-        static std::shared_ptr<worker::TCP> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
+        static std::shared_ptr<worker::TCP> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config);
 
         virtual shared_conn accept (const ev::shared_tcp &w, shared_conn (*init_cb) (void *user_data), void *user_data) MANAPIHTTP_NOEXCEPT;
 
@@ -51,7 +51,7 @@ namespace manapi::net::worker {
 
         int event_flags(const shared_conn & conn) MANAPIHTTP_NOEXCEPT override;
 
-        [[nodiscard]] std::size_t recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT override;
+        MANAPIHTTP_NODISCARD std::size_t recv_count(const shared_conn &conn) const MANAPIHTTP_NOEXCEPT override;
 
         bytebuffer recv_first_buffer(const shared_conn &conn) MANAPIHTTP_NOEXCEPT override ;
     protected:

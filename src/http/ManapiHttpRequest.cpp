@@ -41,7 +41,7 @@ int manapi::net::http::request::http() const {
     return this->request_data->http;
 }
 
-[[nodiscard]] const std::map<std::string, std::string, std::less<>> &manapi::net::http::request::ref_headers () const {
+MANAPIHTTP_NODISCARD const std::map<std::string, std::string, std::less<>> &manapi::net::http::request::ref_headers () const {
     return this->request_data->headers;
 }
 

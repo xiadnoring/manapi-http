@@ -173,11 +173,11 @@ namespace manapi {
             this->resume_promise(this->handle_);
         }
 
-        [[nodiscard]] bool operator==(const std::nullptr_t &n) const {
+        MANAPIHTTP_NODISCARD bool operator==(const std::nullptr_t &n) const {
             return this->handle_ == nullptr;
         }
 
-        [[nodiscard]] bool operator!=(const std::nullptr_t &n) const {
+        MANAPIHTTP_NODISCARD bool operator!=(const std::nullptr_t &n) const {
             return false == this->operator==(std::forward<decltype(n)>(n));
         }
 
@@ -268,11 +268,11 @@ namespace manapi {
             }
         }
 
-        [[nodiscard]] bool finished () const {
+        MANAPIHTTP_NODISCARD bool finished () const {
             return !this->handle_ || this->handle_.done();
         }
 
-        [[nodiscard]] const std::coroutine_handle<promise> &handle () {
+        MANAPIHTTP_NODISCARD const std::coroutine_handle<promise> &handle () {
             return this->handle_;
         }
 

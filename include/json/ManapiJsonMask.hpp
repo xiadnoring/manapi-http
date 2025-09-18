@@ -31,7 +31,7 @@ namespace manapi {
 
             std::string additional_data ();
 
-            [[nodiscard]] std::size_t pos () const;
+            MANAPIHTTP_NODISCARD std::size_t pos () const;
         private:
             std::string data_;
             std::string path_;
@@ -57,7 +57,7 @@ namespace manapi {
                 return this->err_.additional_data();
             }
 
-            [[nodiscard]] std::size_t pos () const {
+            MANAPIHTTP_NODISCARD std::size_t pos () const {
                 return this->err_.pos();
             }
         };
@@ -83,17 +83,17 @@ namespace manapi {
 
         ~json_mask();
 
-        [[nodiscard]] bool is_enabled () const;
+        MANAPIHTTP_NODISCARD bool is_enabled () const;
 
         void set_enabled (bool status);
 
-        [[nodiscard]] manapi::json_error::status valid (const json &obj) const;
+        MANAPIHTTP_NODISCARD manapi::json_error::status valid (const json &obj) const;
 
-        [[nodiscard]] manapi::json_error::status valid (const std::map <std::string, std::string> &obj) const;
+        MANAPIHTTP_NODISCARD manapi::json_error::status valid (const std::map <std::string, std::string> &obj) const;
 
-        [[nodiscard]] manapi::json_error::status valid (const std::map <std::string, std::string, std::less<>> &obj) const;
+        MANAPIHTTP_NODISCARD manapi::json_error::status valid (const std::map <std::string, std::string, std::less<>> &obj) const;
 
-        [[nodiscard]] const json &get_api_tree () const;
+        MANAPIHTTP_NODISCARD const json &get_api_tree () const;
 
         void set_api_tree (json tree);
 

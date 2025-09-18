@@ -112,7 +112,7 @@ namespace manapi {
 
         void clear() MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] std::shared_ptr<threadpool> taskpool () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD std::shared_ptr<threadpool> taskpool () const MANAPIHTTP_NOEXCEPT;
     protected:
         static void stop_ (std::shared_ptr<data_t> data, bool evloop) MANAPIHTTP_NOEXCEPT;
         //

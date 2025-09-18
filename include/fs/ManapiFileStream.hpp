@@ -41,7 +41,7 @@ namespace manapi::filesystem {
 
         future<manapi::sys_error::status> open (int flags, int mode = 0644);
 
-        [[nodiscard]] bool is_open () const;
+        MANAPIHTTP_NODISCARD bool is_open () const;
 
         ~fstream();
 
@@ -63,15 +63,15 @@ namespace manapi::filesystem {
 
         future<> close ();
 
-        [[nodiscard]] ssize_t tellg() const;
+        MANAPIHTTP_NODISCARD ssize_t tellg() const;
 
         ssize_t seekg (ssize_t pos, seek_flag_t flag = FILE_SEEK_START);
 
-        [[nodiscard]] manapi::future<ssize_t> size () const;
+        MANAPIHTTP_NODISCARD manapi::future<ssize_t> size () const;
 
-        [[nodiscard]] bool eof () const;
+        MANAPIHTTP_NODISCARD bool eof () const;
     private:
-        ssize_t seekg_ (ssize_t pos, seek_flag_t flag = FILE_SEEK_START) const;
+        MANAPIHTTP_NODISCARD ssize_t seekg_ (ssize_t pos, seek_flag_t flag = FILE_SEEK_START) const;
 
         static future<> close_(ev::file fileno);
 

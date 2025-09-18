@@ -71,19 +71,19 @@ namespace manapi {
          * Stringify the bigint and return it
          * @return the stringified bigint
          */
-        [[nodiscard]] std::string stringify () const;
+        MANAPIHTTP_NODISCARD std::string stringify () const;
 
         /**
          * Integerify the bigint and return it with data loss
          * @return the integerified bigint
          */
-        [[nodiscard]] ssize_t integerify () const;
+        MANAPIHTTP_NODISCARD ssize_t integerify () const;
 
         /**
          * Decimalify the bigint and return it with data loss
          * @return the decimalify bigint
          */
-        [[nodiscard]] double decimalify () const;
+        MANAPIHTTP_NODISCARD double decimalify () const;
 
         /**
          * Get a bigint from the source string
@@ -120,7 +120,7 @@ namespace manapi {
          * Get the precision
          * @return the precision
          */
-        [[nodiscard]] size_t precision () const;
+        MANAPIHTTP_NODISCARD size_t precision () const;
 
         bigint operator/ (const bigint &oth) const;
 
@@ -149,14 +149,14 @@ namespace manapi {
          * @param oth the power
          * @return the result
          */
-        [[nodiscard]] bigint root (ssize_t oth) const;
+        MANAPIHTTP_NODISCARD bigint root (ssize_t oth) const;
 
         /**
          * Do sqrt operation with bigint
          * @param oth the power
          * @return the result
          */
-        [[nodiscard]] bigint sqrt (ssize_t oth) const;
+        MANAPIHTTP_NODISCARD bigint sqrt (ssize_t oth) const;
 
         bigint operator+ (ssize_t oth) const;
 

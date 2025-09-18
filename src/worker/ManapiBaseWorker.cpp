@@ -568,13 +568,13 @@ void manapi::net::worker::base::feed_event_read_(const shared_conn &conn, worker
         if (conn_flags & ev::READ && cb) {
             if (flags & manapi::net::worker::base::CONN_TOP_READ) {
                 if (conn_flags & ev::READ) {
-                    this->call_user_callback(cb, conn, flags, buff, size, p);
+                    manapi::net::worker::base::call_user_callback(cb, conn, flags, buff, size, p);
                     processed = true;
                 }
             }
             else {
                 if (conn_flags & ev::READ) {
-                    this->call_user_callback(cb, conn, flags, buff, size, p);
+                    manapi::net::worker::base::call_user_callback(cb, conn, flags, buff, size, p);
                     processed = true;
                 }
             }

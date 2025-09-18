@@ -47,7 +47,7 @@ namespace manapi {
             return !this->operator==(nullptr);
         }
 
-        [[nodiscard]] operator bool () const noexcept {
+        MANAPIHTTP_NODISCARD operator bool () const noexcept {
             return this->operator!=(nullptr);
         }
 

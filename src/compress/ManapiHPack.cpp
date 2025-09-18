@@ -558,7 +558,7 @@ err_zero:
 		return false;
 	}
 
-	manapi::error::status_or<const header_t *> ringtable_t::get_header(const std::size_t index) const {
+	manapi::error::status_or<const header_t *> ringtable_t::get_header(std::size_t index) const {
 		if ( index < predefined_headers.size() ) {
 			return &predefined_headers.at(index);
 		}

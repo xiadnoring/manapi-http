@@ -23,13 +23,13 @@ namespace manapi::net::http {
     class server : public site {
         struct data2_t;
 
-        server(server_ctx sctx);
     public:
         using resp = manapi::net::http::response &;
         using req = manapi::net::http::request &;
         using uresp = manapi::net::http::uresponse;
 
 
+        server(server_ctx sctx);
         /**
          * initialize the server with the server ctx
          * @param sctx the HTTP server context
@@ -42,10 +42,10 @@ namespace manapi::net::http {
         ~server() final;
 
         /* move */
-        server(server &&n) noexcept;
+        server(server &&n) MANAPIHTTP_NOEXCEPT;
 
         /* move */
-        server&operator=(server &&n) noexcept;
+        server&operator=(server &&n) MANAPIHTTP_NOEXCEPT;
 
         /* copy */
         server(const server &n);
@@ -108,15 +108,13 @@ namespace manapi::net::http {
          */
         manapi::future<error::status> stop ();
     private:
-        std::shared_ptr<data2_t> data2;
-
-        static manapi::future<error::status> stop_ (std::shared_ptr<site::data_t> data, std::shared_ptr<data2_t> data2, bool evloop);
+        static manapi::future<error::status> stop_ (std::shared_ptr<data2_t> data2, bool evloop);
 
         manapi::future<> init_pool_ ();
 
         manapi::error::status pool_ (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT;
 
-        static void clean_up (std::shared_ptr<data2_t> data2);
+        static void clean_up (const std::shared_ptr<data2_t>& data2);
 
         static manapi::future<void> stop_pool (std::shared_ptr<data2_t> data2);
     };

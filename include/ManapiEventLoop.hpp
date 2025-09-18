@@ -273,7 +273,7 @@ namespace manapi {
 
         void stop_watcher (std::shared_ptr<ev::tcp> s) MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] const std::shared_ptr<threadpool> &taskpool () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD const std::shared_ptr<threadpool> &taskpool () const MANAPIHTTP_NOEXCEPT;
 #if MANAPIHTTP_CURL_DEPENDENCY
         manapi::error::status watch_curl (void *shared_curl, std::move_only_function<void(int result)> cb) MANAPIHTTP_NOEXCEPT;
 

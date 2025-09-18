@@ -29,7 +29,7 @@ namespace manapi::net::worker {
 
         ~http_v3_cloudflare_quiche() override;
 
-        static std::shared_ptr<worker::http_v3_cloudflare_quiche> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
+        static std::shared_ptr<worker::http_v3_cloudflare_quiche> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
 
         manapi::future<manapi::error::status> init(std::size_t deep) override;
 

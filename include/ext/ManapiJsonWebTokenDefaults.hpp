@@ -7,7 +7,6 @@
 #include "./ManapiJsonWebTokenTraits.hpp"
 #include "../ManapiUtils.hpp"
 
-
 namespace jwt {
 	/**
 	 * \brief a class to store a generic [picojson](https://github.com/kazuho/picojson) value as claim

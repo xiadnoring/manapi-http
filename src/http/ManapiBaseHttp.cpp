@@ -1186,7 +1186,6 @@ void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, 
 
 void manapi::net::http::internal::send_error_response(uq_handle_data_t cdata, int status) {
     if (!cdata->router) {
-        // TODO: Default error page
         return;
     }
 

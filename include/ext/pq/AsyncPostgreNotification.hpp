@@ -30,7 +30,7 @@ namespace manapi::ext::pq {
             return !!this->pg_notify_;
         }
 
-        [[nodiscard]] int pid () const noexcept {
+        MANAPIHTTP_NODISCARD int pid () const noexcept {
             if (this->pg_notify_) {
                 return this->pg_notify_->be_pid;
             }
@@ -38,7 +38,7 @@ namespace manapi::ext::pq {
             return -1;
         }
 
-        [[nodiscard]] std::string_view channel () const noexcept {
+        MANAPIHTTP_NODISCARD std::string_view channel () const noexcept {
             if (this->pg_notify_) {
                 return this->pg_notify_->relname;
             }
@@ -46,7 +46,7 @@ namespace manapi::ext::pq {
             return {};
         }
 
-        [[nodiscard]] std::string_view payload () const noexcept {
+        MANAPIHTTP_NODISCARD std::string_view payload () const noexcept {
             if (this->pg_notify_) {
                 return this->pg_notify_->extra;
             }

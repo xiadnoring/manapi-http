@@ -201,9 +201,8 @@ void manapi::net::worker::TCP::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
     }
 }
 
-std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
-    auto worker = std::make_shared<worker::TCP>(std::move(site), std::move(wdata), config.get());
-    worker->self_ = std::weak_ptr (worker);
+std::shared_ptr<manapi::net::worker::TCP> manapi::net::worker::TCP::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config *config) {
+    auto worker = std::make_shared<worker::TCP>(std::move(site), std::move(wdata), config);
     return std::move(worker);
 }
 
@@ -700,7 +699,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                     s[i].base = object.data();
                     s[i].len = static_cast<decltype(s[i].len)>(object.size());
 
-                    request += s[i].len;
+                    request += static_cast<ssize_t>(s[i].len);
 
                     if (i + 1 != conn->top->cur_send_size)
                         current = current->next.get();
@@ -880,16 +879,16 @@ bool manapi::net::worker::TCP::is_writable(const shared_conn &conn) MANAPIHTTP_N
     return prepared::is_writable(this->config_, conn, data);
 }
 
-manapi::net::worker::shared_conn manapi::net::worker::TCP::connection_init_cb(void *user_data) noexcept(true) {
-    std::unique_ptr<tcp_connection_t> p (new (std::nothrow) tcp_connection_t{});
+manapi::net::worker::shared_conn manapi::net::worker::TCP::connection_init_cb(void *user_data) MANAPIHTTP_NOEXCEPT {
+    try {
+        auto p = std::make_unique<tcp_connection_t>();
 
-    if (!p)
+        return std::shared_ptr<worker::connection> (new worker::connection{p.release()},
+            connection_interface_eraser);
+    }
+    catch (std::exception const &) {
         return nullptr;
-
-    auto conn = std::shared_ptr<worker::connection> (new (std::nothrow) worker::connection{p.get()}, connection_interface_eraser);
-    p.release();
-
-    return std::move(conn);
+    }
 }
 
 void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *ptr) MANAPIHTTP_NOEXCEPT {

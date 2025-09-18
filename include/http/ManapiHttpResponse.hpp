@@ -86,25 +86,25 @@ namespace manapi::net::http {
 
         error::status_or<std::string_view> header (std::string_view key) MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_file () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_file () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_text () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_text () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_proxy () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_proxy () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_no_data () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_no_data () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_formdata () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_formdata () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_async_cb() const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_async_cb() const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_sync_cb() const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_sync_cb() const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool has_ranges () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool has_ranges () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool partial_enabled () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool partial_enabled () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] int data_type() const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD int data_type() const MANAPIHTTP_NOEXCEPT;
 
         manapi::error::status_or<std::string *> file () MANAPIHTTP_NOEXCEPT;
 

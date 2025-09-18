@@ -159,9 +159,8 @@ manapi::future<manapi::error::status> manapi::net::worker::WolfSSL_TLS::init(std
     co_return error::status_internal("openssl_tls:Failed");
 }
 
-std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config) {
-    auto worker = std::make_shared<worker::WolfSSL_TLS>(std::move(site), std::move(wdata), config.get());
-    worker->self_ = worker;
+std::shared_ptr<manapi::net::worker::WolfSSL_TLS> manapi::net::worker::WolfSSL_TLS::create(net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config) {
+    auto worker = std::make_shared<worker::WolfSSL_TLS>(std::move(site), std::move(wdata), config);
     return std::move(worker);
 }
 

@@ -140,7 +140,7 @@ class ManapiHttpConan(ConanFile):
         deps.generate()
 
     def validate(self):
-        check_min_cppstd(self, 17)
+        pass
 
     def build(self):
         cmake = CMake(self)

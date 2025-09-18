@@ -28,6 +28,10 @@ manapi::net::http::server_ctx::server_ctx(const server_ctx &n) = default;
 
 manapi::net::http::server_ctx & manapi::net::http::server_ctx::operator=(const server_ctx &n) = default;
 
+manapi::net::http::server_ctx::server_ctx(server_ctx &&n) MANAPIHTTP_NOEXCEPT = default;
+
+manapi::net::http::server_ctx & manapi::net::http::server_ctx::operator=(server_ctx &&n) MANAPIHTTP_NOEXCEPT = default;
+
 manapi::multithread_storage & manapi::net::http::server_ctx::storage() {
     return this->data_->st;
 }

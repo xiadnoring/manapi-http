@@ -1,3 +1,5 @@
+#include <filesystem>
+
 #include "ManapiThreadPool.hpp"
 #include "fs/ManapiFilesystem.hpp"
 #include "encoding/ManapiUnicode.hpp"
@@ -171,6 +173,15 @@ const std::map<std::string, manapi::net::http::site::implemenet_http_cb> & manap
 
 const std::string & manapi::net::http::site::config_cache_dir() {
     return this->data->config_->at("cache_path").as_string();
+}
+
+void manapi::net::http::site::init_data_(server_ctx sctx) {
+    this->data->config_ = std::make_shared<manapi::json>(manapi::json::object());
+    this->data->sctx = std::move(sctx);
+    this->data->compressors_for_file = std::make_unique<decltype(this->data->compressors_for_file)::element_type>();
+    this->data->compressors_for_string = std::make_unique<decltype(this->data->compressors_for_string)::element_type>();
+    this->data->transport_protocol_workers = std::make_unique<decltype(this->data->transport_protocol_workers)::element_type>();
+    this->data->http_protocol_workers = std::make_unique<decltype(this->data->http_protocol_workers)::element_type>();
 }
 
 void manapi::net::http::site::on_config_update(std::shared_ptr<data_t> data, const manapi::json &n) MANAPIHTTP_NOEXCEPT {
@@ -771,14 +782,13 @@ std::unique_ptr<manapi::net::http::http_handler_page> manapi::net::http::site::h
     return std::move(handler_page);
 }
 
-manapi::net::http::site::site(server_ctx sctx) {
-    this->data = std::make_shared<data_t>(nullptr,
-        std::make_shared<manapi::json>(manapi::json::object()), std::move(sctx), http_uri_part{nullptr, nullptr, nullptr, nullptr, nullptr,nullptr,nullptr});
+manapi::net::http::site::site() {
+    this->data = nullptr;
+}
 
-    this->data->compressors_for_file = std::make_unique<decltype(this->data->compressors_for_file)::element_type>();
-    this->data->compressors_for_string = std::make_unique<decltype(this->data->compressors_for_string)::element_type>();
-    this->data->transport_protocol_workers = std::make_unique<decltype(this->data->transport_protocol_workers)::element_type>();
-    this->data->http_protocol_workers = std::make_unique<decltype(this->data->http_protocol_workers)::element_type>();
+manapi::net::http::site::site(server_ctx sctx) {
+    this->data = std::make_shared<data_t>();
+    this->init_data_(std::move(sctx));
 }
 
 manapi::net::http::site::~site() = default;

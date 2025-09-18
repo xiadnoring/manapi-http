@@ -92,7 +92,7 @@ manapi::future<manapi::error::status> manapi::net::http_pool::pool_() {
         {
             try {
                 auto &generate = implementations[implementation];
-                this->worker = generate (this->site_, this->worker_config, this->config_);
+                this->worker = generate (this->site_, this->worker_config, this->config_.get());
                 auto const workerptr = dynamic_cast<worker::interface_worker *> (this->worker.get());
 
 

@@ -1362,8 +1362,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                 p->id = ctx->frame_stream_id;
                                 p->ctx = ctx;
 
-                                auto sconn = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
-                                p.release();
+                                auto sconn = std::shared_ptr<worker::connection> (new worker::connection{p.release()}, connection_interface_eraser);
 
                                 s = ctx->streams->insert({ctx->frame_stream_id, std::move(sconn)}).first;
                                 ctx->concurrent_streams_size++;

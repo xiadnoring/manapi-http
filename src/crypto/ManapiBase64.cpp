@@ -1,9 +1,16 @@
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
+#include <algorithm>
+#include <array>
+#include <cassert>
 
 #include "crypto/ManapiBase64.hpp"
 #include "ManapiDebug.hpp"
+
+#if defined(__cpp_lib_bit_cast)
+#   include <bit>  // For std::bit_cast.
+#endif
 
 namespace manapi::crypto::base64 {
 

@@ -77,8 +77,6 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
                     )
                 ))) {
 
-        assert(!(flags & CLOSE_CONN_ERR));
-
         if (conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)
             conn->wrk.flags ^= WRK_INTERFACE_TCP_KEEP_ALIVE;
 
@@ -590,8 +588,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::connection_init_cb(vo
     auto const w = static_cast<TLS *> (user_data);
     try {
         auto p = std::make_unique<tls_connection_t>();
-        auto ms = std::shared_ptr<worker::connection> (new worker::connection{p.get()}, connection_interface_eraser);
-        p.release();
+        auto ms = std::shared_ptr<worker::connection> (new worker::connection{p.release()}, connection_interface_eraser);
 
         auto connection = ms->as<tls_connection_t>();
 

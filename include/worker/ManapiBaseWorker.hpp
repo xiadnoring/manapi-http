@@ -172,7 +172,7 @@ namespace manapi::net::worker {
 
     struct connection_base_t;
 
-    class base {
+    class base : public std::enable_shared_from_this<base> {
     public:
 
         typedef std::map<uintptr_t, shared_conn> conn_by_port;
@@ -261,7 +261,7 @@ namespace manapi::net::worker {
 
         manapi::future<ssize_t> fwrite (const shared_conn &conn, manapi::slice &slice, ssize_t size, bool finish);
 
-        [[nodiscard]] virtual std::size_t recv_count (const shared_conn &conn) const MANAPIHTTP_NOEXCEPT = 0;
+        MANAPIHTTP_NODISCARD virtual std::size_t recv_count (const shared_conn &conn) const MANAPIHTTP_NOEXCEPT = 0;
 
         virtual bytebuffer recv_first_buffer (const shared_conn &conn) MANAPIHTTP_NOEXCEPT = 0;
 
@@ -334,7 +334,15 @@ namespace manapi::net::worker {
 
         void feed_event_read_ (const shared_conn &conn, worker_watcher_cb *cb, connection_io_part *recv, int *recv_size, int conn_flags, int flags, const char *buff, ssize_t size, ibuffpool_t *p) MANAPIHTTP_NOEXCEPT;
     protected:
+        template<typename Derived>
+        std::shared_ptr<Derived> get_shared () {
+            return std::static_pointer_cast<Derived>(this->shared_from_this());
+        }
 
+        template<typename Derived>
+        std::shared_ptr<Derived> get_weak () {
+            return std::static_pointer_cast<Derived>(this->weak_from_this());
+        }
     };
 
     using shared_worker = std::shared_ptr<worker::base>;

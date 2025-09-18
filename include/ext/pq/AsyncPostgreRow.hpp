@@ -24,7 +24,7 @@ namespace manapi::ext::pq {
 
         ~row () = default;
 
-        [[nodiscard]] field at (const char *name) const {
+        MANAPIHTTP_NODISCARD field at (const char *name) const {
             if (auto i = PQfnumber(this->res_, name); i != -1) {
                 return field {this->res_, this->row_, i};
             }
@@ -33,7 +33,7 @@ namespace manapi::ext::pq {
             throw std::runtime_error("field doesn't exists");
         }
 
-        [[nodiscard]] field at (int index) const {
+        MANAPIHTTP_NODISCARD field at (int index) const {
             if (index >= 0 && index < this->size()) {
                 return field{this->res_, this->row_, index};
             }
@@ -42,25 +42,25 @@ namespace manapi::ext::pq {
             throw std::runtime_error("field doesn't exists");
         }
 
-        [[nodiscard]] field operator[] (int index) const {
+        MANAPIHTTP_NODISCARD field operator[] (int index) const {
             return this->at(index);
         }
 
-        [[nodiscard]] field operator[] (const char *name) const {
+        MANAPIHTTP_NODISCARD field operator[] (const char *name) const {
             return this->at(name);
         }
 
-        [[nodiscard]] int size () const noexcept {
+        MANAPIHTTP_NODISCARD int size () const noexcept {
             return PQnfields(this->res_);
         }
 
-        [[nodiscard]] bool empty () const noexcept {
+        MANAPIHTTP_NODISCARD bool empty () const noexcept {
             return this->size() == 0;
         }
 
-        [[nodiscard]] const_iterator begin() const noexcept;
+        MANAPIHTTP_NODISCARD const_iterator begin() const noexcept;
 
-        [[nodiscard]] const_iterator end() const noexcept;
+        MANAPIHTTP_NODISCARD const_iterator end() const noexcept;
     private:
         const PGresult *res_;
         int row_;

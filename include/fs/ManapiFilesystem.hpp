@@ -3,10 +3,9 @@
 #include <filesystem>
 
 #include "../ManapiUtils.hpp"
-#include "../ManapiAsync.hpp"
-#include "../ManapiUtils.hpp"
 #include "../json/ManapiJson.hpp"
 #include "../std/ManapiAsyncContext.hpp"
+#include "../ManapiAsync.hpp"
 #include "../std/ManapiCancellation.hpp"
 
 namespace manapi::filesystem {

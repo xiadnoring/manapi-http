@@ -111,11 +111,12 @@ namespace manapi::net::http {
          */
         typedef std::move_only_function<manapi::error::status_or<std::string>(std::string_view data)> compress_str_cb_t;
 
-        typedef std::function<std::shared_ptr<worker::base>(site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<http::config> config)> implement_create_cb;
+        typedef std::function<std::shared_ptr<worker::base>(site site, std::shared_ptr<multithread_storage::worker_t> wdata, http::config* config)> implement_create_cb;
         typedef std::function<manapi::error::status_or<std::unique_ptr<worker::wrk_interface_global_t>> (worker::interface_worker *w)> implemenet_http_cb;
-    protected:
+
         struct data_t;
-    public:
+
+        site ();
         /**
          * initialize the site instance
          * @param sctx
@@ -183,9 +184,9 @@ namespace manapi::net::http {
 
         compress_str_cb_t *compressor_for_string (std::string_view name);
 
-        [[nodiscard]] bool contains_compressor_for_file (std::string_view name) const;
+        MANAPIHTTP_NODISCARD bool contains_compressor_for_file (std::string_view name) const;
 
-        [[nodiscard]] bool contains_compressor_for_string (std::string_view name) const;
+        MANAPIHTTP_NODISCARD bool contains_compressor_for_string (std::string_view name) const;
 
         /**
          * Add a transport protocol worker
@@ -265,9 +266,11 @@ namespace manapi::net::http {
 
         manapi::future<manapi::error::status> set_locked_cache_file (std::string file, bool lock, std::string algorithm);
 
-        [[nodiscard]] const std::string &config_cache_dir();
+        MANAPIHTTP_NODISCARD const std::string &config_cache_dir();
 
     protected:
+        void init_data_ (server_ctx sctx);
+
         static void on_config_update (std::shared_ptr<data_t> data, const manapi::json &n) MANAPIHTTP_NOEXCEPT;
 
         void setup ();

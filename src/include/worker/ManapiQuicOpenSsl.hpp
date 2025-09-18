@@ -22,7 +22,7 @@ namespace manapi::net::worker {
 
         ~openssl_quic() override;
 
-        static std::shared_ptr<worker::openssl_quic> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, std::shared_ptr<manapi::net::http::config> config);
+        static std::shared_ptr<worker::openssl_quic> create (net::http::site site, std::shared_ptr<multithread_storage::worker_t> wdata, manapi::net::http::config* config);
 
         manapi::future<error::status> init(std::size_t deep) override;
 

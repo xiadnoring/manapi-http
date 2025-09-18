@@ -173,6 +173,10 @@ else ()
     # include finders
     # include(./cmake/FindLibev.cmake)
 
+    if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
+        find_package(PostgreSQL)
+    endif()
+
     if (MANAPIHTTP_DEPENDENCY_FETCH)
         pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv)
     else ()
@@ -973,7 +977,7 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     target_link_libraries (${PROJECT_NAME} PUBLIC uv)
 
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
-        target_link_libraries(${PROJECT_NAME} PUBLIC PostgreSQL::PostgreSQL)
+        target_link_libraries(${PROJECT_NAME} PUBLIC libpq::libpq)
     endif ()
 
     if (MANAPIHTTP_CPPTRACE_DEPENDENCY)
@@ -1035,6 +1039,12 @@ else ()
     message(STATUS "libuv: libs=${LIBUV_LIBRARIES} include=${LIBUV_INCLUDE_DIRS}")
     target_link_libraries       (${PROJECT_NAME} PUBLIC ${LIBUV_LIBRARIES})
     target_include_directories  (${PROJECT_NAME} PUBLIC ${LIBUV_INCLUDE_DIRS})
+
+    if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
+        message(STATUS "libpq: libs=${PostgreSQL_LIBRARIES} include=${PostgreSQL_INCLUDE_DIRS}")
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${PostgreSQL_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PUBLIC ${PostgreSQL_INCLUDE_DIRS})
+    endif()
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
         message(STATUS "gmp: libs=${GMP_LIBRARIES} include=${GMP_INCLUDE_DIRS}")

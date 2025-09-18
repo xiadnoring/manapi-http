@@ -86,14 +86,14 @@ namespace manapi::async {
          *
          * @return a message stating that it asks a callback for cancellation
          */
-        [[nodiscard]] bool contains_cancel_callback () const;
+        MANAPIHTTP_NODISCARD bool contains_cancel_callback () const;
 
         /**
          * Return current timeout in milliseconds
          *
          * @return timeout in milliseconds
          */
-        [[nodiscard]] size_t timeout () const;
+        MANAPIHTTP_NODISCARD size_t timeout () const;
 
 
         /**

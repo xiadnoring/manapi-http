@@ -61,15 +61,15 @@ namespace manapi {
 
         manapi::error::status again (std::size_t ms) MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_async () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_async () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool is_sync () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_sync () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] bool enabled () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool enabled () const MANAPIHTTP_NOEXCEPT;
 
-        [[nodiscard]] std::shared_ptr<timer_data_t> data_ () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD std::shared_ptr<timer_data_t> data_ () const MANAPIHTTP_NOEXCEPT;
     private:
-        [[nodiscard]] static size_t id_ (const std::shared_ptr<timer_data_t> &data);
+        MANAPIHTTP_NODISCARD static size_t id_ (const std::shared_ptr<timer_data_t> &data);
         std::shared_ptr<timer_data_t> data;
     };
 }
