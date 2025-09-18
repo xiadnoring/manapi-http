@@ -10,8 +10,10 @@ endif ()
 
 include(CTest)
 
-if (EXISTS "./build/generators/conan_toolchain.cmake")
-    include(./build/generators/conan_toolchain.cmake)
+if (EXISTS "${CMAKE_BINARY_DIR}/generators/conan_toolchain.cmake")
+    include("${CMAKE_BINARY_DIR}/generators/conan_toolchain.cmake")
+elseif (EXISTS "${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
+    include("${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
 endif ()
 
 if (WIN32)
