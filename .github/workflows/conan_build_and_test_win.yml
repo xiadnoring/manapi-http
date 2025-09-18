@@ -60,11 +60,11 @@ jobs:
       name: Create default Conan profile
       run: conan profile detect --force
 
-    - name: Conan install dependencies
+    - name: Conan install dependencies (shared)
+      if: ${{ matrix.library_type == 'SHARED' }}
       run:  |
-            [[ ${{ matrix.library_type }} == "SHARED" ]] && shared=True || shared=False
             conan install . \
-            -o "manapihttp/*:shared=$shared" \
+            -o "manapihttp/*:shared=True" \
             -o "manapihttp/*:lib=True" \
             -o "manapihttp/*:json_debug=False" \
             -o "manapihttp/*:openssl_dependency=True" \
@@ -81,6 +81,28 @@ jobs:
             -o "manapihttp/*:nghttp3_dependency=True" \
             -o "manapihttp/*:cpptrace_dependency=False" \
             --build=missing
+        
+    - name: Conan install dependencies (static)
+      if: ${{ matrix.library_type == 'STATIC' }}
+      run:  |
+        conan install . \
+        -o "manapihttp/*:shared=True" \
+        -o "manapihttp/*:lib=True" \
+        -o "manapihttp/*:json_debug=False" \
+        -o "manapihttp/*:openssl_dependency=True" \
+        -o "manapihttp/*:wolfssl_dependency=False" \
+        -o "manapihttp/*:quiche_dependency=False" \
+        -o "manapihttp/*:tquic_dependency=False" \
+        -o "manapihttp/*:zlib_dependency=True" \
+        -o "manapihttp/*:curl_dependency=True" \
+        -o "manapihttp/*:gmp_dependency=True" \
+        -o "manapihttp/*:zstd_dependency=True" \
+        -o "manapihttp/*:brotli_dependency=True" \
+        -o "manapihttp/*:grpc_dependency=False" \
+        -o "manapihttp/*:nghttp2_dependency=True" \
+        -o "manapihttp/*:nghttp3_dependency=True" \
+        -o "manapihttp/*:cpptrace_dependency=False" \
+        --build=missing
 
     - name: Clean up
       run: conan cache clean "*/*"
