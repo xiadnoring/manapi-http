@@ -818,7 +818,9 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_
 }
 
 manapi::event_loop::~event_loop() {
+#if MANAPIHTTP_CURL_DEPENDENCY
     this->curl_watcher->curl_multi.reset();
+#endif
     this->etaskpool_.reset();
     this->mx.reset();
 }
