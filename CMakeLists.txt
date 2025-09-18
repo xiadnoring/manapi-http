@@ -12,12 +12,6 @@ endif ()
 
 include(CTest)
 
-if (EXISTS "${CMAKE_BINARY_DIR}/generators/conan_toolchain.cmake")
-    include("${CMAKE_BINARY_DIR}/generators/conan_toolchain.cmake")
-elseif (EXISTS "${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
-    include("${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
-endif ()
-
 if (WIN32)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
