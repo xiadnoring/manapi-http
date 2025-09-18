@@ -29,12 +29,12 @@ jobs:
         library_type: ["SHARED", "STATIC"]
         include:
           - os: windows-latest
-            c_compiler: cl
-            cpp_compiler: cl
+            c_compiler: msvc
+            cpp_compiler: msvc
             library_type: SHARED
           - os: windows-latest
-            c_compiler: cl
-            cpp_compiler: cl
+            c_compiler: msvc
+            cpp_compiler: msvc
             library_type: STATIC
 
     steps:
