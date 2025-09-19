@@ -32,10 +32,12 @@ jobs:
             c_compiler: msvc
             cpp_compiler: msvc
             library_type: SHARED
+            build_type: Debug
           - os: windows-latest
             c_compiler: msvc
             cpp_compiler: msvc
             library_type: STATIC
+            build_type: Debug
 
     steps:
     - uses: actions/checkout@v4
@@ -54,7 +56,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:\Users\runneradmin\.conan2
-        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
+        key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-${{ matrix.library_type }}
 
     - if: ${{ (matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true') }}
       name: Create default Conan profile

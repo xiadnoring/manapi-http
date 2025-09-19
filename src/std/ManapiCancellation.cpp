@@ -20,7 +20,7 @@ struct manapi::async::cancellation_action::data_t {
     cancellation_action *parent;
 };
 
-manapi::async::cancellation_action::cancellation_action(nullptr_t) {
+manapi::async::cancellation_action::cancellation_action(std::nullptr_t) {
     this->data = nullptr;
 }
 

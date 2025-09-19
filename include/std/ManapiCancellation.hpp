@@ -35,7 +35,7 @@ namespace manapi::async {
          *
          * @return self
          */
-        cancellation_action &operator=(nullptr_t);
+        cancellation_action &operator=(std::nullptr_t);
 
         /**
          * Reuse of the cancellation object
