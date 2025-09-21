@@ -1,10 +1,8 @@
 cmake_minimum_required(VERSION 3.28)
 
-if (CMAKE_COMPILER_IS_GNUCXX)
-    add_compile_options(-fmerge-all-constants)
-    add_compile_options(-fmodules)
-    add_compile_options(-fmodules-ts)
-endif()
+add_compile_options($<$<CXX_COMPILER_ID:GNU>:-fmerge-all-constants>)
+# add_compile_options($<$<CXX_COMPILER_ID:GNU>:-fmodules>)
+# add_compile_options($<$<CXX_COMPILER_ID:GNU>:-fmodules-ts>)
 
 set(MANAPIHTTP_TEST_TOOL_FILES "utest.h" "tools.hpp")
 
