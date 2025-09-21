@@ -16,5 +16,7 @@ foreach(test ${MANAPIHTTP_TESTS_SOURCES})
     set(last_test_name ${test_name})
 endforeach()
 
+ADD_CUSTOM_TARGET(${last_test_name}_mkdir ALL COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:${last_test_name}>)
 ADD_CUSTOM_TARGET(${last_test_name}_link_target ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
-        "$<TARGET_FILE:manapihttp>" "$<TARGET_FILE_DIR:${last_test_name}>/$<TARGET_FILE_NAME:manapihttp>")
+        "$<TARGET_FILE:manapihttp>" "$<TARGET_FILE_DIR:${last_test_name}>/$<TARGET_FILE_NAME:manapihttp>"
+        DEPENDS ${last_test_name}_mkdir)
