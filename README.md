@@ -149,17 +149,17 @@ int main () {
         }).unwrap();
 
         router.GET("/cat", [](http::req &req, http::resp &resp) -> manapi::future<> {
-            auto fetch = (co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
+            auto fetch = manapi::unwrap(co_await manapi::net::fetch2::fetch ("https://dragonball-api.com/api/planets/7", {
                 {"verify_peer", false},
                 {"alpn", true},
                 {"method", "GET"}
-            })).unwrap();
+            })));
 
             if (!fetch.ok()) {
                 co_return resp.json ({{"error", true}, {"message", "fetch failed"}}).unwrap();
             }
 
-            auto data = (co_await fetch.json()).unwrap();
+            auto data = manapi::unwrap(co_await fetch.json());
 
             co_return resp.text(std::move(data["description"].as_string())).unwrap();
         }).unwrap();
@@ -213,8 +213,8 @@ int main () {
          * works in this context as long as possible.
          */
         manapi::async::run([router, db] () mutable -> manapi::future<> {
-            (co_await db.connect("127.0.0.1", "7879", "development", "password", "db")).unwrap();
-            (co_await router.config_object({
+            manapi::unwrap(co_await db.connect("127.0.0.1", "7879", "development", "password", "db"));
+            manapi::unwrap(co_await router.config_object({
                 {"pools", manapi::json::array({
                     {
                         {"address", "127.0.0.1"},
@@ -233,9 +233,9 @@ int main () {
                     }
                 })},
                 {"save_config", false}
-            })).unwrap();
+            }));
 
-            (co_await router.start()).unwrap();
+            manapi::unwrap(co_await router.start());
         });
 
         /* bind event loop in the current context */
@@ -324,7 +324,7 @@ int main () {
 - [ ] Cross-Platform Build
   - [x] Linux
   - [ ] MacOs
-  - [ ] Windows
+  - [x] Windows
 
 ## Tested
 - Hyprland Arch Linux x86_64 kernel 6.9.3-zen1-1-zen wayland Debug/Release

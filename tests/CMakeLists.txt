@@ -1,4 +1,10 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.28)
+
+if (CMAKE_COMPILER_IS_GNUCXX)
+    add_compile_options(-fmerge-all-constants)
+    add_compile_options(-fmodules)
+    add_compile_options(-fmodules-ts)
+endif()
 
 set(MANAPIHTTP_TEST_TOOL_FILES "utest.h" "tools.hpp")
 

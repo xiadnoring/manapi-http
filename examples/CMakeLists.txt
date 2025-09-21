@@ -3,7 +3,7 @@ project(Test)
 
 set(CMAKE_CXX_STANDARD 23)
 
-find_package(ManapiHttp REQUIRED)
+find_package(manapihttp REQUIRED)
 
 add_executable(${PROJECT_NAME} 00-main.cpp)
 

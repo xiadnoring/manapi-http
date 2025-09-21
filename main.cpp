@@ -26,7 +26,7 @@
 
 #include "include/std/ManapiFunction.hpp"
 // //
-#include "ext/pq/AsyncPostgreClient.hpp"
+// #include "ext/pq/AsyncPostgreClient.hpp"
 //
 //
 // // Logic and data behind the server's behavior.
@@ -143,7 +143,7 @@ int main () {
 
     manapi::async::context::run(ctx, loops, [&thrcnt, &a, server_ctx/*,grpc_server_ctx*/] (const std::function<void()> &bind) -> void {
         using http = manapi::net::http::server;
-        auto db = manapi::ext::pq::connection::create().unwrap();
+       // auto db = manapi::ext::pq::connection::create().unwrap();
 
         /**
          * grpc
@@ -300,8 +300,8 @@ int main () {
 
         init_http_server (router, folder);
 
-        manapi::async::run([router, db] () mutable -> manapi::future<> {
-            (co_await db.connect("127.0.0.1", "7879", "development", "12345", "workflow-main")).unwrap();
+        manapi::async::run([router/*, db*/] () mutable -> manapi::future<> {
+            //(co_await db.connect("127.0.0.1", "7879", "development", "rv8FY--PHz_QV<wvT4=n_Ru+cUJE}>KCqmBj9&#M3\\\"Gb.tx", "workflow-main")).unwrap();
 
             (co_await router.config("/home/Timur/Desktop/WorkSpace/ManapiHTTP/cmake-build-debug/config.json")).unwrap();
             (co_await router.start()).unwrap();

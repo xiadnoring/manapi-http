@@ -1,7 +1,12 @@
+# cmake_minimum_required(VERSION 3.28.2) # CXX Modules Support
 cmake_minimum_required(VERSION 3.10)
-project(manapihttp LANGUAGES CXX VERSION 1.0.0 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
+project(manapihttp LANGUAGES CXX VERSION 1.0.1 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+#set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+#set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 
 cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0070 NEW)
@@ -16,9 +21,9 @@ if (WIN32)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-if (CMAKE_COMPILER_IS_GNUCXX)
-    add_compile_options(-fmerge-all-constants)
-endif()
+add_compile_options($<$<CXX_COMPILER_ID:GNU>:-fmerge-all-constants>)
+# add_compile_options($<$<CXX_COMPILER_ID:GNU>:-fmodules>)
+# add_compile_options($<$<CXX_COMPILER_ID:GNU>:-fmodules-ts>)
 
 if (NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     message(STATUS "This project has a top-level one called [${CMAKE_PROJECT_NAME}]")
@@ -74,6 +79,7 @@ message(STATUS "libnghttp2 by nghttp2" ${MANAPIHTTP_NGHTTP2_DEPENDENCY})
 message(STATUS "libnghttp3 by nghttp3" ${MANAPIHTTP_NGHTTP3_DEPENDENCY})
 
 set(MANAPIHTTP_GMP_DEPENDENCY_OBJ OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Build type: Debug")
@@ -584,6 +590,8 @@ string(REPLACE "{{ VAR_MANAPIHTTP_IS_SHARED }}" $<BOOL:${BUILD_SHARED_LIBS}> TEX
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp" CONTENT "${TEXT}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/include/ManapiParams.hpp")
 
+
+
 set(MANAPIHTTP_HTTP_FILES
         include/ManapiHttp.hpp
         include/ManapiThreadPool.hpp
@@ -777,6 +785,11 @@ set(MANAPIHTTP_HTTP_FILES
         src/include/ManapiEventLoopCurl.hpp
 )
 
+set(MANAPIHTTP_MODULES
+        modules/ManapiJson.cppm
+        modules/ManapiJsonBuilder.cppm
+)
+
 if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test")
     # EXE
     message(STATUS "Build type 'exe'")
@@ -906,22 +919,17 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
 
     add_compile_definitions(MANAPIHTTP_HTTP_AS_EXECUTABLE)
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
-        add_executable(${PROJECT_NAME} main.cpp handlers.hpp handlers.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
-#    else ()
-#        add_executable(${PROJECT_NAME}
-#                test_package/test_http.hpp
-#                test_package/test_json.hpp
-#                test_package/test_parse.hpp
-#                test_package/test_package.cpp
-#                test_package/test_bigint.hpp
-#                test_package/test_json_masks.hpp
-#                test_package/test_http_and_fetch.cpp
-#                test_package/test_fetch.hpp
-#                test_package/test_fs.cpp
-#                test_package/test_fs.hpp
-#                test_package/utest.h
-#                ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+        add_executable(${PROJECT_NAME})
     endif ()
+
+    target_sources(${PROJECT_NAME} PRIVATE main.cpp handlers.hpp handlers.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+
+#    target_sources(${PROJECT_NAME} PUBLIC
+#            FILE_SET CXX_MODULES
+#            BASE_DIRS ${CMAKE_SOURCE_DIR}/modules
+#            FILES ${MANAPIHTTP_MODULES}
+#    )
+
 else ()
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
@@ -931,20 +939,33 @@ else ()
 
     add_compile_definitions(MANAPIHTTP_HTTP_AS_LIBRARY)
     if (BUILD_SHARED_LIBS)
-        add_library(${PROJECT_NAME} SHARED ${MANAPIHTTP_HTTP_FILES})
+        add_library(${PROJECT_NAME} SHARED)
     else ()
-        add_library(${PROJECT_NAME} ${MANAPIHTTP_HTTP_FILES})
+        add_library(${PROJECT_NAME})
     endif ()
+
+    target_sources(${PROJECT_NAME} PRIVATE ${MANAPIHTTP_HTTP_FILES})
 
     set_target_properties(${PROJECT_NAME} PROPERTIES
             VERSION ${PROJECT_VERSION}
             SOVERSION ${PROJECT_VERSION_MAJOR})
 
+#    target_sources(${PROJECT_NAME} PUBLIC
+#            FILE_SET CXX_MODULES
+#            BASE_DIRS ${CMAKE_SOURCE_DIR}/modules
+#            FILES ${MANAPIHTTP_MODULES}
+#    )
+
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}.pc.in ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc @ONLY)
 endif ()
 
-set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 
+include(GenerateExportHeader)
+
+generate_export_header(${PROJECT_NAME} EXPORT_FILE_NAME ./include/ManapiExport.hpp)
+
+set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
 if (WIN32 AND BUILD_SHARED_LIBS)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -1251,20 +1272,59 @@ else ()
     endif ()
 
 
-    install(TARGETS ${PROJECT_NAME} EXPORT ManapiHttpConfig
+    install(TARGETS ${PROJECT_NAME} EXPORT manapihttp-targets
             ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
             LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR}
-            INCLUDES  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+            INCLUDES  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+#            FILE_SET CXX_MODULES
+#            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/src
+#            CXX_MODULES_BMI
+#            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/bmi-${CMAKE_CXX_COMPILER_ID}_$<CONFIG>
+#            FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECTNAME}
+    )
+
     install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
     install(DIRECTORY ${CMAKE_BINARY_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
 
-    install(EXPORT ManapiHttpConfig DESTINATION lib/cmake/${PROJECT_NAME})
+    install(EXPORT manapihttp-targets
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+#            CXX_MODULES_DIRECTORY .
+    )
 
     set_target_properties(${PROJECT_NAME} PROPERTIES
             COMPILE_PDB_NAME ${PROJECT_NAME}
             COMPILE_PDB_OUTPUT_DIRECTORY ${CMAKE_INSTALL_BINDIR}
     )
 
-    export(TARGETS ${PROJECT_NAME} FILE ManapiHttpConfig.cmake)
+    install(FILES cmake/manapihttp-config.cmake
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+    )
+#
+#    export(TARGETS ${PROJECT_NAME} FILE ManapiHttpConfig.cmake)
 endif ()
+
+#include("${manapihttp_PACKAGE_FOLDER_DEBUG}/lib/cmake/manapihttp/manapihttp-config.cmake")
+#
+#set_target_properties(manapihttp::manapihttp PROPERTIES
+#        CXX_EXTENSIONS "OFF"
+#        CXX_MODULE_STD ""
+#        IMPORTED_CXX_MODULES_COMPILE_DEFINITIONS "MANAPIHTTP_HTTP_BUILD_DEBUG;MANAPIHTTP_QUICHE_VERSION=\"0.24.4\";MANAPIHTTP_HTTP_AS_LIBRARY"
+#        IMPORTED_CXX_MODULES_COMPILE_FEATURES "cxx_std_23"
+#        IMPORTED_CXX_MODULES_INCLUDE_DIRECTORIES "/home/Timur/.conan2/p/b/manap001c9f726cfa4/b/include;/home/Timur/.conan2/p/b/manap001c9f726cfa4/b/build/Debug/include;/home/Timur/.conan2/p/b/manap001c9f726cfa4/b/build/Debug/generated;${manapihttp_PACKAGE_FOLDER_DEBUG}/include/manapihttp"
+#        INTERFACE_COMPILE_FEATURES "cxx_std_23"
+#        INTERFACE_INCLUDE_DIRECTORIES "${manapihttp_PACKAGE_FOLDER_DEBUG}/include/manapihttp"
+#)
+#
+#target_sources(manapihttp::manapihttp
+#        INTERFACE
+#        FILE_SET "CXX_MODULES"
+#        TYPE "CXX_MODULES"
+#        BASE_DIRS "${manapihttp_PACKAGE_FOLDER_DEBUG}/lib/cmake/manapihttp/src"
+#        FILES "${manapihttp_PACKAGE_FOLDER_DEBUG}/lib/cmake/manapihttp/src/ManapiJson.cppm"
+#)
+#
+#set_property(TARGET "manapihttp::manapihttp"
+#        PROPERTY IMPORTED_CXX_MODULES_DEBUG
+#        "manapi=${manapihttp_PACKAGE_FOLDER_DEBUG}/lib/cmake/manapihttp/src/ManapiJson.cppm,${manapihttp_PACKAGE_FOLDER_DEBUG}/lib/cmake/manapihttp/bmi-GNU_Debug/manapi.gcm"
+#)

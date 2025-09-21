@@ -367,6 +367,11 @@ namespace manapi {
         status status_internal ();
         status status_data_loss (std::string_view msg);
     }
+
+    template<typename T>
+    auto unwrap (T status) {
+       return status.unwrap();
+    }
 }
 
 template <>

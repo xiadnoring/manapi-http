@@ -11,7 +11,7 @@ import os
 class ManapiHttpConan(ConanFile):
     name = "manapihttp"
     description = "Fast http server/client"
-    version = "1.0.0"
+    version = "1.0.1"
 
     settings = "os", "compiler", "build_type", "arch"
 
@@ -55,7 +55,7 @@ class ManapiHttpConan(ConanFile):
         "cpptrace_dependency": False
     }
 
-    exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*"
+    exports_sources = "src/*", "include/*", "cmake/*", "CMakeLists.txt", "preprocess/*", "modules/*"
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -102,12 +102,16 @@ class ManapiHttpConan(ConanFile):
     def layout(self):
         cmake_layout(self)
 
+    def validate(self):
+        check_min_cppstd(self, "20")
+
     def generate(self):
         VirtualBuildEnv(self).generate()
 
         runenv = VirtualRunEnv(self)
         runenv.generate()
 
+        # generator="Ninja"
         tc = CMakeToolchain(self)
         tc.variables['MANAPIHTTP_BUILD_METHOD'] = "conan"
         tc.variables['MANAPIHTTP_JSON_DEBUG'] = self.options.get_safe('json_debug', False)
