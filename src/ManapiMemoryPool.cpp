@@ -88,9 +88,9 @@ void object_item_pool_clear (const std::shared_ptr<manapi::internal::object_pool
         }
     }
 
-#ifdef linux
-    malloc_trim(0);
-#endif
+// #ifdef linux
+//     malloc_trim(0);
+// #endif
 }
 
 void manapi::internal::object_item_pool_return(const std::shared_ptr<internal::object_pool_data_t> &data, void *buffer, std::size_t size) {

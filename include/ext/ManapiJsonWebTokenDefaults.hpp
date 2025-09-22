@@ -27,7 +27,7 @@ namespace jwt {
 	/**
 	 * Return a builder instance to create a new token
 	 */
-	inline builder<traits::manapi_json> create() { return builder<traits::manapi_json>(); }
+	inline builder<default_clock, traits::manapi_json> create() { return builder<default_clock, traits::manapi_json>(default_clock{}); }
 
 #ifndef JWT_DISABLE_BASE64
 	/**
