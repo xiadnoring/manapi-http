@@ -90,8 +90,10 @@ namespace manapi::ext::pq {
          * throw a error if it exists, otherwise it does nothing
          */
         void unwrap() const override {
-            throw manapi::exception (this->code_, std::format("{} sql-{}={}",
-                this->msg_, this->sqlcode_, this->sqlmsg_));
+            if (this->code_) {
+                throw manapi::exception (this->code_, std::format("{} sql-{}={}",
+                    this->msg_, this->sqlcode_, this->sqlmsg_));
+            }
         }
 
         MANAPIHTTP_NODISCARD bool is_sqlerr () const MANAPIHTTP_NOEXCEPT {
