@@ -86,15 +86,29 @@ public:
 
         co_return co_await promise ([&] (promise::resolve_t resolve, promise::reject_t) -> void {
             try {
-                this->stub_->async()->SayHello(&context, &request, &reply, [&, resolve = std::move(resolve)] (grpc::Status status) {
-                    if (status.ok()) {
-                        resolve(reply.message());
-                        return;
-                    }
+                this->stub_->async()->SayHello(&context, &request, &reply, [ctx = manapi::async::current(), &reply, resolve = std::move(resolve)] (grpc::Status status) {
+                    if (manapi::async::context_exists()) {
+                        if (status.ok()) {
+                            resolve(reply.message());
+                            return;
+                        }
 
-                    auto msg = status.error_message();
-                    manapi_log_debug("grpc client failed due to %s", msg.data());
-                    resolve(manapi::error::status_internal("grpc client: something gets wrong"));
+                        auto msg = status.error_message();
+                        manapi_log_debug("grpc client failed due to %s", msg.data());
+                        resolve(manapi::error::status_internal("grpc client: something gets wrong"));
+                    }
+                    else {
+                        ctx->eventloop()->custom_callback([resolve = std::move(resolve), status = std::move(status), &reply] (manapi::event_loop *ev) -> void {
+                            if (status.ok()) {
+                                resolve(reply.message());
+                                return;
+                            }
+
+                            auto msg = status.error_message();
+                            manapi_log_debug("grpc client failed due to %s", msg.data());
+                            resolve(manapi::error::status_internal("grpc client: something gets wrong"));
+                        }).unwrap();
+                    }
                 });
             }
             catch (std::exception const &e) {
@@ -110,12 +124,6 @@ private:
 
 
 int main () {
-    try {
-        manapi::init_tools::log_trace_init((manapi::debug::trace_level)std::stoi(manapi::process::get_env("MANAPIHTTP_LOGTRACE").unwrap()));
-    }
-    catch (...) {
-        manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_LOW);
-    }
     int threads = 4;
     try { threads = std::stoi(manapi::process::get_env("MANAPIHTTP_THREADS").unwrap()); }
     catch (...) {  }
@@ -170,11 +178,51 @@ int main () {
                     co_return;
                 }
                 auto greeter = std::make_shared<GreeterClient>(grpc::CreateChannel("localhost:8080", creds.unwrap()));
-                manapi::async::current()->timerpool()->append_interval_async(10, [greeter] (const manapi::timer &t) -> manapi::future<> {
-                    std::string user = "Xiadnoring Client";
+                manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+                    std::string user = "Xiadnoring Client #1";
                     auto res = co_await greeter->SayHello(user);
                     if (res.ok())
-                        std::cout << res.unwrap() << "\n";
+                        std::cout << "Xiadnoring Client#1 =" << res.unwrap() << "\n";
+                    else
+                        res.err().log();
+                });
+                manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+                    std::string user = "Xiadnoring Client #2";
+                    auto res = co_await greeter->SayHello(user);
+                    if (res.ok())
+                        std::cout << "Xiadnoring Client #2=" << res.unwrap() << "\n";
+                    else
+                        res.err().log();
+                });
+                manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+                    std::string user = "Xiadnoring Client #3";
+                    auto res = co_await greeter->SayHello(user);
+                    if (res.ok())
+                        std::cout << "Xiadnoring Client #3=" << res.unwrap() << "\n";
+                    else
+                        res.err().log();
+                });
+                manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+                    std::string user = "Xiadnoring Client #4";
+                    auto res = co_await greeter->SayHello(user);
+                    if (res.ok())
+                        std::cout << "Xiadnoring Client #4=" << res.unwrap() << "\n";
+                    else
+                        res.err().log();
+                });
+                manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+                    std::string user = "Xiadnoring Client #5";
+                    auto res = co_await greeter->SayHello(user);
+                    if (res.ok())
+                        std::cout << "Xiadnoring Client #5=" << res.unwrap() << "\n";
+                    else
+                        res.err().log();
+                });
+                manapi::async::current()->timerpool()->append_interval_async(100, [greeter] (const manapi::timer &t) -> manapi::future<> {
+                    std::string user = "Xiadnoring Client #6";
+                    auto res = co_await greeter->SayHello(user);
+                    if (res.ok())
+                        std::cout << "Xiadnoring Client #6=" << res.unwrap() << "\n";
                     else
                         res.err().log();
                 });

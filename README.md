@@ -314,22 +314,36 @@ public:
 
         co_return co_await promise ([&] (promise::resolve_t resolve, promise::reject_t) -> void {
             try {
-                this->stub_->async()->SayHello(&context, &request, &reply, [&, resolve = std::move(resolve)] (grpc::Status status) {
-                    if (status.ok()) {
-                        resolve(reply.message());
-                        return;
+                this->stub_->async()->SayHello(&context, &request, &reply, [&reply, ctx = manapi::async::current(), resolve = std::move(resolve)] (grpc::Status status) {
+                    if (manapi::async::context_exists()) {
+                        if (status.ok()) {
+                            resolve(reply.message());
+                            return;
+                        }
+      
+                        auto msg = status.error_message();
+                        manapi_log_debug("grpc client failed due to %s", msg.data());
+                        resolve(manapi::error::status_internal("grpc client: something gets wrong"));
                     }
-
-                auto msg = status.error_message();
-                manapi_log_debug("grpc client failed due to %s", msg.data());
-                resolve(manapi::error::status_internal("grpc client: something gets wrong"));
-            });
-        }
-        catch (std::exception const &e) {
-            manapi_log_error(e.what());
-           resolve(manapi::error::status_internal("sayhello failed"));
-       }
-    });
+                    else {
+                        ctx->event_loop()->custom_callback([resolve = std::move(resolve), &reply, status = std::move(status)] (manapi::event_loop *ev) -> void {
+                            if (status.ok()) {
+                                resolve(reply.message());
+                                return;
+                            }
+          
+                            auto msg = status.error_message();
+                            manapi_log_debug("grpc client failed due to %s", msg.data());
+                            resolve(manapi::error::status_internal("grpc client: something gets wrong"));
+                        }).unwrap();
+                    }
+              });
+            }
+            catch (std::exception const &e) {
+                manapi_log_error(e.what());
+               resolve(manapi::error::status_internal("sayhello failed"));
+           }
+        });
 }
 
 private:

@@ -151,22 +151,46 @@ manapi::error::status_or<std::string> manapi::crypto::strdec2strhex(std::string_
     }
 }
 
+static int chrhex2chrdec (char &a) {
+    if (isdigit(a)) {
+        a -= '0';
+    }
+    else if (a >= 'A' && a <= 'F') {
+        a -= 'A'-10;
+    }
+    else if (a >= 'a' && a <= 'f') {
+        a -= 'a'-10;
+    }
+    else {
+        return 1;
+    }
+    return 0;
+}
 
 manapi::error::status_or<std::string> manapi::crypto::strhex2strdec(std::string_view hex) {
     try {
-    auto len = hex.length();
-    std::string newString;
-    for(size_t i=0; i< len; i+=2)
-    {
-        std::string_view byte = hex.substr(i,2);
-        char chr = (char) (int)strtol(static_cast<const char*>(byte.data()), nullptr, 16);
-        newString.push_back(chr);
-    }
+        auto len = hex.length();
+        if (len % 2 != 0) {
+            goto err;
+        }
+        std::string newString;
+        newString.reserve(len / 2);
+        for (std::size_t i = 0; i < hex.length(); i+=2) {
+            char a = hex[i];
+            char b = hex[i + 1];
+
+            if (chrhex2chrdec(a) || chrhex2chrdec(b))
+                goto err;
+
+            newString.push_back(static_cast<char>((static_cast<uint8_t>(a) << 4) | static_cast<uint8_t>(b)));
+        }
         return std::move(newString);
     }
     catch (std::bad_alloc const &) {
         return error::status_resource_exhausted();
     }
+err:
+    return error::status_invalid_argument("hex string invalid");
 }
 
 // int manapi::crypto::binpow(int a, int n) {

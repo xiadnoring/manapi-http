@@ -36,6 +36,8 @@ namespace manapi {
         }
 
         const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXCEPT;
+
+        bool context_exists () MANAPIHTTP_NOEXCEPT;
     }
 
     class promise_base_future {

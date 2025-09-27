@@ -251,6 +251,10 @@ const manapi::async::shared_cthread &manapi::async::current() MANAPIHTTP_NOEXCEP
     return async::internal::current_cthread_;
 }
 
+bool manapi::async::context_exists() MANAPIHTTP_NOEXCEPT {
+    return async::internal::current_cthread_ != nullptr;
+}
+
 
 const std::shared_ptr<manapi::async::cthread> & manapi::async::internal::current_() MANAPIHTTP_NOEXCEPT {
     return async::internal::current_cthread_;
