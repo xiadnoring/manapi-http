@@ -17,14 +17,6 @@
 static_assert(manapi::ev::READ == CURL_POLL_IN && manapi::ev::WRITE == CURL_POLL_OUT, "need for review");
 #endif
 
-#if MANAPIHTTP_CPPTRACE_DEPENDENCY
-#   include <cpptrace/cpptrace.hpp>
-#endif
-
-#if __cplusplus >= 202302L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
-#   include <stacktrace>
-#endif
-
 #ifdef _WIN32
 #   define NOMINMAX
 #   define WIN32_LEAN_AND_MEAN
@@ -396,28 +388,6 @@ static void handler_interrupt (int sig) {
     manapi::event_loop::interrupt(sig);
 }
 
-static void evloop_stack_trace () MANAPIHTTP_NOEXCEPT {
-    try {
-#if MANAPIHTTP_CPPTRACE_DEPENDENCY
-        cpptrace::generate_trace().print();
-#elif __cplusplus >= 202302L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
-        auto stack = std::stacktrace::current();
-        for (std::size_t i = 0; i < stack.size(); i++) {
-            auto &it = stack[i];
-            manapi_log_info("#%zu %p in %.*s at %.*s:%zu", i, it.native_handle(),
-                it.description().size(), it.description().data(),
-                it.source_file().size(), it.source_file().data(),
-                it.source_line());
-        }
-#else
-        manapi_log_error("stack trace is disabled");
-#endif
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s due to %s", "stack trace print failed", e.what());
-    }
-}
-
 void manapi::ev::callback_watcher_async (uv_async_t *s) MANAPIHTTP_NOEXCEPT {
     assert(s->data && "ev:User data wasn't set");
     auto &cb = static_cast<manapi::ev::internal::async_ctx *> (s->data)
@@ -714,7 +684,7 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_
         ev->idle_tasks_ = idle_tasks_res.unwrap();
         ev->prepare_tasks_ = iter_tasks_res.unwrap();
 
-        ev->etaskpool_ = std::make_shared<manapi::ethreadpool>(logger, [ev = ev.get()] ()
+        ev->etaskpool_ = std::make_shared<manapi::ethreadpool>(ev->logger_, [ev = ev.get()] ()
             -> void {
             ev->idle_tasks_->start();
             ev->prepare_tasks_->start();
@@ -1471,7 +1441,7 @@ void manapi::event_loop::interrupt(int sig) MANAPIHTTP_NOEXCEPT {
                 break;
             /* well well well */
             default:
-                evloop_stack_trace ();
+                print_stacktrace ();
                 std::quick_exit(-1);
             return;
         }
@@ -1488,7 +1458,7 @@ void manapi::event_loop::interrupt(int sig) MANAPIHTTP_NOEXCEPT {
             manapi_log_error("eventloop:2nd interrupt was received");
             /* well well well */
         default:
-            evloop_stack_trace ();
+            print_stacktrace ();
             std::quick_exit(-1);
         return;
     }

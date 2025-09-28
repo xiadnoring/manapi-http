@@ -83,9 +83,10 @@ namespace manapi {
         static void setup_default_callback_(const std::shared_ptr<data_t> &data);
         template<typename ...Args>
         void call_(logger_type type, std::string_view service, int error_code, std::string msg, Args &&...args) {
-            const std::size_t n = sizeof...(Args);
-
-            this->data->callback(type, service, error_code, n ? std::vformat(msg, std::make_format_args(args...)) : std::move(msg));
+            if (this->data) {
+                constexpr std::size_t n = sizeof...(Args);
+                this->data->callback(type, service, error_code, n ? std::vformat(msg, std::make_format_args(args...)) : std::move(msg));
+            }
         }
         std::shared_ptr<data_t> data;
     };

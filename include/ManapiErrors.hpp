@@ -258,6 +258,8 @@ namespace manapi {
              */
             virtual void unwrap () const;
 
+            void stacktrace () const MANAPIHTTP_NOEXCEPT;
+
             MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT;
         protected:
             std::string_view msg_;

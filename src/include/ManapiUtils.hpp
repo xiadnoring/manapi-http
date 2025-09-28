@@ -41,6 +41,10 @@ namespace manapi::sockets {
     };
 }
 
+namespace manapi {
+    void print_stacktrace () MANAPIHTTP_NOEXCEPT;
+}
+
 namespace manapi::memory {
     namespace internal {
         void *alloc (std::size_t size) MANAPIHTTP_NOEXCEPT;

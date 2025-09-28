@@ -84,9 +84,9 @@ public:
         // the server and/or tweak certain RPC behaviors.
         grpc::ClientContext context;
 
-        co_return co_await promise ([&] (promise::resolve_t resolve, promise::reject_t) -> void {
+        co_return co_await promise ([&] (promise::resolve_t resolve) -> void {
             try {
-                this->stub_->async()->SayHello(&context, &request, &reply, [ctx = manapi::async::current(), &reply, resolve = std::move(resolve)] (grpc::Status status) {
+                this->stub_->async()->SayHello(&context, &request, &reply, [ctx = manapi::async::current(), &reply, resolve = std::move(resolve)] (grpc::Status status) mutable {
                     if (manapi::async::context_exists()) {
                         if (status.ok()) {
                             resolve(reply.message());

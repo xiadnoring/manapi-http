@@ -459,8 +459,9 @@ void manapi::net::wgrpc::net_endpoint::init_() {
         [this] (const std::shared_ptr<manapi::ev::tcp> &, ssize_t nread, const manapi::ev::buff_t *buf) -> void {
             bytebuffer buffer;
 
-            if (buf && buf->base)
-                buffer = bytebuffer (buf->base, buf->len);
+            if (buf && buf->base) {
+                buffer = bytebuffer (buf->base, buf->len, bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL);
+            }
 
             if (nread < 0) {
                 /* error */
