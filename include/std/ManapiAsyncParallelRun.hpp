@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ManapiUtils.hpp"
+#include "./ManapiAsyncMutex.hpp"
 #include "./ManapiAsyncContext.hpp"
 
 namespace manapi::async {

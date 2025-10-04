@@ -7,10 +7,7 @@
 
 #pragma once
 
-#include <chrono>
 #include <regex>
-#include <list>
-#include <set>
 
 #include "./ManapiHttpUtils.hpp"
 #include "./ManapiHttpConfig.hpp"
@@ -19,8 +16,6 @@
 #include "../ManapiAsync.hpp"
 #include "../json/ManapiJson.hpp"
 #include "../json/ManapiJsonMask.hpp"
-#include "../compress/ManapiCompress.hpp"
-#include "../std/ManapiAsyncMutex.hpp"
 
 namespace manapi::net::worker {
     class base;

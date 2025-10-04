@@ -8,6 +8,7 @@
 #include "../std/ManapiAsyncContext.hpp"
 #include "../std/ManapiAsyncThreadsMutex.hpp"
 #include "../std/ManapiBeforeDelete.hpp"
+#include "../json/ManapiJson.hpp"
 
 namespace manapi {
     class multithread_storage {

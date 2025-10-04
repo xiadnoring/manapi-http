@@ -6,6 +6,7 @@
 #include <cstring>
 #include <quiche.h>
 
+#include "ManapiTimerPool.hpp"
 #include "http/ManapiHttpResponse.hpp"
 #include "http/ManapiURLDecodeStream.hpp"
 #include "std/ManapiAsyncSocket.hpp"

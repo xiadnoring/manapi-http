@@ -1,19 +1,11 @@
 #pragma once
 
-#include <queue>
-#include <deque>
-#include <cstdio>
-#include <exception>
-#include <cerrno>
 #include <iostream>
 #include <mutex>
-#include <coroutine>
 #include <condition_variable>
 #include <functional>
 
 #include "./ManapiUtils.hpp"
-#include "./ManapiErrors.hpp"
-#include "./json/ManapiJson.hpp"
 #include "./ManapiTime.hpp"
 #include "./std/ManapiFunction.hpp"
 #include "./std/ManapiChain.hpp"

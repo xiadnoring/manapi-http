@@ -6,6 +6,10 @@
 #include "../ManapiAsync.hpp"
 #include "../ManapiMemoryPool.hpp"
 
+namespace manapi {
+    class logger;
+}
+
 namespace manapi::async {
     class context;
 
@@ -84,7 +88,10 @@ namespace manapi {
 #endif
 
     class event_loop;
+
     class timerpool;
+
+    class mthreadpool;
 }
 
 namespace manapi::async {
@@ -93,13 +100,6 @@ namespace manapi::async {
     /* provides an event loop */
     typedef std::shared_ptr<event_loop> shared_eventloop;
 }
-
-#define GCTX(...) manapi::async::context::gctx(), __VA_ARGS__
-#define GCTX_OBJ manapi::async::context::gctx()
-
-#include "../ManapiEventLoop.hpp"
-#include "../ManapiTimerPool.hpp"
-#include "./ManapiAsyncLogger.hpp"
 
 #if defined (__unix__) || defined(__APPLE__)
 #   include <pthread.h>
@@ -219,7 +219,14 @@ namespace manapi::async {
          * @param threadnum the additional threads
          * @return
          */
-        static manapi::error::status_or<std::shared_ptr<context>> create (unsigned int threadnum = std::thread::hardware_concurrency()) MANAPIHTTP_NOEXCEPT;
+        static manapi::error::status_or<std::shared_ptr<context>> create () MANAPIHTTP_NOEXCEPT;
+
+        /**
+         * create a context and return it
+         * @param threadnum the additional threads
+         * @return
+         */
+        static manapi::error::status_or<std::shared_ptr<context>> create (unsigned int threadnum) MANAPIHTTP_NOEXCEPT;
 
         /**
          * run the callback in all contexts

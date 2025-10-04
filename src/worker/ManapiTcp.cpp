@@ -17,6 +17,7 @@
 
 #include "ManapiString.hpp"
 #include "ManapiDns.hpp"
+#include "ManapiTimerPool.hpp"
 #include "http/ManapiBaseHttp.hpp"
 #include "http/ManapiHttpRequest.hpp"
 #include "http/ManapiHttpResponse.hpp"

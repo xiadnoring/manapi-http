@@ -7,7 +7,6 @@
 #include "ManapiDebug.hpp"
 #include "./include/ManapiUtils.hpp"
 
-
 void task_doit(std::move_only_function<void()>&task, manapi::logger *logger) {
     assert((task));
     try {

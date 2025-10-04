@@ -5,6 +5,8 @@
 #include "ManapiEventLoop.hpp"
 #include "ManapiUtils.hpp"
 #include "ManapiTimerObject.hpp"
+#include "ManapiThreadPool.hpp"
+#include "ManapiTimerPool.hpp"
 
 #include "std/ManapiAsyncSocket.hpp"
 #include "std/ManapiAsyncThreadsMutex.hpp"

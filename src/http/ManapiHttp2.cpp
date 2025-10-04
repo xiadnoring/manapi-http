@@ -1,3 +1,4 @@
+#include "ManapiTimerPool.hpp"
 #include "worker/ManapiTcp.hpp"
 #include "crypto/ManapiAEAD.hpp"
 #include "encoding/ManapiUnicode.hpp"
@@ -8,7 +9,6 @@
 #include "../include/ManapiSiteInternal.hpp"
 #include "../include/ManapiUtils.hpp"
 #include "../include/http/ManapiHttp2Interface.hpp"
-
 
 enum http_v2_priority {
     HTTP2_PRIORITY_0 = 0,

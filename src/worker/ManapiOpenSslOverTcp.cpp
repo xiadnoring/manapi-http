@@ -1,5 +1,6 @@
 #include "ManapiParams.hpp"
 #include "ManapiInitTools.hpp"
+#include "ManapiTimerPool.hpp"
 #include "std/ManapiAsyncSocket.hpp"
 #include "worker/ManapiBaseUtils.hpp"
 #include "worker/ManapiOpenSslOverTcp.hpp"
@@ -23,8 +24,6 @@
 #include <openssl/err.h>
 #include <openssl/bio.h>
 #include <openssl/engine.h>
-
-#include "../include/ManapiUtils.hpp"
 
 struct ssl_worker_ctx_t {
     std::map<std::string, SSL_SESSION*, std::less<>> sessions;

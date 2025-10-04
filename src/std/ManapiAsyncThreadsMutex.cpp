@@ -1,3 +1,4 @@
+#include "ManapiEventLoop.hpp"
 #include "std/ManapiAsyncThreadsMutex.hpp"
 
 struct tmutex_promise {

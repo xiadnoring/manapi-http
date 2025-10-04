@@ -11,6 +11,8 @@
 #include <set>
 
 #include "ManapiParams.hpp"
+#include "ManapiTimerPool.hpp"
+#include "ManapiEventLoop.hpp"
 #include "ManapiInitTools.hpp"
 #include "std/ManapiAsyncSocket.hpp"
 #include "worker/ManapiTlsOverTcp.hpp"

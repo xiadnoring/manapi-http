@@ -1,4 +1,6 @@
 #include "std/ManapiAsyncMutex.hpp"
+#include "std/ManapiAsyncContext.hpp"
+#include "ManapiThreadPool.hpp"
 
 struct mutex_promise {
     std::vector <std::coroutine_handle<>> &stack;

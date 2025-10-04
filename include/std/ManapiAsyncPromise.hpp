@@ -4,7 +4,7 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "./ManapiAsyncContext.hpp"
+#include "std/ManapiAsyncContext.hpp"
 
 namespace manapi::async::internal {
     enum promise_flags {
@@ -39,7 +39,7 @@ namespace manapi::async::internal {
     void promise_call (std::shared_ptr<promise_data_t<T>> data) MANAPIHTTP_NOEXCEPT {
         auto handle = std::exchange(data->handle, nullptr);
         MANAPIHTTP_MUST_ALLOC_START
-        manapi::async::internal::ethreadpool_(manapi::async::current())->append_task([handle] ()
+        manapi::async::internal::append_static_task([handle] ()
             -> void {
             handle.resume();
         });

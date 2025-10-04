@@ -1,5 +1,6 @@
 #include <fcntl.h>
 
+#include "ManapiEventLoop.hpp"
 #include "std/ManapiAsyncSocket.hpp"
 #include "../include/ManapiUtils.hpp"
 

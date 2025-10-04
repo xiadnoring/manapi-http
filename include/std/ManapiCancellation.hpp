@@ -102,8 +102,11 @@ namespace manapi::async {
         void disable ();
     private:
         void send_async_() MANAPIHTTP_NOEXCEPT;
+
         static void stop_timeout_ (std::shared_ptr<data_t> data) MANAPIHTTP_NOEXCEPT;
+
         static void cancel_ (std::shared_ptr<data_t> data) MANAPIHTTP_NOEXCEPT;
+
         std::shared_ptr<data_t> data;
     };
 }

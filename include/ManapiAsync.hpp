@@ -6,8 +6,15 @@
 #include <mutex>
 #include <utility>
 #include <functional>
+#include <coroutine>
+#include <optional>
 
-#include "./ManapiThreadPool.hpp"
+#include "./std/ManapiFunction.hpp"
+#include "./ManapiUtils.hpp"
+
+namespace manapi {
+    class threadpool;
+}
 
 namespace manapi::async {
     class mutex_locker;
@@ -35,6 +42,8 @@ namespace manapi::async::internal {
     void max_stack_depth_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
 
     bool future_final_awaiter_ready () MANAPIHTTP_NOEXCEPT;
+
+    void append_static_task (manapi::static_function<void()> callback) MANAPIHTTP_NOEXCEPT;
 
     class promise_base_future {
     public:
@@ -182,9 +191,9 @@ namespace manapi {
 
                 auto current_stack_cnt_ = manapi::async::internal::current_stack_cnt_crt ();
                 if (current_stack_cnt_ >= async::internal::max_stack_depth_crt()) {
-                    auto &thr = manapi::async::current();
+                    auto &thr = manapi::async::internal::current_();
                     if (thr) {
-                        async::internal::ethreadpool_(thr)->append_static_task([original = this->handle] () -> void {
+                        async::internal::append_static_task([original = this->handle] () -> void {
                              original.resume();
                         });
                     }

@@ -1,5 +1,6 @@
 #include "utils/ManapiMultithreadStorage.hpp"
 #include "ManapiDebug.hpp"
+#include "ManapiEventLoop.hpp"
 
 struct manapi::multithread_storage::data_t {
     async::tmutex mx;

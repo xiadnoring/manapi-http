@@ -1,7 +1,14 @@
 #include "ManapiEventLoop.hpp"
 #include "ManapiTimerPool.hpp"
 #include "ManapiInitTools.hpp"
+#include "ManapiEventLoop.hpp"
+#include "ManapiTimerPool.hpp"
+#include "ManapiThreadPool.hpp"
+#include "std/ManapiAsyncLogger.hpp"
 #include "std/ManapiAsyncContext.hpp"
+
+#include <thread>
+
 #include "../include/ManapiUtils.hpp"
 #include "../include/ManapiDefaultErrors.hpp"
 
@@ -256,6 +263,10 @@ bool manapi::async::context_exists() MANAPIHTTP_NOEXCEPT {
 }
 
 manapi::async::context::~context() = default;
+
+manapi::error::status_or<std::shared_ptr<manapi::async::context>> manapi::async::context::create() noexcept(true) {
+    return async::context::create(std::thread::hardware_concurrency());
+}
 
 void manapi::async::internal::run_prepare_error_(std::exception_ptr err) MANAPIHTTP_NOEXCEPT {
     try {

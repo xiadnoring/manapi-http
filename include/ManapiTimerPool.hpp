@@ -5,14 +5,13 @@
 #include <set>
 #include <map>
 
-#include "./ManapiEventStructures.hpp"
 #include "./ManapiUtils.hpp"
 #include "./ManapiAsync.hpp"
-#include "./ManapiEventLoop.hpp"
-#include "./ManapiThreadPool.hpp"
 #include "./std/ManapiAsyncMutex.hpp"
 #include "./std/ManapiAsyncConditionVariable.hpp"
 #include "./ManapiTimerObject.hpp"
+#include "./ManapiErrors.hpp"
+#include "./ManapiEventStructures.hpp"
 
 namespace manapi {
     class timerpool {

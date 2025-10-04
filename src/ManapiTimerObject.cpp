@@ -1,4 +1,5 @@
 #include "ManapiTimerObject.hpp"
+#include "ManapiTimerPool.hpp"
 #include "std/ManapiAsyncContext.hpp"
 #include "./include/ManapiEventStructuresInternal.hpp"
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ManapiUtils.hpp"
+#include "ManapiTimerObject.hpp"
 #include "worker/ManapiUdp.hpp"
 
 #if MANAPIHTTP_OPENSSL_DEPENDENCY

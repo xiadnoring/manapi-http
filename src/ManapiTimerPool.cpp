@@ -2,6 +2,9 @@
 #include <limits>
 
 #include "ManapiTimerPool.hpp"
+#include "ManapiEventStructures.hpp"
+#include "ManapiThreadPool.hpp"
+#include "ManapiEventLoop.hpp"
 #include "./include/ManapiUtils.hpp"
 #include "./include/ManapiEventStructuresInternal.hpp"
 

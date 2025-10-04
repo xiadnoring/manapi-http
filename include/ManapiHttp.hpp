@@ -2,7 +2,6 @@
 
 #include <functional>
 #include <map>
-#include <regex>
 #include <thread>
 #include <future>
 
@@ -11,12 +10,9 @@
 #include "./ManapiThreadPool.hpp"
 #include "./json/ManapiJsonMask.hpp"
 #include "./http/ManapiHttpPool.hpp"
-#include "./ManapiTimerPool.hpp"
 
 #include "./http/ManapiHttpResponse.hpp"
 #include "./http/ManapiHttpRequest.hpp"
-#include "./std/ManapiAsyncPromise.hpp"
-#include "./ManapiEventLoop.hpp"
 
 namespace manapi::net::http {
     using pools_t = std::map<std::thread::id, std::map<size_t, std::unique_ptr<http_pool>>>;

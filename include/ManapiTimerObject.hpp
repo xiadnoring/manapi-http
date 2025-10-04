@@ -1,8 +1,8 @@
 #pragma once
 
 #include <functional>
-#include <optional>
 
+#include "./ManapiErrors.hpp"
 #include "./ManapiUtils.hpp"
 #include "./ManapiAsync.hpp"
 

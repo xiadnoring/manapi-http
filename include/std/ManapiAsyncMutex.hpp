@@ -6,7 +6,6 @@
 
 #include "../ManapiUtils.hpp"
 #include "../ManapiAsync.hpp"
-#include "./ManapiAsyncContext.hpp"
 
 namespace manapi::async {
     class mutex;

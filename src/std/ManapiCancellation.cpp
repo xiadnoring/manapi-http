@@ -1,5 +1,8 @@
 #include <memory>
 
+#include "ManapiTimerObject.hpp"
+#include "ManapiTimerPool.hpp"
+#include "ManapiThreadPool.hpp"
 #include "std/ManapiCancellation.hpp"
 #include "std/ManapiAsyncContext.hpp"
 #include "../include/ManapiUtils.hpp"

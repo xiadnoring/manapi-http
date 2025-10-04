@@ -9,6 +9,7 @@
 #include <thread>
 #include <unordered_map>
 #include <fcntl.h>
+#include <regex>
 
 #include "ManapiHttp.hpp"
 #include "std/ManapiAsyncPromise.hpp"

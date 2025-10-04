@@ -1,6 +1,10 @@
 #include <memory>
 
 #include "ManapiGrpc.hpp"
+#include "ManapiTimerPool.hpp"
+#include "ManapiTimerObject.hpp"
+#include "ManapiEventLoop.hpp"
+#include "ManapiThreadPool.hpp"
 #include "ManapiDns.hpp"
 #include "fs/ManapiFilesystem.hpp"
 #include "http/ManapiHttpUtils.hpp"

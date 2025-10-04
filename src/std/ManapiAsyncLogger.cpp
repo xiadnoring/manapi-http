@@ -1,3 +1,6 @@
+#include <iostream>
+
+#include "ManapiTime.hpp"
 #include "std/ManapiAsyncLogger.hpp"
 #include "std/ManapiAsyncContext.hpp"
 #include "std/ManapiAsyncThreadsMutex.hpp"

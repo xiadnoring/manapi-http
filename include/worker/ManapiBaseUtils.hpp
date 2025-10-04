@@ -2,6 +2,7 @@
 
 #include "./ManapiInterfaceWorker.hpp"
 #include "./ManapiBaseWorker.hpp"
+#include "./ManapiTimerObject.hpp"
 
 #define MANAPIHTTP_WORKER_EVENT_LOOP(n__) n__->speed_min_delay = static_cast<int>(this->config()->speed_check_delay); \
 auto const prev = std::exchange(n__->flags, ((n__->flags >> 2) << 2) | (flags & CONN_MASK_UPDATE)); \

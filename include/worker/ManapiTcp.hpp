@@ -4,7 +4,7 @@
 #include "./ManapiBaseWorker.hpp"
 #include "./ManapiInterfaceWorker.hpp"
 #include "./ManapiAsync.hpp"
-#include "../std/ManapiCancellation.hpp"
+#include "./ManapiTimerObject.hpp"
 
 namespace manapi::net::worker {
     struct tcp_connection_t;

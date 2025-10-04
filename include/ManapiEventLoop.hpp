@@ -1,12 +1,10 @@
 #pragma once
 
-#include <set>
-#include <stack>
+#include <map>
 
 #include "./ManapiUtils.hpp"
 #include "./ManapiInt.hpp"
 #include "./ManapiAsync.hpp"
-#include "./ManapiThreadPool.hpp"
 #include "./std/ManapiAsyncMutex.hpp"
 #include "./std/ManapiAsyncPromise.hpp"
 #include "./ManapiTimerObject.hpp"
@@ -73,6 +71,8 @@ namespace manapi::ev::internal {
 }
 
 namespace manapi {
+    class logger;
+
     class event_loop {
     public:
         event_loop();

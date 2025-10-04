@@ -21,7 +21,7 @@ static constexpr std::string_view json_null_ = "null";
     json_type_to_str(this->type), static_cast <int> (this->type), __FUNCTION__)
 #define THROW_MANAPIHTTP_JSON_ERROR(errnum, msg, ...) throw RETHROW_MANAPIHTTP_JSON_ERROR(errnum, msg, __VA_ARGS__)
 
-static void delete_value_static(short type, void *src) MANAPIHTTP_NOEXCEPT {
+static void delete_value_static(int type, void *src) MANAPIHTTP_NOEXCEPT {
     switch (type) {
         case manapi::json::type_null:
             break;

@@ -1,4 +1,6 @@
 #include "ManapiDns.hpp"
+#include "ManapiEventLoop.hpp"
+#include "std/ManapiAsyncPromise.hpp"
 
 manapi::future<int> manapi::dns::getaddrinfo(const char * node, const char* service, const addrinfo *hints, addrinfo **res, async::cancellation_action token) {
     try {

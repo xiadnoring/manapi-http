@@ -1,4 +1,5 @@
 #include "ManapiUtils.hpp"
+#include "ManapiTimerPool.hpp"
 #include "../include/ManapiUtils.hpp"
 
 #if defined( MANAPIHTTP_NGHTTP3_DEPENDENCY ) && MANAPIHTTP_NGHTTP3_DEPENDENCY

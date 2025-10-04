@@ -2,6 +2,7 @@
 #include <fcntl.h>
 #include <memory>
 
+#include "std/ManapiAsyncPromise.hpp"
 #include "worker/ManapiBaseWorker.hpp"
 #include "worker/ManapiBaseUtils.hpp"
 #include "../include/ManapiUtils.hpp"

@@ -1,4 +1,6 @@
 #include "ManapiAsync.hpp"
+#include "ManapiThreadPool.hpp"
+#include "std/ManapiAsyncContext.hpp"
 
 static size_t max_stack_depth_ = 300;
 thread_local std::size_t current_stack_cnt = 0;
@@ -30,6 +32,10 @@ void manapi::async::internal::max_stack_depth_set (std::size_t cnt) MANAPIHTTP_N
 
 bool manapi::async::internal::future_final_awaiter_ready() MANAPIHTTP_NOEXCEPT {
     return false;
+}
+
+void manapi::async::internal::append_static_task(manapi::static_function<void()> callback) MANAPIHTTP_NOEXCEPT {
+    async::current()->etaskpool()->append_static_task(std::move(callback));
 }
 
 std::coroutine_handle<> manapi::async::internal::future_final_awaiter_suspend(std::coroutine_handle<promise<void, manapi::future<>>> handle) MANAPIHTTP_NOEXCEPT {
