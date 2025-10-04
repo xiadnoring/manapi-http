@@ -8,6 +8,7 @@
 #pragma once
 
 #include <regex>
+#include <chrono>
 
 #include "./ManapiHttpUtils.hpp"
 #include "./ManapiHttpConfig.hpp"

@@ -10,6 +10,11 @@
 #include <string>
 #include <functional>
 
+#include "../ManapiUtils.hpp"
+#include "../json/ManapiJson.hpp"
+#include "../std/ManapiAsyncConditionVariable.hpp"
+#include "../utils/ManapiConfig.hpp"
+
 #ifdef _WIN32
 #    include <winsock2.h>
 #    include <ws2tcpip.h>
@@ -19,11 +24,6 @@
 #    include <sys/types.h>
 #    include <netdb.h>
 #endif
-
-#include "../ManapiUtils.hpp"
-#include "../json/ManapiJson.hpp"
-#include "../std/ManapiAsyncConditionVariable.hpp"
-#include "../utils/ManapiConfig.hpp"
 
 namespace manapi::net::http {
     namespace versions {

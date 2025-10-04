@@ -4,6 +4,7 @@
 #include "json/ManapiJsonMask.hpp"
 #include "json/ManapiJsonBuilder.hpp"
 #include "fs/ManapiFilesystem.hpp"
+#include "ManapiTimerPool.hpp"
 
 #include "./utest.h"
 #include "./tools.hpp"

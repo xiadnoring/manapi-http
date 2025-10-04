@@ -18,6 +18,7 @@
 #define MANAPIHTTP_SINCE_AT_CUSTOM(major1, minor1, patch1, major2, minor2, patch2) ((major1) > (major2) || ((major1)==(major2)&&((minor1) > (minor2) || ((minor1)==(minor2) && (patch1)>=(patch2)))))
 
 #include "ManapiParams.hpp"
+#include "ManapiInt.hpp"
 #ifdef _WIN32
 #   define NOMINMAX
 #   define WIN32_LEAN_AND_MEAN
