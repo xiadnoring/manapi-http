@@ -32,9 +32,9 @@ namespace manapi::async {
     public:
         mutex ();
 
-        mutex (mutex &&n) noexcept;
+        mutex (mutex &&n) MANAPIHTTP_NOEXCEPT;
 
-        mutex &operator=(mutex &&n) noexcept;
+        mutex &operator=(mutex &&n) MANAPIHTTP_NOEXCEPT;
 
         manapi::future<void> lock ();
 
@@ -47,6 +47,6 @@ namespace manapi::async {
         ~mutex ();
     private:
         bool own;
-        std::vector <std::coroutine_handle<future<>::promise> > stack;
+        std::vector <std::coroutine_handle<>> stack;
     };
 }

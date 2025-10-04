@@ -579,7 +579,7 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
     s->flags |= CONN_REMOVED|CONN_CLOSED;
 
     MANAPIHTTP_MUST_ALLOC_START
-    manapi::async::current()->etaskpool()->append_task([conn] () -> void {
+    manapi::async::current()->etaskpool()->append_static_task([conn] () -> void {
         std::array<char, 17> arr;
         memset(arr.data(), '\0', arr.size());
         auto const addr = reinterpret_cast<sockaddr *> (conn->ipdata->client.data);
@@ -835,7 +835,7 @@ void manapi::net::worker::openssl_quic::close_stream(shared_conn s, int flags) M
     prepared::top_buffer_clear(data);
 
     MANAPIHTTP_MUST_ALLOC_START
-    manapi::async::current()->etaskpool()->append_task([s, flags] () mutable -> void {
+    manapi::async::current()->etaskpool()->append_static_task([s, flags] () mutable -> void {
         if (s) {
             auto const data = s->as<quic_stream_t>();
             if (!data)

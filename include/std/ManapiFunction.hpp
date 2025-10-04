@@ -14,15 +14,15 @@
 #include "../ManapiUtils.hpp"
 
 namespace manapi {
-    template <typename>
-    class move_only_function;
+    template<typename>
+    class static_function;
 
-    template<typename Result, typename... Arguments>
-    class move_only_function<Result(Arguments...)> {
+    template<std::size_t Size, bool StaticOnly, typename Result, typename... Arguments>
+    class move_only_function_base {
         template <typename ReturnType, typename... Args>
         struct FunctorHolderBase
         {
-            virtual ~FunctorHolderBase() {};
+            virtual ~FunctorHolderBase() {}
 
             virtual ReturnType operator()(Args&&...) = 0;
 
@@ -47,25 +47,27 @@ namespace manapi {
         };
 
         union function_data {
-            char stack[64];
+            char stack[Size];
         };
     public:
-        move_only_function () : functorHolderPtr(nullptr), data() {}
+        move_only_function_base () : functorHolderPtr(nullptr), data() {}
 
-        move_only_function (std::nullptr_t) : functorHolderPtr(nullptr), data() {}
+        move_only_function_base (std::nullptr_t) : functorHolderPtr(nullptr), data() {}
 
         template <typename Functor>
-        move_only_function (Functor f) {
+        move_only_function_base (Functor &&f) {
             if constexpr (sizeof (FunctorHolder<Functor, Result, Arguments...>) <= sizeof (this->data.stack)) {
                 memset (&this->data.stack, '\0', sizeof (this->data.stack));
                 this->functorHolderPtr = (decltype (this->functorHolderPtr)) std::addressof (this->data.stack);
-                new (this->functorHolderPtr) FunctorHolder<Functor, Result, Arguments...> (std::move(f));
+                new (this->functorHolderPtr) FunctorHolder<Functor, Result, Arguments...> (std::forward<Functor>(f));
             }
-            else
-                this->functorHolderPtr = new FunctorHolder<Functor, Result, Arguments...> (std::move(f));
+            else {
+                static_assert(!StaticOnly, "manapi func:params are too large for Static Allocation");
+                this->functorHolderPtr = new FunctorHolder<Functor, Result, Arguments...> (std::forward<Functor>(f));
+            }
         }
 
-        ~move_only_function() {
+        ~move_only_function_base() {
             if (this->functorHolderPtr == (decltype (this->functorHolderPtr)) std::addressof (this->data.stack))
                 this->functorHolderPtr->~FunctorHolderBase();
             else
@@ -83,7 +85,7 @@ namespace manapi {
             return (*this->functorHolderPtr) (std::forward<Arguments> (args)...);
         }
 
-        move_only_function (move_only_function&& other) MANAPIHTTP_NOEXCEPT {
+        move_only_function_base (move_only_function_base&& other) MANAPIHTTP_NOEXCEPT {
             if (other.functorHolderPtr == (decltype (other.functorHolderPtr)) std::addressof (other.data.stack)) {
                 memset (&this->data.stack, '\0', sizeof (this->data.stack));
                 this->functorHolderPtr = (decltype (this->functorHolderPtr))std::addressof(this->data.stack);
@@ -96,7 +98,7 @@ namespace manapi {
             other.functorHolderPtr = nullptr;
         }
 
-        move_only_function& operator= (move_only_function&& other) MANAPIHTTP_NOEXCEPT {
+        move_only_function_base& operator= (move_only_function_base&& other) MANAPIHTTP_NOEXCEPT {
             if (other.functorHolderPtr == (decltype (other.functorHolderPtr)) std::addressof (other.data.stack)) {
                 memset (&this->data.stack, '\0', sizeof (this->data.stack));
                 this->functorHolderPtr = (decltype (this->functorHolderPtr))std::addressof(this->data.stack);
@@ -109,8 +111,28 @@ namespace manapi {
             other.functorHolderPtr = nullptr;
             return *this;
         }
-    private:
+    protected:
         FunctorHolderBase<Result, Arguments...>* functorHolderPtr;
         function_data data;
+    };
+
+    template<typename Result, typename... Arguments>
+    class static_function<Result(Arguments...)> : public move_only_function_base<64, true, Result, Arguments...> {
+        using Base = move_only_function_base<64, true, Result, Arguments...>;
+    public:
+        static_function () = default;
+
+        static_function (std::nullptr_t) : Base(nullptr) {}
+
+        template <typename Functor>
+        static_function (Functor &&f) : Base(std::forward<decltype(f)>(f)) {}
+
+        static_function (static_function &&n) MANAPIHTTP_NOEXCEPT = default;
+
+        static_function& operator= (static_function &&n) MANAPIHTTP_NOEXCEPT = default;
+
+        MANAPIHTTP_NODISCARD operator bool () const {
+            return !!this->functorHolderPtr;
+        }
     };
 }

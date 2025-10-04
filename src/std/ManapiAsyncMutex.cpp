@@ -1,19 +1,23 @@
 #include "std/ManapiAsyncMutex.hpp"
 
 struct mutex_promise {
-    std::vector <std::coroutine_handle<manapi::future<>::promise>> &stack;
+    std::vector <std::coroutine_handle<>> &stack;
     bool &own;
 
-    bool await_ready () noexcept;
-    void await_resume () noexcept;
-    void await_suspend (std::coroutine_handle<manapi::future<>::promise> handle);
+    bool await_ready () MANAPIHTTP_NOEXCEPT;
+
+    void await_resume () MANAPIHTTP_NOEXCEPT;
+
+    void await_suspend (std::coroutine_handle<> handle);
 };
 
-bool mutex_promise::await_ready() noexcept { return false; }
+bool mutex_promise::await_ready() MANAPIHTTP_NOEXCEPT {
+    return false; }
 
-void mutex_promise::await_resume() noexcept {}
+void mutex_promise::await_resume() MANAPIHTTP_NOEXCEPT {
+}
 
-void mutex_promise::await_suspend(std::coroutine_handle<manapi::future<>::promise> handle) {
+void mutex_promise::await_suspend(std::coroutine_handle<> handle) {
     if (this->own) {
         MANAPIHTTP_MUST_ALLOC_START
         this->stack.push_back(std::exchange(handle, nullptr));
@@ -21,7 +25,7 @@ void mutex_promise::await_suspend(std::coroutine_handle<manapi::future<>::promis
     }
     else {
         this->own = true;
-        manapi::future<>::resume_promise(handle);
+        handle.resume();
     }
 }
 
@@ -92,10 +96,12 @@ void manapi::async::mutex::unlock() MANAPIHTTP_NOEXCEPT {
     auto handle = this->stack.back();
     this->stack.pop_back();
 
-    manapi::async::current()->etaskpool()->append_task(
-        [handle = std::exchange(handle, nullptr)] () -> void {
-        future<>::resume_promise(handle);
+    MANAPIHTTP_MUST_ALLOC_START
+    manapi::async::current()->etaskpool()->append_static_task(
+        [handle] () -> void {
+        handle.resume();
     });
+    MANAPIHTTP_MUST_ALLOC_END
 }
 
 manapi::future<manapi::async::mutex_locker> manapi::async::mutex::lock_guard()  {

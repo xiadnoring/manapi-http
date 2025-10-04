@@ -17,7 +17,7 @@ manapi::async::cthread::cthread(shared_eventloop eventloop, shared_taskpool task
 }
 
 void manapi::async::cthread::current(std::shared_ptr<cthread> thr) MANAPIHTTP_NOEXCEPT {
-    async::internal::current_cthread_ = std::move(thr);
+    internal::current_(std::move(thr));
 }
 
 manapi::async::cthread::~cthread() = default;
@@ -247,17 +247,12 @@ const std::vector<manapi::async::shared_cthread> & manapi::async::context::loops
 }
 
 const manapi::async::shared_cthread &manapi::async::current() MANAPIHTTP_NOEXCEPT {
-   assert(async::internal::current_cthread_ && "async ctx doesn't exists in that thread");
-    return async::internal::current_cthread_;
+    assert(manapi::async::internal::current_() && "async ctx doesn't exists in that thread");
+    return manapi::async::internal::current_();
 }
 
 bool manapi::async::context_exists() MANAPIHTTP_NOEXCEPT {
-    return async::internal::current_cthread_ != nullptr;
-}
-
-
-const std::shared_ptr<manapi::async::cthread> & manapi::async::internal::current_() MANAPIHTTP_NOEXCEPT {
-    return async::internal::current_cthread_;
+    return manapi::async::internal::current_() != nullptr;
 }
 
 manapi::async::context::~context() = default;

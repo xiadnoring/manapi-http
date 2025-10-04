@@ -18,7 +18,7 @@ int default_wrk_http2_cleanup (manapi::net::worker::connection *conn, manapi::ne
 
 static void wrk_close_connection ( manapi::net::worker::shared_conn conn, manapi::net::worker::shared_conn sconn, manapi::net::worker::base *w, bool ok) MANAPIHTTP_NOEXCEPT {
     MANAPIHTTP_MUST_ALLOC_START
-    manapi::async::current()->etaskpool()->append_task(
+    manapi::async::current()->etaskpool()->append_static_task(
         [w = std::move(w), ok, conn = std::move(conn), sconn = std::move(sconn)] () -> void {
             auto const sdata = sconn->as<manapi::net::http::http_v2_stream_t>();
             auto ctx = static_cast<manapi::net::worker::wrk_http2_ctx_t *>(conn->wrk.data);

@@ -11,9 +11,8 @@
 
 namespace manapi::async {
     class condition_variable {
-    private:
         struct notify_sub_t {
-            std::coroutine_handle<future<>::promise> handle;
+            std::coroutine_handle<> handle;
             std::function<bool()> cond;
         };
     public:

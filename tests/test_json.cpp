@@ -38,13 +38,13 @@ UTEST(json, block_parse_special_symbols) {
 UTEST(json, block_dump_special_symbols) {
     manapi::json a = {{"hello", "world\ntest"}};
     std::string b = a.dump();
-    ASSERT_TRUE(b == R"({"hello": "world\ntest"})");
+    ASSERT_TRUE(b == R"({"hello":"world\ntest"})");
 }
 
 UTEST(json, block_dump_special_symbols2) {
     manapi::json a = {{"hello", "🇦🇪🏕️👬😎😎😎😎🥴🥴😼😼😼"}};
     std::string b = a.dump();
-    ASSERT_TRUE(b == "{\"hello\": \"🇦🇪🏕️👬😎😎😎😎🥴🥴😼😼😼\"}");
+    ASSERT_TRUE(b == "{\"hello\":\"🇦🇪🏕️👬😎😎😎😎🥴🥴😼😼😼\"}");
 }
 
 UTEST(json, block_parse_unsigned_integer) {
@@ -195,7 +195,7 @@ UTEST(json, stream_parse_2) {
 UTEST(json, dump) {
     manapi::json a = {{"hello", "world"}};
 
-    ASSERT_TRUE(a.dump() == R"({"hello": "world"})");
+    ASSERT_TRUE(a.dump() == R"({"hello":"world"})");
 }
 
 UTEST(json, dump_2) {
@@ -223,44 +223,44 @@ UTEST(json, dump_3) {
         }}
     };
 
-    ASSERT_TRUE_MSG( a.dump() == R"({"answer": {"everything": 42}, "happy": true, "list": [1, 0, 2], "name": "Niels", "nothing": null, "object": {"currency": "USD", "value": 42.990000}, "pi": 3.141000})",
+    ASSERT_TRUE_MSG( a.dump() == R"({"answer":{"everything":42},"happy":true,"list":[1,0,2],"name":"Niels","nothing":null,"object":{"currency":"USD","value":42.990000},"pi":3.141000})",
         "dump(n)");
     ASSERT_TRUE_MSG(a.dump(2) == R"({
-  "answer": {
-    "everything": 42
+  "answer":{
+    "everything":42
   },
-  "happy": true,
-  "list": [
+  "happy":true,
+  "list":[
     1,
     0,
     2
   ],
-  "name": "Niels",
-  "nothing": null,
-  "object": {
-    "currency": "USD",
-    "value": 42.990000
+  "name":"Niels",
+  "nothing":null,
+  "object":{
+    "currency":"USD",
+    "value":42.990000
   },
-  "pi": 3.141000
+  "pi":3.141000
 })", "dump(n, 2)");
 
     ASSERT_TRUE_MSG(a.dump(2, 2) == R"(  {
-    "answer": {
-      "everything": 42
+    "answer":{
+      "everything":42
     },
-    "happy": true,
-    "list": [
+    "happy":true,
+    "list":[
       1,
       0,
       2
     ],
-    "name": "Niels",
-    "nothing": null,
-    "object": {
-      "currency": "USD",
-      "value": 42.990000
+    "name":"Niels",
+    "nothing":null,
+    "object":{
+      "currency":"USD",
+      "value":42.990000
     },
-    "pi": 3.141000
+    "pi":3.141000
   })", "dump(n, 2, 2)");
 }
 

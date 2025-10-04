@@ -28,7 +28,7 @@ namespace manapi {
 
         virtual void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
 
-        virtual void append_super_task (manapi::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
+        virtual void append_static_task (manapi::static_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
 
         virtual void start() = 0;
 
@@ -67,7 +67,7 @@ namespace manapi {
 
         void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
-        void append_super_task(manapi::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
+        void append_static_task(manapi::static_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
         std::size_t size() const MANAPIHTTP_NOEXCEPT;
 
@@ -83,9 +83,9 @@ namespace manapi {
         tasks_by_thread_t tasks_by_thread;
 
         // this vector of queue which contains tasks
-        std::deque <std::move_only_function<void()>> tasks;
+        std::vector <std::move_only_function<void()>> tasks;
 
-        std::deque <manapi::move_only_function<void()>> tasks2;
+        std::vector <manapi::static_function<void()>> tasks2;
 
         // queue mutex
         mutable std::mutex queue_mutex;
@@ -95,7 +95,7 @@ namespace manapi {
 
         void run(ssize_t index);
 
-        int get_task(ssize_t index, std::move_only_function<void()> *cb1, manapi::move_only_function<void()> *cb2);
+        int get_task(ssize_t index, std::move_only_function<void()> *cb1, manapi::static_function<void()> *cb2);
 
         std::atomic<int> flags;
 
@@ -122,15 +122,15 @@ namespace manapi {
 
         void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
-        void append_super_task(manapi::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
+        void append_static_task(manapi::static_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
         void join () MANAPIHTTP_NOEXCEPT override;
     private:
         int flags_;
 
-        std::deque <std::move_only_function<void()>> tasks;
+        std::vector <std::move_only_function<void()>> tasks;
 
-        std::deque <manapi::move_only_function<void()>> tasks2;
+        std::vector <manapi::static_function<void()>> tasks2;
 
         std::move_only_function<void()> ontask_;
     };

@@ -4,13 +4,13 @@ struct manapi::async::condition_variable::promise {
     std::function<bool()> cond;
     chain <notify_sub_t> *stack;
 
-    bool await_ready () noexcept { return false; }
-    void await_resume () noexcept {}
+    bool await_ready () MANAPIHTTP_NOEXCEPT { return false; }
+    void await_resume () MANAPIHTTP_NOEXCEPT {}
 
-    void await_suspend (std::coroutine_handle<future<>::promise> handle);
+    void await_suspend (std::coroutine_handle<> handle);
 };
 
-void manapi::async::condition_variable::promise::await_suspend(std::coroutine_handle<future<>::promise> handle) {
+void manapi::async::condition_variable::promise::await_suspend(std::coroutine_handle<> handle) {
     this->stack->push_back({handle, std::move(this->cond)});
 }
 

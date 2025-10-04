@@ -275,7 +275,7 @@ void manapi::json::parse_(size_t num) {
 void json_dump_ (std::string &res, const manapi::json *n, int spaces, int first_spaces, bool root = true) {
 #define JSON_DUMP_NEED_NEW_LINE if (spaces_enabled) res += '\n';
 #define JSON_DUMP_NEED_NEW_LINE_OR_SPACE    JSON_DUMP_NEED_NEW_LINE \
-                                            else res += ' ';
+                                            else {/**res += ' '**/};
 #define JSON_DUMP_NEED_SPACES   for (int z = 0; z < total_spaces; z++) res += ' ';
 #define JSON_DUMP_LAST_SPACES   for (int z = 0; z < first_spaces; z++) res += ' ';
     const int total_spaces = first_spaces + spaces;
@@ -332,7 +332,7 @@ void json_dump_ (std::string &res, const manapi::json *n, int spaces, int first_
                     JSON_DUMP_NEED_SPACES
 
                     res += manapi::unicode::escape_string(it->first);
-                    res += ": ";
+                    res += ":";
                     json_dump_(res, &it->second, spaces, total_spaces, false);
                 }
             }

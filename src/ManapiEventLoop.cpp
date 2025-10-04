@@ -1345,7 +1345,7 @@ manapi::error::status manapi::event_loop::watch_curl(void * shared_curl, std::mo
     }
 
     MANAPIHTTP_MUST_ALLOC_START
-    this->etaskpool_->append_task([this] () -> void {
+    this->etaskpool_->append_static_task([this] () -> void {
         this->handle_curl_exec_connections();
         this->handle_curl_check_connections();
     });
@@ -1383,7 +1383,7 @@ manapi::error::status manapi::event_loop::unwatch_curl(void * shared_curl) MANAP
     }
 
     MANAPIHTTP_MUST_ALLOC_START
-    this->etaskpool_->append_task([this] () -> void {
+    this->etaskpool_->append_static_task([this] () -> void {
         this->handle_curl_exec_connections();
         this->handle_curl_check_connections();
     });
@@ -1401,7 +1401,7 @@ manapi::error::status manapi::event_loop::pause_watch_curl(void * shared_curl) M
         return error::status_invalid_argument("curl_easy_pause failed");
     }
     MANAPIHTTP_MUST_ALLOC_START
-    this->etaskpool_->append_task([this] () -> void {
+    this->etaskpool_->append_static_task([this] () -> void {
         this->handle_curl_exec_connections();
         this->handle_curl_check_connections();
     });
@@ -1420,7 +1420,7 @@ manapi::error::status manapi::event_loop::unpause_watch_curl(void *shared_curl) 
     }
 
     MANAPIHTTP_MUST_ALLOC_START
-    this->etaskpool_->append_task([this] () -> void {
+    this->etaskpool_->append_static_task([this] () -> void {
         this->handle_curl_exec_connections();
         this->handle_curl_check_connections();
     });

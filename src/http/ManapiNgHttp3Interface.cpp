@@ -615,7 +615,7 @@ static int ng_wrk_http3_end_headers (nghttp3_conn *conn, int64_t stream_id, int 
                         [conn] (bool ok) mutable
                         -> void {
                             MANAPIHTTP_MUST_ALLOC_START
-                            manapi::async::current()->etaskpool()->append_task(
+                            manapi::async::current()->etaskpool()->append_static_task(
                                 [ok, conn] () mutable  -> void {
                                     ng_wrk_close_connection (conn, ok);
                             });

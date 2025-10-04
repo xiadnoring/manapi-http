@@ -266,7 +266,7 @@ std::size_t manapi::net::fetch::curl_read_handler(char *buffer, std::size_t size
 
 static manapi::error::status process_accepted_data_cb (const std::shared_ptr<manapi::net::fetch::data_t> &data) MANAPIHTTP_NOEXCEPT {
     try {
-        manapi::async::current()->etaskpool()->append_task([data] () mutable -> void {
+        manapi::async::current()->etaskpool()->append_static_task([data] () mutable -> void {
             MANAPIHTTP_MUST_ALLOC_START
             manapi::async::run(data->async_handler_recv_body(data, false));
             MANAPIHTTP_MUST_ALLOC_END

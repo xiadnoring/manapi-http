@@ -3,160 +3,146 @@
 #include <cassert>
 #include <memory>
 #include <functional>
-#include <iostream>
-#include <thread>
-#include <atomic>
 #include <mutex>
 #include <utility>
 #include <functional>
 
 #include "./ManapiThreadPool.hpp"
 
-namespace manapi {
-    namespace async {
-        class mutex_locker;
-        class cthread;
+namespace manapi::async {
+    class mutex_locker;
 
-        namespace internal {
-            extern thread_local std::size_t current_stack_cnt;
+    class cthread;
 
-            extern thread_local std::shared_ptr<cthread> current_cthread_;
+    const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXCEPT;
 
-            const std::shared_ptr<threadpool> &ethreadpool_(const std::shared_ptr<cthread> &ctx) MANAPIHTTP_NOEXCEPT;
+    bool context_exists () MANAPIHTTP_NOEXCEPT;
+}
 
-            const std::shared_ptr<cthread> &current_ () MANAPIHTTP_NOEXCEPT;
+namespace manapi::async::internal {
+    const std::shared_ptr<threadpool> &ethreadpool_(const std::shared_ptr<cthread> &ctx) MANAPIHTTP_NOEXCEPT;
 
-            std::size_t current_stack_cnt_crt () MANAPIHTTP_NOEXCEPT;
+    const std::shared_ptr<cthread> &current_ () MANAPIHTTP_NOEXCEPT;
 
-            void current_stack_cnt_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
+    void current_ (std::shared_ptr<cthread> ctx) MANAPIHTTP_NOEXCEPT;
 
-            std::size_t max_stack_depth2 () MANAPIHTTP_NOEXCEPT;
+    std::size_t current_stack_cnt_crt () MANAPIHTTP_NOEXCEPT;
 
-            void max_stack_depth2 (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
-        }
+    void current_stack_cnt_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
 
-        const std::shared_ptr<cthread> &current () MANAPIHTTP_NOEXCEPT;
+    std::size_t max_stack_depth_crt () MANAPIHTTP_NOEXCEPT;
 
-        bool context_exists () MANAPIHTTP_NOEXCEPT;
-    }
+    void max_stack_depth_set (std::size_t cnt) MANAPIHTTP_NOEXCEPT;
+
+    bool future_final_awaiter_ready () MANAPIHTTP_NOEXCEPT;
 
     class promise_base_future {
     public:
-        promise_base_future() = default;
+        promise_base_future();
 
-        ~promise_base_future() = default;
+        ~promise_base_future();
 
-        void unhandled_exception () {
-            this->exception = std::current_exception();
-        }
+        void unhandled_exception ();
 
         std::coroutine_handle<> waiting;
 
         std::exception_ptr exception;
     };
 
+    template<typename T, typename P>
+    struct final_awaiter {
+        bool await_ready () MANAPIHTTP_NOEXCEPT {
+            return async::internal::future_final_awaiter_ready();
+        }
+
+        template<typename T1 = T>
+        requires(std::is_same_v<T, void>)
+        std::coroutine_handle<> await_suspend (std::coroutine_handle<P> handle) MANAPIHTTP_NOEXCEPT;
+
+        template<typename T1 = T>
+        requires(!std::is_same_v<T, void>)
+        auto await_suspend (std::coroutine_handle<P> handle) MANAPIHTTP_NOEXCEPT {
+            auto &promise_ = handle.promise();
+            auto waiting = std::exchange(promise_.waiting, nullptr);
+
+            if (promise_.finish_cb) {
+                if (promise_.exception) {
+                    promise_.finish_cb->operator()(std::move(promise_.exception), nullptr);
+                }
+                else {
+                    auto value_ = promise_.get_value();
+                    promise_.finish_cb->operator()(std::move(promise_.exception), &value_);
+                }
+            }
+
+            return waiting ? waiting : std::noop_coroutine();
+        }
+
+        void await_resume () MANAPIHTTP_NOEXCEPT {}
+    };
+
+    template<typename T, typename F>
+    class promise : public promise_base_future
+    {
+    public:
+        promise () = default;
+
+        promise (promise &&n) MANAPIHTTP_NOEXCEPT = default;
+
+        std::suspend_always yield_value(T value) {
+            this->value = std::move(value);
+            return {};
+        }
+
+        std::suspend_always initial_suspend() { return {}; }
+
+        void return_value (const T &t) {
+            this->value = t;
+        }
+
+        void return_value (T &&t) {
+            this->value = std::move(t);
+        }
+
+        F get_return_object()
+        {
+            return F{ std::coroutine_handle<promise>::from_promise(*this) };
+        }
+
+        T get_value() {
+            if (!this->value.has_value()) {
+                throw std::runtime_error("Pointer is null");
+            }
+            return std::move(this->value.value());
+        }
+
+        final_awaiter<T, promise<T, F>> final_suspend() MANAPIHTTP_NOEXCEPT { return {}; }
+
+        std::unique_ptr<std::move_only_function<void(std::exception_ptr err, T *v)>> finish_cb{nullptr};
+        std::optional<T> value{};
+    };
+
+    void future_final_awaiter_suspend (std::coroutine_handle<promise_base_future> original, std::coroutine_handle<promise_base_future> handle) MANAPIHTTP_NOEXCEPT;
+}
+
+namespace manapi {
     template <typename T = void>
     class future
     {
-        public:
-        template<typename P>
-        struct final_awaiter {
-            bool await_ready () noexcept { return false; }
-
-            template<typename T1 = T>
-            requires(std::is_same_v<T, void>)
-            auto await_suspend (std::coroutine_handle<P> handle) noexcept {
-                auto &promise_ = handle.promise();
-                auto waiting = std::exchange(promise_.waiting, nullptr);
-
-                if (promise_.finish_cb) {
-                    promise_.finish_cb->operator()(std::move(promise_.exception));
-                }
-
-                return waiting ? waiting : std::noop_coroutine();
-            }
-
-            template<typename T1 = T>
-            requires(!std::is_same_v<T, void>)
-            auto await_suspend (std::coroutine_handle<P> handle) noexcept {
-                auto &promise_ = handle.promise();
-                auto waiting = std::exchange(promise_.waiting, nullptr);
-
-                if (promise_.finish_cb) {
-                    if (promise_.exception) {
-                        promise_.finish_cb->operator()(std::move(promise_.exception), nullptr);
-                    }
-                    else {
-                        auto value_ = promise_.get_value();
-                        promise_.finish_cb->operator()(std::move(promise_.exception), &value_);
-                    }
-                }
-
-                return waiting ? waiting : std::noop_coroutine();
-            }
-
-            void await_resume () noexcept {}
-        };
-
-        class promise : public promise_base_future
-        {
-        public:
-            promise () : promise_base_future() {}
-
-            promise (promise &&n) noexcept : promise_base_future(std::forward<decltype(n)>(n)) {}
-
-            std::suspend_always yield_value(T value) {
-                this->value = std::move(value);
-                return {};
-            }
-
-            std::suspend_always initial_suspend() { return {}; }
-
-            void return_value (const T &t) {
-                this->value = t;
-            }
-
-            void return_value (T &&t) {
-                this->value = std::move(t);
-            }
-
-
-            future get_return_object()
-            {
-                return future{ std::coroutine_handle<promise>::from_promise(*this) };
-            }
-
-            T get_value() {
-                if (!this->value.has_value()) {
-                    throw std::runtime_error("Pointer is null");
-                }
-                return std::move(this->value.value());
-            }
-
-            final_awaiter<promise> final_suspend() noexcept {
-                return {};
-            }
-
-            std::unique_ptr<std::move_only_function<void(std::exception_ptr err, T *v)>> finish_cb{nullptr};
-            std::optional<T> value{};
-        };
-
+    public:
         using value_type = T;
-        using promise_type = promise;
+        using promise_type = async::internal::promise<T, manapi::future<T>>;
 
-        explicit future(std::coroutine_handle<promise> handle) : handle_ (std::exchange(handle, nullptr)) {}
+        explicit future(std::coroutine_handle<promise_type> handle) : handle_ (std::exchange(handle, nullptr)) {}
 
-        ~future() {
-            this->reset();
-        }
+        ~future() { this->reset(); }
 
-        future (future &&n) noexcept {
+        future (future &&n) MANAPIHTTP_NOEXCEPT {
             this->handle_ = std::exchange(n.handle_, nullptr);
         }
 
-        future &operator=(future &&n) noexcept {
+        future &operator=(future &&n) MANAPIHTTP_NOEXCEPT {
             this->handle_ = std::exchange(n.handle_, nullptr);
-
             return *this;
         }
 
@@ -167,12 +153,12 @@ namespace manapi {
             }
         }
 
-        std::coroutine_handle<promise> release () MANAPIHTTP_NOEXCEPT {
+        std::coroutine_handle<promise_type> release () MANAPIHTTP_NOEXCEPT {
             return std::exchange(this->handle_, nullptr);
         }
 
         void operator()() MANAPIHTTP_NOEXCEPT {
-            this->resume_promise(this->handle_);
+            this->handle_.resume();
         }
 
         MANAPIHTTP_NODISCARD bool operator==(const std::nullptr_t &n) const {
@@ -184,21 +170,22 @@ namespace manapi {
         }
 
         struct Awaiter {
-            std::coroutine_handle<promise> handle;
+            std::coroutine_handle<promise_type> handle;
 
             template <typename T1>
             void await_suspend (std::coroutine_handle<T1> handle) {
+                //async::internal::future_final_awaiter_suspend(this->handle, handle);
                 auto &promise = this->handle.promise();
-                auto &npromise = handle.promise();
+                //auto &npromise = handle.promise();
 
                 promise.waiting = handle;
 
                 auto current_stack_cnt_ = manapi::async::internal::current_stack_cnt_crt ();
-                if (current_stack_cnt_ >= async::internal::max_stack_depth2()) {
+                if (current_stack_cnt_ >= async::internal::max_stack_depth_crt()) {
                     auto &thr = manapi::async::current();
                     if (thr) {
-                        async::internal::ethreadpool_(thr)->append_task([handle = this->handle] () -> void {
-                             handle.resume();
+                        async::internal::ethreadpool_(thr)->append_static_task([original = this->handle] () -> void {
+                             original.resume();
                         });
                     }
 
@@ -234,12 +221,6 @@ namespace manapi {
             }
         };
 
-        template <typename T1>
-        requires(std::is_base_of_v<promise_base_future, T1>)
-        static void resume_promise (const std::coroutine_handle<T1> &handle) MANAPIHTTP_NOEXCEPT {
-            handle.resume();
-        }
-
         template <typename T1 = T>
         requires(std::is_same_v<T, void>)
         void onfinish (std::move_only_function<void(std::exception_ptr err)> cb) {
@@ -274,34 +255,42 @@ namespace manapi {
             return !this->handle_ || this->handle_.done();
         }
 
-        MANAPIHTTP_NODISCARD const std::coroutine_handle<promise> &handle () {
+        MANAPIHTTP_NODISCARD const std::coroutine_handle<promise_type> &handle () {
             return this->handle_;
         }
 
-        auto operator co_await () noexcept { return Awaiter{this->handle_}; }
+        Awaiter operator co_await () MANAPIHTTP_NOEXCEPT {
+            return Awaiter{this->handle_};
+        }
     private:
-        std::coroutine_handle<promise> handle_;
+        std::coroutine_handle<promise_type> handle_;
     };
+}
 
+namespace manapi::async::internal {
     template<>
-    class future<void>::promise : public promise_base_future {
+    class promise<void, manapi::future<>> : public promise_base_future {
     public:
-        promise () : promise_base_future() {}
-        promise (promise &&n) noexcept : promise_base_future(std::forward<decltype(n)>(n)) {}
+        promise ();
 
-        void return_void () const {}
+        promise (promise &&n) MANAPIHTTP_NOEXCEPT;
 
-        future<void>::final_awaiter<promise> final_suspend() noexcept {
-            return {};
-        }
+        void return_void ();
 
-        std::suspend_always initial_suspend() { return {}; }
+        final_awaiter<void, promise<void, manapi::future<>>> final_suspend() MANAPIHTTP_NOEXCEPT;
 
-        future<void> get_return_object()
-        {
-            return future<void>{ std::coroutine_handle<promise>::from_promise(*this) };
-        }
+        std::suspend_always initial_suspend();
+
+        future<void> get_return_object();
 
         std::unique_ptr<std::move_only_function<void(std::exception_ptr err)>> finish_cb{nullptr};
     };
+
+    std::coroutine_handle<> future_final_awaiter_suspend (std::coroutine_handle<promise<void, manapi::future<>>> handle) MANAPIHTTP_NOEXCEPT;
+}
+
+template<typename T, typename P>
+template<typename T1> requires (std::is_same_v<T, void>)
+std::coroutine_handle<> manapi::async::internal::final_awaiter<T, P>::await_suspend(std::coroutine_handle<P> handle) MANAPIHTTP_NOEXCEPT {
+    return future_final_awaiter_suspend(handle);
 }

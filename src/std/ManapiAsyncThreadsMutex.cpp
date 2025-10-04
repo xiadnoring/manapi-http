@@ -5,16 +5,18 @@ struct tmutex_promise {
     bool &locked_;
     std::mutex &mx;
 
-    bool await_ready () noexcept;
-    void await_resume () noexcept;
-    void await_suspend (std::coroutine_handle<manapi::future<>::promise> handle);
+    bool await_ready () MANAPIHTTP_NOEXCEPT;
+    void await_resume () MANAPIHTTP_NOEXCEPT;
+    void await_suspend (std::coroutine_handle<> handle);
 };
 
-bool tmutex_promise::await_ready() noexcept { return false; }
+bool tmutex_promise::await_ready() MANAPIHTTP_NOEXCEPT {
+    return false;
+}
 
-void tmutex_promise::await_resume() noexcept {}
+void tmutex_promise::await_resume() MANAPIHTTP_NOEXCEPT {}
 
-void tmutex_promise::await_suspend(std::coroutine_handle<manapi::future<>::promise> handle) {
+void tmutex_promise::await_suspend(std::coroutine_handle<> handle) {
     std::unique_lock<std::mutex> lk (this->mx);
 
     if (this->locked_) {
@@ -22,7 +24,7 @@ void tmutex_promise::await_suspend(std::coroutine_handle<manapi::future<>::promi
             auto handle_ = handle;
             manapi::async::current()->eventloop()->stop_watcher(w);
 
-            manapi::future<>::resume_promise(std::exchange(handle_, nullptr));
+            handle_.resume();
         });
 
         this->waiters.push_back(std::move(watcher.unwrap()));
@@ -30,7 +32,7 @@ void tmutex_promise::await_suspend(std::coroutine_handle<manapi::future<>::promi
     else {
         this->locked_ = true;
         lk.unlock();
-        manapi::future<>::resume_promise(handle);
+        handle.resume();
     }
 }
 
