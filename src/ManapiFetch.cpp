@@ -42,7 +42,7 @@ static constexpr uint32_t status_flags_methods = 0xFFFFFFE0;
 
 struct curl_deleter {
     void operator() (CURL *curl)
-    { curl_free(curl); }
+    { curl_easy_cleanup(curl); }
 };
 struct curl_slist_deleter {
     void operator() (curl_slist *list)
@@ -646,7 +646,9 @@ manapi::net::fetch::fetch(const fetch &n) {
     this->data = n.data;
 }
 
-manapi::net::fetch::~fetch() = default;
+manapi::net::fetch::~fetch() {
+
+}
 
 manapi::error::status_or<manapi::net::fetch> manapi::net::fetch::create(std::string url,manapi::async::cancellation_action cancellation) MANAPIHTTP_NOEXCEPT {
     fetch response;
@@ -664,7 +666,7 @@ manapi::error::status manapi::net::fetch::init(std::string url, manapi::async::c
             this->data = std::make_shared<fetch::data_t>(fetch::data_t{});
 
         this->data->url_ = std::move(url);
-        this->data->curl = std::shared_ptr<CURL> (curl_easy_init(), curl_free);
+        this->data->curl = std::shared_ptr<CURL> (curl_easy_init(), curl_easy_cleanup);
         this->data->cancellation = std::move(cancellation);
         this->data->content_length_ = -1;
 
@@ -910,7 +912,7 @@ std::map <std::string, std::string, std::less<>> manapi::net::fetch::headers() {
 void manapi::net::fetch::clear() {
     this->clear_();
 
-    this->data->curl = std::shared_ptr<CURL> (curl_easy_init(), curl_free);
+    this->data->curl = std::shared_ptr<CURL> (curl_easy_init(), curl_easy_cleanup);
     this->data->flags = 0;
 }
 

@@ -33,6 +33,7 @@ struct wgrpc_thread_local_storage_t {
     std::set<manapi::net::wgrpc::net_listener *> wgrpc_tcp_listeners;
     uint32_t current_connect_index = 0;
     uint32_t current_task_index = 0;
+    std::shared_ptr<manapi::async::cthread> ctx;
 };
 
 struct manapi::net::wgrpc::server_ctx::data_t {
@@ -49,22 +50,20 @@ struct manapi::net::wgrpc::server::data_t {
     std::size_t finishid;
 };
 
-enum {
+enum manapi_engine_flags {
     MANAPI_ENGINE_FLAG_ENABLE_THREADPOOL = 1
-} manapi_engine_flags;
+};
 
 thread_local wgrpc_thread_local_storage_t wgrpc_storage;
 
-thread_local std::shared_ptr<manapi::async::cthread> wgrpc_current_ctx;
-
 struct wgrpc_current_ctx_deleter_t {
     wgrpc_current_ctx_deleter_t (std::shared_ptr<manapi::async::cthread> ctx) {
-        assert(!wgrpc_current_ctx);
-        wgrpc_current_ctx = std::move(ctx);
+        assert(!wgrpc_storage.ctx);
+        wgrpc_storage.ctx = std::move(ctx);
     }
 
     ~wgrpc_current_ctx_deleter_t () {
-        wgrpc_current_ctx = nullptr;
+        wgrpc_storage.ctx = nullptr;
     }
 };
 
@@ -310,7 +309,7 @@ void manapi::net::wgrpc::dns_resolved::LookupHostname(LookupHostnameCallback on_
 #if true || MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
     auto ctx = manapi::async::internal::current_();
     if (!ctx) {
-        ctx = wgrpc_current_ctx;
+        ctx = wgrpc_storage.ctx;
     }
 
     std::move_only_function<void()> cb = [on_resolve = std::move(on_resolve), name, default_port, ctx] (/*const ev::shared_work &w*/) mutable  -> void {
@@ -935,7 +934,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
         return handle;
     }
 
-    auto cur = (wgrpc_current_ctx);
+    auto cur = (wgrpc_storage.ctx);
     if (!cur) {
         cur = this->primary;
     }
@@ -985,7 +984,7 @@ void manapi::net::wgrpc::event_engine_wrapper::Run(absl::AnyInvocable<void()> cl
     if (ctx)
         ctx->etaskpool()->append_task(std::move(closure));
     else {
-        auto cur = wgrpc_current_ctx;
+        auto cur = wgrpc_storage.ctx;
         if (!cur) {
             cur = this->primary;
         }
@@ -1012,7 +1011,7 @@ void manapi::net::wgrpc::event_engine_wrapper::Run(Closure *closure) {
         ctx->etaskpool()->append_task([closure] ()
             -> void { closure->Run(); });
     else {
-        auto cur = wgrpc_current_ctx;
+        auto cur = wgrpc_storage.ctx;
         if (!cur) {
             cur = this->primary;
         }
@@ -1150,7 +1149,7 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
 
         return std::move(b);
     }
-    auto cur = wgrpc_current_ctx;
+    auto cur = wgrpc_storage.ctx;
     if (!cur) {
         cur = this->primary;
     }
@@ -1249,7 +1248,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
         }
     }
 
-    auto cur = wgrpc_current_ctx;
+    auto cur = wgrpc_storage.ctx;
     if (!cur) {
         cur = this->primary;
     }
@@ -1341,7 +1340,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
         }
     }
 
-    auto cur = (wgrpc_current_ctx);
+    auto cur = (wgrpc_storage.ctx);
     if (!cur) {
         cur = this->primary;
     }

@@ -192,7 +192,7 @@ int main () {
 
             res.log();
             assert(res.ok());
-            if (res.ok() && thrcntind == 1) {
+            if (res.ok()) {
                 auto creds = co_await manapi::net::wgrpc::secure_channel_credentials("/home/Timur/Documents/ssl/quic/cert.crt");
                 if (!creds.ok()) {
                     creds.err().log();
