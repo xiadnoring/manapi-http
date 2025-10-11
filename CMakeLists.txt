@@ -783,6 +783,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/std/ManapiFunction.hpp
         include/ext/pq/AsyncPostgreError.hpp
         src/include/ManapiEventLoopCurl.hpp
+        include/std/ManapiRef.hpp
 )
 
 set(MANAPIHTTP_MODULES

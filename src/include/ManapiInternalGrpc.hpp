@@ -37,7 +37,7 @@ namespace manapi::net::wgrpc {
 
         absl::Status Start() override;
 
-        void shutdown (bool notify = true) noexcept;
+        static void shutdown (net_listener *id, manapi::ev::shared_tcp conn, absl::AnyInvocable<void(absl::Status)> on_shutdown_cb, async::shared_cthread ev) MANAPIHTTP_NOEXCEPT;
 
         manapi::error::status set (ev::shared_tcp connection);
 
@@ -45,7 +45,7 @@ namespace manapi::net::wgrpc {
     private:
         manapi::ev::shared_tcp connection;
         absl::AnyInvocable<void(absl::Status)> on_shutdown;
-        async::shared_eventloop ev;
+        async::shared_cthread ev;
     };
 
     class dns_resolved final : public  grpc_event_engine::experimental::EventEngine::DNSResolver {
@@ -70,7 +70,7 @@ namespace manapi::net::wgrpc {
         std::shared_ptr<grpc_event_engine::experimental::EventEngine::ResolvedAddress> local_addr;
 
         manapi::ev::shared_tcp conn;
-        async::shared_eventloop ev;
+        async::shared_cthread ev;
         grpc_event_engine::experimental::MemoryAllocator memory_allocator;
 
         absl::AnyInvocable<void(absl::Status)> on_read;
@@ -111,13 +111,23 @@ namespace manapi::net::wgrpc {
     };
 
     class event_engine_wrapper final : public grpc_event_engine::experimental::EventEngine {
-        async::shared_eventloop ev;
+        std::string_view magic_;
+        async::shared_cthread primary;
+        int flags;
+
+        friend dns_resolved;
     public:
         event_engine_wrapper ();
 
         ~event_engine_wrapper() override;
 
+        void magic (std::string_view m) MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD std::string_view magic () const MANAPIHTTP_NOEXCEPT;
+
         bool Cancel(TaskHandle handle) override;
+
+        void enable_threadpool (bool status) MANAPIHTTP_NOEXCEPT;
 
         ConnectionHandle Connect(OnConnectCallback on_connect,
             const ResolvedAddress &addr,
@@ -144,7 +154,7 @@ namespace manapi::net::wgrpc {
 
         absl::StatusOr<std::unique_ptr<DNSResolver>> GetDNSResolver(const DNSResolver::ResolverOptions &options) override;
 
-        const async::shared_eventloop& shared_eventloop () const;
+        //const async::shared_eventloop& shared_eventloop () const;
     };
 }
 

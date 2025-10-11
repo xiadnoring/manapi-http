@@ -159,9 +159,9 @@ manapi::error::status::status(err_num code, std::string_view msg) {
     this->msg_ = msg;
 }
 
-manapi::error::status::status(status &&n) noexcept = default;
+manapi::error::status::status(status &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::error::status & manapi::error::status::operator=(status &&n) noexcept = default;
+manapi::error::status & manapi::error::status::operator=(status &&n) MANAPIHTTP_NOEXCEPT = default;
 
 manapi::error::status::status(const status &n) = default;
 
@@ -181,6 +181,7 @@ bool manapi::error::status::ok() const {
 }
 
 void manapi::error::status::log() const {
+    print_stacktrace(2);
     MANAPIHTTP_LOG ("{}: msg: {}", this->status_msg(), this->msg_);
 }
 

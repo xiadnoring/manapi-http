@@ -57,9 +57,14 @@ manapi::bigint::bigint(std::string_view num, std::size_t precision) {
 //     precision(precision);
 // }
 
-manapi::bigint::bigint(bigint &&other) noexcept = default;
+manapi::bigint::bigint(bigint &&other) MANAPIHTTP_NOEXCEPT {
+    this->x = std::move(other.x);
+}
 
-manapi::bigint &manapi::bigint::operator=(bigint &&other) noexcept = default;
+manapi::bigint &manapi::bigint::operator=(bigint &&other) MANAPIHTTP_NOEXCEPT {
+    this->x = std::move(other.x);
+    return *this;
+}
 
 manapi::bigint::bigint(const manapi::bigint &other) {
     this->init_(128);

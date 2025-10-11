@@ -1553,7 +1553,7 @@ header_skip:
                                         hv = sdata->req->headers.extract("te");
                                         if (!hv.empty()) {
                                             auto rhs = parse_header_value(hv.mapped());
-                                            if (rhs.ok())
+                                            if (!rhs.ok())
                                                 return EHTTP_V2_PROTOCOL_ERROR;
                                             auto p = rhs.unwrap();
                                             if (p.size() != 1) {

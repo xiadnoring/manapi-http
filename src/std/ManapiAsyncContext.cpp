@@ -15,7 +15,7 @@
 manapi::async::shared_ctx manapi::async::context::gctx_ = nullptr;
 std::unique_ptr<manapi::sigset_t> manapi::async::context::gbs_ = nullptr;
 
-manapi::async::cthread::cthread(shared_eventloop eventloop, shared_taskpool taskpool, shared_timerpool timerpool, shared_logger logger) {
+manapi::async::cthread::cthread(shared_eventloop eventloop, shared_mthreadpool taskpool, shared_timerpool timerpool, shared_logger logger) {
     this->eventloop_ = std::move(eventloop);
     this->taskpool_ = std::move(taskpool);
     this->timerpool_ = std::move(timerpool);
@@ -59,9 +59,9 @@ const std::shared_ptr<manapi::event_loop> & manapi::async::cthread::eventloop() 
     return this->eventloop_;
 }
 
-// const std::shared_ptr<manapi::threadpool<manapi::task>> & manapi::async::cthread::taskpool() {
-//     return this->taskpool_;
-// }
+const manapi::async::shared_mthreadpool& manapi::async::cthread::threadpool() {
+    return this->taskpool_;
+}
 
 const std::shared_ptr<manapi::timerpool> & manapi::async::cthread::timerpool() MANAPIHTTP_NOEXCEPT {
     return this->timerpool_;

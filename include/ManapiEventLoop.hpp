@@ -20,24 +20,43 @@
 
 namespace manapi::ev {
     typedef std::move_only_function<void(const ev::shared_tcp &, size_t suggested_size, ev::buff_t* buf)> tcp_alloc_cb;
+
     typedef std::move_only_function<void(const ev::shared_udp &, size_t suggested_size, ev::buff_t* buf)> udp_alloc_cb;
+
     typedef std::move_only_function<void(const ev::shared_async &)> async_cb;
+
     typedef std::move_only_function<void(const ev::shared_tcp &w, int status)> tcp_accept_cb;
+
     typedef std::move_only_function<void(const ev::shared_timer &)> timer_cb;
+
     typedef std::move_only_function<void(const ev::shared_prepare &)> prepare_cb;
+
     typedef std::move_only_function<void(const ev::shared_check &)> check_cb;
+
     typedef std::move_only_function<void(const ev::shared_idle &)> idle_cb;
+
     typedef std::move_only_function<void(const ev::shared_io &, int status, int revents)> io_cb;
+
     typedef std::move_only_function<void(const ev::shared_tcp &, int status)> connect_tcp_cb;
+
     typedef std::move_only_function<void(const ev::shared_tcp &, ssize_t nread, const uv_buf_t *buf)> tcp_connection_cb;
+
     typedef std::move_only_function<void(const ev::shared_udp &, ssize_t nread, const uv_buf_t *buf, const sockaddr *addr, unsigned flags)> udp_cb;
+
     typedef std::move_only_function<void(const ev::shared_udp_send &, int status)> udp_send_cb;
+
     typedef std::move_only_function<void(const ev::shared_write &, int status)> write_cb;
+
     typedef std::move_only_function<void(const ev::shared_fs &)> fs_cb;
+
     typedef std::move_only_function<void(const ev::shared_random &w, int status, void *buff, std::size_t size)> random_cb;
+
     typedef std::move_only_function<void(const ev::shared_getaddrinfo &w, int status, struct addrinfo *res)> getaddrinfo_cb;
+
     typedef std::move_only_function<void(const ev::shared_getnameinfo &w, int status, const char *hostname, const char *service)> getnameinfo_cb;
+
     typedef std::move_only_function<void(const ev::shared_work &w)> work_cb;
+
     typedef std::move_only_function<void(const ev::shared_work &w, int status)> after_work_cb;
 
     template<typename T>
@@ -46,18 +65,28 @@ namespace manapi::ev {
 
 namespace manapi::ev::internal {
 #if MANAPIHTTP_CURL_DEPENDENCY
+
     struct curl_watcher_data_cached_t;
 #endif
+
     struct async_watcher_t;
 #if MANAPIHTTP_CURL_DEPENDENCY
+
     struct curl_res_value_t;
+
     struct curl_watcher_t;
+
     struct adding_curl_data_t;
 #endif
+
     struct timer_watcher_t;
+
     struct fs_watcher_t;
+
     struct io_watcher_t;
+
     struct custom_callback_t;
+
     struct timerloop_t;
 
     struct adding_timerloop_data_t {
@@ -288,6 +317,10 @@ namespace manapi {
         manapi::error::status custom_callback (std::move_only_function<void(event_loop *ev)> cb) MANAPIHTTP_NOEXCEPT;
 
         static void interrupt (int sig) MANAPIHTTP_NOEXCEPT;
+
+        static void lock (async::shared_cthread ctx, std::mutex &mx) MANAPIHTTP_NOEXCEPT;
+
+        static void unlock (async::shared_cthread ctx, std::mutex &mx) MANAPIHTTP_NOEXCEPT;
     protected:
 #if MANAPIHTTP_CURL_DEPENDENCY
 

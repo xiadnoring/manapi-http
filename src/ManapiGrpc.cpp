@@ -10,6 +10,7 @@
 #include "http/ManapiHttpUtils.hpp"
 #include "./include/ManapiInternalGrpc.hpp"
 #include "./include/ManapiUtils.hpp"
+#include "std/ManapiRef.hpp"
 
 
 #if MANAPIHTTP_GRPC_DEPENDENCY
@@ -27,14 +28,16 @@ struct wgrpc_connection_data_t {
 };
 
 struct wgrpc_thread_local_storage_t {
-    std::set<std::pair<uintptr_t, ssize_t>> wgrpc_tasks_exists;
-    std::set<std::pair<uintptr_t, ssize_t>> wgrpc_connect_exists;
+    std::map<std::size_t, std::uintptr_t> wgrpc_tasks_exists;
+    std::map<std::size_t, std::uintptr_t> wgrpc_connect_exists;
     std::set<manapi::net::wgrpc::net_listener *> wgrpc_tcp_listeners;
+    uint32_t current_connect_index = 0;
+    uint32_t current_task_index = 0;
 };
 
 struct manapi::net::wgrpc::server_ctx::data_t {
     multithread_storage ms;
-    async::shared_cthread ctx;
+    //async::shared_cthread ctx;
 };
 
 struct manapi::net::wgrpc::server::data_t {
@@ -46,24 +49,41 @@ struct manapi::net::wgrpc::server::data_t {
     std::size_t finishid;
 };
 
+enum {
+    MANAPI_ENGINE_FLAG_ENABLE_THREADPOOL = 1
+} manapi_engine_flags;
+
 thread_local wgrpc_thread_local_storage_t wgrpc_storage;
 
-std::set<std::pair<uintptr_t, ssize_t>>::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
-    return wgrpc_storage.wgrpc_tasks_exists.find({static_cast<std::uintptr_t>(keys[1]), static_cast<ssize_t>(keys[0])});
+thread_local std::shared_ptr<manapi::async::cthread> wgrpc_current_ctx;
+
+struct wgrpc_current_ctx_deleter_t {
+    wgrpc_current_ctx_deleter_t (std::shared_ptr<manapi::async::cthread> ctx) {
+        assert(!wgrpc_current_ctx);
+        wgrpc_current_ctx = std::move(ctx);
+    }
+
+    ~wgrpc_current_ctx_deleter_t () {
+        wgrpc_current_ctx = nullptr;
+    }
+};
+
+std::map<std::size_t, std::uintptr_t>::iterator wgrpc_tasks_find (std::intptr_t keys[2]) {
+    return wgrpc_storage.wgrpc_tasks_exists.find(keys[1]);
 }
 
-std::set<std::pair<uintptr_t, ssize_t>>::iterator wgrpc_connect_find (std::intptr_t keys[2]) {
-    return wgrpc_storage.wgrpc_connect_exists.find({static_cast<std::uintptr_t>(keys[1]), static_cast<ssize_t>(keys[0])});
+std::map<std::size_t, std::uintptr_t>::iterator wgrpc_connect_find (std::intptr_t keys[2]) {
+    return wgrpc_storage.wgrpc_connect_exists.find(keys[1]);
 }
 
-void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_eventloop ev, absl::AnyInvocable<void(absl::Status)> on_shutdown) {
+void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_cthread ev, absl::AnyInvocable<void(absl::Status)> on_shutdown) {
     try {
         auto &s = manapi::async::internal::current_();
 
         if (!conn)
             return;
 
-        if (s) {
+        if (s == ev) {
             std::unique_ptr<decltype(on_shutdown)> cb{nullptr};
             MANAPIHTTP_MUST_ALLOC_START
             cb = std::make_unique<decltype(on_shutdown)>(nullptr);
@@ -72,26 +92,27 @@ void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_eve
             *cb = std::move(on_shutdown);
 
             MANAPIHTTP_MUST_ALLOC_START
-            ev->stop_callback (conn, [cb = std::move(cb)] (const manapi::ev::shared_tcp &w) mutable
+            ev->eventloop()->stop_callback (conn, [cb = std::move(cb)] (const manapi::ev::shared_tcp &w) mutable
                 -> void {
                 if (cb && *cb) {
                     cb->operator()(absl::OkStatus());
                 }
             });
             MANAPIHTTP_MUST_ALLOC_END
-            ev->stop_watcher(std::move(conn));
+            ev->eventloop()->stop_watcher(std::move(conn));
 
             return;
         }
 
         struct data_unbind_net_mx_t {
+            const manapi::async::shared_cthread &ctx;
             std::mutex mx;
             manapi::ev::shared_tcp *conn_;
-            manapi::async::shared_eventloop *ev_;
+            manapi::async::shared_cthread *ev_;
             decltype(on_shutdown) *on_shutdown_;
             std::exception_ptr err;
         }
-        data{};
+        data{s};
 
         data.conn_ = &conn;
         data.ev_ = &ev;
@@ -100,7 +121,7 @@ void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_eve
         {
             std::lock_guard<std::mutex> lk (data.mx);
 
-            ev->custom_callback([&data] (manapi::event_loop *ev)
+            ev->eventloop()->custom_callback([&data] (manapi::event_loop *ev)
                 -> void {
                 try {
                     unbind_net_listener(*data.conn_, *data.ev_, std::move(*data.on_shutdown_));
@@ -108,10 +129,10 @@ void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_eve
                 catch (...) {
                     data.err = std::current_exception();
                 }
-                data.mx.unlock();
+                manapi::event_loop::unlock(data.ctx, data.mx);
             }).unwrap();
 
-            data.mx.lock();
+            manapi::event_loop::lock(data.ctx, data.mx);
         }
 
         if (data.err)
@@ -127,11 +148,10 @@ bool task_handle_cancel (grpc_event_engine::experimental::EventEngine::TaskHandl
     if (it == wgrpc_storage.wgrpc_tasks_exists.end())
         return false;
 
+    /* timer */
+    std::unique_ptr<manapi::timer> timer (reinterpret_cast<manapi::timer *> (it->second));
     wgrpc_storage.wgrpc_tasks_exists.erase(it);
 
-    /* timer */
-    std::unique_ptr<manapi::timer> timer (reinterpret_cast<manapi::timer *> (
-        std::exchange(handle.keys[1], 0)));
 
     if (!timer)
         return false;
@@ -141,10 +161,10 @@ bool task_handle_cancel (grpc_event_engine::experimental::EventEngine::TaskHandl
     return true;
 }
 
-bool task_handle_cancel (manapi::timer *t, long long time) {
-    grpc_event_engine::experimental::EventEngine::TaskHandle handle;
-    handle.keys[0] = time;
-    handle.keys[1] = reinterpret_cast<std::intptr_t>(t);
+bool task_handle_cancel (manapi::async::cthread *t, std::size_t idx) {
+    grpc_event_engine::experimental::EventEngine::TaskHandle handle{};
+    handle.keys[0] = reinterpret_cast<std::intptr_t>(t);
+    handle.keys[1] = static_cast<std::intptr_t>(idx);
     return task_handle_cancel(handle);
 }
 
@@ -152,18 +172,19 @@ bool task_handle_cancel (manapi::timer *t, long long time) {
 bool manapi::net::wgrpc::event_engine_wrapper::Cancel(TaskHandle handle) {
     auto &ctx = manapi::async::internal::current_();
 
-    if (ctx) {
+    if (reinterpret_cast <std::intptr_t>(ctx.get()) == handle.keys[0]) {
         return task_handle_cancel(handle);
     }
 
     struct data_cancel_t {
+        const async::shared_cthread &ctx;
         event_engine_wrapper *engine;
         std::mutex mx;
         std::exception_ptr err;
         TaskHandle *handle_;
         bool res;
     }
-    data{};
+    data{ctx};
 
     data.engine = this;
     data.handle_ = &handle;
@@ -171,20 +192,29 @@ bool manapi::net::wgrpc::event_engine_wrapper::Cancel(TaskHandle handle) {
     {
         std::lock_guard<std::mutex> lk (data.mx);
 
-        this->ev->custom_callback([&data] (event_loop *ev)
+        (reinterpret_cast<async::cthread *>(handle.keys[0]))->eventloop()->custom_callback([&data] (event_loop *ev)
             -> void {
             try { data.res = data.engine->Cancel(*data.handle_); }
             catch (...) { data.err = std::current_exception(); }
-            data.mx.unlock();
+            manapi::event_loop::unlock(data.ctx, data.mx);
         }).unwrap();
 
-        data.mx.lock();
+        manapi::event_loop::lock(data.ctx, data.mx);
     }
 
     if (data.err)
         std::rethrow_exception(std::move(data.err));
 
     return data.res;
+}
+
+void manapi::net::wgrpc::event_engine_wrapper::enable_threadpool(bool status) MANAPIHTTP_NOEXCEPT {
+    if (status) {
+        this->flags |= MANAPI_ENGINE_FLAG_ENABLE_THREADPOOL;
+    }
+    else if (this->flags & MANAPI_ENGINE_FLAG_ENABLE_THREADPOOL) {
+        this->flags ^= MANAPI_ENGINE_FLAG_ENABLE_THREADPOOL;
+    }
 }
 
 
@@ -197,11 +227,11 @@ manapi::net::wgrpc::config::config(const manapi::json &n) {
 
 manapi::net::wgrpc::net_listener::net_listener(absl::AnyInvocable<void(absl::Status)> on_shutdown) {
     this->on_shutdown = std::move(on_shutdown);
-    this->ev = manapi::async::current()->eventloop();
+    this->ev = manapi::async::current();
 }
 
 manapi::net::wgrpc::net_listener::~net_listener() {
-    this->shutdown();
+    net_listener::shutdown(this, std::move(this->connection), std::move(this->on_shutdown), std::move(this->ev));
 }
 
 absl::StatusOr<int> manapi::net::wgrpc::net_listener::Bind(const grpc_event_engine::experimental::EventEngine::ResolvedAddress &addr) {
@@ -215,7 +245,8 @@ absl::StatusOr<int> manapi::net::wgrpc::net_listener::Bind(const grpc_event_engi
     auto res = this->connection->s_bind(addr.address(), bind_flags);
     if (!res)
         return static_cast<int>(reinterpret_cast <const sockaddr_in *> (addr.address())->sin_port);
-    return absl::InternalError("manapi:Bind failed");
+    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s due to %s", "wgrpc:Bind failed", ev::strerror(res));
+    return absl::InternalError("wgrpc:Bind failed");
 }
 
 absl::Status manapi::net::wgrpc::net_listener::Start() {
@@ -229,41 +260,23 @@ absl::Status manapi::net::wgrpc::net_listener::Start() {
     return absl::OkStatus();
 }
 
-void manapi::net::wgrpc::net_listener::shutdown(bool notify) MANAPIHTTP_NOEXCEPT  {
+void manapi::net::wgrpc::net_listener::shutdown(net_listener *id, manapi::ev::shared_tcp conn, absl::AnyInvocable<void(absl::Status)> on_shutdown_cb, async::shared_cthread ev) MANAPIHTTP_NOEXCEPT  {
     try {
-        if (this->connection) {
+        if (conn) {
             auto &s = async::internal::current_();
-            if (s) {
-                wgrpc_storage.wgrpc_tcp_listeners.erase(this);
-                unbind_net_listener(std::move(this->connection), this->ev, notify ? std::move(this->on_shutdown) : nullptr);
+            if (s == ev) {
+                wgrpc_storage.wgrpc_tcp_listeners.erase(id);
+                unbind_net_listener(std::move(conn), ev, std::move(on_shutdown_cb));
             }
             else {
-                struct data_shutdown_mx_t {
-                    std::exception_ptr err;
-                    std::mutex mx;
-                    bool notify_;
-                    net_listener *listener_;
-                }
-                data{};
-
-                data.notify_ = notify;
-                data.listener_ = this;
-
-                {
-                    std::lock_guard<std::mutex> lk (data.mx);
-
-                    this->ev->custom_callback([&data] (manapi::event_loop *ev) -> void {
-                        try { data.listener_->shutdown(data.notify_); }
-                        catch (...) { data.err = std::current_exception(); }
-                        data.mx.unlock();
-                    });
-
-                    data.mx.lock();
-                }
-
-                if (data.err)
-                    std::rethrow_exception(std::move(data.err));
+                ev->eventloop()->custom_callback([id, conn = std::move(conn), on_shutdown_cb = std::move(on_shutdown_cb)]
+                        (manapi::event_loop *ev) mutable -> void {
+                    net_listener::shutdown(id, std::move(conn), std::move(on_shutdown_cb), manapi::async::current());
+                });
             }
+        }
+        else if (on_shutdown_cb) {
+            on_shutdown_cb (absl::OkStatus());
         }
     }
     catch (std::exception const &e) {
@@ -294,9 +307,15 @@ manapi::net::wgrpc::dns_resolved::dns_resolved(event_engine_wrapper *engine) {
 }
 
 void manapi::net::wgrpc::dns_resolved::LookupHostname(LookupHostnameCallback on_resolve, absl::string_view name, absl::string_view default_port) {
-#if MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
-    this->engine->shared_eventloop()->append_task(
-        [on_resolve = std::move(on_resolve), name, default_port] (const ev::shared_work &w) mutable  -> void {
+#if true || MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
+    auto ctx = manapi::async::internal::current_();
+    if (!ctx) {
+        ctx = wgrpc_current_ctx;
+    }
+
+    std::move_only_function<void()> cb = [on_resolve = std::move(on_resolve), name, default_port, ctx] (/*const ev::shared_work &w*/) mutable  -> void {
+        wgrpc_current_ctx_deleter_t deleter (ctx);
+
         ::addrinfo hints{};
         ::addrinfo *result = nullptr, *resp;
         std::string_view host1;
@@ -351,7 +370,15 @@ void manapi::net::wgrpc::dns_resolved::LookupHostname(LookupHostnameCallback on_
             manapi_log_error("%s due to %s", "wgrpc:look up failed", e.what());
         }
         on_resolve(absl::UnknownError("wgrpc:look up failed"));
-    }, nullptr);
+    };
+
+    if (!(this->engine->flags & MANAPI_ENGINE_FLAG_ENABLE_THREADPOOL )
+        || (!ctx || ctx->threadpool()->size() == 0)) {
+        std::thread (std::move(cb)).detach();
+    }
+    else {
+        ctx->threadpool()->append_task(std::move(cb));
+    }
 
 #else
     this->engine->Run([on_resolve = std::move(on_resolve), name, default_port] () mutable -> void {
@@ -444,7 +471,7 @@ manapi::net::wgrpc::net_endpoint::net_endpoint(manapi::ev::shared_tcp conn,
     auto &ctx = manapi::async::current();
     if (ctx) {
         this->flags = 0;
-        this->ev = ctx->eventloop();
+        this->ev = ctx;
         this->local_addr = std::move(local_addr);
         this->conn = std::move(conn);
         this->peer_addr = std::move(peer_addr);
@@ -467,7 +494,7 @@ void manapi::net::wgrpc::net_endpoint::init_() {
                 buffer = bytebuffer (buf->base, buf->len, bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL);
             }
 
-            if (nread < 0) {
+            if (nread < 0 || !buf) {
                 /* error */
                 this->flags |= MANAPI_GRPC_ENDPOINT_FINISHED;
                 if (this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ)
@@ -511,9 +538,9 @@ void manapi::net::wgrpc::net_endpoint::init_() {
     ctx->eventloop()->alloc_callback(this->conn,
         [this] (const std::shared_ptr<manapi::ev::tcp> &, size_t suggested_size, manapi::ev::buff_t *buf) MANAPIHTTP_NOEXCEPT
         -> void {
-            ssize_t size = suggested_size;
+            auto size = static_cast<ssize_t>(suggested_size);
             if (!(this->flags & MANAPI_GRPC_ENDPOINT_WANT_READ)) {
-                size = std::min<ssize_t>(65536 - this->buffer.Length(), 65536);
+                size = std::min<ssize_t>(65536L - this->buffer.Length(), 65536);
                 if (size <= 0)
                     return;
             }
@@ -535,10 +562,10 @@ std::shared_ptr<grpc_event_engine::experimental::EventEngine::Endpoint::Telemetr
 
 #endif
 
-void unbind_net_endpoint (manapi::ev::shared_tcp conn, manapi::async::shared_eventloop ev) MANAPIHTTP_NOEXCEPT {
+void unbind_net_endpoint (manapi::ev::shared_tcp conn, manapi::async::shared_cthread ev) MANAPIHTTP_NOEXCEPT {
     try {
         auto &s = manapi::async::internal::current_();
-        if (s) {
+        if (s == ev) {
             if (conn->is_active())
                 conn->read_stop();
 
@@ -546,32 +573,10 @@ void unbind_net_endpoint (manapi::ev::shared_tcp conn, manapi::async::shared_eve
             return;
         }
 
-        struct data_unbind_endpoint_mx {
-            std::mutex mx;
-            std::exception_ptr err;
-            manapi::ev::shared_tcp *conn_;
-            manapi::async::shared_eventloop *ev_;
-        }
-        data{};
-
-        data.conn_ = &conn;
-        data.ev_ = &ev;
-
-        {
-            std::lock_guard<std::mutex> lk (data.mx);
-
-            ev->custom_callback([&data] (manapi::event_loop *ev)
-                -> void {
-                try { unbind_net_endpoint(std::move(*data.conn_), *data.ev_); }
-                catch (...) { data.err = std::current_exception(); }
-                data.mx.unlock();
-            });
-
-            data.mx.lock();
-        }
-
-        if (data.err)
-            std::rethrow_exception(std::move(data.err));
+        ev->eventloop()->custom_callback([conn = std::move(conn)] (manapi::event_loop *ev) mutable
+            -> void {
+            unbind_net_endpoint (std::move(conn), manapi::async::current());
+        }).unwrap();
     }
     catch (std::exception const &e) {
         manapi_log_error("grpc: close conn failed due to %s", e.what());
@@ -591,7 +596,7 @@ const ReadArgs *args
 ) {
     auto &ctx = manapi::async::internal::current_();
 
-    if (ctx) {
+    if (ctx == this->ev) {
         auto const already = this->buffer.Length();
 #if MANAPIHTTP_GRPC_SINCE_AT(1,73,0)
         auto const read_hint_bytes = args.read_hint_bytes();
@@ -634,6 +639,7 @@ const ReadArgs *args
 
 
     struct data_read_mx_t {
+        const async::shared_cthread &ctx;
         net_endpoint *endpoint;
         decltype(on_read) *on_read_;
         decltype(buffer) *buffer_;
@@ -641,7 +647,7 @@ const ReadArgs *args
         std::mutex mx;
         bool res;
         std::exception_ptr err;
-    } data_read{};
+    } data_read{ctx};
 
     data_read.on_read_ = &on_read;
     data_read.endpoint = this;
@@ -651,7 +657,7 @@ const ReadArgs *args
     {
         std::lock_guard<std::mutex> lk (data_read.mx);
 
-        this->ev->custom_callback([&data_read] (event_loop *ev) mutable
+        this->ev->eventloop()->custom_callback([&data_read] (event_loop *ev) mutable
             -> void {
             try {
                 data_read.res = data_read.endpoint->Read(std::move(*data_read.on_read_), std::move(*data_read.buffer_),
@@ -660,10 +666,10 @@ const ReadArgs *args
             catch (...) {
                 data_read.err = std::current_exception();
             }
-            data_read.mx.unlock();
+            manapi::event_loop::unlock(data_read.ctx, data_read.mx);
         }).unwrap();
 
-        data_read.mx.lock();
+        manapi::event_loop::lock(data_read.ctx, data_read.mx);
     }
 
     if (data_read.err)
@@ -681,7 +687,7 @@ const WriteArgs *args
 
     auto &ctx = manapi::async::internal::current_();
 
-    if (ctx) {
+    if (ctx == this->ev) {
         std::size_t carret = 0;
         ssize_t rhs = 0;
 
@@ -736,6 +742,7 @@ const WriteArgs *args
     }
 
     struct data_write_mx_t {
+        const async::shared_cthread &ctx;
         net_endpoint *endpoint;
         decltype(on_writable) *on_writable_;
         decltype(data) *data_;
@@ -743,7 +750,7 @@ const WriteArgs *args
         std::mutex mx;
         bool res;
         std::exception_ptr err;
-    } data_write{};
+    } data_write{ctx};
 
     data_write.on_writable_ = &on_writable;
     data_write.endpoint = this;
@@ -753,7 +760,7 @@ const WriteArgs *args
     {
         std::lock_guard<std::mutex> lk (data_write.mx);
 
-        this->ev->custom_callback([&data_write] (event_loop *ev) mutable
+        this->ev->eventloop()->custom_callback([&data_write] (event_loop *ev) mutable
             -> void {
             try {
                 data_write.res = data_write.endpoint->Write(std::move(*data_write.on_writable_), std::move(*data_write.data_),
@@ -762,10 +769,10 @@ const WriteArgs *args
             catch (...) {
                 data_write.err = std::current_exception();
             }
-            data_write.mx.unlock();
+            manapi::event_loop::unlock(data_write.ctx, data_write.mx);
         }).unwrap();
 
-        data_write.mx.lock();
+        manapi::event_loop::lock(data_write.ctx, data_write.mx);
     }
 
     if (data_write.err)
@@ -782,11 +789,20 @@ const grpc_event_engine::experimental::EventEngine::ResolvedAddress & manapi::ne
     return *this->peer_addr;
 }
 
+
 manapi::net::wgrpc::event_engine_wrapper::event_engine_wrapper() : grpc_event_engine::experimental::EventEngine() {
-    this->ev = manapi::async::current()->eventloop();
+    this->primary = manapi::async::current();
 }
 
 manapi::net::wgrpc::event_engine_wrapper::~event_engine_wrapper() = default;
+
+void manapi::net::wgrpc::event_engine_wrapper::magic(std::string_view m) MANAPIHTTP_NOEXCEPT {
+    this->magic_ = m;
+}
+
+std::string_view manapi::net::wgrpc::event_engine_wrapper::magic() const MANAPIHTTP_NOEXCEPT {
+    return this->magic_;
+}
 
 grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrpc::event_engine_wrapper::Connect(
     OnConnectCallback on_connect, const ResolvedAddress &addr,
@@ -796,24 +812,37 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
     auto &ctx = manapi::async::internal::current_();
 
     if (ctx) {
-        std::unique_ptr<wgrpc_connection_data_t> data (new (std::nothrow) wgrpc_connection_data_t{});
-        std::unique_ptr<manapi::timer> timer (new (std::nothrow) manapi::timer{});
+        std::unique_ptr<wgrpc_connection_data_t> data (new wgrpc_connection_data_t{});
+        std::unique_ptr<manapi::timer> timer (new manapi::timer{});
 
-        assert(data && timer);
+        struct wgrpc_connect_data_t {
+            int refcnt;
+            manapi::timer *timer;
+            OnConnectCallback on_connect_cb;
+            grpc_event_engine::experimental::MemoryAllocator memory_allocator;
+            std::shared_ptr<ev::connect> connect;
+        };
+
+        manapi::reference ref (new wgrpc_connect_data_t (0, timer.get(), std::move(on_connect), std::move(memory_allocator)));
 
         auto wres = manapi::async::current()->eventloop()->connect_tcp (addr.address(),
-            [timer = timer.get(), on_connect = std::move(on_connect), memory_allocator = std::move(memory_allocator)]
+            [ref]
             (const std::shared_ptr<manapi::ev::tcp> &w, int status) mutable
             -> void {
+                if (!ref->on_connect_cb) {
+                    return;
+                }
+
                 try {
-                    timer->stop();
+                    ref->timer->stop();
 
                     if (status) {
                         /* error */
                         switch (status) {
-                            case manapi::ev::ERR_AI_CANCELED: on_connect (absl::CancelledError()); break;
-                            default: on_connect(absl::UnknownError("wgrpc:Something gets wrong")); break;
+                            case manapi::ev::ERR_AI_CANCELED: ref->on_connect_cb (absl::CancelledError()); break;
+                            default: ref->on_connect_cb(absl::UnknownError("wgrpc:Something gets wrong")); break;
                         }
+                        ref->on_connect_cb = nullptr;
                         return;
                     }
 
@@ -830,10 +859,10 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
                     auto local_addr = std::make_shared<grpc_event_engine::experimental::EventEngine::ResolvedAddress>(reinterpret_cast<sockaddr*>(&sock_addr), sock_len);
 
-                    auto endpoint = std::make_unique<wgrpc::net_endpoint>(w, std::move(peer), std::move(local_addr), std::move(memory_allocator));
+                    auto endpoint = std::make_unique<wgrpc::net_endpoint>(w, std::move(peer), std::move(local_addr), std::move(ref->memory_allocator));
 
-                    on_connect(std::move(endpoint));
-
+                    ref->on_connect_cb(std::move(endpoint));
+                    ref->on_connect_cb = nullptr;
                     return;
                 }
                 catch (std::exception const &e) {
@@ -841,47 +870,78 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
                         e.what());
                 }
 
-                on_connect(absl::InternalError("creating connection failed"));
+                ref->on_connect_cb(absl::InternalError("creating connection failed"));
+                ref->on_connect_cb = nullptr;
             },
             nullptr, nullptr);
 
-        auto [connect, conn] = wres.unwrap();
+        if (!wres) {
+            ctx->etaskpool()->append_static_task([msg = wres.sysmsg(), ref] ()
+                mutable -> void {
+                if (ref->on_connect_cb) {
+                    ref->on_connect_cb (absl::AbortedError(msg));
+                    ref->on_connect_cb = nullptr;
+                }
+            });
+        }
 
-        auto res = manapi::async::current()->timerpool()->append_timer_sync(
-            std::max(1UL, static_cast<std::size_t>(timeout.count() / 1000000)), [connect] (manapi::timer t)
-            -> void {
-            if (connect->is_active())
-                connect->unbind();
-        });
+        std::shared_ptr<ev::tcp> conn;
+        if (wres.ok()) {
+            auto result = wres.unwrap();
+            ref->connect = std::move(result.first);
+            conn = std::move(result.second);
+            auto res = manapi::async::current()->timerpool()->append_timer_sync(
+                std::max(1UL, static_cast<std::size_t>(timeout.count() / 1000000)), [ref] (manapi::timer t) mutable
+                -> void {
+                if (ref->connect && ref->connect->is_active()) {
+                    manapi::async::current()->eventloop()->stop_watcher(std::move(ref->connect));
+                }
+                if (ref->on_connect_cb) {
+                    ref->on_connect_cb (absl::DeadlineExceededError("Conn:Timeout"));
+                    ref->on_connect_cb = nullptr;
+                }
+            });
 
-        assert(res.ok());
-
-        *timer = res.unwrap();
+            *timer = res.unwrap();
+        }
 
         ConnectionHandle handle{};
 
-        data->connect = std::move(connect);
+        data->connect = ref->connect;
         data->timer = std::move(timer);
 
-        auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
+        std::size_t const time = std::chrono::steady_clock::now().time_since_epoch().count();
+        std::size_t indx = (static_cast<std::size_t>(wgrpc_storage.current_connect_index++) << 32) | (time & 0x0000FFFF);
+        if (wgrpc_storage.current_connect_index == std::numeric_limits<uint32_t>::max()) {
+            wgrpc_storage.current_connect_index = 0;
+        }
 
         try {
-            auto insert_res = wgrpc_storage.wgrpc_connect_exists.insert({reinterpret_cast<std::uintptr_t>(data.get()), time});
+            auto insert_res = wgrpc_storage.wgrpc_connect_exists.insert(
+                {indx, reinterpret_cast<std::uintptr_t>(data.get())});
             assert(insert_res.second);
+
+            data.release();
         }
         catch (std::exception const &) {
             auto &ev = manapi::async::current()->eventloop();
-            ev->stop_watcher(std::move(connect));
+            ev->stop_watcher(ref->connect);
             ev->stop_watcher(std::move(conn));
         }
 
-        handle.keys[0] = time;
-        handle.keys[1] = reinterpret_cast<std::intptr_t>(data.release());
+        handle.keys[0] = reinterpret_cast<std::intptr_t>(ctx.get());
+        handle.keys[1] = static_cast<std::intptr_t>(indx);
 
         return handle;
     }
 
+    auto cur = (wgrpc_current_ctx);
+    if (!cur) {
+        cur = this->primary;
+    }
+
     struct data_connect_mx_t {
+        const async::shared_cthread &ctx;
         std::mutex mx;
         std::exception_ptr err;
         decltype(on_connect) *on_connect_;
@@ -892,7 +952,7 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
         event_engine_wrapper *engine;
         ConnectionHandle res;
     }
-    data{};
+    data{ctx};
 
     data.engine = this;
     data.addr_ = &addr;
@@ -904,13 +964,13 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
     {
         std::lock_guard<std::mutex> lk (data.mx);
 
-        this->ev->custom_callback([&data] (manapi::event_loop *ev) -> void {
+        cur->eventloop()->custom_callback([&data] (manapi::event_loop *ev) -> void {
             try { data.res = data.engine->Connect(std::move(*data.on_connect_), *data.addr_, *data.args_, std::move(*data.memory_allocator_), *data.timeout_); }
             catch (...) { data.err = std::current_exception(); }
-            data.mx.unlock();
+            manapi::event_loop::unlock(data.ctx, data.mx);
         });
 
-        data.mx.lock();
+        manapi::event_loop::lock(data.ctx, data.mx);
     }
 
     if (data.err)
@@ -921,91 +981,76 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
 void manapi::net::wgrpc::event_engine_wrapper::Run(absl::AnyInvocable<void()> closure) {
     auto &ctx = manapi::async::internal::current_();
+
     if (ctx)
         ctx->etaskpool()->append_task(std::move(closure));
     else {
-        struct data_run_mx_t {
-            std::mutex mx;
-            decltype(closure) *closure_;
-            std::exception_ptr err;
-        } data_run{};
-
-        data_run.closure_ = &closure;
-        {
-            std::lock_guard<std::mutex> lk (data_run.mx);
-
-            this->ev->custom_callback(
-                [&data_run] (manapi::event_loop *ev) mutable -> void {
-                try {
-                    ev->taskpool()->append_task(std::move(*data_run.closure_));
-                }
-                catch (...) {
-                    data_run.err = std::current_exception();
-                }
-                data_run.mx.unlock();
-            });
-
-            data_run.mx.lock();
+        auto cur = wgrpc_current_ctx;
+        if (!cur) {
+            cur = this->primary;
         }
 
-        if (data_run.err)
-            std::rethrow_exception(std::move(data_run.err));
+        {
+            cur->eventloop()->custom_callback(
+                [closure = std::move(closure)] (manapi::event_loop *ev) mutable -> void {
+                try {
+                    ev->taskpool()->append_task(std::move(closure));
+                }
+                catch (std::exception const &e) {
+                    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s:%s failed due to %s" ,
+                        "wgrpc", "Run", e.what());
+                }
+            });
+        }
     }
 }
 
 void manapi::net::wgrpc::event_engine_wrapper::Run(Closure *closure) {
     auto &ctx = manapi::async::internal::current_();
+    //assert(ctx);
     if (ctx)
         ctx->etaskpool()->append_task([closure] ()
             -> void { closure->Run(); });
     else {
-        struct data_run_mx_t {
-            std::mutex mx;
-            decltype(closure) *closure_;
-            std::exception_ptr err;
-        } data_run{};
-
-        data_run.closure_ = &closure;
-        {
-            std::lock_guard<std::mutex> lk (data_run.mx);
-
-            this->ev->custom_callback(
-                [&data_run] (manapi::event_loop *ev) mutable -> void {
-                try {
-                    ev->taskpool()->append_task([closure = *data_run.closure_] ()
-                        -> void { closure->Run(); });
-                }
-                catch (...) {
-                    data_run.err = std::current_exception();
-                }
-                data_run.mx.unlock();
-            });
-
-            data_run.mx.lock();
+        auto cur = wgrpc_current_ctx;
+        if (!cur) {
+            cur = this->primary;
         }
 
-        if (data_run.err)
-            std::rethrow_exception(std::move(data_run.err));
+        {
+            cur->eventloop()->custom_callback(
+                [closure] (manapi::event_loop *ev) mutable -> void {
+                try {
+                    ev->taskpool()->append_static_task([closure] ()
+                        -> void { closure->Run(); });
+                }
+                catch (std::exception const &e) {
+                    manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "%s:%s failed due to %s",
+                        "wgrpc", "Run", e.what());
+                }
+            });
+        }
     }
 }
 
 bool manapi::net::wgrpc::event_engine_wrapper::CancelConnect(ConnectionHandle handle) {
     auto &ctx = manapi::async::internal::current_();
 
-    if (ctx) {
+    if (reinterpret_cast<std::intptr_t>(ctx.get()) == handle.keys[0]) {
         auto it = wgrpc_connect_find(handle.keys);
         if (it == wgrpc_storage.wgrpc_connect_exists.end())
             return false;
 
+        std::unique_ptr<wgrpc_connection_data_t> p (reinterpret_cast<wgrpc_connection_data_t *> (it->second));
         wgrpc_storage.wgrpc_connect_exists.erase(it);
 
-        std::unique_ptr<wgrpc_connection_data_t> p (reinterpret_cast<wgrpc_connection_data_t *> (std::exchange(handle.keys[1], 0)));
         if (!p)
             return true;
 
         if (p->connect && p->connect->is_active()) {
             p->connect->unbind();
         }
+
         if (p->timer) {
             p->timer->stop();
         }
@@ -1014,12 +1059,13 @@ bool manapi::net::wgrpc::event_engine_wrapper::CancelConnect(ConnectionHandle ha
     }
 
     struct data_cancel_connect_t {
+        const async::shared_cthread &ctx;
         std::mutex mx;
         bool res;
         ConnectionHandle *handle;
         event_engine_wrapper *engine;
         std::exception_ptr err;
-    } data{};
+    } data{ctx};
 
     data.engine = this;
     data.handle = &handle;
@@ -1027,7 +1073,7 @@ bool manapi::net::wgrpc::event_engine_wrapper::CancelConnect(ConnectionHandle ha
     {
         std::lock_guard<std::mutex> lk (data.mx);
 
-        this->ev->custom_callback([&data] (event_loop *ev)
+        (reinterpret_cast <async::cthread*>(handle.keys[0]))->eventloop()->custom_callback([&data] (event_loop *ev)
             -> void {
             try {
                 data.res = data.engine->CancelConnect(*data.handle);
@@ -1035,10 +1081,10 @@ bool manapi::net::wgrpc::event_engine_wrapper::CancelConnect(ConnectionHandle ha
             catch (...) {
                 data.err = std::current_exception();
             }
-            data.mx.unlock();
+            manapi::event_loop::unlock(data.ctx, data.mx);
         }).unwrap();
 
-        data.mx.lock();
+        manapi::event_loop::lock(data.ctx, data.mx);
     }
 
     if (data.err)
@@ -1104,9 +1150,14 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
 
         return std::move(b);
     }
+    auto cur = wgrpc_current_ctx;
+    if (!cur) {
+        cur = this->primary;
+    }
 
     struct data_create_listener_mx_t {
         absl::StatusOr<std::unique_ptr<grpc_event_engine::experimental::EventEngine::Listener>> res;
+        const async::shared_cthread &ctx;
         std::mutex mx;
         std::exception_ptr err;
         decltype(on_accept) *on_accept_;
@@ -1115,7 +1166,7 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
         decltype(memory_allocator_factory) *memory_;
         event_engine_wrapper *engine;
     }
-    data{absl::OkStatus()};
+    data{absl::OkStatus(), ctx};
 
     data.engine = this;
     data.config_ = &config;
@@ -1126,14 +1177,15 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
     {
         std::lock_guard<std::mutex> lk (data.mx);
 
-        this->ev->custom_callback([&data] (manapi::event_loop *ev) -> void {
+        cur->eventloop()->custom_callback([&data] (manapi::event_loop *ev) -> void {
             try { data.res = data.engine->CreateListener(std::move(*data.on_accept_), std::move(*data.on_shutdown_),
                 *data.config_, std::move(*data.memory_)); }
             catch (...) { data.err = std::current_exception(); }
-            data.mx.unlock();
+
+            manapi::event_loop::unlock(data.ctx, data.mx);
         });
 
-        data.mx.lock();
+        manapi::event_loop::lock(data.ctx, data.mx);
     }
 
     if (data.err)
@@ -1144,35 +1196,66 @@ net::wgrpc::event_engine_wrapper::CreateListener(Listener::AcceptCallback on_acc
 
 grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::event_engine_wrapper::RunAfter(Duration when, Closure *closure) {
     auto &ctx = manapi::async::internal::current_();
+
     if (ctx) {
         TaskHandle task{};
         /* oh no way */
         auto timer = std::make_unique<manapi::timer>();
 
+        struct wgrpc_timer_data_t {
+            int refcnt;
+            Closure *closure;
+            std::size_t index;
+        };
+
+        reference<wgrpc_timer_data_t> td (new wgrpc_timer_data_t{});
+        td->closure = closure;
+
         auto const ms = std::max(static_cast<std::size_t>(1),
             static_cast<std::size_t>(when.count() / 1000000));
-        auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
-        auto rhs = ctx->timerpool()->append_timer_sync(ms,
-            [closure, ptr = timer.get(), time] (manapi::timer timer) -> void {
-                try { closure->Run(); }
-                catch (std::exception const &e) { MANAPIHTTP_LOG("gRPC send a error: {}", e.what()); }
-                task_handle_cancel(ptr, time);
-            });
 
-        assert(rhs.ok());
+        auto rhs = ctx->timerpool()->append_timer_sync(ms,
+            [td] (manapi::timer timer) -> void {
+                try { td->closure->Run(); }
+                catch (std::exception const &e) { manapi_log_error("%s:%s failed due to %s",
+                    "wgrpc", "gRPC send a error", e.what()); }
+                task_handle_cancel(manapi::async::current().get(), td->index);
+            });
 
         *timer = rhs.unwrap();
 
-        auto res = wgrpc_storage.wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(timer.get()), time});
-        assert(res.second);
+        while (true) {
+            std::size_t const time = std::chrono::steady_clock::now().time_since_epoch().count();
+            td->index = (static_cast<std::size_t>(wgrpc_storage.current_task_index++) << 32) | (time & 0x0000FFFF);
 
-        task.keys[0] = time;
-        task.keys[1] = reinterpret_cast<std::intptr_t> (timer.release());
+            if (wgrpc_storage.current_task_index == std::numeric_limits<uint32_t>::max()) {
+                wgrpc_storage.current_task_index = 0;
+            }
 
-        return task;
+
+            auto res = wgrpc_storage.wgrpc_tasks_exists.insert(
+                {td->index, reinterpret_cast<std::uintptr_t>(timer.get())});
+
+            if (!res.second) {
+                continue;
+            }
+
+            timer.release();
+
+            task.keys[0] = reinterpret_cast<std::intptr_t> (ctx.get());
+            task.keys[1] = static_cast <std::intptr_t>(td->index);
+
+            return task;
+        }
+    }
+
+    auto cur = wgrpc_current_ctx;
+    if (!cur) {
+        cur = this->primary;
     }
 
     struct data_run_after_mx_t {
+        const async::shared_cthread &ctx;
         std::mutex mx;
         std::exception_ptr err;
         TaskHandle res;
@@ -1180,7 +1263,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
         Closure *closure_;
         event_engine_wrapper *engine;
     }
-    data{};
+    data{ctx};
 
     data.closure_ = closure;
     data.when_ = &when;
@@ -1189,13 +1272,14 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
     {
         std::lock_guard<std::mutex> lk (data.mx);
 
-        this->ev->custom_callback([&data] (manapi::event_loop *ev) -> void {
+        cur->eventloop()->custom_callback([&data] (manapi::event_loop *ev) -> void {
             try { data.res = data.engine->RunAfter(*data.when_, data.closure_); }
             catch (...) { data.err = std::current_exception(); }
-            data.mx.unlock();
+
+            manapi::event_loop::unlock(data.ctx, data.mx);
         });
 
-        data.mx.lock();
+        manapi::event_loop::lock(data.ctx, data.mx);
     }
 
     if (data.err)
@@ -1214,28 +1298,56 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
 
         auto const ms = std::max(static_cast<std::size_t>(1),
             static_cast<std::size_t>(when.count() / 1000000));
-        auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
-        auto rhs = ctx->timerpool()->append_timer_sync(ms,
-            [closure = std::move(closure), ptr = timer.get(), time] (manapi::timer timer) mutable -> void {
-                try { closure (); }
-                catch (std::exception const &e) { manapi_log_error("gRPC send a error: %s", e.what()); }
-                task_handle_cancel(ptr, time);
-            });
 
-        assert(rhs.ok());
+        if (wgrpc_storage.current_task_index == std::numeric_limits<uint32_t>::max()) {
+            wgrpc_storage.current_task_index = 0;
+        }
+
+        struct wgrpc_timer_data_t {
+            int refcnt;
+            absl::AnyInvocable<void()> closure;
+            std::size_t index;
+        };
+
+        manapi::reference<wgrpc_timer_data_t> td (new wgrpc_timer_data_t{});
+        td->closure = std::move(closure);
+
+        auto rhs = ctx->timerpool()->append_timer_sync(ms,
+            [td] (manapi::timer timer) mutable -> void {
+                try { td->closure (); }
+                catch (std::exception const &e) { manapi_log_error(
+                    "%s:%s failed due to %s", "wgrpc", "gRPC send a error", e.what()); }
+                task_handle_cancel(manapi::async::current().get(), td->index);
+            });
 
         *timer = rhs.unwrap();
 
-        auto res = wgrpc_storage.wgrpc_tasks_exists.insert({reinterpret_cast<std::uintptr_t>(timer.get()), time}).second;
-        assert(res);
+        while (true) {
+            auto const time = std::chrono::steady_clock::now().time_since_epoch().count();
+            td->index = (static_cast<std::size_t>(wgrpc_storage.current_task_index++) << 32) | (time & 0x0000FFFF);
 
-        task.keys[0] = time;
-        task.keys[1] = reinterpret_cast<std::intptr_t> (timer.release());
+            auto res = wgrpc_storage.wgrpc_tasks_exists.insert({td->index, reinterpret_cast<std::uintptr_t>(timer.get())});
 
-        return task;
+            if (!res.second) {
+                continue;
+            }
+
+            timer.release();
+
+            task.keys[0] = reinterpret_cast<std::intptr_t> (ctx.get());
+            task.keys[1] = static_cast <std::intptr_t>(td->index);
+
+            return task;
+        }
+    }
+
+    auto cur = (wgrpc_current_ctx);
+    if (!cur) {
+        cur = this->primary;
     }
 
     struct data_run_after2_mx_t {
+        const async::shared_cthread &ctx;
         std::mutex mx;
         std::exception_ptr err;
         TaskHandle res;
@@ -1243,7 +1355,7 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
         decltype(closure) *closure_;
         event_engine_wrapper *engine;
     }
-    data{};
+    data{ctx};
 
     data.closure_ = &closure;
     data.when_ = &when;
@@ -1252,13 +1364,14 @@ grpc_event_engine::experimental::EventEngine::TaskHandle manapi::net::wgrpc::eve
     {
         std::lock_guard<std::mutex> lk (data.mx);
 
-        this->ev->custom_callback([&data] (manapi::event_loop *ev) -> void {
+        cur->eventloop()->custom_callback([&data] (manapi::event_loop *ev) -> void {
             try { data.res = data.engine->RunAfter(*data.when_, std::move(*data.closure_)); }
             catch (...) { data.err = std::current_exception(); }
-            data.mx.unlock();
+
+            manapi::event_loop::unlock(data.ctx, data.mx);
         });
 
-        data.mx.lock();
+        manapi::event_loop::lock(data.ctx, data.mx);
     }
 
     if (data.err)
@@ -1281,9 +1394,9 @@ absl::StatusOr<std::unique_ptr<grpc_event_engine::experimental::EventEngine::DNS
     return absl::UnimplementedError("dns");
 }
 
-const manapi::async::shared_eventloop & manapi::net::wgrpc::event_engine_wrapper::shared_eventloop() const {
-    return this->ev;
-}
+// const manapi::async::shared_eventloop & manapi::net::wgrpc::event_engine_wrapper::shared_eventloop() const {
+//     return this->ev;
+// }
 
 manapi::future<manapi::error::status_or<std::shared_ptr<grpc::ChannelCredentials>>> manapi::net::wgrpc::secure_channel_credentials(std::string certfile) {
     try {
@@ -1307,9 +1420,10 @@ manapi::net::wgrpc::server_ctx::server_ctx() {
     std::function<void(void *ptr)> deleter = [] (void *ptr)
         -> void { delete static_cast<worker_data_t *>(ptr); };
     this->data_ = std::make_shared<data_t>(multithread_storage (new worker_data_t(), std::move(deleter)));
-    this->data_->ctx = manapi::async::current();
+    //this->data_->ctx = manapi::async::current();
     try {
         auto ev = std::make_shared<manapi::net::wgrpc::event_engine_wrapper>();
+        ev->magic("MAGIC_MANAPI");
         grpc_event_engine::experimental::SetDefaultEventEngine(ev);
     }
     catch (std::exception const &e) {
@@ -1331,9 +1445,23 @@ manapi::multithread_storage & manapi::net::wgrpc::server_ctx::storage() {
     return this->data_->ms;
 }
 
-const manapi::async::shared_cthread & manapi::net::wgrpc::server_ctx::ctx() {
-    return this->data_->ctx;
+manapi::error::status manapi::net::wgrpc::server_ctx::enable_threadpool(bool status) MANAPIHTTP_NOEXCEPT {
+    if (this->data_) {
+        auto engine = grpc_event_engine::experimental::GetDefaultEventEngine();
+        if (engine) {
+            auto manapi_engine = std::dynamic_pointer_cast<event_engine_wrapper>(engine);
+            if (manapi_engine->magic() != "MAGIC_MANAPI") {
+                return manapi::error::status_internal("wgrpc:magic incorrect");
+            }
+            manapi_engine->enable_threadpool(status);
+        }
+    }
+    return manapi::error::status_ok();
 }
+
+// const manapi::async::shared_cthread & manapi::net::wgrpc::server_ctx::ctx() {
+//     return this->data_->ctx;
+// }
 
 manapi::net::wgrpc::server::server(wgrpc::server_ctx ctx) {
     this->data_ = std::make_shared<data_t>(std::move(ctx), nullptr);
@@ -1352,8 +1480,8 @@ manapi::error::status_or<manapi::net::wgrpc::server> manapi::net::wgrpc::server:
 manapi::net::wgrpc::server::~server() = default;
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::config(std::string path) {
-    if (this->data_->ctx.ctx() != manapi::async::current())
-        co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
+    // if (this->data_->ctx.ctx() != manapi::async::current())
+    //     co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
 
     if (this->data_->worker)
         co_return error::status_already_exists("wgrpc:Config exists");
@@ -1400,8 +1528,8 @@ err:
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::config_object(manapi::json config) {
-    if (this->data_->ctx.ctx() != manapi::async::current())
-        co_return error::status_already_exists("grpc:Server can only be run in a single instance");
+    // if (this->data_->ctx.ctx() != manapi::async::current())
+    //     co_return error::status_already_exists("grpc:Server can only be run in a single instance");
 
     if (this->data_->worker)
         co_return error::status_already_exists("wgrpc:Config exists");
@@ -1434,8 +1562,8 @@ err:
 }
 
 manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::move_only_function<manapi::error::status(grpc::ServerBuilder &b)> cb) {
-    if (this->data_->ctx.ctx() != manapi::async::current())
-        co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
+    // if (this->data_->ctx.ctx() != manapi::async::current())
+    //     co_return error::status_already_exists("grpc:Server can only be run in a signle instance");
 
     try {
         if (this->data_->finishid) {

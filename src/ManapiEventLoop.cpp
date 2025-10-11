@@ -365,6 +365,7 @@ namespace manapi::ev::internal {
     struct custom_callback_t {
         manapi::chain<adding_custom_callback_data_t> callback_data{};
         std::mutex adding_mx;
+        std::mutex adding_mcv;
         std::shared_ptr <ev::async> adding_async;
         std::move_only_function<void()> adding_async_cb{nullptr};
     };
@@ -774,7 +775,9 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::event_loop>> manapi::event_
     err: {
         if (ev) {
             if (ev->callback_watcher_) {
+                std::lock_guard<std::mutex> lk (ev->callback_watcher_->adding_mx);
                 ev->stop_watcher(std::move(ev->callback_watcher_->adding_async));
+                ev->callback_watcher_->adding_async_cb = nullptr;
             }
 #if MANAPIHTTP_CURL_DEPENDENCY
             if (ev->curl_watcher) {
@@ -903,7 +906,9 @@ void manapi::event_loop::wait() {
 
             auto const rhs = uv_run(this->loop(), UV_RUN_DEFAULT);
 
-            if (!rhs && !this->etaskpool_->tasks_size()) {
+            if (!rhs && !uv_loop_alive(this->loop()) && !this->etaskpool_->tasks_size()) {
+                manapi_log_trace(manapi::debug::LOG_TRACE_HIGH,
+                    "%s:%s", "eventloop", "uv_loop_alive has returned 0");
                 break;
             }
         }
@@ -1019,7 +1024,7 @@ manapi::sys_error::status_or<std::pair<std::shared_ptr<manapi::ev::connect>, std
 
         if (auto rhs = c->bind(w->custom(), addr, ev::callback_watcher_connect_tcp)) {
             this->stop_watcher(std::move(w));
-            return manapi::sys_error::status_invalid_argument("ev:Bind failed", rhs);
+            return manapi::sys_error::status_invalid_argument("ev:Bind(tcp) failed", rhs);
         }
 
         ctx->cb = std::move(on_connect);
@@ -1118,9 +1123,13 @@ manapi::error::status manapi::event_loop::custom_callback(std::move_only_functio
 manapi::error::status manapi::event_loop::custom_callback(std::move_only_function<void(event_loop *ev)> *cb) MANAPIHTTP_NOEXCEPT {
     try {
         std::unique_lock<std::mutex> lk (this->callback_watcher_->adding_mx);
+        if (!this->callback_watcher_->adding_async) {
+            return error::status_internal("custom_callback:eventloop was stopped");
+        }
         this->callback_watcher_->callback_data.push_back({nullptr});
         this->callback_watcher_->callback_data.back().cb = std::move(*cb);
         lk.unlock();
+        this->callback_watcher_->adding_mcv.unlock();
         this->callback_watcher_->adding_async_cb();
         return error::status_ok();
     }
@@ -1444,7 +1453,7 @@ void manapi::event_loop::interrupt(int sig) MANAPIHTTP_NOEXCEPT {
             /* well well well */
             default:
                 print_stacktrace ();
-                std::quick_exit(-1);
+                std::quick_exit(1);
             return;
         }
         lk.lock();
@@ -1461,7 +1470,7 @@ void manapi::event_loop::interrupt(int sig) MANAPIHTTP_NOEXCEPT {
             /* well well well */
         default:
             print_stacktrace ();
-            std::quick_exit(-1);
+            std::quick_exit(1);
         return;
     }
 
@@ -1472,6 +1481,38 @@ void manapi::event_loop::interrupt(int sig) MANAPIHTTP_NOEXCEPT {
     }
 
     manapi::event_loop::events.clear();
+}
+
+void manapi::event_loop::lock(async::shared_cthread ctx, std::mutex &mx) MANAPIHTTP_NOEXCEPT {
+    if (ctx) {
+        auto &ev = ctx->eventloop();
+        while (true) {
+            auto trying_was_ok = ev->callback_watcher_->adding_mcv.try_lock();
+
+            ev->custom_watcher_callback_async(ev->callback_watcher_->adding_async);
+
+            if (mx.try_lock()) {
+                mx.unlock();
+                break;
+            }
+
+            std::lock_guard<std::mutex> lk (ev->callback_watcher_->adding_mcv);
+        }
+    }
+    else {
+        mx.lock();
+    }
+}
+
+void manapi::event_loop::unlock(async::shared_cthread ctx, std::mutex &mx) MANAPIHTTP_NOEXCEPT {
+    if (ctx) {
+        auto &ev = ctx->eventloop();
+        mx.unlock();
+        ev->callback_watcher_->adding_mcv.unlock();
+    }
+    else {
+        mx.unlock();
+    }
 }
 
 manapi::sys_error::status_or<std::shared_ptr<manapi::ev::io>> manapi::event_loop::create_watcher_fd(int fd, ev::io_cb callback) MANAPIHTTP_NOEXCEPT {

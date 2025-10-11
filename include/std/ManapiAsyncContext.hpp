@@ -97,6 +97,8 @@ namespace manapi {
 namespace manapi::async {
     /* provides a timer pool */
     typedef std::shared_ptr<timerpool> shared_timerpool;
+    /* provides a timer pool */
+    typedef std::shared_ptr<mthreadpool> shared_mthreadpool;
     /* provides an event loop */
     typedef std::shared_ptr<event_loop> shared_eventloop;
 }
@@ -118,7 +120,7 @@ namespace manapi::async {
          * @param timerpool the timer pool
          * @param logger the logger
          */
-        cthread (shared_eventloop eventloop, shared_taskpool taskpool, shared_timerpool timerpool, shared_logger logger);
+        cthread (shared_eventloop eventloop, shared_mthreadpool taskpool, shared_timerpool timerpool, shared_logger logger);
 
         /**
          * set as the default context in the thread
@@ -137,7 +139,7 @@ namespace manapi::async {
          */
         MANAPIHTTP_NODISCARD const shared_eventloop& eventloop() MANAPIHTTP_NOEXCEPT;
 
-        //MANAPIHTTP_NODISCARD const shared_taskpool &taskpool();
+        MANAPIHTTP_NODISCARD const shared_mthreadpool &threadpool();
 
         /**
          * get the timer pool
@@ -187,7 +189,7 @@ namespace manapi::async {
 
         shared_timerpool timerpool_;
 
-        shared_taskpool taskpool_;
+        shared_mthreadpool taskpool_;
 
         shared_logger logger_;
 

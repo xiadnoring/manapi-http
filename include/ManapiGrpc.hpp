@@ -29,7 +29,7 @@ namespace manapi::net::wgrpc {
 
         multithread_storage &storage ();
 
-        const async::shared_cthread &ctx ();
+        manapi::error::status enable_threadpool (bool status) MANAPIHTTP_NOEXCEPT;
     private:
         std::shared_ptr<data_t> data_;
     };

@@ -44,9 +44,9 @@ manapi::json_error::status::status(const error::status &err) {
     this->pos_ = 0;
 }
 
-manapi::json_error::status::status(json_error::status &&n) noexcept = default;
+manapi::json_error::status::status(json_error::status &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::json_error::status & manapi::json_error::status::operator=(json_error::status &&n) noexcept = default;
+manapi::json_error::status & manapi::json_error::status::operator=(json_error::status &&n) MANAPIHTTP_NOEXCEPT = default;
 
 void manapi::json_error::status::log() const {
     MANAPIHTTP_LOG ("{}: msg: {}, pos: {}, path: {}, data: {}", this->status_msg(), this->msg_, this->pos_, this->path_, this->data_);

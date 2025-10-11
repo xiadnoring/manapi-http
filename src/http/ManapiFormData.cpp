@@ -63,9 +63,9 @@ manapi::net::formdata_recv::formdata_recv(onrecv_cb_t onrecv_cb, manapi::net::wo
 
 manapi::net::formdata_recv::~formdata_recv() = default;
 
-manapi::net::formdata_recv::formdata_recv(formdata_recv &&n) noexcept = default;
+manapi::net::formdata_recv::formdata_recv(formdata_recv &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::net::formdata_recv & manapi::net::formdata_recv::operator=(formdata_recv &&n) noexcept = default;
+manapi::net::formdata_recv & manapi::net::formdata_recv::operator=(formdata_recv &&n) MANAPIHTTP_NOEXCEPT = default;
 
 manapi::future<manapi::error::status> manapi::net::formdata_recv::get(onparam_cb_t cb) {
     assert(this->onparam_cb_ == nullptr);

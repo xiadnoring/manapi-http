@@ -43,6 +43,8 @@ namespace manapi::sockets {
 
 namespace manapi {
     void print_stacktrace () MANAPIHTTP_NOEXCEPT;
+
+    void print_stacktrace (std::size_t pos) MANAPIHTTP_NOEXCEPT;
 }
 
 namespace manapi::memory {
