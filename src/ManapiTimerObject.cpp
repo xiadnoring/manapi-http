@@ -78,7 +78,7 @@ manapi::timer::timer(std::shared_ptr<timer_data_t> data) {
     this->data = std::move(data);
 }
 
-manapi::error::status_or<manapi::timer> manapi::timer::create (bool interval,manapi::timer::sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT {
+manapi::error::status_or<manapi::timer> manapi::timer::create (bool interval,bool important,manapi::timer::sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT {
     try {
         auto w = manapi::timer ();
 
@@ -87,7 +87,9 @@ manapi::error::status_or<manapi::timer> manapi::timer::create (bool interval,man
         if (interval) {
             w.data->flags |= TIMER_TASK_INTERVAL;
         }
-
+        if (important) {
+            w.data->flags |= TIMER_TASK_IMPORTANT;
+        }
         w.data->flags |= TIMER_TASK_ENABLED;
 
         new (&w.data->cb.sync_cb) sync_cb_t (std::move(sync_cb));
@@ -99,7 +101,7 @@ manapi::error::status_or<manapi::timer> manapi::timer::create (bool interval,man
     }
 }
 
-manapi::error::status_or<manapi::timer> manapi::timer::create(bool interval, async_cb_t async_cb) MANAPIHTTP_NOEXCEPT {
+manapi::error::status_or<manapi::timer> manapi::timer::create(bool interval,bool important, async_cb_t async_cb) MANAPIHTTP_NOEXCEPT {
     try {
         auto w = manapi::timer ();
 
@@ -107,6 +109,9 @@ manapi::error::status_or<manapi::timer> manapi::timer::create(bool interval, asy
 
         if (interval) {
             w.data->flags |= TIMER_TASK_INTERVAL;
+        }
+        if (important) {
+            w.data->flags |= TIMER_TASK_IMPORTANT;
         }
         w.data->flags |= TIMER_TASK_ENABLED|TIMER_TASK_IS_ASYNC;
 
@@ -238,8 +243,12 @@ bool manapi::timer::is_sync() const MANAPIHTTP_NOEXCEPT {
     return !this->is_async();
 }
 
-bool manapi::timer::enabled() const MANAPIHTTP_NOEXCEPT {
+bool manapi::timer::is_enabled() const MANAPIHTTP_NOEXCEPT {
     return (this->data->flags & TIMER_TASK_ENABLED);
+}
+
+bool manapi::timer::is_important() const MANAPIHTTP_NOEXCEPT {
+    return (this->data->flags & TIMER_TASK_IMPORTANT);
 }
 
 std::shared_ptr<manapi::timer::timer_data_t> manapi::timer::data_() const MANAPIHTTP_NOEXCEPT {

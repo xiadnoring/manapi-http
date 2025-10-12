@@ -170,6 +170,8 @@ manapi::error::status manapi::async::context::run(shared_ctx ctx, uint32_t loops
 
                         thr->timerpool()->stop();
 
+                        manapi::clear_tools::grpc_clear();
+
                         thr->eventloop()->wait();
 
                         manapi::async::context::current(nullptr);
@@ -193,6 +195,8 @@ manapi::error::status manapi::async::context::run(shared_ctx ctx, uint32_t loops
             ctx->sync_start().unwrap();
 
             ctx->timerpool_->stop();
+
+            manapi::clear_tools::grpc_clear();
 
             ctx->eventloop_->wait();
 

@@ -24,7 +24,8 @@ namespace manapi {
         TIMER_TASK_ENABLED = 1,
         TIMER_TASK_INTERVAL = 2,
         TIMER_TASK_ACTIVE = 4,
-        TIMER_TASK_IS_ASYNC = 8
+        TIMER_TASK_IS_ASYNC = 8,
+        TIMER_TASK_IMPORTANT = 16
     };
 }
 

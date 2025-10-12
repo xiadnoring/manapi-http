@@ -45,6 +45,7 @@ struct manapi::net::wgrpc::server::data_t {
     server_ctx ctx;
     std::shared_ptr<multithread_storage::worker_t> worker;
     manapi::json data;
+    std::unique_ptr<grpc::ServerBuilder> builder;
     std::unique_ptr<grpc::Server> server;
     std::shared_ptr<wgrpc::config> config;
     std::size_t finishid;
@@ -142,7 +143,7 @@ void unbind_net_listener (manapi::ev::shared_tcp conn, manapi::async::shared_cth
     }
 }
 
-bool task_handle_cancel (grpc_event_engine::experimental::EventEngine::TaskHandle handle) {
+bool task_handle_cancel (grpc_event_engine::experimental::EventEngine::TaskHandle &handle) {
     auto it = wgrpc_tasks_find(handle.keys);
     if (it == wgrpc_storage.wgrpc_tasks_exists.end())
         return false;
@@ -165,6 +166,35 @@ bool task_handle_cancel (manapi::async::cthread *t, std::size_t idx) {
     handle.keys[0] = reinterpret_cast<std::intptr_t>(t);
     handle.keys[1] = static_cast<std::intptr_t>(idx);
     return task_handle_cancel(handle);
+}
+
+bool task_connect_cancel (grpc_event_engine::experimental::EventEngine::ConnectionHandle &keys) {
+    auto it = wgrpc_connect_find(keys.keys);
+    if (it == wgrpc_storage.wgrpc_connect_exists.end())
+        return false;
+
+    std::unique_ptr<wgrpc_connection_data_t> p (reinterpret_cast<wgrpc_connection_data_t *> (it->second));
+    wgrpc_storage.wgrpc_connect_exists.erase(it);
+
+    if (!p)
+        return true;
+
+    if (p->connect && p->connect->is_active()) {
+        p->connect->unbind();
+    }
+
+    if (p->timer) {
+        p->timer->stop();
+    }
+
+    return true;
+}
+
+bool task_connect_cancel (manapi::async::cthread *t, std::size_t idx) {
+    grpc_event_engine::experimental::EventEngine::ConnectionHandle handle{};
+    handle.keys[0] = reinterpret_cast<std::intptr_t>(t);
+    handle.keys[1] = static_cast<std::intptr_t>(idx);
+    return task_connect_cancel(handle);
 }
 
 
@@ -816,18 +846,27 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
 
         struct wgrpc_connect_data_t {
             int refcnt;
+            std::size_t index;
             manapi::timer *timer;
             OnConnectCallback on_connect_cb;
             grpc_event_engine::experimental::MemoryAllocator memory_allocator;
             std::shared_ptr<ev::connect> connect;
         };
 
-        manapi::reference ref (new wgrpc_connect_data_t (0, timer.get(), std::move(on_connect), std::move(memory_allocator)));
+        manapi::reference ref (new wgrpc_connect_data_t (0, 0, timer.get(), std::move(on_connect), std::move(memory_allocator)));
 
         auto wres = manapi::async::current()->eventloop()->connect_tcp (addr.address(),
             [ref]
             (const std::shared_ptr<manapi::ev::tcp> &w, int status) mutable
             -> void {
+                std::unique_ptr<wgrpc_connection_data_t> conn_data{nullptr};
+
+                auto conn_row = wgrpc_storage.wgrpc_connect_exists.find(ref->index);
+                if (conn_row != wgrpc_storage.wgrpc_connect_exists.end()) {
+                    conn_data.reset(reinterpret_cast<wgrpc_connection_data_t *>(conn_row->second));
+                    wgrpc_storage.wgrpc_connect_exists.erase(conn_row);
+                }
+
                 if (!ref->on_connect_cb) {
                     return;
                 }
@@ -892,6 +931,13 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
             auto res = manapi::async::current()->timerpool()->append_timer_sync(
                 std::max(1UL, static_cast<std::size_t>(timeout.count() / 1000000)), [ref] (manapi::timer t) mutable
                 -> void {
+                std::unique_ptr<wgrpc_connection_data_t> conn_data{nullptr};
+
+                auto conn_row = wgrpc_storage.wgrpc_connect_exists.find(ref->index);
+                if (conn_row != wgrpc_storage.wgrpc_connect_exists.end()) {
+                    conn_data.reset(reinterpret_cast<wgrpc_connection_data_t *>(conn_row->second));
+                    wgrpc_storage.wgrpc_connect_exists.erase(conn_row);
+                }
                 if (ref->connect && ref->connect->is_active()) {
                     manapi::async::current()->eventloop()->stop_watcher(std::move(ref->connect));
                 }
@@ -909,29 +955,36 @@ grpc_event_engine::experimental::EventEngine::ConnectionHandle manapi::net::wgrp
         data->connect = ref->connect;
         data->timer = std::move(timer);
 
-        std::size_t const time = std::chrono::steady_clock::now().time_since_epoch().count();
-        std::size_t indx = (static_cast<std::size_t>(wgrpc_storage.current_connect_index++) << 32) | (time & 0x0000FFFF);
-        if (wgrpc_storage.current_connect_index == std::numeric_limits<uint32_t>::max()) {
-            wgrpc_storage.current_connect_index = 0;
+        while (true) {
+            std::size_t const time = std::chrono::steady_clock::now().time_since_epoch().count();
+            std::size_t indx = (static_cast<std::size_t>(wgrpc_storage.current_connect_index++) << 32) | (time & 0x0000FFFF);
+            if (wgrpc_storage.current_connect_index == std::numeric_limits<uint32_t>::max()) {
+                wgrpc_storage.current_connect_index = 0;
+            }
+
+            try {
+                auto insert_res = wgrpc_storage.wgrpc_connect_exists.insert(
+                    {indx, reinterpret_cast<std::uintptr_t>(data.get())});
+
+                if (!insert_res.second) {
+                    continue;
+                }
+
+                ref->index = indx;
+
+                data.release();
+            }
+            catch (std::exception const &) {
+                auto &ev = manapi::async::current()->eventloop();
+                ev->stop_watcher(ref->connect);
+                ev->stop_watcher(std::move(conn));
+            }
+
+            handle.keys[0] = reinterpret_cast<std::intptr_t>(ctx.get());
+            handle.keys[1] = static_cast<std::intptr_t>(indx);
+
+            return handle;
         }
-
-        try {
-            auto insert_res = wgrpc_storage.wgrpc_connect_exists.insert(
-                {indx, reinterpret_cast<std::uintptr_t>(data.get())});
-            assert(insert_res.second);
-
-            data.release();
-        }
-        catch (std::exception const &) {
-            auto &ev = manapi::async::current()->eventloop();
-            ev->stop_watcher(ref->connect);
-            ev->stop_watcher(std::move(conn));
-        }
-
-        handle.keys[0] = reinterpret_cast<std::intptr_t>(ctx.get());
-        handle.keys[1] = static_cast<std::intptr_t>(indx);
-
-        return handle;
     }
 
     auto cur = (wgrpc_storage.ctx);
@@ -1036,25 +1089,7 @@ bool manapi::net::wgrpc::event_engine_wrapper::CancelConnect(ConnectionHandle ha
     auto &ctx = manapi::async::internal::current_();
 
     if (reinterpret_cast<std::intptr_t>(ctx.get()) == handle.keys[0]) {
-        auto it = wgrpc_connect_find(handle.keys);
-        if (it == wgrpc_storage.wgrpc_connect_exists.end())
-            return false;
-
-        std::unique_ptr<wgrpc_connection_data_t> p (reinterpret_cast<wgrpc_connection_data_t *> (it->second));
-        wgrpc_storage.wgrpc_connect_exists.erase(it);
-
-        if (!p)
-            return true;
-
-        if (p->connect && p->connect->is_active()) {
-            p->connect->unbind();
-        }
-
-        if (p->timer) {
-            p->timer->stop();
-        }
-
-        return true;
+        return task_connect_cancel (handle);
     }
 
     struct data_cancel_connect_t {
@@ -1458,6 +1493,24 @@ manapi::error::status manapi::net::wgrpc::server_ctx::enable_threadpool(bool sta
     return manapi::error::status_ok();
 }
 
+void manapi::net::wgrpc::server_ctx::clean() MANAPIHTTP_NOEXCEPT {
+    auto &ctx = manapi::async::internal::current_();
+    if (ctx) {
+        while (!wgrpc_storage.wgrpc_tasks_exists.empty()) {
+            auto it = wgrpc_storage.wgrpc_tasks_exists.begin();
+            task_handle_cancel(ctx.get(), it->first);
+        }
+
+        while (!wgrpc_storage.wgrpc_connect_exists.empty()) {
+            auto it = wgrpc_storage.wgrpc_connect_exists.begin();
+            task_connect_cancel(ctx.get(), it->first);
+        }
+    }
+    else {
+
+    }
+}
+
 // const manapi::async::shared_cthread & manapi::net::wgrpc::server_ctx::ctx() {
 //     return this->data_->ctx;
 // }
@@ -1589,7 +1642,7 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
 
         std::string server_address = absl::StrFormat("%s:%s", ip.data(), port.data());
 
-        grpc::ServerBuilder builder;
+        this->data_->builder = std::make_unique<grpc::ServerBuilder>();
         //auto cq = builder.AddCompletionQueue();
 
         std::shared_ptr<grpc::ServerCredentials> creds;
@@ -1622,10 +1675,10 @@ manapi::future<manapi::error::status> manapi::net::wgrpc::server::start(std::mov
         }
 
         if (cb)
-            cb(builder);
+            cb(*this->data_->builder);
 
-        builder.AddListeningPort(server_address, std::move(creds));
-        this->data_->server = builder.BuildAndStart();
+        this->data_->builder->AddListeningPort(server_address, std::move(creds));
+        this->data_->server = this->data_->builder->BuildAndStart();
 
         try {
             this->data_->finishid = manapi::async::current()->eventloop()->subscribe_finish(

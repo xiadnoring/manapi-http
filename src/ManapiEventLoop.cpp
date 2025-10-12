@@ -902,6 +902,7 @@ void manapi::event_loop::wait() {
 
             while (etaskpool->try_task()) {}
 
+            // it's useful if TimeEvent is removed in TimerPool
             manapi::async::current()->timerpool()->run_once();
 
             auto const rhs = uv_run(this->loop(), UV_RUN_DEFAULT);

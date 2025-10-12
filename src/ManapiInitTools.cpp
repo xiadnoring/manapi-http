@@ -6,6 +6,10 @@
 #include "ManapiDebug.hpp"
 #include "ManapiProcess.hpp"
 
+#if MANAPIHTTP_GRPC_DEPENDENCY
+#   include "ManapiGrpc.hpp"
+#endif
+
 #if MANAPIHTTP_OPENSSL_DEPENDENCY
 #   include <openssl/ssl.h>
 #   include <openssl/rand.h>
@@ -108,6 +112,12 @@ void manapi::init_tools::curl_library_init() {
 
 void manapi::init_tools::log_trace_init(manapi::debug::trace_level lvl) {
     debug::log_trace_enabled = lvl;
+}
+
+void manapi::clear_tools::grpc_clear() MANAPIHTTP_NOEXCEPT {
+#if MANAPIHTTP_GRPC_DEPENDENCY
+    net::wgrpc::server_ctx::clean();
+#endif
 }
 
 void manapi::clear_tools::ssl_library_thread_clear() MANAPIHTTP_NOEXCEPT {

@@ -27,9 +27,9 @@ namespace manapi {
 
         timer (std::shared_ptr<timer_data_t> data);
 
-        static manapi::error::status_or<timer> create (bool interval,sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT;
+        static manapi::error::status_or<timer> create (bool interval,bool important,sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT;
 
-        static manapi::error::status_or<timer> create (bool interval,async_cb_t async_cb) MANAPIHTTP_NOEXCEPT;
+        static manapi::error::status_or<timer> create (bool interval,bool important,async_cb_t async_cb) MANAPIHTTP_NOEXCEPT;
 
         timer (const timer &n);
 
@@ -65,7 +65,9 @@ namespace manapi {
 
         MANAPIHTTP_NODISCARD bool is_sync () const MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD bool enabled () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD bool is_enabled () const MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD bool is_important () const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD std::shared_ptr<timer_data_t> data_ () const MANAPIHTTP_NOEXCEPT;
     private:

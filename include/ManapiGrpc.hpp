@@ -19,6 +19,7 @@ namespace manapi::net::wgrpc {
 
     class server_ctx {
         struct data_t;
+
         server_ctx ();
     public:
         struct worker_data_t {
@@ -30,6 +31,8 @@ namespace manapi::net::wgrpc {
         multithread_storage &storage ();
 
         manapi::error::status enable_threadpool (bool status) MANAPIHTTP_NOEXCEPT;
+
+        static void clean () MANAPIHTTP_NOEXCEPT;
     private:
         std::shared_ptr<data_t> data_;
     };
