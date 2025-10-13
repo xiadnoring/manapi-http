@@ -1,6 +1,6 @@
 Package: manapihttp
 Provides: manapihttp
-Version: 1.0.0
+Version: 1.0.2
 Section: libs
 Maintainer: Xiadnoring <me@timurtuty.ru>
 Homepage: https://github.com/xiadnoring/manapi-http

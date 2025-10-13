@@ -1,5 +1,5 @@
-manapihttp (1.0.0+dfsg-1) unstable; urgency=high
-  * Team upload
-  * Break changes
-  * A lot of bugs was fixed
- -- Timur Zajnullin <me@timurtuty.ru>  Wed, 27 Aug 2025 12:00:00 +0000
+manapihttp (1.0.2+dfsg-1) unstable; urgency=high
+  * Bug fixes
+  * Added gRPC multithread support
+  * Added gRPC cleanup functions
+ -- Timur Zajnullin <me@timurtuty.ru>  Wed, 13 Oct 2025 12:00:00 +0000
