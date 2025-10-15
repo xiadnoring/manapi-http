@@ -78,7 +78,7 @@ manapi::timer::timer(std::shared_ptr<timer_data_t> data) {
     this->data = std::move(data);
 }
 
-manapi::error::status_or<manapi::timer> manapi::timer::create (bool interval,bool important,manapi::timer::sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT {
+manapi::error::status_or<manapi::timer> manapi::timer::create (bool interval,timer_types type,manapi::timer::sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT {
     try {
         auto w = manapi::timer ();
 
@@ -87,8 +87,11 @@ manapi::error::status_or<manapi::timer> manapi::timer::create (bool interval,boo
         if (interval) {
             w.data->flags |= TIMER_TASK_INTERVAL;
         }
-        if (important) {
+        if (type == TIMER_IMPORTANT) {
             w.data->flags |= TIMER_TASK_IMPORTANT;
+        }
+        else if (type == TIMER_POOR) {
+            w.data->flags |= TIMER_TASK_POOR;
         }
         w.data->flags |= TIMER_TASK_ENABLED;
 
@@ -101,7 +104,7 @@ manapi::error::status_or<manapi::timer> manapi::timer::create (bool interval,boo
     }
 }
 
-manapi::error::status_or<manapi::timer> manapi::timer::create(bool interval,bool important, async_cb_t async_cb) MANAPIHTTP_NOEXCEPT {
+manapi::error::status_or<manapi::timer> manapi::timer::create(bool interval,timer_types type, async_cb_t async_cb) MANAPIHTTP_NOEXCEPT {
     try {
         auto w = manapi::timer ();
 
@@ -110,8 +113,11 @@ manapi::error::status_or<manapi::timer> manapi::timer::create(bool interval,bool
         if (interval) {
             w.data->flags |= TIMER_TASK_INTERVAL;
         }
-        if (important) {
+        if (type == TIMER_IMPORTANT) {
             w.data->flags |= TIMER_TASK_IMPORTANT;
+        }
+        else if (type == TIMER_POOR) {
+            w.data->flags |= TIMER_TASK_POOR;
         }
         w.data->flags |= TIMER_TASK_ENABLED|TIMER_TASK_IS_ASYNC;
 
@@ -139,7 +145,9 @@ manapi::timer & manapi::timer::operator=(timer &&n) MANAPIHTTP_NOEXCEPT {
 }
 
 manapi::timer & manapi::timer::operator=(const timer &n) {
-    this->data = n.data;
+    if (this != &n) {
+        this->data = n.data;
+    }
     return *this;
 }
 
@@ -233,6 +241,19 @@ manapi::error::status manapi::timer::again(std::size_t ms) MANAPIHTTP_NOEXCEPT {
     this->data->point = std::chrono::steady_clock::now() + this->data->delay;
 
     return manapi::async::current()->timerpool()->again_timer(this->data);
+}
+
+std::chrono::milliseconds manapi::timer::interval() const MANAPIHTTP_NOEXCEPT {
+    return this->data->delay;
+}
+
+std::chrono::milliseconds manapi::timer::remaning() const MANAPIHTTP_NOEXCEPT {
+    auto const now = std::chrono::steady_clock::now();
+    if (this->data->point < now) {
+        return std::chrono::milliseconds(0);
+    }
+    auto const diff = std::chrono::duration_cast <std::chrono::milliseconds>(this->data->point-now);
+    return std::chrono::milliseconds(diff.count());
 }
 
 bool manapi::timer::is_async() const MANAPIHTTP_NOEXCEPT {

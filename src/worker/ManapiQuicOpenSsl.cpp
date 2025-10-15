@@ -428,7 +428,7 @@ manapi::future<manapi::error::status> manapi::net::worker::openssl_quic::init(st
         this->polls_.push_back(poll_item);
 
         auto timer = manapi::async::current()->timerpool()->append_interval_sync(
-            1000, [this] (const manapi::timer &t) -> void {
+            1000, manapi::TIMER_IMPORTANT, [this] (const manapi::timer &t) -> void {
                 this->update_limit_rate();
             });
 
@@ -497,6 +497,7 @@ void manapi::net::worker::openssl_quic::stop(std::function<void()> cb) {
 void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int flags) MANAPIHTTP_NOEXCEPT {
     if (!conn)
         return;
+
 
     if (conn->wrk.flags & WRK_INTERFACE_IS_STREAM) {
         this->close_stream(conn, flags);
@@ -805,6 +806,8 @@ void manapi::net::worker::openssl_quic::close_stream(shared_conn s, int flags) M
 
     if (!data)
         return;
+
+    this->waiting(s, true);
 
     if (data->flags & CONN_REMOVED)
         return;

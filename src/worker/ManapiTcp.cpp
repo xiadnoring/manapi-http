@@ -70,7 +70,7 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
             address.size(), address.data(), port.size(), port.data());
 
         /* every 1 second */
-        auto timer_status = manapi::async::current()->timerpool()->append_interval_sync(1000,
+        auto timer_status = manapi::async::current()->timerpool()->append_interval_sync(1000,manapi::TIMER_IMPORTANT,
             [this] (const manapi::timer& t) -> void { this->update_limit_rate(); });
 
         if (!timer_status.ok())
@@ -153,6 +153,7 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
 }
 
 void manapi::net::worker::TCP::waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT {
+    manapi_log_trace("waiting - %d", (int)state);
     prepared::waiting(conn, state);
 }
 
@@ -385,6 +386,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
     if (!conn)
         return;
 
+    this->waiting(conn, true);
     auto connection = conn->as<tcp_connection_t>();
 
     if (connection->flags & CONN_REMOVED)
@@ -474,6 +476,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
 
             auto rhs = manapi::async::current()->timerpool()->append_interval_sync(
                 this->config_->keep_alive * 1000,
+                manapi::TIMER_IMPORTANT,
                 [conn] (manapi::timer t) mutable
                 -> void {
                 dynamic_cast <TCP*>(conn->as<tcp_connection_t>()->worker)->timeout_(conn);
@@ -505,7 +508,7 @@ void manapi::net::worker::TCP::stop(std::function<void()> cb) {
     if (this->watcher_accept_) {
         try {
             manapi::async::current()->eventloop()
-                ->stop_callback(this->watcher_accept_, [this, cb = std::move(cb)] (const ev::shared_tcp &w) -> void {
+                ->stop_callback(this->watcher_accept_, [this, cb = std::move(cb)] (const ev::shared_tcp &w) mutable -> void {
                     this->flags_ |= WORKER_BASE_FLAG_CLOSED;
                     this->finish = std::move(cb);
 
@@ -921,6 +924,7 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
             // TODO: start accepting
         }
 
+        manapi_log_trace("close conn flg=%d cnt=%d finish=%d", wrk->flags_ & WORKER_BASE_FLAG_CLOSED, wrk->count, wrk->finish ? 1 : 0);
         if (wrk->flags_ & WORKER_BASE_FLAG_CLOSED
             && !wrk->count
             && wrk->finish)

@@ -85,6 +85,7 @@ namespace manapi {
     void mthreadpool::clear() {
         if (!(this->flags & 0b1)) {
             this->tasks.clear();
+            this->tasks2.clear();
         }
     }
 

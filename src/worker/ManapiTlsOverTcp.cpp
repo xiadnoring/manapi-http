@@ -54,6 +54,7 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
     if (!conn)
         return;
 
+    this->waiting(conn, true);
     auto const connection = conn->as<tls_connection_t>();
 
     if (connection->flags & CONN_REMOVED)

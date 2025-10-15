@@ -514,7 +514,7 @@ static void ng_wrk_close_connection (manapi::net::worker::shared_conn conn, bool
 
     if (!s) {
         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s: %s failed due to %s",
-            "nghttp3", "stream finish", "doesn't exists");
+            "nghttp3", "stream finish", "doesn't exist");
         return;
     }
 

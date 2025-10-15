@@ -46,8 +46,10 @@ namespace manapi {
         }
 
         reference& operator= (const reference &n) {
-            this->src = n.src;
-            ++this->src->refcnt;
+            if (this->src != n.src) {
+                this->src = n.src;
+                ++this->src->refcnt;
+            }
             return *this;
         }
 
@@ -68,24 +70,49 @@ namespace manapi {
             }
         }
 
-        T *operator-> () {
+        T *operator-> () MANAPIHTTP_NOEXCEPT {
             return this->src;
         }
 
-        MANAPIHTTP_NODISCARD const T *operator->() const {
+        T *get () MANAPIHTTP_NOEXCEPT {
             return this->src;
         }
 
-        T &operator *() {
+        MANAPIHTTP_NODISCARD const T *get () const MANAPIHTTP_NOEXCEPT {
+            return this->src;
+        }
+
+        MANAPIHTTP_NODISCARD const T *operator->() const MANAPIHTTP_NOEXCEPT {
+            return this->src;
+        }
+
+        T &operator *() MANAPIHTTP_NOEXCEPT {
             return *this->src;
         }
 
-        MANAPIHTTP_NODISCARD const T &operator*() const {
+        MANAPIHTTP_NODISCARD const T &operator*() const MANAPIHTTP_NOEXCEPT {
             return *this->src;
         }
 
-        MANAPIHTTP_NODISCARD operator bool () const {
+        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT {
             return !!this->src;
+        }
+
+        manapi::error::status ref () MANAPIHTTP_NOEXCEPT {
+            if (this->src) {
+                ++this->src->refcnt;
+                return manapi::error::status_ok();
+            }
+            return manapi::error::status_internal("ref:Object doesn't exist");
+        }
+
+        void unref () MANAPIHTTP_NOEXCEPT {
+            if (this->src) {
+                if (!--this->src->refcnt) {
+                    delete this->src;
+                    this->src = nullptr;
+                }
+            }
         }
     private:
         T *src;

@@ -84,7 +84,7 @@ namespace manapi::ext::pq {
             }
 
             manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s:%s id=%d", "pq", "out of range in result", index);
-            throw std::out_of_range("row doesn't exists");
+            throw std::out_of_range("row doesn't exist");
         }
 
         row operator[](int index) {

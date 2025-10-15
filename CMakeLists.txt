@@ -58,6 +58,7 @@ OPTION(MANAPIHTTP_NGHTTP3_SYSTEM_DISABLE "Disable default nghttp3" OFF)
 OPTION(MANAPIHTTP_DISABLE_TRACE "Disable Trace Debug" OFF)
 OPTION(MANAPIHTTP_DISABLE_TRACE_HARD "Disable Trace Hard Debug" OFF)
 OPTION(MANAPIHTTP_NGHTTP3_SYSTEM_DISABLE "Disable default nghttp3" OFF)
+OPTION(MANAPIHTTP_QT_DEPENDENCY "Qt dependency" OFF)
 OPTION(MANAPIHTTP_DEPENDENCY_FETCH_OUTPUT "Output Directory For Libraries" OFF)
 OPTION(MANAPIHTTP_BUILD_TYPE "Build result: binary or library" "lib")
 OPTION(MANAPIHTTP_INSTALL_ARCH "/x86_64-linux-gnu for example" "")
@@ -75,8 +76,9 @@ message(STATUS "TLS, QUIC and etc implementations by WolfSSL: ${MANAPIHTTP_WOLFS
 message(STATUS "BigInt support by GMP: ${MANAPIHTTP_GMP_DEPENDENCY}")
 message(STATUS "Fetch support by CURL: ${MANAPIHTTP_CURL_DEPENDENCY}")
 message(STATUS "Some compresses support by zlib: ${MANAPIHTTP_ZLIB_DEPENDENCY}")
-message(STATUS "libnghttp2 by nghttp2" ${MANAPIHTTP_NGHTTP2_DEPENDENCY})
-message(STATUS "libnghttp3 by nghttp3" ${MANAPIHTTP_NGHTTP3_DEPENDENCY})
+message(STATUS "libnghttp2 by nghttp2: ${MANAPIHTTP_NGHTTP2_DEPENDENCY}")
+message(STATUS "libnghttp3 by nghttp3: ${MANAPIHTTP_NGHTTP3_DEPENDENCY}")
+message(STATUS "qt dependency: ${MANAPIHTTP_QT_DEPENDENCY}")
 
 set(MANAPIHTTP_GMP_DEPENDENCY_OBJ OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -211,11 +213,21 @@ else ()
                     GIT_REPOSITORY https://github.com/libuv/libuv
                     GIT_TAG v1.51.0
                     CMAKE_ARGS
-                        -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_LIBUV_INSTALL_DIR}
-                        -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
+                    -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_LIBUV_INSTALL_DIR}
+                    -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
                     BUILD_BYPRODUCTS "${LIBUV_LIBRARIES}"
             )
             set(MANAPIHTTP_LIBUV_DEPENDENCY_FETCH ON)
+        endif ()
+    endif ()
+
+    if (MANAPIHTTP_QT_DEPENDENCY)
+        find_package(Qt6 COMPONENTS Core Widgets Quick)
+        if (Qt6_FOUND)
+
+        else ()
+            message(STATUS "qt6 not found")
+            set(MANAPIHTTP_QT_DEPENDENCY OFF)
         endif ()
     endif ()
 
@@ -241,23 +253,23 @@ else ()
                 set(GMP_INCLUDE_DIRS $<BUILD_INTERFACE:${MANAPIHTTP_GMP_INSTALL_DIR}/include>)
 
                 ExternalProject_Add(
-                    gmp
-                    PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
-                    DOWNLOAD_NAME gmp.tar.gz
-                    URL https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.bz2 https://gmplib.org/download/gmp/gmp-6.3.0.tar.bz2
-                    URL_HASH SHA256=ac28211a7cfb609bae2e2c8d6058d66c8fe96434f740cf6fe2e47b000d1c20cb
-                    USES_TERMINAL_DOWNLOAD TRUE
-                    PATCH_COMMAND patch -p1 --directory "${MANAPIHTTP_DEPS_PREFIX}/src/gmp" < "${MANAPIHTTP_PATCHES_DIR}/gmp-3.5.0-0001-configure.patch"
-                    CONFIGURE_COMMAND sh ./../gmp/configure --prefix=${MANAPIHTTP_GMP_INSTALL_DIR}
+                        gmp
+                        PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
+                        DOWNLOAD_NAME gmp.tar.gz
+                        URL https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.bz2 https://gmplib.org/download/gmp/gmp-6.3.0.tar.bz2
+                        URL_HASH SHA256=ac28211a7cfb609bae2e2c8d6058d66c8fe96434f740cf6fe2e47b000d1c20cb
+                        USES_TERMINAL_DOWNLOAD TRUE
+                        PATCH_COMMAND patch -p1 --directory "${MANAPIHTTP_DEPS_PREFIX}/src/gmp" < "${MANAPIHTTP_PATCHES_DIR}/gmp-3.5.0-0001-configure.patch"
+                        CONFIGURE_COMMAND sh ./../gmp/configure --prefix=${MANAPIHTTP_GMP_INSTALL_DIR}
                         $<$<BOOL:${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}>:--enable-shared=True>
                         $<$<BOOL:${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}>:--enable-static=False>
                         $<$<NOT:$<BOOL:${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}>>:--enable-shared=False>
                         $<$<NOT:$<BOOL:${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}>>:--enable-static=True>
-                    BUILD_COMMAND make
-                    TEST_COMMAND ""
-                    INSTALL_COMMAND make install
-                    INSTALL_DIR "${MANAPIHTTP_GMP_INSTALL_DIR}"
-                    BUILD_BYPRODUCTS "${GMP_LIBRARIES}"
+                        BUILD_COMMAND make
+                        TEST_COMMAND ""
+                        INSTALL_COMMAND make install
+                        INSTALL_DIR "${MANAPIHTTP_GMP_INSTALL_DIR}"
+                        BUILD_BYPRODUCTS "${GMP_LIBRARIES}"
                 )
                 set(MANAPIHTTP_GMP_DEPENDENCY_FETCH ON)
             else ()
@@ -294,13 +306,13 @@ else ()
                         URL https://zlib.net/fossils/zlib-1.3.1.tar.gz https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz
                         URL_HASH SHA256=9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23
                         CMAKE_ARGS
-                            -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_ZLIB_INSTALL_DIR}
-                            -DZLIB_BUILD_EXAMPLES=OFF
-                            -DSKIP_INSTALL_ALL=OFF
-                            -DSKIP_INSTALL_LIBRARIES=OFF
-                            -DSKIP_INSTALL_HEADERS=OFF
-                            -DSKIP_INSTALL_FILES=ON
-                            -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
+                        -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_ZLIB_INSTALL_DIR}
+                        -DZLIB_BUILD_EXAMPLES=OFF
+                        -DSKIP_INSTALL_ALL=OFF
+                        -DSKIP_INSTALL_LIBRARIES=OFF
+                        -DSKIP_INSTALL_HEADERS=OFF
+                        -DSKIP_INSTALL_FILES=ON
+                        -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
                         BUILD_BYPRODUCTS "${ZLIB_LIBRARIES}"
                 )
                 set(MANAPIHTTP_ZLIB_DEPENDENCY_FETCH ON)
@@ -339,20 +351,20 @@ else ()
                 set(OPENSSL_INCLUDE_DIRS $<BUILD_INTERFACE:${MANAPIHTTP_OPENSSL_INSTALL_DIR}/include>)
 
                 ExternalProject_Add(
-                    openssl
-                    PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
-                    DOWNLOAD_NAME openssl.tar.gz
-                    URL https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.2.zip
-                    URL_HASH SHA256=ea744bf784bdc3554284f6dc82d40e82cb89dd86c737151b2890289b6624c180
-                    USES_TERMINAL_DOWNLOAD TRUE
-                    CONFIGURE_COMMAND
+                        openssl
+                        PREFIX "${MANAPIHTTP_DEPS_PREFIX}"
+                        DOWNLOAD_NAME openssl.tar.gz
+                        URL https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.2.zip
+                        URL_HASH SHA256=ea744bf784bdc3554284f6dc82d40e82cb89dd86c737151b2890289b6624c180
+                        USES_TERMINAL_DOWNLOAD TRUE
+                        CONFIGURE_COMMAND
                         ${MANAPIHTTP_DEPS_PREFIX}/src/openssl/config
                         --prefix=${MANAPIHTTP_OPENSSL_INSTALL_DIR}
                         --openssldir=${MANAPIHTTP_OPENSSL_INSTALL_DIR}
-                    BUILD_COMMAND make
-                    INSTALL_COMMAND make install
-                    INSTALL_DIR ${MANAPIHTTP_OPENSSL_INSTALL_DIR}
-                    BUILD_BYPRODUCTS "${OPENSSL_LIBRARIES}"
+                        BUILD_COMMAND make
+                        INSTALL_COMMAND make install
+                        INSTALL_DIR ${MANAPIHTTP_OPENSSL_INSTALL_DIR}
+                        BUILD_BYPRODUCTS "${OPENSSL_LIBRARIES}"
                 )
 
                 set(MANAPIHTTP_OPENSSL_DEPENDENCY_FETCH ON)
@@ -395,8 +407,8 @@ else ()
                         GIT_REPOSITORY https://github.com/curl/curl
                         GIT_TAG curl-8_15_0
                         CMAKE_ARGS
-                            -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_CURL_INSTALL_DIR}
-                            -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
+                        -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_CURL_INSTALL_DIR}
+                        -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
                         BUILD_BYPRODUCTS "${CURL_LIBRARIES}"
                 )
                 set(MANAPIHTTP_CURL_DEPENDENCY_FETCH ON)
@@ -505,8 +517,8 @@ else ()
                         GIT_REPOSITORY https://github.com/nghttp2/nghttp2
                         GIT_TAG v1.66.0
                         CMAKE_ARGS
-                            -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_LIBNGHTTP2_INSTALL_DIR}
-                            -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
+                        -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_LIBNGHTTP2_INSTALL_DIR}
+                        -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
                         BUILD_BYPRODUCTS "${LIBNGHTTP2_LIBRARIES}"
                 )
                 set(MANAPIHTTP_NGHTTP2_DEPENDENCY_FETCH ON)
@@ -549,8 +561,8 @@ else ()
                         GIT_REPOSITORY https://github.com/ngtcp2/nghttp3
                         GIT_TAG v1.11.0
                         CMAKE_ARGS
-                            -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_LIBNGHTTP3_INSTALL_DIR}
-                            -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
+                        -DCMAKE_INSTALL_PREFIX:PATH=${MANAPIHTTP_LIBNGHTTP3_INSTALL_DIR}
+                        -DBUILD_SHARED_LIBS=${MANAPIHTTP_DEPENDENCY_FETCH_SHARED}
                         BUILD_BYPRODUCTS "${LIBNGHTTP3_LIBRARIES}"
                 )
                 set(MANAPIHTTP_NGHTTP3_DEPENDENCY_FETCH ON)
@@ -838,7 +850,7 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
 
             add_custom_command(
                     OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.pb.cc"
-                            "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.pb.h"
+                    "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.pb.h"
                     COMMAND ${Protobuf_PROTOC_EXECUTABLE}
                     ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --cpp_out=${CMAKE_BINARY_DIR}/generated
                     DEPENDS ${Protobuf_PROTOC_EXECUTABLE}
@@ -857,7 +869,7 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
             if (WIN32)
                 add_custom_command(
                         OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.cc"
-                                "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
+                        "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
                         COMMAND set "PATH=${MANAPI_grpc_LIB_DIRS};${MANAPI_protobuf_LIB_DIRS};%PATH%"
                         COMMAND ${Protobuf_PROTOC_EXECUTABLE}
                         ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
@@ -867,7 +879,7 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
             elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
                 add_custom_command(
                         OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.cc"
-                                "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
+                        "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
                         COMMAND export LD_LIBRARY_PATH=${MANAPI_grpc_LIB_DIRS}:${MANAPI_protobuf_LIB_DIRS}
                         COMMAND ${Protobuf_PROTOC_EXECUTABLE}
                         ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
@@ -877,7 +889,7 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
             else ()
                 add_custom_command(
                         OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.cc"
-                                "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
+                        "${CMAKE_CURRENT_BINARY_DIR}/generated/${FIL_WE}.grpc.pb.h"
                         COMMAND LD_LIBRARY_PATH=${MANAPI_grpc_LIB_DIRS}:${MANAPI_protobuf_LIB_DIRS} ${Protobuf_PROTOC_EXECUTABLE}
                         ARGS ${FIL} -I${CMAKE_SOURCE_DIR} --grpc_out=${CMAKE_BINARY_DIR}/generated --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
                         DEPENDS ${Protobuf_PROTOC_EXECUTABLE}
@@ -886,35 +898,35 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
             endif ()
         endforeach ()
 
-#        foreach (X IN LISTS PROTOS)
-#            execute_process(COMMAND bash -c
-#                    "${Protobuf_PROTOC_EXECUTABLE} --cpp_out :${CMAKE_BINARY_DIR}/include -I ${CMAKE_SOURCE_DIR} ${X}")
-#        endforeach ()
-#
+        #        foreach (X IN LISTS PROTOS)
+        #            execute_process(COMMAND bash -c
+        #                    "${Protobuf_PROTOC_EXECUTABLE} --cpp_out :${CMAKE_BINARY_DIR}/include -I ${CMAKE_SOURCE_DIR} ${X}")
+        #        endforeach ()
+        #
         # FILE(GLOB PROTO_SRCS ${CMAKE_BINARY_DIR}/include/protobuf/*.pb.*)
 
-#        protobuf_generate(
-#                ${PROJECT_NAME}
-#                LANGUAGE grpc
-#                OUT_VAR PROTO_SRCS
-#                PROTOS ${PROTOS}
-#                GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc
-#                PROTOC_OUT_DIR ${CMAKE_BINARY_DIR}/include
-#                PLUGIN protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
-#        )
+        #        protobuf_generate(
+        #                ${PROJECT_NAME}
+        #                LANGUAGE grpc
+        #                OUT_VAR PROTO_SRCS
+        #                PROTOS ${PROTOS}
+        #                GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc
+        #                PROTOC_OUT_DIR ${CMAKE_BINARY_DIR}/include
+        #                PLUGIN protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+        #        )
 
         message(STATUS "${Protobuf_PROTOC_EXECUTABLE} ${PROTO_SRCS} ${PROTO_HDRS}")
 
-#        foreach (X IN LISTS PROTOS)
-#            execute_process(COMMAND bash -c
-#                    "${Protobuf_PROTOC_EXECUTABLE} --grpc_out :${CMAKE_BINARY_DIR}/include/grpc -I ${CMAKE_SOURCE_DIR} ${X} --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>")
-#        endforeach ()
-#
-#        FILE(GLOB PROTO_SRCS ${CMAKE_BINARY_DIR}/include/grpc/protobuf/*.pb.*)
+        #        foreach (X IN LISTS PROTOS)
+        #            execute_process(COMMAND bash -c
+        #                    "${Protobuf_PROTOC_EXECUTABLE} --grpc_out :${CMAKE_BINARY_DIR}/include/grpc -I ${CMAKE_SOURCE_DIR} ${X} --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>")
+        #        endforeach ()
+        #
+        #        FILE(GLOB PROTO_SRCS ${CMAKE_BINARY_DIR}/include/grpc/protobuf/*.pb.*)
 
-#        protobuf_generate(${PROJECT_NAME} LANGUAGE cpp OUT_VAR PROTO_SRCS PROTOS protobuf/helloworld.proto
-#            PROTOC_OUT_DIR ${CMAKE_BINARY_DIR}/include
-#            PROTOC_EXE ${Protobuf_PROTOC_EXECUTABLE})
+        #        protobuf_generate(${PROJECT_NAME} LANGUAGE cpp OUT_VAR PROTO_SRCS PROTOS protobuf/helloworld.proto
+        #            PROTOC_OUT_DIR ${CMAKE_BINARY_DIR}/include
+        #            PROTOC_EXE ${Protobuf_PROTOC_EXECUTABLE})
     endif ()
 
 
@@ -925,11 +937,11 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
 
     target_sources(${PROJECT_NAME} PRIVATE main.cpp handlers.hpp handlers.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
 
-#    target_sources(${PROJECT_NAME} PUBLIC
-#            FILE_SET CXX_MODULES
-#            BASE_DIRS ${CMAKE_SOURCE_DIR}/modules
-#            FILES ${MANAPIHTTP_MODULES}
-#    )
+    #    target_sources(${PROJECT_NAME} PUBLIC
+    #            FILE_SET CXX_MODULES
+    #            BASE_DIRS ${CMAKE_SOURCE_DIR}/modules
+    #            FILES ${MANAPIHTTP_MODULES}
+    #    )
 
 else ()
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
@@ -951,11 +963,11 @@ else ()
             VERSION ${PROJECT_VERSION}
             SOVERSION ${PROJECT_VERSION_MAJOR})
 
-#    target_sources(${PROJECT_NAME} PUBLIC
-#            FILE_SET CXX_MODULES
-#            BASE_DIRS ${CMAKE_SOURCE_DIR}/modules
-#            FILES ${MANAPIHTTP_MODULES}
-#    )
+    #    target_sources(${PROJECT_NAME} PUBLIC
+    #            FILE_SET CXX_MODULES
+    #            BASE_DIRS ${CMAKE_SOURCE_DIR}/modules
+    #            FILES ${MANAPIHTTP_MODULES}
+    #    )
 
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}.pc.in ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc @ONLY)
 endif ()
@@ -964,7 +976,9 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 
 include(GenerateExportHeader)
 
-generate_export_header(${PROJECT_NAME} EXPORT_FILE_NAME ./include/ManapiExport.hpp)
+if (MANAPIHTTP_BUILD_TYPE STREQUAL "lib")
+    generate_export_header(${PROJECT_NAME} EXPORT_FILE_NAME ./include/ManapiExport.hpp)
+endif ()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
@@ -981,7 +995,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     get_target_property(LIBUV_INCLUDE_DIRECTORIES uv INTERFACE_INCLUDE_DIRECTORIES)
-    
+
     message(STATUS ${libuv_CONAN_INCLUDE_DIRS})
     if (NOT EXISTS "${CMAKE_BINARY_DIR}/include/ext/uv.h")
         file(COPY ${libuv_CONAN_INCLUDE_DIRS}/uv DESTINATION ${CMAKE_BINARY_DIR}/include/ext FILES_MATCHING PATTERN "*.h")
@@ -1063,6 +1077,11 @@ else ()
         target_link_libraries(${PROJECT_NAME} PUBLIC ${PostgreSQL_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PUBLIC ${PostgreSQL_INCLUDE_DIRS})
     endif()
+
+    if (MANAPIHTTP_QT_DEPENDENCY)
+        message(STATUS "qt: libs=Qt6::Core Qt6::Widgets Qt6::Quick")
+        target_link_libraries(${PROJECT_NAME} PUBLIC Qt6::Core Qt6::Widgets Qt6::Quick)
+    endif ()
 
     if (MANAPIHTTP_GMP_DEPENDENCY)
         message(STATUS "gmp: libs=${GMP_LIBRARIES} include=${GMP_INCLUDE_DIRS}")
@@ -1278,11 +1297,11 @@ else ()
             LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR}
             INCLUDES  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-#            FILE_SET CXX_MODULES
-#            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/src
-#            CXX_MODULES_BMI
-#            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/bmi-${CMAKE_CXX_COMPILER_ID}_$<CONFIG>
-#            FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECTNAME}
+            #            FILE_SET CXX_MODULES
+            #            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/src
+            #            CXX_MODULES_BMI
+            #            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}/bmi-${CMAKE_CXX_COMPILER_ID}_$<CONFIG>
+            #            FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECTNAME}
     )
 
     install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
@@ -1290,7 +1309,7 @@ else ()
 
     install(EXPORT manapihttp-targets
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-#            CXX_MODULES_DIRECTORY .
+            #            CXX_MODULES_DIRECTORY .
     )
 
     set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -1301,8 +1320,8 @@ else ()
     install(FILES cmake/manapihttp-config.cmake
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
     )
-#
-#    export(TARGETS ${PROJECT_NAME} FILE ManapiHttpConfig.cmake)
+    #
+    #    export(TARGETS ${PROJECT_NAME} FILE ManapiHttpConfig.cmake)
 endif ()
 
 #include("${manapihttp_PACKAGE_FOLDER_DEBUG}/lib/cmake/manapihttp/manapihttp-config.cmake")

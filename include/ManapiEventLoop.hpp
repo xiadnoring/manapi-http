@@ -102,7 +102,8 @@ namespace manapi::ev::internal {
 namespace manapi {
     class logger;
 
-    class event_loop {
+    class event_loop : public std::enable_shared_from_this<event_loop> {
+        friend async::context;
     public:
         event_loop();
 
@@ -110,15 +111,9 @@ namespace manapi {
 
         ~event_loop();
 
-        manapi::future<manapi::sys_error::status> start (std::shared_ptr<event_loop> le);
-
-        manapi::sys_error::status sync_start (std::shared_ptr<event_loop> le);
-
         void setup_handle_interrupt () MANAPIHTTP_NOEXCEPT;
 
         manapi::future<> stop ();
-
-        void wait ();
 
         size_t subscribe_finish (std::move_only_function<manapi::future<void>()> cb);
 
@@ -168,7 +163,7 @@ namespace manapi {
 
         /**
          *
-         * @param callback Callback
+         * @param callback Callback (can be null)
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
@@ -183,21 +178,21 @@ namespace manapi {
         manapi::sys_error::status_or<std::shared_ptr<ev::io>> create_watcher_socket (socket_t sock, ev::io_cb callback) MANAPIHTTP_NOEXCEPT;
         /**
          *
-         * @param callback Callback
+         * @param callback Callback (can be null)
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
         manapi::sys_error::status_or<std::shared_ptr<ev::async>> create_watcher_async (ev::async_cb callback) MANAPIHTTP_NOEXCEPT;
         /**
          *
-         * @param callback Callback
+         * @param callback Callback (can be null)
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
         manapi::sys_error::status_or<std::shared_ptr<ev::timer>> create_watcher_timer (ev::timer_cb callback) MANAPIHTTP_NOEXCEPT;
         /**
          *
-         * @param callback Callback
+         * @param callback Callback (can be null)
          * @return
          * @throws manapi::exception with ERR_INTERNAL code
          */
@@ -321,10 +316,27 @@ namespace manapi {
         static void lock (async::shared_cthread ctx, std::mutex &mx) MANAPIHTTP_NOEXCEPT;
 
         static void unlock (async::shared_cthread ctx, std::mutex &mx) MANAPIHTTP_NOEXCEPT;
+
+        manapi::sys_error::status run () MANAPIHTTP_NOEXCEPT;
+
+        manapi::sys_error::status start () MANAPIHTTP_NOEXCEPT;
+
+        /**
+         * Run Event Loop
+         * @param mode Run Mode
+         * @return AbortedError when event loop is interrupted or stopped (you must to finish the current context),
+         * AlreadExists when event loop already exists,
+         * returns Ok in other cases
+         */
+        manapi::sys_error::status run (manapi::ev::run_modes mode) MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD bool is_stopping () const MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD bool is_active () const MANAPIHTTP_NOEXCEPT;
+
+        void custom_event_loop (std::move_only_function<void()> block_cb) MANAPIHTTP_NOEXCEPT;
     protected:
 #if MANAPIHTTP_CURL_DEPENDENCY
-
-
         void handle_curl_exec_connections ();
 
         void handle_curl_check_connections ();
@@ -333,6 +345,8 @@ namespace manapi {
         void custom_watcher_callback_async (const std::shared_ptr<ev::async>  &w);
     private:
 #if MANAPIHTTP_CURL_DEPENDENCY
+        void wait_all_ () MANAPIHTTP_NOEXCEPT;
+
         static manapi::sys_error::status_or<std::shared_ptr<ev::io>> handle_curl_watcher_gen(event_loop *data, socket_t fd) MANAPIHTTP_NOEXCEPT;
 
         static socket_t handle_curl_open_socket (void *cbp, int socktype, void *addr);
@@ -353,23 +367,21 @@ namespace manapi {
 
         static std::mutex stop_mx;
 
-        manapi::sys_error::status pool_(manapi::async::mutex_locker *lk2, std::shared_ptr<event_loop> le);
+        manapi::sys_error::status register_ () MANAPIHTTP_NOEXCEPT;
+
+        void unregister_ () MANAPIHTTP_NOEXCEPT;
 
         manapi::future<> _call_on_finish_cb ();
 
         void free_on_finish_cb_ ();
 
-        void stop_pool (async::promise_sync<void>::resolve_t resolve);
-
-        void async_break_loop_ ();
-
         void try_tasks_ (const ev::shared_idle &w);
 
-        bool status{};
+        int flags;
+
+        std::atomic<int> interrupted_;
 
         std::shared_ptr<threadpool> etaskpool_;
-
-        std::shared_ptr<async::mutex> mx;
 
         std::unique_ptr<uv_loop_t> loop_;
 
@@ -379,11 +391,7 @@ namespace manapi {
 
         std::map <size_t, std::move_only_function<void()>> map_clean_up_cb;
 
-        std::shared_ptr<ev::async> interrupted_watcher_{nullptr};
-
-        std::shared_ptr<ev::async> stop_watcher_{nullptr};
-
-        async::promise_sync<void>::resolve_t resolve_stop{nullptr};
+        std::shared_ptr<ev::async> interrupted_watcher_;
 
 #if MANAPIHTTP_CURL_DEPENDENCY
         std::unique_ptr<ev::internal::curl_watcher_t> curl_watcher;
@@ -396,5 +404,7 @@ namespace manapi {
         std::shared_ptr<ev::prepare> prepare_tasks_;
 
         std::shared_ptr<manapi::logger> logger_;
+
+        std::move_only_function<void()> custom_event_loop_;
     };
 }

@@ -248,7 +248,7 @@ manapi::future<manapi::error::status> manapi::net::worker::OpenSSL_TLS::init(std
 
         if (!ctx_data->sessions_flush_timer) {
             ctx_data->sessions_flush_timer = manapi::async::current()->timerpool()->append_interval_sync(
-                10000, [ctx_data, mx = this->pool_data_->mx.get()](const manapi::timer& t)
+                10000, manapi::TIMER_IMPORTANT,[ctx_data, mx = this->pool_data_->mx.get()](const manapi::timer& t)
                     ->void {
                 ssl_flush_sessions (mx, ctx_data);
             }).unwrap();

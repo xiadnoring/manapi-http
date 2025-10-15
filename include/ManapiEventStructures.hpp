@@ -20,6 +20,8 @@
         loop_ref loop () MANAPIHTTP_NOEXCEPT; \
         name_struct* custom () MANAPIHTTP_NOEXCEPT; \
         bool is_active () MANAPIHTTP_NOEXCEPT; \
+        void ref () MANAPIHTTP_NOEXCEPT; \
+        void unref () MANAPIHTTP_NOEXCEPT; \
         ~name_class ();
 #define MANAPIHTTP_EV_STREAM(name_class, name_struct) \
         int listen (int tcp_backlog, uv_connection_cb cb) MANAPIHTTP_NOEXCEPT; \
@@ -77,6 +79,12 @@ namespace manapi::ev {
 #else
         TCP_REUSEPORT = 0,
 #endif
+    };
+
+    enum run_modes {
+        RUN_DEFAULT = UV_RUN_DEFAULT,
+        RUN_ONCE = UV_RUN_ONCE,
+        RUN_NOWAIT = UV_RUN_NOWAIT
     };
 
     enum types {
@@ -997,6 +1005,8 @@ namespace manapi::ev {
     const char *strerror (int errnum) MANAPIHTTP_NOEXCEPT;
 
     const char *namerror (int errnum) MANAPIHTTP_NOEXCEPT;
+
+    std::size_t hrtime () MANAPIHTTP_NOEXCEPT;
 }
 
 namespace manapi::sys_error {

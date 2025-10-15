@@ -35,12 +35,16 @@ manapi::async::cthread::~cthread() = default;
 //     co_await this->eventloop_->start(this->eventloop_);
 // }
 
-manapi::sys_error::status manapi::async::cthread::sync_start() {
+manapi::sys_error::status manapi::async::cthread::start() {
     this->taskpool_->start();
     auto res = timerpool()->start();
     if (!res)
         return std::move(res);
-    return this->eventloop_->sync_start(this->eventloop_);
+    auto sys_res = this->eventloop_->start();
+    if (sys_res.code() != ERR_ABORTED) {
+        return std::move(sys_res);
+    }
+    return sys_error::status_ok();
 }
 
 manapi::future<void> manapi::async::cthread::stop() {
@@ -119,13 +123,21 @@ manapi::error::status_or<manapi::async::shared_ctx> manapi::async::context::crea
     }
 }
 
-manapi::error::status manapi::async::context::run(shared_ctx ctx, uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT {
+manapi::error::status manapi::async::context::run(uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT {
     try {
-        auto const mtaskpool = dynamic_cast<mthreadpool *> (ctx->taskpool_.get());
+        auto ctx = this->shared_from_this();
+
+        if (!ctx) {
+            return manapi::error::status_not_found("context:not found");
+        }
+
+        ctx->eventloop()->setup_handle_interrupt();
+
+        auto const mtaskpool = (ctx->taskpool_.get());
 
         if (loops > mtaskpool->size()) {
             loops = mtaskpool->size();
-            manapi_log_info("not enough threads for additional event loops. available: %zu", mtaskpool->size());
+            manapi_log_info("not enough threads for the additional event loops. Reduce to %zu", mtaskpool->size());
         }
 
         ctx->loops_.resize(loops);
@@ -166,13 +178,16 @@ manapi::error::status manapi::async::context::run(shared_ctx ctx, uint32_t loops
                     async::cthread::current(thr);
 
                     callback([thr] () -> void {
-                        thr->sync_start().unwrap();
+                        thr->eventloop()->etaskpool_->start();
+                        thr->start().unwrap();
 
                         thr->timerpool()->stop();
 
                         manapi::clear_tools::grpc_clear();
 
-                        thr->eventloop()->wait();
+                        thr->eventloop()->wait_all_();
+                        thr->eventloop()->etaskpool_->stop();
+                        thr->eventloop()->etaskpool_->join();
 
                         manapi::async::context::current(nullptr);
 
@@ -192,13 +207,16 @@ manapi::error::status manapi::async::context::run(shared_ctx ctx, uint32_t loops
             tres.err().log();
 
         callback([ctx] () -> void {
-            ctx->sync_start().unwrap();
+            ctx->eventloop()->etaskpool_->start();
+            ctx->start().unwrap();
 
             ctx->timerpool_->stop();
 
             manapi::clear_tools::grpc_clear();
 
-            ctx->eventloop_->wait();
+            ctx->eventloop_->wait_all_();
+            ctx->eventloop()->etaskpool_->stop();
+            ctx->eventloop()->etaskpool_->join();
 
             ctx->taskpool_->stop();
             ctx->taskpool_->join();
@@ -216,8 +234,8 @@ manapi::error::status manapi::async::context::run(shared_ctx ctx, uint32_t loops
     return error::status_internal("ctx:run failed");
 }
 
-void manapi::async::context::run(shared_ctx ctx, std::function<void(std::function<void()> bind)> callback) {
-    manapi::async::context::run(std::move(ctx), 0, std::move(callback));
+void manapi::async::context::run(std::function<void(std::function<void()> bind)> callback) {
+    this->run(0, std::move(callback));
 }
 
 void manapi::async::context::threadpoolfs(std::size_t cnt) MANAPIHTTP_NOEXCEPT {
@@ -258,7 +276,7 @@ const std::vector<manapi::async::shared_cthread> & manapi::async::context::loops
 }
 
 const manapi::async::shared_cthread &manapi::async::current() MANAPIHTTP_NOEXCEPT {
-    assert(manapi::async::internal::current_() && "async ctx doesn't exists in that thread");
+    assert(manapi::async::internal::current_() && "async ctx doesn't exist in that thread");
     return manapi::async::internal::current_();
 }
 

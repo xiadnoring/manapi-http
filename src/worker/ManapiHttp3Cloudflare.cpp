@@ -241,6 +241,7 @@ manapi::future<manapi::error::status> manapi::net::worker::http_v3_cloudflare_qu
 
         /* every 1 second */
         auto rhs = manapi::async::current()->timerpool()->append_interval_sync(1000,
+            manapi::TIMER_IMPORTANT,
             [this] (manapi::timer t) -> void { this->update_limit_rate(); });
 
         if (!rhs.ok())
@@ -272,6 +273,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_con
     if (!conn)
         return;
 
+    this->waiting(conn, true);
     auto s = conn->as<connection_stream_t>();
 
     if (s->flags & HTTP_V3_STREAM_REMOVED) {

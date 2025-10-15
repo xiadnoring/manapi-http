@@ -29,8 +29,8 @@ namespace manapi::ext::pq {
                 return field {this->res_, this->row_, i};
             }
 
-            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s:%s name=%s", "pq", "field doesn't exists", name);
-            throw std::runtime_error("field doesn't exists");
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s:%s name=%s", "pq", "field doesn't exist", name);
+            throw std::runtime_error("field doesn't exist");
         }
 
         MANAPIHTTP_NODISCARD field at (int index) const {
@@ -38,8 +38,8 @@ namespace manapi::ext::pq {
                 return field{this->res_, this->row_, index};
             }
 
-            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s:%s id=%d", "pq", "field doesn't exists", index);
-            throw std::runtime_error("field doesn't exists");
+            manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s:%s id=%d", "pq", "field doesn't exist", index);
+            throw std::runtime_error("field doesn't exist");
         }
 
         MANAPIHTTP_NODISCARD field operator[] (int index) const {

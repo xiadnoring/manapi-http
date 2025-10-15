@@ -6,17 +6,26 @@
 #include "./ManapiUtils.hpp"
 #include "./ManapiAsync.hpp"
 
+namespace manapi::async {
+    class cthread;
+}
+
 namespace manapi {
-    namespace async {
-        class cthread;
-    }
+    enum timer_types {
+        TIMER_IMPORTANT = 0,
+        TIMER_DEFAULT,
+        TIMER_POOR
+    };
 
     class event_loop;
+
     class timerpool;
 
     class timer {
+        friend timerpool;
     public:
         typedef std::move_only_function<manapi::future<>(const manapi::timer &data)> async_cb_t;
+
         typedef std::move_only_function<void(const manapi::timer &data)> sync_cb_t;
 
         struct timer_data_t;
@@ -27,9 +36,9 @@ namespace manapi {
 
         timer (std::shared_ptr<timer_data_t> data);
 
-        static manapi::error::status_or<timer> create (bool interval,bool important,sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT;
+        static manapi::error::status_or<timer> create (bool interval,timer_types type,sync_cb_t sync_cb) MANAPIHTTP_NOEXCEPT;
 
-        static manapi::error::status_or<timer> create (bool interval,bool important,async_cb_t async_cb) MANAPIHTTP_NOEXCEPT;
+        static manapi::error::status_or<timer> create (bool interval,timer_types type,async_cb_t async_cb) MANAPIHTTP_NOEXCEPT;
 
         timer (const timer &n);
 
@@ -47,11 +56,7 @@ namespace manapi {
 
         MANAPIHTTP_NODISCARD size_t id () const MANAPIHTTP_NOEXCEPT;
 
-        void call_ () MANAPIHTTP_NOEXCEPT;
-
         void clear () MANAPIHTTP_NOEXCEPT;
-
-        void clear_ () MANAPIHTTP_NOEXCEPT;
 
         void stop () MANAPIHTTP_NOEXCEPT;
 
@@ -61,6 +66,10 @@ namespace manapi {
 
         manapi::error::status again (std::size_t ms) MANAPIHTTP_NOEXCEPT;
 
+        MANAPIHTTP_NODISCARD std::chrono::milliseconds interval () const MANAPIHTTP_NOEXCEPT;
+
+        MANAPIHTTP_NODISCARD std::chrono::milliseconds remaning () const MANAPIHTTP_NOEXCEPT;
+
         MANAPIHTTP_NODISCARD bool is_async () const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD bool is_sync () const MANAPIHTTP_NOEXCEPT;
@@ -68,10 +77,15 @@ namespace manapi {
         MANAPIHTTP_NODISCARD bool is_enabled () const MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD bool is_important () const MANAPIHTTP_NOEXCEPT;
-
-        MANAPIHTTP_NODISCARD std::shared_ptr<timer_data_t> data_ () const MANAPIHTTP_NOEXCEPT;
     private:
+        MANAPIHTTP_NODISCARD std::shared_ptr<timer_data_t> data_ () const MANAPIHTTP_NOEXCEPT;
+
+        void clear_ () MANAPIHTTP_NOEXCEPT;
+
+        void call_ () MANAPIHTTP_NOEXCEPT;
+
         MANAPIHTTP_NODISCARD static size_t id_ (const std::shared_ptr<timer_data_t> &data);
+
         std::shared_ptr<timer_data_t> data;
     };
 }

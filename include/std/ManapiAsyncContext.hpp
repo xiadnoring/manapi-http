@@ -170,7 +170,7 @@ namespace manapi::async {
         /**
          * start working synchronously
          */
-        virtual manapi::sys_error::status sync_start ();
+        virtual manapi::sys_error::status start ();
 
         /**
          * join all threads
@@ -198,7 +198,7 @@ namespace manapi::async {
 
     typedef std::shared_ptr<cthread> shared_async_thread;
 
-    class context : public cthread {
+    class context : public cthread, public std::enable_shared_from_this<context> {
     public:
         /**
          * initialize the context
@@ -232,18 +232,16 @@ namespace manapi::async {
 
         /**
          * run the callback in all contexts
-         * @param ctx the main context
          * @param loops the count of copies of the context
          * @param callback the callback
          */
-        static manapi::error::status run (shared_ctx ctx, uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status run (uint32_t loops, std::function<void(std::function<void()> bind)> callback) MANAPIHTTP_NOEXCEPT;
 
         /**
          * run the callback in the context
-         * @param ctx the context
          * @param callback the callback
          */
-        static void run (shared_ctx ctx, std::function<void(std::function<void()> bind)> callback);
+        void run (std::function<void(std::function<void()> bind)> callback);
 
         /**
          * set the thread pool size for filesystem operations

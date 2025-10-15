@@ -65,7 +65,7 @@ namespace manapi::mime {
      * - For font/ttf it returns font
      * - For image/png it returns image
      *
-     * Return empty string if '/' doesn't exists
+     * Return empty string if '/' doesn't exist
      *
      * @param mime MIME
      * @return MIME class

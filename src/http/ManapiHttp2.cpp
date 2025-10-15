@@ -1417,7 +1417,7 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                             }
 
                             // http_goaway.err_code = manapi::net::worker::HTTP2_ERROR_PROTOCOL_ERROR;
-                            // http_goaway.err_msg = "stream doesn't exists";
+                            // http_goaway.err_msg = "stream doesn't exist";
                             // ctx->current = HTTP2_CALLBACK_GOAWAY;
                             flg = false;
                             ctx->decoder->headers(config->max_headers_size);

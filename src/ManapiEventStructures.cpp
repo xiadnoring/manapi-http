@@ -22,6 +22,8 @@ void manapi::ev::name_class::data (void *data) MANAPIHTTP_NOEXCEPT { uv_handle_s
 void *manapi::ev::name_class::data () MANAPIHTTP_NOEXCEPT {return uv_handle_get_data(MANAPIHTTP_EV_CAST_HANDLE (&this->s_)); } \
 manapi::ev::loop_ref manapi::ev::name_class::loop () MANAPIHTTP_NOEXCEPT { return uv_handle_get_loop(MANAPIHTTP_EV_CAST_HANDLE(&this->s_)); } \
 bool manapi::ev::name_class::is_active() MANAPIHTTP_NOEXCEPT { return uv_is_active(MANAPIHTTP_EV_CAST_HANDLE(&this->s_)); } \
+void manapi::ev::name_class::unref () MANAPIHTTP_NOEXCEPT { return uv_unref(MANAPIHTTP_EV_CAST_HANDLE(&this->s_)); } \
+void manapi::ev::name_class::ref () MANAPIHTTP_NOEXCEPT { return uv_ref(MANAPIHTTP_EV_CAST_HANDLE(&this->s_)); } \
 manapi::ev::name_class::~name_class () = default;
 #define MANAPIHTTP_EV_STREAM(name_class, name_struct) \
 int manapi::ev::name_class::listen (int tcp_backlog, uv_connection_cb cb) MANAPIHTTP_NOEXCEPT {  return uv_listen(MANAPIHTTP_EV_CAST_STREAM(&this->s_), tcp_backlog, cb); } \
@@ -897,6 +899,10 @@ const char * manapi::ev::strerror(int errnum) MANAPIHTTP_NOEXCEPT {
 
 const char * manapi::ev::namerror(int errnum) MANAPIHTTP_NOEXCEPT {
     return uv_err_name(errnum);
+}
+
+std::size_t manapi::ev::hrtime() MANAPIHTTP_NOEXCEPT {
+    return ::uv_hrtime();
 }
 
 manapi::sys_error::status::status() {

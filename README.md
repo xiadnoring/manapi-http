@@ -433,7 +433,7 @@ int main () {
 | MANAPIHTTP_CURL_SYSTEM_DISABLE      | Disable default cURL     | ON/**OFF**              |
 | MANAPIHTTP_DEPENDENCY_FETCH_OUTPUT  | Depends Output Path      | \<PATH\>/**OFF**        |
 | MANAPIHTTP_BUILD_TYPE               | Binary or Library        | exe/**lib**/test        |
-| MANAPIHTTP_INSTALL_ARCH             | '/x86_64-linux-gnu'      | '/\<PATH\>'/**OFF**      |
+| MANAPIHTTP_INSTALL_ARCH             | '/x86_64-linux-gnu'      | '/\<PATH\>'/**OFF**     |
 
 
 ## TODO

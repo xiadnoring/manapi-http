@@ -45,11 +45,11 @@ manapi::timerpool::~timerpool() {
     this->stop();
 }
 
-manapi::timerpool::timerpool(timerpool &&n) noexcept {
+manapi::timerpool::timerpool(timerpool &&n) MANAPIHTTP_NOEXCEPT {
     this->data_ = std::move(n.data_);
 }
 
-manapi::timerpool & manapi::timerpool::operator=(timerpool &&n) noexcept {
+manapi::timerpool & manapi::timerpool::operator=(timerpool &&n) MANAPIHTTP_NOEXCEPT {
     this->data_ = std::move(n.data_);
     return *this;
 }
@@ -59,24 +59,26 @@ manapi::timerpool::timerpool(const timerpool &n) {
 }
 
 manapi::timerpool & manapi::timerpool::operator=(const timerpool &n) {
-    this->data_ = n.data_;
+    if (this != &n) {
+        this->data_ = n.data_;
+    }
     return *this;
 }
 
 manapi::error::status_or<manapi::timer> manapi::timerpool::append_timer_sync(size_t ms, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT {
-    return this->append_timer_sync(ms, false, std::move(task));
+    return this->append_timer_sync(ms, TIMER_DEFAULT, std::move(task));
 }
 
-manapi::error::status_or<manapi::timer> manapi::timerpool::append_timer_sync(size_t ms, bool important, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT {
-    return this->append_(std::chrono::milliseconds(ms), nullptr, std::move(task), false, important);
+manapi::error::status_or<manapi::timer> manapi::timerpool::append_timer_sync(size_t ms, timer_types type, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT {
+    return this->append_(std::chrono::milliseconds(ms), nullptr, std::move(task), false, type);
 }
 
 manapi::error::status_or<manapi::timer> manapi::timerpool::append_timer_async(size_t ms, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT {
-    return this->append_timer_async(ms, false, std::move(task));
+    return this->append_timer_async(ms, TIMER_DEFAULT, std::move(task));
 }
 
-manapi::error::status_or<manapi::timer> manapi::timerpool::append_timer_async(size_t ms, bool important, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT {
-    return this->append_(std::chrono::milliseconds(ms), std::move(task), nullptr, false, important);
+manapi::error::status_or<manapi::timer> manapi::timerpool::append_timer_async(size_t ms, timer_types type, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT {
+    return this->append_(std::chrono::milliseconds(ms), std::move(task), nullptr, false, type);
 }
 
 void manapi::timerpool::remove_timer(std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT {
@@ -87,19 +89,19 @@ void manapi::timerpool::remove_timer(std::shared_ptr<timer::timer_data_t> data) 
 }
 
 manapi::error::status_or<manapi::timer> manapi::timerpool::append_interval_async(size_t ms, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT {
-    return this->append_interval_async(ms, false, std::move(task));
+    return this->append_interval_async(ms, TIMER_DEFAULT, std::move(task));
 }
 
 manapi::error::status_or<manapi::timer> manapi::timerpool::append_interval_sync(size_t ms, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT {
-    return this->append_interval_sync(ms, false, std::move(task));
+    return this->append_interval_sync(ms, TIMER_DEFAULT, std::move(task));
 }
 
-manapi::error::status_or<manapi::timer> manapi::timerpool::append_interval_async(size_t ms, bool important, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT {
-    return this->append_(std::chrono::milliseconds(ms), std::move(task), nullptr, true, important);
+manapi::error::status_or<manapi::timer> manapi::timerpool::append_interval_async(size_t ms, timer_types type, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT {
+    return this->append_(std::chrono::milliseconds(ms), std::move(task), nullptr, true, type);
 }
 
-manapi::error::status_or<manapi::timer> manapi::timerpool::append_interval_sync(size_t ms, bool important, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT {
-    return this->append_(std::chrono::milliseconds(ms), nullptr, std::move(task), true, important);
+manapi::error::status_or<manapi::timer> manapi::timerpool::append_interval_sync(size_t ms, timer_types type, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT {
+    return this->append_(std::chrono::milliseconds(ms), nullptr, std::move(task), true, type);
 }
 
 manapi::error::status manapi::timerpool::update_interval_state(std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT {
@@ -117,7 +119,7 @@ manapi::error::status manapi::timerpool::again_timer(std::shared_ptr<manapi::tim
 
         if (res.first->second->flags & TIMER_TASK_IMPORTANT) {
             this->data_->importants++;
-            if (this->data_->timer) {
+            if (!this->data_->timer) {
                 if (manapi::async::context_exists()) {
                     auto result = this->init_timer_();
                     if (!result) {
@@ -169,13 +171,18 @@ void manapi::timerpool::stop () MANAPIHTTP_NOEXCEPT {
 }
 
 void manapi::timerpool::stop_(std::shared_ptr<data_t> data, bool evloop) MANAPIHTTP_NOEXCEPT {
-    if (!(data->flags & TIMERPOOL_FLAG_ACTIVE)) {
-        return;
+    if (data->flags & TIMERPOOL_FLAG_ACTIVE) {
+        data->flags ^= TIMERPOOL_FLAG_ACTIVE;
     }
-
-    data->flags ^= TIMERPOOL_FLAG_ACTIVE;
     if (!data->importants) {
-        data->events->stop_watcher(std::move(data->timer));
+        if (data->timer) {
+            assert(!data->timer->stop());
+            int const res = ::uv_loop_alive(manapi::async::current()->eventloop()->loop());
+            assert(!data->timer->start(0, 1));
+            if (!res) {
+                data->events->stop_watcher(std::move(data->timer));
+            }
+        }
     }
 }
 
@@ -199,8 +206,10 @@ void manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,sorted_
             sorted_task = data_->sorted_tasks.erase(sorted_task);
         }
 
+
         if (!data_->importants && !(data_->flags & TIMERPOOL_FLAG_ACTIVE)) {
-            data_->events->stop_watcher(std::move(data_->timer));
+            //data_->events->stop_watcher(std::move(data_->timer));
+            stop_(data_, false);
         }
     }
 }
@@ -208,6 +217,8 @@ void manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,sorted_
 void manapi::timerpool::start_(const std::shared_ptr<data_t> &data) MANAPIHTTP_NOEXCEPT {
     auto now = std::chrono::steady_clock::now();
     data->flags |= TIMERPOOL_FLAG_RUNNING;
+
+    const bool active = data->flags & TIMERPOOL_FLAG_ACTIVE;
 
     while (!data->sorted_tasks.empty()) {
         auto sorted_task = data->sorted_tasks.begin();
@@ -219,21 +230,34 @@ void manapi::timerpool::start_(const std::shared_ptr<data_t> &data) MANAPIHTTP_N
         if (sorted_task->second->flags & TIMER_TASK_ACTIVE) {
             auto exdata = data->sorted_tasks.extract(sorted_task);
             auto &task = exdata.value().second;
-            if (task->flags & TIMER_TASK_IMPORTANT) {
-                data->importants--;
-            }
+            const bool important = task->flags & TIMER_TASK_IMPORTANT;
 
             manapi::timer timertask  (task);
 
             task->flags ^= TIMER_TASK_ACTIVE;
-
-            if (task->flags & TIMER_TASK_INTERVAL) {
-                timertask.call_();
+            if (important) {
+                data->importants--;
+                if (task->flags & TIMER_TASK_INTERVAL) {
+                    timertask.call_();
+                }
+                else {
+                    timertask.call_();
+                }
             }
-            else {
-                timertask.call_();
+            else if (active || !(task->flags & TIMER_TASK_POOR)) {
+                if (task->flags & TIMER_TASK_INTERVAL) {
+                    timertask.call_();
+                }
+                else {
+                    timertask.call_();
+                }
             }
         }
+    }
+
+    if (!data->importants && !active) {
+        //data->events->stop_watcher(std::move(data->timer));
+        stop_(data, false);
     }
 
     data->flags ^= TIMERPOOL_FLAG_RUNNING;
@@ -341,19 +365,19 @@ manapi::error::status manapi::timerpool::update_interval_state_(const std::share
     return error::status_internal();
 }
 
-manapi::error::status_or<manapi::timer> manapi::timerpool::append_(std::chrono::milliseconds duration, manapi::timer::async_cb_t async_task, manapi::timer::sync_cb_t task, bool interval, bool important) MANAPIHTTP_NOEXCEPT {
+manapi::error::status_or<manapi::timer> manapi::timerpool::append_(std::chrono::milliseconds duration, manapi::timer::async_cb_t async_task, manapi::timer::sync_cb_t task, bool interval, timer_types type) MANAPIHTTP_NOEXCEPT {
     try {
         manapi::timer timertask{};
 
         if (task) {
-            auto res = manapi::timer::create(interval, important, (std::move(task)));
+            auto res = manapi::timer::create(interval, type, (std::move(task)));
             if (!res)
                 return std::move(res);
             timertask = res.unwrap();
         }
 
         if (async_task) {
-            auto res = manapi::timer::create(interval, important, (std::move(async_task)));
+            auto res = manapi::timer::create(interval, type, (std::move(async_task)));
             if (!res)
                 return std::move(res);
             timertask = res.unwrap();

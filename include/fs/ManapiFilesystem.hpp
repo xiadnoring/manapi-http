@@ -71,7 +71,7 @@ namespace manapi::filesystem {
      * stat
      *
      * @param path Path to the file
-     * @param callback Callback which accept a result. If the file doesn't exists, it has a @code nullptr@endcode value
+     * @param callback Callback which accept a result. If the file doesn't exist, it has a @code nullptr@endcode value
      * @param cancellation Cancellation Token
      * @return
      */
@@ -81,7 +81,7 @@ namespace manapi::filesystem {
      * fstat
      *
      * @param file Path to the file
-     * @param callback Callback which accept a result. If the file doesn't exists, it has a @code nullptr@endcode value
+     * @param callback Callback which accept a result. If the file doesn't exist, it has a @code nullptr@endcode value
      * @param cancellation Cancellation token
      * @return
      */

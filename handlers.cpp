@@ -2,6 +2,7 @@
 
 #include "ManapiProcess.hpp"
 #include "hash/ManapiSHA256.hpp"
+#include "std/ManapiRef.hpp"
 
 void init_http_server(manapi::net::http::server &router, std::string const &folder) {
     using http = manapi::net::http::server;
@@ -414,7 +415,7 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
     router.GET ("/ai", [] (http::req &req, http::resp &resp)
             -> manapi::future<> {
             if (!req.contains_get_param("text")) {
-                co_return resp.text("GET param 'text' doesn't exists").unwrap();
+                co_return resp.text("GET param 'text' doesn't exist").unwrap();
             }
 
             std::string ip = "https://openrouter.ai/api/v1/chat/completions";
@@ -465,3 +466,394 @@ void init_http_server(manapi::net::http::server &router, std::string const &fold
             co_return resp.text(ans.dump(4)).unwrap();
         });
 }
+
+
+#include <QCoreApplication>
+#include <QDebug>
+#include <QEvent>
+#include <QThread>
+#include <QTimerEvent>
+#include <QVariant>
+
+#include "uv.h"
+
+    iz::Eventing::LibUvEventDispatcher::LibUvEventDispatcher() : LibUvEventDispatcher(nullptr) {
+    }
+
+iz::Eventing::LibUvEventDispatcher::LibUvEventDispatcher(QObject* parent)
+    : QAbstractEventDispatcher(parent)
+{
+    this->m_wakeupHandle = manapi::async::current()->eventloop()->create_watcher_async(nullptr).unwrap();
+    this->flags.fetch_or(0b1);
+}
+
+iz::Eventing::LibUvEventDispatcher::~LibUvEventDispatcher()
+{
+    manapi_log_debug("~LibUvEventDispatcher");
+}
+
+void iz::Eventing::LibUvEventDispatcher::unsubscribe() MANAPIHTTP_NOEXCEPT {
+    if (this->flags & 0b1) {
+        this->flags.fetch_xor(0b1);
+    }
+    manapi::async::current()->eventloop()->stop_watcher(std::move(this->m_wakeupHandle));
+    while (!this->m_pollers.empty()) {
+        auto it = this->m_pollers.begin();
+        manapi::reference<poller_data_t> data (*it);
+        manapi::async::current()->eventloop()->stop_watcher(std::move(data->watcher));
+        this->m_pollers.erase(it);
+    }
+}
+
+void iz::Eventing::LibUvEventDispatcher::interrupt()
+{
+
+    manapi_log_debug("%s:%s", "qt", "interrupt");
+}
+
+bool iz::Eventing::LibUvEventDispatcher::processEvents(QEventLoop::ProcessEventsFlags flags)
+{
+    // we are awake!
+    emit awake();
+
+    // zero out processed callbacks
+    this->m_processedCallbacks = 0;
+
+    // time to send posted events
+    QCoreApplication::sendPostedEvents();
+
+    // will we block on libuv run?
+    const bool willWait = (flags & QEventLoop::WaitForMoreEvents);
+
+    manapi::sys_error::status status;
+    // run libuv poll depending on willWait value
+    if (willWait) {
+        // we will block! signalize it
+        emit aboutToBlock();
+
+        status = manapi::async::current()->eventloop()->run(manapi::ev::RUN_ONCE);
+    } else {
+        // run loop once, do not block on no events
+        status = manapi::async::current()->eventloop()->run(manapi::ev::RUN_NOWAIT);
+    }
+
+    if (!status) {
+        if (status.code() != manapi::ERR_ABORTED) {
+            status.unwrap();
+        }
+        QCoreApplication::quit();
+    }
+
+    // return true if we processed something
+    return this->m_processedCallbacks > 0;
+}
+
+void iz::Eventing::LibUvEventDispatcher::registerSocketNotifier(QSocketNotifier* notifier)
+{
+    // transform QSocketNotifier::Type to uv_poll_event
+    int events = qtouv(notifier->type());
+    if (events == -1) {
+        return;
+    }
+
+    auto &ev = manapi::async::current()->eventloop();
+
+    manapi::reference<poller_data_t> ref;
+
+    auto const sock = static_cast<manapi::socket_t>(notifier->socket());
+    auto fit = notifier->property("socketData");
+    if(fit.isNull()) {
+        ref.reset(new poller_data_t{});
+        ref->context = this;
+        manapi::ev::shared_io watcher;
+        try {
+            this->m_pollers.insert(ref.get());
+
+            watcher = ev->create_watcher_socket(
+                sock, [ref] (const manapi::ev::shared_io &, int status, int events) mutable -> void {
+                    ref->context->m_processedCallbacks++;
+
+                    // send required events
+                    if (events & manapi::ev::READ) {
+                        QEvent e(QEvent::SockAct);
+                        QCoreApplication::sendEvent(ref->read_notifier, &e);
+                    }
+
+                    if (events & manapi::ev::WRITE) {
+                        QEvent e(QEvent::SockAct);
+                        QCoreApplication::sendEvent(ref->write_notifier, &e);
+                    }
+                }).unwrap();
+        }
+        catch (...) {
+            this->m_pollers.erase(ref.get());
+            std::rethrow_exception(std::current_exception());
+        }
+
+        ref->watcher = std::move(watcher);
+
+        // attach our custom data to QSocketNotifier
+        if (!notifier->setProperty("socketData", QVariant::fromValue(ref.get()))) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "notifier->setProperty with socketData returned false");
+        }
+
+    }
+    else {
+        ref.reset(fit.value<poller_data_t *>());
+    }
+
+    // setup read and write notifiers
+    if (events & manapi::ev::READ) {
+        ref->read_notifier = notifier;
+        ref->flags |= manapi::ev::READ;
+    }
+
+    // set notifiers
+    if (events & manapi::ev::WRITE) {
+        ref->write_notifier = notifier;
+        ref->flags |= manapi::ev::WRITE;
+    }
+
+    if (auto rhs = ref->watcher->start(ref->flags)) {
+        manapi_log_error("%s due to %s", "qt:socket watcher failed", manapi::ev::strerror(rhs));
+        throw std::runtime_error ("qt:socket watcher failed");
+    }
+}
+
+void iz::Eventing::LibUvEventDispatcher::unregisterSocketNotifier(QSocketNotifier* notifier)
+{
+    // transform QSocketNotifier::Type to uv_poll_event
+    int events = qtouv(notifier->type());
+    if (events == -1) {
+        return;
+    }
+
+    auto fit = notifier->property("socketData");
+    assert(!fit.isNull());
+    // get our data from libuv handler and actualize events flags
+    auto data = fit.value<poller_data_t*>();
+
+    if (data->flags & events & manapi::ev::READ) {
+        data->flags ^= manapi::ev::READ;
+    }
+
+    if (data->flags & events & manapi::ev::WRITE) {
+        data->flags ^= manapi::ev::WRITE;
+    }
+
+    // no event types left? schedule deletion of libuv's poller
+    if (data->flags == 0) {
+        manapi::async::current()->eventloop()->stop_watcher(std::move(data->watcher));
+        // we can delete this now
+        notifier->setProperty("socketData", QVariant());
+        this->m_pollers.erase(data);
+    }
+    else {
+        if (auto rhs = data->watcher->start(data->flags)) {
+            manapi_log_error("%s due to %s", "qt:socket watcher failed", manapi::ev::strerror(rhs));
+            throw std::runtime_error ("qt:socket watcher failed");
+        }
+    }
+}
+
+void iz::Eventing::LibUvEventDispatcher::enableSocketNotifier(QSocketNotifier* notifier)
+{
+    // transform QSocketNotifier::Type to uv_poll_event
+    int events = qtouv(notifier->type());
+    if (events == -1) {
+        return;
+    }
+
+    // get our data from libuv' handler and actualize events flags
+    auto fit = notifier->property("socketData");
+    assert(!fit.isNull());
+    auto data = fit.value<poller_data_t*>();
+    data->flags |= events;
+    // start libuv's polling
+    if (auto rhs = data->watcher->start(data->flags)) {
+        manapi_log_error("%s due to %s", "qt:socket watcher failed", manapi::ev::strerror(rhs));
+        throw std::runtime_error ("qt:socket watcher failed");
+    }
+}
+
+void iz::Eventing::LibUvEventDispatcher::disableSocketNotifier(QSocketNotifier* notifier)
+{
+    int events = qtouv(notifier->type());
+    if (events == -1) {
+        return;
+    }
+
+    // get our data from libuv's handler and actualize events flags
+    auto fit = notifier->property("socketData");
+    assert(!fit.isNull());
+    auto data = fit.value<poller_data_t*>();
+    if (data->flags & events & manapi::ev::READ) {
+        data->flags ^= manapi::ev::READ;
+    }
+    if (data->flags & events & manapi::ev::WRITE) {
+        data->flags ^= manapi::ev::WRITE;
+    }
+    // if no flags are set stop polling
+    // some are set? start libuv's polling with remaining ones
+    if (data->flags) {
+        if (auto rhs = data->watcher->start(data->flags)) {
+            manapi_log_error("%s due to %s", "qt:socket watcher failed", manapi::ev::strerror(rhs));
+            throw std::runtime_error ("qt:socket watcher failed");
+        }
+    }
+    else {
+        if (auto rhs = data->watcher->stop()) {
+            manapi_log_error("%s due to %s", "qt:socket watcher failed", manapi::ev::strerror(rhs));
+            throw std::runtime_error ("qt:socket watcher failed");
+        }
+    }
+}
+
+int iz::Eventing::LibUvEventDispatcher::remainingTime(int timerId)
+{
+    auto it = this->m_timers.find(timerId);
+    if (it != this->m_timers.end()) {
+        auto &t = it->second.first;
+        // in millseconds
+        return t.remaning().count();
+    }
+
+    // non existent timer
+    return -1;
+}
+
+void iz::Eventing::LibUvEventDispatcher::registerTimer(int timerId, qint64 interval, Qt::TimerType timerType, QObject* object) {
+    auto fit = object->property("timerData");
+    manapi::reference<timer_data_t> ref;
+    if (fit.isNull()) {
+        ref.reset(new timer_data_t{});
+        ref->context = this;
+        ref->parent = object;
+    }
+    else {
+        ref.reset(fit.value<timer_data_t *>());
+    }
+
+    timer_info_t info{};
+    info.interval = static_cast<int>(interval); // why int64 to int :(
+    info.type = timerType;
+    auto res = ref->ids.insert({timerId, info}).second;
+    assert(res);
+
+    manapi::timer timer;
+
+    try {
+        timer = manapi::async::current()->timerpool()->append_interval_sync(static_cast<std::size_t> (interval),
+            manapi::TIMER_POOR,
+            [ref, timerId] (const manapi::timer &)
+            mutable -> void {
+                ref->context->m_processedCallbacks++;
+                QTimerEvent e (timerId);
+                QCoreApplication::sendEvent(ref->parent, &e);
+                // if (ref->ids.size() == 1) {
+                //     ref->parent->setProperty("timerData", QVariant());
+                // }
+                // ref->ids.erase(timerId);
+                // ref->context->m_timers.erase(timerId);
+        }).unwrap();
+
+        res = this->m_timers.emplace(timerId,
+            std::make_pair(std::move(timer), ref)).second;
+        assert(res);
+    }
+    catch (...) {
+        ref->ids.erase(timerId);
+        if (timer) {
+            timer.stop();
+        }
+        std::rethrow_exception(std::current_exception());
+    }
+}
+
+bool iz::Eventing::LibUvEventDispatcher::unregisterTimer(int timerId) {
+    if (manapi::async::context_exists()) {
+        auto it = this->m_timers.find(timerId);
+        if (it != this->m_timers.end()) {
+            if (it->second.second->ids.size() == 1) {
+                it->second.second->parent->setProperty("timerData", QVariant());
+            }
+            it->second.second->ids.erase(timerId);
+            it->second.first.stop();
+            this->m_timers.erase(it);
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+QList<QAbstractEventDispatcher::TimerInfo> iz::Eventing::LibUvEventDispatcher::registeredTimers(QObject* object) const
+{
+    QList<QAbstractEventDispatcher::TimerInfo> res;
+
+    auto fit = object->property("timerData");
+    if (!fit.isNull()) {
+        auto data = fit.value<timer_data_t *>();
+        for (const auto &timer : data->ids) {
+            res.append({ timer.first, timer.second.interval, timer.second.type });
+        }
+    }
+
+    return res;
+}
+
+bool iz::Eventing::LibUvEventDispatcher::unregisterTimers(QObject* object) {
+    auto fit = object->property("timerData");
+    if (fit.isNull()) {
+        return false;
+    }
+    manapi::reference<timer_data_t> data( fit.value<timer_data_t *>());
+
+    while (!data->ids.empty()) {
+        auto it = data->ids.begin();
+        this->unregisterTimer(it->first);
+    }
+
+    return true;
+}
+
+void iz::Eventing::LibUvEventDispatcher::wakeUp()
+{
+    if (this->flags & 0b1) {
+        this->m_wakeupHandle->send();
+    }
+}
+
+int iz::Eventing::LibUvEventDispatcher::qtouv(QSocketNotifier::Type qtEventType) const
+{
+    switch (qtEventType) {
+    case QSocketNotifier::Read:
+        return manapi::ev::READ;
+    case QSocketNotifier::Write:
+        return manapi::ev::WRITE;
+    default:
+        qCritical() << "Unsupported QSocketNotifier type.";
+        return -1;
+    }
+}
+//
+// void iz::Eventing::LibUvEventDispatcher::timerCallback(uv_timer_s* w)
+// {
+//     auto timerData = static_cast<TimerData*>(w->data);
+//     timerData->context->m_processedCallbacks++;
+//
+//     // set last fired
+//     timerData->lastFired = ::uv_hrtime() / 1000000;
+//
+//     QTimerEvent e(timerData->timerID);
+//     QCoreApplication::sendEvent(timerData->qobject, &e);
+// }
+//
+// void iz::Eventing::LibUvEventDispatcher::timerDeleteCallback(uv_handle_s* w)
+// {
+//     auto* timer = ( uv_timer_s* )w;
+//
+//     delete (( TimerData* )timer->data);
+//     delete timer;
+// }

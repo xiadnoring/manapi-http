@@ -37,10 +37,10 @@ namespace manapi {
         ~timerpool();
 
         /* move */
-        timerpool (timerpool &&n) noexcept;
+        timerpool (timerpool &&n) MANAPIHTTP_NOEXCEPT;
 
         /* move */
-        timerpool &operator=(timerpool &&n) noexcept;
+        timerpool &operator=(timerpool &&n) MANAPIHTTP_NOEXCEPT;
 
         /* copy */
         timerpool (const timerpool &n);
@@ -63,7 +63,7 @@ namespace manapi {
          * @param task synchronous callback
          * @return timer object on success, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status_or<manapi::timer> append_timer_sync (size_t ms, bool important, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status_or<manapi::timer> append_timer_sync (size_t ms, timer_types type, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Create a timeout event with asynchronous callback
@@ -80,7 +80,7 @@ namespace manapi {
          * @param task asynchronous callback
          * @return timer object on success, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status_or<manapi::timer> append_timer_async (size_t ms, bool important, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status_or<manapi::timer> append_timer_async (size_t ms, timer_types type, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT;
 
         /**
          * FOR INTERNAL USE ONLY
@@ -112,7 +112,7 @@ namespace manapi {
          * @param task asychronous callback
          * @return timer object on success, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status_or<manapi::timer> append_interval_async (size_t ms, bool important, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status_or<manapi::timer> append_interval_async (size_t ms, timer_types type, manapi::timer::async_cb_t task) MANAPIHTTP_NOEXCEPT;
 
         /**
          * Create an interval event with a synchronous callback
@@ -120,7 +120,7 @@ namespace manapi {
          * @param task sychronous callback
          * @return timer object on succes, otherwise it returns InternalError, ResourceExhausted
          */
-        manapi::error::status_or<manapi::timer> append_interval_sync (size_t ms, bool important, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status_or<manapi::timer> append_interval_sync (size_t ms, timer_types type, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT;
 
         /**
          * FOR INTERNAL USE ONLY
@@ -165,7 +165,7 @@ namespace manapi {
 
         manapi::sys_error::status init_timer_ () MANAPIHTTP_NOEXCEPT;
 
-        manapi::error::status_or<manapi::timer> append_ (std::chrono::milliseconds duration, manapi::timer::async_cb_t async_task, manapi::timer::sync_cb_t task,  bool interval, bool important) MANAPIHTTP_NOEXCEPT;
+        manapi::error::status_or<manapi::timer> append_ (std::chrono::milliseconds duration, manapi::timer::async_cb_t async_task, manapi::timer::sync_cb_t task,  bool interval, timer_types type) MANAPIHTTP_NOEXCEPT;
 
         std::shared_ptr<data_t> data_;
     private:

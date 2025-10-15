@@ -68,7 +68,7 @@ namespace manapi::ext::pq {
             manapi::sys_error::status status;
             try {
                 if (!this->data_)
-                    co_return error::status_invalid_argument("pq:connection doesn't exists");
+                    co_return error::status_invalid_argument("pq:connection doesn't exist");
 
                 if (this->data_->flags & DATA_FLAG_INIT)
                     co_return error::status_already_exists();
@@ -138,7 +138,7 @@ namespace manapi::ext::pq {
             manapi::sys_error::status status;
             try {
                 if (!this->data_)
-                    co_return error::status_invalid_argument("pq:connection doesn't exists");
+                    co_return error::status_invalid_argument("pq:connection doesn't exist");
 
                 if (this->data_->flags & DATA_FLAG_INIT)
                     co_return error::status_already_exists();
@@ -374,7 +374,7 @@ err:
                 return error::status_ok();
             }
 
-            return error::status_invalid_argument("pq:connection doesn't exists");
+            return error::status_invalid_argument("pq:connection doesn't exist");
         }
 
         manapi::error::status_or<size_t> esc_to_buff (std::string_view text, char *buff) MANAPIHTTP_NOEXCEPT {
