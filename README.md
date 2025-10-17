@@ -115,14 +115,12 @@ int main () {
     manapi::async::context::gbs (manapi::async::context::blockedsignals());
     /* creates 4 additional threads for 4 additional event loops */
     auto ctx = manapi::async::context::create(4).unwrap();
-    /* handle interrupt signals */
-    ctx->eventloop()->setup_handle_interrupt();
     /* HTTP context for multiple HTTP routers (threadsafe) */
     auto router_ctx = manapi::net::http::server_ctx::create().unwrap();
     /* metric */
     std::atomic<int> cnt = 0;
     /* runs main event loop and 4 additional event loops */
-    manapi::async::context::run(ctx, 4, [&cnt, router_ctx] (std::function<void()> bind) -> void {
+    ctx->run(4, [&cnt, router_ctx] (std::function<void()> bind) -> void {
         using http = manapi::net::http::server;
         
         auto router = manapi::net::http::server::create(router_ctx).unwrap();

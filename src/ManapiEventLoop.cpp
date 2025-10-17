@@ -925,7 +925,9 @@ void manapi::event_loop::wait_all_() MANAPIHTTP_NOEXCEPT {
         manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "eventloop:well done");
 
         if (auto rhs = ::uv_loop_close(this->loop_.get())) {
-            ::uv_print_all_handles(this->loop(), stdout);
+#ifndef MANAPIHTTP_DISABLE_TRACE_HARD
+            ::uv_print_all_handles(this->loop(), stderr);
+#endif
             manapi_log_error("%s failed due to %s", "uv_loop_close", ev::strerror(rhs));
         }
         else {

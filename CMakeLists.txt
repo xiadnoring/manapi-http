@@ -224,7 +224,7 @@ else ()
     if (MANAPIHTTP_QT_DEPENDENCY)
         find_package(Qt6 COMPONENTS Core Widgets Quick)
         if (Qt6_FOUND)
-
+            set(CMAKE_AUTOMOC ON)
         else ()
             message(STATUS "qt6 not found")
             set(MANAPIHTTP_QT_DEPENDENCY OFF)
@@ -796,6 +796,7 @@ set(MANAPIHTTP_HTTP_FILES
         include/ext/pq/AsyncPostgreError.hpp
         src/include/ManapiEventLoopCurl.hpp
         include/std/ManapiRef.hpp
+        include/std/ManapiScopePtr.hpp
 )
 
 set(MANAPIHTTP_MODULES

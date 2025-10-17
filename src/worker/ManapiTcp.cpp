@@ -153,7 +153,6 @@ manapi::future<manapi::error::status> manapi::net::worker::TCP::init(std::size_t
 }
 
 void manapi::net::worker::TCP::waiting(const shared_conn &conn, bool state) MANAPIHTTP_NOEXCEPT {
-    manapi_log_trace("waiting - %d", (int)state);
     prepared::waiting(conn, state);
 }
 
@@ -924,7 +923,6 @@ void manapi::net::worker::TCP::connection_interface_eraser(worker::connection *p
             // TODO: start accepting
         }
 
-        manapi_log_trace("close conn flg=%d cnt=%d finish=%d", wrk->flags_ & WORKER_BASE_FLAG_CLOSED, wrk->count, wrk->finish ? 1 : 0);
         if (wrk->flags_ & WORKER_BASE_FLAG_CLOSED
             && !wrk->count
             && wrk->finish)
