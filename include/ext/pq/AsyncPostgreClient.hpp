@@ -4,6 +4,8 @@
 #include "../../ManapiUtils.hpp"
 #include "../../std/ManapiAsyncContext.hpp"
 #include "../../std/ManapiAsyncSocket.hpp"
+#include "../../std/ManapiAsyncMutex.hpp"
+#include "../../json/ManapiJson.hpp"
 
 #include "./AsyncPostgreResult.hpp"
 #include "./AsyncPostgreError.hpp"

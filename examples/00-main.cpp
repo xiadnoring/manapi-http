@@ -12,13 +12,12 @@ int main () {
     manapi::async::context::gbs (manapi::async::context::blockedsignals());
 
     auto ctx = manapi::async::context::create(0).unwrap();
-    ctx->eventloop()->setup_handle_interrupt();
 
     auto router_ctx = manapi::net::http::server_ctx::create().unwrap();
 
     std::atomic<bool> flag = false;
 
-    manapi::async::context::run(ctx, 0, [router_ctx, &flag] (std::function<void()> bind) mutable -> void {
+    ctx->run(ctx, 0, [router_ctx, &flag] (std::function<void()> bind) mutable -> void {
         using http = manapi::net::http::server;
         auto router = http::create(router_ctx).unwrap();
 
