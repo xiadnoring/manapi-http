@@ -33,7 +33,7 @@ manapi::net::http::config::config(const json &config) {
     this->http1_implementation = get_config_param<std::string>(config, "http1_implementation", "default");
     this->http2_implementation = get_config_param<std::string>(config, "http2_implementation", "default");
     this->http3_implementation = get_config_param<std::string>(config, "http3_implementation", "default");
-    this->max_merge_buffer_stack = get_config_param<ssize_t>(config, "max_merge_buffer_stack", 16);
+    this->max_merge_buffer_stack = get_config_param<ssize_t>(config, "max_merge_buffer_stack", 2);
     this->partial_data_min_size = get_config_param<ssize_t>(config, "partial_data_min_size", 0);
     this->max_buffer_stack = get_config_param<ssize_t>(config, "max_buffer_stack", 5);
     this->port = get_config_param<std::string>(config, "port", "8888");
