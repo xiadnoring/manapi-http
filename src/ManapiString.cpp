@@ -146,3 +146,14 @@ std::string manapi::string::fill(size_t s, char c) {
     memset(b.data(), c, s);
     return std::move(b);
 }
+
+std::size_t manapi::string::count(char c, std::string_view str) MANAPIHTTP_NOEXCEPT {
+    std::size_t res = 0;
+    auto it = str.find(c);
+    while (it != std::string_view::npos) {
+        res++;
+        str = str.substr(it + 1);
+        it = str.find(c);
+    }
+    return res;
+}

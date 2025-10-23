@@ -784,7 +784,7 @@ std::string_view manapi::filesystem::path::back (std::string_view str) {
     return str;
 }
 
-static void append_ (std::string &path, std::string_view next, int delimiter) {
+static void append_ (std::string &path, std::string_view next, bool delimiter, bool root) {
     using namespace manapi::filesystem;
 
     if (delimiter) {
@@ -793,7 +793,7 @@ static void append_ (std::string &path, std::string_view next, int delimiter) {
             if (it == std::string_view::npos)
                 break;
             if (it) {
-                append_(path, next.substr(0, it), false);
+                append_(path, next.substr(0, it), false, root && path.empty());
             }
             else if (path.empty() || path.back() != path::delimiter) {
                 path.push_back(path::delimiter);
@@ -806,7 +806,7 @@ static void append_ (std::string &path, std::string_view next, int delimiter) {
         return;
 
     if (next == ".") {
-        if (path.empty()) {
+        if (path.empty() && root) {
             path = path::current_path();
         }
 
@@ -814,6 +814,10 @@ static void append_ (std::string &path, std::string_view next, int delimiter) {
     }
 
     if (next == "..") {
+        if (path.empty() && root) {
+            path = path::current_path();
+        }
+
         auto it = path.rfind(path::delimiter);
         if (it == std::string_view::npos) {
             path.clear();
@@ -832,7 +836,12 @@ static void append_ (std::string &path, std::string_view next, int delimiter) {
     }
 }
 
+
 void manapi::filesystem::path::append(std::string &path, std::string_view next) {
+    path::append(path, next, false);
+}
+
+void manapi::filesystem::path::append(std::string &path, std::string_view next, bool root) {
     auto const c_size = path.size();
 #ifdef _MSC_VER 
     char *c = static_cast<char*>(alloca(c_size));
@@ -841,8 +850,8 @@ void manapi::filesystem::path::append(std::string &path, std::string_view next) 
 #endif
     memcpy (c, path.data(), c_size);
     path.resize(0);
-    append_(path, std::string_view(c, c_size), true);
-    append_(path, next, true);
+    append_(path, std::string_view(c, c_size), true, root);
+    append_(path, next, true, false);
 }
 
 std::string manapi::filesystem::path::current_path() {
@@ -851,12 +860,16 @@ std::string manapi::filesystem::path::current_path() {
 
 std::string manapi::filesystem::path::serialize (std::string_view str) {
     std::string path;
-    append_ (path, str, true);
+    append_ (path, str, true, true);
     return std::move(path);
 }
 
 std::string manapi::filesystem::path::absolute(std::string_view path) {
     return std::filesystem::absolute(path).string();
+}
+
+std::string manapi::filesystem::path::root_directory() {
+    return std::filesystem::current_path().root_directory().string();
 }
 
 manapi::future<manapi::sys_error::status> manapi::filesystem::async_unlink (std::string path, async::cancellation_action cancellation) {

@@ -104,4 +104,12 @@ namespace manapi::string {
      * @return
      */
     std::string fill (size_t s, char c);
+
+    /**
+     * Counts number of |c| in |str|
+     * @param c char
+     * @param str source string
+     * @return
+     */
+    std::size_t count (char c, std::string_view str) MANAPIHTTP_NOEXCEPT;
 }

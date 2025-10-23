@@ -49,6 +49,36 @@ UTEST(fs_path, join_4) {
     ASSERT_TRUE (path == (s));
 }
 
+UTEST(fs_path, join_5) {
+    std::string path1 = manapi::filesystem::path::join(".", "..", "hello");
+    std::string path2 = manapi::filesystem::path::join("..", "hello");
+    ASSERT_TRUE (path1 == path2);
+}
+
+UTEST(fs_path, join_6) {
+    std::string b = manapi::filesystem::path::root_directory();
+    std::string path = manapi::filesystem::path::join (b, "hello", "test", "no");
+    std::string s = b;
+    s += std::string_view{"hello"};
+    s.append(manapi::filesystem::path::string_delimiter);
+    s.append("test");
+    s.append(manapi::filesystem::path::string_delimiter);
+    s.append("no");
+    ASSERT_TRUE (path == (s));
+}
+
+UTEST(fs_path, join_7) {
+    std::string b = manapi::filesystem::path::root_directory();
+    std::string path = manapi::filesystem::path::join ("A", "B", "C", "..", "..", "..", "..", "..", "..", ".", "A");
+    ASSERT_TRUE (path == "A");
+}
+
+UTEST(fs_path, join_8) {
+    std::string b = manapi::filesystem::path::root_directory();
+    std::string path = manapi::filesystem::path::join ("A", "B", "C", "D");
+    ASSERT_TRUE (manapi::string::count(manapi::filesystem::path::delimiter, path) == 3);
+}
+
 UTEST(fs_path, serialize_1) {
 #ifdef _WIN32
     std::string path = manapi::filesystem::path::serialize("\\\\\\\\\\dev\\\\.\\.\\.\\shm\\\\shm\\..\\..\\..\\dev\\\\shm\\\\.\\.\\\\dev\\shm\\..\\..");

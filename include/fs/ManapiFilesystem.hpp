@@ -144,7 +144,11 @@ namespace manapi::filesystem::path {
 
     std::string absolute (std::string_view path);
 
+    std::string root_directory ();
+
     std::string_view back (std::string_view str);
+
+    void append (std::string &path, std::string_view next, bool root);
 
     void append (std::string &path, std::string_view next);
 
@@ -152,7 +156,8 @@ namespace manapi::filesystem::path {
 
     template <class... Args>
     std::string join(std::string path, Args&&...args) {
-        (..., path::append(path, std::forward<Args>(args) ));
+        std::size_t i = 0;
+        (..., path::append(path, std::forward<Args>(args), !(i++) ));
         return std::move(path);
     }
 }
