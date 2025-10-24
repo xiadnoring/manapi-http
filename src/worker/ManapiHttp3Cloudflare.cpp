@@ -289,7 +289,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::close_connection(shared_con
 
     int shutdown;
 
-    if (flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOF)) {
+    if (flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOS)) {
         shutdown = quiche_h3_send_goaway(s->conn->http3_conn, s->conn->conn, s->conn->streams.empty() ? s->id : s->conn->streams.rbegin()->first);
 
         if (shutdown) {
@@ -1209,7 +1209,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
 
         if (conn_data->flags & ev::WRITE)
             if(manapi::net::worker::http_v3_cloudflare_quiche::call_user_callback(&conn_data->ev_callback, conn, ev::WRITE, nullptr, 0, nullptr)) {
-                this->close_connection(conn, CLOSE_CONN_EOF);
+                this->close_connection(conn, CLOSE_CONN_EOS);
             }
     }
     else {
@@ -1218,7 +1218,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
         if (--conn_data->speed_min_delay == 0) {
             if (conn_data->flags & HTTP_V3_STREAM_IO_WAITING
                 && conn_data->transfered_k < this->config_->speed_check_bytes) {
-                this->close_connection(conn, CLOSE_CONN_EOF);
+                this->close_connection(conn, CLOSE_CONN_EOS);
                 return;
             }
             conn_data->transfered_k = 0;
@@ -1228,7 +1228,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::update_limit_rate_stream(co
     }
     if (conn_data->flags & ev::WRITE) {
         if (manapi::net::worker::http_v3_cloudflare_quiche::call_user_callback(&conn_data->ev_callback,conn, ev::WRITE, nullptr, 0, nullptr))
-            this->close_connection(conn, CLOSE_CONN_EOF);
+            this->close_connection(conn, CLOSE_CONN_ERR);
     }
 }
 

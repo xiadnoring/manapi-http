@@ -155,6 +155,15 @@ namespace manapi::net::http {
         uint32_t window_connection_size;
 
         /**
+         * TLS accept timeout
+         */
+        std::size_t tls_accept_timeout;
+        /**
+         * TLS shutdown timeout
+         */
+        std::size_t tls_shutdown_timeout;
+
+        /**
          * The number of the buffers stack 'max_merge_buffer_stack' is required for
          * sending buffers to endpoints
          */
@@ -170,6 +179,11 @@ namespace manapi::net::http {
          * Works for Http/[1-3]
          */
         uint32_t max_headers_size;
+
+        /**
+         * init_proto_timeout. Default: 8000
+         */
+        std::size_t init_proto_timeout;
 
         /**
          * Max size of the header key

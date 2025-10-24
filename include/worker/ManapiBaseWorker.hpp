@@ -22,7 +22,9 @@ namespace manapi::net::worker {
         WRK_INTERFACE_CUSTOM_RATE_LIMIT = 2,
         WRK_INTERFACE_CONN_RETRY = 4,
         WRK_INTERFACE_TCP_KEEP_ALIVE = 8,
-        WRK_INTERFACE_IS_STREAM = 16
+        WRK_INTERFACE_IS_STREAM = 16,
+        WRK_INTERFACE_IS_READ_STOP = 32,
+        WRK_INTERFACE_IS_DRAINING = 64
     };
 
     enum worker_base_flags {
@@ -33,10 +35,11 @@ namespace manapi::net::worker {
     };
 
     enum close_flags_t {
-        CLOSE_CONN_EOF = 1,
+        CLOSE_CONN_EOR = 1,
         CLOSE_CONN_ERR = 2,
         CLOSE_CONN_SHUTDOWN = 4,
-        CLOSE_CONN_FINISHED = 8
+        CLOSE_CONN_FINISHED = 8,
+        CLOSE_CONN_EOS = 16
     };
 
     enum wrk_global_flags {

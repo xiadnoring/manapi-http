@@ -23,6 +23,7 @@ enum http_version_bits {
 manapi::net::http::config::config(const json &config) {
     this->http_versions = 0;
     this->server_len = 0;
+    this->init_proto_timeout = get_config_param<std::size_t> (config, "init_proto_timeout", 8000);
     this->window_stream_size = get_config_param<ssize_t> (config, "window_stream_size", 2000000);
     this->window_connection_size = get_config_param<ssize_t> (config, "window_connection_size", 4000000);
     this->max_concurrent_streams = get_config_param<ssize_t> (config, "max_concurrent_streams", -1);
@@ -53,6 +54,8 @@ manapi::net::http::config::config(const json &config) {
     this->max_header_value_size = get_config_param<ssize_t>(config, "max_header_value_size", 4096);
     this->buffer_size = get_config_param<uint32_t>(config, "buffer_size", 4096);
     this->tcp_backlog = get_config_param<ssize_t>(config, "tcp_backlog", 200);
+    this->tls_accept_timeout = get_config_param<std::size_t>(config, "tls_accept_timeout", 8000);
+    this->tls_shutdown_timeout = get_config_param<std::size_t>(config, "tls_shutdown_timeout", 5000);
     this->force_conn_shutdown = get_config_param<bool>(config, "force_conn_shutdown", false);
     this->keep_alive = get_config_param<uint32_t>(config, "keep_alive", 2);
     this->implementation = get_config_param<std::string>(config, "implementation", "default");

@@ -583,8 +583,8 @@ int http_v2_send_settings (manapi::net::http::http_v2_t *ctx, const std::vector<
         }
 
 
-        ctx->timeout = manapi::async::current()->timerpool()->append_timer_sync(3000,
-            [ctx, conn = ctx->conn] (manapi::timer t) -> void {
+        ctx->timeout = manapi::async::current()->timerpool()->append_timer_sync(ctx->worker->config()->init_proto_timeout,
+            [ctx, conn = ctx->conn] (const manapi::timer& ) -> void {
                 http_v2_goaway_t http_goaway = {
                     .err_code = manapi::net::worker::HTTP2_ERROR_SETTINGS_TIMEOUT,
                     .err_msg = "SETTINGS timeout"

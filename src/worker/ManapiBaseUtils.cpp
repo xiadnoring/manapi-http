@@ -182,20 +182,20 @@ void manapi::net::worker::prepared::update_limit_rate_connection(const shared_co
 
         if (!(data->flags & ev::DISCONNECT) && data->flags & ev::WRITE && data->ev_callback) {
             if (manapi::net::worker::base::call_user_callback(&data->ev_callback, sconn, ev::WRITE, nullptr, 0, nullptr)) {
-                w->close_connection(sconn, CLOSE_CONN_ERR);
+                w->close_connection(sconn, CLOSE_CONN_EOS);
                 return;
             }
         }
-        }
+    }
     else {
         data->transfered_k += data->transfered;
 
         if (--data->speed_min_delay <= 0) {
             if (data->flags & (base::CONN_IO_WAITING)
                 && (data->transfered_k < speed_check_bytes)) {
-                w->close_connection(sconn, CLOSE_CONN_ERR);
+                w->close_connection(sconn, CLOSE_CONN_EOS);
                 return;
-                }
+            }
 
             data->transfered_k = 0;
             data->speed_min_delay = static_cast<int>(speed_check_delay);

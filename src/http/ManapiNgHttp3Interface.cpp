@@ -816,7 +816,7 @@ static int ng_wrk_http3_reset_stream (nghttp3_conn *conn, int64_t stream_id, uin
     if (!s || !s->s)
         return 0;
 
-    s->ctx->gctx->http3->close_connection(s->s, manapi::net::worker::CLOSE_CONN_EOF);
+    s->ctx->gctx->http3->close_connection(s->s, manapi::net::worker::CLOSE_CONN_FINISHED);
 
     return 0;
 }
@@ -953,7 +953,7 @@ static int ng_wrk_http3_stream_close (nghttp3_conn *conn, int64_t stream_id, uin
 
     if (s) {
         if (s->s)
-            s->ctx->gctx->http3->close_connection(s->s, manapi::net::worker::CLOSE_CONN_EOF);
+            s->ctx->gctx->http3->close_connection(s->s, manapi::net::worker::CLOSE_CONN_FINISHED);
 
         ng_wrk_http3_flush_close(s->ctx);
     }

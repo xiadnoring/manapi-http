@@ -272,7 +272,8 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
                             return;
 
                         /* maybe EOF */
-                        this->close_connection(connection, CLOSE_CONN_EOF);
+                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "EOF was received %p conn", connection->as<tcp_connection_t>());
+                        this->close_connection(connection, CLOSE_CONN_EOR);
                         return;
                     }
 
@@ -385,8 +386,19 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
     if (!conn)
         return;
 
-    this->waiting(conn, true);
     auto connection = conn->as<tcp_connection_t>();
+
+    /* Draining timeout is enabled, thus, connection is draining */
+    if ((flags & CLOSE_CONN_EOR)) {
+        conn->wrk.flags |= WRK_INTERFACE_IS_DRAINING;
+        connection->flags |= CONN_RECV_END;
+
+        if (!connection->t && !(connection->flags & CONN_READ)) {
+            return;
+        }
+    }
+
+    this->waiting(conn, true);
 
     if (connection->flags & CONN_REMOVED)
         return;
@@ -397,9 +409,10 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
 
     if (  !(flags & CLOSE_CONN_FINISHED)
         || (flags & CLOSE_CONN_ERR)
-        || (flags & CLOSE_CONN_EOF)
+        || (flags & CLOSE_CONN_EOS)
         || (flags & CLOSE_CONN_SHUTDOWN)
         || !this->config_->keep_alive
+        || (conn->wrk.flags & WRK_INTERFACE_IS_DRAINING)
         || !(conn->wrk.flags & WRK_INTERFACE_TCP_KEEP_ALIVE)) {
 
         connection->flags |= CONN_CLOSED;
@@ -448,7 +461,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
                 (const worker::shared_conn &conn, int flags, const char *buffer, ssize_t nsize, ibuffpool_t *p) mutable
                     -> void {
                         if (flags & ev::DISCONNECT) {
-                            this->close_connection(conn, CLOSE_CONN_ERR);
+                            this->close_connection(conn, CLOSE_CONN_EOS);
                             return;
                         }
 
@@ -779,7 +792,9 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
 
                                     if (status) {
                                         /* error */
-                                        conn->worker->close_connection(connection, CLOSE_CONN_EOF);
+                                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "write failed msg=%s %p conn",
+                                            ev::strerror(status), connection->as<tcp_connection_t>());
+                                        conn->worker->close_connection(connection, CLOSE_CONN_EOS);
                                     }
                                     else {
                                         if ((conn->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE && conn->ev_callback) {

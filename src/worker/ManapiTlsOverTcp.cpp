@@ -63,7 +63,7 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
     manapi_log_trace(debug::LOG_TRACE_LOW, "TLS:close_connection() %p flags=%d", connection, flags);
 
     if ((connection->flags & CONN_TLS_SHUTDOWN)) {
-        if ((flags & (CLOSE_CONN_EOF)))
+        if ((flags & (CLOSE_CONN_EOS|CLOSE_CONN_EOR)))
             goto eof;
 
         return;
@@ -98,9 +98,12 @@ void manapi::net::worker::TLS::close_connection(shared_conn conn, int flags) MAN
     }
 
     eof:
-    if (flags & CLOSE_CONN_EOF)
+    if (flags & (CLOSE_CONN_EOR|CLOSE_CONN_EOS)) {
         this->ssl_set_shutdown_(connection->ssl,
             this->ssl_recv_shutdown_|this->ssl_send_shutdown_);
+        /* connection is destroyed */
+        flags |= CLOSE_CONN_FINISHED;
+    }
     //
     // if (connection->accept_timer) {
     //     prepared::timer_clear(std::move(connection->accept_timer));
@@ -280,7 +283,7 @@ void manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &s
 
         if (!(data->flags & ev::DISCONNECT) && (data->flags & ev::WRITE) && data->ev_callback) {
             if (manapi::net::worker::base::call_user_callback(&data->ev_callback, sconn, ev::WRITE, nullptr, 0, nullptr)) {
-                this->close_connection(sconn, CLOSE_CONN_ERR);
+                this->close_connection(sconn, CLOSE_CONN_EOS);
                 return;
             }
         }
@@ -291,7 +294,7 @@ void manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &s
         if (--data->speed_min_delay <= 0) {
             if (data->flags & (base::CONN_IO_WAITING)
                 && (data->transfered_k < this->config_->speed_check_bytes)) {
-                this->close_connection(sconn, CLOSE_CONN_ERR);
+                this->close_connection(sconn, CLOSE_CONN_EOS);
                 return;
             }
 
@@ -356,12 +359,12 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
         s->accept_timer = nullptr;
     }
 
-    auto accept_timer_res = manapi::async::current()->timerpool()->append_timer_sync(5000, [wconn = std::weak_ptr (conn)] (manapi::timer t)
-        -> void { auto conn = wconn.lock(); if (conn) { auto w = conn->as<tcp_connection_t>(); w->worker->close_connection(conn, CLOSE_CONN_EOF); } });
+    auto accept_timer_res = manapi::async::current()->timerpool()->append_timer_sync(this->config_->tls_shutdown_timeout, [wconn = std::weak_ptr (conn)] (manapi::timer t)
+        -> void { auto conn = wconn.lock(); if (conn) { auto w = conn->as<tcp_connection_t>(); w->worker->close_connection(conn, CLOSE_CONN_ERR); } });
     if (accept_timer_res)
         s->accept_timer = accept_timer_res.unwrap();
     else {
-        this->close_connection(conn, CLOSE_CONN_EOF);
+        this->close_connection(conn, CLOSE_CONN_ERR);
         return;
     }
 
@@ -379,7 +382,7 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
         if (rhs==this->ssl_shutdown_sucess) {
             // if (rhs!=1)
             //     this->ssl_set_shutdown_(s->ssl, this->ssl_recv_shutdown_|this->ssl_send_shutdown_);
-            TCP::close_connection(conn, CLOSE_CONN_EOF);
+            TCP::close_connection(conn, CLOSE_CONN_FINISHED);
             return;
         }
 
@@ -603,7 +606,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::connection_init_cb(vo
         if (w->recv_setup_connection (ms, connection))
             return nullptr;
 
-        auto rhs = manapi::async::current()->timerpool()->append_timer_sync(8000,
+        auto rhs = manapi::async::current()->timerpool()->append_timer_sync(w->config_->tls_accept_timeout,
             [ms_w = std::weak_ptr (ms)] (const manapi::timer &t) mutable
             -> void {
                 auto ms = ms_w.lock();

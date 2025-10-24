@@ -509,7 +509,7 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
     if (s->flags & CONN_REMOVED)
         return;
 
-    if (flags == CLOSE_CONN_EOF)
+    if (flags == CLOSE_CONN_EOS)
         s->flags |= CONN_QUIC_SHUTDOWN_FINISHED;
     else {
         if ((s->flags & (CONN_QUIC_SHUTDOWN|CONN_QUIC_SHUTDOWN_FINISHED)) == CONN_QUIC_SHUTDOWN) {
@@ -524,7 +524,7 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
 
     s->flags |= CONN_REMOVED;
 
-    if (flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOF)) {
+    if (flags & (CLOSE_CONN_ERR|CLOSE_CONN_EOS)) {
         for (auto it = s->streams.begin(); it != s->streams.end(); ) {
             auto next = std::next(it);
             this->rst_stream(it->second);
@@ -556,11 +556,11 @@ void manapi::net::worker::openssl_quic::close_connection(shared_conn conn, int f
 
     prepared::timer_clear(std::move(s->timeout));
 
-    if (flags != CLOSE_CONN_EOF && !(s->flags & (CONN_QUIC_SHUTDOWN|CONN_QUIC_SHUTDOWN_FINISHED))) {
+    if (flags != CLOSE_CONN_FINISHED && !(s->flags & (CONN_QUIC_SHUTDOWN|CONN_QUIC_SHUTDOWN_FINISHED))) {
         auto rhs = manapi::async::current()->timerpool()->append_timer_sync(
-            2000, [conn] (const manapi::timer &t) mutable -> void {
+            this->config_->tls_shutdown_timeout, [conn] (const manapi::timer &t) mutable -> void {
             auto const s = conn->as<quic_conn_t>();
-            s->worker->close_connection(std::move(conn), CLOSE_CONN_EOF);
+            s->worker->close_connection(std::move(conn), CLOSE_CONN_ERR);
         });
 
         if (rhs.ok()) {
@@ -1215,7 +1215,7 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
                             auto const w = conn_data->worker;
                             assert(w);
                             if (manapi::net::worker::base::call_user_callback(&data->ev_callback, conn, ev::WRITE, nullptr, 0, nullptr)) {
-                                w->close_connection(conn, CLOSE_CONN_ERR);
+                                w->close_connection(conn, CLOSE_CONN_EOS);
                                 return;
                             }
                         }
@@ -1253,7 +1253,7 @@ void manapi::net::worker::openssl_quic::update_limit_rate_connection(const share
 
     if (--conn_data->speed_min_delay <= 0) {
         if (conn_data->flags & (base::CONN_IO_WAITING) && (conn_data->transfered_k < config->speed_check_bytes)) {
-            this->close_connection(sconn, CLOSE_CONN_ERR);
+            this->close_connection(sconn, CLOSE_CONN_EOS);
             return;
         }
         conn_data->transfered_k = 0;
@@ -1549,7 +1549,7 @@ void manapi::net::worker::openssl_quic::onrecv(const std::shared_ptr<ev::udp> &w
                     if (conn_by_ip != this->conns_.end()) {
                         auto cit = conn_by_ip->second.find(reinterpret_cast<std::uintptr_t>(it->desc.value.ssl));
                         if (cit != conn_by_ip->second.end()) {
-                            this->close_connection(cit->second, CLOSE_CONN_EOF);
+                            this->close_connection(cit->second, CLOSE_CONN_FINISHED);
                         }
                     }
                     it = &this->polls_[i];
@@ -1834,11 +1834,11 @@ manapi::error::status_or<manapi::net::worker::shared_conn> manapi::net::worker::
 
         if (conn_by_ip->second.size() > (this->config_->max_connections_by_ip + this->config_->max_connections_by_ip)
             || this->count > this->config_->max_connections + this->config_->max_connections) {
-            this->close_connection(conn, CLOSE_CONN_EOF);
+            this->close_connection(conn, CLOSE_CONN_ERR);
         }
         else if (conn_by_ip->second.size() > this->config_->max_connections_by_ip
             || this->count > this->config_->max_connections) {
-            this->close_connection(conn, CLOSE_CONN_SHUTDOWN);
+            this->close_connection(conn, CLOSE_CONN_ERR);
         }
     }
     catch (std::exception const &e) {
@@ -1887,7 +1887,7 @@ void manapi::net::worker::openssl_quic::conn_processing(SSL *client) MANAPIHTTP_
                 }
 
                 if (rhs == 1) {
-                    this->close_connection(conn, CLOSE_CONN_EOF);
+                    this->close_connection(conn, CLOSE_CONN_FINISHED);
                     break;
                 }
 
