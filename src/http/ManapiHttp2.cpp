@@ -689,7 +689,7 @@ bool http_v2_stream_on_write (const manapi::net::worker::shared_conn &conn, mana
 }
 
 int manapi::net::http::http_v2_on_write(http_v2_t *ctx) MANAPIHTTP_NOEXCEPT {
-    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: write event received");
+    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: write event received write_window=%d", ctx->write_window);
 
     if (ctx->current) {
         if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE)
@@ -699,11 +699,17 @@ int manapi::net::http::http_v2_on_write(http_v2_t *ctx) MANAPIHTTP_NOEXCEPT {
         for (const auto &priority : *ctx->priorities) {
             //auto &conn = (*priority.second);
             auto const data = priority.second->as<http_v2_stream_t>();
-            if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE)
+            if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE) {
                 break;
+            }
 
-            if (http_v2_stream_on_write(priority.second, data))
+            auto rhs = http_v2_stream_on_write(priority.second, data);
+
+            if (rhs)
                 no_one = false;
+
+            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: write event received sid=%u s_write_window=%d processed=%d",
+                data->id, ctx->write_window, rhs);
         }
 
         if (no_one)

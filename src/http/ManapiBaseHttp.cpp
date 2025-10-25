@@ -932,7 +932,7 @@ manapi::future<int> manapi::net::http::internal::mask_response(response* res, bo
     return global->send_response(cdata->conn, global, cdata->worker.get(), res, finish);
 }
 
-int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *inf, manapi::net::worker::base *w, manapi::net::worker::connection *conn) {
+static int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *inf, manapi::net::worker::base *w, manapi::net::worker::connection *conn) {
     auto ipdata = w->ipdata(conn);
     auto const sa = reinterpret_cast <struct sockaddr *> (ipdata->client.data);
     auto res = manapi::net::http::strinfigy_ip(sa);
@@ -947,7 +947,7 @@ int handle_request_stringify_ip (manapi::net::http::manapi_socket_information *i
     return manapi::ERR_OK;
 }
 
-manapi::error::status execute_user_callback (manapi::net::http::handler_template_t &handle, manapi::net::http::request *req,
+static manapi::error::status execute_user_callback (manapi::net::http::handler_template_t &handle, manapi::net::http::request *req,
     manapi::net::http::response *resp, std::move_only_function<void(std::exception_ptr err)> after_work) {
     try {
         if (handle.is_async_cb()) {
@@ -985,7 +985,7 @@ manapi::error::status execute_user_callback (manapi::net::http::handler_template
 }
 
 namespace manapi::net::http::internal {
-    void handle_income_request_err_ (std::unique_ptr<response> res, std::exception_ptr err) {
+    static void handle_income_request_err_ (std::unique_ptr<response> res, std::exception_ptr err) {
         uq_handle_data_t cdata (res->connection_data_release());
         char msg[256];
         std::size_t msg_size = sizeof (msg);
@@ -997,7 +997,7 @@ namespace manapi::net::http::internal {
         send_error_response(std::move(cdata), http::SERVICE_UNAVAILABLE_503);
         return;
     }
-    void handle_income_request_next_ (handler_template_t *handler, std::unique_ptr<response> res, int index) {
+    static void handle_income_request_next_ (handler_template_t *handler, std::unique_ptr<response> res, int index) {
         auto const cdata_ptr = res->connection_data();
         auto const res_ptr = res.get();
 
@@ -1040,7 +1040,7 @@ namespace manapi::net::http::internal {
         }
     }
 
-    void handle_income_request_(uq_handle_data_t cdata, int status) {
+    static void handle_income_request_(uq_handle_data_t cdata, int status) {
         try {
             // handler function not be found
             if (!cdata->router->handler) {
@@ -1180,6 +1180,9 @@ namespace manapi::net::http::internal {
 
 
 void manapi::net::http::internal::handle_income_request(uq_handle_data_t cdata, int status) {
+    manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "Handle HTTP request on %.*s conn:%p",
+        cdata->req_data->uri.size(), cdata->req_data->uri.data(), cdata->conn->as<void>());
+
     if (status >= 200 && status < 300)
         return handle_income_request_(std::move(cdata), status);
 

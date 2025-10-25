@@ -94,7 +94,7 @@ namespace manapi::net::worker {
     private:
         static shared_conn connection_init_cb (void *user_data) MANAPIHTTP_NOEXCEPT;
 
-        int check_read_stack_full_ (tls_connection_t *data);
+        int check_read_stack_full_ (const shared_conn &conn, tls_connection_t *data);
 
         int manapi_do_process (const shared_conn &conn, tls_connection_t *data);
 

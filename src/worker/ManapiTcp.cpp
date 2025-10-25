@@ -191,7 +191,7 @@ void manapi::net::worker::TCP::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
 
     connection->transfered += size;
     if (connection->transfered >= this->config_->speed_limit_rate) {
-        this->read_stop_(connection);
+        this->read_stop_(conn, connection);
     }
 
     if (conn->wrk.flags & WRK_INTERFACE_CUSTOM_READ)
@@ -239,7 +239,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
             return nullptr;
         }
 
-        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s due to %s", "tcp:%p conn closed", "limits");
+        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "%s due to %s", "tcp:conn closed", "limits");
 
         return nullptr;
     }
@@ -272,7 +272,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TCP::accept (const ev::sha
                             return;
 
                         /* maybe EOF */
-                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "EOF was received %p conn", connection->as<tcp_connection_t>());
+                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "EOR was received %p conn", connection.get());
                         this->close_connection(connection, CLOSE_CONN_EOR);
                         return;
                     }
@@ -403,7 +403,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
     if (connection->flags & CONN_REMOVED)
         return;
 
-    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:close_connection() %p flags=%d",connection, flags);
+    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:close_connection() %p flags=%d",conn.get(), flags);
 
     conn->cancellation.cancel();
 
@@ -432,7 +432,7 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
 
         prepared::event_callback_clear(conn, connection);
 
-        this->read_stop_(connection);
+        this->read_stop_(conn, connection);
 
         prepared::top_buffer_clear(connection);
 
@@ -641,9 +641,9 @@ int manapi::net::worker::TCP::event_flags(const shared_conn & conn, int flags) M
     }
 
     if (data->flags & ev::READ)
-        this->read_start_(data);
+        this->read_start_(conn, data);
     else
-        this->read_stop_(data);
+        this->read_stop_(conn, data);
 
     return prev;
 }
@@ -660,19 +660,19 @@ manapi::bytebuffer manapi::net::worker::TCP::recv_first_buffer(const shared_conn
     return prepared::recv_first_buffer(conn);
 }
 
-void manapi::net::worker::TCP::read_start_(tcp_connection_t *data) MANAPIHTTP_NOEXCEPT {
+void manapi::net::worker::TCP::read_start_(const shared_conn &conn, tcp_connection_t *data) MANAPIHTTP_NOEXCEPT {
     if (!data->watcher || data->watcher->is_active() || data->transfered > this->config_->speed_limit_rate)
         return;
-    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_start()", data);
+    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_start()", conn.get());
     auto res = data->watcher->read_start();
     if (res)
         manapi_log_error("%s failed due to %s", "tcp:read_start", ev::strerror(res));
 }
 
-void manapi::net::worker::TCP::read_stop_(tcp_connection_t *data) MANAPIHTTP_NOEXCEPT {
+void manapi::net::worker::TCP::read_stop_(const shared_conn &conn, tcp_connection_t *data) MANAPIHTTP_NOEXCEPT {
     if (!data->watcher || !data->watcher->is_active())
         return;
-    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_stop()", data);
+    manapi_log_trace(debug::LOG_TRACE_LOW, "TCP:%p read_stop()", conn.get());
     auto res = data->watcher->read_stop();
     if (res)
         manapi_log_error("%s failed due to %s", "tcp:read_stop", ev::strerror(res));
@@ -793,7 +793,7 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                     if (status) {
                                         /* error */
                                         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "write failed msg=%s %p conn",
-                                            ev::strerror(status), connection->as<tcp_connection_t>());
+                                            ev::strerror(status), connection.get());
                                         conn->worker->close_connection(connection, CLOSE_CONN_EOS);
                                     }
                                     else {
@@ -853,7 +853,7 @@ void manapi::net::worker::TCP::flush_read_(const shared_conn &conn, tcp_connecti
 
     if (data->flags & ev::READ
             && !(data->flags & (CONN_CLOSED|CONN_REMOVED))) {
-        this->read_start_(data);
+        this->read_start_(conn, data);
     }
 }
 

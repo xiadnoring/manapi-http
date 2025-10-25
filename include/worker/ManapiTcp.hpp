@@ -55,9 +55,9 @@ namespace manapi::net::worker {
 
         bytebuffer recv_first_buffer(const shared_conn &conn) MANAPIHTTP_NOEXCEPT override ;
     protected:
-        virtual void read_start_ (tcp_connection_t *data) MANAPIHTTP_NOEXCEPT;
+        virtual void read_start_ (const shared_conn &conn, tcp_connection_t *data) MANAPIHTTP_NOEXCEPT;
 
-        virtual void read_stop_ (tcp_connection_t *data) MANAPIHTTP_NOEXCEPT;
+        virtual void read_stop_ (const shared_conn &conn, tcp_connection_t *data) MANAPIHTTP_NOEXCEPT;
 
         virtual int flush_write_ (const shared_conn &connection, bool flush = false) MANAPIHTTP_NOEXCEPT;
 

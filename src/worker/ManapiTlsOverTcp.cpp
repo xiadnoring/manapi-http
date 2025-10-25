@@ -44,7 +44,7 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::accept(const ev::shar
 
     auto data = connection->as<tls_connection_t>();
     if (!(data->flags & CONN_CLOSED)) {
-        this->read_start_(data);
+        this->read_start_(connection, data);
     }
 
     return std::move(connection);
@@ -253,12 +253,12 @@ int manapi::net::worker::TLS::event_flags(const shared_conn & conn, int flags) M
             this->flush_read_ (conn, data);
 
             if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == CONN_READ) {
-                this->read_start_(data);
+                this->read_start_(conn, data);
             }
         }
 
         if ((status & (CONN_READ|CONN_CLOSED|CONN_REMOVED)) == 0) {
-            this->read_stop_(data);
+            this->read_stop_(conn, data);
         }
 
         if ((status & CONN_RECV_END) && (status & CONN_READ) && data->ev_callback) {
@@ -279,7 +279,7 @@ void manapi::net::worker::TLS::update_limit_rate_connection(const shared_conn &s
         && data->ev_callback) {
         data->transfered = 0;
 
-        this->read_start_(data);
+        this->read_start_(sconn, data);
 
         if (!(data->flags & ev::DISCONNECT) && (data->flags & ev::WRITE) && data->ev_callback) {
             if (manapi::net::worker::base::call_user_callback(&data->ev_callback, sconn, ev::WRITE, nullptr, 0, nullptr)) {
@@ -347,7 +347,7 @@ void manapi::net::worker::TLS::connection_interface_eraser(worker::connection *p
 void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
     auto s = conn->as<tls_connection_t>();
 
-    this->read_start_(s);
+    this->read_start_(conn, s);
 
     if (!ssl_is_init_fininshed_(s->ssl)) {
         manapi_do_handshake_(conn, s);
@@ -375,7 +375,7 @@ void manapi::net::worker::TLS::shutdown_async_(shared_conn conn) {
 
 
         if (!rhs) {
-            this->read_start_(s);
+            this->read_start_(conn, s);
             goto write;
         }
 
@@ -459,7 +459,7 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
 
     data->transfered += size;
     if (data->transfered >= this->config_->speed_limit_rate) {
-        this->read_stop_(data);
+        this->read_stop_(conn, data);
     }
 
     manapi_log_trace_hard("TLS:recv %p flags=%d size=%zu", data, data->flags, buffer.size());
@@ -569,7 +569,7 @@ void manapi::net::worker::TLS::onrecv(const std::shared_ptr<ev::tcp> &watcher, c
         goto err;
     }
 
-    if(this->check_read_stack_full_(data)) {
+    if(this->check_read_stack_full_(conn, data)) {
         goto err;
     }
 
@@ -633,10 +633,10 @@ manapi::net::worker::shared_conn manapi::net::worker::TLS::connection_init_cb(vo
     return nullptr;
 }
 
-int manapi::net::worker::TLS::check_read_stack_full_(tls_connection_t *data) {
+int manapi::net::worker::TLS::check_read_stack_full_(const shared_conn &conn, tls_connection_t *data) {
     if (prepared::read_buffs_is_full(data->top.get(), this->config_)) {
         /* sadness */
-        this->read_stop_(data);
+        this->read_stop_(conn, data);
     }
     return 0;
 }
@@ -1061,7 +1061,7 @@ int manapi::net::worker::TLS::ssl_flush_recv(const shared_conn &conn, connection
         }
 
         if ((data->flags & ((CONN_READ|CONN_CLOSED|CONN_REMOVED))) == CONN_READ) {
-            this->read_start_(data);
+            this->read_start_(conn, data);
         }
 
         return CONN_IO_OK;

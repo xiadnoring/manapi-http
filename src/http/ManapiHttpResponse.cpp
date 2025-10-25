@@ -248,18 +248,38 @@ std::string manapi::net::http::response::compress() MANAPIHTTP_NOEXCEPT {
             if (it->second.size() < 1000) {
                 /* lite check */
 
-                if (compress.empty()) {
-                    auto rhs = http::parse_header_value(it->second);
-                    if (rhs.ok()) {
-                        auto data = rhs.unwrap();
-                        for (auto &a: data) {
-                            if (this->config_->contains_compressor(a.value)) {
-                                compress = std::move(a.value);
+                std::string *last = nullptr;
+                bool exists = false;
+                auto rhs = http::parse_header_value(it->second);
+                if (rhs.ok()) {
+                    auto data = rhs.unwrap();
+                    for (auto &a: data) {
+                        if (this->config_->contains_compressor(a.value)) {
+                            last = &a.value;
+                            if (compress.empty()) {
                                 break;
+                            }
+                            else {
+                                if (a.value == compress) {
+                                    exists = true;
+                                    break;
+                                }
                             }
                         }
                     }
                 }
+
+                if (!exists) {
+                    if (last) {
+                        compress = std::move(*last);
+                    }
+                    else {
+                        compress.clear();
+                    }
+                }
+            }
+            else {
+                compress.clear();
             }
         }
     }
