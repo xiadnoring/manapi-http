@@ -251,8 +251,9 @@ std::string manapi::net::http::response::compress() MANAPIHTTP_NOEXCEPT {
                 std::string *last = nullptr;
                 bool exists = false;
                 auto rhs = http::parse_header_value(it->second);
+                std::vector<header_value_t> data;
                 if (rhs.ok()) {
-                    auto data = rhs.unwrap();
+                    data = rhs.unwrap();
                     for (auto &a: data) {
                         if (this->config_->contains_compressor(a.value)) {
                             last = &a.value;
