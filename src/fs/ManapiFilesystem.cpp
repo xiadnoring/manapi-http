@@ -1063,7 +1063,7 @@ manapi::future<manapi::sys_error::status_or<std::pair<std::string, manapi::ev::f
         }, std::move(cancellation));
 }
 
-manapi::future<manapi::sys_error::status_or<std::size_t>> manapi::filesystem::async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation) {
+manapi::future<manapi::sys_error::status_or<std::size_t>> manapi::filesystem::async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *dir, std::size_t result)> callback, async::cancellation_action cancellation) {
     using promise_sync = manapi::async::promise_sync<sys_error::status_or<std::size_t>>;
 
     co_return co_await async_fs_operation<sys_error::status_or<std::size_t>>([path = std::move(path), flags] (std::shared_ptr<ev::fs> w)
@@ -1076,12 +1076,12 @@ manapi::future<manapi::sys_error::status_or<std::size_t>> manapi::filesystem::as
                 return;
             }
             auto ptr = static_cast<ev::dir_t *> (w->custom()->ptr);
-            callback(ptr);
-            resolve(ptr->nentries);
+            callback(ptr, w->result());
+            resolve(w->result());
         }, std::move(cancellation));
 }
 
-manapi::future<manapi::sys_error::status_or<std::size_t>> manapi::filesystem::async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *)> callback, async::cancellation_action cancellation) {
+manapi::future<manapi::sys_error::status_or<std::size_t>> manapi::filesystem::async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *, std::size_t)> callback, async::cancellation_action cancellation) {
     using promise_sync = manapi::async::promise_sync<sys_error::status_or<std::size_t>>;
 
     co_return co_await async_fs_operation<sys_error::status_or<std::size_t>>([dir] (std::shared_ptr<ev::fs> w)
@@ -1094,7 +1094,7 @@ manapi::future<manapi::sys_error::status_or<std::size_t>> manapi::filesystem::as
                 return;
             }
             auto ptr = static_cast<ev::dir_t *> (w->custom()->ptr);
-            callback(ptr);
-            resolve(ptr->nentries);
+            callback(ptr, w->result());
+            resolve(w->result());
         }, std::move(cancellation));
 }

@@ -123,9 +123,9 @@ namespace manapi::filesystem {
 
     future<sys_error::status> async_access (std::string path, int mode, async::cancellation_action cancellation = nullptr);
 
-    future<sys_error::status_or<std::size_t>> async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation = nullptr);
+    future<sys_error::status_or<std::size_t>> async_scandir (std::string path, int flags, std::move_only_function<void(ev::dir_t *, std::size_t)> callback, async::cancellation_action cancellation = nullptr);
 
-    future<sys_error::status_or<std::size_t>> async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *dir)> callback, async::cancellation_action cancellation = nullptr);
+    future<sys_error::status_or<std::size_t>> async_readdir (ev::dir_t *dir, std::move_only_function<void(ev::dir_t *, std::size_t)> callback, async::cancellation_action cancellation = nullptr);
 }
 
 
