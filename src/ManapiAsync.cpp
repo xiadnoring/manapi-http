@@ -34,7 +34,7 @@ bool manapi::async::internal::future_final_awaiter_ready() MANAPIHTTP_NOEXCEPT {
     return false;
 }
 
-void manapi::async::internal::append_static_task(manapi::static_function<void()> callback) MANAPIHTTP_NOEXCEPT {
+void manapi::async::internal::append_static_task(manapi::fixed_function<void()> callback) MANAPIHTTP_NOEXCEPT {
     async::current()->etaskpool()->append_static_task(std::move(callback));
 }
 

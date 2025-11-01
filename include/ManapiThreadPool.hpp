@@ -20,7 +20,7 @@ namespace manapi {
 
         virtual void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
 
-        virtual void append_static_task (manapi::static_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
+        virtual void append_static_task (manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT = 0;
 
         virtual void start() = 0;
 
@@ -59,7 +59,7 @@ namespace manapi {
 
         void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
-        void append_static_task(manapi::static_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
+        void append_static_task(manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
         std::size_t size() const MANAPIHTTP_NOEXCEPT;
 
@@ -77,7 +77,7 @@ namespace manapi {
         // this vector of queue which contains tasks
         std::vector <std::move_only_function<void()>> tasks;
 
-        std::vector <manapi::static_function<void()>> tasks2;
+        std::vector <manapi::fixed_function<void()>> tasks2;
 
         // queue mutex
         mutable std::mutex queue_mutex;
@@ -87,7 +87,7 @@ namespace manapi {
 
         void run(ssize_t index);
 
-        int get_task(ssize_t index, std::move_only_function<void()> *cb1, manapi::static_function<void()> *cb2);
+        int get_task(ssize_t index, std::move_only_function<void()> *cb1, manapi::fixed_function<void()> *cb2);
 
         std::atomic<int> flags;
 
@@ -114,7 +114,7 @@ namespace manapi {
 
         void append_task (std::move_only_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
-        void append_static_task(manapi::static_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
+        void append_static_task(manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT override;
 
         void join () MANAPIHTTP_NOEXCEPT override;
     private:
@@ -122,7 +122,7 @@ namespace manapi {
 
         std::vector <std::move_only_function<void()>> tasks;
 
-        std::vector <manapi::static_function<void()>> tasks2;
+        std::vector <manapi::fixed_function<void()>> tasks2;
 
         std::move_only_function<void()> ontask_;
     };

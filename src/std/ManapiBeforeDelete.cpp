@@ -7,14 +7,14 @@ manapi::before_delete::before_delete(std::move_only_function<void()> f) {
     this->f = std::move(f);
 }
 
-manapi::before_delete::before_delete(before_delete &&n) noexcept {
-    std::swap(this->f, n.f);
-    std::swap(this->autostart, n.autostart);
+manapi::before_delete::before_delete(before_delete &&n) MANAPIHTTP_NOEXCEPT {
+    this->f = std::move(n.f);
+    this->active = std::exchange(n.active, true);
 }
 
 manapi::before_delete::~before_delete() {
     try {
-        if (this->f && this->autostart)
+        if (this->f && this->active)
             this->f();
     }
     catch (std::exception const &e) {
@@ -22,9 +22,9 @@ manapi::before_delete::~before_delete() {
     }
 }
 
-manapi::before_delete & manapi::before_delete::operator=(before_delete &&n) noexcept {
-    std::swap(this->f, n.f);
-    std::swap(this->autostart, n.autostart);
+manapi::before_delete & manapi::before_delete::operator=(before_delete &&n) MANAPIHTTP_NOEXCEPT {
+    this->f = std::move(n.f);
+    this->active = std::exchange(n.active, true);
     return *this;
 }
 
@@ -43,18 +43,18 @@ void manapi::before_delete::call () MANAPIHTTP_NOEXCEPT {
 }
 
 void manapi::before_delete::disable() MANAPIHTTP_NOEXCEPT {
-    this->autostart = false;
+    this->active = false;
 }
 
 void manapi::before_delete::enable() MANAPIHTTP_NOEXCEPT {
-    this->autostart = true;
+    this->active = true;
 }
 
 manapi::sbefore_delete::sbefore_delete(std::move_only_function<void()> f) {
     this->f = std::move(f);
 }
 
-manapi::sbefore_delete::sbefore_delete(sbefore_delete &&n) noexcept = default;
+manapi::sbefore_delete::sbefore_delete(sbefore_delete &&n) MANAPIHTTP_NOEXCEPT = default;
 
 manapi::sbefore_delete::~sbefore_delete() {
     try {
@@ -68,7 +68,7 @@ manapi::sbefore_delete::~sbefore_delete() {
     }
 }
 
-manapi::sbefore_delete & manapi::sbefore_delete::operator=(sbefore_delete &&n) noexcept = default;
+manapi::sbefore_delete & manapi::sbefore_delete::operator=(sbefore_delete &&n) MANAPIHTTP_NOEXCEPT = default;
 
 void manapi::sbefore_delete::call() MANAPIHTTP_NOEXCEPT {
     try {

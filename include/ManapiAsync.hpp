@@ -43,7 +43,7 @@ namespace manapi::async::internal {
 
     bool future_final_awaiter_ready () MANAPIHTTP_NOEXCEPT;
 
-    void append_static_task (manapi::static_function<void()> callback) MANAPIHTTP_NOEXCEPT;
+    void append_static_task (manapi::fixed_function<void()> callback) MANAPIHTTP_NOEXCEPT;
 
     class promise_base_future {
     public:

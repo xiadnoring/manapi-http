@@ -9,6 +9,7 @@
 #include "ManapiString.hpp"
 #include "ManapiHttp.hpp"
 #include "json/ManapiJson.hpp"
+#include "ManapiTimerPool.hpp"
 #include "std/ManapiEasyCancellation.hpp"
 
 #define HTTP1PORT "8888"

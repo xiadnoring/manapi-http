@@ -22,7 +22,7 @@ void task_doit(std::move_only_function<void()>&task, manapi::logger *logger) {
     }
 }
 
-void task_doit(manapi::static_function<void()> &task, manapi::logger *logger) {
+void task_doit(manapi::fixed_function<void()> &task, manapi::logger *logger) {
     assert((task));
 
     try {
@@ -138,7 +138,7 @@ namespace manapi {
         this->cv.notify_one();
     }
 
-    void mthreadpool::append_static_task(manapi::static_function<void()> cb) MANAPIHTTP_NOEXCEPT {
+    void mthreadpool::append_static_task(manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT {
         {
             // obtain a mutex
             std::lock_guard<std::mutex> lk (this->queue_mutex);
@@ -153,7 +153,7 @@ namespace manapi {
     }
 
 
-    int mthreadpool::get_task(ssize_t index, std::move_only_function<void()> *cb1, manapi::static_function<void()> *cb2) {
+    int mthreadpool::get_task(ssize_t index, std::move_only_function<void()> *cb1, manapi::fixed_function<void()> *cb2) {
         std::lock_guard<std::mutex> lk (this->queue_mutex);
 
         if (index == -1 || this->tasks_by_thread[index].empty()) {
@@ -192,7 +192,7 @@ namespace manapi {
     
     void mthreadpool::run(ssize_t index) {
         std::move_only_function<void()> cb1;
-        manapi::static_function <void()> cb2;
+        manapi::fixed_function <void()> cb2;
 
         while ((this->flags & 0b1)) {
             switch (get_task(index, &cb1, &cb2)) {
@@ -301,7 +301,7 @@ namespace manapi {
         }
     }
 
-    void ethreadpool::append_static_task(manapi::static_function<void()> cb) MANAPIHTTP_NOEXCEPT {
+    void ethreadpool::append_static_task(manapi::fixed_function<void()> cb) MANAPIHTTP_NOEXCEPT {
         MANAPIHTTP_MUST_ALLOC_START
         this->tasks2.emplace_back(nullptr);
         MANAPIHTTP_MUST_ALLOC_END
