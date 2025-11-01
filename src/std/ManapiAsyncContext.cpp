@@ -186,13 +186,16 @@ manapi::error::status manapi::async::context::run(uint32_t loops, std::function<
                         manapi::clear_tools::grpc_clear();
 
                         thr->eventloop()->wait_all_();
-                        thr->eventloop()->etaskpool_->stop();
-                        thr->eventloop()->etaskpool_->join();
-
-                        manapi::async::context::current(nullptr);
-
-                        manapi::clear_tools::ssl_library_thread_clear();
                     });
+
+                    thr->eventloop()->wait_all_();
+
+                    thr->eventloop()->etaskpool_->stop();
+                    thr->eventloop()->etaskpool_->join();
+
+                    manapi::async::context::current(nullptr);
+
+                    manapi::clear_tools::ssl_library_thread_clear();
                 });
             });
         }
@@ -215,14 +218,17 @@ manapi::error::status manapi::async::context::run(uint32_t loops, std::function<
             manapi::clear_tools::grpc_clear();
 
             ctx->eventloop_->wait_all_();
-            ctx->eventloop()->etaskpool_->stop();
-            ctx->eventloop()->etaskpool_->join();
 
-            ctx->taskpool_->stop();
-            ctx->taskpool_->join();
-
-            manapi::async::context::current(nullptr);
         });
+
+        ctx->eventloop_->wait_all_();
+        ctx->eventloop()->etaskpool_->stop();
+        ctx->eventloop()->etaskpool_->join();
+
+        ctx->taskpool_->stop();
+        ctx->taskpool_->join();
+
+        manapi::async::context::current(nullptr);
 
         return error::status_ok();
     }
