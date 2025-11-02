@@ -115,7 +115,7 @@ enum add_watcher_fs_events {
 namespace manapi::ev::internal {
 #if MANAPIHTTP_CURL_DEPENDENCY
     struct curl_multi_deleter {
-        void operator()(CURLM *curl_multi) noexcept {
+        void operator()(CURLM *curl_multi) MANAPIHTTP_NOEXCEPT {
             curl_multi_cleanup(curl_multi);
         }
     };

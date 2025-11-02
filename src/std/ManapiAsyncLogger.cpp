@@ -21,11 +21,11 @@ manapi::logger::logger(manapi::logger::callback_t callback) {
 
 manapi::logger::~logger() = default;
 
-manapi::logger::logger(logger &&n) noexcept {
+manapi::logger::logger(logger &&n) MANAPIHTTP_NOEXCEPT {
     this->data = std::move(n.data);
 }
 
-manapi::logger & manapi::logger::operator=(logger &&n) noexcept {
+manapi::logger & manapi::logger::operator=(logger &&n) MANAPIHTTP_NOEXCEPT {
     this->data = std::move(n.data);
     return *this;
 }

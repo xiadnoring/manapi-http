@@ -161,8 +161,10 @@ namespace manapi {
         }
 
         static_before_delete &operator=(static_before_delete &&n) MANAPIHTTP_NOEXCEPT {
-            this->active = std::exchange(n.active, true);
-            this->f = std::move(n.f);
+            if (this != &n) {
+                this->active = std::exchange(n.active, true);
+                this->f = std::move(n.f);
+            }
             return *this;
         }
     private:

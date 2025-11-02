@@ -26,11 +26,11 @@ manapi::error::status_or<manapi::filesystem::fstream> manapi::filesystem::fstrea
     }
 }
 
-manapi::filesystem::fstream::fstream(fstream &&n) noexcept {
+manapi::filesystem::fstream::fstream(fstream &&n) MANAPIHTTP_NOEXCEPT {
     this->data = std::move(n.data);
 }
 
-manapi::filesystem::fstream & manapi::filesystem::fstream::operator=(fstream &&n) noexcept {
+manapi::filesystem::fstream & manapi::filesystem::fstream::operator=(fstream &&n) MANAPIHTTP_NOEXCEPT {
     this->data = std::move(n.data);
     return *this;
 }

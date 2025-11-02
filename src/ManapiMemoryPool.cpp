@@ -266,7 +266,7 @@ manapi::bytebuffer manapi::object_pool::buffer(void *pointer, uint32_t suggested
     return {pointer, suggested, bytebuffer::BYTEBUFFER_FLAG_OBJECT_POOL};
 }
 
-void * manapi::object_pool::alloc(std::size_t size) noexcept(true) {
+void * manapi::object_pool::alloc(std::size_t size) MANAPIHTTP_NOEXCEPT {
     void *buffer;
     std::size_t rhs;
     //assert(size <= 65536);
@@ -279,7 +279,7 @@ void * manapi::object_pool::alloc(std::size_t size) noexcept(true) {
     return static_cast<char*>(buffer) + 1;
 }
 
-void * manapi::object_pool::realloc(void *ptr, std::size_t size) noexcept(true) {
+void * manapi::object_pool::realloc(void *ptr, std::size_t size) MANAPIHTTP_NOEXCEPT {
     if (!ptr)
         return this->alloc(size);
 
@@ -307,7 +307,7 @@ void * manapi::object_pool::realloc(void *ptr, std::size_t size) noexcept(true) 
     }
 }
 
-void manapi::object_pool::free(void *ptr) noexcept(true) {
+void manapi::object_pool::free(void *ptr) MANAPIHTTP_NOEXCEPT {
     if (!ptr)
         return;
 
@@ -321,7 +321,7 @@ void manapi::object_pool::free(void *ptr) noexcept(true) {
     this->free(p, len);
 }
 
-void manapi::object_pool::free(void *pointer, std::size_t size) noexcept(true) {
+void manapi::object_pool::free(void *pointer, std::size_t size) MANAPIHTTP_NOEXCEPT {
     return manapi::internal::object_item_pool_return(this->data, pointer, size);
 }
 

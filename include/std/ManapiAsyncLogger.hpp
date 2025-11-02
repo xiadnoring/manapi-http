@@ -28,9 +28,9 @@ namespace manapi {
 
         ~logger();
 
-        logger(logger &&n) noexcept;
+        logger(logger &&n) MANAPIHTTP_NOEXCEPT;
 
-        logger &operator=(logger &&n) noexcept;
+        logger &operator=(logger &&n) MANAPIHTTP_NOEXCEPT;
 
         logger(const logger &n);
 

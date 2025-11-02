@@ -137,7 +137,7 @@ int manapi_bio_gets (BIO *bio, char *buf, int size) {
     return rhs;
 }
 
-BIO_METHOD *BIO_manapi_mem () noexcept {
+BIO_METHOD *BIO_manapi_mem () MANAPIHTTP_NOEXCEPT {
     auto c = BIO_meth_new(BIO_TYPE_MEM, "ManapiOpenSslBio");
     if (!c) return nullptr;
 

@@ -30,22 +30,24 @@ namespace manapi::ext::pq {
             this->res_.reset(res);
         }
 
-        result (result &&n) noexcept {
+        result (result &&n) MANAPIHTTP_NOEXCEPT {
             this->res_ = std::move(n.res_);
         }
 
         ~result() = default;
 
-        result &operator=(result &&n) noexcept {
-            this->res_ = std::move(n.res_);
+        result &operator=(result &&n) MANAPIHTTP_NOEXCEPT {
+            if (this != &n) {
+                this->res_ = std::move(n.res_);
+            }
             return *this;
         }
 
-        operator bool() const noexcept {
+        operator bool() const MANAPIHTTP_NOEXCEPT {
             return !!this->res_;
         }
 
-        MANAPIHTTP_NODISCARD int size () const noexcept {
+        MANAPIHTTP_NODISCARD int size () const MANAPIHTTP_NOEXCEPT {
             return PQntuples(this->res_.get());
         }
 
@@ -53,11 +55,11 @@ namespace manapi::ext::pq {
             return this->size()==0;
         }
 
-        PGresult *native_handle () noexcept {
+        PGresult *native_handle () MANAPIHTTP_NOEXCEPT {
             return this->res_.get();
         }
 
-        MANAPIHTTP_NODISCARD pq::sql_states sqlstate() const noexcept {
+        MANAPIHTTP_NODISCARD pq::sql_states sqlstate() const MANAPIHTTP_NOEXCEPT {
             if (this->sqlstate_.has_value()) {
                 return static_cast<sql_states>(this->sqlstate_.value());
             }
@@ -106,8 +108,8 @@ namespace manapi::ext::pq {
             return cnt;
         }
 
-        MANAPIHTTP_NODISCARD const_iterator begin () const noexcept;
-        MANAPIHTTP_NODISCARD const_iterator end () const noexcept;
+        MANAPIHTTP_NODISCARD const_iterator begin () const MANAPIHTTP_NOEXCEPT;
+        MANAPIHTTP_NODISCARD const_iterator end () const MANAPIHTTP_NOEXCEPT;
     private:
         std::unique_ptr<PGresult, pgresult_deleter> res_;
         std::optional<std::size_t> mutable sqlstate_;
@@ -181,11 +183,11 @@ namespace manapi::ext::pq {
         }
     };
 
-    inline manapi::ext::pq::result::const_iterator manapi::ext::pq::result::begin() const noexcept {
+    inline manapi::ext::pq::result::const_iterator manapi::ext::pq::result::begin() const MANAPIHTTP_NOEXCEPT {
         return const_iterator{this->res_.get(), 0};
     }
 
-    inline manapi::ext::pq::result::const_iterator manapi::ext::pq::result::end() const noexcept {
+    inline manapi::ext::pq::result::const_iterator manapi::ext::pq::result::end() const MANAPIHTTP_NOEXCEPT {
         return const_iterator{this->res_.get(), this->size()};
     }
 }

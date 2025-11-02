@@ -88,7 +88,7 @@ manapi::json::json(const manapi::json &other) {
     *this = other;
 }
 
-manapi::json::json(json &&other) noexcept {
+manapi::json::json(json &&other) MANAPIHTTP_NOEXCEPT {
     if (&other != this) {
         this->delete_value();
 
@@ -669,7 +669,7 @@ manapi::json &manapi::json::operator=(const manapi::json &obj) {
     return *this;
 }
 
-manapi::json & manapi::json::operator=(json &&obj) noexcept {
+manapi::json & manapi::json::operator=(json &&obj) MANAPIHTTP_NOEXCEPT {
     if (&obj != this) {
 
         std::swap(obj.src, this->src);
@@ -1649,6 +1649,6 @@ const manapi::json_err_num &manapi::json_parse_exception::err_num () const {
     return this->errnum;
 }
 
-const char *manapi::json_parse_exception::what() const noexcept {
+const char *manapi::json_parse_exception::what() const MANAPIHTTP_NOEXCEPT {
     return message.data();
 }

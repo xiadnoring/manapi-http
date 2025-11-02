@@ -590,7 +590,7 @@ int manapi::net::worker::TLS::onaccept_event_(const worker::shared_conn &conn) M
     return ERR_OK;
 }
 
-manapi::net::worker::shared_conn manapi::net::worker::TLS::connection_init_cb(void *user_data) noexcept(true) {
+manapi::net::worker::shared_conn manapi::net::worker::TLS::connection_init_cb(void *user_data) MANAPIHTTP_NOEXCEPT {
     auto const w = static_cast<TLS *> (user_data);
     try {
         auto p = std::make_unique<tls_connection_t>();

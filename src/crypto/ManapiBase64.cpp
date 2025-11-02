@@ -24,7 +24,7 @@ namespace manapi::crypto::base64 {
                          std::is_trivially_copyable_v<From> &&
                          std::is_trivially_copyable_v<To>,
                 To>
-        bit_cast(const From& src) noexcept {
+        bit_cast(const From& src) MANAPIHTTP_NOEXCEPT {
             static_assert(std::is_trivially_constructible_v<To>,
                           "This implementation additionally requires "
                           "destination type to be trivially constructible");

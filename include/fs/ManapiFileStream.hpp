@@ -31,9 +31,9 @@ namespace manapi::filesystem {
 
         static manapi::error::status_or<fstream> create (std::string path, async::cancellation_action cancellation = nullptr) MANAPIHTTP_NOEXCEPT;
 
-        fstream (fstream &&n) noexcept;
+        fstream (fstream &&n) MANAPIHTTP_NOEXCEPT;
 
-        fstream &operator=(fstream &&n) noexcept;
+        fstream &operator=(fstream &&n) MANAPIHTTP_NOEXCEPT;
 
         fstream (const fstream &n);
 

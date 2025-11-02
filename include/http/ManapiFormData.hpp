@@ -42,9 +42,9 @@ namespace manapi::net {
 
         ~formdata_recv ();
 
-        formdata_recv (formdata_recv &&n) noexcept;
+        formdata_recv (formdata_recv &&n) MANAPIHTTP_NOEXCEPT;
 
-        formdata_recv &operator=(formdata_recv &&n) noexcept;
+        formdata_recv &operator=(formdata_recv &&n) MANAPIHTTP_NOEXCEPT;
 
         manapi::future<manapi::error::status> get (onparam_cb_t cb);
 

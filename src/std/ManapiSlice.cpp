@@ -163,9 +163,9 @@ void manapi::slice_base::slice_part_deleter::operator()(slice_part_t *ptr) {
 
 manapi::slice_base::~slice_base() = default;
 
-manapi::slice_base::slice_base(slice_base &&n) noexcept = default;
+manapi::slice_base::slice_base(slice_base &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::slice_base & manapi::slice_base::operator=(slice_base &&n) noexcept = default;
+manapi::slice_base & manapi::slice_base::operator=(slice_base &&n) MANAPIHTTP_NOEXCEPT = default;
 
 manapi::slice_base::slice_base(const slice_base &n) = default;
 
@@ -564,7 +564,7 @@ std::size_t manapi::slice_base::size() const {
     return this->size_ - this->shift_ - this->rshift_;
 }
 
-manapi::error::status manapi::slice_base::rshift_add_(std::size_t s) noexcept(true) {
+manapi::error::status manapi::slice_base::rshift_add_(std::size_t s) MANAPIHTTP_NOEXCEPT {
     if (s > this->size())
         return error::status_out_of_range("s is too large");
 
@@ -683,9 +683,9 @@ manapi::slice_ref & manapi::slice_ref::operator=(const slice_ref &n) {
     return *this;
 }
 
-manapi::slice_ref::slice_ref(slice_ref &&n) noexcept = default;
+manapi::slice_ref::slice_ref(slice_ref &&n) MANAPIHTTP_NOEXCEPT = default;
 
-manapi::slice_ref & manapi::slice_ref::operator=(slice_ref &&n) noexcept = default;
+manapi::slice_ref & manapi::slice_ref::operator=(slice_ref &&n) MANAPIHTTP_NOEXCEPT = default;
 
 manapi::slice_ref::~slice_ref() {
     this->clear();
@@ -709,7 +709,7 @@ manapi::error::status manapi::slice_ref::push_back(const void *buffer, std::size
     return error::status_ok();
 }
 
-void manapi::slice_ref::clear() noexcept(true) {
+void manapi::slice_ref::clear() MANAPIHTTP_NOEXCEPT {
     auto cur = this->first;
     if (this->last) {
         while (cur && cur != this->last->next) {
@@ -728,7 +728,7 @@ void manapi::slice_ref::clear() noexcept(true) {
 manapi::slice::slice() : slice_base(nullptr, nullptr, 0, 0, 0, 0) {
 }
 
-manapi::error::status_or<manapi::slice> manapi::slice::create(std::size_t n) noexcept(true) {
+manapi::error::status_or<manapi::slice> manapi::slice::create(std::size_t n) MANAPIHTTP_NOEXCEPT {
     return manapi::async::current()->memory_fabric().slice(n);
 }
 
@@ -749,7 +749,7 @@ manapi::slice::slice(slice_part_t *first, slice_part_t *last, uint32_t count, st
 //
 // }
 
-manapi::slice::slice(slice &&n) noexcept : slice() {
+manapi::slice::slice(slice &&n) MANAPIHTTP_NOEXCEPT : slice() {
     this->first = n.first;
     this->last = n.last;
     this->count = n.count;
@@ -765,7 +765,7 @@ manapi::slice::slice(slice &&n) noexcept : slice() {
     n.last = nullptr;
 }
 
-manapi::slice & manapi::slice::operator=(slice &&n) noexcept {
+manapi::slice & manapi::slice::operator=(slice &&n) MANAPIHTTP_NOEXCEPT {
     this->first = n.first;
     this->last = n.last;
     this->count = n.count;

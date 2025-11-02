@@ -20,17 +20,19 @@ namespace manapi::net::http {
             this->filemime_ = std::move(filemime);
         }
 
-        file_transfer_info (file_transfer_info &&n) noexcept {
+        file_transfer_info (file_transfer_info &&n) MANAPIHTTP_NOEXCEPT {
             this->filelocal_ = std::move(n.filelocal_);
             this->filename_ = std::move(n.filename_);
             this->filemime_ = std::move(n.filemime_);
         }
 
 
-        file_transfer_info &operator=(file_transfer_info &&n) noexcept {
-            this->filelocal_ = std::move(n.filelocal_);
-            this->filename_ = std::move(n.filename_);
-            this->filemime_ = std::move(n.filemime_);
+        file_transfer_info &operator=(file_transfer_info &&n) MANAPIHTTP_NOEXCEPT {
+            if (this != &n) {
+                this->filelocal_ = std::move(n.filelocal_);
+                this->filename_ = std::move(n.filename_);
+                this->filemime_ = std::move(n.filemime_);
+            }
             return *this;
         }
 

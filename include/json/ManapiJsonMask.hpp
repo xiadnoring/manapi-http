@@ -19,9 +19,9 @@ namespace manapi {
 
             status (err_num code, std::string_view msg, std::string data, std::size_t pos, std::string path);
 
-            status (json_error::status &&n) noexcept;
+            status (json_error::status &&n) MANAPIHTTP_NOEXCEPT;
 
-            status &operator=(json_error::status &&n) noexcept;
+            status &operator=(json_error::status &&n) MANAPIHTTP_NOEXCEPT;
 
             void log () const override;
 
@@ -79,7 +79,7 @@ namespace manapi {
 
         json_mask(const json_mask &n);
 
-        json_mask(json_mask &&n) noexcept;
+        json_mask(json_mask &&n) MANAPIHTTP_NOEXCEPT;
 
         ~json_mask();
 

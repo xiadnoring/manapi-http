@@ -54,11 +54,11 @@ namespace manapi {
                 return false == this->operator==(_n);
             }
 
-            friend void swap (chain_iterator &lhs, chain_iterator &rhs) noexcept {
+            friend void swap (chain_iterator &lhs, chain_iterator &rhs) MANAPIHTTP_NOEXCEPT {
                 std::swap(lhs.src_, rhs.src_);
             }
 
-            operator bool () noexcept {
+            operator bool () MANAPIHTTP_NOEXCEPT {
                 return this->src_ != nullptr;
             }
 
@@ -98,11 +98,11 @@ namespace manapi {
                 return false == this->operator==(_n);
             }
 
-            friend void swap (chain_const_iterator &lhs, chain_const_iterator &rhs) noexcept {
+            friend void swap (chain_const_iterator &lhs, chain_const_iterator &rhs) MANAPIHTTP_NOEXCEPT {
                 std::swap(lhs.src_, rhs.src_);
             }
 
-            operator bool () noexcept {
+            operator bool () MANAPIHTTP_NOEXCEPT {
                 return this->src_ != nullptr;
             }
 
@@ -122,16 +122,18 @@ namespace manapi {
             this->clear();
         }
 
-        chain (chain &&n) noexcept {
+        chain (chain &&n) MANAPIHTTP_NOEXCEPT {
             this->src_ = std::move(n.src_);
             this->last_ = std::exchange(n.last_, nullptr);
             this->s_ = std::exchange(n.s_, 0);
         }
 
-        chain &operator=(chain &&n) noexcept {
-            this->src_ = std::move(n.src_);
-            this->last_ = std::exchange(n.last_, nullptr);
-            this->s_ = std::exchange(n.s_, 0);
+        chain &operator=(chain &&n) MANAPIHTTP_NOEXCEPT {
+            if (this != &n) {
+                this->src_ = std::move(n.src_);
+                this->last_ = std::exchange(n.last_, nullptr);
+                this->s_ = std::exchange(n.s_, 0);
+            }
             return *this;
         }
 

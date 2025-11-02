@@ -151,7 +151,9 @@ namespace manapi {
         }
 
         future &operator=(future &&n) MANAPIHTTP_NOEXCEPT {
-            this->handle_ = std::exchange(n.handle_, nullptr);
+            if (this != &n) {
+                this->handle_ = std::exchange(n.handle_, nullptr);
+            }
             return *this;
         }
 

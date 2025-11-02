@@ -61,9 +61,9 @@ namespace manapi {
             this->parse(static_cast<long double>(num));
         }
 
-        bigint(bigint &&other) noexcept;
+        bigint(bigint &&other) MANAPIHTTP_NOEXCEPT;
 
-        bigint &operator=(bigint&&other) noexcept;
+        bigint &operator=(bigint&&other) MANAPIHTTP_NOEXCEPT;
 
         bigint (const bigint &other);
 

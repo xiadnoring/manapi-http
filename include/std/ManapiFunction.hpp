@@ -47,19 +47,21 @@ namespace manapi {
 
     template<std::size_t Size, typename Result, typename... Arguments>
     class move_only_function_base {
+        bool flg;
         union function_data {
             char stack[Size];
         };
     public:
-        move_only_function_base () : data() {}
+        move_only_function_base () : data(), flg(false) {}
 
-        move_only_function_base (std::nullptr_t) : data() {}
+        move_only_function_base (std::nullptr_t) : data(), flg(false) {}
 
         template <typename Functor>
-        move_only_function_base (Functor &&f) {
+        move_only_function_base (Functor &&f) : flg(false) {
             if constexpr (sizeof (impl::FunctorHolder<Functor, Result, Arguments...>) <= sizeof (this->data.stack)) {
                 memset (&this->data.stack, '\0', sizeof (this->data.stack));
                 new (this->data.stack) impl::FunctorHolder<Functor, Result, Arguments...> (std::forward<Functor>(f));
+                this->flg = true;
             }
             else {
                 static_assert("manapi func:params are too large for Static Allocation");
@@ -75,14 +77,12 @@ namespace manapi {
         }
 
         MANAPIHTTP_NODISCARD operator bool () const {
-            for (int i = 0; i < sizeof (this->data.stack); i++) {
-                if (this->data.stack[i] != '\0')
-                    return true;
-            }
-            return false;
+            return this->flg;
         }
 
         Result operator() (Arguments&&... args) {
+            if (!this->flg)
+                throw std::bad_function_call ();
             return (*reinterpret_cast<impl::FunctorHolderBase<Result, Arguments...> *>(this->data.stack)) (std::forward<Arguments> (args)...);
         }
 
@@ -93,9 +93,15 @@ namespace manapi {
                 reinterpret_cast<impl::FunctorHolderBase<Result, Arguments...> *>(other.data.stack)->~FunctorHolderBase();
                 memset(&other.data.stack, '\0', sizeof (other.data.stack));
             }
+            this->flg = other.flg;
+            other.flg = false;
         }
 
         move_only_function_base& operator= (move_only_function_base&& other) MANAPIHTTP_NOEXCEPT {
+            if (this == &other) {
+                return *this;
+            }
+
             if (*this) {
                 reinterpret_cast<impl::FunctorHolderBase<Result, Arguments...> *>(this->data.stack)->~FunctorHolderBase();
                 memset(&this->data.stack, '\0', sizeof (this->data.stack));
@@ -105,6 +111,8 @@ namespace manapi {
                 reinterpret_cast<impl::FunctorHolderBase<Result, Arguments...> *>(other.data.stack)->~FunctorHolderBase();
                 memset(&other.data.stack, '\0', sizeof (other.data.stack));
             }
+            this->flg = other.flg;
+            other.flg = false;
             return *this;
         }
     protected:

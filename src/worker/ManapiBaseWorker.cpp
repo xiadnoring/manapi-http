@@ -336,7 +336,7 @@ int64_t manapi::net::worker::base::stream_id(const shared_conn & s) MANAPIHTTP_N
     return 0;
 }
 
-manapi::net::worker::shared_conn manapi::net::worker::base::stream_id(const shared_conn &conn, int64_t id) noexcept(true) {
+manapi::net::worker::shared_conn manapi::net::worker::base::stream_id(const shared_conn &conn, int64_t id) MANAPIHTTP_NOEXCEPT {
     return nullptr;
 }
 

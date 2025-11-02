@@ -47,11 +47,11 @@ manapi::async::cancellation_action manapi::async::cancellation_action::sub() con
     return manapi::async::cancellation_action::unit(*this);
 }
 
-manapi::async::cancellation_action::cancellation_action(cancellation_action &&n) noexcept {
+manapi::async::cancellation_action::cancellation_action(cancellation_action &&n) MANAPIHTTP_NOEXCEPT {
     this->data = std::move(n.data);
 }
 
-manapi::async::cancellation_action & manapi::async::cancellation_action::operator=(cancellation_action &&n) noexcept {
+manapi::async::cancellation_action & manapi::async::cancellation_action::operator=(cancellation_action &&n) MANAPIHTTP_NOEXCEPT {
     this->data = std::move(n.data);
     return *this;
 }

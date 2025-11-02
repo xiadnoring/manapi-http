@@ -793,11 +793,11 @@ manapi::net::http::site::site(server_ctx sctx) {
 
 manapi::net::http::site::~site() = default;
 
-manapi::net::http::site::site(site &&n) noexcept {
+manapi::net::http::site::site(site &&n) MANAPIHTTP_NOEXCEPT {
     this->data = std::move(n.data);
 }
 
-manapi::net::http::site & manapi::net::http::site::operator=(site &&n) noexcept {
+manapi::net::http::site & manapi::net::http::site::operator=(site &&n) MANAPIHTTP_NOEXCEPT {
     this->data = std::move(n.data);
     return *this;
 }

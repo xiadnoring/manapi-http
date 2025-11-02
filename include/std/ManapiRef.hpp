@@ -35,8 +35,10 @@ namespace manapi {
         }
 
         reference& operator= (reference &&n) MANAPIHTTP_NOEXCEPT {
-            this->src = n.src;
-            n.src = nullptr;
+            if (this != &n) {
+                this->src = n.src;
+                n.src = nullptr;
+            }
             return *this;
         }
 

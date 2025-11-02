@@ -124,10 +124,10 @@ namespace manapi::net::http {
          */
         virtual ~site();
 
-        site (site &&n) noexcept;
+        site (site &&n) MANAPIHTTP_NOEXCEPT;
 
         /* move */
-        site &operator=(site &&n) noexcept;
+        site &operator=(site &&n) MANAPIHTTP_NOEXCEPT;
 
         /* copy */
         site (const site &n);

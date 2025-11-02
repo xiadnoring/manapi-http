@@ -98,14 +98,14 @@ manapi::json_mask::json_mask(json data) {
     this->enabled = true;
 }
 
-// manapi::json_mask &manapi::json_mask::operator=(manapi::json_mask &&n) noexcept {
+// manapi::json_mask &manapi::json_mask::operator=(manapi::json_mask &&n) MANAPIHTTP_NOEXCEPT {
 //     this->information = std::move(n.information);
 //     this->enabled = std::exchange(n.enabled, false);
 //     this->complete = std::exchange(n.complete, false);
 //     return *this;
 // }
 
-manapi::json_mask::json_mask(json_mask &&n) noexcept {
+manapi::json_mask::json_mask(json_mask &&n) MANAPIHTTP_NOEXCEPT {
     this->information = std::move(n.information);
     this->enabled = std::exchange(n.enabled, false);
     this->complete = std::exchange(n.complete, false);

@@ -64,12 +64,12 @@ manapi::async::mutex::mutex() {
 }
 
 
-manapi::async::mutex::mutex(mutex &&n) noexcept {
+manapi::async::mutex::mutex(mutex &&n) MANAPIHTTP_NOEXCEPT {
     this->own = std::exchange(n.own, false);
     this->stack = std::move(n.stack);
 }
 
-manapi::async::mutex & manapi::async::mutex::operator=(mutex &&n) noexcept {
+manapi::async::mutex & manapi::async::mutex::operator=(mutex &&n) MANAPIHTTP_NOEXCEPT {
     this->own = std::exchange(n.own, false);
     this->stack = std::move(n.stack);
     return *this;

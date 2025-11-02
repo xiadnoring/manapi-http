@@ -35,9 +35,9 @@ namespace manapi {
 
         ~bytebuffer ();
 
-        bytebuffer (bytebuffer &&n) noexcept;
+        bytebuffer (bytebuffer &&n) MANAPIHTTP_NOEXCEPT;
 
-        bytebuffer &operator=(bytebuffer &&n) noexcept;
+        bytebuffer &operator=(bytebuffer &&n) MANAPIHTTP_NOEXCEPT;
 
         char *c_str ();
 

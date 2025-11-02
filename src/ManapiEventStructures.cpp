@@ -192,7 +192,7 @@ int manapi::ev::tcp::listen(int tcp_backlog) MANAPIHTTP_NOEXCEPT {
     return this->listen(tcp_backlog, reinterpret_cast<uv_connection_cb>(ev::callback_watcher_tcp_accept));
 }
 
-int manapi::ev::tcp::bind(loop_ref loop) noexcept(true) {
+int manapi::ev::tcp::bind(loop_ref loop) MANAPIHTTP_NOEXCEPT {
     return uv_tcp_init(loop, &this->s_);
 }
 
@@ -223,7 +223,7 @@ ssize_t manapi::ev::tcp::try_write(const void *buff, ssize_t len) MANAPIHTTP_NOE
     return uv_try_write(MANAPIHTTP_EV_CAST_STREAM(&this->s_), &buffs, 1);
 }
 
-ssize_t manapi::ev::tcp::try_write(const ev::buff_t *buff, uint32_t nbuff) noexcept(true) {
+ssize_t manapi::ev::tcp::try_write(const ev::buff_t *buff, uint32_t nbuff) MANAPIHTTP_NOEXCEPT {
     return uv_try_write(MANAPIHTTP_EV_CAST_STREAM(&this->s_), buff, nbuff);
 }
 
@@ -362,7 +362,7 @@ uint64_t manapi::ev::timer::due_in() const MANAPIHTTP_NOEXCEPT {
 
 manapi::ev::fs::fs(loop_ref loop) : s_(), loop_(loop) {}
 
-int manapi::ev::fs::cancel() noexcept(true) {
+int manapi::ev::fs::cancel() MANAPIHTTP_NOEXCEPT {
     return uv_cancel(reinterpret_cast<uv_req_t *> (&this->s_));
 }
 
@@ -830,7 +830,7 @@ ssize_t manapi::ev::fs::result() const MANAPIHTTP_NOEXCEPT {
 
 manapi::ev::random::random() : s_() {}
 
-int manapi::ev::random::cancel() noexcept(true) {
+int manapi::ev::random::cancel() MANAPIHTTP_NOEXCEPT {
     return uv_cancel(reinterpret_cast<uv_req_t *> (&this->s_));
 }
 

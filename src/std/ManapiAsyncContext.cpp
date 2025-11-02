@@ -292,7 +292,7 @@ bool manapi::async::context_exists() MANAPIHTTP_NOEXCEPT {
 
 manapi::async::context::~context() = default;
 
-manapi::error::status_or<std::shared_ptr<manapi::async::context>> manapi::async::context::create() noexcept(true) {
+manapi::error::status_or<std::shared_ptr<manapi::async::context>> manapi::async::context::create() MANAPIHTTP_NOEXCEPT {
     return async::context::create(std::thread::hardware_concurrency());
 }
 

@@ -187,7 +187,7 @@ namespace manapi {
 
         ~exception() override;
 
-        MANAPIHTTP_NODISCARD const char * what() const noexcept override;
+        MANAPIHTTP_NODISCARD const char * what() const MANAPIHTTP_NOEXCEPT override;
 
         /**
          * Get the error code

@@ -146,7 +146,7 @@ namespace manapi {
          * make it movable
          * @param other JSON
          */
-        json(json &&other) noexcept;
+        json(json &&other) MANAPIHTTP_NOEXCEPT;
 
         /**
          * initialize JSON using an initializer list
@@ -388,7 +388,7 @@ namespace manapi {
         json &operator= (DECIMAL num);
         json &operator= (const NULLPTR &n);
         json &operator= (const json &obj);
-        json &operator= (json &&obj) noexcept ;
+        json &operator= (json &&obj) MANAPIHTTP_NOEXCEPT ;
         json &operator= (const std::initializer_list <json> &data);
 
         template<typename T>
@@ -1089,7 +1089,7 @@ namespace manapi {
          * Get the json error message
          * @return the json error message
          */
-        MANAPIHTTP_NODISCARD const char *what () const noexcept override;
+        MANAPIHTTP_NODISCARD const char *what () const MANAPIHTTP_NOEXCEPT override;
 
         /**
          * Get the json error number

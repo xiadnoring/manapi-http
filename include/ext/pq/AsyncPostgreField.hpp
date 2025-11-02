@@ -28,27 +28,27 @@ namespace manapi::ext::pq {
 
         ~field () = default;
 
-        MANAPIHTTP_NODISCARD Oid oid () const noexcept {
+        MANAPIHTTP_NODISCARD Oid oid () const MANAPIHTTP_NOEXCEPT {
             return PQftype(this->res_, this->col_);
         }
 
-        MANAPIHTTP_NODISCARD Oid type () const noexcept {
+        MANAPIHTTP_NODISCARD Oid type () const MANAPIHTTP_NOEXCEPT {
             return PQftype(this->res_, this->col_);
         }
 
-        MANAPIHTTP_NODISCARD std::string_view name () const noexcept {
+        MANAPIHTTP_NODISCARD std::string_view name () const MANAPIHTTP_NOEXCEPT {
             return std::string_view{PQfname(this->res_, this->col_)};
         }
 
-        MANAPIHTTP_NODISCARD bool is_null () const noexcept {
+        MANAPIHTTP_NODISCARD bool is_null () const MANAPIHTTP_NOEXCEPT {
             return PQgetisnull(this->res_, this->row_, this->col_);
         }
 
-        MANAPIHTTP_NODISCARD size_t size () const noexcept {
+        MANAPIHTTP_NODISCARD size_t size () const MANAPIHTTP_NOEXCEPT {
             return PQgetlength(this->res_, this->row_, this->col_);
         }
 
-        MANAPIHTTP_NODISCARD char *c_str () const noexcept {
+        MANAPIHTTP_NODISCARD char *c_str () const MANAPIHTTP_NOEXCEPT {
             return PQgetvalue(this->res_, this->row_, this->col_);
         }
 

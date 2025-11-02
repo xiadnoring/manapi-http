@@ -18,9 +18,9 @@ namespace manapi::async {
 
         cancellation_action sub () const;
 
-        cancellation_action (cancellation_action &&n) noexcept;
+        cancellation_action (cancellation_action &&n) MANAPIHTTP_NOEXCEPT;
 
-        cancellation_action &operator=(cancellation_action &&n) noexcept;
+        cancellation_action &operator=(cancellation_action &&n) MANAPIHTTP_NOEXCEPT;
 
         cancellation_action (const cancellation_action &n);
 

@@ -75,7 +75,7 @@ namespace manapi::ext::pq {
             _reverse_seq(ctx);
         }
 
-        static constexpr size_t size(T const &) noexcept
+        static constexpr size_t size(T const &) MANAPIHTTP_NOEXCEPT
         {
             return sizeof (T);
         }
@@ -116,7 +116,7 @@ namespace manapi::ext::pq {
             _reverse_seq(ctx);
         }
 
-        static constexpr size_t size(T const &) noexcept
+        static constexpr size_t size(T const &) MANAPIHTTP_NOEXCEPT
         {
             return sizeof (T);
         }

@@ -50,17 +50,17 @@ namespace manapi::ext::pq {
             return this->at(name);
         }
 
-        MANAPIHTTP_NODISCARD int size () const noexcept {
+        MANAPIHTTP_NODISCARD int size () const MANAPIHTTP_NOEXCEPT {
             return PQnfields(this->res_);
         }
 
-        MANAPIHTTP_NODISCARD bool empty () const noexcept {
+        MANAPIHTTP_NODISCARD bool empty () const MANAPIHTTP_NOEXCEPT {
             return this->size() == 0;
         }
 
-        MANAPIHTTP_NODISCARD const_iterator begin() const noexcept;
+        MANAPIHTTP_NODISCARD const_iterator begin() const MANAPIHTTP_NOEXCEPT;
 
-        MANAPIHTTP_NODISCARD const_iterator end() const noexcept;
+        MANAPIHTTP_NODISCARD const_iterator end() const MANAPIHTTP_NOEXCEPT;
     private:
         const PGresult *res_;
         int row_;
@@ -136,11 +136,11 @@ namespace manapi::ext::pq {
     };
 
 
-    inline row::const_iterator row::begin() const noexcept {
+    inline row::const_iterator row::begin() const MANAPIHTTP_NOEXCEPT {
         return const_iterator{this->res_, this->row_, 0};
     }
 
-    inline row::const_iterator row::end() const noexcept {
+    inline row::const_iterator row::end() const MANAPIHTTP_NOEXCEPT {
         return const_iterator{this->res_, this->row_, this->size()};
     }
 }

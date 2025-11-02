@@ -93,7 +93,7 @@ void manapi::init_tools::ssl_library_init() {
 #endif
 }
 void manapi::init_tools::ev_library_init() {
-    // ev::set_allocator([] (void *ptr, long size) noexcept
+    // ev::set_allocator([] (void *ptr, long size) MANAPIHTTP_NOEXCEPT
     //     -> void * {
     //     if (ptr) {
     //         return ::realloc(ptr, size);

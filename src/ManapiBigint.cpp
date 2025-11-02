@@ -18,7 +18,7 @@ struct manapi::bigint::data_t {
     mpf_t m;
 };
 
-void manapi::bigint::data_t_deleter::operator()(data_t *n) noexcept(true) {
+void manapi::bigint::data_t_deleter::operator()(data_t *n) MANAPIHTTP_NOEXCEPT {
     mpf_clear(n->m);
 }
 
@@ -507,8 +507,10 @@ manapi::bigint & manapi::bigint::operator=(std::string_view oth) {
 }
 
 manapi::bigint& manapi::bigint::operator=(const manapi::bigint &oth) {
-    mpf_set_prec(this->x->m, oth.precision());
-    mpf_set(this->x->m, oth.x->m);
+    if (this != &oth) {
+        mpf_set_prec(this->x->m, oth.precision());
+        mpf_set(this->x->m, oth.x->m);
+    }
 
     return *this;
 }

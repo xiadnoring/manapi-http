@@ -171,7 +171,7 @@ manapi::future<manapi::sys_error::status> manapi::async::write_ready(socket_t fd
     co_return (co_await custom_ready(ev::WRITE, fd, std::move(cancellation))).err();
 }
 
-socklen_t manapi::async::socklen(const sockaddr *addr) noexcept(true) {
+socklen_t manapi::async::socklen(const sockaddr *addr) MANAPIHTTP_NOEXCEPT {
     if (addr->sa_family == ev::IPv4) {
         return sizeof (sockaddr_in);
     }

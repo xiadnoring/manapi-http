@@ -949,14 +949,14 @@ int manapi::net::worker::TCP::onaccept_event_(const worker::shared_conn &conn) M
     return onreaccept_event_(conn);
 }
 
-int manapi::net::worker::TCP::onreaccept_event_(const worker::shared_conn &conn) noexcept(true) {
+int manapi::net::worker::TCP::onreaccept_event_(const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     if (this->global_.init_cb(conn, &this->global_, this))
             return -1;
 
     return this->onaccept_bind_(conn);
 }
 
-int manapi::net::worker::TCP::onaccept_bind_(const worker::shared_conn &conn) noexcept(true) {
+int manapi::net::worker::TCP::onaccept_bind_(const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT {
     this->waiting(conn, true);
 
     try {

@@ -138,7 +138,7 @@ manapi::exception::~exception() {
 }
 
 
-const char *manapi::exception::what() const noexcept {
+const char *manapi::exception::what() const MANAPIHTTP_NOEXCEPT {
     if (this->flags)
         return this->data_.view.data();
     return this->data_.storage.data();

@@ -24,12 +24,14 @@ namespace manapi {
         object_item_pool (T *object)
             :  object(object) {}
 
-        object_item_pool (object_item_pool &&n)  noexcept {
+        object_item_pool (object_item_pool &&n)  MANAPIHTTP_NOEXCEPT {
             this->object = std::move(n.object);
         }
 
-        object_item_pool &operator=(object_item_pool &&n) noexcept {
-            this->object = std::exchange(n.object, 0);
+        object_item_pool &operator=(object_item_pool &&n) MANAPIHTTP_NOEXCEPT {
+            if (this != &n) {
+                this->object = std::exchange(n.object, 0);
+            }
             return *this;
         }
 
@@ -39,15 +41,15 @@ namespace manapi {
             }
         }
 
-        bool operator==(const std::nullptr_t &) const noexcept {
+        bool operator==(const std::nullptr_t &) const MANAPIHTTP_NOEXCEPT {
             return this->object == nullptr;
         }
 
-        bool operator!=(const std::nullptr_t &) const noexcept {
+        bool operator!=(const std::nullptr_t &) const MANAPIHTTP_NOEXCEPT {
             return !this->operator==(nullptr);
         }
 
-        MANAPIHTTP_NODISCARD operator bool () const noexcept {
+        MANAPIHTTP_NODISCARD operator bool () const MANAPIHTTP_NOEXCEPT {
             return this->operator!=(nullptr);
         }
 
@@ -87,13 +89,13 @@ namespace manapi {
 
         manapi::bytebuffer buffer (void *pointer, uint32_t suggested);
 
-        void *alloc (std::size_t size) noexcept(true);
+        void *alloc (std::size_t size) MANAPIHTTP_NOEXCEPT;
 
-        void *realloc (void *ptr, std::size_t) noexcept(true);
+        void *realloc (void *ptr, std::size_t) MANAPIHTTP_NOEXCEPT;
 
-        void free (void *ptr) noexcept(true);
+        void free (void *ptr) MANAPIHTTP_NOEXCEPT;
 
-        void free (void *ptr, std::size_t size) noexcept(true);
+        void free (void *ptr, std::size_t size) MANAPIHTTP_NOEXCEPT;
 
         void clear ();
 
