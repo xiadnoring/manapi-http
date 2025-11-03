@@ -120,7 +120,7 @@ namespace manapi {
         std::move_only_function <void(T)> f;
     };
 
-    template<typename T, T v, std::size_t Size>
+    template<std::size_t Size>
     class static_before_delete {
     public:
         /**
@@ -136,7 +136,7 @@ namespace manapi {
 
         ~static_before_delete() {
             try {
-                if (this->f && this->active) { auto cb = std::move(this->f); cb(v); }
+                if (this->f && this->active) { auto cb = std::move(this->f); cb(); }
             }
             catch (std::exception const &e) {
                 manapi_log_error("%s due to %s", "static_before_delete failed", e.what());
@@ -146,9 +146,9 @@ namespace manapi {
         /**
          * Call the callback and remove it
          */
-        void call (T n) {
+        void call () {
             try {
-                if (this->f) { auto cb = std::move(this->f); cb(std::move(n)); }
+                if (this->f) { auto cb = std::move(this->f); cb(); }
             }
             catch (std::exception const &e) {
                 manapi_log_error("%s due to %s", "static_before_delete failed", e.what());
