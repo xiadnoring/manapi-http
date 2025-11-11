@@ -159,13 +159,17 @@ int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint
     header[4] = static_cast<char> (flags);
 
     auto rhs = ctx->worker->sync_write_ex(ctx->conn, header, sizeof (header), force && !size, maxcnt);
-    if (rhs != sizeof (header))
+    if (rhs != sizeof (header)) {
+        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2:ctx->worker->sync_write_ex failed");
         return manapi::ERR_INTERNAL;
+    }
 
     if (nbuff) {
         rhs = ctx->worker->sync_write_ex(ctx->conn, buffs, nbuff, size, force, maxcnt);
-        if (rhs != size)
+        if (rhs != size) {
+            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2:ctx->worker->sync_write_ex failed");
             return manapi::ERR_INTERNAL;
+        }
     }
 
     if (!(ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_BLOCK_WRITE)
@@ -672,7 +676,7 @@ int manapi::net::http::http_v2_on_close_stream(http_v2_t *ctx, uint32_t id) MANA
     return manapi::ERR_OK;
 }
 
-bool http_v2_stream_on_write (const manapi::net::worker::shared_conn &conn, manapi::net::http::http_v2_stream_t *data) MANAPIHTTP_NOEXCEPT {
+static int http_v2_stream_on_write (const manapi::net::worker::shared_conn &conn, manapi::net::http::http_v2_stream_t *data) MANAPIHTTP_NOEXCEPT {
     if ((data->flags & manapi::ev::WRITE)) {
         if (data->ev_callback) {
             try {
@@ -681,11 +685,12 @@ bool http_v2_stream_on_write (const manapi::net::worker::shared_conn &conn, mana
             catch (std::exception const &e) {
                 manapi_log_error("%s: %s failed due to %s", "http2", "event callback", e.what());
             }
+            return 2;
         }
 
-        return true;
+        return 1;
     }
-    return false;
+    return 0;
 }
 
 int manapi::net::http::http_v2_on_write(http_v2_t *ctx) MANAPIHTTP_NOEXCEPT {
@@ -1120,8 +1125,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                     ctx->http_v2_worker->close_connection(s->second, worker::CLOSE_CONN_ERR);
                                 }
                                 else {
-                                    manapi_log_trace(debug::LOG_TRACE_LOW, "http2: window frame received: id=%u v=%d prev=%u",
-                                        sdata->id, sdata->write_window, ctx->n1);
+                                    manapi_log_trace(debug::LOG_TRACE_LOW, "http2: window frame received: id=%u prev=%d v=%u",
+                                        sdata->id, sdata->write_window, sdata->write_window + ctx->n1);
                                     sdata->write_window += ctx->n1;
 
                                     if (sdata->write_window > 0) {
@@ -1140,8 +1145,8 @@ int manapi::net::http::http_v2_work(http_v2_t *ctx, http::config *config, const 
                                         "overflow");
                                     goto repeat;
                                 }
-                                manapi_log_trace(debug::LOG_TRACE_LOW, "http2: window frame received: id=%u v=%d prev=%u",
-                                    0, ctx->write_window, ctx->n1);
+                                manapi_log_trace(debug::LOG_TRACE_LOW, "http2: window frame received: id=%u prev=%d v=%u",
+                                    0, ctx->write_window, ctx->write_window+ctx->n1);
 
                                 ctx->write_window += static_cast<int>(ctx->n1);
                                 if (ctx->write_window <= ctx->n1) {
