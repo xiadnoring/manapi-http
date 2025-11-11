@@ -119,11 +119,18 @@ namespace manapi::net::http {
     };
 
     int http_v2_on_close (http_v2_t *ctx) MANAPIHTTP_NOEXCEPT;
+
     int http_v2_on_close_stream (http_v2_t *ctx, uint32_t id) MANAPIHTTP_NOEXCEPT;
+
     int http_v2_on_write (http_v2_t *ctx) MANAPIHTTP_NOEXCEPT;
+
     int http_v2_on_read_stream (const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT;
+
     int http_v2_work (http_v2_t *ctx, http::config *config, const char **nbuffer, ssize_t *nsize) MANAPIHTTP_NOEXCEPT;
+
     ssize_t http_v2_write (const worker::shared_conn &conn, ev::buff_t *buff, uint32_t nbuff, bool finish) MANAPIHTTP_NOEXCEPT;
+
     int http_v2_rst_stream (const worker::shared_conn &s, int errcode) MANAPIHTTP_NOEXCEPT;
+
     manapi::future<int> http_v2_response (worker::base *worker, const worker::shared_conn &connection, int status, std::map<std::string, std::string, std::less<>> headers, bool finish);
 }

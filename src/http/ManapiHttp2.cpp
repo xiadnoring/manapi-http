@@ -179,6 +179,10 @@ int http_v2_send_frame (manapi::net::http::http_v2_t *ctx,  int frame_type, uint
             true, manapi::ev::WRITE);
         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: wait write event");
     }
+    // else {
+    //     manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: blocked flags&HTTP2_CTX_FLAG_BLOCK_WRITE=%d "
+    //                 "is_writable(conn)=%d", ctx->flags & manapi::net::http::HTTP2_CTX_FLAG_BLOCK_WRITE, ctx->worker->is_writable(ctx->conn));
+    // }
 
     return manapi::ERR_OK;
 }
@@ -701,20 +705,35 @@ int manapi::net::http::http_v2_on_write(http_v2_t *ctx) MANAPIHTTP_NOEXCEPT {
             ctx->flags ^= HTTP2_CTX_FLAG_BLOCK_WRITE;
 
         bool no_one = true;
-        for (const auto &priority : *ctx->priorities) {
+        // !!! IN PRIORITY LOOP WE MUST KNOW THAT THE PREVIUS PRIORITY CANT BE CHANGED !!!
+        auto prev_priority = ctx->priorities->end();
+        for (auto priority = ctx->priorities->begin(); priority != ctx->priorities->end(); ) {
             //auto &conn = (*priority.second);
-            auto const data = priority.second->as<http_v2_stream_t>();
+            auto const data = priority->second->as<http_v2_stream_t>();
             if (ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE) {
                 break;
             }
 
-            auto rhs = http_v2_stream_on_write(priority.second, data);
+            auto rhs = http_v2_stream_on_write(priority->second, data);
 
             if (rhs)
                 no_one = false;
 
             manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "http2: write event received sid=%u s_write_window=%d processed=%d",
                 data->id, ctx->write_window, rhs);
+
+            if (ctx->priorities->empty()) {
+                break;
+            }
+
+            auto next_prev_priority = prev_priority != ctx->priorities->end() ? std::next(prev_priority) : ctx->priorities->begin();
+            if (next_prev_priority == priority) {
+                prev_priority = priority;
+                ++priority;
+            }
+            else {
+                priority = next_prev_priority;
+            }
         }
 
         if (no_one)
@@ -2508,7 +2527,8 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::bu
 
         res += size;
 
-        if (!s->ctx->http_v2_worker->is_writable(conn))
+        if (!s->ctx->http_v2_worker->is_writable(conn)
+            || (s->ctx->flags & HTTP2_CTX_FLAG_BLOCK_WRITE))
             break;
 
         if (lencut) {
@@ -2522,6 +2542,16 @@ ssize_t manapi::net::http::http_v2_write(const worker::shared_conn &conn, ev::bu
         nbuff -= pnbuff;
     }
 
+    auto left = static_cast<int>(copy - res);
+    if (left) {
+        s->ctx->write_window += left;
+        s->write_window += left;
+        if (s->write_window == left) {
+            if (http_v2_update_priority(s->ctx, conn, s)) {
+                return -1;
+            }
+        }
+    }
     s->transfered_k += static_cast<int>(res);
 
     if (finish && res == copy) {
