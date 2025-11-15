@@ -117,8 +117,6 @@ manapi::error::status manapi::timerpool::again_timer(std::shared_ptr<manapi::tim
         if (!res.second)
             return error::status_internal("timerpool:insert failed");
 
-        if (res.first == this->data_->sorted_tasks.begin())
-            reinit_timer_(this->data_);
 
         if (res.first->second->flags & TIMER_TASK_IMPORTANT) {
             this->data_->importants++;
@@ -131,6 +129,9 @@ manapi::error::status manapi::timerpool::again_timer(std::shared_ptr<manapi::tim
                 }
             }
         }
+
+        if (res.first == this->data_->sorted_tasks.begin())
+            reinit_timer_(this->data_);
 
         return error::status_ok();
     }
@@ -215,10 +216,10 @@ void manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,sorted_
 }
 
 void manapi::timerpool::start_(const std::shared_ptr<data_t> &data) MANAPIHTTP_NOEXCEPT {
-    if (data->flags & TIMERPOOL_FLAG_RUNNING) {
-        /* it is already running */
-        return;
-    }
+    // if (data->flags & TIMERPOOL_FLAG_RUNNING) {
+    //     /* it is already running */
+    //     return;
+    // }
 
     auto now = std::chrono::steady_clock::now();
     data->flags |= TIMERPOOL_FLAG_RUNNING;
@@ -358,7 +359,7 @@ manapi::error::status manapi::timerpool::update_interval_state_(const std::share
             data_->importants++;
         }
 
-        if (data_->sorted_tasks.begin() == res.first) {
+        if (data_->sorted_tasks.begin()->second == data) {
             reinit_timer_(data_);
         }
 
