@@ -292,15 +292,14 @@ int64_t manapi::timerpool::calculate_repeat_(const std::shared_ptr<data_t> &data
 
 bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) MANAPIHTTP_NOEXCEPT {
     if (data_->timer) {
+        data_->timer->stop();
+
         auto delay = calculate_repeat_(data_);
         //manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "reinit_timer:delay=%llu now=%llu", delay, std::chrono::steady_clock::now().time_since_epoch());
-        if (!delay) {
-            delay = 1;
-        }
 
-        if (delay > 0) {
+        if (delay >= 0) {
             if (data_->timer->is_active()) {
-                data_->timer->repeat(delay);
+                data_->timer->start(delay, 1);
                 if (data_->timer->again()) {
                     manapi_log_error("set the timerpool again failed");
                     return false;
@@ -309,9 +308,6 @@ bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) MANA
             else {
                 data_->timer->start(delay, 1);
             }
-        }
-        else {
-            data_->timer->stop();
         }
     }
 
