@@ -57,6 +57,13 @@ find package/usr/lib/cmake/manapihttp -name '*.*' -exec sed -i -e 's|'$ROOT'/pac
 find package/usr/include/x86_64-linux-gnu/manapihttp -name '*.*' -exec sed -i -e 's|'$ROOT'/package||g' {} \;
 
 # 6) Package
+
+# 6.1) Config
+size=$(du -ks ./package/usr|cut -f 1);
+
+sed -ri "s/^Installed-Size.*$/Installed-Size: $size/g" ./package/DEBIAN/control
+
+# 6.2) Build
 dpkg-deb --root-owner-group --build ./package manapihttp-vx.x.xubuntu22.04-dbg.deb
 
 # 7) clean up

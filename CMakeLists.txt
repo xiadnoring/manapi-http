@@ -1,6 +1,6 @@
 # cmake_minimum_required(VERSION 3.28.2) # CXX Modules Support
 cmake_minimum_required(VERSION 3.10)
-project(manapihttp LANGUAGES CXX VERSION 1.0.2 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
+project(manapihttp LANGUAGES CXX VERSION 1.0.3 DESCRIPTION "Fast HTTP Server/Client Library for easy develop API-Services and Web Applications")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
