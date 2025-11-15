@@ -1,7 +1,8 @@
 Package: manapihttp
 Provides: manapihttp
-Version: 1.0.2
+Version: 1.0.3
 Section: libs
+Installed-Size:
 Maintainer: Xiadnoring <me@timurtuty.ru>
 Homepage: https://github.com/xiadnoring/manapi-http
 Architecture: amd64
