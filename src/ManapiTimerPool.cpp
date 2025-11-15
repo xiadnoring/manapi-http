@@ -265,7 +265,9 @@ void manapi::timerpool::start_(const std::shared_ptr<data_t> &data) MANAPIHTTP_N
         stop_(data, false);
     }
 
-    data->flags ^= TIMERPOOL_FLAG_RUNNING;
+    if (data->flags & TIMERPOOL_FLAG_RUNNING)
+        data->flags ^= TIMERPOOL_FLAG_RUNNING;
+
     reinit_timer_(data);
 }
 

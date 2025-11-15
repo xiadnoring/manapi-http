@@ -23,9 +23,8 @@ int main(int argc, const char *const argv[]) { \
     return utest_main(argc, argv); \
 }
 
-inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 200000) {
-    auto ctx = manapi::async::context::create(4).unwrap();
-    ctx->eventloop()->setup_handle_interrupt();
+inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 10000) {
+    auto ctx = manapi::async::context::create(0).unwrap();
     /* task killer */
     ctx->timerpool()->append_interval_sync(timout_in_ms, manapi::TIMER_DEFAULT,[utest_result, timout_in_ms, flg = bool(false)] (manapi::timer t) mutable -> void {
         manapi_log_error("timeout in %zu ms was reached", timout_in_ms);
@@ -39,7 +38,7 @@ inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout
 }
 
 inline void wait_ctx (manapi::async::shared_ctx ctx) {
-    ctx->run(0, [] (std::function<void()> bind) -> void {
+    ctx->run([] (std::function<void()> bind) -> void {
 
         bind();
     });
@@ -98,7 +97,7 @@ inline manapi::net::http::server init_router (manapi::json cnf, std::move_only_f
                     {"ticket", false},
                     {"enable", true}
                 }},
-                {"max_buffer_stack", 1},
+                {"max_buffer_stack", 2},
                 {"max_merge_buffer_stack", 1},
                 {"max_connections", 2},
                 {"max_connections_by_ip", 2},
@@ -128,7 +127,7 @@ inline manapi::net::http::server init_router (manapi::json cnf, std::move_only_f
                 {"tcp_no_delay", true},
                 {"simultaneous_accepts", true},
                 {"buffer_size", 4096},
-                {"max_buffer_stack", 1},
+                {"max_buffer_stack", 2},
                 {"max_merge_buffer_stack", 1},
                 {"max_connections", 100},
                 {"max_connections_by_ip", 100},
