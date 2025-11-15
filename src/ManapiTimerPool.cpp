@@ -293,20 +293,9 @@ int64_t manapi::timerpool::calculate_repeat_(const std::shared_ptr<data_t> &data
 bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) MANAPIHTTP_NOEXCEPT {
     if (data_->timer) {
         auto const delay = calculate_repeat_(data_);
+        data_->timer->stop();
         if (delay >= 0) {
-            if (data_->timer->is_active()) {
-                data_->timer->repeat(delay);
-                if (data_->timer->again()) {
-                    manapi_log_error("set the timerpool again failed");
-                    return false;
-                }
-            }
-            else {
-                data_->timer->start(delay, 1);
-            }
-        }
-        else {
-            data_->timer->stop();
+            data_->timer->start(delay, 1);
         }
     }
 
