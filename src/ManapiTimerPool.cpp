@@ -117,6 +117,8 @@ manapi::error::status manapi::timerpool::again_timer(std::shared_ptr<manapi::tim
         if (!res.second)
             return error::status_internal("timerpool:insert failed");
 
+        if (res.first == this->data_->sorted_tasks.begin())
+            reinit_timer_(this->data_);
 
         if (res.first->second->flags & TIMER_TASK_IMPORTANT) {
             this->data_->importants++;
@@ -129,9 +131,6 @@ manapi::error::status manapi::timerpool::again_timer(std::shared_ptr<manapi::tim
                 }
             }
         }
-
-        if (res.first == this->data_->sorted_tasks.begin())
-            reinit_timer_(this->data_);
 
         return error::status_ok();
     }
@@ -216,10 +215,10 @@ void manapi::timerpool::erase_task_(const std::shared_ptr<data_t> &data_,sorted_
 }
 
 void manapi::timerpool::start_(const std::shared_ptr<data_t> &data) MANAPIHTTP_NOEXCEPT {
-    // if (data->flags & TIMERPOOL_FLAG_RUNNING) {
-    //     /* it is already running */
-    //     return;
-    // }
+    if (data->flags & TIMERPOOL_FLAG_RUNNING) {
+        /* it is already running */
+        return;
+    }
 
     auto now = std::chrono::steady_clock::now();
     data->flags |= TIMERPOOL_FLAG_RUNNING;
@@ -293,14 +292,10 @@ int64_t manapi::timerpool::calculate_repeat_(const std::shared_ptr<data_t> &data
 
 bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) MANAPIHTTP_NOEXCEPT {
     if (data_->timer) {
-        data_->timer->stop();
-
-        auto delay = calculate_repeat_(data_);
-        //manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "reinit_timer:delay=%llu now=%llu", delay, std::chrono::steady_clock::now().time_since_epoch());
-
+        auto const delay = calculate_repeat_(data_);
         if (delay >= 0) {
             if (data_->timer->is_active()) {
-                data_->timer->start(delay, 1);
+                data_->timer->repeat(delay);
                 if (data_->timer->again()) {
                     manapi_log_error("set the timerpool again failed");
                     return false;
@@ -309,6 +304,9 @@ bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) MANA
             else {
                 data_->timer->start(delay, 1);
             }
+        }
+        else {
+            data_->timer->stop();
         }
     }
 
@@ -359,7 +357,7 @@ manapi::error::status manapi::timerpool::update_interval_state_(const std::share
             data_->importants++;
         }
 
-        if (data_->sorted_tasks.begin()->second == data) {
+        if (data_->sorted_tasks.begin() == res.first) {
             reinit_timer_(data_);
         }
 
