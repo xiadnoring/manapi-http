@@ -29,8 +29,13 @@ inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout
     ctx->timerpool()->append_interval_sync(timout_in_ms, manapi::TIMER_DEFAULT,[utest_result, timout_in_ms, flg = bool(false)] (manapi::timer t) mutable -> void {
         manapi_log_error("timeout in %zu ms was reached", timout_in_ms);
         *utest_result = UTEST_TEST_FAILURE;
-        if (flg)
+        if (flg) {
+            if (manapi::async::context_exists()) {
+                ::uv_print_active_handles(manapi::async::current()->eventloop()->loop(), stdout);
+                ::uv_print_all_handles(manapi::async::current()->eventloop()->loop(), stdout);
+            }
             exit(-1);
+        }
         flg = true;
         manapi::async::run(manapi::async::current()->stop());
     }).unwrap();
