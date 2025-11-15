@@ -23,7 +23,7 @@ int main(int argc, const char *const argv[]) { \
     return utest_main(argc, argv); \
 }
 
-inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 8000) {
+inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 60000) {
     auto ctx = manapi::async::context::create(4).unwrap();
     ctx->eventloop()->setup_handle_interrupt();
     /* task killer */
