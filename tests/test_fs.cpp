@@ -140,7 +140,7 @@ UTEST(fs, read_and_write_1) {
 
     manapi::async::run ([&] () -> manapi::future<> {
         char test[100000];
-        auto const path = manapi::filesystem::path::join(".", "data-test-read_and_write_1.txt");
+        auto const path = manapi::filesystem::path::join(std::filesystem::temp_directory_path(), "data-test-read_and_write_1.txt");
         for (int i = 0; i < 100000; i++) {
             test[i] = (char)(i % 10);
         }

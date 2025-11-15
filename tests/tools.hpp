@@ -16,14 +16,14 @@
 #define HTTP2PORT "8887"
 #define MANAPIHTTP_TESTS_MAIN UTEST_STATE(); \
 int main(int argc, const char *const argv[]) { \
-    try { manapi::init_tools::log_trace_init((manapi::debug::trace_level)std::stoi(manapi::process::get_env("MANAPIHTTP_LOGTRACE").unwrap())); }\
+    try { manapi::init_tools::log_trace_init(manapi::debug::trace_level::LOG_TRACE_LOW); }\
     catch (...) { manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_NONE); }\
     manapi::async::context::threadpoolfs(2); \
     manapi::async::context::gbs (manapi::async::context::blockedsignals()); \
     return utest_main(argc, argv); \
 }
 
-inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 60000) {
+inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout_in_ms = 30000) {
     auto ctx = manapi::async::context::create(0).unwrap();
     /* task killer */
     ctx->timerpool()->append_interval_sync(timout_in_ms, manapi::TIMER_DEFAULT,[utest_result, timout_in_ms, flg = bool(false)] (manapi::timer t) mutable -> void {

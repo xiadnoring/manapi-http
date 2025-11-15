@@ -15,7 +15,7 @@
 UTEST (http_and_fetch, keep_alive_1) {
     using http = manapi::net::http::server;
 
-    auto ctx = init_ctx(utest_result, 120000);
+    auto ctx = init_ctx(utest_result, 40000);
     auto router = init_router({
         {"http1", true},
         {"http1_cnf", {
