@@ -31,7 +31,7 @@ inline manapi::async::shared_ctx init_ctx (int *utest_result, std::size_t timout
         *utest_result = UTEST_TEST_FAILURE;
         if (flg) {
             if (manapi::async::context_exists()) {
-                ::uv_print_active_handles(manapi::async::current()->eventloop()->loop(), stdout);
+                manapi_log_debug("Active handles:");
                 ::uv_print_all_handles(manapi::async::current()->eventloop()->loop(), stdout);
             }
             exit(-1);
