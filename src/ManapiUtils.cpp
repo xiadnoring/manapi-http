@@ -32,7 +32,7 @@ void manapi::print_stacktrace() MANAPIHTTP_NOEXCEPT {
         auto stack = std::stacktrace::current();
         for (std::size_t i = 0; i < stack.size(); i++) {
             auto &it = stack[i];
-            manapi_log_info("#%zu %p in %.*s at %.*s:%zu", i, it.native_handle(),
+            manapi_log_info("#%zu %p in %.*s at %.*s:%u", i, it.native_handle(),
                 it.description().size(), it.description().data(),
                 it.source_file().size(), it.source_file().data(),
                 it.source_line());
@@ -51,14 +51,14 @@ void manapi::print_stacktrace(std::size_t pos) MANAPIHTTP_NOEXCEPT {
 #if MANAPIHTTP_CPPTRACE_DEPENDENCY
         auto stack = cpptrace::stacktrace::current(pos);
         auto it = stack.begin();
-        manapi_log_info("%p in %.*s at %.*s:%zu", it->raw_address,
+        manapi_log_info("%p in %.*s at %.*s:%u", it->raw_address,
             it->symbol.size(), it->symbol.data(),
             it->filename.size(), it->filename.data(),
             it->line.value_or(0));
 #elif __cplusplus >= 202302L && MANAPIHTTP_STD_BACKTRACE_DEPENDENCY
         auto stack = std::stacktrace::current();
         auto &it = stack[pos];
-        manapi_log_info("%p in %.*s at %.*s:%zu", it.native_handle(),
+        manapi_log_info("%p in %.*s at %.*s:%u", it.native_handle(),
             it.description().size(), it.description().data(),
             it.source_file().size(), it.source_file().data(),
             it.source_line());

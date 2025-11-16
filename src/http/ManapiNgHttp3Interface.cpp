@@ -1026,7 +1026,9 @@ static int ng_wrk_http3_init (const manapi::net::worker::shared_conn &conn, mana
 
         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "nghttp3: %s settings on %p: "
             "enable_connect_procotol=%d, h3_datagram=%d max_field_section_size=%zu qpack_blocked_streams=%zu "
-            "qpack_encoder_max_dtable_capacity=%zu qpack_max_dtable_capacity=%zu", "send", p, tp->h3_settings.enable_connect_protocol, tp->h3_settings.h3_datagram,
+            "qpack_encoder_max_dtable_capacity=%zu qpack_max_dtable_capacity=%zu", "send", p,
+            static_cast<int>(tp->h3_settings.enable_connect_protocol),
+            static_cast<int>(tp->h3_settings.h3_datagram),
             tp->h3_settings.max_field_section_size, tp->h3_settings.qpack_blocked_streams, tp->h3_settings.qpack_encoder_max_dtable_capacity,
             tp->h3_settings.qpack_max_dtable_capacity);
 

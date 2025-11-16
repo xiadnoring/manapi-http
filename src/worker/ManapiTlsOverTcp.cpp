@@ -816,7 +816,7 @@ int manapi::net::worker::TLS::ssl_bio_flush_write_(const shared_conn &conn, tls_
             if (rhs > 0) {
                 ssize_t alr = 0;
                 if (!m->top->send_size && (rhs > 32 || (m->flags & CONN_TLS_SHUTDOWN))) {
-                    manapi_log_trace_hard("TLS:write %p flags=%d size=%zu", m, m->flags, rhs);
+                    manapi_log_trace_hard("TLS:write %p flags=%d size=%d", m, m->flags, rhs);
                     alr = m->watcher->try_write(fastfast, rhs);
                     if (alr < 0) {
                         if (alr == ev::ERR_AGAIN)

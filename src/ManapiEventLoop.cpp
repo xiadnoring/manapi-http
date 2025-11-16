@@ -1191,7 +1191,7 @@ manapi::sys_error::status_or<std::shared_ptr<manapi::ev::io>> manapi::event_loop
         return data->create_watcher_socket(fd, [data, fd] (const std::shared_ptr<ev::io> &w, int status, int revents)
                 -> void {
             auto data2 = data;
-            //MANAPIHTTP_LOG("CURL EV: {} {}", revents, (int)fd);
+            //MANAPIHTTP_LOG("CURL EV: {} {}", revents, static_cast<int>(fd));
             int cnt; auto rhs = curl_multi_socket_action(data->curl_watcher->curl_multi.get(), fd, (revents & 0b11), &cnt);
             if (rhs != CURLM_OK) {
                 data->logger_->debug(manapi::logger::default_service, "curl_multi_socket_action(...) returned an invalid response: {}", static_cast<int>(rhs));
@@ -1337,7 +1337,8 @@ manapi::error::status manapi::event_loop::watch_curl(void * shared_curl, std::mo
 
         if (mcode != CURLM_OK) {
             this->curl_watcher->curl_res.erase(curl.get());
-            manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_multi_add_handle() using %p returned %zu", curl.get(), mcode);
+            manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_multi_add_handle() using %p returned %d",
+                curl.get(), static_cast<int>(mcode));
             return error::status_invalid_argument("curl_multi_add_handle failed");
         }
     }
@@ -1368,7 +1369,8 @@ manapi::error::status manapi::event_loop::unwatch_curl(void * shared_curl) MANAP
     CURLMcode const mcode = curl_multi_remove_handle(this->curl_watcher->curl_multi.get(), curl.get());
 
     if (mcode != CURLM_OK) {
-        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_multi_remove_handle() using %p returned %zu", curl.get(), mcode);
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_multi_remove_handle() using %p returned %d", curl.get(),
+            static_cast<int>(mcode));
         return error::status_invalid_argument("curl_multi_remove_handle failed");
     }
 
@@ -1399,7 +1401,8 @@ manapi::error::status manapi::event_loop::pause_watch_curl(void * shared_curl) M
     /* pause */
     const auto rhs = curl_easy_pause(curl.get(), CURLPAUSE_ALL);
     if (CURLE_OK != rhs) {
-        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %zu", curl.get(), rhs);
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %d",
+            curl.get(), static_cast<int>(rhs));
         return error::status_invalid_argument("curl_easy_pause failed");
     }
     MANAPIHTTP_MUST_ALLOC_START
@@ -1417,7 +1420,8 @@ manapi::error::status manapi::event_loop::unpause_watch_curl(void *shared_curl) 
     const auto rhs = curl_easy_pause(curl.get(), CURLPAUSE_CONT);
 
     if (CURLE_OK != rhs) {
-        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %zu", curl.get(), rhs);
+        manapi_log_trace(manapi::debug::LOG_TRACE_MEDIUM, "curl_easy_pause() using %p returned %d", curl.get(),
+            static_cast<int>(rhs));
         return error::status_invalid_argument("curl_easy_pause failed");
     }
 
