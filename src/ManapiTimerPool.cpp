@@ -176,8 +176,12 @@ void manapi::timerpool::stop_(std::shared_ptr<data_t> data, bool evloop) MANAPIH
     }
     if (!data->importants) {
         if (data->timer) {
+            ::uv_print_all_handles(manapi::async::current()->eventloop()->loop(), stdout);
+            int const res1 = ::uv_loop_alive(manapi::async::current()->eventloop()->loop());
+            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "timerpool:uv_loop_alive1 returned %d", res1);
             assert(!data->timer->stop());
             int const res = ::uv_loop_alive(manapi::async::current()->eventloop()->loop());
+            ::uv_print_all_handles(manapi::async::current()->eventloop()->loop(), stdout);
             assert(!data->timer->start(0, 1));
             manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "timerpool:uv_loop_alive returned %d", res);
             if (!res) {
