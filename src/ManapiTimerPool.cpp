@@ -191,11 +191,11 @@ void manapi::timerpool::stop_(std::shared_ptr<data_t> data, bool evloop) MANAPIH
             }
         }
         else {
-            manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "timerpool:data->timer is NULL");
+            manapi_log_trace(manapi::debug::LOG_TRACE_HARD, "timerpool:data->timer is NULL");
         }
     }
     else {
-        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "timerpool:data->importants is %d", data->importants);
+        manapi_log_trace(manapi::debug::LOG_TRACE_HARD, "timerpool:data->importants is %d", data->importants);
     }
 }
 
@@ -306,7 +306,11 @@ int64_t manapi::timerpool::calculate_repeat_(const std::shared_ptr<data_t> &data
 bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) MANAPIHTTP_NOEXCEPT {
     if (data_->timer) {
         auto const delay = calculate_repeat_(data_);
-        data_->timer->stop();
+
+        if (data_->timer->is_active()) {
+            data_->timer->stop();
+        }
+
         if (delay >= 0) {
             data_->timer->start(delay, 1);
         }
