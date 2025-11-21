@@ -597,7 +597,7 @@ void quiche_set_header_(quiche_h3_header *header, std::string_view key, std::str
     };
 }
 
-static void wrk_close_connection ( manapi::net::worker::shared_conn conn, manapi::net::worker::shared_conn stream_conn, manapi::net::worker::base *w, bool ok) {
+static void wrk_close_conn1 ( manapi::net::worker::shared_conn conn, manapi::net::worker::shared_conn stream_conn, manapi::net::worker::base *w, bool ok) {
     MANAPIHTTP_MUST_ALLOC_START
     manapi::async::current()->etaskpool()->append_static_task(
         [w, ok, stream_conn, conn] () -> void {
@@ -916,7 +916,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                                         s->ev_callback = nullptr;
                                         s->flags = ev::DISCONNECT;
 
-                                        wrk_close_connection(conn, stream_conn, this, ok);
+                                        wrk_close_conn1(conn, stream_conn, this, ok);
                                 }));
 
                                 if (!conn_data->streams.insert({s->id, std::move(stream_conn)}).second) {
@@ -935,7 +935,7 @@ void manapi::net::worker::http_v3_cloudflare_quiche::onrecv(const std::shared_pt
                             catch (std::exception const &e) {
                                 manapi_log_error("%s: %s failed due to %s", "cf quiche", "onrecv", e.what());
                                 if (stream_conn)
-                                    wrk_close_connection(connection, stream_conn, this, false);
+                                    wrk_close_conn1(connection, stream_conn, this, false);
                             }
                         }
                         else {

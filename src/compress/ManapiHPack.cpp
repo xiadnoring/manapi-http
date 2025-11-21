@@ -8,6 +8,12 @@
 #include "../include/ManapiUtils.hpp"
 #include "http/ManapiHttpUtils.hpp"
 
+#ifdef T
+#	define MANAPI_HPACK_T_PREV T
+#endif
+#ifdef F
+#	define MANAPI_HPACK_F_PREV F
+#endif
 #define T true
 #define F false
 
@@ -1250,3 +1256,14 @@ err_zero:
 		return std::move(m_buf);
 	}
 }
+
+#undef T
+#undef F
+#ifdef MANAPI_HPACK_T_PREV
+#	define T MANAPI_HPACK_T_PREV
+#	undef MANAPI_HPACK_T_PREV
+#endif
+#ifdef MANAPI_HPACK_F_PREV
+#	define F MANAPI_HPACK_F_PREV
+#	undef MANAPI_HPACK_F_PREV
+#endif

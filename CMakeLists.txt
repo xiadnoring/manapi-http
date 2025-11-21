@@ -973,6 +973,7 @@ else ()
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}.pc.in ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc @ONLY)
 endif ()
 
+set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 
 include(GenerateExportHeader)
@@ -1232,6 +1233,22 @@ if (MANAPIHTTP_NGHTTP3_DEPENDENCY_FETCH)
     add_dependencies(${PROJECT_NAME} libnghttp3)
 endif ()
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_precompile_headers(${PROJECT_NAME} PRIVATE
+            <vector>
+            <string>
+            <map>
+            <unordered_map>
+            <memory>
+            <algorithm>
+            <filesystem>
+            <cstring>
+            <functional>
+            <deque>
+            <limits>
+    )
+endif()
+
 if(BUILD_SHARED_LIBS)
     message(STATUS "shared build")
 else ()
@@ -1239,7 +1256,18 @@ else ()
     set(OPENSSL_USE_STATIC_LIBS TRUE)
 endif ()
 
-if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(${PROJECT_NAME} PRIVATE -pipe -fno-semantic-interposition)
+    if (UNIX)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold")
+    endif()
+endif()
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(${PROJECT_NAME} PRIVATE -fno-stack-check -fno-address-sanitizer-use-after-scope)
+endif()
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
     if (WIN32)
 
     else ()
@@ -1249,6 +1277,10 @@ else()
     if (MANAPIHTTP_STD_BACKTRACE_DEPENDENCY)
         target_link_libraries(${PROJECT_NAME} PRIVATE stdc++_libbacktrace)
     endif ()
+endif()
+
+if(MSVC)
+    target_compile_options(myTarget PRIVATE /MP)
 endif()
 
 # Include public headers from the folder

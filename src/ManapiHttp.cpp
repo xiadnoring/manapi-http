@@ -81,7 +81,7 @@ manapi::future<manapi::error::status> manapi::net::http::server::start() {
 
         co_await this->init_pool_();
 
-        using promise = async::promise_sync<error::status>;
+        typedef async::promise_sync<error::status> promise;
         co_return co_await promise([this, &lk] (const promise::resolve_t& resolve, const promise::reject_t& reject) -> void {
             auto res = this->pool_([&lk, resolve] () mutable -> void {
                 lk.call();

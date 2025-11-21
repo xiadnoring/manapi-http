@@ -34,7 +34,7 @@ manapi::future<manapi::error::status> manapi::net::http_pool::stop() {
         auto lk = co_await this->mx->lock_guard();
         manapi_log_trace(debug::LOG_TRACE_MEDIUM, "shutdown socket");
         if (this->worker) {
-            using promise = manapi::async::promise_sync<void>;
+            typedef manapi::async::promise_sync<void> promise;
             co_await promise ([this] (promise::resolve_t resolve, promise::reject_t reject) -> void {
                 try {
                     this->worker->stop(std::move(resolve));

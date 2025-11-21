@@ -82,7 +82,7 @@ public:
     // Assembles the client's payload, sends it and presents the response back
     // from the server.
     manapi::future<manapi::error::status_or<std::string>> SayHello(const std::string& user) {
-        using promise = manapi::async::promise_sync<manapi::error::status_or<std::string>>;
+        typedef manapi::async::promise_sync<manapi::error::status_or<std::string>> promise;
         // Data we are sending to the server.
         helloworld::HelloRequest request;
         request.set_name(user);

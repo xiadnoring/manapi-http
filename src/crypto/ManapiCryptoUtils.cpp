@@ -75,7 +75,7 @@ manapi::future<manapi::error::status> manapi::crypto::async_random_string(char *
     if (!len)
         co_return error::status_ok();
 
-    using promise = manapi::async::promise_sync<manapi::error::status>;
+    typedef manapi::async::promise_sync<manapi::error::status> promise;
     manapi::error::status res;
     try {
         res = co_await promise ([&] (promise::resolve_t resolve, promise::reject_t reject) mutable

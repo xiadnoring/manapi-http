@@ -16,7 +16,7 @@ int default_wrk_http2_cleanup (manapi::net::worker::connection *conn, manapi::ne
     return 0;
 }
 
-static void wrk_close_connection ( manapi::net::worker::shared_conn conn, manapi::net::worker::shared_conn sconn, manapi::net::worker::base *w, bool ok) MANAPIHTTP_NOEXCEPT {
+static void wrk_close_conn2 ( manapi::net::worker::shared_conn conn, manapi::net::worker::shared_conn sconn, manapi::net::worker::base *w, bool ok) MANAPIHTTP_NOEXCEPT {
     MANAPIHTTP_MUST_ALLOC_START
     manapi::async::current()->etaskpool()->append_static_task(
         [w = std::move(w), ok, conn = std::move(conn), sconn = std::move(sconn)] () -> void {
@@ -123,7 +123,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                                             req_ptr, std::make_unique<manapi::net::http::internal::cont_callback_cb_t>(
                                             [w, sconn = s->second, conn] (bool ok) mutable
                                             -> void {
-                                                wrk_close_connection (conn, sconn, w, ok);
+                                                wrk_close_conn2 (conn, sconn, w, ok);
                                         }));
 
                                         // this->event_on(conn, std::unique_ptr<worker_watcher_cb>(nullptr));
@@ -134,7 +134,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                                     }
                                     catch (std::exception const &e) {
                                         manapi_log_error("%s:%s failed due to %s", "http2", "new conn", e.what());
-                                        wrk_close_connection(conn, s->second, w, false);
+                                        wrk_close_conn2(conn, s->second, w, false);
                                     }
                             });
 
@@ -142,7 +142,7 @@ int default_wrk_http2(const manapi::net::worker::shared_conn &conn, int flags, c
                         }
                         catch (std::exception const  &e ) {
                             manapi_log_error("%s:%s failed due to %s", "http2", "new conn", e.what());
-                            wrk_close_connection(conn, s->second, w, false);
+                            wrk_close_conn2(conn, s->second, w, false);
                         }
 
 

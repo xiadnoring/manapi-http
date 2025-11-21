@@ -8,7 +8,7 @@
 #include "../include/ManapiUtils.hpp"
 
 struct wb_write_ctx_t {
-    using promise = manapi::async::promise_sync<ssize_t>;
+    typedef manapi::async::promise_sync<ssize_t> promise;
 
     manapi::net::worker::base *w;
     manapi::ev::buff_t *buff;
@@ -70,7 +70,7 @@ manapi::future<ssize_t> write_internal (manapi::net::worker::base *w, ssize_t rh
     using namespace manapi::net;
     using namespace manapi::net::worker;
 
-    using promise = manapi::async::promise_sync<ssize_t>;
+    typedef manapi::async::promise_sync<ssize_t> promise;
 
     if (rhs)
         co_return rhs;

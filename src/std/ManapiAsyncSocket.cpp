@@ -129,7 +129,7 @@ void manapi::async::close_descriptor(socket_t fd) MANAPIHTTP_NOEXCEPT {
 }
 
 manapi::future<manapi::sys_error::status_or<int>> manapi::async::custom_ready(int flags, socket_t fd) {
-    using promise = manapi::async::promise_sync<manapi::sys_error::status_or<int>>;
+    typedef manapi::async::promise_sync<manapi::sys_error::status_or<int>> promise;
     co_return co_await promise ([flags, fd] (promise::resolve_t resolve, promise::reject_t reject) -> void {
         auto cb = pio_ready_mk_(flags, fd, resolve, nullptr);
         auto wres = async::current()->eventloop()->create_watcher_socket(fd, std::move(cb));

@@ -307,7 +307,7 @@ static int ng_wrk_http3(const manapi::net::worker::shared_conn &stream, int flag
         }
 
         if (flags & manapi::ev::WRITE) {
-            //assert(s->top->send.deque);
+            //assert(s->top->send.deque);an c
             if (auto rhs = nghttp3_conn_unblock_stream (s->ctx->ctx.get(), stream_id)) {
                 manapi_log_trace(manapi::debug::LOG_TRACE_HIGH, "%s failed due to %s", "nghttp3_conn_unblock_stream", nghttp3_strerror(rhs));
                 goto err;
