@@ -1280,7 +1280,7 @@ else()
 endif()
 
 if(MSVC)
-    target_compile_options(myTarget PRIVATE /MP)
+    target_compile_options(${PROJECT_NAME} PRIVATE /MP)
 endif()
 
 # Include public headers from the folder
