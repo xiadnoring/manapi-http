@@ -882,6 +882,9 @@ void manapi::event_loop::wait_all_() MANAPIHTTP_NOEXCEPT {
                     auto const loop_ = this->loop();
                     this->stop_watcher(std::move(idle_tasks));
 
+                    // try again (idle_tasks can be the last one)
+                    manapi::async::current()->timerpool()->stop();
+
                     if (!::uv_loop_alive(loop_)) {
                         ::uv_stop(loop_);
                     }

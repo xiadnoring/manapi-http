@@ -98,6 +98,7 @@ class ManapiHttpConan(ConanFile):
 
         self.options["libcurl"].with_nghttp2 = True
         self.options["quiche"].shared = True
+        self.options["grpc"].secure = True
 
     def layout(self):
         cmake_layout(self)

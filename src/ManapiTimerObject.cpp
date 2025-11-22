@@ -21,45 +21,6 @@ static void destroy_timer_data_cb (int *flags, manapi::timer::timer_data_t::time
     }
 }
 
-static void run_sync_cb (std::shared_ptr<manapi::timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT {
-    if (!(data->flags & manapi::TIMER_TASK_INTERVAL
-        && data->flags & manapi::TIMER_TASK_ENABLED)) {
-        data->flags ^= manapi::TIMER_TASK_ENABLED;
-    }
-
-    try {
-        if (data->cb.sync_cb)
-            data->cb.sync_cb(data);
-
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s: %s failed due to %s", "timer", "user sync callback", e.what());
-    }
-
-    if (data->flags & manapi::TIMER_TASK_INTERVAL) {
-        manapi::async::current()->timerpool()->update_interval_state(std::move(data));
-    }
-}
-
-static manapi::future<> run_async_cb (std::shared_ptr<manapi::timer::timer_data_t> data) {
-    if (!(data->flags & manapi::TIMER_TASK_INTERVAL)
-        && data->flags & manapi::TIMER_TASK_ENABLED) {
-        data->flags ^= manapi::TIMER_TASK_ENABLED;
-    }
-
-    try {
-        if (data->cb.async_cb)
-            co_await data->cb.async_cb (data);
-    }
-    catch (std::exception const &e) {
-        manapi_log_error("%s: %s failed due to %s", "timer", "user async callback", e.what());
-    }
-
-    if (data->flags & manapi::TIMER_TASK_INTERVAL) {
-        manapi::async::current()->timerpool()->update_interval_state(data);
-    }
-}
-
 manapi::timer::timer_data_t::timer_data_cb_t::~timer_data_cb_t() {}
 
 manapi::timer::timer_data_t::~timer_data_t() {
@@ -173,10 +134,55 @@ void manapi::timer::call_() MANAPIHTTP_NOEXCEPT {
 
     try {
         if (this->data->flags & TIMER_TASK_IS_ASYNC) {
-            manapi::async::run(run_async_cb(this->data));
+            manapi::async::run([data = this->data] () -> manapi::future<> {
+                if (!(data->flags & manapi::TIMER_TASK_INTERVAL)
+                    && data->flags & manapi::TIMER_TASK_ENABLED) {
+                    data->flags ^= manapi::TIMER_TASK_ENABLED;
+                }
+
+                timerpool *tm;
+
+                try {
+                    if (data->cb.async_cb)
+                        co_await data->cb.async_cb (data);
+                    tm = manapi::async::current()->timerpool().get();
+                }
+                catch (std::exception const &e) {
+                    manapi_log_error("%s: %s failed due to %s", "timer", "user async callback", e.what());
+                    tm = manapi::async::current()->timerpool().get();
+                }
+
+                if (data->flags & manapi::TIMER_TASK_IMPORTANT) {
+                    tm->unref_important_();
+                }
+
+                if ((data->flags & manapi::TIMER_TASK_INTERVAL)
+                    && (data->flags & manapi::TIMER_TASK_ENABLED)
+                    && !(data->flags & manapi::TIMER_TASK_ACTIVE)) {
+                    tm->update_interval_state(data);
+                }
+            });
         }
         else {
-            run_sync_cb(this->data);
+            if (!(this->data->flags & manapi::TIMER_TASK_INTERVAL
+                && this->data->flags & manapi::TIMER_TASK_ENABLED)) {
+                    this->data->flags ^= manapi::TIMER_TASK_ENABLED;
+            }
+
+            try {
+                if (this->data->cb.sync_cb)
+                    this->data->cb.sync_cb(this->data);
+
+            }
+            catch (std::exception const &e) {
+                manapi_log_error("%s: %s failed due to %s", "timer", "user sync callback", e.what());
+            }
+
+            if ((this->data->flags & manapi::TIMER_TASK_INTERVAL)
+                && (this->data->flags & manapi::TIMER_TASK_ENABLED)
+                && !(this->data->flags & manapi::TIMER_TASK_ACTIVE)) {
+                manapi::async::current()->timerpool()->update_interval_state(std::move(this->data));
+            }
         }
     }
     catch (std::exception const &e) {

@@ -108,6 +108,14 @@ manapi::error::status manapi::timerpool::update_interval_state(std::shared_ptr<t
     return manapi::timerpool::update_interval_state_(this->data_, std::move(data));
 }
 
+void manapi::timerpool::unref_important_() MANAPIHTTP_NOEXCEPT {
+    this->data_->importants--;
+
+    if (!this->data_->importants && !(this->data_->flags & TIMERPOOL_FLAG_ACTIVE)) {
+        stop_(this->data_, false);
+    }
+}
+
 manapi::error::status manapi::timerpool::again_timer(std::shared_ptr<manapi::timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT {
     try {
         auto const point = data->point;
@@ -182,7 +190,7 @@ void manapi::timerpool::stop_(std::shared_ptr<data_t> data, bool evloop) MANAPIH
             //assert(!data->timer->stop());
             ::uv_unref((uv_handle_t *)data->timer.get());
             int const res = ::uv_loop_alive(manapi::async::current()->eventloop()->loop());
-            //::uv_print_all_handles(manapi::async::current()->eventloop()->loop(), stdout);
+            ::uv_print_all_handles(manapi::async::current()->eventloop()->loop(), stdout);
             //assert(!data->timer->start(0, 1));
             ::uv_ref ((uv_handle_t *)data->timer.get());
             //manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "timerpool:uv_loop_alive returned %d", res);
@@ -254,21 +262,14 @@ void manapi::timerpool::start_(const std::shared_ptr<data_t> &data) MANAPIHTTP_N
 
             task->flags ^= TIMER_TASK_ACTIVE;
             if (important) {
-                data->importants--;
-                if (task->flags & TIMER_TASK_INTERVAL) {
-                    timertask.call_();
+                if (!(task->flags & TIMER_TASK_IS_ASYNC)) {
+                    data->importants--;
                 }
-                else {
-                    timertask.call_();
-                }
+
+                timertask.call_();
             }
             else if (active || !(task->flags & TIMER_TASK_POOR)) {
-                if (task->flags & TIMER_TASK_INTERVAL) {
-                    timertask.call_();
-                }
-                else {
-                    timertask.call_();
-                }
+                timertask.call_();
             }
         }
     }
@@ -320,19 +321,21 @@ bool manapi::timerpool::reinit_timer_(const std::shared_ptr<data_t> &data_) MANA
 }
 
 manapi::sys_error::status manapi::timerpool::init_timer_() MANAPIHTTP_NOEXCEPT {
-    auto timer_res = this->data_->events->create_watcher_timer(
-        [data = this->data_] (const std::shared_ptr<manapi::ev::timer> &w)
-        -> void {
-        timerpool::start_(data);
-    });
+    if (!this->data_->timer) {
+        auto timer_res = this->data_->events->create_watcher_timer(
+            [data = this->data_] (const std::shared_ptr<manapi::ev::timer> &w)
+            -> void {
+            timerpool::start_(data);
+        });
 
-    if (!timer_res)
-        return timer_res.err();
+        if (!timer_res)
+            return timer_res.err();
 
-    this->data_->timer = timer_res.unwrap();
-    if (auto rhs = this->data_->timer->start(0, 1)) {
-        this->data_->timer = nullptr;
-        return manapi::sys_error::status_internal("timer::start", rhs);
+        this->data_->timer = timer_res.unwrap();
+        if (auto rhs = this->data_->timer->start(0, 1)) {
+            this->data_->timer = nullptr;
+            return manapi::sys_error::status_internal("timer::start", rhs);
+        }
     }
     return manapi::sys_error::status_ok();
 }

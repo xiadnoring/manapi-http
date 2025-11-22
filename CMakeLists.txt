@@ -21,10 +21,6 @@ if (WIN32)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-add_compile_options($<$<CXX_COMPILER_ID:GNU>:-fmerge-all-constants>)
-# add_compile_options($<$<CXX_COMPILER_ID:GNU>:-fmodules>)
-# add_compile_options($<$<CXX_COMPILER_ID:GNU>:-fmodules-ts>)
-
 if (NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     message(STATUS "This project has a top-level one called [${CMAKE_PROJECT_NAME}]")
 else ()
@@ -83,19 +79,6 @@ message(STATUS "qt dependency: ${MANAPIHTTP_QT_DEPENDENCY}")
 set(MANAPIHTTP_GMP_DEPENDENCY_OBJ OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message(STATUS "Build type: Debug")
-    add_compile_definitions(MANAPIHTTP_HTTP_BUILD_DEBUG)
-endif ()
-
-
-if (MANAPIHTTP_DISABLE_TRACE)
-    add_compile_definitions(MANAPIHTTP_DISABLE_TRACE)
-    add_compile_definitions(MANAPIHTTP_DISABLE_TRACE_HARD)
-elseif (MANAPIHTTP_DISABLE_TRACE_HARD)
-    add_compile_definitions(MANAPIHTTP_DISABLE_TRACE_HARD)
-endif ()
-
 if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
     message(STATUS "Build method: conan")
 
@@ -115,7 +98,6 @@ if (MANAPIHTTP_BUILD_METHOD STREQUAL "conan")
 
     if (MANAPIHTTP_QUICHE_DEPENDENCY)
         find_package(quiche REQUIRED)
-        add_compile_definitions(MANAPIHTTP_QUICHE_VERSION="${quiche_VERSION}")
     endif ()
 
     if (MANAPIHTTP_TQUIC_DEPENDENCY)
@@ -437,8 +419,6 @@ else ()
         pkg_check_modules(QUICHE quiche)
         if (NOT QUICHE_FOUND)
             set(MANAPIHTTP_QUICHE_DEPENDENCY OFF)
-        else ()
-            add_compile_definitions(MANAPIHTTP_QUICHE_VERSION="${QUICHE_VERSION}")
         endif ()
     endif ()
 
@@ -931,11 +911,11 @@ if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe" OR MANAPIHTTP_BUILD_TYPE STREQUAL "test
     endif ()
 
 
-    add_compile_definitions(MANAPIHTTP_HTTP_AS_EXECUTABLE)
     if (MANAPIHTTP_BUILD_TYPE STREQUAL "exe")
         add_executable(${PROJECT_NAME})
     endif ()
 
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_HTTP_AS_EXECUTABLE)
     target_sources(${PROJECT_NAME} PRIVATE main.cpp handlers.hpp handlers.cpp ${MANAPIHTTP_HTTP_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
 
     #    target_sources(${PROJECT_NAME} PUBLIC
@@ -951,7 +931,6 @@ else ()
     # LIB
     message(STATUS "Build type 'lib'")
 
-    add_compile_definitions(MANAPIHTTP_HTTP_AS_LIBRARY)
     if (BUILD_SHARED_LIBS)
         add_library(${PROJECT_NAME} SHARED)
     else ()
@@ -959,7 +938,7 @@ else ()
     endif ()
 
     target_sources(${PROJECT_NAME} PRIVATE ${MANAPIHTTP_HTTP_FILES})
-
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_HTTP_AS_LIBRARY)
     set_target_properties(${PROJECT_NAME} PROPERTIES
             VERSION ${PROJECT_VERSION}
             SOVERSION ${PROJECT_VERSION_MAJOR})
@@ -973,6 +952,9 @@ else ()
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}.pc.in ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc @ONLY)
 endif ()
 
+target_compile_options(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmerge-all-constants>)
+# target_compile_options(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmodules>)
+# target_compile_options(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmodules-ts>)
 set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 
@@ -984,9 +966,28 @@ endif ()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 
+if (DEFINED quiche_VERSION)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_QUICHE_VERSION="${quiche_VERSION}")
+elseif (DEFINED QUICHE_VERSION)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_QUICHE_VERSION="${QUICHE_VERSION}")
+endif ()
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "Build type: Debug")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_HTTP_BUILD_DEBUG)
+endif ()
+
+
+if (MANAPIHTTP_DISABLE_TRACE)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_DISABLE_TRACE)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_DISABLE_TRACE_HARD)
+elseif (MANAPIHTTP_DISABLE_TRACE_HARD)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_DISABLE_TRACE_HARD)
+endif ()
+
 if (WIN32 AND BUILD_SHARED_LIBS)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-    add_compile_definitions(MANAPIHTTP_BUILD_SHARED_LIBS)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MANAPIHTTP_BUILD_SHARED_LIBS)
 endif()
 
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
@@ -1282,7 +1283,6 @@ endif()
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /MP)
 endif()
-
 # Include public headers from the folder
 target_include_directories  (${PROJECT_NAME} PRIVATE include)
 target_include_directories  (${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/include)

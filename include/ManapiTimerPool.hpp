@@ -15,6 +15,7 @@
 
 namespace manapi {
     class timerpool {
+        friend timer;
     public:
         typedef std::pair <std::chrono::steady_clock::time_point, std::shared_ptr<timer::timer_data_t>> sorted_storage_key;
         struct sorted_tasks_compare_t {
@@ -122,13 +123,6 @@ namespace manapi {
          */
         manapi::error::status_or<manapi::timer> append_interval_sync (size_t ms, timer_types type, manapi::timer::sync_cb_t task) MANAPIHTTP_NOEXCEPT;
 
-        /**
-         * FOR INTERNAL USE ONLY
-         *
-         * @param data
-         * @return
-         */
-        manapi::error::status update_interval_state (std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT;
 
         /**
          * set the timer again
@@ -146,7 +140,7 @@ namespace manapi {
         void clear() MANAPIHTTP_NOEXCEPT;
 
         MANAPIHTTP_NODISCARD std::shared_ptr<threadpool> taskpool () const MANAPIHTTP_NOEXCEPT;
-    protected:
+    private:
         static void stop_ (std::shared_ptr<data_t> data, bool evloop) MANAPIHTTP_NOEXCEPT;
         //
         // std::optional<manapi::timer> _cb_event (void *data);
@@ -167,7 +161,10 @@ namespace manapi {
 
         manapi::error::status_or<manapi::timer> append_ (std::chrono::milliseconds duration, manapi::timer::async_cb_t async_task, manapi::timer::sync_cb_t task,  bool interval, timer_types type) MANAPIHTTP_NOEXCEPT;
 
+        manapi::error::status update_interval_state (std::shared_ptr<timer::timer_data_t> data) MANAPIHTTP_NOEXCEPT;
+
+        void unref_important_ () MANAPIHTTP_NOEXCEPT;
+
         std::shared_ptr<data_t> data_;
-    private:
     };
 }
