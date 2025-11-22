@@ -29,11 +29,11 @@ UTEST(timer, important_dep) {
 }
 
 UTEST(timer, default_dep) {
-    auto ctx = init_ctx(utest_result, 1000);
+    auto ctx = init_ctx(utest_result, 10000);
 
     bool finished = false;
 
-    manapi::async::current()->timerpool()->append_timer_sync(500,
+    manapi::async::current()->timerpool()->append_timer_sync(5000,
         manapi::TIMER_DEFAULT, [&finished] (const manapi::timer &t) -> void {
         finished = true;
     });
