@@ -190,7 +190,7 @@ void manapi::timerpool::stop_(std::shared_ptr<data_t> data, bool evloop) MANAPIH
             //assert(!data->timer->stop());
             ::uv_unref((uv_handle_t *)data->timer.get());
             int const res = ::uv_loop_alive(manapi::async::current()->eventloop()->loop());
-            ::uv_print_all_handles(manapi::async::current()->eventloop()->loop(), stdout);
+            //::uv_print_all_handles(manapi::async::current()->eventloop()->loop(), stdout);
             //assert(!data->timer->start(0, 1));
             ::uv_ref ((uv_handle_t *)data->timer.get());
             //manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "timerpool:uv_loop_alive returned %d", res);
