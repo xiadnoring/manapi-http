@@ -12,6 +12,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      DOCS_BASE_DIR: /manapi-http
     steps:
       - name: Checkout
         uses: actions/checkout@v4
