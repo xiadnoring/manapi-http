@@ -38,18 +38,34 @@ jobs:
             library_type: STATIC
 
     steps:
+    - uses: dorny/paths-filter@v3
+      id: filter
+      with:
+        filters: |
+          src:
+          - 'src/**'
+          - 'include/**'
+          - 'CMakeLists.txt'
+          - 'conanfile.py'
+          - 'preprocess/**'
+          - 'cmake/**'
+          - 'tests/**'
+
     - uses: actions/checkout@v4
+      if: ${{ steps.filter.outputs.src == 'true' }}
 
     - name: Set up Python
+      if: ${{ steps.filter.outputs.src == 'true' }}
       uses: actions/setup-python@v4
       with:
         python-version: "3.11"
 
     - name: Install Conan
+      if: ${{ steps.filter.outputs.src == 'true' }}
       run: pip install conan==2.*
 
     - name: Cache Conan Dependencies (Ubuntu Latest)
-      if: ${{ matrix.os == 'ubuntu-latest' }}
+      if: ${{ steps.filter.outputs.src == 'true' && matrix.os == 'ubuntu-latest' }}
       id: cache-conan-ubuntu
       uses: actions/cache@v4
       with:
@@ -57,18 +73,19 @@ jobs:
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
 
     - name: Cache Conan Dependencies (Windows Latest)
-      if: ${{ matrix.os == 'windows-latest' }}
+      if: ${{ steps.filter.outputs.src == 'true' && matrix.os == 'windows-latest' }}
       id: cache-conan-windows
       uses: actions/cache@v4
       with:
         path: C:\Users\runneradmin\.conan2
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
 
-    - if: ${{ (matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true') }}
+    - if: ${{ (steps.filter.outputs.src == 'true') && ((matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true')) }}
       name: Create default Conan profile
       run: conan profile detect --force
 
     - name: Conan install dependencies
+      if: ${{ steps.filter.outputs.src == 'true' }}
       run:  |
             [[ ${{ matrix.library_type }} == "SHARED" ]] && shared=True || shared=False
             conan install . \
@@ -91,15 +108,19 @@ jobs:
             --build=missing
 
     - name: Clean up
+      if: ${{ steps.filter.outputs.src == 'true' }}
       run: conan cache clean "*/*"
 
     - name: Configure CMake
+      if: ${{ steps.filter.outputs.src == 'true' }}
       run: cmake --preset conan-release -DMANAPIHTTP_ENABLE_TESTS=ON -DMANAPIHTTP_DISABLE_TRACE_HARD=ON -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=OFF
 
     - name: Build
+      if: ${{ steps.filter.outputs.src == 'true' }}
       run: cmake --build build/Release -j4 --config Release
 
     - name: Run unit tests
+      if: ${{ steps.filter.outputs.src == 'true' }}
       run: ctest --extra-verbose --output-on-failure -C Release
       working-directory: build/Release
 
