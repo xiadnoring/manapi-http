@@ -4,6 +4,7 @@
         "---Introduction---", 
         "intro/install", 
         "intro/quick-start",
+        "intro/syslogs",
         "---Data Formats---",
         "data-formats/json"
     ]

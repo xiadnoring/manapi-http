@@ -3,7 +3,7 @@ title: JSON
 description: JSON Support in ManapiHttp
 ---
 
-# JSON in C++
+## JSON in C++
 By default, C++ does not have built-in JSON support. 
 To address this, ManapiHttp provides a JSON implementation in the ```<manapihttp/json/ManapiJson.hpp>``` header file.
 
@@ -243,7 +243,7 @@ manapi::json data = {{"data", "hello"}, {"hello", "data"}};
 manapi::json data = {{"data", "hello"}, {"hello", "data"}};
 
 // Insert a new key-value pair
-data.insert({{"world", "hello"}});
+data.insert({"world", "hello"});
 
 // Remove a key
 data.erase("world");
