@@ -6,7 +6,7 @@ add_compile_options($<$<CXX_COMPILER_ID:GNU>:-fmerge-all-constants>)
 
 set(MANAPIHTTP_TEST_TOOL_FILES "utest.h" "tools.hpp")
 
-set(MANAPIHTTP_TESTS_SOURCES test_bigint.cpp test_timer.cpp test_fs.cpp test_http_and_fetch.cpp test_json.cpp test_json_masks.cpp test_parse.cpp test_http_and_fetch_keep_alive.cpp test_function.cpp)
+set(MANAPIHTTP_TESTS_SOURCES test_bigint.cpp test_timer.cpp test_fs.cpp test_fs_io.cpp test_http_and_fetch.cpp test_json.cpp test_json_masks.cpp test_parse.cpp test_http_and_fetch_keep_alive.cpp test_function.cpp)
 foreach(test ${MANAPIHTTP_TESTS_SOURCES})
     set(test_name ${test}_ctest)
     include_directories(${test_name} "../include" "${CMAKE_BINARY_DIR}/include")

@@ -1,0 +1,346 @@
+---
+title: JSON
+description: JSON Support in ManapiHttp
+---
+
+# JSON in C++
+By default, C++ does not have built-in JSON support. 
+To address this, ManapiHttp provides a JSON implementation in the ```<manapihttp/json/ManapiJson.hpp>``` header file.
+
+<Callout title="Warning" type="warn">
+Currently, JSON parsing may be slow in some cases.
+</Callout>
+
+## Initialization
+
+There are two ways to create JSON objects:
+- From text:
+```cpp
+auto result = manapi::json::parse(R"({"hello": "world", "world": "hello"})").unwrap();
+```
+- Using C++ structures:
+```cpp
+manapi::json result = {
+    { "hello", "world" },
+    { "world", "hello" }  
+};
+// or
+auto result = manapi::json::object();
+result.insert({ "hello", "world" });
+result.insert({ "world", "hello" });
+```
+
+## Types
+ManapiHttp's JSON implementation supports all standard types, which can be accessed using several non-const methods.
+
+```cpp
+// Default value is null
+manapi::json data; 
+
+// Returns reference to std::string
+data.as_string(); 
+
+// Returns reference to ssize_t
+data.as_integer(); 
+
+// Returns reference to long double
+data.as_decimal(); 
+
+// Returns reference to bool
+data.as_bool(); 
+
+// Returns nullptr 
+data.as_null(); 
+
+// Returns reference to std::vector<manapi::json>
+data.as_array(); 
+
+// Returns reference to std::map<std::string, manapi::json, std::less<>>
+data.as_object(); 
+
+// Returns reference to manapi::bigint if supported
+data.as_bigint(); 
+```
+
+<Callout title="Information">Any of these methods will throw an exception if the type is not supported.</Callout>
+
+If you need to convert between types, you can use the following casting methods:
+
+```cpp
+// Default value is null
+manapi::json data; 
+
+// Returns std::string
+data.as_string_cast(); 
+
+// Returns ssize_t
+data.as_integer_cast(); 
+
+// Returns long double
+data.as_decimal_cast(); 
+
+// Returns bool
+data.as_bool_cast(); 
+
+// Returns nullptr 
+data.as_null_cast(); 
+
+// Returns std::vector<manapi::json>
+data.as_array_cast(); 
+
+// Returns std::map<std::string, manapi::json, std::less<>>
+data.as_object_cast(); 
+
+// Returns manapi::bigint if supported
+data.as_bigint_cast(); 
+```
+
+<Callout title="Warning" type="warn">These methods will throw an exception if the cast is not supported.</Callout>
+
+### Integer Type
+
+#### Constructor
+```cpp
+manapi::json data = 100;
+```
+
+#### Arithmetic Operations
+```cpp
+// 100 + 5 = 105
+data += 5;
+
+// 105 - 10 = 95
+data -= 10;
+
+// 95 * 4 = 380
+data *= 4;
+
+// 380 / 2 = 190
+data /= 2;
+
+// true
+data = (data == 190);
+
+// Get the integer value
+ssize_t &res = data.as_integer();
+```
+
+### String Type
+
+#### Constructor
+```cpp
+manapi::json data = "hello";
+```
+
+#### String Operations
+```cpp
+// Returns string length (5)
+std::size_t size = data.size();
+
+// Concatenate strings
+data += " world";
+
+// Get the string value
+std::string &str = data.as_string();
+```
+
+### Bigint Type
+
+#### Constructor
+```cpp
+manapi::json data = manapi::bigint("100");
+```
+
+#### Bigint Operations
+```cpp
+// 100 + 5 = 105
+data += 5;
+
+// 105 - 10 = 95
+data -= 10;
+
+// 95 * 4 = 380
+data *= 4;
+
+// 380 / 8 = 47.5
+data /= 8;
+
+// true
+data = (data == 47.5);
+
+// 47.5 + 1e50
+data += manapi::bigint("1e50");
+
+// Get the bigint value
+manapi::bigint &res = data.as_bigint();
+```
+
+### Decimal Type
+
+#### Constructor
+```cpp
+manapi::json data = 100.0;
+```
+
+#### Decimal Operations
+```cpp
+// 100 + 5 = 105
+data += 5;
+
+// 105 - 10 = 95
+data -= 10;
+
+// 95 * 4 = 380
+data *= 4;
+
+// 380 / 8 = 47.5
+data /= 8;
+
+// true (with floating-point tolerance)
+data = (data - 47.5 < 0.1);
+
+// Get the decimal value
+long double &res = data.as_decimal();
+```
+
+### Array Type
+
+#### Constructor
+```cpp
+// For 2 or fewer elements in std::initializer_list<T>
+manapi::json data = manapi::json::array({"hello", "world"});
+// For more than 2 elements
+manapi::json data {"hello", "world", "yes"};
+```
+
+#### Array Operations
+```cpp
+manapi::json data = manapi::json::array({"hello", "world"});
+
+data.push_back("hello");
+
+data.pop_back();
+
+// Returns 2
+data.size();
+
+// Get the vector
+std::vector<manapi::json> &res = data.as_array();
+```
+
+### Object Type
+
+#### Constructor
+```cpp
+// For objects with only one key-value pair
+manapi::json data = manapi::json::object({{"data", "hello"}});
+// For multiple key-value pairs
+manapi::json data = {{"data", "hello"}, {"hello", "data"}};
+```
+
+#### Object Operations
+```cpp
+manapi::json data = {{"data", "hello"}, {"hello", "data"}};
+
+// Insert a new key-value pair
+data.insert({{"world", "hello"}});
+
+// Remove a key
+data.erase("world");
+
+// Returns 2
+data.size();
+
+// Get the map
+std::map<std::string, manapi::json, std::less<>> &res = data.as_object();
+```
+
+## Serializing JSON
+
+### Compact Output (without whitespace)
+```cpp
+manapi::json data = manapi::json::object({
+   {"hello", "world"} 
+});
+
+// Outputs: {"hello":"world"}
+std::cout << data.dump() << "\n";
+```
+
+### Formatted Output (with indentation)
+```cpp
+manapi::json data = manapi::json::object({
+   {"hello", "world"} 
+});
+
+std::cout << data.dump(4) << "\n";
+```
+
+Output:
+```json
+{
+    "hello": "world"
+}
+```
+
+## Incremental Parsing
+
+The ```manapi::json_builder``` class allows incremental JSON parsing in chunks.
+
+```cpp
+...
+#include <manapihttp/json/ManapiJsonBuilder.hpp>
+...
+
+manapi::json_builder builder();
+
+builder << R"({"hello)";
+builder << R"(": "hello)";
+builder << R"(helllooo"})";
+
+manapi::json res = builder.get().unwrap();
+
+// Alternative approach:
+
+manapi::json_builder builder();
+
+builder.parse(R"({"hello)").unwrap();
+builder.parse(R"(": "hello)").unwrap();
+builder.parse(R"(helllooo"})").unwrap();
+
+manapi::json res = builder.get().unwrap();
+```
+
+<Callout title="Why is this useful?">
+```manapi::json_builder``` combined with ```manapi::json_mask``` is used by the HTTP layer to process chunked data.
+</Callout>
+
+This approach provides early error detection - if the body is large and contains an error in the middle, it will fail immediately without processing the entire input.
+
+```cpp
+manapi::json_mask mask = {
+    {"hello", R"({string(<16)})"}
+};
+
+// ✅ Valid usage:
+
+manapi::json_builder builder(mask);
+builder << R"({"hello)";
+builder << R"(": "hello)";
+builder << R"(helllooo"})";
+
+auto obj = builder.get().unwrap();
+
+...
+
+// ❌ Invalid usage (string too long):
+
+manapi::json_builder builder(mask);
+builder << R"({"hello)";
+builder << R"(": "hello)";
+// Generates an error - string exceeds maximum length
+builder << R"(hellloooooooooooooooooooooooooo)";
+builder << R"(o"})";
+
+auto obj = builder.get().unwrap();
+```

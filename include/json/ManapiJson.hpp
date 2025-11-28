@@ -425,14 +425,44 @@ namespace manapi {
 
         template<typename T>
         requires(std::is_integral_v<T>)
-        json operator*= (const T &n) {
-            return this->operator*(static_cast<INTEGER>(n));
+        json &operator*= (const T &n) {
+            return this->operator*=(static_cast<INTEGER>(n));
         }
 
         template<typename T>
         requires(std::is_floating_point_v<T>)
-        json operator*= (const T &n) {
-            return this->operator* (static_cast<DECIMAL>(n));
+        json &operator*= (const T &n) {
+            return this->operator*=(static_cast<DECIMAL>(n));
+        }
+
+        json operator/ (INTEGER num) const;
+        json operator/ (DECIMAL num) const;
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        json operator/ (const T &n) const {
+            return this->operator/ (static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        json operator/ (const T &n) const {
+            return this->operator/ (static_cast<DECIMAL>(n));
+        }
+
+        json &operator/= (INTEGER num);
+        json &operator/= (DECIMAL num);
+
+        template<typename T>
+        requires(std::is_integral_v<T>)
+        json &operator/= (const T &n) {
+            return this->operator/=(static_cast<INTEGER>(n));
+        }
+
+        template<typename T>
+        requires(std::is_floating_point_v<T>)
+        json &operator/= (const T &n) {
+            return this->operator/= (static_cast<DECIMAL>(n));
         }
 
         json operator- (INTEGER num) const;

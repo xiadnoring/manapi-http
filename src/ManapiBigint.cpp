@@ -125,21 +125,22 @@ double manapi::bigint::decimalify() const {
 }
 
 manapi::bigint manapi::bigint::operator+(const manapi::bigint &oth) const {
-    bigint n;
+    bigint n (*this);
 
-    n.precision(mpf_get_prec (this->x->m));
-
-    mpf_add (n.x->m, this->x->m, oth.x->m);
+    mpf_add (n.x->m, n.x->m, oth.x->m);
 
     return std::move(n);
 }
 
 manapi::bigint manapi::bigint::operator+(ssize_t oth) const {
-    bigint n;
+    bigint n (*this);
 
-    n.precision(mpf_get_prec (this->x->m));
-
-    mpf_add_ui (n.x->m, this->x->m, oth);
+    if (oth > 0) {
+        mpf_add_ui (n.x->m, n.x->m, oth);
+    }
+    else {
+        mpf_sub_ui (n.x->m, n.x->m, -oth);
+    }
 
     return std::move(n);
 }
@@ -209,8 +210,12 @@ manapi::bigint manapi::bigint::operator-(ssize_t oth) const {
 
     n.precision(mpf_get_prec (this->x->m));
 
-    mpf_sub_ui (n.x->m, this->x->m, oth);
-
+    if (oth > 0) {
+        mpf_sub_ui (n.x->m, this->x->m, oth);
+    }
+    else {
+        mpf_add_ui (n.x->m, this->x->m, -oth);
+    }
     return std::move(n);
 }
 
@@ -312,22 +317,22 @@ manapi::bigint& manapi::bigint::operator*=(const manapi::bigint &oth) {
 }
 
 manapi::bigint& manapi::bigint::operator*=(ssize_t oth) {
-    *this = *this / oth;
+    *this = *this * oth;
     return *this;
 }
 
 manapi::bigint& manapi::bigint::operator*=(int oth) {
-    *this = *this / oth;
+    *this = *this * oth;
     return *this;
 }
 
 manapi::bigint& manapi::bigint::operator*=(double oth) {
-    *this = *this / oth;
+    *this = *this * oth;
     return *this;
 }
 
 manapi::bigint& manapi::bigint::operator*=(long double oth) {
-    *this = *this / oth;
+    *this = *this * oth;
     return *this;
 }
 

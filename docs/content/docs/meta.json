@@ -3,6 +3,8 @@
     "pages": [
         "---Introduction---", 
         "intro/install", 
-        "intro/quick-start"
+        "intro/quick-start",
+        "---Data Formats---",
+        "data-formats/json"
     ]
 }

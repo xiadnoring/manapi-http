@@ -690,66 +690,33 @@ manapi::json &manapi::json::operator=(const std::initializer_list <json> &data) 
 
 manapi::json manapi::json::operator*(INTEGER num) const {
     auto n = *this;
-    if (n.is_integer())
-        n.as_integer() *= num;
-#ifdef MANAPIHTTP_BIGINT_SUPPORT
-    else if (n.is_bigint())
-        n.as_bigint() *= num;
-#endif
-    else if (n.is_decimal())
-        n.as_decimal() *= num;
-    else
-        THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
-
+    n *= num;
     return std::move(n);
 }
 
 manapi::json manapi::json::operator*(DECIMAL num) const {
     auto n = *this;
-
-    if (n.is_integer())
-        n.as_integer() += static_cast<INTEGER>(num);
-
-#ifdef MANAPIHTTP_BIGINT_SUPPORT
-    else if (n.is_bigint())
-        n.as_bigint() += num;
-
-#endif
-    else if (n.is_decimal())
-        n.as_decimal() += num;
-
-    else
-        THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
-
+    n *= num;
     return std::move(n);
 }
 
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
 manapi::json manapi::json::operator*(const BIGINT &num) const {
     auto n = *this;
-
-    if (n.is_integer())
-        n.as_integer() += num.integerify();
-    else if (n.is_bigint())
-        n.as_bigint() += num;
-    else if (n.is_decimal())
-        n.as_decimal() += num.decimalify();
-    else
-        THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
-
+    n *= num;
     return std::move(n);
 }
 #endif
 
 manapi::json &manapi::json::operator*=(INTEGER num) {
     if (this->is_integer())
-        this->as_integer() += num;
+        this->as_integer() *= num;
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
     else if (this->is_bigint())
-        this->as_bigint() += num;
+        this->as_bigint() *= num;
 #endif
     else if (this->is_decimal())
-        this->as_decimal() += num;
+        this->as_decimal() *= num;
     else
         THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
     return *this;
@@ -757,13 +724,53 @@ manapi::json &manapi::json::operator*=(INTEGER num) {
 
 manapi::json &manapi::json::operator*=(DECIMAL num) {
     if (this->is_integer())
-        this->as_integer() += static_cast<INTEGER>(num);
+        this->as_integer() *= static_cast<INTEGER>(num);
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
     else if (this->is_bigint())
-        this->as_bigint() += num;
+        this->as_bigint() *= num;
 #endif
     else if (this->is_decimal())
-        this->as_decimal() += num;
+        this->as_decimal() *= num;
+    else
+        THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
+    return *this;
+}
+
+manapi::json manapi::json::operator/(INTEGER num) const {
+    auto n = *this;
+    n /= num;
+    return std::move(n);
+}
+
+manapi::json manapi::json::operator/(DECIMAL num) const {
+    auto n = *this;
+    n /= num;
+    return std::move(n);
+}
+
+manapi::json & manapi::json::operator/=(INTEGER num) {
+    if (this->is_integer())
+        this->as_integer() /= static_cast<INTEGER>(num);
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+    else if (this->is_bigint())
+        this->as_bigint() /= num;
+#endif
+    else if (this->is_decimal())
+        this->as_decimal() /= num;
+    else
+        THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
+    return *this;
+}
+
+manapi::json & manapi::json::operator/=(DECIMAL num) {
+    if (this->is_integer())
+        this->as_integer() /= static_cast<INTEGER>(num);
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+    else if (this->is_bigint())
+        this->as_bigint() /= num;
+#endif
+    else if (this->is_decimal())
+        this->as_decimal() /= num;
     else
         THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
     return *this;
@@ -772,11 +779,11 @@ manapi::json &manapi::json::operator*=(DECIMAL num) {
 #ifdef MANAPIHTTP_BIGINT_SUPPORT
 manapi::json &manapi::json::operator*=(const BIGINT &num) {
     if (this->is_integer())
-        this->as_integer() += num.integerify();
+        this->as_integer() *= num.integerify();
     else if (this->is_bigint())
-        this->as_bigint() += num;
+        this->as_bigint() *= num;
     else if (this->is_decimal())
-        this->as_decimal() += num.decimalify();
+        this->as_decimal() *= num.decimalify();
     else
         THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
     return *this;
@@ -1209,6 +1216,9 @@ manapi::json::INTEGER manapi::json::as_integer_cast() const {
     if (this->type == type_decimal) {
         // long double to long long
         return static_cast <json::INTEGER> (as_decimal());
+    }
+    if (this->type == type_boolean) {
+        return static_cast <json::INTEGER> (as_bool());
     }
     THROW_MANAPIHTTP_JSON_MISSING_FUNCTION;
 }

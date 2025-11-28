@@ -266,4 +266,144 @@ UTEST(json, dump_3) {
 
 #endif
 
+UTEST(json, object_insert) {
+    manapi::json a = manapi::json::object();
+    a.insert({"hello", "world"});
+    ASSERT_TRUE(a["hello"] == "world");
+}
+
+UTEST(json, object_logic) {
+    manapi::json a = {
+        {"hello", "world"},
+        {"world", "hello"}
+    };
+    a.erase("hello");
+    ASSERT_TRUE(!a.contains("hello"));
+    a.insert("hello", "world");
+    ASSERT_TRUE(a.contains("hello"));
+    a.find("hello");
+}
+
+UTEST(json, integer_logic) {
+    manapi::json a = 100;
+    a += 5;
+    ASSERT_TRUE(a == 105);
+    a -= 10;
+    ASSERT_TRUE(a == 95);
+    a *= 4;
+    ASSERT_TRUE(a == 380);
+    a /= 2;
+    ASSERT_TRUE(a == 190);
+    a = (a == 190);
+    ASSERT_TRUE(a.is_bool() && a == true);
+}
+
+UTEST(json, string_logic) {
+    manapi::json data = "hello";
+    ASSERT_TRUE(data.size() == 5);
+    data += " world";
+    ASSERT_TRUE(data.as_string() == "hello world");
+}
+
+UTEST(json, decimal_logic) {
+    manapi::json data = 100.0;
+    ASSERT_TRUE(data - 100.0 <= 0.1);
+    data /= 1.5;
+    ASSERT_TRUE(data - 66.667 <= 0.1);
+    data *= 2;
+    ASSERT_TRUE(data - 133.334 <= 0.1);
+    data += 0.6666666;
+    ASSERT_TRUE(data - 134 <= 0.1);
+    data -= 34;
+    ASSERT_TRUE(data - 100 <= 0.1);
+}
+
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+UTEST(json, bigint_logic) {
+    manapi::json data = manapi::bigint("100.0");
+    ASSERT_TRUE(data - 100.0 <= 0.1);
+    data /= 1.5;
+    ASSERT_TRUE(data - 66.667 <= 0.1);
+    data *= 2;
+    ASSERT_TRUE(data - 133.334 <= 0.1);
+    data += 0.6666666;
+    ASSERT_TRUE(data - 134 <= 0.1);
+    data -= 34;
+    ASSERT_TRUE(data - 100 <= 0.1);
+}
+#endif
+
+UTEST(json, bool_logic) {
+    manapi::json data = false;
+    ASSERT_TRUE(data == false);
+    ASSERT_TRUE(data == 0);
+
+    data = true;
+    ASSERT_TRUE(data == true);
+    ASSERT_TRUE(data == 1);
+}
+
+UTEST(json, array_logic) {
+    manapi::json data = manapi::json::array({"hello", "world", "no"});
+    auto size = data.size();
+    ASSERT_TRUE(size == 3);
+    std::size_t cnt = 0;
+    for (auto &item : data.each()) {
+        if (cnt==0) {
+            ASSERT_TRUE(item == "hello");
+        }
+        if (cnt == 1) {
+            ASSERT_TRUE(item == "world");
+        }
+        if (cnt == 2) {
+            ASSERT_TRUE(item == "no");
+        }
+        cnt ++;
+    }
+    ASSERT_TRUE(cnt == size);
+
+    data.push_back("yes");
+
+    ASSERT_TRUE(data.size() == 4);
+}
+
+UTEST(json, integer_comp) {
+    manapi::json data = 5;
+    ASSERT_TRUE(data == 5);
+    ASSERT_TRUE(data < 10);
+    ASSERT_TRUE(data > 2);
+    ASSERT_TRUE(data > -5);
+    ASSERT_TRUE(data >= 5);
+    ASSERT_TRUE(data <= 5);
+    ASSERT_TRUE(data <= 10);
+    ASSERT_TRUE(data >= -20);
+    ASSERT_TRUE(data != 2);
+}
+
+UTEST(json, decimal_comp) {
+    manapi::json data = 0.0;
+    ASSERT_TRUE(data == 0.0);
+    ASSERT_TRUE(data < 10.0);
+    ASSERT_TRUE(data > -10.0);
+    ASSERT_TRUE(data >= 0.0);
+    ASSERT_TRUE(data <= 0.0);
+    ASSERT_TRUE(data >= -0.5);
+    ASSERT_TRUE(data <= 10.2);
+    ASSERT_TRUE(data != 0.5);
+}
+
+#ifdef MANAPIHTTP_BIGINT_SUPPORT
+UTEST(json, bigint_comp) {
+    manapi::json data = manapi::bigint("0.0");
+    ASSERT_TRUE(data == 0.0);
+    ASSERT_TRUE(data < 10.0);
+    ASSERT_TRUE(data > -10.0);
+    ASSERT_TRUE(data >= 0.0);
+    ASSERT_TRUE(data <= 0.0);
+    ASSERT_TRUE(data >= -0.5);
+    ASSERT_TRUE(data <= 10.2);
+    ASSERT_TRUE(data != 0.5);
+}
+#endif
+
 UTEST_MAIN();
