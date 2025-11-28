@@ -40,6 +40,7 @@ jobs:
             build_type: Debug
 
     steps:
+    - uses: actions/checkout@v4
 
     - uses: dorny/paths-filter@v3
       id: filter
@@ -54,43 +55,37 @@ jobs:
           - 'cmake/**'
           - 'tests/**'
 
-    - uses: actions/checkout@v4
-      if: ${{ steps.filter.outputs.src == 'true' }}
-
     - name: Set up Python
       uses: actions/setup-python@v4
-      if: ${{ steps.filter.outputs.src == 'true' }}
       with:
         python-version: "3.11"
 
     - name: Install Conan
-      if: ${{ steps.filter.outputs.src == 'true' }}
       run: pip install conan==2.*
 
     - name: Cache Conan Dependencies (Windows Latest)
+      if: ${{ matrix.os == 'windows-latest' }}
       id: cache-conan-windows
-      if: ${{ steps.filter.outputs.src == 'true' }}
       uses: actions/cache@v4
       with:
         path: C:\Users\runneradmin\.conan2
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-${{ matrix.library_type }}
 
-    - if: ${{ (steps.filter.outputs.src == 'true') && ((matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true')) }}
+    - if: ${{ (matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true') }}
       name: Create default Conan profile
       run: conan profile detect --force
 
     - name: Conan install dependencies (shared)
-      if: ${{ (steps.filter.outputs.src == 'true') && (matrix.library_type == 'SHARED') }}
+      if: ${{ matrix.library_type == 'SHARED' }}
       run:  conan install . -s build_type=Debug -o "manapihttp/*:shared=False" -o "manapihttp/*:lib=True" -o "manapihttp/*:json_debug=False" -o "manapihttp/*:openssl_dependency=True" -o "manapihttp/*:wolfssl_dependency=False" -o "manapihttp/*:quiche_dependency=False" -o "manapihttp/*:tquic_dependency=False" -o "manapihttp/*:zlib_dependency=True" -o "manapihttp/*:curl_dependency=True" -o "manapihttp/*:gmp_dependency=True" -o "manapihttp/*:zstd_dependency=True" -o "manapihttp/*:brotli_dependency=True" -o "manapihttp/*:grpc_dependency=False" -o "manapihttp/*:nghttp2_dependency=True" -o "manapihttp/*:nghttp3_dependency=True" -o "manapihttp/*:cpptrace_dependency=False" -b=missing
       # run: conan install . -s build_type=Debug -o "manapihttp/*:shared=True" -o "manapihttp/*:lib=True" -o "manapihttp/*:json_debug=False" -o "manapihttp/*:openssl_dependency=False" -o "manapihttp/*:wolfssl_dependency=False" -o "manapihttp/*:quiche_dependency=False" -o "manapihttp/*:tquic_dependency=False" -o "manapihttp/*:zlib_dependency=False" -o "manapihttp/*:curl_dependency=False" -o "manapihttp/*:gmp_dependency=False" -o "manapihttp/*:zstd_dependency=False" -o "manapihttp/*:brotli_dependency=False" -o "manapihttp/*:grpc_dependency=False" -o "manapihttp/*:nghttp2_dependency=False" -o "manapihttp/*:nghttp3_dependency=False" -o "manapihttp/*:cpptrace_dependency=False" -b=missing
 
     - name: Conan install dependencies (static)
-      if: ${{ (steps.filter.outputs.src == 'true') && (matrix.library_type == 'STATIC') }}
+      if: ${{ matrix.library_type == 'STATIC' }}
       run: conan install . -s build_type=Debug -o "manapihttp/*:shared=True" -o "manapihttp/*:lib=True" -o "manapihttp/*:json_debug=False" -o "manapihttp/*:openssl_dependency=True" -o "manapihttp/*:wolfssl_dependency=False" -o "manapihttp/*:quiche_dependency=False" -o "manapihttp/*:tquic_dependency=False" -o "manapihttp/*:zlib_dependency=True" -o "manapihttp/*:curl_dependency=True" -o "manapihttp/*:gmp_dependency=True" -o "manapihttp/*:zstd_dependency=True" -o "manapihttp/*:brotli_dependency=True" -o "manapihttp/*:grpc_dependency=False" -o "manapihttp/*:nghttp2_dependency=True" -o "manapihttp/*:nghttp3_dependency=True" -o "manapihttp/*:cpptrace_dependency=False" -b=missing
       # run: conan install . -s build_type=Debug -o "manapihttp/*:shared=True" -o "manapihttp/*:lib=True" -o "manapihttp/*:json_debug=False" -o "manapihttp/*:openssl_dependency=False" -o "manapihttp/*:wolfssl_dependency=False" -o "manapihttp/*:quiche_dependency=False" -o "manapihttp/*:tquic_dependency=False" -o "manapihttp/*:zlib_dependency=False" -o "manapihttp/*:curl_dependency=False" -o "manapihttp/*:gmp_dependency=False" -o "manapihttp/*:zstd_dependency=False" -o "manapihttp/*:brotli_dependency=False" -o "manapihttp/*:grpc_dependency=False" -o "manapihttp/*:nghttp2_dependency=False" -o "manapihttp/*:nghttp3_dependency=False" -o "manapihttp/*:cpptrace_dependency=False" -b=missing
 
     - name: Clean up
-      if: ${{ steps.filter.outputs.src == 'true' }}
       run: conan cache clean "*/*"
 
     - name: Configure CMake

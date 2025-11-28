@@ -38,6 +38,8 @@ jobs:
             library_type: STATIC
 
     steps:
+    - uses: actions/checkout@v4
+
     - uses: dorny/paths-filter@v3
       id: filter
       with:
@@ -51,21 +53,16 @@ jobs:
           - 'cmake/**'
           - 'tests/**'
 
-    - uses: actions/checkout@v4
-      if: ${{ steps.filter.outputs.src == 'true' }}
-
     - name: Set up Python
-      if: ${{ steps.filter.outputs.src == 'true' }}
       uses: actions/setup-python@v4
       with:
         python-version: "3.11"
 
     - name: Install Conan
-      if: ${{ steps.filter.outputs.src == 'true' }}
       run: pip install conan==2.*
 
     - name: Cache Conan Dependencies (Ubuntu Latest)
-      if: ${{ steps.filter.outputs.src == 'true' && matrix.os == 'ubuntu-latest' }}
+      if: ${{ matrix.os == 'ubuntu-latest' }}
       id: cache-conan-ubuntu
       uses: actions/cache@v4
       with:
@@ -73,14 +70,14 @@ jobs:
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
 
     - name: Cache Conan Dependencies (Windows Latest)
-      if: ${{ steps.filter.outputs.src == 'true' && matrix.os == 'windows-latest' }}
+      if: ${{ matrix.os == 'windows-latest' }}
       id: cache-conan-windows
       uses: actions/cache@v4
       with:
         path: C:\Users\runneradmin\.conan2
         key: conan-${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.library_type }}
 
-    - if: ${{ (steps.filter.outputs.src == 'true') && ((matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true')) }}
+    - if: ${{ (matrix.os == 'ubuntu-latest' && steps.cache-conan-ubuntu.outputs.cache-hit != 'true') || (matrix.os == 'windows-latest' && steps.cache-conan-windows.outputs.cache-hit != 'true') }}
       name: Create default Conan profile
       run: conan profile detect --force
 
@@ -108,7 +105,6 @@ jobs:
             --build=missing
 
     - name: Clean up
-      if: ${{ steps.filter.outputs.src == 'true' }}
       run: conan cache clean "*/*"
 
     - name: Configure CMake
