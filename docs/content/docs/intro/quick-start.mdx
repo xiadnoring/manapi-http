@@ -1,75 +1,67 @@
 ---
-title: Quick start
-description: Quick Start
+title: Quick Start
+description: Getting Started with Coding
 ---
 
-After installation, include the library using CMakeLists.txt.
+After installation, include the library in your CMakeLists.txt.
 
 ## Preparation
 
-Import the ManapiHttp library to your project.
-
-
+Import the ManapiHttp library into your project.
 
 ### Using System Libraries (Default)
 ```cmake
-find_package(Threads REQUIRED)
-find_package(ManapiHttp REQUIRED)
+find_package(manapihttp REQUIRED)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads manapihttp)
+target_link_libraries(${PROJECT_NAME} manapihttp)
 ```
 
 ### Using Conan
 ```cmake
 find_package(manapihttp REQUIRED)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE manapihttp::manapihttp)
+target_link_libraries(${PROJECT_NAME} manapihttp::manapihttp)
 ```
-
-<Callout title="Build shared libraries">
-    Be careful to link again shared libraries to avoid undefined symbols error.
-</Callout>
 
 ## Build
 
-All preparations were completed. Let's write the "Hello, World!" program.
+Once all preparations are complete, let's write a "Hello, World!" program.
 
-```c++
+```cpp
 #include <iostream>
 #include <format>
 
 #include <manapihttp/ManapiInitTools.hpp>
 #include <manapihttp/ManapiHttp.hpp>
-#include <manapihttp/ManapiFilesystem.hpp>
+#include <manapihttp/fs/ManapiFilesystem.hpp>
 
-int main (int argc, char *argv[]) {
-    /* enable low level log tracing */
-    manapi::init_tools::log_trace_init (manapi::debug::LOG_TRACE_LOW);
-    /* creates 2 threads for blocking I/O syscalls */
+int main(int argc, char *argv[]) {
+    /* Enable low-level log tracing */
+    manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_LOW);
+    /* Create 2 threads for blocking I/O system calls */
     manapi::async::context::threadpoolfs(2);
-    /* disable several signals */
-    manapi::async::context::gbs = manapi::async::context::blockedsignals();
+    /* Disable several signals */
+    manapi::async::context::gbs(manapi::async::context::blockedsignals());
+    /* Create main context */
     auto ctx = manapi::async::context::create().unwrap();
-    /* handle interrupt signals */
-    ctx->eventloop()->setup_handle_interrupt();
-    /* HTTP context for multiple HTTP routers (one by thread only) */
+    /* HTTP context for multiple HTTP routers (thread-safe) */
     auto router_ctx = manapi::net::http::server_ctx::create().unwrap();
 
-    manapi::async::context::run (ctx, [router_ctx] () -> manapi::future<> {
+    ctx->run([router_ctx](std::function<void()> bind) -> void {
         using http = manapi::net::http::server;
-        auto router = manapi::net::http::server::create (router_ctx).unwrap();
+        auto router = manapi::net::http::server::create(router_ctx).unwrap();
 
-        router.GET ("/", [] (http::req &req, http::uresp resp) -> void {
+        router.GET("/", [](http::req &req, http::uresp resp) -> void {
             resp->text("Hello, World!").unwrap();
         }).unwrap();
 
-        router.GET ("/stop", [] (http::req &req, http::resp &resp) -> manapi::future<> {
+        router.GET("/stop", [](http::req &req, http::resp &resp) -> manapi::future<> {
             auto res = co_await manapi::async::current()->stop();
             resp->text(std::format("status: {}", res.msg())).unwrap();
         }).unwrap();
 
-        manapi::async::run ([router] () mutable -> manapi::future<> {
-            auto res = co_await router->config_object ({
+        manapi::async::run([router]() mutable -> manapi::future<> {
+            auto res = co_await router->config_object({
                 {"pools", {
                     {"address", "127.0.0.1"},
                     {"port", "8888"},
@@ -79,11 +71,12 @@ int main (int argc, char *argv[]) {
             });
             res.unwrap();
 
-            res = co_await router->start ();
+            res = co_await router->start();
             res.unwrap();
         });
+        
+        bind();
     });
 
     return 0;
 }
-```

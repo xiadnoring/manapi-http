@@ -1,112 +1,59 @@
 ---
 title: Installation
-description: How to install that library
+description: How to install the library
 ---
-## Introduction
-There are two ways to install the library: installation using conan and installation using system shared libraries.
 
-I thought about creating dependencies in the project directory too, but I don't need this build method yet.
+## Precompiled Binaries
+The easiest way to install the library is to download it from the releases page.
+Typically, several precompiled packages are available.
 
-## Using system libraries
-At the first stage, you need to clone this github project with from [the following link](https://github.com/xiadnoring/manapi-http)
-and download dependencies from the os repositories for Arch Linux, Ubuntu; or you need to compile it from the source.
-- **libuv is required** [1.49.2 or greater](https://dist.schmorp.de/libev/Attic/libev-4.33.tar.gz)
-- OpenSSL is optional [3.4.1 or greater](https://github.com/openssl/openssl/releases/tag/openssl-3.4.1)
-- zlib is optional [1.3.1 or greater](https://github.com/madler/zlib/releases/tag/v1.3.1)
-- gmp is optional [6.3.0 or greater](https://gmplib.org/download/gmp/gmp-6.3.0.tar.bz2)
-- curl is optional [8.8.0 or greater](https://github.com/curl/curl/releases/tag/curl-8_13_0)
-- wolfssl is optional [5.0.0 or greater](https://github.com/wolfSSL/wolfssl/releases/tag/v5.7.6-stable)
-- quiche is optional [0.23.0 or greater](https://github.com/cloudflare/quiche/releases/tag/0.23.5)
-- nghttp2 is optional 1.59.0 or greater
-- nghttp3 is optional 1.6.0 or greater
-- brotli is optional 1.1.0 or greater
-- cpptrace is optional 0.74.1 or greater
-- grpc is optional 1.72.0 or greater
-- zstd is optional 1.5.5 or greater
-### Arch Linux
+## Compile from Source
+If the package you need isn't available on the releases page, you can compile the project yourself.
 
-#### Pacman & Yay
-```bash
-sudo pacman -Sy libevdev libev
-```
-
+First, clone the project from https://github.com/xiadnoring/manapi-http and install all required dependencies.
+Then configure the project parameters and start the compilation.
 
 ```bash
-# optional
-sudo pacman -Sy quiche gmp openssl zlib curl
+cmake -B build -DMANAPIHTTP_BUILD_TYPE="lib" \
+    -DMANAPIHTTP_JSON_DEBUG=ON \
+    -DMANAPIHTTP_BUILD_METHOD="default" \
+    -DMANAPIHTTP_QUICHE_DEPENDENCY=ON \
+    -DMANAPIHTTP_OPENSSL_DEPENDENCY=ON \
+    -DMANAPIHTTP_WOLFSSL_DEPENDENCY=OFF \
+    -DMANAPIHTTP_GRPC_DEPENDENCY=ON \
+    -DMANAPIHTTP_BROTLI_DEPENDENCY=ON \
+    -DMANAPIHTTP_ZSTD_DEPENDENCY=ON \
+    -DMANAPIHTTP_NGHTTP2_DEPENDENCY=ON \
+    -DMANAPIHTTP_CPPTRACE_DEPENDENCY=OFF \
+    -DMANAPIHTTP_NGHTTP3_DEPENDENCY=ON \
+    -DMANAPIHTTP_ENABLE_TESTS=ON \
+    -DMANAPIHTTP_STD_BACKTRACE_DEPENDENCY=ON \
+    -DBUILD_SHARED_LIBS=ON
 ```
 
-#### Paru
-```bash
-paru -Sy libev libevdev
-```
-
-```bash
-# optional
-sudo paru -Sy quiche gmp openssl zlib curl
-```
-
-### Ubuntu
-
-#### Apt-Get
-```bash
-sudo apt-get install libev-dev
-```
+Build the project:
 
 ```bash
-# optional
-sudo apt-get install libgmp3-dev libssl-dev zlib1g-dev libcurl4-openssl-dev
+cmake --build build
 ```
 
-### Build & Install
-
-Execute cmake to build and install manapihttp library
-
-#### Setup
-```bash
-cmake -B ./build -DCMAKE_BUILD_TYPE=Release -DMANAPIHTTP_BUILD_METHOD="default" -DBUILD_SHARED_LIBS=ON -DMANAPIHTTP_BUILD_TYPE=lib \
-    -DMANAPIHTTP_OPENSSL_DEPENDENCY=ON -DMANAPIHTTP_WOLFSSL_DEPENDENCY=ON \
-    -DMANAPIHTTP_GMP_DEPENDENCY=ON -DMANAPIHTTP_ZLIB_DEPENDENCY=ON -DMANAPIHTTP_CURL_DEPENDENCY=ON -DMANAPIHTTP_QUICHE_DEPENDENCY=ON \
-    -DMANAPIHTTP_TQUIC_DEPENDENCY=ON -DMANAPIHTTP_MSQUIC_DEPENDENCY=ON -MANAPIHTTP_JSON_DEBUG=ON \
-    -DMANAPIHTTP_ZSTD_DEPENDENCY=ON -DMANAPIHTTP_BROTLI_DEPENDENCY=ON -DMANAPIHTTP_CPPTRACE_DEPENDENCY=OFF \
-    -DMANAPIHTTP_NGHTTP2_DEPENDENCY=ON -DMANAPIHTTP_NGHTTP3_DEPENDENCY=ON \
-    -DMANAPIHTTP_DISABLE_TRACE=OFF -DMANAPIHTTP_DISABLE_TRACE_HARD=ON
-```
-
-#### Build
-```bash
-cmake --build ./build
-```
-
-#### Install
-```bash
-sudo cmake --install ./build
-```
-
-## Using conan
-Using conan you only need to clone this github project from the [the following link](https://github.com/xiadnoring/manapi-http) and
-create the conan package from the source using the bash-like commands bellow:
+And install:
 
 ```bash
-# quiche http3 backend (optional)
-conan create ./conan/quiche --version x.x.x
+cmake --install build
 ```
+
+### Using Conan v2
+
+You can use Conan v2 to manage dependencies for the library.
+Install Conan v2 on your system and download all dependencies by executing the following command in the library directory:
 
 ```bash
-# create manapi-http package
-conan create . --version x.x.x \
-    -o "manapihttp/*:shared=False" -o "manapihttp/*:json_debug=False" \
-    -o "manapihttp/*:wolfssl_dependency=False" -o "manapihttp/*:openssl_dependency=True" \
-    -o "manapihttp/*:quiche_dependency=True" -o "manapihttp/*:tquic_dependency=False" \
-    -o "manapihttp/*:curl_dependency=True" -o "manapihttp/*:gmp_dependency=True" \
-    -o "manapihttp/*:zlib_dependency=True" -o "manapihttp/*:lib=True" \
-    -o "manapihttp/*:zstd_dependency=True" -o "manapihttp/*:brotli_dependency=True" \
-    -o "manapihttp/*:cpptrace_dependency=False" -o "manapihttp/*:nghttp2_dependency=True" \
-    -o "manapihttp/*:nghttp3_dependency=True"
+conan create . -o "manapihttp/*:shared=True" -o "manapihttp/*:openssl_dependency=True" -o "manapihttp/*:quiche_dependency=True" -o "manapihttp/*:grpc_dependency=True" -o "manapihttp/*:zlib_dependency=True" -o "manapihttp/*:nghttp2_dependency=True" \
+ -o "manapihttp/*:nghttp3_dependency=True" -o "manapihttp/*:lib=True" -o "manapihttp/*:wolfssl_dependency=False" --build missing --settings=build_type=Debug -o "manapihttp/*:curl_dependency=True" -o "abseil/*:shared=True" -o "grpc/*:shared=True" -o "protobuf/*:shared=True" --settings=compiler.cppstd=23
 ```
 
-## Using fetch
+### Experimental Method
 
-<Callout title="Will be soon">
-    Currenly it is in development
-</Callout>
+Another way to download dependencies is using CMake's fetch mode.
+Set the ```MANAPIHTTP_BUILD_METHOD``` parameter to ```fetch``` and set ```MANAPIHTTP_DEPENDENCY_FETCH_SHARED``` to ```ON``` if you want to build shared libraries.
