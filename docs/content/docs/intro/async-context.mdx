@@ -1,0 +1,276 @@
+---
+title: Async Context
+description: About Async Context
+---
+
+## Concept
+When an application starts, we create multiple threads, each with its own async context. Each context contains its own EventLoop, TimerPool, and TaskPool, all running in the same thread.
+
+The context that executes the ```manapi::async::context::run``` method can create copies of itself.
+
+<Callout title="Note">Each thread can only contain one async context at the same time.</Callout>
+
+### Example
+
+```cpp
+#include <thread>
+
+#include <manapihttp/ManapiEventLoop.hpp>
+#include <manapihttp/std/ManapiAsyncContext.hpp>
+
+int main(int argc, char *argv[]) {
+    manapi::async::context::threadpoolfs(4);
+    auto blockedsignals = manapi::async::context::blockedsignals();
+    auto ctx = manapi::async::context::create(/*threadnum*/ 4).unwrap();
+
+    std::atomic<int> runs;
+    // Creates 4 copies of itself
+    ctx->run(4, [&runs](std::function<void()> bind) -> void {
+        manapi_log_debug("Async Context #%d has started. threadid=%zu", 
+            runs.fetch_add(1), std::hash<std::thread::id>{}(std::this_thread::get_id()));
+        bind();
+    });
+
+    return 0;
+}
+```
+
+Output:
+```bash
+DEBUG main.cpp:12: Async Context #0 has started. threadid=12782699731343853225
+DEBUG main.cpp:12: Async Context #1 has started. threadid=12997127320206271399
+DEBUG main.cpp:12: Async Context #2 has started. threadid=12543349191528547103
+DEBUG main.cpp:12: Async Context #3 has started. threadid=4417295317971758371
+DEBUG main.cpp:12: Async Context #4 has started. threadid=17555092437611076153
+```
+
+## TaskPool
+
+```TaskPool``` is unique to each ```EventLoop```. You can add tasks to the ```EventLoop``` that will be executed in the next iteration.
+
+```cpp
+#include <manapihttp/ManapiEventLoop.hpp>
+#include <manapihttp/ManapiThreadPool.hpp>
+#include <manapihttp/std/ManapiAsyncContext.hpp>
+
+int main(int argc, char *argv[]) {
+    manapi::async::context::threadpoolfs(4);
+    auto blockedsignals = manapi::async::context::blockedsignals();
+    auto ctx = manapi::async::context::create(/*threadnum*/ 4).unwrap();
+
+    std::atomic<int> runs;
+    ctx->run(4, [&runs](std::function<void()> bind) -> void {
+        manapi::async::current()->etaskpool()->append_task([&runs]() -> void {
+            manapi_log_debug("Hello from Context #%d", runs.fetch_add(1));
+        });
+
+        bind();
+    });
+
+    return 0;
+}
+```
+
+Output:
+```bash
+DEBUG main.cpp:16: Hello from Context #0
+DEBUG main.cpp:16: Hello from Context #2
+DEBUG main.cpp:16: Hello from Context #3
+DEBUG main.cpp:16: Hello from Context #1
+DEBUG main.cpp:16: Hello from Context #4
+```
+
+<Callout title="Information">Instead of ```append_task()```, you can use ```append_static_task()```, which avoids dynamic memory allocation and stores only **64 bytes** of information.</Callout>
+
+## TimerPool
+
+TimerPool manages timeouts and intervals. Each timer has a priority level:
+
+- **```TIMER_IMPORTANT```**  
+The Async Context will continue running until no important timers remain.
+
+```cpp
+#include <manapihttp/ManapiEventLoop.hpp>
+#include <manapihttp/ManapiTimerPool.hpp>
+#include <manapihttp/ManapiThreadPool.hpp>
+#include <manapihttp/std/ManapiAsyncContext.hpp>
+
+int main(int argc, char *argv[]) {
+    manapi::async::context::threadpoolfs(4);
+    auto blockedsignals = manapi::async::context::blockedsignals();
+    auto ctx = manapi::async::context::create(/*threadnum*/ 4).unwrap();
+
+    ctx->run([](std::function<void()> bind) -> void {
+        manapi::async::current()->timerpool()->append_timer_sync(5000, manapi::TIMER_IMPORTANT, [](auto t) -> void {
+            manapi_log_debug("5000ms timeout reached");
+        });
+
+        manapi::async::run(manapi::async::current()->stop());
+
+        bind();
+    });
+
+    return 0;
+}
+```
+
+This code will print ```5000ms timeout reached``` and then terminate.
+
+- **```TIMER_DEFAULT```**  
+The Async Context does not wait for these timers to complete.
+
+```cpp
+#include <manapihttp/ManapiEventLoop.hpp>
+#include <manapihttp/ManapiTimerPool.hpp>
+#include <manapihttp/ManapiThreadPool.hpp>
+#include <manapihttp/std/ManapiAsyncContext.hpp>
+
+int main(int argc, char *argv[]) {
+    manapi::async::context::threadpoolfs(4);
+    auto blockedsignals = manapi::async::context::blockedsignals();
+    auto ctx = manapi::async::context::create(/*threadnum*/ 4).unwrap();
+
+    ctx->run([](std::function<void()> bind) -> void {
+        manapi::async::current()->timerpool()->append_timer_sync(5000, [](auto t) -> void {
+            manapi_log_debug("5000ms timeout reached");
+        });
+
+        manapi::async::run(manapi::async::current()->stop());
+
+        bind();
+    });
+
+    return 0;
+}
+```
+
+This code may not print the message unless the ```EventLoop``` remains active for more than 5 seconds.
+
+### Methods
+
+TimerPool provides four main methods:
+
+```cpp
+// After 5 seconds (synchronous)
+manapi::async::current()->timerpool()->append_timer_sync(5000, [](manapi::timer t) -> void {
+    manapi_log_debug("5000ms timeout reached");
+});
+
+// After 5 seconds (asynchronous)
+manapi::async::current()->timerpool()->append_timer_async(5000, [](manapi::timer t) -> manapi::future<> {
+    manapi_log_debug("5000ms timeout reached");
+    co_return;
+});
+
+// Every 5 seconds (synchronous)
+manapi::async::current()->timerpool()->append_interval_sync(5000, [](manapi::timer t) -> void {
+    manapi_log_debug("5000ms interval reached");
+});
+
+// Every 5 seconds (asynchronous)
+manapi::async::current()->timerpool()->append_interval_async(5000, [](manapi::timer t) -> manapi::future<> {
+    manapi_log_debug("5000ms interval reached");
+    co_return;
+});
+```
+
+### Timer Control
+
+You can stop an active ```Timer``` at any time using the ```stop()``` method:
+
+```cpp
+// Every 5 seconds
+manapi::async::current()->timerpool()->append_interval_sync(5000, [a = 0](manapi::timer t) mutable -> void {
+    manapi_log_debug("5000ms interval reached");
+    if (++a == 2) {
+        // Immediately stop the timer
+        t.stop();
+    }
+});
+```
+
+Output:
+```bash
+DEBUG main.cpp:16: 5000ms interval reached
+DEBUG main.cpp:16: 5000ms interval reached
+```
+
+You can also use the ```again()``` method to reactivate or modify a timer:
+
+```cpp
+manapi::async::current()->timerpool()->append_interval_sync(1000, [a = 0](manapi::timer t) mutable -> void {
+    manapi_log_debug("%dms interval reached", t.interval().count());
+    ++a;
+    if (a == 2) {
+        t.again(200);
+    }
+    if (a == 5) {
+        t.stop();
+    }
+});
+```
+
+Output:
+```bash
+DEBUG main.cpp:16: 1000ms interval reached
+DEBUG main.cpp:16: 1000ms interval reached
+DEBUG main.cpp:16: 200ms interval reached
+DEBUG main.cpp:16: 200ms interval reached
+DEBUG main.cpp:16: 200ms interval reached
+```
+
+## Async Tasks
+To execute ```manapi::future<>``` tasks, use the ```manapi::async::run``` method:
+
+```cpp
+#include <manapihttp/ManapiEventLoop.hpp>
+#include <manapihttp/ManapiTimerPool.hpp>
+#include <manapihttp/ManapiFetch2.hpp>
+#include <manapihttp/ManapiThreadPool.hpp>
+#include <manapihttp/std/ManapiAsyncContext.hpp>
+
+int main(int argc, char *argv[]) {
+    manapi::async::context::threadpoolfs(4);
+    auto blockedsignals = manapi::async::context::blockedsignals();
+    auto ctx = manapi::async::context::create(/*threadnum*/ 4).unwrap();
+
+    ctx->run([](std::function<void()> bind) -> void {
+        // Execute future<> task
+        manapi::async::run([]() -> manapi::future<> {
+            auto fetch = manapi::unwrap(co_await manapi::net::fetch2::fetch(
+                "http://example.com"));
+            auto body = manapi::unwrap(co_await fetch.text());
+            manapi_log_debug("%s", body.data());
+        });
+
+        bind();
+    });
+
+    return 0;
+}
+```
+
+<Callout title="Note">```manapi::async::run``` executes the callback in the current scope immediately when called.</Callout>
+
+<Callout title="Warning" type="warn">Use ```manapi::async::invoke()``` if you need to wait for lambda execution. Otherwise, data stored in the lambda may be destroyed prematurely.</Callout>
+
+```cpp
+manapi::async::run([]() -> manapi::future<> {
+    ...
+    co_await manapi::async::invoke([&]() -> manapi::future<> {
+        ...
+    });
+});
+```
+
+## Stopping Mechanism
+
+To stop the current context, use the asynchronous ```stop()``` method in the ```manapi::async::context``` class:
+
+```cpp
+ctx->run([](std::function<void()> bind) -> void {
+    // The current context will stop as soon as possible
+    manapi::async::run(manapi::async::current()->stop());
+    bind();
+});
+```

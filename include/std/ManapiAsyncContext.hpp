@@ -82,9 +82,11 @@ namespace manapi {
 #if defined (__unix__) || defined(__APPLE__)
     struct sigset_t : public ::sigset_t {};
 #else
+#   define MANAPIHTTP_SIGSET_NWORDS (1024 / (8 * sizeof (unsigned long int)))
     struct sigset_t {
-        char payload[1];
+        unsigned long int payload[MANAPIHTTP_SIGSET_NWORDS];
     };
+#   undef MANAPIHTTP_SIGSET_NWORDS
 #endif
 
     class event_loop;
