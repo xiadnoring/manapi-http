@@ -5,6 +5,8 @@
         "intro/install", 
         "intro/quick-start",
         "intro/syslogs",
+        "intro/threadpoolfs",
+        "intro/blockedsignals",
         "---Data Formats---",
         "data-formats/json"
     ]

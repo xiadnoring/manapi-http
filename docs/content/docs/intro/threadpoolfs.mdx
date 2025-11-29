@@ -1,0 +1,61 @@
+---
+title: ThreadPoolFs
+description: Thread Pool for Blocking Filesystem Operations
+---
+
+Operating systems contain many blocking operations. To handle these efficiently, ManapiHttp provides the ThreadPoolFs method, which sets up a thread pool specifically for blocking operations (particularly filesystem operations). Users can also add their own tasks to ThreadPoolFs. Note that ThreadPoolFs cannot be modified while the event loop is running.
+
+<Callout title="Information">The default size for ThreadPoolFs is 4 threads.</Callout>
+
+### Initialize ThreadPoolFs
+```cpp
+#include <manapihttp/std/ManapiAsyncContext.hpp>
+
+int main(int argc, char *argv[]) {
+    /* Configures event loops to use 2 threads for blocking I/O system calls */
+    manapi::async::context::threadpoolfs(2);
+
+    return 0;
+}
+```
+
+### Create a Task
+```cpp
+#include <chrono>
+#include <thread>
+
+#include <manapihttp/ManapiDebug.hpp>
+#include <manapihttp/ManapiEventLoop.hpp>
+#include <manapihttp/std/ManapiAsyncContext.hpp>
+
+int main(int argc, char *argv[]) {
+    manapi::async::context::threadpoolfs(2);
+    auto ctx = manapi::async::context::create().unwrap();
+
+    ctx->run([](std::function<void()> bind) -> void {
+        manapi::async::current()->eventloop()->append_task([](const manapi::ev::shared_work &w) -> void {
+            // This executes in a worker thread
+            assert(!manapi::async::context_exists());
+
+            std::chrono::seconds duration(5);
+            std::this_thread::sleep_for(duration);
+
+            manapi_log_debug("Waiting has finished");
+        }, [](const manapi::ev::shared_work &w, int status) -> void {
+            // This executes back in the main event loop thread
+            assert(manapi::async::context_exists());
+            
+            manapi_log_debug("Waiting has finished with status: %d", status);
+
+            // Stop the event loop
+            manapi::async::run(manapi::async::current()->eventloop()->stop());
+        });
+
+        manapi_log_debug("Waiting has started");
+
+        bind();
+    });
+
+    return 0;
+}
+```
