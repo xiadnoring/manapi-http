@@ -5,20 +5,15 @@ description: Setting Up System Logging
 
 ManapiHttp provides 5 levels of system logging:
 
-- **```LOG_TRACE_NONE```**  
-  No debug output
+- **```LOG_TRACE_NONE```** - No debug output
 
-- **```LOG_TRACE_HIGH```**  
-  Only critical messages will be printed
+- **```LOG_TRACE_HIGH```** - Only critical messages will be printed
 
-- **```LOG_TRACE_MEDIUM```**  
-  Some less important messages will also be printed
+- **```LOG_TRACE_MEDIUM```** - Some less important messages will also be printed
 
-- **```LOG_TRACE_LOW```**  
-  Almost all messages will be printed
+- **```LOG_TRACE_LOW```** -Almost all messages will be printed
 
-- **```LOG_TRACE_HARD```**  
-  All debug messages will be printed, including messages from TimerLoop, EventLoop, TCP and UDP
+- **```LOG_TRACE_HARD```** - All debug messages will be printed, including messages from TimerLoop, EventLoop, TCP and UDP
 
 <Callout title="Note">
 In release mode, messages with the ```LOG_TRACE_HARD``` level are removed.

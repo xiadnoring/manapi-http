@@ -86,8 +86,7 @@ DEBUG main.cpp:16: Hello from Context #4
 
 TimerPool manages timeouts and intervals. Each timer has a priority level:
 
-- **```TIMER_IMPORTANT```**  
-The Async Context will continue running until no important timers remain.
+- **```TIMER_IMPORTANT```** - The Async Context will continue running until no important timers remain.
 
 ```cpp
 #include <manapihttp/ManapiEventLoop.hpp>
@@ -116,8 +115,7 @@ int main(int argc, char *argv[]) {
 
 This code will print ```5000ms timeout reached``` and then terminate.
 
-- **```TIMER_DEFAULT```**  
-The Async Context does not wait for these timers to complete.
+- **```TIMER_DEFAULT```** - The Async Context does not wait for these timers to complete.
 
 ```cpp
 #include <manapihttp/ManapiEventLoop.hpp>

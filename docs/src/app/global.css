@@ -3,3 +3,12 @@
 @import 'fumadocs-ui/css/preset.css';
 
 @source '../../node_modules/fumadocs-ui/dist/**/*.js';
+
+:root {
+    --overlay-gradient1: color-mix(in srgb, #3451b2, transparent 55%);
+}
+
+.bg-colored {
+    background-color: linear-gradient(215deg, var(--overlay-gradient1), transparent 40%), radial-gradient(var(--overlay-gradient1), transparent 40%) no-repeat -60vw
+        -657.333px -40vh / 105vw 200vh, radial-gradient(var(--overlay-gradient1), transparent 65%) no-repeat 50% calc(100% + 20rem) / 60rem 30rem;
+}
