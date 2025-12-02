@@ -13,9 +13,11 @@ function initOrama(locale?: string) {
 export default function DefaultSearchDialog(props: SharedProps) {
     const client = useDocsSearch({
         type: 'static',
-        initOrama
+        initOrama,
+        from: '/manapi-http/api/search'
     });
 
+    
     return (<SearchDialog 
         onSearchChange={client.setSearch} 
         search={client.search} 

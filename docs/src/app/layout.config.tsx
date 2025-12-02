@@ -9,5 +9,5 @@ export const baseOptions: BaseLayoutProps = {
       </span>
     )
   },
-  githubUrl: "https://github.com/xiadnoring/manapi-http"
+  githubUrl: "https://github.com/xiadnoring/manapi-http",
 };
