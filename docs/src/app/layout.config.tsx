@@ -4,7 +4,7 @@ import { BookIcon } from 'lucide-react';
 export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
-      <span className='text-red-300'>
+      <span className='font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-300 to-purple-400'>
         Manapi Http
       </span>
     )
