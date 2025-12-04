@@ -1,0 +1,148 @@
+---
+
+title: Routers  
+description: Creating the First Pages  
+
+---
+
+## Server Context
+
+In Manapi Http, you can use HTTP with multithreading.  
+Because of this, you need to use `manapi::net::http::server_ctx`.
+
+To create it, use `manapi::net::http::server_ctx::create` before starting the context.
+
+```c++
+/* HTTP context for multiple HTTP routers (thread-safe) */
+auto router_ctx = manapi::net::http::server_ctx::create().unwrap();
+```
+
+You can then use the context in HTTP routers with `manapi::net::http::server::create`.
+
+```c++
+#include <manapihttp/ManapiHttp.hpp>
+#include <manapihttp/ManapiInitTools.hpp>
+
+int main() {
+    /* creates 2 threads for blocking I/O syscalls */
+    manapi::async::context::threadpoolfs(2);
+    /* disable several signals */
+    manapi::async::context::gbs(manapi::async::context::blockedsignals());
+    /* creates 4 additional threads for 4 additional event loops */
+    auto ctx = manapi::async::context::create(4).unwrap();
+    /* HTTP context for multiple HTTP routers (thread-safe) */
+    auto router_ctx = manapi::net::http::server_ctx::create().unwrap();
+    /* runs main event loop and 4 additional event loops */
+    ctx->run(4, [router_ctx](std::function<void()> bind) -> void {
+        using http = manapi::net::http::server;
+        
+        auto router = manapi::net::http::server::create(router_ctx).unwrap();
+
+        router.GET("/", [](http::req &req, http::uresp resp) mutable -> void {
+            resp->text("Hello World!").unwrap();
+            resp.finish(); // optional to define here
+        }).unwrap();
+
+        manapi::async::run([router]() mutable -> manapi::future<> {
+            manapi::unwrap(co_await router.config_object({
+                {"pools", manapi::json::array({
+                    {
+                        {"address", "127.0.0.1"},
+                        {"http", manapi::json::array({"1.1"})},
+                        {"port", "8888"}
+                    }
+                })},
+                {"save_config", false}
+            }));
+
+            manapi::unwrap(co_await router.start());
+        });
+
+        /* bind event loop in the current context */
+        bind();
+    }).unwrap();
+
+    manapi::clear_tools::curl_library_clear();
+    manapi::clear_tools::ev_library_clear();
+    manapi::clear_tools::ssl_library_clear();
+
+    return 0;
+}
+```
+
+`manapi::net::http::server` supports many methods:
+
+```c++
+router.GET("/", ...).unwrap();
+router.POST("/", ...).unwrap();
+router.HEAD("/", ...).unwrap();
+router.OPTIONS("/", ...).unwrap();
+router.PUT("/", ...).unwrap();
+router.PATCH("/", ...).unwrap();
+```
+
+<Callout title="Note">You can also use custom methods with `manapi::net::http::server::handler`.</Callout>
+
+### Sharing Pages
+
+You can share files using the `manapi::net::http::server::GET` method.
+
+```c++
+router.GET("/", "/path/to/folder", [](http::req &req, http::uresp resp) 
+    -> void { }).unwrap();
+```
+
+### Layer Pages
+
+You can create layers using the `+layer` keyword in the URL.
+
+```c++
+router.GET("/admin/+layer", [](http::req &req, http::uresp resp) mutable -> void {
+    if (req.ip_data().ip != "127.0.0.1") {
+        req.stop_propagation();
+        resp->text("error").unwrap();
+    }
+}).unwrap();
+
+router.GET("/admin/next/+layer", [](http::req &req, http::uresp resp) mutable -> void {
+    if (req.ip_data().port != "5555") {
+        req.stop_propagation();
+        resp->text("error").unwrap();
+    } else {
+        // If this code is reached,
+        // the user has IP 127.0.0.1 and port 5555.
+    }
+}).unwrap();
+```
+
+<Callout title="Note">Use `req.stop_propagation()` to prevent further execution of subsequent layers.</Callout>
+
+### Error Pages
+
+Display error pages for server errors or when a page does not exist.
+
+```c++
+router.GET("/+error", [](http::req &req, http::uresp resp) mutable -> void {
+    resp->text("something went wrong").unwrap();
+}).unwrap();
+```
+
+### Custom Page
+
+Show a page for URLs that start with a specified string.
+
+```c++
+router.GET("/[test]/+custom", [](http::req &req, http::uresp resp) mutable -> void {
+    resp->text(std::format("{}, test={}", 
+        std::string{req.url()}, req.param("test").unwrap())).unwrap();
+}).unwrap();
+```
+
+### URL Parameters
+
+Use `req.param()` to retrieve data from the URL.
+
+```c++
+resp->text(std::format("zone={} id={}", req.param("zone").unwrap(),
+                req.param("id").unwrap())).unwrap();
+```

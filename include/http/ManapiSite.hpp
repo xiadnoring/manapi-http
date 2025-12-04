@@ -108,6 +108,7 @@ namespace manapi::net::http {
         typedef std::move_only_function<manapi::error::status_or<std::string>(std::string_view data)> compress_str_cb_t;
 
         typedef std::function<std::shared_ptr<worker::base>(site site, std::shared_ptr<multithread_storage::worker_t> wdata, http::config* config)> implement_create_cb;
+
         typedef std::function<manapi::error::status_or<std::unique_ptr<worker::wrk_interface_global_t>> (worker::interface_worker *w)> implemenet_http_cb;
 
         struct data_t;

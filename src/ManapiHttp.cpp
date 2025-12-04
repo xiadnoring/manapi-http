@@ -39,6 +39,10 @@ struct manapi::net::http::server::data2_t : manapi::net::http::site::data_t {
     std::shared_ptr<ev::async> init_watcher;
 };
 
+manapi::net::http::server::server() : site() {
+
+}
+
 manapi::net::http::server::server(server_ctx sctx) : site() {
     auto amx = std::make_unique<async::mutex>();
     auto data = std::make_shared<data2_t>();

@@ -112,4 +112,14 @@ namespace manapi::string {
      * @return
      */
     std::size_t count (char c, std::string_view str) MANAPIHTTP_NOEXCEPT;
+
+    /**
+     * Replaces |from| to |to| in |s| and returns the number of substitutions
+     * @param s source string
+     * @param from substring
+     * @param to substring
+     * @param cnt maximum number of substitutions. -1 is infinity
+     * @return number of substitutions
+     */
+    ssize_t replace (std::string &s, std::string_view from, std::string_view to, ssize_t cnt = -1);
 }

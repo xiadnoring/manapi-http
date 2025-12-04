@@ -24,8 +24,17 @@ namespace manapi::net::http {
         using req = manapi::net::http::request &;
         using uresp = manapi::net::http::uresponse;
 
+        /**
+         * creates empty server
+         */
+        server();
 
+        /**
+         * initialize the server with the server ctx
+         * @param sctx the HTTP server context
+         */
         server(server_ctx sctx);
+
         /**
          * initialize the server with the server ctx
          * @param sctx the HTTP server context

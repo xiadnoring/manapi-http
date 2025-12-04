@@ -157,3 +157,24 @@ std::size_t manapi::string::count(char c, std::string_view str) MANAPIHTTP_NOEXC
     }
     return res;
 }
+
+ssize_t manapi::string::replace(std::string &s, std::string_view from, std::string_view to, ssize_t cnt) {
+    ssize_t res = 0;
+    ssize_t const shift = static_cast<ssize_t>(to.size()) - static_cast<ssize_t>(from.size());
+
+    while (cnt != 0) {
+        auto it = s.find(from);
+        if (it == std::string::npos) {
+            break;
+        }
+
+        s.resize(s.size() + shift);
+
+        memmove(s.data() + it + shift, s.data() + it, s.size() - it);
+        memcpy(s.data() + it, to.data(), to.size());
+
+        res++;
+        cnt--;
+    }
+    return res;
+}

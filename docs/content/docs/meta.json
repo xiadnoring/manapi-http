@@ -9,6 +9,8 @@
         "intro/blockedsignals",
         "intro/async-context",
         "---Data Formats---",
-        "data-formats/json"
+        "data-formats/json",
+        "---HTTP Servers---",
+        "http/router"
     ]
 }

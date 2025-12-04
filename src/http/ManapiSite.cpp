@@ -798,7 +798,9 @@ manapi::net::http::site::site(site &&n) MANAPIHTTP_NOEXCEPT {
 }
 
 manapi::net::http::site & manapi::net::http::site::operator=(site &&n) MANAPIHTTP_NOEXCEPT {
-    this->data = std::move(n.data);
+    if (this != &n) {
+        this->data = std::move(n.data);
+    }
     return *this;
 }
 
@@ -826,8 +828,9 @@ manapi::error::status_or<manapi::net::http::http_uri_part *> manapi::net::http::
                 for (auto &i : it->second.each()) {
                     if (i.is_string()) {
                         auto &s = i.as_string();
-                        for (auto &c : s)
-                            c = std::tolower(c);
+                        for (auto &c : s) {
+                            c = static_cast<char>(std::tolower(c));
+                        }
                         functions->trailers.insert(std::move(s));
                     }
                 }
