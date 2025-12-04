@@ -3,7 +3,7 @@
 #include "./utest.h"
 #include "./tools.hpp"
 
-UTEST(string, replace_1) {
+UTEST(std_string, replace_1) {
     std::string a = "Hello$2!";
     auto res = manapi::string::replace(a, "$2", ", world");
 
@@ -11,7 +11,7 @@ UTEST(string, replace_1) {
     ASSERT_TRUE(1 == res);
 }
 
-UTEST(string, replace_2) {
+UTEST(std_string, replace_2) {
     std::string a = "Hello$2!Hello$2!";
     auto res = manapi::string::replace(a, "$2", ", world");
 
@@ -19,7 +19,7 @@ UTEST(string, replace_2) {
     ASSERT_TRUE(2 == res);
 }
 
-UTEST(string, replace_3) {
+UTEST(std_string, replace_3) {
     std::string a = "Hello$2!Hello$2!";
     auto res = manapi::string::replace(a, "$2", ", world", 1);
 
@@ -27,7 +27,7 @@ UTEST(string, replace_3) {
     ASSERT_TRUE(1 == res);
 }
 
-UTEST(string, replace_4) {
+UTEST(std_string, replace_4) {
     std::string a = "Hello$2!Hello$2!";
     auto res = manapi::string::replace(a, "$2", ", world", 0);
 
@@ -36,7 +36,7 @@ UTEST(string, replace_4) {
 }
 
 
-UTEST(string, replace_5) {
+UTEST(std_string, replace_5) {
     std::string a = "$2$2$2$2$2$2$2$2$2$2$2$2$2$2$2$2$2$2$2$2$2$2$2$2";
     auto res = manapi::string::replace(a, "$2", ", world", 9);
 
