@@ -393,7 +393,19 @@ void manapi::net::worker::TCP::close_connection(shared_conn conn, int flags) MAN
         conn->wrk.flags |= WRK_INTERFACE_IS_DRAINING;
         connection->flags |= CONN_RECV_END;
 
-        if (!connection->t && !(connection->flags & CONN_READ)) {
+        if (connection->flags == CLOSE_CONN_EOR) {
+            if (!connection->t && !(connection->flags & CONN_READ)) {
+                return;
+            }
+        }
+    }
+
+    if (flags & CLOSE_CONN_FINISHED) {
+        connection->flags |= CONN_RECV_END;
+        connection->flags |= CONN_SEND_END;
+
+        if (connection->top->cur_send_size != connection->top->send_size) {
+            // wait
             return;
         }
     }
@@ -795,15 +807,26 @@ int manapi::net::worker::TCP::flush_write_(const worker::shared_conn &connection
                                         manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "write failed msg=%s %p conn",
                                             ev::strerror(status), connection.get());
                                         conn->worker->close_connection(connection, CLOSE_CONN_EOS);
+                                        return;
                                     }
-                                    else {
-                                        if ((conn->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE && conn->ev_callback) {
-                                            if (base::call_user_callback(&conn->ev_callback, connection, ev::WRITE, nullptr, 0, nullptr))
-                                                conn->worker->close_connection(connection, CLOSE_CONN_ERR);
-                                        }
 
-                                        if (conn->flags & ev::DISCONNECT)
-                                            conn->worker->close_connection(connection, CLOSE_CONN_SHUTDOWN);
+                                    if ((conn->flags & (ev::WRITE|ev::DISCONNECT)) == ev::WRITE && conn->ev_callback) {
+                                        if (base::call_user_callback(&conn->ev_callback, connection, ev::WRITE, nullptr, 0, nullptr)) {
+                                            conn->worker->close_connection(connection, CLOSE_CONN_ERR);
+                                            return;
+                                        }
+                                    }
+
+                                    if (conn->flags & ev::DISCONNECT) {
+                                        conn->worker->close_connection(connection, CLOSE_CONN_SHUTDOWN);
+                                        return;
+                                    }
+
+                                    if (conn->flags & CONN_SEND_END && conn->flags & CONN_RECV_END) {
+                                        manapi_log_trace(manapi::debug::LOG_TRACE_LOW, "packets were sent after the closing conn %p",
+                                            connection.get());
+                                        conn->worker->close_connection(connection, CLOSE_CONN_FINISHED);
+                                        return;
                                     }
 
                                 }, buffptr, nbuff /* nbuf */);
