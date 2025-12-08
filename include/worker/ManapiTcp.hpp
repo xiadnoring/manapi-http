@@ -77,6 +77,8 @@ namespace manapi::net::worker {
 
         int onaccept_bind_ (const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT;
 
+        virtual int conn_after_write (const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT;
+
         ev::shared_tcp watcher_accept_;
     protected:
         std::size_t count;

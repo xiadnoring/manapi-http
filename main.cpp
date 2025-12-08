@@ -21,7 +21,9 @@ int main() {
             resp->file (manapi::filesystem::path::join(FOLDER, "index.html")).unwrap();
         }).unwrap();
 
-        route.GET ("/", FOLDER).unwrap();
+        route.GET ("/", FOLDER, [] (http::req &req, http::uresp resp) -> void {
+            resp->compress_enabled(true);
+        }).unwrap();
 
         manapi::async::run ([route] () mutable -> manapi::future<> {
             manapi::unwrap(co_await route.config(manapi::filesystem::path::join(".", "config.json")));

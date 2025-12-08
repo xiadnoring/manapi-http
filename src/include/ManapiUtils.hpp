@@ -32,7 +32,7 @@
 #   define MANAPIHTTP_NONUNIX false
 #endif
 
-#define WORKER_MAX_CNT 100000
+#define WORKER_MAX_CNT INT_MAX
 
 namespace manapi::sockets {
     enum ip_version {

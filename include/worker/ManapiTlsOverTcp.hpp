@@ -91,6 +91,8 @@ namespace manapi::net::worker {
         int ssl_session_ctx_id{1};
     protected:
         int onaccept_event_(const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT override;
+
+        int conn_after_write(const worker::shared_conn &conn) MANAPIHTTP_NOEXCEPT override;
     private:
         static shared_conn connection_init_cb (void *user_data) MANAPIHTTP_NOEXCEPT;
 
@@ -100,7 +102,7 @@ namespace manapi::net::worker {
 
         int manapi_do_handshake_ (const shared_conn &conn, tls_connection_t *data);
 
-        int ssl_bio_flush_write_ (const shared_conn &conn, tls_connection_t *m, std::size_t max_cnt);
+        int ssl_bio_flush_write_ (const shared_conn &conn, tls_connection_t *m, std::size_t max_cnt, bool fin);
 
         int ssl_bio_flush_read_ (const shared_conn &conn, tls_connection_t *m, std::size_t max_cnt);
 
